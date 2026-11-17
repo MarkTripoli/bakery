@@ -715,7 +715,7 @@ for (
       // capture taken after the picker closes is a byte copy of the selected
       // card (#67 UX ruling 6932934119 fix 12).
       await page.mouse.move(600, 700);
-      await shot(page, "workflow-editor-picker");
+      await shot(page, "workflow-editor-picker", [], { windowOnly: true });
       await picker.locator("[data-pick-step='review.independent']").click();
       // The picked step type is what got added — never a fixed one.
       await expect(page.locator("[data-card]")).toHaveCount(3);

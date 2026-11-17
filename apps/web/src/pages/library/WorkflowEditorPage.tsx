@@ -735,6 +735,7 @@ export function WorkflowEditorPage(
           `split` nests it in a paragraph, which a stack cannot live inside. */
       }
       <UI.PageHeader
+        flush
         variant="list"
         title={workflow.data?.name ??
           translate("library.editor.title" as never)}
