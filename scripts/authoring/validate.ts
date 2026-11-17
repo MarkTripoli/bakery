@@ -226,7 +226,7 @@ export function validateDescription(kind: Kind, body: string): string[] {
     const value = sections.get(field) ?? "";
     const allowedNone =
       (field === "dependencies" || field === "special things to note" ||
-        field === "decisions") &&
+        field === "decisions" || field === "evidence") &&
       /^(?:-\s*)?None[.!]?$/i.test(value);
     if (!allowedNone && unfinished(value)) {
       errors.push("Complete section: " + name);
@@ -311,15 +311,26 @@ export function validateDescription(kind: Kind, body: string): string[] {
     ) {
       errors.push("Decisions needs one to three bullets (or - None.).");
     }
+    // Evidence is what a reader can't get from CI: UI screenshots or recordings,
+    // and the new tests. Routine checks (format, lint, types) belong to CI.
     const evidence = sections.get("evidence") ?? "";
-    const rows = evidence.split("\n").filter((line) =>
-      /^\s*\|/.test(line) && !/^\s*\|[\s|:-]*\|?\s*$/.test(line) &&
-      /[\p{L}\p{N}]/u.test(line.replace(/\|/g, ""))
-    );
-    if (rows.length < 2) {
-      errors.push("Evidence needs a table with at least one filled check row.");
-    } else if (rows.length > 9) {
-      errors.push("Evidence table: at most eight check rows.");
+    if (
+      /\b(?:fmt|format(?:ting)?|lint|typecheck|type-check|types|deno check|tsc)\b/i
+        .test(
+          prose(evidence) + " " +
+            evidence.split("\n").filter((l) => /^\s*\|/.test(l)).join(" "),
+        )
+    ) {
+      errors.push(
+        "Evidence: drop routine checks (format, lint, types); CI shows them. Show UI evidence and new tests.",
+      );
+    }
+    const items = (evidence.match(/^[-*] .+/gm) ?? []).length +
+      evidence.split("\n").filter((line) =>
+        /^\s*\|/.test(line) && !/^\s*\|[\s|:-]*\|?\s*$/.test(line)
+      ).length;
+    if (items > 9) {
+      errors.push("Evidence: at most eight items.");
     }
     const limits: [string, number, number][] = [
       ["purpose", 40, 0],
@@ -327,7 +338,7 @@ export function validateDescription(kind: Kind, body: string): string[] {
       ["special things to note", 0, 25],
       ["change outline", 60, 0],
       ["decisions", 0, 30],
-      ["evidence", 40, 0],
+      ["evidence", 60, 0],
     ];
     for (const [name, words, perBullet] of limits) {
       const value = sections.get(name) ?? "";

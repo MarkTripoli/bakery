@@ -42,7 +42,8 @@ section has its own limit (see "Write for an executive" in
 `.github/AUTHORING.md`). Lead with what changed for the user and what could go
 wrong. Do not turn the body into a changelog, narrate the work, paste test
 logs or caption every screenshot. Name unverified behavior honestly, in one
-bullet.
+bullet. Evidence is UI screenshots or a recording and the new tests, never
+format, lint or type checks; `- None.` is fine.
 
 Review and QA verdicts use the same rule: a `Verdict:` line, `Head: <sha>`, at
 most five `[High|Medium|Low]` findings of at most 25 words each, an optional
