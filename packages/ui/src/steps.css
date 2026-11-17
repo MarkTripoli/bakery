@@ -483,6 +483,19 @@
 [data-has-control] .ui-popover__content {
   z-index: var(--layer-popover);
 }
+/*
+ * The whole link that owns an OPEN picker rises above every other link. The
+ * picker is absolutely positioned and hangs below its "+", so it physically
+ * covers the connectors after it; painting is the problem, not hit-testing
+ * (`elementFromPoint` reported the picker on top while the still showed the next
+ * "+" over it — the two answer different questions). Raising only the open link
+ * works because nothing else in the diagram sets a layer, so its `auto`
+ * neighbours cannot outrank it (#67 UX round 5, medium).
+ */
+[data-ui-region="workflow-diagram"] > [data-connector]:has(.ui-popover[data-state="open"]) {
+  position: relative;
+  z-index: var(--layer-popover);
+}
 .ui-popover__trigger--plain:has(> [data-add-highlight]) {
   align-items: center;
   background: transparent;
