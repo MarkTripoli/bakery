@@ -45,6 +45,12 @@ export function SettingsIndexPage() {
       title: translate("shell.navigation.access"),
       description: translate("preferences.index.access"),
     },
+    {
+      id: "service-accounts",
+      href: "/settings/organization/service-accounts",
+      title: translate("settings.orgAccess.serviceAccounts.title"),
+      description: translate("preferences.index.serviceAccounts"),
+    },
   ];
   return (
     <SettingsIndexScreen

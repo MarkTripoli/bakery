@@ -3986,7 +3986,6 @@
   "settings.orgAccess.help.accounts": "⟦Àççôûñŧš ƒôŕ šçŕïþŧš àñð ÇÏ, ñôŧ þëôþļë. Ëàçĥ ôñë šïĝñš ïñ ŵïŧĥ à ŧôķëñ ïñšŧëàð ôƒ à þàššŵôŕð. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
   "settings.orgAccess.help.clients": "⟦Àþþš ÿôû àļļôŵëð ŧô àçŧ ƒôŕ ɱëɱƀëŕš ôƒ ŧĥïš ôŕĝàñïžàŧïôñ, šûçĥ àš ŧĥë Ɓàķëŕÿ ÇĻÏ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ ç⟧",
   "settings.orgAccess.clients.emptyHelp": "⟦Àþþš àþþëàŕ ĥëŕë àƒŧëŕ à ɱëɱƀëŕ šïĝñš ïñ ŧô ŧĥëɱ ŵïŧĥ Ɓàķëŕÿ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
-  "settings.orgAccess.column.expires": "⟦Ëẋþïŕëš…⟧",
   "settings.orgAccess.column.token": "⟦Ŧôķëñ⟧",
   "settings.orgAccess.column.client": "⟦Çļïëñŧ…⟧",
   "settings.orgAccess.column.scopes": "⟦Šçôþëš…⟧",
@@ -4007,5 +4006,19 @@
   "settings.orgAccess.tab.members": "⟦Ṁëɱƀëŕš…⟧",
   "settings.orgAccess.tab.invitations": "⟦Ïñṽïŧàŧïôñš ŧ⟧",
   "settings.orgAccess.tab.invitationsCount": "⟦Ïñṽïŧàŧïôñš ({count}) ŧëšŧŧ⟧",
-  "settings.orgAccess.description": "⟦Ŵĥô çàñ ûšë {organization}, àñð ŵĥàŧ ŧĥëÿ çàñ ðô. ŧëšŧ çôþÿ ŧëšŧŧ⟧"
+  "settings.orgAccess.description": "⟦Ŵĥô çàñ ûšë {organization}, àñð ŵĥàŧ ŧĥëÿ çàñ ðô. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
+  "settings.orgAccess.serviceAccounts.title": "⟦Šëŕṽïçë àççôûñŧš & ŧôķëñš ŧëšŧ ç⟧",
+  "settings.orgAccess.serviceAccounts.description": "⟦Àûŧôɱàŧïôñ ŧĥàŧ àçŧš ƒôŕ {organization}. Ëàçĥ ôñë çàŕŕïëš ïŧš ôŵñ ŧôķëñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
+  "shell.navigation.members": "⟦Ṁëɱƀëŕš…⟧",
+  "shell.navigation.serviceAccounts": "⟦Šëŕṽïçë àççôûñŧš ŧëš⟧",
+  "settings.orgAccess.accounts.memberScope": "⟦Ÿôû šëë ŧĥë šëŕṽïçë àççôûñŧš ÿôû çŕëàŧëð. Àðɱïñš šëë àļļ ôƒ ŧĥëɱ. ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
+  "settings.orgAccess.column.createdBy": "⟦Çŕëàŧëð ƀÿ ŧ⟧",
+  "settings.orgAccess.account.createdByUnknown": "⟦Ŕëɱôṽëð ɱëɱƀëŕ ŧë⟧",
+  "settings.orgAccess.column.expires": "⟦Ëẋþïŕëš…⟧",
+  "settings.orgAccess.personal.title": "⟦Ÿôûŕ þëŕšôñàļ ŧôķëñš ŧëšŧ⟧",
+  "settings.orgAccess.personal.help": "⟦À þëŕšôñàļ ŧôķëñ šïĝñš ïñ àš ÿôû àñð çàñ ðô ŵĥàŧ ÿôû çàñ ðô. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
+  "settings.orgAccess.personal.new": "⟦Ñëŵ þëŕšôñàļ ŧôķëñ ŧëšŧ⟧",
+  "settings.orgAccess.personal.none": "⟦Ñô þëŕšôñàļ ŧôķëñš ŧëšŧ⟧",
+  "settings.orgAccess.personal.emptyHelp": "⟦À þëŕšôñàļ ŧôķëñ ļëŧš à šçŕïþŧ àçŧ àš ÿôû. Ûšë ôñë ŵĥëñ ŧĥë šçŕïþŧ ïš ÿôûŕš àļôñë; ûšë à šëŕṽïçë àççôûñŧ ŵĥëñ ïŧ ƀëļôñĝš ŧô à ŧëàɱ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
+  "preferences.index.serviceAccounts": "⟦Ŧĥë àççôûñŧš àñð ŧôķëñš šçŕïþŧš àñð ÇÏ ûšë ŧô šïĝñ ïñ. ŧëšŧ çôþÿ ŧëšŧ ç⟧"
 }

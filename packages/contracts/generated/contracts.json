@@ -82415,6 +82415,21 @@
               "maxLength": 65536,
               "description": "Human-readable principal name safe for authorized attribution displays; it is not an authorization attribute."
             },
+            "createdByPrincipalId": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Principal that created this service account, or null for a human principal or one created before the column existed; a member sees and manages the service accounts they created."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "Principal.createdByPrincipalId may be null in this transport value."
+            },
             "disabledAt": {
               "anyOf": [
                 {
@@ -82453,6 +82468,7 @@
             "id",
             "principalType",
             "displayName",
+            "createdByPrincipalId",
             "disabledAt",
             "createdAt",
             "updatedAt",
@@ -127453,6 +127469,21 @@
                     "maxLength": 65536,
                     "description": "Human-readable principal name safe for authorized attribution displays; it is not an authorization attribute."
                   },
+                  "createdByPrincipalId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "Principal that created this service account, or null for a human principal or one created before the column existed; a member sees and manages the service accounts they created."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "Principal.createdByPrincipalId may be null in this transport value."
+                  },
                   "disabledAt": {
                     "anyOf": [
                       {
@@ -127491,6 +127522,7 @@
                   "id",
                   "principalType",
                   "displayName",
+                  "createdByPrincipalId",
                   "disabledAt",
                   "createdAt",
                   "updatedAt",
@@ -207095,7 +207127,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:4c56e576cd84a373f4e2beb0d3d3bfa9f0e4093a3da28b12bbe5c4cb84dc3934",
+  "compatibilityDigest": "sha256:7e4e457c805485ab1f60b08ce27d39ddab856e952ab3a85e23aafc7c8a24607e",
   "schemas": {
     "CoordinationPlanCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -257267,6 +257299,21 @@
           "maxLength": 65536,
           "description": "Human-readable principal name safe for authorized attribution displays; it is not an authorization attribute."
         },
+        "createdByPrincipalId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Principal that created this service account, or null for a human principal or one created before the column existed; a member sees and manages the service accounts they created."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "Principal.createdByPrincipalId may be null in this transport value."
+        },
         "disabledAt": {
           "anyOf": [
             {
@@ -257305,6 +257352,7 @@
         "id",
         "principalType",
         "displayName",
+        "createdByPrincipalId",
         "disabledAt",
         "createdAt",
         "updatedAt",
@@ -302447,6 +302495,21 @@
                 "maxLength": 65536,
                 "description": "Human-readable principal name safe for authorized attribution displays; it is not an authorization attribute."
               },
+              "createdByPrincipalId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Principal that created this service account, or null for a human principal or one created before the column existed; a member sees and manages the service accounts they created."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "Principal.createdByPrincipalId may be null in this transport value."
+              },
               "disabledAt": {
                 "anyOf": [
                   {
@@ -302485,6 +302548,7 @@
               "id",
               "principalType",
               "displayName",
+              "createdByPrincipalId",
               "disabledAt",
               "createdAt",
               "updatedAt",

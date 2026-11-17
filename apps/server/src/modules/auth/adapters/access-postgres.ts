@@ -106,6 +106,7 @@ type PrincipalRow = {
   id: string;
   principalType: string;
   displayName: string;
+  createdByPrincipalId: string | null;
   disabledAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
@@ -116,6 +117,7 @@ type PrincipalRow = {
 const PRINCIPAL_COLUMNS =
   `principal.id, principal.principal_type as "principalType",
   principal.display_name as "displayName",
+  principal.created_by_principal_id as "createdByPrincipalId",
   principal.disabled_at as "disabledAt",
   principal.created_at as "createdAt", principal.updated_at as "updatedAt",
   principal.version,
@@ -126,6 +128,7 @@ function principalOut(row: PrincipalRow) {
     id: row.id,
     principalType: row.principalType,
     displayName: row.displayName,
+    createdByPrincipalId: row.createdByPrincipalId,
     disabledAt: iso(row.disabledAt),
     createdAt: iso(row.createdAt),
     updatedAt: iso(row.updatedAt),

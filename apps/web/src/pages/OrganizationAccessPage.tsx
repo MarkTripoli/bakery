@@ -83,7 +83,12 @@ function shortId(id: string) {
  * audits; this page never decides who is allowed, it shows the server's
  * answer. A person without the Admin role gets a notice and no data.
  */
-export function OrganizationAccessPage({ tab = "members" }: {
+export function OrganizationAccessPage({
+  page = "members",
+  tab = "members",
+}: {
+  /** Which subject this route holds: the Members page or Service accounts. */
+  readonly page?: "members" | "service-accounts";
   readonly tab?: "members" | "invitations";
 }) {
   const api = useBakeryApi();
@@ -104,7 +109,11 @@ export function OrganizationAccessPage({ tab = "members" }: {
   });
   const organization = useQuery(organizationQueryOptions(api, scoped));
   const isAdmin = access.data?.role === "admin";
-  const enabled = organizationId !== null && isAdmin;
+  // Any member reads the service accounts and tokens page; the Members page
+  // stays Admin-only (issue 233, owner-directed split).
+  const member = access.data !== undefined;
+  const enabled = organizationId !== null && member;
+  const membersEnabled = enabled && isAdmin;
   const read = <T,>(
     name: string,
     load: (id: string, signal: AbortSignal) => Promise<ApiResult<T>>,
@@ -118,22 +127,24 @@ export function OrganizationAccessPage({ tab = "members" }: {
     enabled,
     retry: false,
   });
-  const members = useQuery(
-    read("members", (id, signal) =>
+  const members = useQuery({
+    ...read("members", (id, signal) =>
       api.access.members.list({
         organizationId: id,
         limit: PAGE_LIMIT,
         signal,
       })),
-  );
-  const invitations = useQuery(
-    read("invitations", (id, signal) =>
+    enabled: membersEnabled,
+  });
+  const invitations = useQuery({
+    ...read("invitations", (id, signal) =>
       api.access.invitations.list({
         organizationId: id,
         limit: PAGE_LIMIT,
         signal,
       })),
-  );
+    enabled: membersEnabled,
+  });
   const principals = useQuery(
     read("principals", (id, signal) =>
       api.access.principals.list({
@@ -150,28 +161,31 @@ export function OrganizationAccessPage({ tab = "members" }: {
         signal,
       })),
   );
-  const bindings = useQuery(
-    read("bindings", (id, signal) =>
+  const bindings = useQuery({
+    ...read("bindings", (id, signal) =>
       api.access.bindings.list({
         organizationId: id,
         limit: PAGE_LIMIT,
         signal,
       })),
-  );
-  const applications = useQuery(
-    read(
+    enabled: membersEnabled,
+  });
+  const applications = useQuery({
+    ...read(
       "applications",
       (id, signal) =>
         api.listApplications({ organizationId: id, limit: PAGE_LIMIT, signal }),
     ),
-  );
-  const repositories = useQuery(
-    read(
+    enabled: membersEnabled,
+  });
+  const repositories = useQuery({
+    ...read(
       "repositories",
       (id, signal) =>
         api.listRepositories({ organizationId: id, limit: PAGE_LIMIT, signal }),
     ),
-  );
+    enabled: membersEnabled,
+  });
   const clients = useQuery({
     ...connectedClientsListQueryOptions(api, scoped),
     enabled,
@@ -414,7 +428,11 @@ export function OrganizationAccessPage({ tab = "members" }: {
       const result = await api.access.tokens.create({
         organizationId,
         input: {
-          principalId: tokenDraft.principalId,
+          // A personal token omits principalId: the server binds it to the
+          // caller (issue 233, owner-directed split).
+          ...(tokenDraft.principalId === "self"
+            ? {}
+            : { principalId: tokenDraft.principalId }),
           name,
           scopes: [tokenDraft.scope],
           expiresAt: new Date(Date.now() + tokenDraft.days * 86_400_000)
@@ -792,6 +810,45 @@ export function OrganizationAccessPage({ tab = "members" }: {
       </UI.Button>
     ),
   }));
+  // Tokens that act as the signed-in person rather than as a service account.
+  // They are separated so "what acts for you" is not mixed with "what acts for
+  // a script" (issue 233, owner-directed split).
+  const serviceIds = new Set(serviceAccounts.map((account) => account.id));
+  const personalTokenRows: UI.AccessSettingsRow[] = liveTokens
+    .filter((token) => !serviceIds.has(token.principalId))
+    .map((token) => ({
+      id: token.id,
+      testId: `org-access-personal-token-${token.id}`,
+      identity: token.name,
+      cells: [
+        translate("settings.orgAccess.token.ending", {
+          ending: tokenEnding(token.prefix),
+        }),
+        when.format(new Date(token.expiresAt)),
+      ],
+      phoneCells: [
+        translate("settings.orgAccess.token.ending", {
+          ending: tokenEnding(token.prefix),
+        }),
+        translate("settings.orgAccess.token.expiresOn", {
+          date: when.format(new Date(token.expiresAt)),
+        }),
+      ],
+      actionTone: "destructive",
+      action: (
+        <UI.Button
+          aria-label={`${
+            translate("settings.orgAccess.token.revoke")
+          } ${token.name}`}
+          data-testid={`org-access-revoke-personal-${token.id}`}
+          onClick={() => setConfirm({ kind: "revokeToken", token })}
+          type="button"
+          variant="secondary"
+        >
+          {translate("settings.orgAccess.token.revoke")}
+        </UI.Button>
+      ),
+    }));
   const accountRows: UI.AccessSettingsRow[] = serviceAccounts.flatMap(
     (account) => {
       const membership = memberItems.find((item) =>
@@ -824,12 +881,22 @@ export function OrganizationAccessPage({ tab = "members" }: {
           {account.displayName}
         </span>
       );
+      // An Admin sees who made each service account; a member sees only
+      // their own, so the column would always repeat their name.
+      const createdBy = isAdmin
+        ? people.get(account.createdByPrincipalId ?? "")?.displayName ??
+          translate("settings.orgAccess.account.createdByUnknown")
+        : null;
       if (mine.length === 0) {
         return [{
           id: account.id,
           identity: named,
           emphasis: true,
-          cells: [grantCell, translate("settings.orgAccess.token.none")],
+          cells: [
+            grantCell,
+            ...(isAdmin ? [createdBy ?? ""] : []),
+            translate("settings.orgAccess.token.none"),
+          ],
         }];
       }
       return mine.map((token, index) => ({
@@ -841,6 +908,9 @@ export function OrganizationAccessPage({ tab = "members" }: {
         emphasis: true,
         cells: [
           index === 0 ? grantCell : "",
+          // A token's row shows the same Created by value as its account, so
+          // the two rows keep one grid (issue 233, round 3).
+          ...(isAdmin ? [index === 0 ? createdBy ?? "" : ""] : []),
           <span
             key="prefix"
             title={`${
@@ -1120,7 +1190,11 @@ export function OrganizationAccessPage({ tab = "members" }: {
               href: SETTINGS_HOME,
               label: translate("shell.states.settingsTitle"),
             },
-            { label: translate("settings.orgAccess.title") },
+            {
+              label: page === "service-accounts"
+                ? translate("settings.orgAccess.serviceAccounts.title")
+                : translate("settings.orgAccess.title"),
+            },
           ]}
         />
       </ShellSlot>
@@ -1157,11 +1231,16 @@ export function OrganizationAccessPage({ tab = "members" }: {
             />
           )
           : null}
-        title={translate("settings.orgAccess.title")}
+        title={page === "service-accounts"
+          ? translate("settings.orgAccess.serviceAccounts.title")
+          : translate("settings.orgAccess.title")}
         description={pageState === "default"
-          ? translate("settings.orgAccess.description", {
-            organization: organizationName,
-          })
+          ? translate(
+            page === "service-accounts"
+              ? "settings.orgAccess.serviceAccounts.description"
+              : "settings.orgAccess.description",
+            { organization: organizationName },
+          )
           : undefined}
         summary={showSections && pageState === "default"
           ? translate("settings.orgAccess.summary", {
@@ -1266,12 +1345,49 @@ export function OrganizationAccessPage({ tab = "members" }: {
           rows: invitationRows,
           empty: translate("settings.orgAccess.invitations.none"),
         }, {
+          id: "org-access-personal-tokens",
+          testId: "org-access-personal-tokens",
+          title: translate("settings.orgAccess.personal.title"),
+          columnHeaders: [
+            translate("settings.orgAccess.column.token"),
+            translate("settings.orgAccess.column.expires"),
+            "",
+          ],
+          titleHelp: (
+            <UI.HelpTip
+              label={translate("settings.orgAccess.personal.title")}
+            >
+              {translate("settings.orgAccess.personal.help")}
+            </UI.HelpTip>
+          ),
+          phoneLayout: "block",
+          columns: "detail",
+          actions: (
+            <UI.Button
+              data-testid="org-access-new-personal-token"
+              onClick={() =>
+                setTokenDraft((value) => ({
+                  ...value,
+                  open: true,
+                  principalId: "self",
+                }))}
+              type="button"
+              variant="secondary"
+            >
+              {translate("settings.orgAccess.personal.new")}
+            </UI.Button>
+          ),
+          rows: personalTokenRows,
+          empty: translate("settings.orgAccess.personal.none"),
+          emptyHelp: translate("settings.orgAccess.personal.emptyHelp"),
+        }, {
           id: "org-access-accounts",
           testId: "org-access-accounts",
           title: translate("settings.orgAccess.accounts.title"),
           columnHeaders: [
             translate("settings.orgAccess.column.account"),
             translate("settings.orgAccess.column.role"),
+            isAdmin ? translate("settings.orgAccess.column.createdBy") : "",
             translate("settings.orgAccess.column.token"),
             "",
           ],
@@ -1283,6 +1399,10 @@ export function OrganizationAccessPage({ tab = "members" }: {
             </UI.HelpTip>
           ),
           phoneLayout: "block",
+          // A member sees only what they created, and is told so.
+          emptyHelp: isAdmin
+            ? undefined
+            : translate("settings.orgAccess.accounts.memberScope"),
           actions: (
             <>
               <UI.Button
@@ -1376,11 +1496,18 @@ export function OrganizationAccessPage({ tab = "members" }: {
             ? undefined
             : translate("settings.orgAccess.clients.emptyHelp"),
         }] satisfies UI.AccessSettingsSection[])
-          .filter((section) =>
-            tab === "invitations"
+          .filter((section) => {
+            const onServiceAccounts = section.id === "org-access-accounts" ||
+              section.id === "org-access-personal-tokens";
+            // Service accounts and tokens are their own page; Members and
+            // Invitations share one, split by a tab (issue 233, owner-directed
+            // split).
+            if (page === "service-accounts") return onServiceAccounts;
+            if (onServiceAccounts) return false;
+            return tab === "invitations"
               ? section.id === "org-access-invitations"
-              : section.id !== "org-access-invitations"
-          )}
+              : section.id !== "org-access-invitations";
+          })}
       >
       </UI.AccessSettings>
 

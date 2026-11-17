@@ -3986,7 +3986,6 @@
   "settings.orgAccess.help.accounts": "⟪Accounts for scripts and CI, not people. Each one signs in with a token instead of a password.⟫",
   "settings.orgAccess.help.clients": "⟪Apps you allowed to act for members of this organization, such as the Bakery CLI.⟫",
   "settings.orgAccess.clients.emptyHelp": "⟪Apps appear here after a member signs in to them with Bakery.⟫",
-  "settings.orgAccess.column.expires": "⟪Expires⟫",
   "settings.orgAccess.column.token": "⟪Token⟫",
   "settings.orgAccess.column.client": "⟪Client⟫",
   "settings.orgAccess.column.scopes": "⟪Scopes⟫",
@@ -4007,5 +4006,19 @@
   "settings.orgAccess.tab.members": "⟪Members⟫",
   "settings.orgAccess.tab.invitations": "⟪Invitations⟫",
   "settings.orgAccess.tab.invitationsCount": "⟪Invitations ({count})⟫",
-  "settings.orgAccess.description": "⟪Who can use {organization}, and what they can do.⟫"
+  "settings.orgAccess.description": "⟪Who can use {organization}, and what they can do.⟫",
+  "settings.orgAccess.serviceAccounts.title": "⟪Service accounts & tokens⟫",
+  "settings.orgAccess.serviceAccounts.description": "⟪Automation that acts for {organization}. Each one carries its own token.⟫",
+  "shell.navigation.members": "⟪Members⟫",
+  "shell.navigation.serviceAccounts": "⟪Service accounts⟫",
+  "settings.orgAccess.accounts.memberScope": "⟪You see the service accounts you created. Admins see all of them.⟫",
+  "settings.orgAccess.column.createdBy": "⟪Created by⟫",
+  "settings.orgAccess.account.createdByUnknown": "⟪Removed member⟫",
+  "settings.orgAccess.column.expires": "⟪Expires⟫",
+  "settings.orgAccess.personal.title": "⟪Your personal tokens⟫",
+  "settings.orgAccess.personal.help": "⟪A personal token signs in as you and can do what you can do.⟫",
+  "settings.orgAccess.personal.new": "⟪New personal token⟫",
+  "settings.orgAccess.personal.none": "⟪No personal tokens⟫",
+  "settings.orgAccess.personal.emptyHelp": "⟪A personal token lets a script act as you. Use one when the script is yours alone; use a service account when it belongs to a team.⟫",
+  "preferences.index.serviceAccounts": "⟪The accounts and tokens scripts and CI use to sign in.⟫"
 }

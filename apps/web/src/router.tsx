@@ -1454,6 +1454,15 @@ const organizationAccessRoute = createRoute({
   errorComponent: ProtectedRouteError,
 });
 
+const organizationServiceAccountsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/settings/organization/service-accounts",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => <OrganizationAccessPage page="service-accounts" />,
+  errorComponent: ProtectedRouteError,
+});
+
 const organizationInvitationsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/settings/organization/access/invitations",
@@ -2137,6 +2146,7 @@ const routeTree = rootRoute.addChildren([
   installationIntegrationsRoute,
   organizationAccessRoute,
   organizationInvitationsRoute,
+  organizationServiceAccountsRoute,
   organizationIntegrationsRoute,
   organizationIntegrationConnectionRoute,
   organizationRolesRoute,
