@@ -434,6 +434,17 @@ export const skillStorageImplementedActions = Object.freeze(
   Object.values(SkillStorageImplementedAction),
 );
 
+export const BlobUploadImplementedAction = Object.freeze(
+  {
+    BlobUploadStart: "blobUploads.start",
+    BlobUploadPart: "blobUploads.part",
+    BlobUploadComplete: "blobUploads.complete",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const blobUploadImplementedActions = Object.freeze(
+  Object.values(BlobUploadImplementedAction),
+);
+
 export const CatalogImplementedAction = Object.freeze(
   {
     SkillSourcesList: "skillSources.list",
@@ -497,6 +508,7 @@ export const implementedActions = Object.freeze(
     ...secretsImplementedActions,
     ...catalogImplementedActions,
     ...skillStorageImplementedActions,
+    ...blobUploadImplementedActions,
   ] as const,
 );
 

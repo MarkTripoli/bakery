@@ -1,7 +1,8 @@
 import { assert, assertEquals, assertRejects, assertThrows } from "@std/assert";
+import { createHash } from "node:crypto";
 import { StandardError } from "../../packages/contracts/src/http.ts";
 import {
-  assembleDeclaredBytes,
+  assembleVerifiedBytes,
   assertSessionConsistent,
   lockUploadSession,
   MAX_BLOB_BYTES,
@@ -17,69 +18,131 @@ const refusal = (error: unknown): string | undefined =>
     ? (error.params?.reason as string | undefined)
     : undefined;
 
-Deno.test("contiguous parts assemble into the declared bytes", () => {
+const digestOf = (text: string) =>
+  createHash("sha256").update(bytes(text)).digest("hex");
+
+/** Feeds parts to the verifier the way the handler does: as a stream. */
+async function* stream(
+  parts: ReadonlyArray<Readonly<{ partNumber: number; content: Uint8Array }>>,
+) {
+  for (const part of parts) yield part;
+}
+
+Deno.test("contiguous parts that match the declaration join into the file", async () => {
   const parts = [
     { partNumber: 1, content: bytes("hello ") },
     { partNumber: 2, content: bytes("world") },
   ];
-  const assembled = assembleDeclaredBytes(parts, {
-    sha256: "ignored-by-assembly",
+  const assembled = await assembleVerifiedBytes(stream(parts), {
+    sha256: digestOf("hello world"),
     sizeBytes: 11,
   });
   assertEquals(new TextDecoder().decode(assembled), "hello world");
 });
 
-Deno.test("a part numbered out of order is refused, not sorted into place", () => {
+Deno.test("a part numbered out of order is refused, not sorted into place", async () => {
   // Sorting would accept a client's mistake and assemble a file nobody sent.
   const outOfOrder = [
     { partNumber: 2, content: bytes("world") },
     { partNumber: 1, content: bytes("hello ") },
   ];
-  const error = assertThrows(() =>
-    assembleDeclaredBytes(outOfOrder, { sha256: "x", sizeBytes: 11 })
+  const error = await assertRejects(() =>
+    assembleVerifiedBytes(stream(outOfOrder), {
+      sha256: digestOf("hello world"),
+      sizeBytes: 11,
+    })
   );
   assertEquals(refusal(error), "upload_parts_incomplete");
 });
 
-Deno.test("a gap in the ordinals is refused", () => {
-  // A gap assembles into a plausible-looking file that is not the promised one.
+Deno.test("a gap in the ordinals is refused", async () => {
+  // A gap means the client has not sent everything it said it would.
   const gap = [
     { partNumber: 1, content: bytes("hello ") },
     { partNumber: 3, content: bytes("world") },
   ];
-  const error = assertThrows(() =>
-    assembleDeclaredBytes(gap, { sha256: "x", sizeBytes: 11 })
+  const error = await assertRejects(() =>
+    assembleVerifiedBytes(stream(gap), {
+      sha256: digestOf("hello world"),
+      sizeBytes: 11,
+    })
   );
   assertEquals(refusal(error), "upload_parts_incomplete");
 });
 
-Deno.test("a duplicate ordinal is refused", () => {
+Deno.test("a duplicate ordinal is refused", async () => {
   const duplicated = [
     { partNumber: 1, content: bytes("hello ") },
     { partNumber: 1, content: bytes("world") },
   ];
-  assertThrows(() =>
-    assembleDeclaredBytes(duplicated, { sha256: "x", sizeBytes: 11 })
+  await assertRejects(() =>
+    assembleVerifiedBytes(stream(duplicated), {
+      sha256: digestOf("hello world"),
+      sizeBytes: 11,
+    })
   );
 });
 
-Deno.test("an empty session is refused rather than yielding zero bytes", () => {
-  const error = assertThrows(() =>
-    assembleDeclaredBytes([], { sha256: "x", sizeBytes: 0 })
+Deno.test("an empty session is refused rather than yielding zero bytes", async () => {
+  const error = await assertRejects(() =>
+    assembleVerifiedBytes(stream([]), { sha256: digestOf(""), sizeBytes: 0 })
   );
   assertEquals(refusal(error), "upload_parts_incomplete");
 });
 
-Deno.test("a size that differs from the declaration is refused before storage", () => {
+Deno.test("a size that differs from the declaration is refused before storage", async () => {
   const parts = [{ partNumber: 1, content: bytes("hello world") }];
-  const tooShort = assertThrows(() =>
-    assembleDeclaredBytes(parts, { sha256: "x", sizeBytes: 10 })
+  const tooShort = await assertRejects(() =>
+    assembleVerifiedBytes(stream(parts), {
+      sha256: digestOf("hello world"),
+      sizeBytes: 10,
+    })
   );
   assertEquals(refusal(tooShort), "upload_size_mismatch");
-  const tooLong = assertThrows(() =>
-    assembleDeclaredBytes(parts, { sha256: "x", sizeBytes: 12 })
+  const tooLong = await assertRejects(() =>
+    assembleVerifiedBytes(stream(parts), {
+      sha256: digestOf("hello world"),
+      sizeBytes: 12,
+    })
   );
   assertEquals(refusal(tooLong), "upload_size_mismatch");
+});
+
+Deno.test("parts whose bytes miss the declared digest are refused", async () => {
+  // The declaration is a claim until the bytes are hashed; this is the check
+  // that turns it into a fact.
+  const parts = [{ partNumber: 1, content: bytes("hello world") }];
+  const error = await assertRejects(() =>
+    assembleVerifiedBytes(stream(parts), {
+      sha256: digestOf("something else"),
+      sizeBytes: 11,
+    })
+  );
+  assertEquals(refusal(error), "upload_digest_mismatch");
+});
+
+Deno.test("verification consumes each part before the next is produced", async () => {
+  // The declared size may be 5 GiB. Collecting the parts and then hashing their
+  // copy peaks at twice that, which is what turns one large upload into an
+  // out-of-memory kill. This pins the streaming property from the outside: the
+  // generator wipes each part's bytes the moment the next one is pulled, so a
+  // verifier that held them would hash zeroes and refuse.
+  const parts = Array.from({ length: 4 }, (_, index) => ({
+    partNumber: index + 1,
+    content: bytes("chunk"),
+  }));
+  let previous: Uint8Array | undefined;
+  async function* invalidating() {
+    for (const part of parts) {
+      previous?.fill(0);
+      previous = part.content;
+      yield part;
+    }
+  }
+  await assembleVerifiedBytes(invalidating(), {
+    sha256: digestOf("chunkchunkchunkchunk"),
+    sizeBytes: 20,
+  });
 });
 
 Deno.test("a session deadline is absolute, not extended by use", () => {
