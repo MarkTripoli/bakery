@@ -1,3 +1,4 @@
+import { seedAttempt } from "./seed-attempt.ts";
 /**
  * Fixtures for the issue 82 automation lane. This is not a test module: it only
  * exports. It builds on `fixtures.ts` (which Phases 4 and 5 own) and adds what
@@ -466,82 +467,5 @@ export function slowReader(fx: TicketFixture, reader: TicketSourceReader) {
   return { reader: slow, samples };
 }
 
-/** A live job attempt on a worker host for the run's first step, as the worker would hold it. */
-export async function seedAttempt(
-  fx: TicketFixture,
-  runId: string,
-  adapterCapabilities: string[],
-) {
-  const ids = {
-    job: crypto.randomUUID(),
-    principal: crypto.randomUUID(),
-    host: crypto.randomUUID(),
-    attempt: crypto.randomUUID(),
-    session: crypto.randomUUID(),
-  };
-  const step = await fx.owner.query<{ id: string }>(
-    `select id from bakery.run_steps where organization_id = $1 and run_id = $2
-      order by position, iteration limit 1`,
-    [fx.organizationId, runId],
-  );
-  const org = fx.organizationId;
-  await fx.owner.query(
-    `insert into bakery.jobs (id, organization_id, run_step_id, action, input,
-       requirements, status, current_fence)
-     values ($1, $2, $3, 'harness.implement', '{}', '{}', 'running', 1)`,
-    [ids.job, org, step.rows[0].id],
-  );
-  await fx.owner.query(
-    `insert into bakery.principals (id, display_name, principal_type)
-     values ($1, 'Automation pause worker', 'worker')`,
-    [ids.principal],
-  );
-  await fx.owner.query(
-    `insert into bakery.worker_hosts (id, organization_id, principal_id,
-       principal_type, name, os, architecture, capabilities, slots,
-       credential_hash, worker_session_id, worker_session_generation,
-       adapter_capabilities)
-     values ($1, $2, $3, 'worker', 'Automation pause host', 'linux', 'x64', '[]',
-       1, $4, $5, 0, $6::jsonb)`,
-    [
-      ids.host,
-      org,
-      ids.principal,
-      `pause-${ids.host}`,
-      ids.session,
-      JSON.stringify(adapterCapabilities),
-    ],
-  );
-  await fx.owner.query(
-    `insert into bakery.job_attempts (id, organization_id, job_id,
-       worker_host_id, worker_session_id, worker_session_generation, attempt_no,
-       fence, lease_token_hash, lease_expires_at, status, started_at)
-     values ($1, $2, $3, $4, $5, 0, 1, 1, $6,
-       clock_timestamp() + interval '5 minutes', 'running', clock_timestamp())`,
-    [ids.attempt, org, ids.job, ids.host, ids.session, `lease-${ids.attempt}`],
-  );
-  return {
-    commands: async () =>
-      (await fx.owner.query<{ idempotency_key: string }>(
-        `select idempotency_key from bakery.worker_commands
-          where organization_id = $1 and attempt_id = $2`,
-        [org, ids.attempt],
-      )).rows,
-    async cleanup() {
-      await fx.owner.query(
-        "delete from bakery.worker_commands where attempt_id = $1",
-        [ids.attempt],
-      );
-      await fx.owner.query("delete from bakery.job_attempts where id = $1", [
-        ids.attempt,
-      ]);
-      await fx.owner.query("delete from bakery.jobs where id = $1", [ids.job]);
-      await fx.owner.query("delete from bakery.worker_hosts where id = $1", [
-        ids.host,
-      ]);
-      await fx.owner.query("delete from bakery.principals where id = $1", [
-        ids.principal,
-      ]);
-    },
-  };
-}
+// One materialisation route for a live attempt; see seed-attempt.ts.
+export { seedAttempt };
