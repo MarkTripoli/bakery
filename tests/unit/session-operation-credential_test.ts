@@ -1,4 +1,8 @@
 import { assertEquals, assertNotEquals, assertThrows } from "@std/assert";
+import type {
+  AttemptRow,
+  WorkerIdentity,
+} from "../../apps/server/src/modules/execution/shared.ts";
 import {
   assertOperationScope,
   assertSessionOperationLive,
@@ -24,21 +28,56 @@ function issued(overrides: Partial<
     workerSessionId: "session-1",
     workerSessionGeneration: 3n,
     fence: 7n,
+    leaseTokenHash: "hash-1",
     scopes: ["artifacts.read", "workflows.read"],
     leaseExpiresAt: FUTURE,
     ...overrides,
   });
 }
 
-const liveAttempt = (overrides: Record<string, unknown> = {}) => ({
+// A real AttemptRow, because liveness now delegates to assertActiveLease and a
+// hand-shaped stand-in would not exercise the status check that was missing.
+const liveAttempt = (overrides: Partial<AttemptRow> = {}): AttemptRow => ({
   id: "attempt-1",
-  organizationId: ORG,
-  workerSessionId: "session-1",
-  workerSessionGeneration: 3n,
-  fence: 7n,
-  jobCurrentFence: 7n,
-  leaseExpired: false,
+  organization_id: ORG,
+  job_id: "job-1",
+  worker_host_id: "host-1",
+  worker_session_id: "session-1",
+  worker_session_generation: "3",
+  fence: "7",
+  lease_token_hash: "hash-1",
+  lease_expires_at: new Date(Date.now() + 60_000),
+  lease_expired: false,
+  job_current_fence: "7",
+  status: "running",
+  last_event_seq: "1",
   ...overrides,
+});
+
+const identity = (overrides: Record<string, unknown> = {}): WorkerIdentity => ({
+  tokenHash: "hash-1",
+  host: {
+    id: "host-1",
+    organization_id: ORG,
+    principal_id: "principal-1",
+    principal_type: "worker",
+    name: "host",
+    os: "linux",
+    architecture: "x86_64",
+    capabilities: {},
+    slots: 1,
+    status: "active",
+    desired_mode: "active",
+    credential_hash: "hash-1",
+    credential_generation: 1,
+    protocol_version: 2,
+    inventory_revision: 1,
+    readiness_revision: 1,
+    worker_session_id: "session-1",
+    worker_session_generation: "3",
+    last_heartbeat_at: null,
+    ...overrides,
+  },
 });
 
 Deno.test("a credential records who is acting for whom, and under what scopes", () => {
@@ -75,16 +114,39 @@ Deno.test("issuing a credential for an expired lease is refused, not issued dead
 Deno.test("a credential dies when the lease expires", () => {
   const { claim } = issued();
   const error = assertThrows(() =>
-    assertSessionOperationLive(claim, liveAttempt({ leaseExpired: true }))
+    assertSessionOperationLive(
+      claim,
+      liveAttempt({ lease_expired: true }),
+      identity(),
+    )
   );
   assertEquals(code(error), "SESSION_CREDENTIAL_EXPIRED");
+});
+
+Deno.test("a credential dies when the attempt itself is no longer live", () => {
+  // QA found this: the first version compared the fence columns by hand and
+  // never looked at the attempt's status, so a finished attempt whose lease had
+  // not yet expired sailed through. Liveness delegates to assertActiveLease now,
+  // which is where the status check already lived.
+  const { claim } = issued();
+  for (const status of ["completed", "failed", "canceled"]) {
+    assertEquals(
+      code(
+        assertThrows(() =>
+          assertSessionOperationLive(claim, liveAttempt({ status }), identity())
+        ),
+      ),
+      "SESSION_CREDENTIAL_FENCE_STALE",
+      status,
+    );
+  }
 });
 
 Deno.test("a credential dies when its own deadline passes", () => {
   const { claim } = issued();
   const later = new Date(claim.expiresAt.getTime() + 1_000);
   const error = assertThrows(() =>
-    assertSessionOperationLive(claim, liveAttempt(), later)
+    assertSessionOperationLive(claim, liveAttempt(), identity(), later)
   );
   assertEquals(code(error), "SESSION_CREDENTIAL_EXPIRED");
 });
@@ -95,7 +157,11 @@ Deno.test("a credential dies when the fence moves, in either column", () => {
   assertEquals(
     code(
       assertThrows(() =>
-        assertSessionOperationLive(claim, liveAttempt({ fence: 8n }))
+        assertSessionOperationLive(
+          claim,
+          liveAttempt({ fence: "8" }),
+          identity(),
+        )
       ),
     ),
     "SESSION_CREDENTIAL_FENCE_STALE",
@@ -105,7 +171,11 @@ Deno.test("a credential dies when the fence moves, in either column", () => {
   assertEquals(
     code(
       assertThrows(() =>
-        assertSessionOperationLive(claim, liveAttempt({ jobCurrentFence: 8n }))
+        assertSessionOperationLive(
+          claim,
+          liveAttempt({ job_current_fence: "8" }),
+          identity(),
+        )
       ),
     ),
     "SESSION_CREDENTIAL_FENCE_STALE",
@@ -117,7 +187,8 @@ Deno.test("a credential dies when its session is recycled with a new generation"
   const error = assertThrows(() =>
     assertSessionOperationLive(
       claim,
-      liveAttempt({ workerSessionGeneration: 4n }),
+      liveAttempt({ worker_session_generation: "4" }),
+      identity(),
     )
   );
   assertEquals(code(error), "SESSION_CREDENTIAL_FENCE_STALE");
@@ -128,11 +199,15 @@ Deno.test("a credential does not answer for another attempt or organization", ()
   for (
     const attempt of [
       liveAttempt({ id: "attempt-2" }),
-      liveAttempt({ organizationId: "22222222-2222-4222-8222-222222222222" }),
+      liveAttempt({ organization_id: "22222222-2222-4222-8222-222222222222" }),
     ]
   ) {
     assertEquals(
-      code(assertThrows(() => assertSessionOperationLive(claim, attempt))),
+      code(
+        assertThrows(() =>
+          assertSessionOperationLive(claim, attempt, identity())
+        ),
+      ),
       "SESSION_CREDENTIAL_FENCE_STALE",
     );
   }
@@ -142,7 +217,7 @@ Deno.test("a live credential passes the check it was issued for", () => {
   const { claim } = issued();
   // The positive control: if this refused, every case above would pass for the
   // wrong reason.
-  assertSessionOperationLive(claim, liveAttempt());
+  assertSessionOperationLive(claim, liveAttempt(), identity());
 });
 
 Deno.test("a scope the session was not granted is refused", () => {

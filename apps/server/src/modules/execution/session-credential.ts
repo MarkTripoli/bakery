@@ -19,6 +19,10 @@
  * checked by the engine before it acts.
  */
 
+import { StandardError } from "@bakery/contracts/http";
+import { assertActiveLease } from "./events.ts";
+import type { AttemptRow, WorkerIdentity } from "./shared.ts";
+
 /** A scope a session credential may carry, as a stable string. */
 export type OperationScope = string;
 
@@ -33,6 +37,14 @@ export type SessionOperationClaim = Readonly<{
   workerSessionGeneration: bigint;
   /** The lease fence the attempt held when the credential was issued. */
   fence: bigint;
+  /**
+   * Hash of the lease token this credential was minted alongside.
+   *
+   * Carried so liveness can delegate to `assertActiveLease`, which compares it
+   * against the attempt's stored hash. A credential that could not name the
+   * lease it belongs to could not be checked against that lease at all.
+   */
+  leaseTokenHash: string;
   /** Scopes the definition's grant gave this session. */
   scopes: readonly OperationScope[];
   /** Absolute expiry; the credential may not outlive the lease. */
@@ -87,6 +99,7 @@ export function issueSessionOperationCredential(input: {
   workerSessionId: string;
   workerSessionGeneration: bigint;
   fence: bigint;
+  leaseTokenHash: string;
   scopes: readonly OperationScope[];
   leaseExpiresAt: Date;
   now?: Date;
@@ -114,6 +127,7 @@ export function issueSessionOperationCredential(input: {
       workerSessionId: input.workerSessionId,
       workerSessionGeneration: input.workerSessionGeneration,
       fence: input.fence,
+      leaseTokenHash: input.leaseTokenHash,
       // Deduplicated and ordered so a claim compares stably and an audit line
       // does not depend on the order a definition happened to list them.
       scopes: [...new Set(input.scopes)].sort(),
@@ -132,34 +146,42 @@ export function issueSessionOperationCredential(input: {
  */
 export function assertSessionOperationLive(
   claim: SessionOperationClaim,
-  attempt: Readonly<{
-    id: string;
-    organizationId: string;
-    workerSessionId: string;
-    workerSessionGeneration: bigint;
-    fence: bigint;
-    jobCurrentFence: bigint;
-    leaseExpired: boolean;
-  }>,
+  attempt: AttemptRow,
+  identity: WorkerIdentity,
   now: Date = new Date(),
 ): void {
+  // Delegated, not re-derived. The first version of this compared the fence
+  // columns itself and quietly skipped the attempt's status, so a completed
+  // attempt with an unexpired lease passed. Adopting `assertActiveLease` means
+  // the session surface cannot drift from the worker routes that fence the same
+  // rows: one comparison, one set of refusal codes, one place to fix.
+  try {
+    assertActiveLease(
+      attempt,
+      identity,
+      claim.leaseTokenHash,
+      claim.fence
+        .toString(),
+    );
+  } catch (error) {
+    if (!(error instanceof StandardError)) throw error;
+    throw new SessionOperationError(
+      error.code === "LEASE_EXPIRED"
+        ? "SESSION_CREDENTIAL_EXPIRED"
+        : "SESSION_CREDENTIAL_FENCE_STALE",
+    );
+  }
+  // The attempt and organization the claim names must be the ones we locked:
+  // `assertActiveLease` proves the *lease* is live, not that it is this
+  // session's credential being presented against this attempt.
   if (
     attempt.id !== claim.attemptId ||
-    attempt.organizationId !== claim.organizationId ||
-    attempt.workerSessionId !== claim.workerSessionId ||
-    attempt.workerSessionGeneration !== claim.workerSessionGeneration
-  ) {
-    // A different session answering for this attempt is the fence's job to
-    // refuse, and it is never a scope problem.
-    throw new SessionOperationError("SESSION_CREDENTIAL_FENCE_STALE");
-  }
-  if (
-    attempt.fence !== claim.fence ||
-    attempt.jobCurrentFence !== claim.fence
+    attempt.organization_id !== claim.organizationId
   ) {
     throw new SessionOperationError("SESSION_CREDENTIAL_FENCE_STALE");
   }
-  if (attempt.leaseExpired || claim.expiresAt.getTime() <= now.getTime()) {
+  // The credential's own deadline is stricter than the lease's, never looser.
+  if (claim.expiresAt.getTime() <= now.getTime()) {
     throw new SessionOperationError("SESSION_CREDENTIAL_EXPIRED");
   }
 }
