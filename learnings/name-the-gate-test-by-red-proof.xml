@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<learning id="name-the-gate-test-by-red-proof" recorded="2026-11-17T05:05:00Z" by="orch-pm">
+<learning id="name-the-gate-test-by-red-proof" recorded="2026-11-17T05:05:00Z"
+  by="orch-pm">
   <title>Name the gate test by red-proof: remove the defence, read WHY the test failed, not just that it did</title>
   <body>
 Technique, hardened from three instances on the night of 2026-11-17
@@ -55,6 +56,20 @@ purged-at throw that fires BEFORE the branch - breaking the branch itself
 left the suite green. Counter: after writing a pin, break the exact branch
 the name claims (not the test's setup path) and confirm THAT failure - the
 red-proof must target the named mechanism, or the pin is decorative.
+
+Fourth form (dev-workflows, #521, 2026-11-17): red-proofed shows a test is
+LIVE; it cannot show the test POINTS at the thing that can break. Instance: a
+new test called the inner function with its mode spelled out, so it proved the
+check works when asked and said nothing about whether anything asks. Hardcoding
+the mode at the call site - reproducing the exact bug the PR existed to fix -
+left the suite green, and the author's own red-proof (stash the fix) also stayed
+green because it removed the same inner defence the test already bypassed.
+Counter: the pin must target the ENTRY-POINT seam, and bypassing the seam must
+fail it. Two moves make that possible: make the decision a required parameter
+with no default so omission fails loudly, and let a blocked decision refuse
+before the expensive work so the entry point is reachable from a test. Then
+red-prove BOTH directions - bypass the seam at the entry point, and hardcode the
+value inside the seam - and confirm each fails the test that names it.
 
 Three reasons the assertion form is required, not preferred: (1) evidence - a
 hang proves the path blocks, not that the assertion would catch a subtler
