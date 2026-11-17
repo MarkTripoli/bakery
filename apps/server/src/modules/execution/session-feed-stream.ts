@@ -77,7 +77,7 @@ export function openSessionFeedStream(
   // JSON router merges it, so the registry validates the same input here.
   const opening = read({ id: params.id });
   return opening.then(
-    (page) => stream(opening, page),
+    (firstPage) => stream(firstPage),
     (error) => problemFor(error, options.context, options.publicBaseUrl),
   );
 
@@ -97,10 +97,7 @@ export function openSessionFeedStream(
     });
   }
 
-  function stream(
-    firstPage: Promise<FeedPage>,
-    page0: FeedPage,
-  ): Response {
+  function stream(firstPage: FeedPage): Response {
     const body = new ReadableStream<Uint8Array>({
       async start(controller) {
         let lastSequence: string | null =
@@ -128,8 +125,9 @@ export function openSessionFeedStream(
         };
 
         try {
-          let page = page0;
-          let next = firstPage;
+          // The opening page is already in hand; every later page asks forward
+          // from the last sequence this stream actually sent.
+          let page = firstPage;
           while (!signal.aborted) {
             const emitted = emitPage(page);
             if (!emitted && Date.now() - heartbeat >= HEARTBEAT_MS) {
@@ -138,12 +136,11 @@ export function openSessionFeedStream(
             }
             await sleep(POLL_MS, signal);
             if (signal.aborted) break;
-            next = read(
+            page = await read(
               lastSequence === null
                 ? { id: params.id }
                 : { id: params.id, sequenceAfter: lastSequence },
             );
-            page = await next;
           }
         } catch (error) {
           if (!signal.aborted) {
