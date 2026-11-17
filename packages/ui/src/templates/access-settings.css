@@ -108,11 +108,6 @@
   display: flex;
   padding-block-start: var(--space-3);
 }
-@media (max-width: 743px) {
-  .ui-access-settings__row--head {
-    display: none;
-  }
-}
 .ui-access-settings__rows {
   display: flex;
   flex-direction: column;
@@ -243,6 +238,11 @@
     box-sizing: border-box;
     padding-block: var(--space-2);
     font: var(--type-row-title);
+  }
+  /* A phone reads each row as its own labelled block, so a header row above
+     them would name columns that no longer line up (issue 233, fix 3). */
+  .ui-access-settings__row--head {
+    display: none;
   }
   .ui-access-settings__identity {
     display: block;

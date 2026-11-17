@@ -1254,9 +1254,9 @@ export function OrganizationAccessPage() {
             testId: "org-access-accounts",
             title: translate("settings.orgAccess.accounts.title"),
             columnHeaders: [
-              translate("settings.orgAccess.column.token"),
+              translate("settings.orgAccess.column.account"),
               translate("settings.orgAccess.column.role"),
-              translate("settings.orgAccess.column.scopes"),
+              translate("settings.orgAccess.column.token"),
               "",
             ],
             titleHelp: (
@@ -1340,8 +1340,8 @@ export function OrganizationAccessPage() {
             title: translate("settings.orgAccess.clients.title"),
             columnHeaders: [
               translate("settings.orgAccess.column.client"),
-              translate("settings.orgAccess.column.role"),
-              translate("settings.orgAccess.column.appliesTo"),
+              translate("settings.orgAccess.column.authorized"),
+              "",
               "",
             ],
             titleHelp: (

@@ -3996,5 +3996,7 @@
   "settings.orgAccess.confirm.removeMember.title": "⟪Remove {name} from {organization}?⟫",
   "settings.orgAccess.confirm.removeMember.body": "⟪They lose access immediately. Their past work stays.⟫",
   "settings.orgAccess.confirm.revokeToken.title": "⟪Revoke this token?⟫",
-  "settings.orgAccess.confirm.revokeToken.body": "⟪Anything using it stops working immediately. This cannot be undone.⟫"
+  "settings.orgAccess.confirm.revokeToken.body": "⟪Anything using it stops working immediately. This cannot be undone.⟫",
+  "settings.orgAccess.column.authorized": "⟪Authorized⟫",
+  "settings.orgAccess.column.account": "⟪Account⟫"
 }

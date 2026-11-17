@@ -3987,6 +3987,7 @@
   "settings.orgAccess.token.ending": "Token ending {ending}",
   "settings.orgAccess.column.member": "Member",
   "settings.orgAccess.column.role": "Role",
+  "settings.orgAccess.column.authorized": "Authorized",
   "settings.orgAccess.column.appliesTo": "Applies to",
   "settings.orgAccess.column.actions": "Actions",
   "settings.orgAccess.help.role": "Admin manages members and settings. Developer starts and approves work. Viewer can read. Guest sees only what they are invited to.",
@@ -3995,6 +3996,7 @@
   "settings.orgAccess.clients.emptyHelp": "Apps appear here after a member signs in to them with Bakery.",
   "settings.orgAccess.column.expires": "Expires",
   "settings.orgAccess.column.token": "Token",
+  "settings.orgAccess.column.account": "Account",
   "settings.orgAccess.column.client": "Client",
   "settings.orgAccess.column.scopes": "Scopes"
 }

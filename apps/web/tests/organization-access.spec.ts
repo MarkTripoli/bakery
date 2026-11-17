@@ -405,6 +405,16 @@ for (
         await expect(page.getByText("4 people · 1 pending invitation"))
           .toBeVisible();
       }
+      // Column names explain the cells on a wide screen; a phone reads each
+      // row as its own labelled block, so the header row is not shown there
+      // (issue 233, fix 3).
+      const memberColumns = page.getByTestId("org-access-members-columns");
+      if (viewport.name === "desktop") {
+        await expect(memberColumns).toBeVisible();
+        await expect(memberColumns).toContainText("Applies to");
+      } else {
+        await expect(memberColumns).toBeHidden();
+      }
       // A person has ONE row however many roles they hold: the scoped role
       // sits inside the member's row beside the organization one, named by
       // its resource, rather than in a nameless duplicate (issue 233, fix 2).

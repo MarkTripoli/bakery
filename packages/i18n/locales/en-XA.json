@@ -3996,5 +3996,7 @@
   "settings.orgAccess.confirm.removeMember.title": "⟦Ŕëɱôṽë {name} ƒŕôɱ {organization}? ŧëšŧ çôþÿ⟧",
   "settings.orgAccess.confirm.removeMember.body": "⟦Ŧĥëÿ ļôšë àççëšš ïɱɱëðïàŧëļÿ. Ŧĥëïŕ þàšŧ ŵôŕķ šŧàÿš. ŧëšŧ çôþÿ ŧëšŧ ç⟧",
   "settings.orgAccess.confirm.revokeToken.title": "⟦Ŕëṽôķë ŧĥïš ŧôķëñ? ŧëšŧ⟧",
-  "settings.orgAccess.confirm.revokeToken.body": "⟦Àñÿŧĥïñĝ ûšïñĝ ïŧ šŧôþš ŵôŕķïñĝ ïɱɱëðïàŧëļÿ. Ŧĥïš çàññôŧ ƀë ûñðôñë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧"
+  "settings.orgAccess.confirm.revokeToken.body": "⟦Àñÿŧĥïñĝ ûšïñĝ ïŧ šŧôþš ŵôŕķïñĝ ïɱɱëðïàŧëļÿ. Ŧĥïš çàññôŧ ƀë ûñðôñë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
+  "settings.orgAccess.column.authorized": "⟦Àûŧĥôŕïžëð ŧ⟧",
+  "settings.orgAccess.column.account": "⟦Àççôûñŧ…⟧"
 }
