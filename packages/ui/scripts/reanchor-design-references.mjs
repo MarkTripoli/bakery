@@ -10,9 +10,11 @@
 //
 // The identity it writes is the one comparePaper's uxRulingRefreshIssue
 // verifies; see docs/technical-design/ui-baselines/README.md.
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readFile, writeFile } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { readFileSync } from "node:fs";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { chromium } from "@playwright/test";
@@ -40,10 +42,16 @@ const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
  * uxRulingRefreshIssue checks. Kept byte-identical to that verifier's material
  * so the two cannot drift apart.
  */
-export function uxRulingIdentity({ ruling, app, cases }) {
+export function uxRulingIdentity(
+  { ruling, app, cases, rulingBodySha256, inputs },
+) {
   const material = [
     `ruling\0${ruling}`,
+    `rulingBody\0${rulingBodySha256}`,
     `app\0${app}`,
+    ...inputs.map((path) =>
+      `input\0${path}\0${sha256(readFileSync(join(root, path)))}`
+    ).sort(),
     ...cases.map((entry) =>
       `case\0${entry.id}\0${entry.imagePath}\0${entry.imageSha256}`
     ).sort(),
@@ -120,17 +128,47 @@ async function main() {
     await browser.close();
   }
 
-  // Only the top-level source moves: per-case bytes are already pinned by
-  // imageSha256, which the ruling verifier cross-checks against the digest, so
-  // a hand-edited image is still caught.
+  // Vendored rather than trusted: the citation alone is a string the
+  // declarer chose, so the comment's actual bytes are written into the repo
+  // and hashed into the digest. A reviewer sees the diff, and the gate then
+  // verifies those bytes without needing the network.
+  const bodyPath = join(
+    root,
+    "docs/technical-design/ui-baselines/paper/rulings",
+    `${args.ruling.replace("#", "-")}.md`,
+  );
+  const [issue, commentId] = args.ruling.split("#");
+  const body = execFileSync(
+    "gh",
+    [
+      "api",
+      `repos/{owner}/{repo}/issues/comments/${commentId}`,
+      "--jq",
+      ".body",
+    ],
+    { encoding: "utf8", maxBuffer: 32 * 1024 * 1024 },
+  );
+  if (!body.trim()) throw new Error(`${args.ruling} is an empty comment`);
+  await mkdir(dirname(bodyPath), { recursive: true });
+  await writeFile(bodyPath, body);
+  const rulingBodyPath = relative(root, bodyPath);
+  const rulingBodySha256 = sha256(Buffer.from(body, "utf8"));
+  if (!/^\d+$/.test(String(issue))) {
+    throw new Error(`bad ruling issue: ${issue}`);
+  }
+
   const identity = uxRulingIdentity({
     ruling: args.ruling,
     app: args.app,
     cases: designCases,
+    rulingBodySha256,
+    inputs: args.evidence,
   });
   baseline.source = {
     revision: identity.revision,
     digest: identity.digest,
+    rulingBodyPath,
+    rulingBodySha256,
     manifestPath: baseline.source?.manifestPath,
     ...(baseline.source?.fileId ? { fileId: baseline.source.fileId } : {}),
     ...(baseline.source?.pageId ? { pageId: baseline.source.pageId } : {}),

@@ -707,20 +707,29 @@ export function sourceRefreshed(manifest, baseManifest) {
 }
 
 /**
- * A redesign-ruling refresh is genuine only when the identity is bound to its
- * own declared evidence: every refreshed case names the ruling that licensed
- * it, all of them name the same ruling as `source.revision`, and the digest is
- * recomputed from those citations. A ruling identity that merely asserts
- * itself therefore cannot license drift, and adding a case needs the ruling
- * to cover it too.
+ * A redesign-ruling refresh is genuine only when the identity is bound to
+ * evidence the declarer cannot rewrite at will: every refreshed case names the
+ * ruling that licensed it, all of them name the same ruling as
+ * `source.revision`, the ruling's own comment body is vendored into the
+ * repository and hashed into the digest, `source.inputs` is hashed too, and
+ * `app:<sha>` must name a real commit. A ruling identity that merely asserts
+ * itself therefore cannot license drift.
+ *
+ * The body is vendored rather than fetched so the gate stays offline and
+ * reproducible in CI; `reanchor-design-references.mjs` fetches it once from
+ * the GitHub API and writes it, so the bytes in the repo are the comment's
+ * bytes at authoring time. A hostile declarer can still rewrite the vendored
+ * file, but then they have changed a file this gate hashes, in a diff a
+ * reviewer reads, which is the same trust boundary as every other pinned
+ * input here - not a self-declared string that no diff shows.
  *
  * Returns the reason a snapshot is not a lawful ruling refresh, or "" when it
  * is one.
  */
-export function uxRulingRefreshIssue(manifest) {
+export function uxRulingRefreshIssue(manifest, options = {}) {
   const { source } = manifest ?? {};
   if (sourceKind(manifest) !== "ux-ruling") return "not a ruling identity";
-  const match = /^ux-ruling:(\S+)#(\d+); app:([0-9a-f]{7,40})$/.exec(
+  const match = /^ux-ruling:([\w.-]+)#(\d+); app:([0-9a-f]{7,40})$/.exec(
     source.revision ?? "",
   );
   if (!match) {
@@ -741,11 +750,49 @@ export function uxRulingRefreshIssue(manifest) {
   if (!Array.isArray(source.inputs) || !source.inputs.length) {
     return "the ruling identity is not bound to any evidence";
   }
-  // The digest covers the ruling citation plus every refreshed case identity,
-  // so the set of refreshed baselines cannot be widened without re-declaring.
+  // The ruling's actual text, pinned alongside its citation. Without this the
+  // citation is a string the declarer chose, and #12345 would licence a
+  // redesign that #12345 never mentioned.
+  if (
+    typeof source.rulingBodySha256 !== "string" ||
+    !/^[a-f0-9]{64}$/.test(source.rulingBodySha256)
+  ) {
+    return "the ruling identity does not pin the ruling's comment body";
+  }
+  if (typeof options.readRulingBody === "function") {
+    const body = options.readRulingBody(ruling);
+    if (body === undefined || body === null) {
+      return "the vendored ruling body is missing";
+    }
+    if (
+      sha256(Buffer.from(String(body), "utf8")) !==
+        source.rulingBodySha256
+    ) {
+      return "the vendored ruling body does not match its pinned digest";
+    }
+  }
+  // `app:` names the commit that was sanctioned. It must be a real commit, so
+  // a typo or an invented sha cannot stand in for a reviewed head.
+  const commitExists = options.commitExists;
+  if (typeof commitExists === "function" && !commitExists(match[3])) {
+    return `app:${match[3]} does not name a commit in this repository`;
+  }
+  // `source.inputs` is required above, so it must be hashed below: requiring
+  // evidence and then ignoring it is the same self-attestation in a different
+  // place.
+  const inputMaterial = options.readInput
+    ? source.inputs.slice().sort().map((path) =>
+      `input\0${path}\0${options.readInput(path)}`
+    )
+    : [];
+  // The digest covers the ruling citation, its text digest, the app commit,
+  // every pinned input's bytes and every refreshed case identity, so neither
+  // the refreshed set nor the evidence can be widened without re-declaring.
   const material = [
     `ruling\0${ruling}`,
+    `rulingBody\0${source.rulingBodySha256}`,
     `app\0${match[3]}`,
+    ...inputMaterial,
     ...cases.map((entry) =>
       `case\0${entry.id}\0${entry.imagePath}\0${entry.imageSha256}`
     ).sort(),
@@ -818,7 +865,7 @@ export function predecessorManifest(baseManifest, firstBranchManifest) {
 // nothing for automation to compare it against, so the report records that
 // fact instead of claiming verification or blocking a change that can never
 // gain a predecessor.
-export function baselineProvenance(manifest, predecessor) {
+export function baselineProvenance(manifest, predecessor, options = {}) {
   if (hasProfiles(manifest) || hasProfiles(predecessor)) {
     return {
       status: "blocked",
@@ -836,9 +883,9 @@ export function baselineProvenance(manifest, predecessor) {
   const issues = baselineMutationIssues(manifest, predecessor);
   // A ruling identity must prove itself, not just declare itself: the same
   // gate that would otherwise accept any moved source also verifies that the
-  // refresh is bound to the ruling and its case list.
+  // refresh is bound to the ruling, its text and its case list.
   if (sourceKind(manifest) === "ux-ruling") {
-    const issue = uxRulingRefreshIssue(manifest);
+    const issue = uxRulingRefreshIssue(manifest, options);
     if (issue) issues.push(`redesign refresh: ${issue}`);
   }
   return issues.length ? { status: "blocked", issues } : { status: "passed" };
@@ -1146,6 +1193,34 @@ export function repositoryBaselineProvenance({
         ...baselineProvenance(
           current.manifest,
           predecessorManifest(base.manifest, first?.manifest),
+          // The ruling body and pinned inputs are read through the same
+          // snapshot as the manifest, so a ruling cannot be verified against
+          // bytes that only exist in the working tree.
+          {
+            readRulingBody: () => {
+              const bodyPath = current.manifest?.source?.rulingBodyPath;
+              if (typeof bodyPath !== "string" || !bodyPath) return undefined;
+              return current.read(bodyPath).toString("utf8");
+            },
+            readInput: (input) => sha256(current.read(input)),
+            // `app:` must name a real commit that is not newer than the merge
+            // base: the sanctioned app state is what the merge base already
+            // contains, not a sha the declarer invented or borrowed from a
+            // future branch.
+            commitExists: (sha) => {
+              try {
+                git(["cat-file", "-e", `${sha}^{commit}`]);
+              } catch {
+                return false;
+              }
+              try {
+                git(["merge-base", "--is-ancestor", sha, baseCommit]);
+                return true;
+              } catch {
+                return false;
+              }
+            },
+          },
         ),
         baseCommit,
       };
@@ -1270,7 +1345,27 @@ export function repositoryBaselineProvenance({
         // The ruling verifier is what stops "the app changed" from becoming a
         // universal licence.
         const ruling = sourceKind(manifest) === "ux-ruling"
-          ? uxRulingRefreshIssue(manifest)
+          ? uxRulingRefreshIssue(manifest, {
+            readRulingBody: () => {
+              const bodyPath = manifest.source.rulingBodyPath;
+              if (typeof bodyPath !== "string" || !bodyPath) return undefined;
+              return read(bodyPath).toString("utf8");
+            },
+            readInput: (input) => sha256(read(input)),
+            commitExists: (sha) => {
+              try {
+                git(["cat-file", "-e", `${sha}^{commit}`]);
+              } catch {
+                return false;
+              }
+              try {
+                git(["merge-base", "--is-ancestor", sha, baseCommit]);
+                return true;
+              } catch {
+                return false;
+              }
+            },
+          })
           : null;
         const issue = legacyRefresh
           ? "a refresh already exists on this branch"
