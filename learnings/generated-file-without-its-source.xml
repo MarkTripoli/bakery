@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="generated-file-without-its-source" project="bakery">
+  <title>A generated file committed without its source reddens every branch at once</title>
+  <trigger>A check compares a generated file against a render of its declared source, and the two disagree on the merged base.</trigger>
+  <mistake>Committing the generated output of a source change while leaving the source behind. The check then fails on the base commit, so it fails identically on every candidate: it reads as the candidate's defect and is misattributed to whatever branch is open. Editing the generated file by hand has the same effect and is harder to see, because the render deletes the hand-written lines rather than reporting them.</mistake>
+  <rule>Never commit a generated file without the source change that produces it, and never edit a generated file by hand. When a generated-vs-source check fails, reproduce it in a clean worktree at detached origin/main before touching the candidate: a fault that is identical on every candidate belongs to the base. Reproduce the failure before choosing the fix, because the two directions are not equivalent — regenerating deletes the generated lines, while declaring the missing entry keeps them. Decide which side is wrong by finding the code that reads the field, not by which direction turns the check green.</rule>
+  <verification>
+    <command>git worktree add /tmp/wt-main-check origin/main --detach &amp;&amp; cd /tmp/wt-main-check &amp;&amp; pnpm catalog:literals:check</command>
+    <requirement>The check fails on detached origin/main with none of the candidate in it, and passes once the declaration is added to the source and the generated file regenerates to itself byte for byte. A fix that turns the check green by deleting generated lines is wrong when production code reads the deleted field.</requirement>
+  </verification>
+</learning>
