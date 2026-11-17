@@ -27233,7 +27233,7 @@
     "task.brief": {
       "inputSchema": "TaskBriefInput",
       "outputSchema": "ArtifactOutput",
-      "schemaSource": "docs/technical-design/transport-schemas.json",
+      "schemaSource": "packages/contracts/src/contracts.ts",
       "capabilities": [],
       "description": "Deterministic, model-free action that renders the frozen task brief to canonical JSON and publishes it as an immutable artifact through the worker byte boundary."
     },

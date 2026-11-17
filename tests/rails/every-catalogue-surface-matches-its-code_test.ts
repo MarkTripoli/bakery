@@ -137,8 +137,20 @@ Deno.test("every worker action's declared schemas can be found", async () => {
       // A mention is not a definition. Naming a schema is exactly what a
       // dangling reference does, so the source must define it - as an
       // inventory key, an exported schema, or a registry table row.
+      // The alternatives use RegExp literals rather than a template string so
+      // the escaping survives: in a double-quoted string "\\(" collapses to
+      // "(", and the group then matches a bare mention - the exact class this
+      // check exists to reject. That bug shipped in the first version of this
+      // rail and passed its own red-proof, because an invented name is never
+      // mentioned at all.
       const defines = new RegExp(
-        `"${name}"\\s*:|\(\`?${name}\`?\)|export const ${name}\\b|\\|\\s*\`${name}\`\\s*\\|`,
+        [
+          `"?${name}"?\\s*:\\s*[{\[]`, // an inventory or registry key
+          `"?${name}"?\\s*:\\s*[\"'\`]`, // a key mapped to a named schema
+          `\\(\`?${name}\`?\\)`, // a named schema in a registry table row
+          `export const ${name}\\b`, // an exported schema
+          `\\|\\s*\`${name}\`\\s*(\\||$)`, // a table cell naming a definition
+        ].join("|"),
       ).test(text);
       if (!defines) {
         unresolved.push(
