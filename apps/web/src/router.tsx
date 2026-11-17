@@ -702,8 +702,14 @@ export const routeCoverage = [
     states: ["default", "invalid", "loading"],
   },
   {
-    id: "clients",
+    id: "clients-redirect",
     path: "/settings/clients",
+    classification: "production",
+    states: ["redirect"],
+  },
+  {
+    id: "settings-organization-integrations-clients",
+    path: "/settings/organization/integrations/clients",
     classification: "production",
     states: ["default", "empty", "revoked"],
   },
@@ -1856,9 +1862,22 @@ const reauthRoute = createRoute({
   errorComponent: ProtectedRouteError,
 });
 
-const clientsRoute = createRoute({
+// Connected clients now live under Integrations (issue 233 split). The old
+// path keeps working as a redirect so a bookmark or a link in an email does
+// not dead-end.
+const clientsRedirectRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/settings/clients",
+  beforeLoad: ({ context, location }) => {
+    requireSession(context.session, location);
+    throw redirect({ to: "/settings/organization/integrations/clients" });
+  },
+  errorComponent: ProtectedRouteError,
+});
+
+const clientsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/settings/organization/integrations/clients",
   validateSearch: (
     search: Record<string, unknown>,
   ): { revoked?: boolean } => ({
@@ -2183,6 +2202,7 @@ const routeTree = rootRoute.addChildren([
   passkeysRoute,
   passkeyAddRoute,
   reauthRoute,
+  clientsRedirectRoute,
   clientsRoute,
   revokeClientRoute,
   oauthConsentRoute,

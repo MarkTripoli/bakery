@@ -1,4 +1,47 @@
 {
   "schemaVersion": 1,
-  "records": []
+  "records": [
+    {
+      "baseSha": "465e9476c657f880d1b4057040d661a4ade1d10c",
+      "kind": "app-route",
+      "identity": "apps/web/src/router.tsx|production|clients|/settings/clients",
+      "replacement": "apps/web/src/router.tsx|production|settings-organization-integrations-clients|/settings/organization/integrations/clients",
+      "rationale": "issue 233 owner-directed split: Connected clients moved under Integrations (design-ux IA). The page, its frames and its baselines moved with it, so this identity is replaced, not retired."
+    },
+    {
+      "baseSha": "465e9476c657f880d1b4057040d661a4ade1d10c",
+      "kind": "route-state",
+      "identity": "apps/web/src/router.tsx|clients|default",
+      "replacement": "apps/web/src/router.tsx|settings-organization-integrations-clients|default",
+      "rationale": "issue 233 owner-directed split: Connected clients moved under Integrations (design-ux IA). The page, its frames and its baselines moved with it, so this identity is replaced, not retired."
+    },
+    {
+      "baseSha": "465e9476c657f880d1b4057040d661a4ade1d10c",
+      "kind": "route-state",
+      "identity": "apps/web/src/router.tsx|clients|empty",
+      "replacement": "apps/web/src/router.tsx|settings-organization-integrations-clients|empty",
+      "rationale": "issue 233 owner-directed split: Connected clients moved under Integrations (design-ux IA). The page, its frames and its baselines moved with it, so this identity is replaced, not retired."
+    },
+    {
+      "baseSha": "465e9476c657f880d1b4057040d661a4ade1d10c",
+      "kind": "route-state",
+      "identity": "apps/web/src/router.tsx|clients|revoked",
+      "replacement": "apps/web/src/router.tsx|settings-organization-integrations-clients|revoked",
+      "rationale": "issue 233 owner-directed split: Connected clients moved under Integrations (design-ux IA). The page, its frames and its baselines moved with it, so this identity is replaced, not retired."
+    },
+    {
+      "baseSha": "465e9476c657f880d1b4057040d661a4ade1d10c",
+      "kind": "route-reference",
+      "identity": "clients",
+      "replacement": "settings-organization-integrations-clients",
+      "rationale": "issue 233 owner-directed split: Connected clients moved under Integrations (design-ux IA). The page, its frames and its baselines moved with it, so this identity is replaced, not retired."
+    },
+    {
+      "baseSha": "465e9476c657f880d1b4057040d661a4ade1d10c",
+      "kind": "section-route",
+      "identity": "apps/web/src/shell/ProductionSettingsNavigation.tsx|settings-clients|/settings/clients|",
+      "retired": true,
+      "rationale": "issue 233 split: Connected clients left the personal settings nav for the organization Integrations group, so this nav item is retired. The page is still reachable at /settings/organization/integrations/clients and the old path redirects there."
+    }
+  ]
 }

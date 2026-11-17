@@ -199,8 +199,10 @@ async function expectSelectedParent(page: Page, path: string) {
   if (path === "/settings" || path.startsWith("/settings/")) {
     const expectedHref = path.startsWith("/settings/sessions")
       ? "/settings/sessions"
+      : path.startsWith("/settings/organization/integrations/clients")
+      ? "/settings/organization/integrations"
       : path.startsWith("/settings/clients")
-      ? "/settings/clients"
+      ? "/settings/organization/integrations"
       : path === "/settings" || path.startsWith("/settings/profile")
       ? "/settings/profile"
       : path.startsWith("/settings/security")

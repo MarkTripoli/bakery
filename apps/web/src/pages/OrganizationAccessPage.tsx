@@ -1258,7 +1258,9 @@ export function OrganizationAccessPage({
             people: humans.length,
           })
           : undefined}
-        actions={showSections ? inviteAction : null}
+        // Inviting people belongs to Members; the service accounts page has
+        // no people to invite, so the header action would be a lie there.
+        actions={showSections && page === "members" ? inviteAction : null}
         state={pageState}
         status={pageState === "loading"
           ? {

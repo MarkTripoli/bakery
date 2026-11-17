@@ -3726,8 +3726,15 @@
       ]
     },
     {
-      "routeId": "clients",
+      "routeId": "clients-redirect",
       "path": "/settings/clients",
+      "status": "no-mock",
+      "rationale": "Permanent redirect to /settings/organization/integrations/clients, kept so an existing bookmark or emailed link does not dead-end (issue 233 split). It renders no UI of its own, so there is no artboard to match.",
+      "frames": []
+    },
+    {
+      "routeId": "settings-organization-integrations-clients",
+      "path": "/settings/organization/integrations/clients",
       "status": "baselined",
       "manifest": "auth",
       "frames": [
@@ -3841,7 +3848,8 @@
         "clients.default.light.phone",
         "clients.default.dark.desktop",
         "clients.default.dark.phone"
-      ]
+      ],
+      "rationale": "Moved from /settings/clients to sit under Integrations by the issue 233 owner-directed split; the frames and reference clips are unchanged."
     },
     {
       "routeId": "revoke-client",
