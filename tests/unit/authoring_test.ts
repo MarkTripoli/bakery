@@ -51,6 +51,7 @@ const pr = [
   "## Change outline\n\n```text\nTemplates -> authoring skill -> shared validator -> GitHub feedback/status\n```",
   "## Decisions\n\n- None.",
   "## Evidence\n\n- New test `authoring_test.ts`: rejects a PR body over 300 words.",
+  "## Verification\n\n- [x] Backend verified (reviewer): ok.\n- [x] UI verified (design-ux): ok.\n- [x] Implementation clean (reviewer): ok.\n- [ ] Tests cover the change (qa) N/A: docs-only change.",
 ].join("\n\n");
 const head = "a".repeat(40);
 const base = "b".repeat(40);
@@ -524,7 +525,10 @@ Deno.test("Evidence refuses routine checks but accepts a test file named format"
   // Owner rule: Evidence is UI screenshots or recordings and the new tests.
   // Routine checks belong to CI, so a table of green ticks proves nothing.
   const withEvidence = (evidence: string) =>
-    pr.replace(/## Evidence[\s\S]*$/, "## Evidence\n\n" + evidence);
+    pr.replace(
+      /## Evidence[\s\S]*?(?=\n\n## Verification|$)/,
+      "## Evidence\n\n" + evidence,
+    );
   const table = (row: string) =>
     ["| check | result |", "|---|---|", row].join("\n");
   const refused = (row: string) =>
@@ -567,4 +571,22 @@ Deno.test("a bullet inside a fenced block is quoted code, not a finding", () => 
     "```",
   ].join("\n");
   assertEquals(validateReview(review), []);
+});
+
+Deno.test("the verification checklist gates the merge until every box is resolved", () => {
+  const errs = (body: string) => validateDescription("pr", body).join(" ");
+  assertEquals(validateDescription("pr", pr), []);
+  assert(
+    errs(pr.replace("- [x] UI verified", "- [ ] UI verified")).includes(
+      'Verification pending: "ui verified"',
+    ),
+  );
+  assert(
+    errs(pr.replace(/- \[x\] Backend verified[^\n]*\n/, "")).includes(
+      'missing the "backend verified" item',
+    ),
+  );
+  assert(
+    errs(pr.replace(/## Verification[\s\S]*$/, "")).includes("Verification"),
+  );
 });

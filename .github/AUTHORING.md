@@ -58,6 +58,23 @@ At most 150 words of prose in all. No praise, no narration of what was
 read, no repeating the PR description. Check a draft with
 `validate.ts review <draft.md>`.
 
+## Verification checklist (the merge gate)
+
+Every PR ends with a Verification checklist. The author leaves it unticked;
+each verifier ticks their own box during review, or replaces it with
+`N/A: <reason>`. The description check stays red until every box is resolved,
+so a PR cannot merge unverified.
+
+| item | verifier | checks |
+|---|---|---|
+| Backend verified | reviewer | contracts, data, permissions and errors behave as described |
+| UI verified | design-ux | no duplicate of an existing screen or component; fits the navigation; consistent patterns; desktop and phone, light and dark |
+| Implementation clean | reviewer | follows existing patterns, no duplicated logic, no dead code, nothing outside the ticket |
+| Tests cover the change | qa | new behavior has tests that fail without it |
+
+Ticking a box is a claim: the verifier did the check at the PR head. A
+problem found here is fixed in the same PR, not filed as a follow-up.
+
 ## Local checks
 
 From a trusted checkout:

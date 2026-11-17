@@ -64,6 +64,15 @@ style when that user-level skill is absent on a worker:
 - GitHub descriptions use inline Markdown. Do not create or upload HTML
   walkthroughs or screenshots unless requested or needed for actual UI evidence.
 
+## Verification checklist
+
+Authors leave the Verification boxes unticked. Verifiers tick only their own
+box, after checking the PR head: the reviewer ticks Backend verified and
+Implementation clean, design-ux ticks UI verified, and qa ticks Tests cover the
+change. Replace a box that doesn't apply with `N/A: <reason>`. Fix what you
+find in the same PR. The description check stays red until every box is
+resolved.
+
 ## Check and publish within the requested scope
 
 Run
