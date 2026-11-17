@@ -281,20 +281,24 @@ Deno.test("the ratchet fails from the command line, not only in process (QA find
   // and still exited 0: `--strict` was the only non-zero route and nothing in the
   // repo passed it, so the failure branch was dead code. The comparison and the
   // ledger were both correct while no exit code consumed them. This runs the real
-  // commands, because a test that only imports the comparison functions cannot
-  // see that defect.
+  // command, because a test that only imports the comparison functions cannot see
+  // that defect.
+  //
+  // The ledger is supplied as text through the environment rather than written to
+  // disk: `test:rails` grants no write access, and a test should not need write
+  // permission over the repository to observe an exit status.
   const root = new URL("../..", import.meta.url).pathname;
-  const ledger = `${root}${BOUNDARY_LEDGER_PATH}`;
-  const original = await Deno.readTextFile(ledger);
-  const run = async (args: string[] = []) => {
+  const committed = await Deno.readTextFile(`${root}${BOUNDARY_LEDGER_PATH}`);
+  const run = async (ledger: string, args: string[] = []) => {
     const output = await new Deno.Command(Deno.execPath(), {
       args: [
         "run",
         "--allow-read",
-        "--allow-write",
+        "--allow-env",
         `${root}scripts/check-integration-boundaries.ts`,
         ...args,
       ],
+      env: { BAKERY_INTEGRATION_LEDGER_JSON: ledger },
       stdout: "piped",
       stderr: "piped",
     }).output();
@@ -304,34 +308,26 @@ Deno.test("the ratchet fails from the command line, not only in process (QA find
         new TextDecoder().decode(output.stderr),
     };
   };
-  try {
-    // A stale row: debt the ledger records that the tree no longer has.
-    const planted = {
-      ...JSON.parse(original),
-      counts: { "b1f\tpackages/integration-github/src/server/mod.ts": 5 },
-    };
-    await Deno.writeTextFile(ledger, `${JSON.stringify(planted, null, 2)}\n`);
-    const stale = await run();
-    assertEquals(stale.code, 1, "a stale ledger row must fail the command");
-    assert(stale.text.includes("no longer exists"));
+  // A stale row: debt the ledger records that the tree no longer has. This is the
+  // direction that silently re-admits coupling a slice removed, so it must fail.
+  const planted = JSON.stringify({
+    ...JSON.parse(committed),
+    counts: { "b1f\tpackages/integration-github/src/server/mod.ts": 5 },
+  });
 
-    // A novel violation: coupling the ledger never recorded.
-    await Deno.writeTextFile(
-      ledger,
-      `${JSON.stringify({ ...planted, counts: {} }, null, 2)}\n`,
-    );
-    const clean = await run();
-    assertEquals(clean.code, 0, "the committed ledger must pass as-is");
+  const stale = await run(planted);
+  assertEquals(stale.code, 1, "a stale ledger row must fail the command");
+  assert(stale.text.includes("no longer exists"));
 
-    // The explicit opt-in is the only way to read the report without a failure,
-    // and nothing in the repo calls it.
-    await Deno.writeTextFile(ledger, `${JSON.stringify(planted, null, 2)}\n`);
-    const reportOnly = await run(["--report-only"]);
-    assertEquals(reportOnly.code, 0);
-    assert(reportOnly.text.includes("no longer exists"));
-  } finally {
-    await Deno.writeTextFile(ledger, original);
-  }
+  // The committed ledger passes as-is.
+  const clean = await run(committed);
+  assertEquals(clean.code, 0, "the committed ledger must pass as-is");
+
+  // The explicit opt-in is the only way to read a failing report without a
+  // failure, and nothing in the repo calls it.
+  const reportOnly = await run(planted, ["--report-only"]);
+  assertEquals(reportOnly.code, 0);
+  assert(reportOnly.text.includes("no longer exists"));
 });
 
 Deno.test("no script or workflow passes a mode that ignores a regression", async () => {

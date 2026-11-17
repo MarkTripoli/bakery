@@ -528,7 +528,25 @@ export function formatReport(
   return lines.join("\n");
 }
 
+/**
+ * The ledger text a caller supplies, or null to read the committed file.
+ *
+ * The rail test points the command at a planted ledger to prove the exit code,
+ * and `test:rails` grants no filesystem write, so the ledger is passed as a
+ * string rather than written into the tree: a test should not need write access
+ * over the repository just to observe an exit status.
+ */
+export function ledgerFrom(
+  environment: { get(name: string): string | undefined },
+): Ledger | undefined {
+  const inline = environment.get("BAKERY_INTEGRATION_LEDGER_JSON");
+  if (inline === undefined || inline.length === 0) return undefined;
+  return JSON.parse(inline) as Ledger;
+}
+
 async function readLedger(): Promise<Ledger> {
+  const supplied = ledgerFrom(Deno.env);
+  if (supplied !== undefined) return supplied;
   const text = await Deno.readTextFile(join(ROOT, BOUNDARY_LEDGER_PATH))
     .catch(() => null);
   if (text === null) {
