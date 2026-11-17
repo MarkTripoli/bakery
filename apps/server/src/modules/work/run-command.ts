@@ -43,13 +43,10 @@ import {
   toTask,
 } from "./postgres.ts";
 import {
-  extractFixedWorkflowSteps,
   type FixedWorkflowStep,
   insertRunSteps,
   reviewLoopLimitsFor,
   stepReferencesEarlierOutput,
-  WorkflowNotExecutableError,
-  WorkflowNotFixedError,
   workflowRequiresRepository,
 } from "./run-steps.ts";
 import {
@@ -1001,32 +998,20 @@ export async function createRunCommand(
       params: { reason: "repository_required" },
     });
   }
-  // The fixed executor runs a flat list of actions. A compiler-grammar version
-  // that has container nodes is one it cannot run: it is a compiled plan, and
-  // the engine decides each of its steps as the run goes.
-  let steps: readonly FixedWorkflowStep[] = [];
-  let planAdmission: PlanAdmission | null = null;
-  try {
-    steps = extractFixedWorkflowSteps(
-      workflow.normalized_spec,
-      profile?.config.workflow.kind,
-    );
-  } catch (error) {
-    if (error instanceof WorkflowNotExecutableError) {
-      planAdmission = await resolvePlanAdmission(transaction, {
-        organizationId,
-        definition: workflow.normalized_spec,
-        profileAgentBindings: profile?.config.agentBindings,
-      });
-    } else if (error instanceof WorkflowNotFixedError) {
-      throw new StandardError({
-        code: "STATE_CONFLICT",
-        params: { reason: "workflow_not_fixed" },
-      });
-    } else {
-      throw new Error("WORKFLOW_VERSION_INVALID", { cause: error });
-    }
-  }
+  // #400: a flat spec is no longer executable. Admission always resolves a
+  // plan, so no run can be admitted with a non-runtime snapshot and the flat
+  // row walk below is unreachable. The shape extractor stays for the callers
+  // that legitimately read a frozen flat shape: migrations, the rule guard,
+  // preset action steps, validation and the review-loop snapshot reader.
+  const steps: readonly FixedWorkflowStep[] = [];
+  const planAdmission: PlanAdmission = await resolvePlanAdmission(
+    transaction,
+    {
+      organizationId,
+      definition: workflow.normalized_spec,
+      profileAgentBindings: profile?.config.agentBindings,
+    },
+  );
 
   let reviewLoop: ReviewLoopLimits | null = null;
   let stepAgents: FrozenStepAgents = {};
