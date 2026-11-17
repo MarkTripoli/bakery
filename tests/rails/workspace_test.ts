@@ -736,8 +736,12 @@ Deno.test("client roots cannot import server authority", () => {
 
 Deno.test("semantic metadata runs only on supported backend events", async () => {
   const workflow = await read(".github/workflows/ci.yml");
+  // `edited` is load-bearing: a metadata-only fix must re-enter this lane
+  // without close+reopen, because a rerun replays the stored payload
+  // (learnings/ci-retitle-never-reruns.xml). Every other backend event keeps
+  // its meaning.
   assert(workflow.includes(
-    "types: [opened, synchronize, reopened]",
+    "types: [opened, synchronize, reopened, edited]",
   ));
   const document = parseDocument(workflow);
   assertEquals(document.errors, []);

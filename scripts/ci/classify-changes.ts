@@ -349,7 +349,7 @@ export function affectedLanes(
   return [...lanes];
 }
 
-export type Route = "docs" | "gate" | "full" | "affected";
+export type Route = "docs" | "gate" | "full" | "affected" | "metadata";
 
 /**
  * A pull request runs the fast gate, never the post-merge heavy lanes: the
@@ -376,13 +376,34 @@ export function routeForEvent(
   return event === "pull_request" ? "gate" : "full";
 }
 
+/**
+ * An `edited` pull request carries no new commit: only its metadata changed.
+ * It routes to `metadata`, where the semantic-metadata lane re-reads the live
+ * title and every other lane skips. Without this the only way to clear a
+ * retitle was close+reopen, because ci.yml never ran on `edited` and a rerun
+ * replays the stored payload (learnings/ci-retitle-never-reruns.xml).
+ */
+export function routeForEventAction(
+  route: Route,
+  event: string | undefined,
+  action: string | undefined,
+): Route {
+  if (event === "pull_request" && action === "edited") return "metadata";
+  return route;
+}
+
 async function run(): Promise<void> {
   const event = Deno.env.get("GITHUB_EVENT_NAME");
   const base = Deno.env.get("BASE_SHA");
   const head = Deno.env.get("HEAD_SHA");
   const outputPath = Deno.env.get("GITHUB_OUTPUT");
   const emit = (route: Exclude<Route, "gate">, reason: string): void => {
-    const routed = routeForEvent(route, event);
+    const action = Deno.env.get("GITHUB_EVENT_ACTION");
+    const routed = routeForEventAction(
+      routeForEvent(route, event),
+      event,
+      action,
+    );
     console.error(`ci routing: ${routed} (${reason})`);
     if (outputPath) {
       Deno.writeTextFileSync(outputPath, `route=${routed}\n`);
