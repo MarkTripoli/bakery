@@ -7081,6 +7081,12 @@ const transportSchemas = {
           "description": "Filters by whether the external ticket already has a `ticket_task_links` row connecting it to a Bakery task."
         },
         {
+          "name": "taskId",
+          "type": "uuid",
+          "required": false,
+          "description": "Restricts results to external tickets linked to this one Bakery task, whatever the link's role; a task with no link answers an empty page, and a task outside the caller's organization matches nothing rather than revealing that it exists."
+        },
+        {
           "name": "cursor",
           "type": "string",
           "required": false,

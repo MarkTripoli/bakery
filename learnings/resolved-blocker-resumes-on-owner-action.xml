@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="resolved-blocker-resumes-on-owner-action" project="bakery">
+  <title>Park on the external marker whose life matches the dependency, not on the row</title>
+  <trigger>A row is blocked on a qitem and that qitem closes as a handoff while the thing the dependent actually needs - a merge, a deploy, an artefact - has not happened.</trigger>
+  <rule>A blocked row resumes when its blocker's OWNER moves, not when the world changes. A qitem closed `handed_off_to` is a handoff: the dependent is marked pending and the harness says to resume, while the merge it is waiting for is still open. Treat the resume signal as a prompt to re-run the readiness check, never as the check itself.</rule>
+  <rule>Park on the marker whose lifetime matches what you depend on: `--blocked-on external:pr-N-merge` for a merge, not `--blocked-on qitem:(the row that owns that PR)`, because rows close sooner than merges and a row-based park fires early. Keep a named, mechanical readiness gate (here: the one file that only exists after the merge) and run it before obeying any resume.</rule>
+  <verification>
+    <requirement>Record the readiness command, its exit, and the resolved state of the upstream PR at the moment of resume. A park on a row that can never reopen is rejected by the harness (`blocker_not_live`); that rejection is a guard, not an obstacle, and the replacement park names an external marker.</requirement>
+  </verification>
+</learning>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="admission-knows-every-execution-table" project="bakery">
+  <title>Admission must know every execution table, not just the worker one</title>
+  <trigger>A step is refused with `workflow_action_unavailable` for an action the compiler accepts and a runtime can actually complete.</trigger>
+  <mistake>#518's coordination lane published a `workflow.noop` step and admission refused it. `workflow.noop` is registered, has metadata, and the server runtime builds a real handler for it (`apps/server/src/modules/workflows/action-runtime.ts`), but it is absent from `transport.workerActions` because no worker runs it, and `executionActionCapabilities` resolved every action through `workerActionCapabilities`. Three execution tables exist — the workflow action registry, the worker transport table, and `workflowRuntimeImplementedActions` — and admission knew two. The first diagnosis ("a stale fixture") was half right: the fixture was stale AND admission had a real seam defect.</mistake>
+  <rule>When admission answers "can this run?", it asks all three tables before refusing. An action in the registry and in `workflowRuntimeImplementedActions` is admitted from registry metadata; an action in the worker table is admitted from the transport table; a name in neither keeps the typed refusal. `budget.ts` already states the ordering rule: the registry answers first, the worker table second, and where both hold an action they agree. Never add a worker-table row for an action no worker runs — that row would lie about the executor.</rule>
+  <verification>
+    <requirement>tests/unit/derive-model-action-from-the-action-registry_test.ts asserts the runtime/worker tables agree on capabilities for every overlapping action, asserts each runtime-only action is still refused by the worker table while admission answers from the registry, and asserts a name in neither table keeps its typed refusal — so the widening is bounded on all three sides.</requirement>
+  </verification>
+</learning>

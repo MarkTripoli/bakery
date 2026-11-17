@@ -64,9 +64,15 @@ Deno.test("admission knows a projection action has no capability, and still refu
     executionActionCapabilities("delivery.candidate_evidence", ["git"])
   );
   assertEquals(reasonOf(declared), "workflow_action_requirements_invalid");
-  // `rpi.plan` is registered but has no worker and no projection.
+  // `rpi.plan` is registered and runtime-implemented, so admission now answers
+  // for it from the registry (see the runtime/worker agreement test). This
+  // assertion used to expect `workflow_action_unavailable`; the admission fix
+  // falsified that, and the fix is what the runtime-implemented set intends.
+  assertEquals(executionActionCapabilities("rpi.plan"), ["model"]);
+  // An action in NEITHER table keeps its typed refusal - the widening is
+  // bounded, not a blanket pass.
   const unavailable = assertThrows(() =>
-    executionActionCapabilities("rpi.plan")
+    executionActionCapabilities("rpi.unimplemented")
   );
   assertEquals(reasonOf(unavailable), "workflow_action_unavailable");
 });

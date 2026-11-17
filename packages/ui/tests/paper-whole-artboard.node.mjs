@@ -227,7 +227,7 @@ test("exact two bindings retain 40 full UI detail cases and all 126 worker cases
 test("profile integration verifies every original; unused odd/even predictions and V0 stay pinned", async () => {
   assert.equal(
     (await computeSourceIdentity(baselines)).digest,
-    "a6978501f470309914eb5865790937c7dff9db7f1bb94f21c8cc80db8013d449",
+    "e37a1558e812c9c76e0e00aa759d74ab1192e0a2be047891fe29108845b8c71d",
   );
   const entries = baselines.cases.filter((entry) =>
     entry.sourceProfile === "K-0"

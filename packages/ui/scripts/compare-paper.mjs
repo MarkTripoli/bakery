@@ -1041,6 +1041,30 @@ function selfConsistentBaselineProvenance({
         issues.push(`${name}: missing or duplicate pinned source inputs`);
         continue;
       }
+      // A ruling identity is bound to its ruling, not to a Paper export, so it
+      // is proved by the same verifier the parity gate uses rather than by the
+      // V-0 input material below. Without this branch a lawful ruling refresh
+      // would be refused on main push, where only self-consistency can run.
+      if (sourceKind(manifest) === "ux-ruling") {
+        const issue = uxRulingRefreshIssue(manifest, {
+          readRulingBody: () => {
+            const bodyPath = source.rulingBodyPath;
+            if (typeof bodyPath !== "string" || !bodyPath) return undefined;
+            return read(bodyPath).toString("utf8");
+          },
+          readInput: (input) => sha256(read(input)),
+          commitExists: (sha) => {
+            try {
+              git(["cat-file", "-e", `${sha}^{commit}`]);
+              return true;
+            } catch {
+              return false;
+            }
+          },
+        });
+        if (issue) issues.push(`${name}: ${issue}`);
+        continue;
+      }
       // The same material the parity gate recomputes, recomputed here from the
       // commit's own bytes, so main can prove the digest describes its inputs.
       const material = source.inputs.map((input) =>
@@ -1152,6 +1176,72 @@ function v0RefreshIssue(snapshot, lineage) {
       error instanceof Error ? error.message.split("\n")[0] : String(error)
     })`;
   }
+}
+
+/**
+ * Decides whether a branch may repin one profile's identity. Returns null when
+ * the change is a lawful value-only refresh, else the refusal message. The
+ * declared digest is never trusted: it must recompute from the commit's own
+ * bytes, so a torn write or a hand edit cannot pass by declaring a new value.
+ */
+function profileRefreshIssue({ name, manifest, lineage, read, identity }) {
+  const lineageProfile = resolveSourceProfile(lineage.manifest, {
+    sourceProfile: name,
+  }).source;
+  const currentProfile = resolveSourceProfile(manifest, {
+    sourceProfile: name,
+  }).source;
+  if (
+    identity !== JSON.stringify([
+      lineageProfile.fileId,
+      lineageProfile.pageId,
+      sha256(read(lineageProfile.manifestPath)),
+    ])
+  ) {
+    return `${name}: in-branch original export identity changed`;
+  }
+  const recomputed = sha256(
+    [
+      ...currentProfile.inputs.map((input) =>
+        `${input}\0${sha256(read(input))}\n`
+      ),
+      `browserLaunchOptions\0${
+        JSON.stringify(paperBrowserLaunchOptions({ sourceProfile: name }))
+      }\n`,
+    ].join(""),
+  );
+  if (recomputed !== currentProfile.digest) {
+    return `${name}: source digest mismatch`;
+  }
+  if (
+    JSON.stringify(currentProfile.inputs) !==
+      JSON.stringify(lineageProfile.inputs)
+  ) {
+    return `${name}: first-introduction inventory or metadata changed`;
+  }
+  // Value-only means exactly that: with the pin fields removed, the profile and
+  // every case carrying it must be identical to the lineage. Anything else - a
+  // moved pointer, a new case, a different reference - is not a repin.
+  const pinless = (source) => {
+    const profile = structuredClone(source.manifest.sourceProfiles[name]);
+    delete profile.source.digest;
+    delete profile.source.revision;
+    const cases = source.manifest.cases
+      .filter((entry) => entry.sourceProfile === name)
+      .map((entry) => {
+        const copy = structuredClone(entry);
+        delete copy.sourceDigest;
+        delete copy.sourceIdentity;
+        if (copy.rasterProfile) delete copy.rasterProfile.sourceIdentity;
+        return copy;
+      })
+      .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    return JSON.stringify([profile, cases]);
+  };
+  if (pinless({ manifest }) !== pinless(lineage)) {
+    return `${name}: first-introduction inventory or metadata changed`;
+  }
+  return null;
 }
 
 function profileBindings(snapshot, name, original) {
@@ -1425,6 +1515,12 @@ export function repositoryBaselineProvenance({
     const appearances = [];
     const legacyIntros = [];
     let legacyRefresh = null;
+    // A profile's pins can be repinned when an input it hashes changes (the
+    // renderer is itself a K-0 input), but only once per branch and only when
+    // the declared digest recomputes from that commit's own bytes. Direct
+    // pushes to main were the only path that could do this before, because
+    // main push runs self-consistency and never walks the branch.
+    const profileRefreshes = new Map();
     const seen = new Set();
     const pageOwners = new Map();
     const follows = (first, next) => {
@@ -1651,10 +1747,34 @@ export function repositoryBaselineProvenance({
             identity === first.identity,
             `${name}: in-branch original export identity changed`,
           );
-          requireProvenance(
-            bytes === first.bytes,
-            `${name}: first-introduction inventory or metadata changed`,
-          );
+          const refreshed = profileRefreshes.get(name);
+          const expectedBytes = refreshed && follows(refreshed.commit, commit)
+            ? refreshed.bytes
+            : first.bytes;
+          if (bytes !== expectedBytes) {
+            // A profile's pins can be repinned when an input it hashes changes
+            // (the renderer is itself a K-0 input). Accept at most one such
+            // refresh per branch, and only when the declared digest recomputes
+            // from this commit's own bytes: a torn write or a hand edit still
+            // fails, because neither makes the declared value describe the
+            // bytes it sits next to. Every other difference keeps the original
+            // refusal, so an unlicensed edit is still caught.
+            const lineageAnchored = lineageHasProfiles &&
+              Object.hasOwn(lineageDefinitions, name);
+            const issue = !lineageAnchored
+              ? `${name}: first-introduction inventory or metadata changed`
+              : refreshed
+              ? `${name}: a refresh already exists on this branch`
+              : profileRefreshIssue({
+                name,
+                manifest,
+                lineage,
+                read,
+                identity,
+              });
+            requireProvenance(!issue, issue);
+            profileRefreshes.set(name, { commit, bytes });
+          }
         }
         // A second, unrelated in-branch introduction has no lineage to anchor
         // it; only main's own copy (the merge base) may coexist with one.
@@ -1731,6 +1851,13 @@ export async function sourceDigestIssues(manifest) {
     try {
       const { source } = resolveSourceProfile(manifest, selection);
       if (!Array.isArray(source?.inputs) || !source.inputs.length) continue;
+      // A ux-ruling refresh pins a stronger identity (ruling + app + inputs +
+      // cases) verified by uxRulingRefreshIssue; the V-0 inputs-only digest
+      // does not apply to the default profile.
+      if (
+        selection.sourceProfile === undefined &&
+        String(source.revision ?? "").startsWith("ux-ruling:")
+      ) continue;
       const identity = await computeSourceIdentity(manifest, selection);
       if (selection.sourceProfile !== undefined) {
         for (const entry of manifest.cases ?? []) {
@@ -1926,7 +2053,13 @@ async function designReferenceIssues(
   try {
     const outcome = await checkDesignReferences({ baseline, browser });
     referenceResults.push(...(outcome?.results ?? []));
-    return outcome?.issues ?? [];
+    const issues = outcome?.issues ?? [];
+    // A ux-ruling refresh pins a stronger identity (ruling + app + inputs +
+    // cases) verified by uxRulingRefreshIssue; the renderer's V-0
+    // inputs-only digest check does not apply to it.
+    return String(baseline.source?.revision ?? "").startsWith("ux-ruling:")
+      ? issues.filter((issue) => !issue.startsWith("source.digest mismatch"))
+      : issues;
   } finally {
     // The renderer's static mock server would otherwise keep the event loop
     // alive after a passing run and the process would never exit.
