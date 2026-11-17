@@ -1295,12 +1295,9 @@ export function OrganizationAccessPage() {
               </UI.Button>
               {serviceAccounts.length === 0
                 ? (
-                  <span
-                    className="bakery-visually-hidden"
-                    id="org-access-new-token-why"
-                  >
+                  <UI.VisuallyHidden id="org-access-new-token-why">
                     {translate("settings.orgAccess.token.needsAccount")}
-                  </span>
+                  </UI.VisuallyHidden>
                 )
                 : null}
             </>
