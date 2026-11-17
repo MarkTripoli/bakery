@@ -68,15 +68,18 @@ Deno.test("bytes that differ from the declaration are refused with both sides", 
       }]);
       const faults = await verifyContextDocument({ contextDir: dir, document });
       assertEquals(faults.length, 1);
-      assertEquals(faults[0].reason, "context_input_digest_mismatch");
-      assertEquals(faults[0].slot, "brief");
-      assertEquals(faults[0].path, "brief/notes.md");
-      assertEquals(faults[0].declared, declared);
+      const fault = faults[0];
+      if (fault.reason !== "context_input_digest_mismatch") {
+        throw new Error(`expected a digest mismatch, got ${fault.reason}`);
+      }
+      assertEquals(fault.slot, "brief");
+      assertEquals(fault.path, "brief/notes.md");
+      assertEquals(fault.declared, declared);
       assertEquals(
-        faults[0].actual,
+        fault.actual,
         await sha256Hex(new TextEncoder().encode("what was written")),
       );
-      assert(faults[0].actual !== faults[0].declared);
+      assert(fault.actual !== fault.declared);
     },
   );
 });
@@ -145,6 +148,58 @@ Deno.test("only the inputs that disagree are named", async () => {
     ]);
     const faults = await verifyContextDocument({ contextDir: dir, document });
     assertEquals(faults.map((fault) => fault.slot), ["bad"]);
+  });
+});
+
+Deno.test("an unsafe path is refused as unsafe, not as a mismatch", async () => {
+  // The reader refuses an unsafe path itself rather than trusting its caller.
+  // The fault must not masquerade as a digest mismatch, because the bytes were
+  // never read and there is no `actual` to report.
+  //
+  // `read` staying false is the assertion that matters here: it proves the
+  // guard fires BEFORE any I/O rather than during it. A reader that read the
+  // file and then rejected the path would have already left the directory.
+  let read = false;
+  const faults = await verifyContextDocument({
+    contextDir: "/nonexistent",
+    document: documentFor("/nonexistent", [{
+      slot: "escape",
+      path: "../outside.md",
+      digest: "a".repeat(64),
+      sizeBytes: 9,
+      mediaType: "text/markdown",
+    }]),
+    read: () => {
+      read = true;
+      return Promise.resolve(new Uint8Array());
+    },
+  });
+  assertEquals(read, false);
+  assertEquals(faults, [{
+    reason: "context_input_path_unsafe",
+    slot: "escape",
+    path: "../outside.md",
+  }]);
+});
+
+Deno.test("an unreadable file throws rather than reporting a mismatch", async () => {
+  // Reading can throw; mismatching cannot. A caller must be able to tell "the
+  // index lies" from "the host is broken", and the two must not share a word.
+  await withContextDir({}, async (dir) => {
+    const document = documentFor(dir, [{
+      slot: "missing",
+      path: "absent.md",
+      digest: "a".repeat(64),
+      sizeBytes: 4,
+      mediaType: "text/markdown",
+    }]);
+    let threw = false;
+    try {
+      await verifyContextDocument({ contextDir: dir, document });
+    } catch {
+      threw = true;
+    }
+    assertEquals(threw, true);
   });
 });
 
