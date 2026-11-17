@@ -29,7 +29,9 @@ import {
   predecessorManifest,
   referenceRenderProvedAt,
   sourceDigestIssues,
+  sourceKind,
   sourceRefreshed,
+  uxRulingRefreshIssue,
   validateCycle,
   // deno-lint-ignore no-sloppy-imports
 } from "../scripts/compare-paper.mjs";
@@ -799,6 +801,75 @@ test.describe("Paper parity gate", () => {
         digest: "e".repeat(64),
       },
     }, baseManifest)).toEqual([]);
+  });
+
+  test("licenses a baseline refresh from a redesign ruling, not just a Paper re-export", () => {
+    // The owner's 2026-11-11 directive: the UX design comment, not Paper, is
+    // the source of truth. When the app is the sanctioned design and the Paper
+    // export went stale, a ruling identity must be able to re-anchor a
+    // baseline - and must be verified doing it, not merely accepted.
+    const manifest = {
+      schemaVersion: 2,
+      source: {
+        revision: "ux-ruling:248#6934310296; app:063307710",
+        digest:
+          "b17a9b41977ee47d9b4ec1d7226ecc5a1125b048053aa53eeeac4e2ba2c60616",
+        inputs: ["docs/technical-design/ui-baselines/paper-baselines.json"],
+      },
+      reference: { hidden: [] },
+      cases: [{
+        "id": "backup-codes.copied.light.desktop",
+        "reference": "design",
+        "imagePath":
+          "docs/technical-design/ui-baselines/paper/design/backup-codes--copied--light--desktop.png",
+        "imageSha256":
+          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "designRuling": "248#6934310296",
+      }],
+    };
+    expect(sourceKind(manifest)).toBe("ux-ruling");
+    expect(uxRulingRefreshIssue(manifest)).toBe("");
+
+    // A case that does not cite the ruling cannot ride the refresh: an
+    // unlicensed image edit is still caught.
+    const unlicensed = {
+      ...manifest,
+      cases: [{ ...manifest.cases[0], designRuling: undefined }],
+    };
+    expect(uxRulingRefreshIssue(unlicensed)).toBe(
+      "no case cites the ruling that licensed this refresh",
+    );
+
+    // Widening the refreshed set without re-declaring breaks the digest, so
+    // the licence cannot be stretched to baselines the ruling never covered.
+    const widened = {
+      ...manifest,
+      cases: [...manifest.cases, {
+        id: "another.screen.light.desktop",
+        reference: "design",
+        imagePath:
+          "docs/technical-design/ui-baselines/paper/design/another--light--desktop.png",
+        imageSha256: "b".repeat(64),
+        designRuling: "248#6934310296",
+      }],
+    };
+    expect(uxRulingRefreshIssue(widened)).toBe(
+      "the declared ruling digest does not match the licensed cases",
+    );
+
+    // A case citing a different ruling is refused by name.
+    const mismatched = {
+      ...manifest,
+      cases: [{ ...manifest.cases[0], designRuling: "248#6934999999" }],
+    };
+    expect(uxRulingRefreshIssue(mismatched)).toContain("cites");
+
+    // A malformed identity is refused rather than treated as a refresh.
+    const malformed = {
+      ...manifest,
+      source: { ...manifest.source, revision: "ux-ruling:nonsense" },
+    };
+    expect(uxRulingRefreshIssue(malformed)).toContain("must read");
   });
 
   test("separates an introduced Paper baseline from a mutated one", () => {

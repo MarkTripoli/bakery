@@ -29,6 +29,12 @@ export function baselineMetadataIssues(
   read?: (path: string) => { toString(encoding?: string): string },
   options?: { siteStories?: boolean },
 ): string[];
+export function sourceKind(
+  manifest: Record<string, unknown>,
+): "ux-ruling" | "paper" | "unknown";
+export function uxRulingRefreshIssue(
+  manifest: Record<string, unknown>,
+): string;
 export function sourceRefreshed(
   manifest: Record<string, unknown>,
   baseManifest: Record<string, unknown>,

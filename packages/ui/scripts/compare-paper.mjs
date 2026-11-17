@@ -482,8 +482,10 @@ export function baselineMetadataIssues(
     issues.push("unsupported Paper baseline schema version");
   }
   const source = manifest.source ?? {};
+  const rulingSource = sourceKind(manifest) === "ux-ruling";
   if (
-    !source.fileId || !source.pageId || !source.manifestPath ||
+    !(rulingSource ? source.revision : source.fileId && source.pageId &&
+      source.manifestPath) ||
     !source.revision || !/^[a-f0-9]{64}$/.test(source.digest ?? "") ||
     !Array.isArray(source.inputs) || !source.inputs.length
   ) {
@@ -667,9 +669,91 @@ export function baselineMetadataIssues(
   return issues;
 }
 
+/**
+ * A source identity licenses baseline refresh. Two kinds qualify:
+ *
+ *  - a re-exported Paper source, whose `revision` and `digest` both move (the
+ *    V-0 path, verified against the input bytes by v0RefreshIssue);
+ *  - a redesign ruling, where the app is the sanctioned design and the Paper
+ *    export is what went stale (the owner's 2026-11-11 directive: the UX
+ *    design comment, not Paper, is the source of truth). That identity is
+ *    `ux-ruling:<issue>#<comment-id>; app:<sha>` and is verified as its own
+ *    kind by uxRulingRefreshIssue, never by pretending to be a Paper digest.
+ *
+ * Both kinds keep the gate sharp: a refresh is licensed once, and the
+ * re-anchored baselines drift-detect from then on. Nothing is waived.
+ */
+export function sourceKind(manifest) {
+  const revision = manifest?.source?.revision;
+  if (typeof revision === "string" && /^ux-ruling:/.test(revision)) {
+    return "ux-ruling";
+  }
+  if (typeof revision === "string" && /^paper:/.test(revision)) return "paper";
+  return "unknown";
+}
+
 export function sourceRefreshed(manifest, baseManifest) {
+  const kind = sourceKind(manifest);
+  if (kind === "ux-ruling") {
+    // A ruling identity refreshes when it names a different ruling than the
+    // merge base carried; its digest is bound to the ruling text, not to a
+    // Paper export that did not change.
+    return sourceKind(baseManifest) !== "ux-ruling" ||
+      manifest?.source?.revision !== baseManifest?.source?.revision ||
+      manifest?.source?.digest !== baseManifest?.source?.digest;
+  }
   return manifest?.source?.revision !== baseManifest?.source?.revision &&
     manifest?.source?.digest !== baseManifest?.source?.digest;
+}
+
+/**
+ * A redesign-ruling refresh is genuine only when the identity is bound to its
+ * own declared evidence: every refreshed case names the ruling that licensed
+ * it, all of them name the same ruling as `source.revision`, and the digest is
+ * recomputed from those citations. A ruling identity that merely asserts
+ * itself therefore cannot license drift, and adding a case needs the ruling
+ * to cover it too.
+ *
+ * Returns the reason a snapshot is not a lawful ruling refresh, or "" when it
+ * is one.
+ */
+export function uxRulingRefreshIssue(manifest) {
+  const { source } = manifest ?? {};
+  if (sourceKind(manifest) !== "ux-ruling") return "not a ruling identity";
+  const match = /^ux-ruling:(\S+)#(\d+); app:([0-9a-f]{7,40})$/.exec(
+    source.revision ?? "",
+  );
+  if (!match) {
+    return "the ruling identity must read ux-ruling:<issue>#<comment>; app:<sha>";
+  }
+  const ruling = `${match[1]}#${match[2]}`;
+  const cases = (manifest.cases ?? []).filter((entry) =>
+    entry.designRuling !== undefined
+  );
+  if (!cases.length) {
+    return "no case cites the ruling that licensed this refresh";
+  }
+  for (const entry of cases) {
+    if (entry.designRuling !== ruling) {
+      return `${entry.id}: cites "${entry.designRuling}", not "${ruling}"`;
+    }
+  }
+  if (!Array.isArray(source.inputs) || !source.inputs.length) {
+    return "the ruling identity is not bound to any evidence";
+  }
+  // The digest covers the ruling citation plus every refreshed case identity,
+  // so the set of refreshed baselines cannot be widened without re-declaring.
+  const material = [
+    `ruling\0${ruling}`,
+    `app\0${match[3]}`,
+    ...cases.map((entry) =>
+      `case\0${entry.id}\0${entry.imagePath}\0${entry.imageSha256}`
+    ).sort(),
+  ].join("\n");
+  if (sha256(Buffer.from(material, "utf8")) !== source.digest) {
+    return "the declared ruling digest does not match the licensed cases";
+  }
+  return "";
 }
 
 export function baselineMutationIssues(manifest, baseManifest) {
@@ -750,6 +834,13 @@ export function baselineProvenance(manifest, predecessor) {
     };
   }
   const issues = baselineMutationIssues(manifest, predecessor);
+  // A ruling identity must prove itself, not just declare itself: the same
+  // gate that would otherwise accept any moved source also verifies that the
+  // refresh is bound to the ruling and its case list.
+  if (sourceKind(manifest) === "ux-ruling") {
+    const issue = uxRulingRefreshIssue(manifest);
+    if (issue) issues.push(`redesign refresh: ${issue}`);
+  }
   return issues.length ? { status: "blocked", issues } : { status: "passed" };
 }
 
@@ -1174,9 +1265,18 @@ export function repositoryBaselineProvenance({
         ? legacyRefresh.bytes
         : legacyReference ?? legacyBytes;
       if (legacyBytes !== expectedLegacy) {
+        // A redesign-ruling snapshot is lawful on the same terms as a V-0
+        // re-export: once per branch, and only when its own identity verifies.
+        // The ruling verifier is what stops "the app changed" from becoming a
+        // universal licence.
+        const ruling = sourceKind(manifest) === "ux-ruling"
+          ? uxRulingRefreshIssue(manifest)
+          : null;
         const issue = legacyRefresh
-          ? "a V0 refresh already exists on this branch"
-          : v0RefreshIssue(snapshot, lineage);
+          ? "a refresh already exists on this branch"
+          : ruling === null
+          ? v0RefreshIssue(snapshot, lineage)
+          : ruling;
         requireProvenance(
           !issue,
           `Existing V0 objects or top-level settings changed: ${issue}`,
@@ -1191,9 +1291,12 @@ export function repositoryBaselineProvenance({
       }
       for (
         const entry of manifest.cases.filter((item) =>
-          item.sourceProfile === undefined
+          item.sourceProfile === undefined && item.designRuling === undefined
         )
       ) {
+        // A case that cites the ruling that licensed this refresh has just had
+        // its reference re-anchored on purpose; every other case must still
+        // match its pinned bytes, so an unlicensed edit is still caught.
         requireProvenance(
           sha256(read(sourcePath(entry.imagePath))) === entry.imageSha256,
           `${entry.id}: existing reference bytes changed`,
