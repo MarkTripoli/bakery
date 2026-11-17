@@ -19,6 +19,11 @@ on:
   schedule:
     - cron: "23 5 * * *"
   workflow_dispatch:
+    inputs:
+      nightly_signal:
+        description: "Run the nightly red signal against this ref (maintainer only)."
+        type: boolean
+        default: false
 permissions:
   contents: read
 
@@ -2818,7 +2823,10 @@ jobs:
     # The event guard IS the seam: only a scheduled run may create or close the
     # tracking issue. A workflow_dispatch in pull-request shape must create
     # nothing, so the guard is the first thing to attack when this is reviewed.
-    if: ${{ always() && github.event_name == 'schedule' }}
+    # A scheduled run is the real trigger. A maintainer dispatch may force it,
+    # but only with the explicit input: a pull request cannot set inputs, so
+    # the write scope stays unreachable from candidate code.
+    if: ${{ always() && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.nightly_signal)) }}
     needs: [aggregate]
     runs-on: ubuntu-24.04
     permissions:

@@ -980,10 +980,11 @@ Deno.test("a scheduled red run records itself as a tracking issue", async () => 
   assert(isMap(job), "missing the nightly_signal job");
 
   // The event guard is the seam: a pull-request-shaped dispatch must create
-  // nothing, so the signal is nightly-only by construction.
+  // nothing. A maintainer dispatch may force it, but only with an explicit
+  // input, which a pull request cannot set.
   assertEquals(
     job.get("if"),
-    "${{ always() && github.event_name == 'schedule' }}",
+    "${{ always() && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.nightly_signal)) }}",
   );
   // It runs after the aggregate and cannot gate it: a signal bug must never
   // turn a green nightly red.

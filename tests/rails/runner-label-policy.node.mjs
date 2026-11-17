@@ -318,16 +318,24 @@ const permissionWriteScopes = (permissions) => {
 
 // A job that can only ever run on the nightly schedule cannot be reached from
 // a pull request, so the one write scope it needs to file its own tracking
-// issue is allowed. The guard is matched strictly: the `if` must be the
-// schedule condition and nothing else, so `|| true` or an extra clause cannot
-// smuggle a candidate-triggered job past the rail.
+// issue is allowed. A maintainer dispatch may force the same job, but only
+// with an explicit input - a pull request cannot set inputs, so the write
+// scope stays unreachable from candidate code.
+//
+// Both forms are matched in full, not by substring: `|| true`, an extra
+// clause, or a dispatch guard with no input gate does not qualify, so a
+// candidate-triggered job cannot smuggle a write scope past the rail.
 const SCHEDULE_ONLY_IF =
   /^(?:always\(\)\s*&&\s*)?github\.event_name\s*==\s*['"]schedule['"]$/;
+
+const SCHEDULE_OR_GATED_DISPATCH_IF =
+  /^(?:always\(\)\s*&&\s*)?\(\s*github\.event_name\s*==\s*['"]schedule['"]\s*\|\|\s*\(\s*github\.event_name\s*==\s*['"]workflow_dispatch['"]\s*&&\s*inputs\.[A-Za-z0-9_-]+\s*\)\s*\)$/;
 
 const isScheduleOnlyJob = (job) => {
   if (typeof job?.if !== "string") return false;
   const condition = job.if.replace(/^\$\{\{/, "").replace(/\}\}$/, "").trim();
-  return SCHEDULE_ONLY_IF.test(condition);
+  return SCHEDULE_ONLY_IF.test(condition) ||
+    SCHEDULE_OR_GATED_DISPATCH_IF.test(condition);
 };
 
 const workflowWriteScopes = (source, workflowPath) => {
@@ -676,6 +684,50 @@ jobs:
     [...workflowWriteScopes(smuggled, ".github/workflows/ci.yml")],
     ["issues"],
   );
+});
+
+test("a gated maintainer dispatch may also file the tracking issue", () => {
+  // A dispatch is a maintainer action, not a candidate-triggered event, so it
+  // may force the signal - but only with an explicit input, which a pull
+  // request cannot set.
+  const gated = `permissions:
+  contents: read
+jobs:
+  nightly_signal:
+    if: \${{ always() && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.nightly_signal)) }}
+    permissions:
+      contents: read
+      issues: write
+    runs-on: ubuntu-24.04
+`;
+  assert.deepEqual(
+    [...workflowWriteScopes(gated, ".github/workflows/ci.yml")],
+    [],
+  );
+
+  // A dispatch guard with no input gate is candidate-reachable in principle
+  // and must still fail.
+  const ungated = gated.replace(
+    "if: ${{ always() && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.nightly_signal)) }}",
+    "if: ${{ always() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') }}",
+  );
+  assert.deepEqual(
+    [...workflowWriteScopes(ungated, ".github/workflows/ci.yml")],
+    ["issues"],
+  );
+
+  // A pull request or push event is candidate-triggered and must still fail.
+  for (const event of ["pull_request", "push"]) {
+    const candidate = gated.replace(
+      "if: ${{ always() && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.nightly_signal)) }}",
+      `if: \${{ always() && (github.event_name == 'schedule' || github.event_name == '${event}') }}`,
+    );
+    assert.deepEqual(
+      [...workflowWriteScopes(candidate, ".github/workflows/ci.yml")],
+      ["issues"],
+      `${event} must not earn the write scope`,
+    );
+  }
 });
 
 test("active workflows never grant write permissions", () => {
