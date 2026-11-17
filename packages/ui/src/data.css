@@ -1915,7 +1915,7 @@
 }
 
 /* The page header: the title and the one page-level action, spread apart. */
-.bakery-notifications__header {
+.ui-notification-page-header {
   align-items: center;
   display: flex;
   gap: var(--space-2);
@@ -1923,18 +1923,18 @@
 }
 
 /* The page's list and day groups. */
-.bakery-notifications__groups {
+.ui-notification-groups {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
 }
-.bakery-notifications__group-title {
+.ui-notification-group__title {
   color: var(--color-fg-muted);
   font: var(--type-caption);
   margin: 0;
   padding-block: var(--space-2);
 }
-.bakery-notifications__rows {
+.ui-notification-group__rows {
   display: flex;
   flex-direction: column;
   list-style: none;

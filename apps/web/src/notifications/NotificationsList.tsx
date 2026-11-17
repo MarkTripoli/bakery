@@ -103,24 +103,20 @@ export function NotificationsList(
   };
 
   if (groups === null) {
-    return (
-      <ul className="bakery-notifications__rows">{rows.map(renderRow)}</ul>
-    );
+    return <UI.NotificationList>{rows.map(renderRow)}</UI.NotificationList>;
   }
 
   return (
-    <div className="bakery-notifications__groups">
+    <UI.NotificationGroups>
       {groups.map(([group, groupRows]) => (
-        <section key={group} className="bakery-notifications__group">
-          <h3 className="bakery-notifications__group-title">
-            {translate(DAY_GROUP_LABEL[group])}
-          </h3>
-          <ul className="bakery-notifications__rows">
-            {groupRows.map(renderRow)}
-          </ul>
-        </section>
+        <UI.NotificationGroup
+          key={group}
+          heading={translate(DAY_GROUP_LABEL[group])}
+        >
+          {groupRows.map(renderRow)}
+        </UI.NotificationGroup>
       ))}
-    </div>
+    </UI.NotificationGroups>
   );
 }
 

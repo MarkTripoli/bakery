@@ -152,7 +152,7 @@ export function NotificationsPage(
 
   return (
     <UI.Stack gap="spacious">
-      <div className="bakery-notifications__header">
+      <UI.NotificationPageHeader>
         <UI.Heading level="page">{translate("notifications.title")}</UI.Heading>
         <UI.Button
           disabled={!hasUnread || marking}
@@ -166,7 +166,7 @@ export function NotificationsPage(
             ? translate("notifications.markAllRead.running")
             : translate("notifications.markAllRead")}
         </UI.Button>
-      </div>
+      </UI.NotificationPageHeader>
       <UI.Tabs
         aria-label={translate("notifications.title")}
         onSelect={(id) => {
