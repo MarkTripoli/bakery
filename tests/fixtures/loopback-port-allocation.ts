@@ -2,17 +2,81 @@ const DEFAULT_CANDIDATE_LIMIT = 32;
 const DEFAULT_BIND_ATTEMPTS = 5;
 const DEFAULT_COLLISION_ATTEMPTS = 3;
 
+/**
+ * The band loopback ports are drawn from.
+ *
+ * A port drawn by binding `:0` comes from the kernel's ephemeral range
+ * (`net.ipv4.ip_local_port_range`, 32768-60999 by default), which is exactly
+ * the pool the kernel hands to the next process that asks for an ephemeral
+ * port. So a `:0` draw is one allocation away from being taken between the
+ * probe closing and the caller binding, which is why the compose boot lost
+ * that race often enough to need `retryOnPortCollision`.
+ *
+ * This band sits below the ephemeral range, where only an explicit holder
+ * binds. It narrows the race to processes that name the port themselves
+ * rather than removing it: no allocator can exclude a socket held outside its
+ * own bookkeeping, so the retry stays.
+ */
+export const LOOPBACK_PORT_BAND_START = 20_000;
+export const LOOPBACK_PORT_BAND_END = 32_000;
+
 const processAllocatedPorts = new Set<number>();
 
 export type LoopbackPortProbe = () => number;
 
-function probeLoopbackPort(): number {
-  const listener = Deno.listen({ hostname: "127.0.0.1", port: 0 });
-  try {
-    return (listener.addr as Deno.NetAddr).port;
-  } finally {
-    listener.close();
+/** True when `port` is inside the band loopback ports are drawn from. */
+export function isLoopbackBandPort(port: number): boolean {
+  return port >= LOOPBACK_PORT_BAND_START && port <= LOOPBACK_PORT_BAND_END;
+}
+
+function randomBandPort(): number {
+  const span = LOOPBACK_PORT_BAND_END - LOOPBACK_PORT_BAND_START + 1;
+  return LOOPBACK_PORT_BAND_START + Math.floor(Math.random() * span);
+}
+
+/**
+ * Binds a candidate to prove it is free, then releases it.
+ *
+ * Injectable so a unit test can exercise the probe without a socket: the unit
+ * lane grants no `--allow-net`, and a real bind there fails with
+ * `PermissionDenied` rather than a conflict.
+ */
+export type LoopbackBind = (port: number) => void;
+
+export function bindLoopbackCandidate(port: number): void {
+  const listener = Deno.listen({ hostname: "127.0.0.1", port });
+  listener.close();
+}
+
+/**
+ * Draws a free port from the band by binding it and closing again.
+ *
+ * A candidate already held is skipped rather than returned, so a busy port in
+ * the band costs one attempt instead of a lost bind race later. `nextCandidate`
+ * and `bind` are injectable so a test can prove the skip without depending on
+ * which port the random draw happens to pick.
+ */
+export function probeLoopbackPort(
+  nextCandidate: () => number = randomBandPort,
+  candidateLimit = DEFAULT_CANDIDATE_LIMIT,
+  bind: LoopbackBind = bindLoopbackCandidate,
+): number {
+  for (let attempt = 0; attempt < candidateLimit; attempt++) {
+    const candidate = nextCandidate();
+    if (!isLoopbackBandPort(candidate)) {
+      throw new Error(`LOOPBACK_PORT_OUTSIDE_BAND:${candidate}`);
+    }
+    try {
+      bind(candidate);
+      return candidate;
+    } catch (error) {
+      // A denied permission is not a held port. Swallowing it would report
+      // BAND_EXHAUSTED and hide the real cause, so it rethrows here.
+      if (error instanceof Deno.errors.PermissionDenied) throw error;
+      // Otherwise the port is held; draw another candidate.
+    }
   }
+  throw new Error("LOOPBACK_PORT_BAND_EXHAUSTED");
 }
 
 export function reserveUniqueLoopbackPort(

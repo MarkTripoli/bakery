@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="deno-check-is-the-gate-for-test-files" project="bakery">
+  <title>Neither `--no-check` nor `pnpm typecheck` type-checks a test file, so `deno check` is its gate</title>
+  <trigger>A test file is added or edited, and the gates reported before pushing are `deno test --no-check ...` and `pnpm typecheck`.</trigger>
+  <mistake>#538's guard test referenced a module-private constant, so the file did not compile: TS2304 twice. Both cited gates were green. `deno test --no-check` skips type checking by design, so the tests genuinely passed in a mode that cannot fail on TS2304. `pnpm typecheck` is `deno check scripts/run-stack.ts scripts/run-tests.ts &amp;&amp; turbo run typecheck`, and every package's typecheck lists src entry points, so it structurally never reaches `tests/`. Two green gates, neither able to see the broken file inside the diff. A reviewer reproduced it and the claim was false at the pushed head.</mistake>
+  <rule>Run `deno check &lt;file&gt;` on every test file added or edited; it is the only gate that type-checks one. Then report the gates actually run, saying what each covers, rather than a green that reads as coverage it does not have. `deno test --no-check` proves behaviour, not compilation, and `pnpm typecheck` proves the app and packages, not the tests.</rule>
+  <verification>
+    <requirement>`deno check` passes on each test file in the diff before it is pushed, and a gate report names the surface each command covers instead of listing a green whose scope excludes part of the change.</requirement>
+  </verification>
+</learning>

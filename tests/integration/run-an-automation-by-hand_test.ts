@@ -44,14 +44,14 @@ Deno.test("an Admin runs an automation by hand: the run is the pinned version's,
 
     const key = crypto.randomUUID();
     const first = await expectJson<Run>(
-      await run({ inputs: { extra: "by hand" } }, key),
+      await run({ inputs: { instructions: "by hand" } }, key),
       201,
     );
     assertEquals(first.workflowVersionId, s.published.id);
     assertEquals(first.status, "queued");
     // A replay with the same key is the same run, not a second.
     const replay = await expectJson<Run>(
-      await run({ inputs: { extra: "by hand" } }, key),
+      await run({ inputs: { instructions: "by hand" } }, key),
       201,
     );
     assertEquals(replay.id, first.id);
@@ -80,8 +80,13 @@ Deno.test("an Admin runs an automation by hand: the run is the pinned version's,
       [first.id],
     )).rows[0].inputs;
     assertEquals(inputs, {
-      brief: "Retry failed uploads twice.",
-      extra: "by hand",
+      repositoryId: s.repository.repositoryId,
+      instructions: "by hand",
+      brief: {
+        title: "Retry failed uploads twice",
+        description: "Retry failed uploads twice.",
+        taskType: "maintenance",
+      },
     });
     // It runs as the version's actor; the caller is in the audit record.
     const requestedBy = (await fixture.pgDatabase.query<{ id: string }>(

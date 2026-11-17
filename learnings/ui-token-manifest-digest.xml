@@ -6,7 +6,7 @@
   <rule>tokens.css, tokens.ts and theme.css are generated: `scripts/generate-ui-tokens.ts` rewrites all three from docs/technical-design/ui-baselines/tokens.json, so a hand edit to any of them is overwritten. Add the token to `roles` in that manifest (id, cssVariable, category, values), then recompute `source.digest`, which is SHA-256 over a canonicalised JSON of `roles` — stable key order, no spaces — because validateManifest compares it with the roles it just read, and it fails before writing anything. Then run `pnpm ui:tokens:generate` and `pnpm ui:tokens:check`. Nothing in the failure text says the digest covers the roles you are editing.The same shape appears one layer up: a catalogue entry copied from a neighbour and given a new id passes both the schema and the export check, because every value stays legal while the description, states and a11y notes still describe the other component. Valid is not correct, so those four fields are rewritten from the component rather than copied with it.</rule>
   <mistake>Copied a neighbouring catalogue entry and changed only its id and name, which both schema and export checks accept: every value stays legal while the description, states and a11y notes still describe the other component.</mistake>
   <verification>
-    <command>pnpm ui:tokens:generate && pnpm ui:tokens:check</command>
+    <command>pnpm ui:tokens:generate &amp;&amp; pnpm ui:tokens:check</command>
     <requirement>Confirm the new variable appears in the generated tokens.css, then run the stylesheet rails case (`deno test -A tests/rails/ui-foundations_test.ts --filter "stylesheets consume generated semantic roles"`) so a rule cannot consume a variable the registry does not define.</requirement>
   </verification>
 </learning>

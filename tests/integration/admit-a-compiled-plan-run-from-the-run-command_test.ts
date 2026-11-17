@@ -14,9 +14,9 @@ import {
   createPresetTask,
   expectJson,
   presetBudgetPolicy,
+  type PresetRepository,
   seedFundedCodingAgent,
   seedPresetRepository,
-  startPresetRun,
 } from "../helpers/fixed-coding-preset.ts";
 import {
   asOverride,
@@ -24,6 +24,11 @@ import {
   publishWorkflow,
   seedRulesRepository,
 } from "../helpers/pinned-rules.ts";
+import {
+  openRepositoryInspectionHarness,
+  readInspectionAssignment,
+  receiveInspectionSource,
+} from "../helpers/repository-inspection.ts";
 import { reviewedPlanDocument } from "../helpers/review-repair/plan-loop-document.ts";
 import type { WorkerFixture } from "../helpers/worker-execution.ts";
 import { withWorkerFixture } from "../helpers/worker-execution/scenarios.ts";
@@ -122,6 +127,104 @@ async function repositoryWithAgent(fixture: WorkerFixture, label: string) {
     agentVersionId: agent,
   });
   return { agent, repository };
+}
+
+/**
+ * A repository whose active profile is a server-derived v2 observation, with the
+ * plan's actions bound to one funded agent.
+ *
+ * A review-loop plan is refused on a profile whose fixed policy denies its
+ * steps, and a hand-built v2 profile is refused because it names a checker
+ * digest no observation backs. So the profile is produced the way production
+ * produces it: a real inspection over a mapped repository.
+ */
+async function observedRepositoryWithAgent(
+  fixture: WorkerFixture,
+  label: string,
+): Promise<{ agent: string; repository: PresetRepository }> {
+  const agent = await seedFundedCodingAgent(fixture, fixture, label);
+  const harness = await openRepositoryInspectionHarness(
+    { authDb: fixture.pgDatabase, appPg: fixture.runtimePgDatabase },
+    {
+      organizationId: fixture.organizationId,
+      principalId: fixture.principalId,
+    },
+  );
+  try {
+    const created = await harness.createRepository(false, {
+      // A fixed-policy publication is a command: it needs the repository
+      // version it was read at, and a freshly created repository is at 1.
+      profileHeaders: { "if-match": '"1"' },
+      profileConfig: {
+        schemaVersion: 1,
+        workflow: { kind: "fixed" },
+        branches: { base: "main", allowedPatterns: ["feature/*"] },
+        worktree: { root: ".bakery/worktrees" },
+        agentBindings: {
+          "harness.implement": agent,
+          "harness.repair": agent,
+          "review.independent": agent,
+        },
+        // A fixed-policy draft on the baseline. The inspection derives the v2
+        // profile from it and stamps the trusted checker, which is the only
+        // profile admission accepts for a plan that checks or reviews.
+        fixedPolicy: {
+          schemaVersion: 1,
+          commands: [
+            { id: "unit", argv: ["pnpm", "test:unit"] },
+            { id: "lint", argv: ["pnpm", "lint"] },
+          ],
+          allowedEffects: [
+            "artifact_only",
+            "repository_revision",
+            "evidence_only",
+            "review_evidence",
+          ],
+          lockedConfiguration: {
+            branches: true,
+            worktree: true,
+            checker: true,
+          },
+          decisions: [
+            { commandId: "unit", mode: "require" },
+            { commandId: "lint", mode: "warn" },
+          ],
+        },
+      },
+    });
+    await harness.onboard(created.repositoryId);
+    const assignment = await readInspectionAssignment(await harness.claim());
+    await harness.start(assignment);
+    const receipt = await receiveInspectionSource(harness, assignment);
+    const report = await harness.report(assignment.input, receipt);
+    const result = await harness.result(assignment, report);
+    assertEquals(result.status, 200, await result.clone().text());
+    const active = await fixture.pgDatabase.query<
+      { active_profile_id: string; digest: string }
+    >(
+      `select r.active_profile_id, p.digest
+         from bakery.repositories r
+         join bakery.repository_profiles p
+           on p.organization_id = r.organization_id
+          and p.id = r.active_profile_id
+        where r.organization_id = $1 and r.id = $2`,
+      [fixture.organizationId, created.repositoryId],
+    );
+    const row = active.rows[0]!;
+    return {
+      agent,
+      repository: {
+        organizationId: fixture.organizationId,
+        applicationId: created.applicationId,
+        repositoryId: created.repositoryId,
+        profileId: row.active_profile_id,
+        profileDigest: row.digest,
+        agentVersionId: agent,
+      },
+    };
+  } finally {
+    await harness.close();
+  }
 }
 
 /** Starts a run of one published version, returning the raw response. */
@@ -533,15 +636,43 @@ Deno.test("a model step with no agent anywhere is refused", () =>
 Deno.test("a step agent that does not exist, and a budget below its reservation, are refused", () =>
   withWorkerFixture(async (fixture) => {
     const { repository } = await repositoryWithAgent(fixture, "refuse");
-    const ghost = await publishWorkflow(
-      fixture,
-      fixture,
-      "plan-ghost-agent",
-      plan({ stepAgent: crypto.randomUUID() }),
+    // A definition naming an agent version that does not exist is refused when
+    // it is published, not when someone tries to run it: a published version is
+    // a frozen contract, and one that can never run must not exist.
+    const ghost = await apiCall(fixture, fixture, "POST", "/v1/workflows", {
+      body: {
+        slug: "plan-ghost-agent",
+        name: "plan-ghost-agent",
+        description: "",
+      },
+    });
+    const ghostWorkflow = await expectJson<{ id: string }>(ghost, 201);
+    const ghostDraft = await expectJson<{ id: string }>(
+      await apiCall(
+        fixture,
+        fixture,
+        "POST",
+        `/v1/workflows/${ghostWorkflow.id}/versions`,
+        { body: { definition: plan({ stepAgent: crypto.randomUUID() }) } },
+      ),
+      201,
     );
+    const ghostPublish = await apiCall(
+      fixture,
+      fixture,
+      "POST",
+      `/v1/workflows/${ghostWorkflow.id}/versions/${ghostDraft.id}/publish`,
+      { body: {}, headers: { "If-Match": '"1"' } },
+    );
+    const ghostProblem = await expectJson<{
+      issues: { path: (string | number)[]; code: string }[];
+    }>(ghostPublish, 422);
     assertEquals(
-      (await refused(fixture, repository, ghost.versionId, 409)).reason,
-      "agent_version_unavailable",
+      ghostProblem.issues.map((item) => [item.path, item.code]),
+      [[
+        ["steps", 0, "steps", 1, "agentVersionId"],
+        "agent_version_unavailable",
+      ]],
     );
     const ordinary = await publishWorkflow(
       fixture,
@@ -791,9 +922,18 @@ Deno.test("a plan with an event wait, which the engine cannot run yet, is refuse
 Deno.test("a flat workflow is admitted exactly as before: its rows, its agents, no runtime section", () =>
   withWorkerFixture(async (fixture) => {
     const { repository } = await repositoryWithAgent(fixture, "flat");
-    const task = await createPresetTask(fixture, fixture, repository);
+    // A bare list of steps, not a sequence: the fixed executor runs this one, so
+    // it keeps its step rows and freezes no plan sections. The `fixed-coding`
+    // preset used to be this shape; it is a compiled plan since it was written
+    // as a document, so the flat case needs a definition of its own.
+    const flat = await publishWorkflow(
+      fixture,
+      fixture,
+      "plan-flat",
+      plan({ flat: true }),
+    );
     const run = await expectJson<RunBody>(
-      await startPresetRun(fixture, fixture, task, repository),
+      (await start(fixture, repository, flat.versionId)).response,
       201,
     );
     const snapshot = await snapshotOf(fixture, run.id);
@@ -811,7 +951,10 @@ Deno.test("a flat workflow is admitted exactly as before: its rows, its agents, 
 
 Deno.test("a plan that reviews freezes its review loop from its own repeat bound; a plan that does not freezes none", () =>
   withWorkerFixture(async (fixture) => {
-    const { agent, repository } = await repositoryWithAgent(fixture, "loop");
+    const { agent, repository } = await observedRepositoryWithAgent(
+      fixture,
+      "loop",
+    );
     const reviewed = await publishWorkflow(
       fixture,
       fixture,

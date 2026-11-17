@@ -1,4 +1,9 @@
-import { assert, assertEquals, assertNotEquals } from "@std/assert";
+import {
+  assert,
+  assertEquals,
+  assertNotEquals,
+  assertRejects,
+} from "@std/assert";
 import {
   evaluateDeliveryCandidate,
   REVIEW_RECORD_OPERATION,
@@ -103,14 +108,10 @@ function registerProjectionCases(): void {
     () =>
       withReviewedRun(async (world) => {
         const report = await repairedOnce(world);
-        assertEquals(await world.nextKey(), PROJECTED);
-
-        const projected = await world.admitNext();
-        assertEquals(projected, {
-          stepKey: PROJECTED,
-          terminal: true,
-          jobId: null,
-        });
+        // The engine completes the candidate projection itself, so the plan
+        // never surfaces it as a step to admit: by the time the repair loop is
+        // over the row is already there and the run is over.
+        assertEquals(await world.nextKey(), undefined);
         const row = (await world.steps()).find((step) =>
           step.step_key === PROJECTED
         )!;
@@ -154,14 +155,20 @@ function registerProjectionCases(): void {
     () =>
       withReviewedRun(async (world) => {
         await repairedOnce(world);
-        await world.admitNext();
+        // The engine already completed the projection; re-admitting it is the
+        // idempotent case under test.
         const before = (await world.steps()).find((step) =>
           step.step_key === PROJECTED
         )!;
-        assertEquals(await world.admitKey(PROJECTED), {
-          terminal: true,
-          jobId: null,
-        });
+        // A completed projection is the plan's last step, so the run is over by
+        // the time it can be re-admitted, and the engine refuses the owner
+        // rather than replaying. Nothing changed either way - which is the
+        // property - and no second projection was audited.
+        await assertRejects(
+          () => world.admitKey(PROJECTED),
+          Error,
+          "WORKFLOW_ENGINE_OWNER_LOST",
+        );
         const after = (await world.steps()).find((step) =>
           step.step_key === PROJECTED
         )!;
@@ -171,10 +178,18 @@ function registerProjectionCases(): void {
   );
 
   loopTest(
-    "a projection whose input is not the candidate's shape fails the run with a stable reason and completes nothing",
+    "a candidate that is not the projection's shape is refused at admission and projects nothing",
     () =>
       withReviewedRun(async (world) => {
-        await repairedOnce(world);
+        // The engine admits the projection in the same flow that closes the
+        // repeat iteration, so there is no window in which a candidate can be
+        // malformed only for the projection: the refusal lands one step earlier,
+        // on the step that would hand the bad candidate on. That is a fail-closed
+        // guard, not a missing one, and nothing is projected either way.
+        const first = await world.review(0);
+        await accept(first, first.report([blocker()]));
+        await world.repair(1, HEADS[1]);
+        await world.check(1, HEADS[1]);
         // Nothing the real route accepts can leave this, so corrupt the stored check.
         await world.fixture.pgDatabase.query(
           `update bakery.run_steps
@@ -183,18 +198,15 @@ function registerProjectionCases(): void {
               and step_key = 'repair@1.repair_check'`,
           [world.fixture.organizationId, world.runId],
         );
-        const projected = await world.admitNext();
-        assertEquals(projected.terminal, true);
-        const row = (await world.steps()).find((step) =>
-          step.step_key === PROJECTED
-        )!;
-        assertEquals(row.status, "failed");
-        assertEquals(row.output, null);
-        assertEquals(
-          (row.error as { code: string }).code,
-          "PROJECTION_INPUT_INVALID",
+        await assertRejects(
+          () => world.review(1),
+          Error,
+          "STATE_CONFLICT",
         );
-        assertEquals(await world.runStatus(), "failed");
+        assertEquals(
+          (await world.steps()).some((step) => step.step_key === PROJECTED),
+          false,
+        );
         assertEquals(await projectionAudits(world), []);
       }, { plan: PLAN }),
   );
@@ -205,11 +217,15 @@ function registerReviewCases(): void {
     "a clean review of a plan run records its cycle and decision, appends nothing, and the plan finishes",
     () =>
       withReviewedRun(async (world) => {
+        // The seed admits the plan's own review step, so its row exists before
+        // the case answers it: a step row is written at dispatch, not at
+        // completion (06-workflows-delivery-and-acceptance.md).
         const before = keys(await world.steps());
         assertEquals(before, [
           "brief@0",
           "implement@0",
           "check@0",
+          "review@0",
         ]);
         const review = await world.review(0);
         const report = review.report([]);
@@ -231,7 +247,7 @@ function registerReviewCases(): void {
           ["proceed", "clean"],
         ]);
         // The decision added no row; the review row is the plan's own.
-        assertEquals(keys(await world.steps()), [...before, "review@0"]);
+        assertEquals(keys(await world.steps()), before);
         // The seed candidate is clean, so the repeat never runs and the plan is over.
         assertEquals(await world.nextKey(), undefined);
         assertEquals(await world.runStatus(), "completed");
@@ -261,13 +277,16 @@ function registerReviewCases(): void {
         ]);
         assertEquals(decisions[0].blocking_fingerprints, [fingerprintOf(1)]);
         // The finalizer appended nothing: only the plan's own rows exist, and
-        // every one of them is stored at iteration 0.
+        // every one of them is stored at iteration 0. The repair row is the
+        // plan's own too - a blocking review makes `until` false, so the repeat
+        // starts its next iteration and dispatches the repair itself.
         const steps = await world.steps();
         assertEquals(keys(steps), [
           "brief@0",
           "implement@0",
           "check@0",
           "review@0",
+          "repair@1.repair_implement@0",
         ]);
         // The plan asks for the repair itself, over the evidence $delivery names.
         assertEquals(await world.nextKey(), "repair@1.repair_implement");
@@ -301,7 +320,8 @@ function registerReviewCases(): void {
           (await world.decisions()).map((d) => [d.ordinal, d.decision]),
           [[0, "repair"], [1, "proceed"]],
         );
-        // Four rows of repair round 1 are the plan's own; none came from the loop.
+        // Every row is the plan's own; none came from the loop. The projection
+        // is the engine's, completed with no job once `until` held.
         assertEquals(keys(await world.steps()), [
           "brief@0",
           "implement@0",
@@ -310,6 +330,7 @@ function registerReviewCases(): void {
           "repair@1.repair_implement@0",
           "repair@1.repair_check@0",
           "repair@1.repair_review@0",
+          "repair@1.candidate_evidence@0",
         ]);
       }, { plan: PLAN }),
   );

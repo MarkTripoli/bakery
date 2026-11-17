@@ -41,6 +41,48 @@ import { parseTotpSecret, totpCode } from "./totp.ts";
 export const authTestOrigin = "http://127.0.0.1:8788";
 export const authTestSecret = "phase-6-test-only-secret-value-32-bytes";
 
+/**
+ * Refuse to start a test on a database already in the legacy-bootstrap state
+ * the server treats as ambiguous.
+ *
+ * `apps/server/src/modules/auth/adapters/postgres.ts` throws
+ * `AUTH_BOOTSTRAP_LEGACY_IDENTITY_AMBIGUOUS` when `bootstrap_principal_id` is
+ * null and `public."user"` holds more than one row, because it cannot guess
+ * which pre-principal user is the bootstrap identity. On a long-lived stack
+ * that state accumulates, and every auth-booting test then fails with one
+ * opaque code: a fresh volume clears it, so the code under test was never
+ * wrong. Diagnosing that costs a whole lane run.
+ *
+ * The fixture is a controlled instrument, so it asserts the precondition and
+ * names the offenders instead of failing later as a cascade. The production
+ * error code stays opaque on purpose: an API response must not enumerate
+ * users. Only this test-only message names them.
+ */
+export async function assertDatabaseIsNotLegacyAmbiguous(
+  pgDatabase: PgDatabase,
+): Promise<void> {
+  const marker = await pgDatabase.query<
+    { principalId: string | null }
+  >(
+    `select bootstrap_principal_id as "principalId"
+     from bakery.installation_settings where id = true`,
+  );
+  const principalId = marker.rows[0]?.principalId ?? null;
+  if (principalId !== null) return;
+  const users = await pgDatabase.query<{ id: string }>(
+    `select id from public."user" order by id`,
+  );
+  if (users.rows.length <= 1) return;
+  // The count alone does not end the diagnosis; the ids do, so the message
+  // carries both and the reader does not have to open psql to learn which
+  // rows must go.
+  throw new Error(
+    `Test database is in legacy-bootstrap state with ${users.rows.length} users: ${
+      users.rows.map((row) => row.id).join(", ")
+    }; reset the volume before running auth tests.`,
+  );
+}
+
 const syntheticClientRandom = crypto.getRandomValues(new Uint8Array(2));
 const syntheticClientA = 1 + (syntheticClientRandom[0] % 254);
 const syntheticClientB = 1 + (syntheticClientRandom[1] % 254);
@@ -137,6 +179,9 @@ export async function openAuthFixture(options: {
     await migrateData(database, [
       ...bakeryDataMigrations,
     ]);
+    // Before anything reads the installation marker, refuse a database that
+    // would fail every auth boot with one opaque code.
+    await assertDatabaseIsNotLegacyAmbiguous(pgDatabase);
     if (options.installationPolicy) {
       const policy = InstallationSettingsUpdateSchema.parse(
         options.installationPolicy,
