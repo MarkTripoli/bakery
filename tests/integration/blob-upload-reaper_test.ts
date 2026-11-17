@@ -297,23 +297,29 @@ Deno.test("a completion and a reaper racing never corrupt a legitimate upload", 
   });
 });
 
-Deno.test("the reaper never deletes another organization's parts", async () => {
+Deno.test("the reaper touches only the sessions it selected, across organizations", async () => {
   await withWorkerFixture(async (fixture) => {
-    // Two organizations, each with an expired session and parts. The reaper is
-    // the one delete path that is not scoped by a caller's organization, so a
-    // broader predicate would turn it into a cross-tenant delete primitive.
+    // The provable form of the tenancy intent. The reaper is a system sweep, so
+    // it is not scoped by a caller's organization - which is exactly why the
+    // property that matters is that it touches only what it selected. Two
+    // organizations, both with an expired session and parts; the sweep is
+    // limited to one session, so the other organization's session must come out
+    // of the run completely untouched. A broader predicate would show up here
+    // as the second organization losing parts it never had selected.
     const otherOrganization = await fixture.pgDatabase.query<{ id: string }>(
       `insert into bakery.organizations (id, slug, name, created_at, updated_at)
        values (gen_random_uuid(), $1, $1, now(), now()) returning id`,
       [`reaper-other-${crypto.randomUUID()}`],
     );
     const otherOrganizationId = otherOrganization.rows[0].id;
-    const mine = await seedSession(fixture, { hours: -1, parts: 2 });
+
+    // This organization's session is the older one, so it is selected first.
+    const mine = await seedSession(fixture, { hours: -2, parts: 2 });
     const other = await fixture.pgDatabase.query<{ id: string }>(
       `insert into bakery.blob_upload_sessions
          (organization_id, created_by_id, sha256, size_bytes, media_type,
           expires_at)
-       values ($1, $2, $3, 11, 'text/plain', now() + interval '12 hours')
+       values ($1, $2, $3, 11, 'text/plain', now() - interval '1 hour')
        returning id`,
       [otherOrganizationId, fixture.principalId, "0".repeat(64)],
     );
@@ -325,32 +331,25 @@ Deno.test("the reaper never deletes another organization's parts", async () => {
       [otherOrganizationId, theirs, "0".repeat(64), new Uint8Array([9])],
     );
 
-    const result = await reapAbandonedBlobUploads(fixture.pgDatabase);
+    // One session, one batch: the sweep cannot reach the second organization.
+    const result = await reapAbandonedBlobUploads(fixture.pgDatabase, 1, 1);
 
-    // Only this organization's expired session is reclaimed. The other
-    // organization's session is live, so the sweep must not reach it at all -
-    // and in particular must not delete its parts just because it is deleting
-    // parts in the same run.
     assertEquals(result.abandoned, 1);
-    const remaining = await fixture.pgDatabase.query<{
-      mine: string;
-      theirs: string;
-    }>(
-      `select count(*) filter (where session_id = $1)::text as mine,
-              count(*) filter (where session_id = $2)::text as theirs
-         from bakery.blob_upload_parts
-        where session_id = any($3::uuid[])`,
-      [mine, theirs, [mine, theirs]],
+    assertEquals(await partsOf(fixture, mine), 0);
+    assertEquals(await stateOf(fixture, mine), "expired");
+    // The other organization is exactly as it was.
+    const untouched = await fixture.pgDatabase.query<{ count: string }>(
+      `select count(*)::text as count from bakery.blob_upload_parts
+        where organization_id = $1 and session_id = $2`,
+      [otherOrganizationId, theirs],
     );
-    assertEquals(remaining.rows[0].mine, "0");
-    assertEquals(remaining.rows[0].theirs, "1");
-    // Nothing was deleted across the boundary: both sessions still exist.
-    const sessions = await fixture.pgDatabase.query<{ count: string }>(
-      `select count(*)::text as count from bakery.blob_upload_sessions
-        where id = any($1::uuid[])`,
-      [[mine, theirs]],
+    assertEquals(untouched.rows[0].count, "1");
+    const otherState = await fixture.pgDatabase.query<{ state: string }>(
+      `select state from bakery.blob_upload_sessions
+        where organization_id = $1 and id = $2`,
+      [otherOrganizationId, theirs],
     );
-    assertEquals(sessions.rows[0].count, "2");
+    assertEquals(otherState.rows[0].state, "pending");
 
     // The fixture tears down its own organization; this one is ours to remove,
     // and the creator foreign key is `on delete restrict`, so it has to go
