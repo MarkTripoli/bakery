@@ -16,7 +16,6 @@ import {
   presetBudgetPolicy,
   seedFundedCodingAgent,
   seedPresetRepository,
-  startPresetRun,
 } from "../helpers/fixed-coding-preset.ts";
 import {
   asOverride,
@@ -819,9 +818,18 @@ Deno.test("a plan with an event wait, which the engine cannot run yet, is refuse
 Deno.test("a flat workflow is admitted exactly as before: its rows, its agents, no runtime section", () =>
   withWorkerFixture(async (fixture) => {
     const { repository } = await repositoryWithAgent(fixture, "flat");
-    const task = await createPresetTask(fixture, fixture, repository);
+    // A bare list of steps, not a sequence: the fixed executor runs this one, so
+    // it keeps its step rows and freezes no plan sections. The `fixed-coding`
+    // preset used to be this shape; it is a compiled plan since it was written
+    // as a document, so the flat case needs a definition of its own.
+    const flat = await publishWorkflow(
+      fixture,
+      fixture,
+      "plan-flat",
+      plan({ flat: true }),
+    );
     const run = await expectJson<RunBody>(
-      await startPresetRun(fixture, fixture, task, repository),
+      (await start(fixture, repository, flat.versionId)).response,
       201,
     );
     const snapshot = await snapshotOf(fixture, run.id);
