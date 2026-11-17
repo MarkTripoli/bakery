@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="migration-ledger-exact-tail" project="bakery">
+  <title>Migration-number collisions on rebase: resolve the ledger tail as BOTH entries in numeric order</title>
+  <trigger>A rebase moves another seat's migration onto your branch and the migration-ledger test fails; or two branches both claim the same migration number (e.g. 0165 as run_input_pins on main AND blobs on a feature branch cut before the merge).</trigger>
+  <rule>The migration ledger test asserts an EXACT tail list, so any rebase that moves another migration in lands as a conflict there. The correct resolution is BOTH entries in numeric order - never dropping one. Dropping an entry creates a silent numbering hole that only surfaces much later as a uniqueness assert far from the cause. When a collision exists, renumber YOUR migration (the one not yet on main) to the next free number, re-run the ledger test after the rebase (never trust the rename alone), and re-run the full unit set touching migrations. Check main's migration directory before opening a PR that adds a migration - numbers are assigned per-branch and collide whenever two branches land in the same window.</rule>
+  <verification>
+    <requirement>After renumber + rebase: the ledger test passes (e.g. 11/0) with the exact tail list containing every migration in numeric order, no gaps; the new migration applies on a fresh database; the full unit set for the touched modules passes.</requirement>
+  </verification>
+</learning>

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="missing-checks-check-merge-state-first" recorded="2026-11-17T03:40:00Z" by="orch-pm">
+  <title>A PR with MISSING (not red) checks is probably CONFLICTING — check mergeStateStatus before touching CI</title>
+  <body>
+A CONFLICTING pull request gets no merge commit, so GitHub creates NO
+pull_request workflows at that head. The only runs that appear are
+pull_request_target ones (they execute from the base branch and need no merge
+commit). Symptom: the required aggregate is absent, description checks show
+green, and "gh pr checks" lists a fraction of the normal lanes — looking like
+a CI fault or missing wiring.
+
+Found by dev-workflows' composition-root instrument on #514 (2026-11-17):
+gh run list --commit 49ea37c90 returned only two Description-policy
+pull_request_target runs; mergeable=CONFLICTING / mergeStateStatus=DIRTY
+explained it. The conflict was one GENERATED file
+(packages/contracts/generated/contracts.json) gone stale after sibling merges
+(#513's contract rebind, #516).
+
+Rule: for any PR whose checks are missing rather than red, read
+mergeStateStatus FIRST. Fix generated-file conflicts by merging main and
+regenerating (pnpm contracts:generate, or catalog:literals for catalog files),
+never by hand-merging the generated blob. Verify idempotency by running the
+generator twice — the second run must be a no-op.
+  </body>
+</learning>

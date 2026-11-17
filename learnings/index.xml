@@ -8,17 +8,20 @@
   <entry file="websocket-backpressure-modelled-buffer.xml" scope="project" />
   <entry file="storybook-a11y-playwright.xml" scope="project" />
   <entry file="ui-catalog.xml" scope="project" />
+  <entry file="ui-token-manifest-digest.xml" scope="project" />
   <entry file="paper-export-dimensions.xml" scope="project" />
   <entry file="reference-proof-working-tree.xml" scope="project" />
   <entry file="verification-memory-floor.xml" scope="project" />
   <entry file="github-closing-keywords.xml" scope="project" />
   <entry file="local-bootstrap-environment.xml" scope="project" />
+  <entry file="client-interface-member-breaks-hand-built-doubles.xml" scope="project" />
   <entry file="compose-partial-service-environment.xml" scope="project" />
   <entry file="persistent-preview-engine-ownership.xml" scope="project" />
   <entry file="local-temporary-storage-quota.xml" scope="project" />
   <entry file="native-artifact-formatting.xml" scope="project" />
   <entry file="verification-driver-boundaries.xml" scope="project" />
   <entry file="idle-workspace-consumers.xml" scope="project" />
+  <entry file="inline-flex-whitespace-collapse.xml" scope="project" />
   <entry file="oauth-provider-dependency-pin.xml" scope="project" />
   <entry file="paper-pinned-k0-inputs.xml" scope="project" />
   <entry file="lock-held-lane-waits-for-memory.xml" scope="project" />
@@ -109,4 +112,26 @@
   <entry file="admission-knows-every-execution-table.xml" scope="project" />
   <entry file="reason-changed-not-just-name-changed.xml" scope="project" />
   <entry file="wide-change-falsifies-untouched-tests.xml" scope="project" />
+  <entry file="playwright-port-collision-between-seats.xml" scope="project" />
+  <entry file="graft-hooks-git-stash-unmerged-index.xml" scope="project" />
+  <entry file="ci-retitle-never-reruns.xml" scope="project" />
+  <entry file="migration-ledger-exact-tail.xml" scope="project" />
+  <entry file="stuck-sweep-vs-wake-ladder.xml" scope="project" />
+  <entry file="queue-block-needs-wake-arg.xml" scope="project" />
+  <entry file="handoff-row-is-a-head-claim.xml" scope="project" />
+  <entry file="verify-the-artifact-that-ships.xml" scope="project" />
+  <entry file="verify-every-branch-snapshot-not-the-endpoints.xml" scope="project" />
+  <entry file="compose-down-v-leaves-worker.xml" scope="project" />
+  <entry file="missing-checks-check-merge-state-first.xml" scope="project" />
+  <entry file="never-grep-a-gate-summary.xml" scope="project" />
+  <entry file="curated-file-list-is-not-a-lane.xml" scope="project" />
+  <entry file="hotfix-parallel-verdicts-merge-still-waits.xml" scope="process" />
+  <entry file="reaper-window-rule-two-reasons.xml" scope="project" />
+  <entry file="attribute-drift-before-rebind.xml" scope="project" />
+  <entry file="name-the-gate-test-by-red-proof.xml" scope="process" />
+  <entry file="vehicle-vs-shape-in-test-conversion.xml" scope="process" />
+  <entry file="capture-mode-must-match-the-property.xml" scope="process" />
+  <entry file="check-the-rails-before-ruling-on-db-shape.xml" scope="process" />
+  <entry file="compare-the-region-not-the-image.xml" scope="project" />
+  <entry file="destructive-red-proof-pollutes-test-db.xml" scope="project" />
 </learnings>

@@ -115,6 +115,7 @@ import {
   draftIsolationOptionsFor,
 } from "./modules/knowledge/draft-isolation.ts";
 import { createArtifactActions } from "./modules/knowledge/resource-routes.ts";
+import { ScopedOrganizationBlobStore } from "./modules/catalog/blob-store.ts";
 import { createDraftResourceRoutes } from "./modules/knowledge/draft-resource-routes.ts";
 import type { DraftIsolation } from "./modules/knowledge/draft-isolation.ts";
 import {
@@ -267,6 +268,11 @@ export function createApp(options: {
     publicBaseUrl: options.config.publicBaseUrl,
     secret: options.config.auth.secret,
     artifactPreviewOrigin: previewOrigin,
+    // Absent when no object store is configured; completion then fails closed
+    // rather than recording a blob whose bytes exist nowhere.
+    ...(skillFileStore
+      ? { blobStore: new ScopedOrganizationBlobStore(skillFileStore) }
+      : {}),
   });
   const taskRegistry = createTaskActionRegistry(
     options.taskHandlers ??
@@ -443,6 +449,12 @@ export function createApp(options: {
       cursorSecret: options.config.auth.secret,
       isolation: draftIsolation,
       collaboration: collaborationRegistry,
+      // The same store the upload routes use. Present, a published version
+      // names a blob instead of carrying its bytes; absent, it stores them
+      // inline, and the read path serves both shapes.
+      ...(skillFileStore
+        ? { blobStore: new ScopedOrganizationBlobStore(skillFileStore) }
+        : {}),
     }),
   );
   const eventsRegistry = options.eventsSocket?.registry ??

@@ -7101,6 +7101,78 @@
       "implemented": true
     },
     {
+      "group": "Blobs",
+      "method": "POST",
+      "path": "/v1/blobs/uploads",
+      "action": "blobUploads.start",
+      "access": "Developer",
+      "permission": "artifact:create",
+      "input": "BlobUploadStart",
+      "output": "BlobUploadSession",
+      "event": "",
+      "mcp": "bakery_blobUploads_start",
+      "idempotency": "None: each call opens a new session, and a retry that completes twice stores nothing (recordBlob is insert-on-conflict)",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
+        "BODY_TOO_LARGE"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Blobs",
+      "method": "PUT",
+      "path": "/v1/blobs/uploads/{id}/parts/{partNumber}",
+      "action": "blobUploads.part",
+      "access": "Developer",
+      "permission": "artifact:create",
+      "input": "BlobUploadPart",
+      "output": "BlobUploadSession",
+      "event": "",
+      "mcp": "bakery_blobUploads_part",
+      "idempotency": "Natural: a part is keyed by its ordinal, so a retry replaces the same row rather than appending",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "BODY_TOO_LARGE"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Blobs",
+      "method": "POST",
+      "path": "/v1/blobs/uploads/{id}/complete",
+      "action": "blobUploads.complete",
+      "access": "Developer",
+      "permission": "artifact:create",
+      "input": "BlobUploadComplete",
+      "output": "Blob",
+      "event": "",
+      "mcp": "bakery_blobUploads_complete",
+      "idempotency": "Natural: completing an already-completed session answers with the blob it produced, so a client that never saw the first response can retry safely; recordBlob is insert-on-conflict-do-nothing, so the bytes are stored once",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
       "group": "Installation administration",
       "method": "GET",
       "path": "/v1/integration-auth/github/manifest-callback",
@@ -9353,7 +9425,10 @@
     "skillVersions.create",
     "skillStorageSettings.get",
     "skillStorageSettings.put",
-    "skillStorageSettings.verify"
+    "skillStorageSettings.verify",
+    "blobUploads.start",
+    "blobUploads.part",
+    "blobUploads.complete"
   ],
   "openapi": {
     "openapi": "3.1.0",
@@ -26848,6 +26923,198 @@
           }
         }
       },
+      "/v1/blobs/uploads": {
+        "post": {
+          "operationId": "blobUploads.start",
+          "parameters": [
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/BlobUploadSession"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request."
+            },
+            "401": {
+              "description": "Authentication required."
+            },
+            "403": {
+              "description": "Forbidden."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          },
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BlobUploadStart"
+                }
+              }
+            }
+          }
+        }
+      },
+      "/v1/blobs/uploads/{id}/parts/{partNumber}": {
+        "put": {
+          "operationId": "blobUploads.part",
+          "parameters": [
+            {
+              "name": "id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            },
+            {
+              "name": "partNumber",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/BlobUploadSession"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request."
+            },
+            "401": {
+              "description": "Authentication required."
+            },
+            "403": {
+              "description": "Forbidden."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          },
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BlobUploadPart"
+                }
+              }
+            }
+          }
+        }
+      },
+      "/v1/blobs/uploads/{id}/complete": {
+        "post": {
+          "operationId": "blobUploads.complete",
+          "parameters": [
+            {
+              "name": "id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Blob"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request."
+            },
+            "401": {
+              "description": "Authentication required."
+            },
+            "403": {
+              "description": "Forbidden."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          },
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BlobUploadComplete"
+                }
+              }
+            }
+          }
+        }
+      },
       "/v1/integration-auth/github/manifest-callback": {
         "get": {
           "operationId": "integrationAuth.githubManifestCallback",
@@ -39388,6 +39655,9 @@
                 "skillStorageSettings.get",
                 "skillStorageSettings.put",
                 "skillStorageSettings.verify",
+                "blobUploads.start",
+                "blobUploads.part",
+                "blobUploads.complete",
                 "integrationAuth.githubManifestCallback",
                 "integrationResources.list",
                 "integrationDiscoveries.create",
@@ -56684,6 +56954,68 @@
           ],
           "additionalProperties": false,
           "description": "Settles every unknown merge attempt of one pull request by re-reading it from GitHub; a merge that happened is recorded as merged and one that did not as refused, without ever sending a second merge."
+        },
+        "BlobUploadStart": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "sha256": {
+              "type": "string",
+              "minLength": 64,
+              "maxLength": 64,
+              "description": "BlobUploadStart.sha256 must contain at most 64 characters."
+            },
+            "sizeBytes": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Total size of the file in bytes, declared up front and bounded by the 5 GiB per-blob limit. Declaring it lets the server refuse an incomplete assembly instead of accepting a truncated file."
+            },
+            "mediaType": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "description": "BlobUploadStart.mediaType must contain at most 255 characters."
+            }
+          },
+          "required": [
+            "sha256",
+            "sizeBytes",
+            "mediaType"
+          ],
+          "additionalProperties": false,
+          "description": "Opens a resumable upload by declaring the whole file's digest, size and media type before any part is sent. The declaration is what the completed assembly is checked against, so a client cannot discover after the fact what it uploaded."
+        },
+        "BlobUploadPart": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "content": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 65536,
+              "description": "BlobUploadPart.content must contain at most 5242880 characters."
+            },
+            "sha256": {
+              "type": "string",
+              "minLength": 64,
+              "maxLength": 64,
+              "description": "BlobUploadPart.sha256 must contain at most 64 characters."
+            }
+          },
+          "required": [
+            "content",
+            "sha256"
+          ],
+          "additionalProperties": false,
+          "description": "One ordinal piece of a resumable upload. Parts are addressed by their number, so re-sending a part replaces that number rather than appending a duplicate, which is what makes a retry safe."
+        },
+        "BlobUploadComplete": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false,
+          "description": "Completes a session with no body: the session already carries the declared digest, size and media type. Completing is idempotent, so a client that never saw the first response can retry without storing a second blob."
         },
         "applications": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -82441,6 +82773,9 @@
                 "skillStorageSettings.get",
                 "skillStorageSettings.put",
                 "skillStorageSettings.verify",
+                "blobUploads.start",
+                "blobUploads.part",
+                "blobUploads.complete",
                 "integrationAuth.githubManifestCallback",
                 "integrationResources.list",
                 "integrationDiscoveries.create",
@@ -82912,6 +83247,9 @@
                 "skillStorageSettings.get",
                 "skillStorageSettings.put",
                 "skillStorageSettings.verify",
+                "blobUploads.start",
+                "blobUploads.part",
+                "blobUploads.complete",
                 "integrationAuth.githubManifestCallback",
                 "integrationResources.list",
                 "integrationDiscoveries.create",
@@ -83383,6 +83721,9 @@
                 "skillStorageSettings.get",
                 "skillStorageSettings.put",
                 "skillStorageSettings.verify",
+                "blobUploads.start",
+                "blobUploads.part",
+                "blobUploads.complete",
                 "integrationAuth.githubManifestCallback",
                 "integrationResources.list",
                 "integrationDiscoveries.create",
@@ -126873,6 +127214,9 @@
                       "skillStorageSettings.get",
                       "skillStorageSettings.put",
                       "skillStorageSettings.verify",
+                      "blobUploads.start",
+                      "blobUploads.part",
+                      "blobUploads.complete",
                       "integrationAuth.githubManifestCallback",
                       "integrationResources.list",
                       "integrationDiscoveries.create",
@@ -177854,6 +178198,67 @@
               "type": "string",
               "format": "uuid",
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "contextInputs": {
+              "description": "JobAssignment.contextInputs must contain at most 32 items.",
+              "maxItems": 32,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "slot": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "pattern": "^[a-z0-9]+(?:[-_][a-z0-9]+)*$",
+                    "description": "The name the workflow declared for this input, such as `brief`. It is also the file stem the worker writes under the context directory."
+                  },
+                  "path": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 65536,
+                    "description": "Path of the input's bytes relative to the attempt context directory. It never starts with `/` and never climbs, so it cannot leave the directory."
+                  },
+                  "digest": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$",
+                    "description": "Digest of the pinned bytes. The worker verifies the materialized file against it and refuses the attempt on a mismatch."
+                  },
+                  "sizeBytes": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "description": "Size of the pinned bytes in bytes, so the worker can bound the read and report a truncated or replaced file."
+                  },
+                  "mediaType": {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Media type of the pinned bytes, shown to the step so it knows how to read the file without guessing."
+                  },
+                  "kind": {
+                    "description": "StepContextInput.kind may be null in this transport value.",
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "Artifact kind the workflow declared for this slot, or null when it declared none."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "slot",
+                  "path",
+                  "digest",
+                  "sizeBytes",
+                  "mediaType"
+                ],
+                "additionalProperties": false,
+                "description": "Input slots the step declared, pinned at admission: the worker materializes exactly these bytes into its context directory and never re-fetches the artifact, so the digest it verifies is the one admission pinned. Each array item follows this format."
+              }
             }
           },
           "required": [
@@ -186900,6 +187305,63 @@
           "additionalProperties": false,
           "description": "One entry in a job assignment's skillRefs list, naming the exact skill version (versionId) a worker must materialize and the manifest digest (digest) it must hash to; the worker fetches the version by versionId and rejects it if the recomputed digest does not match."
         },
+        "StepContextInput": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "slot": {
+              "type": "string",
+              "maxLength": 100,
+              "pattern": "^[a-z0-9]+(?:[-_][a-z0-9]+)*$",
+              "description": "The name the workflow declared for this input, such as `brief`. It is also the file stem the worker writes under the context directory."
+            },
+            "path": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 65536,
+              "description": "Path of the input's bytes relative to the attempt context directory. It never starts with `/` and never climbs, so it cannot leave the directory."
+            },
+            "digest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$",
+              "description": "Digest of the pinned bytes. The worker verifies the materialized file against it and refuses the attempt on a mismatch."
+            },
+            "sizeBytes": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "description": "Size of the pinned bytes in bytes, so the worker can bound the read and report a truncated or replaced file."
+            },
+            "mediaType": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Media type of the pinned bytes, shown to the step so it knows how to read the file without guessing."
+            },
+            "kind": {
+              "description": "StepContextInput.kind may be null in this transport value.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Artifact kind the workflow declared for this slot, or null when it declared none."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ]
+            }
+          },
+          "required": [
+            "slot",
+            "path",
+            "digest",
+            "sizeBytes",
+            "mediaType"
+          ],
+          "additionalProperties": false,
+          "description": "One input slot a step declared, as admission pinned it: the declared slot name, the relative path inside the attempt context directory where the worker writes the bytes, the digest of exactly those bytes, their size and media type, and the artifact kind when the workflow declared one. The worker materializes from these bytes and must not re-fetch the artifact, so the digest it sees is the one admission pinned."
+        },
         "McpToolFailure": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
@@ -189285,6 +189747,7 @@
                   "integrationAuthAttempt:manage",
                   "integrationAuthAttempt:read",
                   "integrationInstallation:read",
+                  "artifact:create",
                   "integrationResource:read",
                   "integrationDiscovery:manage",
                   "integrationResource:manage",
@@ -205035,6 +205498,117 @@
           "additionalProperties": false,
           "description": "What one reconciliation read settled for a pull request: the number of unknown attempts moved, split by whether GitHub reports the pull request merged."
         },
+        "BlobUploadSession": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Stable UUID of this upload session, used in the part and complete paths."
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "pending",
+                "completed",
+                "abandoned",
+                "expired"
+              ],
+              "description": "Lifecycle state: pending while parts are accepted, completed once the declared file is stored, expired once its deadline passed uncompleted, abandoned when a client gave the upload up."
+            },
+            "sha256": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The digest declared when the session opened; the completed assembly must match it."
+            },
+            "sizeBytes": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "The total size declared when the session opened."
+            },
+            "mediaType": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The media type declared when the session opened."
+            },
+            "receivedBytes": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Bytes accepted so far, so a client can tell how much of the file is already on the server."
+            },
+            "partCount": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Number of distinct part ordinals stored, which reveals a gap a client would otherwise have to discover on completion."
+            },
+            "expiresAt": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "Absolute deadline for this session. It does not slide on activity, so a stalled upload cannot keep itself alive indefinitely."
+            }
+          },
+          "required": [
+            "id",
+            "state",
+            "sha256",
+            "sizeBytes",
+            "mediaType",
+            "receivedBytes",
+            "partCount",
+            "expiresAt"
+          ],
+          "additionalProperties": false,
+          "description": "A resumable upload in progress, scoped to the organization and the principal that opened it. It reports what has arrived so a client can resume from the right ordinal rather than restarting the file."
+        },
+        "Blob": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Stable UUID of the stored blob, usable wherever an artifact version needs to reference these bytes."
+            },
+            "sha256": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Lowercase hexadecimal SHA-256 of the stored bytes, which is also the object's key within the organization."
+            },
+            "sizeBytes": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Size of the stored bytes in bytes."
+            },
+            "mediaType": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "IANA media type recorded for the stored bytes."
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When this blob was first stored. A later upload of the same bytes does not change it."
+            }
+          },
+          "required": [
+            "id",
+            "sha256",
+            "sizeBytes",
+            "mediaType",
+            "createdAt"
+          ],
+          "additionalProperties": false,
+          "description": "A stored file identified by its organization and SHA-256. Two uploads of the same bytes in one organization are the same blob, so a repeated completion returns the existing record rather than storing the content twice."
+        },
         "ArtifactOutput": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
@@ -206520,7 +207094,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:b46e578adb70220a6bd9d07883733a5a2e0a3ebb2c91284663c4e01657dc025b",
+  "compatibilityDigest": "sha256:255bdd7b846160e0279a96716950df78bdee2a99990f6a0aaacc3cefb7efc2ce",
   "schemas": {
     "CoordinationPlanCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -213784,6 +214358,9 @@
             "skillStorageSettings.get",
             "skillStorageSettings.put",
             "skillStorageSettings.verify",
+            "blobUploads.start",
+            "blobUploads.part",
+            "blobUploads.complete",
             "integrationAuth.githubManifestCallback",
             "integrationResources.list",
             "integrationDiscoveries.create",
@@ -231134,6 +231711,68 @@
       ],
       "additionalProperties": false,
       "description": "Settles every unknown merge attempt of one pull request by re-reading it from GitHub; a merge that happened is recorded as merged and one that did not as refused, without ever sending a second merge."
+    },
+    "BlobUploadStart": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "sha256": {
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 64,
+          "description": "BlobUploadStart.sha256 must contain at most 64 characters."
+        },
+        "sizeBytes": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Total size of the file in bytes, declared up front and bounded by the 5 GiB per-blob limit. Declaring it lets the server refuse an incomplete assembly instead of accepting a truncated file."
+        },
+        "mediaType": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255,
+          "description": "BlobUploadStart.mediaType must contain at most 255 characters."
+        }
+      },
+      "required": [
+        "sha256",
+        "sizeBytes",
+        "mediaType"
+      ],
+      "additionalProperties": false,
+      "description": "Opens a resumable upload by declaring the whole file's digest, size and media type before any part is sent. The declaration is what the completed assembly is checked against, so a client cannot discover after the fact what it uploaded."
+    },
+    "BlobUploadPart": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "content": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536,
+          "description": "BlobUploadPart.content must contain at most 5242880 characters."
+        },
+        "sha256": {
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 64,
+          "description": "BlobUploadPart.sha256 must contain at most 64 characters."
+        }
+      },
+      "required": [
+        "content",
+        "sha256"
+      ],
+      "additionalProperties": false,
+      "description": "One ordinal piece of a resumable upload. Parts are addressed by their number, so re-sending a part replaces that number rather than appending a duplicate, which is what makes a retry safe."
+    },
+    "BlobUploadComplete": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false,
+      "description": "Completes a session with no body: the session already carries the declared digest, size and media type. Completing is idempotent, so a client that never saw the first response can retry without storing a second blob."
     },
     "applications": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -256985,6 +257624,9 @@
             "skillStorageSettings.get",
             "skillStorageSettings.put",
             "skillStorageSettings.verify",
+            "blobUploads.start",
+            "blobUploads.part",
+            "blobUploads.complete",
             "integrationAuth.githubManifestCallback",
             "integrationResources.list",
             "integrationDiscoveries.create",
@@ -257456,6 +258098,9 @@
             "skillStorageSettings.get",
             "skillStorageSettings.put",
             "skillStorageSettings.verify",
+            "blobUploads.start",
+            "blobUploads.part",
+            "blobUploads.complete",
             "integrationAuth.githubManifestCallback",
             "integrationResources.list",
             "integrationDiscoveries.create",
@@ -257927,6 +258572,9 @@
             "skillStorageSettings.get",
             "skillStorageSettings.put",
             "skillStorageSettings.verify",
+            "blobUploads.start",
+            "blobUploads.part",
+            "blobUploads.complete",
             "integrationAuth.githubManifestCallback",
             "integrationResources.list",
             "integrationDiscoveries.create",
@@ -301559,6 +302207,9 @@
                   "skillStorageSettings.get",
                   "skillStorageSettings.put",
                   "skillStorageSettings.verify",
+                  "blobUploads.start",
+                  "blobUploads.part",
+                  "blobUploads.complete",
                   "integrationAuth.githubManifestCallback",
                   "integrationResources.list",
                   "integrationDiscoveries.create",
@@ -352590,6 +353241,67 @@
           "type": "string",
           "format": "uuid",
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "contextInputs": {
+          "description": "JobAssignment.contextInputs must contain at most 32 items.",
+          "maxItems": 32,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "slot": {
+                "type": "string",
+                "maxLength": 100,
+                "pattern": "^[a-z0-9]+(?:[-_][a-z0-9]+)*$",
+                "description": "The name the workflow declared for this input, such as `brief`. It is also the file stem the worker writes under the context directory."
+              },
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 65536,
+                "description": "Path of the input's bytes relative to the attempt context directory. It never starts with `/` and never climbs, so it cannot leave the directory."
+              },
+              "digest": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$",
+                "description": "Digest of the pinned bytes. The worker verifies the materialized file against it and refuses the attempt on a mismatch."
+              },
+              "sizeBytes": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Size of the pinned bytes in bytes, so the worker can bound the read and report a truncated or replaced file."
+              },
+              "mediaType": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Media type of the pinned bytes, shown to the step so it knows how to read the file without guessing."
+              },
+              "kind": {
+                "description": "StepContextInput.kind may be null in this transport value.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Artifact kind the workflow declared for this slot, or null when it declared none."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ]
+              }
+            },
+            "required": [
+              "slot",
+              "path",
+              "digest",
+              "sizeBytes",
+              "mediaType"
+            ],
+            "additionalProperties": false,
+            "description": "Input slots the step declared, pinned at admission: the worker materializes exactly these bytes into its context directory and never re-fetches the artifact, so the digest it verifies is the one admission pinned. Each array item follows this format."
+          }
         }
       },
       "required": [
@@ -361650,6 +362362,63 @@
       "additionalProperties": false,
       "description": "One entry in a job assignment's skillRefs list, naming the exact skill version (versionId) a worker must materialize and the manifest digest (digest) it must hash to; the worker fetches the version by versionId and rejects it if the recomputed digest does not match."
     },
+    "StepContextInput": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "slot": {
+          "type": "string",
+          "maxLength": 100,
+          "pattern": "^[a-z0-9]+(?:[-_][a-z0-9]+)*$",
+          "description": "The name the workflow declared for this input, such as `brief`. It is also the file stem the worker writes under the context directory."
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536,
+          "description": "Path of the input's bytes relative to the attempt context directory. It never starts with `/` and never climbs, so it cannot leave the directory."
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "Digest of the pinned bytes. The worker verifies the materialized file against it and refuses the attempt on a mismatch."
+        },
+        "sizeBytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Size of the pinned bytes in bytes, so the worker can bound the read and report a truncated or replaced file."
+        },
+        "mediaType": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Media type of the pinned bytes, shown to the step so it knows how to read the file without guessing."
+        },
+        "kind": {
+          "description": "StepContextInput.kind may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Artifact kind the workflow declared for this slot, or null when it declared none."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "slot",
+        "path",
+        "digest",
+        "sizeBytes",
+        "mediaType"
+      ],
+      "additionalProperties": false,
+      "description": "One input slot a step declared, as admission pinned it: the declared slot name, the relative path inside the attempt context directory where the worker writes the bytes, the digest of exactly those bytes, their size and media type, and the artifact kind when the workflow declared one. The worker materializes from these bytes and must not re-fetch the artifact, so the digest it sees is the one admission pinned."
+    },
     "McpToolFailure": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -364043,6 +364812,7 @@
               "integrationAuthAttempt:manage",
               "integrationAuthAttempt:read",
               "integrationInstallation:read",
+              "artifact:create",
               "integrationResource:read",
               "integrationDiscovery:manage",
               "integrationResource:manage",
@@ -379826,6 +380596,117 @@
       ],
       "additionalProperties": false,
       "description": "What one reconciliation read settled for a pull request: the number of unknown attempts moved, split by whether GitHub reports the pull request merged."
+    },
+    "BlobUploadSession": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID of this upload session, used in the part and complete paths."
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "completed",
+            "abandoned",
+            "expired"
+          ],
+          "description": "Lifecycle state: pending while parts are accepted, completed once the declared file is stored, expired once its deadline passed uncompleted, abandoned when a client gave the upload up."
+        },
+        "sha256": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The digest declared when the session opened; the completed assembly must match it."
+        },
+        "sizeBytes": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "The total size declared when the session opened."
+        },
+        "mediaType": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The media type declared when the session opened."
+        },
+        "receivedBytes": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Bytes accepted so far, so a client can tell how much of the file is already on the server."
+        },
+        "partCount": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Number of distinct part ordinals stored, which reveals a gap a client would otherwise have to discover on completion."
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "Absolute deadline for this session. It does not slide on activity, so a stalled upload cannot keep itself alive indefinitely."
+        }
+      },
+      "required": [
+        "id",
+        "state",
+        "sha256",
+        "sizeBytes",
+        "mediaType",
+        "receivedBytes",
+        "partCount",
+        "expiresAt"
+      ],
+      "additionalProperties": false,
+      "description": "A resumable upload in progress, scoped to the organization and the principal that opened it. It reports what has arrived so a client can resume from the right ordinal rather than restarting the file."
+    },
+    "Blob": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID of the stored blob, usable wherever an artifact version needs to reference these bytes."
+        },
+        "sha256": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Lowercase hexadecimal SHA-256 of the stored bytes, which is also the object's key within the organization."
+        },
+        "sizeBytes": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Size of the stored bytes in bytes."
+        },
+        "mediaType": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "IANA media type recorded for the stored bytes."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When this blob was first stored. A later upload of the same bytes does not change it."
+        }
+      },
+      "required": [
+        "id",
+        "sha256",
+        "sizeBytes",
+        "mediaType",
+        "createdAt"
+      ],
+      "additionalProperties": false,
+      "description": "A stored file identified by its organization and SHA-256. Two uploads of the same bytes in one organization are the same blob, so a repeated completion returns the existing record rather than storing the content twice."
     },
     "ArtifactOutput": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

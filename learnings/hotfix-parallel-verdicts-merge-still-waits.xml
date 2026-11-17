@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="hotfix-parallel-verdicts-merge-still-waits" recorded="2026-11-17T04:15:00Z" by="orch-pm">
+  <title>Hotfixes may run QA and review in parallel, but the merge still waits for BOTH verdicts at the head</title>
+  <body>
+On #516 (2026-11-17) I minted the QA and review rows in parallel to move the
+lease_token_hash hotfix fast — fine for speed — but then MERGED at 03:28Z on
+reviewer-approval + green CI while the QA row was still open. qa2's Approve
+arrived at 03:5xZ and converged the record, but the convergence was
+luck-adjacent, not process: had qa2's re-probe failed, the inverted order
+would have shipped a break on a lane that existed precisely because main was
+already broken.
+
+Rule, pinned for hotfix lanes explicitly: parallel verdicts are allowed (and
+desirable for hotfix speed), but the merge gate is unchanged — BOTH the QA
+and the review verdict must bind the merging head BEFORE merge. A hotfix's
+urgency argues for parallel lanes, never for a shorter gate. The same
+discipline I held #518 to ("merge held for QA verdict per the loop") applies
+to every merge, and the hotfix is the lane where the temptation to skip it is
+strongest.
+  </body>
+</learning>

@@ -64,6 +64,9 @@ export const WORKFLOW_COMPILER_DIAGNOSTIC_CODES = Object.freeze(
     "action_checks_invalid",
     "action_checks_unsupported",
     "action_limits_invalid",
+    "action_skills_invalid",
+    "action_role_invalid",
+    "action_slots_invalid",
     "action_duplicate_field",
     "action_effect_key_required",
     "input_field_unknown",
@@ -174,6 +177,11 @@ export const WORKFLOW_COMPILER_MESSAGES: Readonly<
   action_checks_invalid: "A check name is not registered.",
   action_checks_unsupported: "The action does not accept checks.",
   action_limits_invalid: "An action limit is invalid.",
+  action_skills_invalid:
+    "The declared skill versions are invalid or not sorted and unique.",
+  action_role_invalid: "The declared step role is invalid.",
+  action_slots_invalid:
+    "A named input or output slot is invalid, repeated, or badly bound.",
   action_duplicate_field: "A field is supplied in two locations.",
   action_effect_key_required: "The action requires an effect key.",
   input_field_unknown: "The action input has an unknown field.",

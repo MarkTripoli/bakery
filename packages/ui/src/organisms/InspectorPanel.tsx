@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 import "../navigation.css";
 
 export type InspectorPanelProps = {
+  /** The id a control uses to name this panel, when one opens it. */
+  id?: string;
   /** Accessible name of the complementary region. */
   label: string;
   /** Header row content: the selected object's title and its controls. */
@@ -27,6 +29,7 @@ export function InspectorPanel(
     children,
     footer,
     header,
+    id,
     label,
     state = "default",
     variant = "column",
@@ -34,6 +37,7 @@ export function InspectorPanel(
 ) {
   return (
     <aside
+      id={id}
       aria-label={label}
       className={`bakery-inspector-panel bakery-inspector-panel--${variant}`}
       data-state={state}

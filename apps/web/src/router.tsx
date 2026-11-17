@@ -31,6 +31,8 @@ import { TasksPage } from "./pages/TasksPage.tsx";
 import { IssuePage } from "./pages/IssuePage.tsx";
 import { ProjectsPage } from "./pages/ProjectsPage.tsx";
 import { IssuesPage } from "./pages/IssuesPage.tsx";
+import { IssueSettingsListPage } from "./pages/IssueSettingsListPage.tsx";
+import { IssueSettingsPage } from "./pages/IssueSettingsPage.tsx";
 import { LibraryPage } from "./pages/LibraryPage.tsx";
 import { AgentPage } from "./pages/AgentPage.tsx";
 import { BuiltInWorkflowPage } from "./pages/BuiltInWorkflowPage.tsx";
@@ -39,6 +41,7 @@ import { MachinesPage } from "./pages/MachinesPage.tsx";
 import { MachineDetailPage } from "./pages/MachineDetailPage.tsx";
 import { MachineWizardPage } from "./pages/MachineWizardPage.tsx";
 import { TaskCoordinationPage } from "./pages/task-coordination/TaskCoordinationPage.tsx";
+import { WorkflowEditorPage } from "./pages/library/WorkflowEditorPage.tsx";
 import { AppearancePage } from "./pages/AppearancePage.tsx";
 import { HealthPage } from "./pages/HealthPage.tsx";
 import { SetupPage } from "./pages/SetupPage.tsx";
@@ -228,6 +231,19 @@ export const routeCoverage = [
     ],
   },
   {
+    id: "library-workflow-editor",
+    path: "/library/workflows/$workflowId/edit",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "empty",
+      "error",
+      "forbidden",
+      "offline",
+    ],
+  },
+  {
     id: "library-builtin",
     path: "/library/built-in/$presetId",
     classification: "production",
@@ -271,6 +287,32 @@ export const routeCoverage = [
   {
     id: "issue-detail",
     path: "/issues/$issueId",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "error",
+      "forbidden",
+      "offline",
+      "long-copy",
+    ],
+  },
+  {
+    id: "issue-settings",
+    path: "/issues/settings",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "empty",
+      "error",
+      "forbidden",
+      "offline",
+    ],
+  },
+  {
+    id: "issue-settings-detail",
+    path: "/issues/settings/$sourceId",
     classification: "production",
     states: [
       "loading",
@@ -1022,6 +1064,19 @@ const taskDetailRoute = createRoute({
   errorComponent: ProtectedRouteError,
 });
 
+const workflowEditorRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/library/workflows/$workflowId/edit",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => (
+    <WorkflowEditorPage
+      workflowId={workflowEditorRoute.useParams().workflowId}
+    />
+  ),
+  errorComponent: ProtectedRouteError,
+});
+
 const taskCoordinationRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/tasks/$taskId/coordination",
@@ -1057,6 +1112,28 @@ const issueDetailRoute = createRoute({
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
   component: () => <IssuePage issueId={issueDetailRoute.useParams().issueId} />,
+  errorComponent: ProtectedRouteError,
+});
+
+const issueSettingsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/issues/settings",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: IssueSettingsListPage,
+  errorComponent: ProtectedRouteError,
+});
+
+const issueSettingsDetailRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/issues/settings/$sourceId",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => (
+    <IssueSettingsPage
+      sourceId={issueSettingsDetailRoute.useParams().sourceId}
+    />
+  ),
   errorComponent: ProtectedRouteError,
 });
 
@@ -2022,9 +2099,12 @@ const routeTree = rootRoute.addChildren([
   taskCoordinationRoute,
   issuesRoute,
   issueDetailRoute,
+  issueSettingsRoute,
+  issueSettingsDetailRoute,
   machinesRoute,
   libraryRoute,
   workflowRoute,
+  workflowEditorRoute,
   builtInWorkflowRoute,
   agentRoute,
   machineNewRoute,

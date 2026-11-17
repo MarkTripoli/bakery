@@ -64,6 +64,7 @@ export type WorkflowPresetsListQuery =
 export type NamedDefinitionCreate = ClientInputMap["NamedDefinitionCreate"];
 export type WorkflowVersionCreate = ClientInputMap["WorkflowVersionCreate"];
 export type WorkflowValidationInput = ClientInputMap["WorkflowValidation"];
+export type WorkflowDraftUpdate = ClientInputMap["WorkflowDraftUpdate"];
 export type ValidationReportResponse = ClientOutputMap["ValidationReport"];
 export type TaskResponse = ClientOutputMap["Task"];
 export type RunListResponse = ClientOutputMap["Page<Run>"];
@@ -140,6 +141,7 @@ export type ExternalTicketResponse = ClientOutputMap["ExternalTicket"];
 export type ExternalTicketListResponse =
   ClientOutputMap["Page<ExternalTicket>"];
 export type TicketSourceResponse = ClientOutputMap["TicketSource"];
+export type TicketSourcePersonResponse = ClientOutputMap["TicketSourcePerson"];
 export type TicketSourceListResponse = ClientOutputMap["Page<TicketSource>"];
 export type TicketSourceCreate = ClientInputMap["TicketSourceCreate"];
 export type TicketSourceUpdate = ClientInputMap["TicketSourceUpdate"];
@@ -708,6 +710,26 @@ export type BakeryApiClient = {
       readonly idempotencyKey?: string;
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<TicketSourceResponse>>;
+    /** `GET /v1/ticket-sources/{id}`: one repository's issue settings. */
+    readonly source: (options: {
+      readonly organizationId: string;
+      readonly id: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<TicketSourceResponse>>;
+    /** `POST /v1/ticket-sources/{id}/previews`: reads GitHub again with the saved settings and records what each issue needs. */
+    readonly preview: (options: {
+      readonly organizationId: string;
+      readonly sourceId: string;
+      readonly idempotencyKey?: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<TicketOperationReceiptResponse>>;
+    /** `GET /v1/ticket-sources/{id}/people/{login}`: turns a GitHub username into the id the settings store. */
+    readonly lookupPerson: (options: {
+      readonly organizationId: string;
+      readonly sourceId: string;
+      readonly login: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<TicketSourcePersonResponse>>;
     /** `POST /v1/ticket-sources/{id}/syncs`: asks Bakery to read GitHub again. Admin only. */
     readonly sync: (options: {
       readonly organizationId: string;
@@ -1236,6 +1258,25 @@ export type BakeryApiClient = {
     readonly organizationId: string;
     readonly workflowId: string;
     readonly input: WorkflowVersionCreate;
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<WorkflowVersionResponse>>;
+  /** Publishes a draft version (its digest expected back, so a stale page cannot publish). */
+  readonly publishWorkflowVersion: (options: {
+    readonly organizationId: string;
+    readonly workflowId: string;
+    readonly versionId: string;
+    readonly expectedDigest: string;
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<WorkflowVersionResponse>>;
+  /** Saves this workflow's draft version (PATCH, with the version's own If-Match). */
+  readonly updateWorkflowVersion: (options: {
+    readonly organizationId: string;
+    readonly workflowId: string;
+    readonly versionId: string;
+    readonly input: WorkflowDraftUpdate;
+    readonly version: number;
     readonly idempotencyKey?: string;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<WorkflowVersionResponse>>;
@@ -2016,6 +2057,35 @@ export function createBakeryApiClient({
               idempotencyKey: options.idempotencyKey,
               signal: options.signal,
             }),
+        );
+      },
+      source(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["ticketSources.get"]({ id: options.id }, {
+              signal: options.signal,
+            }),
+        );
+      },
+      preview(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["ticketSources.preview"]({ id: options.sourceId }, {
+              idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
+            }),
+        );
+      },
+      lookupPerson(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["ticketSources.lookupPerson"]({
+              id: options.sourceId,
+              login: options.login,
+            }, { signal: options.signal }),
         );
       },
       updateSource(options) {
@@ -4219,6 +4289,51 @@ export function createBakeryApiClient({
         const data = await client.actions["workflowVersions.create"](
           { id: options.workflowId, ...options.input },
           {
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async publishWorkflowVersion(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["workflowVersions.publish"](
+          {
+            id: options.workflowId,
+            versionId: options.versionId,
+            expectedDigest: options.expectedDigest,
+          },
+          {
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async updateWorkflowVersion(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["workflowVersions.update"](
+          {
+            id: options.workflowId,
+            versionId: options.versionId,
+            ...options.input,
+          },
+          {
+            ifMatch: versionEtag(options.version),
             idempotencyKey: options.idempotencyKey,
             signal: options.signal,
           },

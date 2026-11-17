@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="never-grep-a-gate-summary" recorded="2026-11-17T03:52:00Z" by="orch-pm">
+  <title>A parsed lint summary is not the gate — the hook and CI are; grep-of-output lies about clean</title>
+  <body>
+dev-workflows hit this on #518 (2026-11-17): their own lint grep reported clean
+while the pre-commit hook caught a prefer-const — deno lint prints findings in
+a shape their grep pattern did not match. They fixed and re-ran rather than
+--no-verify.
+
+Rule: when you summarize a gate's output through grep/jq/node parsing, the
+PARSER is now part of your gate and can silently fail to match. Trust, in
+order: the gate's own exit code, the hook, then CI. A parsed summary is a
+convenience for reporting, never evidence of clean. If a hook and your summary
+disagree, the hook is right until proven otherwise — and the proof is a
+re-run, not an argument.
+
+The failure mode to fear: a seat trusting its own summary over the hook and
+pushing a red gate with a green-sounding report.
+  </body>
+</learning>

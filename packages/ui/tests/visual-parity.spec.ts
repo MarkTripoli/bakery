@@ -29,7 +29,9 @@ import {
   predecessorManifest,
   referenceRenderProvedAt,
   sourceDigestIssues,
+  sourceKind,
   sourceRefreshed,
+  uxRulingRefreshIssue,
   validateCycle,
   // deno-lint-ignore no-sloppy-imports
 } from "../scripts/compare-paper.mjs";
@@ -799,6 +801,123 @@ test.describe("Paper parity gate", () => {
         digest: "e".repeat(64),
       },
     }, baseManifest)).toEqual([]);
+  });
+
+  test("licenses a baseline refresh from a redesign ruling, not just a Paper re-export", () => {
+    // The owner's 2026-11-11 directive: the UX design comment, not Paper, is
+    // the source of truth. When the app is the sanctioned design and the Paper
+    // export went stale, a ruling identity must be able to re-anchor a
+    // baseline - and must prove itself rather than declare itself.
+    const RULING = "248#6934310296";
+    const BODY =
+      "Paper is no longer the source of truth; the UX design comment is.";
+    const BODY_SHA =
+      "4cc125a9c7cb7d1daadb2ac0cc366114faaadb94f8fe6a85df978ad69a9192d1";
+    const APP = "a2971b447";
+    const INPUT = "docs/technical-design/ui-baselines/paper-baselines.json";
+    const INPUT_SHA =
+      "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
+    const CASES = [
+      {
+        "id": "backup-codes.copied.light.desktop",
+        "reference": "design",
+        "imagePath":
+          "docs/technical-design/ui-baselines/paper/design/backup-codes--copied--light--desktop.png",
+        "imageSha256":
+          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "designRuling": "248#6934310296",
+      },
+    ];
+
+    const manifestOf = (overrides: Record<string, unknown> = {}) => {
+      const { cases, ...sourceOverrides } = overrides as {
+        cases?: unknown[];
+        [key: string]: unknown;
+      };
+      return {
+        schemaVersion: 2,
+        source: {
+          revision: `ux-ruling:${RULING}; app:${APP}`,
+          digest:
+            "d0a01167e3a2b19fc31237acce7ad43fd8480ee6e00e13434622546d05c2d182",
+          rulingBodyPath:
+            "docs/technical-design/ui-baselines/paper/rulings/248-6934310296.md",
+          rulingBodySha256: BODY_SHA,
+          inputs: [INPUT],
+          ...sourceOverrides,
+        },
+        reference: { hidden: [] },
+        cases: cases ?? CASES,
+      };
+    };
+    // The gate reads the vendored body and pinned inputs through the snapshot,
+    // so the proof here is over bytes, not over declared strings.
+    const verify = (
+      manifest: Record<string, unknown>,
+      extra: Record<string, unknown> = {},
+    ) =>
+      uxRulingRefreshIssue(manifest, {
+        readRulingBody: () => BODY,
+        readInput: () => INPUT_SHA,
+        commitExists: () => true,
+        ...extra,
+      });
+
+    expect(sourceKind(manifestOf())).toBe("ux-ruling");
+    expect(verify(manifestOf())).toBe("");
+
+    // The citation alone is not evidence: an invented comment id cannot be
+    // laundered by declaring it, because the body must hash to the pin.
+    expect(verify(manifestOf(), { readRulingBody: () => "something else" }))
+      .toBe(
+        "the vendored ruling body does not match its pinned digest",
+      );
+    expect(verify(manifestOf(), { readRulingBody: () => undefined })).toBe(
+      "the vendored ruling body is missing",
+    );
+    // Requiring source.inputs and never hashing it was self-attestation in a
+    // second place; the inputs are now part of the digest material.
+    expect(verify(manifestOf(), { readInput: () => "d".repeat(64) })).toBe(
+      "the declared ruling digest does not match the licensed cases",
+    );
+    // app:<sha> must be a real commit at or before the merge base.
+    expect(verify(manifestOf(), { commitExists: () => false })).toBe(
+      `app:${APP} does not name a commit in this repository`,
+    );
+
+    // A case that does not cite the ruling cannot ride the refresh.
+    expect(
+      verify(manifestOf({
+        cases: [{ ...CASES[0], designRuling: undefined }],
+      })),
+    ).toBe("no case cites the ruling that licensed this refresh");
+    // Widening the refreshed set breaks the digest.
+    expect(
+      verify(manifestOf({
+        cases: [...CASES, {
+          id: "another.screen.light.desktop",
+          reference: "design",
+          imagePath:
+            "docs/technical-design/ui-baselines/paper/design/another--light--desktop.png",
+          imageSha256: "b".repeat(64),
+          designRuling: RULING,
+        }],
+      })),
+    ).toBe("the declared ruling digest does not match the licensed cases");
+    // A case citing a different ruling is refused by name.
+    expect(
+      verify(manifestOf({
+        cases: [{ ...CASES[0], designRuling: "248#6934999999" }],
+      })),
+    ).toContain("cites");
+    // A malformed identity is refused rather than treated as a refresh.
+    expect(
+      verify(manifestOf({ revision: "ux-ruling:nonsense" })),
+    ).toContain("must read");
+    // An identity with no ruling body pin is not a lawful refresh at all.
+    expect(verify(manifestOf({ rulingBodySha256: undefined }))).toBe(
+      "the ruling identity does not pin the ruling's comment body",
+    );
   });
 
   test("separates an introduced Paper baseline from a mutated one", () => {
@@ -2350,5 +2469,136 @@ test.describe("device chrome on phone references", () => {
     ]);
     expect(deviceChromeIssues(baseline, "auth")).toHaveLength(1);
     expect(deviceChromeIssues(baseline, "enterprise")).toEqual([]);
+  });
+});
+
+test.describe("dark disabled primary keeps its label readable", () => {
+  // #343 replaced the faded primary fill with the subtle surface so a disabled
+  // button stopped being the brightest thing in dark mode. That also swapped the
+  // ink to --color-fg-disabled, which measures 2.67:1 on that surface - under
+  // the 4.5:1 floor. The approved Paper loading references (login, register,
+  // reauth) show a readable label, so no dark disabled primary may fall below
+  // the floor again.
+  //
+  // Clearing the floor is not enough on its own: --color-fg-muted does too
+  // (7.29:1), but it out-shouts the disabled secondary (5.66:1) and so reads as
+  // an enabled control. The ink must both clear the floor and stay the dimmest
+  // of the three states.
+  const luminance = (hex: string) => {
+    const channels = [1, 3, 5].map((offset) =>
+      parseInt(hex.slice(offset, offset + 2), 16) / 255
+    );
+    const [r, g, b] = channels.map((value) =>
+      value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
+    );
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  const contrastRatio = (foreground: string, background: string) => {
+    const [light, dark] = [luminance(foreground), luminance(background)].sort((
+      a,
+      b,
+    ) => b - a);
+    return (light + 0.05) / (dark + 0.05);
+  };
+  const readTokens = async () => {
+    const root = join(import.meta.dirname, "..", "src", "foundations");
+    const theme = await readFile(join(root, "theme.css"), "utf8");
+    const darkBlock = theme.slice(theme.indexOf('[data-theme="dark"]'));
+    const token = (name: string) => {
+      const match = new RegExp(`--${name}:\\s*(#[0-9A-Fa-f]{6})`).exec(
+        darkBlock,
+      );
+      if (!match) throw new Error(`dark theme does not declare --${name}`);
+      return match[1];
+    };
+    return { token };
+  };
+
+  test("the tertiary ink used by the dark disabled primary clears 4.5:1", async () => {
+    const { token } = await readTokens();
+    const ratio = contrastRatio(
+      token("color-fg-tertiary"),
+      token("color-surface-subtle"),
+    );
+    expect(ratio).toBeGreaterThanOrEqual(4.5);
+  });
+
+  // .ui-button:disabled renders at 55% opacity, so a disabled secondary's ink
+  // is --color-fg blended 55/45 over --color-surface. Derive it rather than
+  // hardcode the measured value, so a token change moves this with it.
+  const blend = (foreground: string, background: string, alpha: number) => {
+    const channel = (hex: string, offset: number) =>
+      parseInt(hex.slice(offset, offset + 2), 16);
+    const mixed = [1, 3, 5].map((offset) =>
+      Math.round(
+        alpha * channel(foreground, offset) +
+          (1 - alpha) * channel(background, offset),
+      )
+    );
+    return `#${
+      mixed.map((value) => value.toString(16).padStart(2, "0")).join("")
+    }`;
+  };
+
+  test("a disabled primary is dimmer than a disabled secondary", async () => {
+    // This is the ordering that keeps the control reading as unavailable.
+    const { token } = await readTokens();
+    const disabledPrimary = contrastRatio(
+      token("color-fg-tertiary"),
+      token("color-surface-subtle"),
+    );
+    const disabledSecondary = contrastRatio(
+      blend(token("color-fg"), token("color-surface"), 0.55),
+      token("color-surface"),
+    );
+    expect(disabledPrimary).toBeLessThan(disabledSecondary);
+  });
+
+  test("the muted ink would have out-shouted the disabled secondary", async () => {
+    // Records why the token is tertiary and not muted: muted clears the floor
+    // but inverts the hierarchy, so "tidy it back to muted" is the regression.
+    const { token } = await readTokens();
+    const muted = contrastRatio(
+      token("color-fg-muted"),
+      token("color-surface-subtle"),
+    );
+    const disabledSecondary = contrastRatio(
+      blend(token("color-fg"), token("color-surface"), 0.55),
+      token("color-surface"),
+    );
+    expect(muted).toBeGreaterThan(disabledSecondary);
+  });
+
+  test("only the dark disabled primary rule changes ink", async () => {
+    // A replace-all of --color-fg-muted with --color-fg-tertiary in this file
+    // would dim field hints, tab labels and quiet links app-wide - text people
+    // read, in both themes, that no design asked to change. Pin the blast
+    // radius: exactly one rule may name the tertiary ink.
+    const controls = await readFile(
+      join(import.meta.dirname, "..", "src", "controls.css"),
+      "utf8",
+    );
+    const tertiaryUses = controls.match(/color:\s*var\(--color-fg-tertiary\)/g);
+    expect(tertiaryUses).toHaveLength(1);
+    const rule = /\[data-theme="dark"\] \.ui-button--primary:disabled \{[^}]*\}/
+      .exec(
+        controls,
+      );
+    expect(rule![0]).toContain("color: var(--color-fg-tertiary)");
+  });
+
+  test("the disabled rule actually uses the tertiary ink", async () => {
+    const controls = await readFile(
+      join(import.meta.dirname, "..", "src", "controls.css"),
+      "utf8",
+    );
+    const rule = /\[data-theme="dark"\] \.ui-button--primary:disabled \{[^}]*\}/
+      .exec(
+        controls,
+      );
+    expect(rule, "the dark disabled primary rule is missing").not.toBeNull();
+    expect(rule![0]).toContain("color: var(--color-fg-tertiary)");
+    expect(rule![0]).not.toContain("--color-fg-muted");
+    expect(rule![0]).not.toContain("--color-fg-disabled");
   });
 });

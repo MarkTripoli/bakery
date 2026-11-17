@@ -30,6 +30,8 @@ import {
   ArtifactImplementedAction,
   artifactImplementedActions,
   assertImplementedActionRegistry,
+  BlobUploadImplementedAction,
+  blobUploadImplementedActions,
 } from "@bakery/contracts/implemented-actions";
 import type { AuthorizedActionContext } from "../auth/application/authority.ts";
 import { authorize } from "../auth/application/authorize.ts";
@@ -50,6 +52,12 @@ import {
 } from "./import.ts";
 import { artifactContentActionDefinition } from "./content-action.ts";
 import { createArtifactReadHandlers } from "./reads.ts";
+import {
+  createBlobUploadHandlers,
+  type PartInput,
+  type StartInput,
+} from "./blob-upload-handlers.ts";
+import type { OrganizationBlobStore } from "../catalog/storage-port.ts";
 import { registerCommentActions } from "./comments/routes.ts";
 import { extractArtifactVersion } from "./extraction.ts";
 import {
@@ -67,6 +75,8 @@ export type ArtifactResourceRouteOptions = {
   artifactPreviewOrigin?: string;
   /** A registry already built for MCP; omitted, the routes build their own. */
   artifactActions?: ArtifactActions;
+  /** Where completed uploads put their bytes; absent fails completion closed. */
+  blobStore?: OrganizationBlobStore;
 };
 
 const readPolicy = {
@@ -89,6 +99,25 @@ function requireArtifactPermission(
   }
   authorize(authority, permission, { action });
 }
+
+/**
+ * Uploading bytes is a write open to any organization member, which is what the
+ * catalog declares for these three actions. Separate from `readPolicy` because
+ * the registry asserts the runtime access matches the catalog's, so reusing the
+ * read policy here is a startup failure rather than a subtle drift.
+ */
+const blobWritePolicy = {
+  type: ActionKind.Command,
+  access: ActionAccess.Developer,
+  organizationContext: OrganizationContextPolicy.RequiredAuthenticatedContext,
+  authorize: (context: ActionContext) => {
+    requireArtifactPermission(
+      context,
+      "artifact:create",
+      BlobUploadImplementedAction.BlobUploadStart,
+    );
+  },
+} as const;
 
 const extractionPolicy = {
   ...readPolicy,
@@ -175,7 +204,11 @@ export function createArtifactActions(
     "browserSession" | "artifactActions"
   >,
 ): ArtifactActions {
-  const handlers = createArtifactReadHandlers(options.secret);
+  const handlers = createArtifactReadHandlers(
+    options.secret,
+    options.blobStore,
+  );
+  const blobUploads = createBlobUploadHandlers(options.blobStore);
   const trustedRepositoryResolver = createTrustedRepositoryResolver();
   const postgresAuthority = new PostgresAuthorityRunner(options.database);
   const postgresCommandRunner = createPostgresCommandRunner();
@@ -418,10 +451,50 @@ export function createArtifactActions(
       policy: { ...readPolicy, type: ActionKind.Command, sessionOnly: true },
       handler: (context) => revokePreview(context),
     })
-    .register(artifactContentActionDefinition);
-  registerCommentActions(registry, options.secret);
+    .register(artifactContentActionDefinition)
+    // Blob uploads: the session names what it promises, parts are keyed by
+    // ordinal, and completion verifies before recording. The client supplies
+    // bytes and the digest it claims for them; the server checks the claim.
+    .register({
+      name: BlobUploadImplementedAction.BlobUploadStart,
+      method: HttpMethod.Post,
+      path: "/v1/blobs/uploads",
+      input: contractSchemas.BlobUploadStart,
+      output: contractSchemas.BlobUploadSession,
+      policy: blobWritePolicy,
+      handler: (context, input) =>
+        blobUploads.startUpload(context, input as StartInput),
+    })
+    .register({
+      name: BlobUploadImplementedAction.BlobUploadPart,
+      method: HttpMethod.Put,
+      path: "/v1/blobs/uploads/:id/parts/:partNumber",
+      input: contractSchemas.BlobUploadPart,
+      output: contractSchemas.BlobUploadSession,
+      policy: blobWritePolicy,
+      handler: (context, input) =>
+        blobUploads.putPart(context, {
+          ...(input as PartInput),
+          id: context.params.id,
+          partNumber: context.params.partNumber,
+        }),
+    })
+    .register({
+      name: BlobUploadImplementedAction.BlobUploadComplete,
+      method: HttpMethod.Post,
+      path: "/v1/blobs/uploads/:id/complete",
+      input: contractSchemas.BlobUploadComplete,
+      output: contractSchemas.Blob,
+      policy: blobWritePolicy,
+      handler: (context) =>
+        blobUploads.completeUpload(context, { id: context.params.id }),
+    });
+  registerCommentActions(registry, options.secret, options.blobStore);
   assertRegisteredActions(registry);
-  assertImplementedActionRegistry(registry, artifactImplementedActions);
+  assertImplementedActionRegistry(registry, [
+    ...artifactImplementedActions,
+    ...blobUploadImplementedActions,
+  ]);
   return { registry, authority, handlers };
 }
 
@@ -440,6 +513,10 @@ export function createArtifactResourceRoutes(
   app.use("/v1/artifact-preview-availability", session);
   app.use("/v1/artifact-preview-grants/*", session);
   app.use("/v1/artifact-versions/*", session);
+  // Without this the blob routes run with no resolved principal, and every call
+  // is refused as an anonymous one - a 403 that looks like a permission problem
+  // and is really a missing middleware.
+  app.use("/v1/blobs/*", session);
   app.onError((error, context) =>
     problemResponse(context, error, { publicBaseUrl: options.publicBaseUrl })
   );

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="playwright-port-collision-between-seats" project="bakery">
+  <title>Two seats running the browser lane on one host share port 5173 and kill each other mid-run</title>
+  <trigger>A Playwright lane fails partway through with ERR_CONNECTION_REFUSED on tests that passed minutes earlier, or another seat's spec run ends and yours dies mid-lane, on the shared 25 GB host.</trigger>
+  <rule>apps/web/playwright.config.ts defaults to port 5173 with reuseExistingServer: true. Two seats running the browser lane concurrently attach to the SAME Vite server, and whichever run ends first shuts the server down under the other (qa-qa lost 43 tests this way on 2026-11-16 while dev-web ran the same spec). Every seat running a browser lane sets BAKERY_WEB_PORT to a private port unique to its run (and kills its own server afterward per the memory budget). Never assume a connection-refused wave mid-lane is a code regression until you have checked for a concurrent browser run on the host.</rule>
+  <verification>
+    <requirement>Reproduce by running the same spec from two sessions against the default port and observing one die on ERR_CONNECTION_REFUSED when the other exits; confirm the private-port run survives the neighbor's exit. Record the working port convention (one private port per seat) in the QA runbook and the seat handover.</requirement>
+  </verification>
+</learning>

@@ -29,7 +29,8 @@
      another. The row's extra height above the text comes out of the top
      padding, so the title stays where it was. */
   padding-block-start: calc(
-    var(--space-4) - (var(--target-min) - var(--space-5)) / 2
+    var(--space-4) - (var(--target-min, var(--target-coarse)) - var(--space-5))
+    / 2
   );
 }
 
@@ -45,7 +46,8 @@
   inline-size: var(--space-5);
   justify-content: center;
   margin-block-start: calc(
-    (var(--target-min) - var(--space-5)) / 2 + var(--space-0-5)
+    (var(--target-min, var(--target-coarse)) - var(--space-5)) / 2 +
+    var(--space-0-5)
   );
 }
 
@@ -90,7 +92,7 @@
   flex-wrap: wrap;
   font: var(--type-control);
   gap: var(--space-1);
-  min-block-size: var(--target-min);
+  min-block-size: var(--target-min, var(--target-coarse));
 }
 
 .ui-step-item__summary {
@@ -119,7 +121,8 @@
 .ui-step-item__action {
   display: flex;
   justify-self: end;
-  margin-block-start: calc((var(--target-min) - var(--space-5)) / 2);
+  margin-block-start: calc((var(--target-min, var(--target-coarse)) -
+    var(--space-5)) / 2);
   min-inline-size: 0;
 }
 
@@ -183,4 +186,471 @@
 }
 .ui-step-item[data-numbered="true"] .ui-step-item__title {
   color: var(--color-fg);
+}
+
+/* A step of a workflow drawn as a card (#67, the owner's editor spec): a white
+   rounded surface, the step type's icon in a small tile, its name and one grey
+   line. Every value is a generated token. */
+.ui-step-card {
+  align-items: flex-start;
+  background: var(--color-surface);
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-surface);
+  box-shadow: var(--shadow-subtle);
+  color: var(--color-fg);
+  cursor: pointer;
+  display: flex;
+  gap: var(--space-2);
+  inline-size: 100%;
+  max-inline-size: var(--layout-step-card);
+  min-inline-size: var(--layout-step-card);
+  padding: var(--space-2);
+  text-align: start;
+}
+.ui-step-card:hover {
+  border-color: var(--color-border-strong);
+}
+.ui-step-card:focus-visible {
+  outline: var(--border-emphasis) solid var(--color-selection);
+  outline-offset: var(--space-1);
+}
+.ui-step-card--selected {
+  border-color: var(--color-selection);
+  box-shadow: var(--shadow-subtle), inset 0 0 0 var(--border-emphasis)
+    var(--color-selection);
+}
+.ui-step-card--needs-setup {
+  border-color: var(--color-destructive);
+}
+.ui-step-card__icon {
+  align-items: center;
+  background: var(--color-surface-subtle);
+  border-radius: var(--radius-control);
+  color: var(--color-fg-muted);
+  display: inline-flex;
+  flex: none;
+  block-size: var(--size-control);
+  inline-size: var(--size-control);
+  justify-content: center;
+}
+.ui-step-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0-5);
+  min-inline-size: 0;
+}
+.ui-step-card__title {
+  font: var(--type-body);
+}
+.ui-step-card__summary {
+  color: var(--color-fg-muted);
+  font: var(--type-hint);
+}
+.ui-step-card__needs-setup {
+  color: var(--color-destructive);
+  font: var(--type-hint);
+}
+.ui-step-card__written {
+  color: var(--color-fg-muted);
+  font: var(--type-hint);
+}
+
+/* The third line of a card on a read-only page: which agent the step runs. */
+.ui-step-card__detail {
+  color: var(--color-fg-muted);
+  font: var(--type-hint);
+}
+
+/* The link between cards (#67): one pixel of line with a small round "+" on it,
+   the circle small and the hit area comfortable.
+   The line runs the whole gap so the cards read as one path: the gap takes no
+   padding of its own, and the line is drawn above and below the "+" so the path
+   never stops short of the next card (#67 UX ruling 6932934119 fix 9). */
+/*
+ * The link between two cards, to design-ux's measurements (#67 UX ruling
+ * comment 6935518498 fix 1):
+ * - a 40px block that touches both cards, with no other gap above or below;
+ * - a 1px line the full 40px, at the x of the card icon tile's centre, the
+ *   same x for every connector, inside groups too;
+ * - editable: a 22px "+" centred on the line's midpoint with the page surface
+ *   behind it, so the line reads as passing behind the circle, 44px to hit;
+ * - read-only: the same line and no "+".
+ * The line is drawn by the connector itself, so the popover that owns the "+"
+ * does not have to draw anything.
+ */
+.ui-step-connector {
+  align-items: center;
+  block-size: var(--space-10);
+  display: flex;
+  flex: 0 0 var(--space-10);
+  inline-size: 100%;
+  justify-content: center;
+  position: relative;
+}
+/* The line sits at the icon tile's centre, not the diagram column's. */
+.ui-step-connector__line {
+  background: var(--color-border);
+  block-size: 100%;
+  inline-size: var(--border-default);
+  inset-block: 0;
+  inset-inline-start: calc(var(--space-4) + (var(--size-control) / 2));
+  position: absolute;
+  translate: -50% 0;
+}
+.ui-step-connector__button {
+  align-items: center;
+  background: transparent;
+  border: var(--border-none);
+  cursor: pointer;
+  display: inline-flex;
+  block-size: var(--target-coarse);
+  inline-size: var(--target-coarse);
+  justify-content: center;
+  /* The hit area is centred on the line's x, not on the column, and centred on
+     the line vertically, so the "+" sits at the line's midpoint. */
+  inset-block: 0;
+  inset-inline-start: calc(var(--space-4) + (var(--size-control) / 2));
+  position: absolute;
+  translate: -50% 0;
+}
+.ui-step-connector__button > span {
+  align-items: center;
+  /* The page surface behind the circle, so the line passes behind it. */
+  background: var(--color-surface);
+  block-size: var(--size-step-connector);
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-circle);
+  box-sizing: border-box;
+  display: inline-flex;
+  inline-size: var(--size-step-connector);
+  justify-content: center;
+}
+.ui-step-connector__button:hover {
+  border-color: var(--color-border-strong);
+}
+.ui-step-connector__button:focus-visible {
+  outline: var(--border-emphasis) solid var(--color-selection);
+  outline-offset: var(--space-1);
+}
+/* Read-only ends with the word, plain muted text, sitting on the line with the
+   page surface behind it (#67 UX ruling 6935518498 fix 1: it used to be a grey
+   block with no line running into it). */
+.ui-step-connector__end {
+  background: var(--color-surface);
+  color: var(--color-fg-muted);
+  font: var(--type-label);
+  inset-block-start: 50%;
+  inset-inline-start: calc(var(--space-4) + (var(--size-control) / 2));
+  padding-block: var(--space-1);
+  padding-inline: var(--space-2);
+  position: absolute;
+  translate: -50% -50%;
+}
+/*
+ * The word is the path's TERMINUS, not a label hanging off it: the line stops at
+ * the word and nothing is drawn below it (design-ux, PR 479 round 4, comment
+ * 6939845052). The word is centred on the link and is 28px tall (20px line plus
+ * 4px padding above and below), so its top edge sits 14px above the link's
+ * midpoint; the line therefore stops there and the word's own opaque surface
+ * carries the rest. The 40px box stays so the cards keep their spacing, but
+ * nothing is painted below the word.
+ */
+.ui-step-connector[data-ends-path="true"] > .ui-step-connector__line {
+  block-size: calc(50% - var(--space-3) - var(--space-0-5));
+}
+.ui-step-connector[data-ends-path="true"] {
+  margin-block-end: var(--space-0);
+}
+
+/* The step panel beside the diagram is the width the owner's spec names: the
+   work surface gives its second column that width, so no component needs a
+   one-off class. The diagram takes what is left and the panel sits at the top
+   of it; on a phone the columns wrap and the panel takes the full width. */
+[data-ui-region="editor-work-surface"] {
+  align-items: flex-start;
+}
+[data-ui-region="editor-work-surface"] > *:last-child {
+  flex: 0 0 auto;
+  inline-size: var(--layout-step-panel);
+  max-inline-size: 100%;
+}
+
+/* The problems list is a dialog of sentences and their one action: it needs a
+   reading width, not the width of its longest line. */
+[data-ui-component="dialog"]:has([data-testid="editor-problem-list"]) {
+  inline-size: var(--layout-session-pane);
+}
+
+/* A group is a container, not a label above loose cards (#67 UX ruling
+   6932934119 fix 10): one border holds its label, its "edited in code" line and
+   its cards, so a person can see where the group begins and ends. The rules
+   hang off the data attributes the diagram already sets, so no app file needs a
+   one-off class. */
+[data-group] {
+  background: var(--color-surface);
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-control);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  /* The container is never wider than the column it sits in: on a phone the
+     arms stack instead of pushing the page sideways (#67 UX ruling
+     comment 6934081003 fix 1). */
+  inline-size: 100%;
+  max-inline-size: 100%;
+  min-inline-size: 0;
+  padding: var(--space-3);
+}
+[data-group-label] {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+/* The two arms of a branch sit side by side inside their one If container, and
+   stack when there is no room for two columns. */
+[data-group-arms] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  min-inline-size: 0;
+}
+[data-group-arm] {
+  display: flex;
+  /* A 12rem floor is small enough for a phone and wide enough to read, so two
+     arms sit side by side when there is room and stack when there is not. */
+  flex: 1 1 12rem;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+/* A picker row is its name over its one sentence, both inside the button's hit
+   area, so the whole row is the target (#67 UX ruling 6934081003 fix 2). The
+   spans are spans, not text paragraphs: a paragraph cannot sit inside a
+   button. */
+[data-pick-step] {
+  align-items: start;
+  display: flex;
+  /* Each row keeps its own height when the list is shorter than its contents:
+     without this the flex column shrinks them onto each other. */
+  flex: 0 0 auto;
+  inline-size: 100%;
+  justify-content: start;
+  text-align: start;
+}
+[data-pick-body] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-inline-size: 0;
+}
+[data-pick-title] {
+  color: var(--color-fg);
+  font: var(--type-label);
+}
+[data-pick-line] {
+  color: var(--color-fg-muted);
+  font: var(--type-body);
+  overflow-wrap: anywhere;
+}
+
+/* The "+" that opens the picker is the popover's own trigger button. When the
+   popover is drawn inside a connector's `control` slot the connector owns all
+   the geometry (line, height, x), so the popover must not draw a second line,
+   width or height of its own (#67 UX ruling comment 6935518498 fix 1: two
+   drawers on one link produced no line at all plus a floating "+"). */
+[data-has-control] .ui-popover:has(> [data-add-highlight]) {
+  display: flex;
+  inline-size: auto;
+  justify-content: center;
+  max-inline-size: none;
+  min-block-size: var(--space-0);
+  position: relative;
+}
+[data-has-control] .ui-popover:has(> [data-add-highlight])::before {
+  content: none;
+}
+/*
+ * The open picker paints above the whole diagram, including the connectors that
+ * come after it (#67 UX round 5, medium — design-ux read it off the still; a
+ * hit-test said otherwise, because `elementFromPoint` answers which element
+ * takes input, not which one is painted). Nothing else in the diagram sets a
+ * layer, so this one raises the picker's own box above them.
+ */
+[data-has-control] .ui-popover__content {
+  z-index: var(--layer-popover);
+}
+/*
+ * The whole link that owns an OPEN picker rises above every other link. The
+ * picker is absolutely positioned and hangs below its "+", so it physically
+ * covers the connectors after it; painting is the problem, not hit-testing
+ * (`elementFromPoint` reported the picker on top while the still showed the next
+ * "+" over it — the two answer different questions). Raising only the open link
+ * works because nothing else in the diagram sets a layer, so its `auto`
+ * neighbours cannot outrank it (#67 UX round 5, medium).
+ */
+[data-ui-region="workflow-diagram"] > [data-connector]:has(.ui-popover[data-state="open"]) {
+  position: relative;
+  z-index: var(--layer-popover);
+}
+.ui-popover__trigger--plain:has(> [data-add-highlight]) {
+  align-items: center;
+  background: transparent;
+  border: var(--border-none);
+  block-size: var(--target-coarse);
+  display: inline-flex;
+  inline-size: var(--target-coarse);
+  justify-content: center;
+  position: relative;
+}
+.ui-popover__trigger--plain > [data-add-highlight] {
+  align-items: center;
+  background: var(--color-surface);
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-circle);
+  block-size: var(--size-step-connector);
+  display: inline-flex;
+  inline-size: var(--size-step-connector);
+  justify-content: center;
+}
+
+/* A control the caller owns, centred on the same x as the line and on the
+   link's midpoint (the editor's picker popover, which owns the "+" button
+   itself). It fills the connector's height so `align-items: center` can put the
+   44px hit area on the line's centre. */
+.ui-step-connector__control {
+  align-items: center;
+  block-size: 100%;
+  display: inline-flex;
+  inset-block: 0;
+  inset-inline-start: calc(var(--space-4) + (var(--size-control) / 2));
+  justify-content: center;
+  position: absolute;
+  translate: -50% 0;
+}
+/* The popover's trigger draws the circle; the connector draws only the line
+   behind it, so the two never fight over the same geometry. */
+[data-has-control] .ui-popover__trigger--plain {
+  align-items: center;
+  background: transparent;
+  border: var(--border-none);
+  block-size: var(--target-coarse);
+  display: inline-flex;
+  inline-size: var(--target-coarse);
+  justify-content: center;
+}
+[data-has-control] [data-add-highlight] {
+  align-items: center;
+  background: var(--color-surface);
+  block-size: var(--size-step-connector);
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-circle);
+  box-sizing: border-box;
+  display: inline-flex;
+  inline-size: var(--size-step-connector);
+  justify-content: center;
+}
+
+/*
+ * The desktop picker never runs past the viewport (#67 UX ruling comment
+ * 6935518498 fix 2): it is at most the space below its "+" down to 16px above
+ * the bottom, the list scrolls inside, and the search field and Cancel stay
+ * visible at the top and bottom because they are outside the scrolling list.
+ */
+[data-testid="step-picker"] {
+  display: flex;
+  flex-direction: column;
+  max-block-size: 100%;
+  min-block-size: 0;
+}
+/* The list is the only part that scrolls; the search field above it and Cancel
+   below it are siblings, so they stay visible at both ends of the popover. */
+[data-testid="step-picker"] > [data-picker-list="true"] {
+  flex: 0 1 auto;
+  min-block-size: 0;
+  overflow-y: auto;
+}
+/*
+ * The list says where it continues (#67 UX ruling 6942486257, option 1). A row
+ * clipped mid-glyph at the bottom edge read as a broken render, and no scrollbar
+ * was painted, so nothing else hinted that more rows existed. The fade is a mask
+ * on the list itself, not a coloured overlay, so it is right in light and dark
+ * and can never cover the search field or Cancel. It follows overflow, not a
+ * breakpoint, so the phone sheet obeys the same rule; when the rows fit there is
+ * no fade at any width. WorkflowDiagram.tsx sets these attributes from the real
+ * scroll position, so the fade appears only while rows are hidden past that edge.
+ */
+[data-testid="step-picker"] > [data-picker-list="true"][data-picker-fade-bottom="true"] {
+  mask-image: linear-gradient(
+    to bottom,
+    black calc(100% - var(--space-6)),
+    transparent
+  );
+}
+[data-testid="step-picker"] > [data-picker-list="true"][data-picker-fade-top="true"] {
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    black var(--space-6)
+  );
+}
+[data-testid="step-picker"] > [data-picker-list="true"][data-picker-fade-top="true"][data-picker-fade-bottom="true"] {
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    black var(--space-6),
+    black calc(100% - var(--space-6)),
+    transparent
+  );
+}
+/*
+ * The desktop picker never runs past the viewport (#67 UX round 4, item 2: a
+ * 1090px page in a 900px viewport, Cancel at y 1055). The popover measures its
+ * own `top` when it opens and writes the room that leaves as an inline
+ * `max-block-size` (Popover.tsx), so the cap is the real space below the "+"
+ * and it is recomputed on scroll and resize. When that room is too small to be
+ * useful the popover opens above its trigger instead (`data-flip`). The list
+ * inside scrolls; the search field and Cancel never do.
+ */
+.ui-popover__content:has([data-testid="step-picker"]) {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+/* Too little room below: open above the "+" and grow upward instead. */
+.ui-popover__content:has([data-testid="step-picker"])[data-flip="true"] {
+  inset-block-end: calc(100% + var(--space-2));
+  inset-block-start: auto;
+}
+
+/* The diagram is a column with no gap, because a connector has to touch the
+   cards on both sides. Everything that is not a connector carries its own
+   block spacing instead (#67 UX ruling comment 6935518498 fix 1). */
+[data-ui-region="workflow-diagram"] > *:not([data-connector]):not(.ui-step-connector) {
+  margin-block: var(--space-3);
+}
+[data-ui-region="workflow-diagram"] > *:first-child {
+  margin-block-start: var(--space-0);
+}
+[data-ui-region="workflow-diagram"] > *:last-child {
+  margin-block-end: var(--space-0);
+}
+/*
+ * The connector's wrapper is a plain `div` between flex children, so it must
+ * keep the connector's own 40px and never shrink; otherwise the flex column
+ * squeezed the line into a stub with gaps either side of it (#67 UX ruling
+ * comment 6935518498 fix 1).
+ */
+[data-ui-region="workflow-diagram"] > [data-connector] {
+  flex: 0 0 auto;
+  margin-block: var(--space-0);
+  min-block-size: var(--space-10);
+}
+/* A connector for a workflow this person cannot change draws nothing, so it
+   takes no room at all instead of holding an empty 40px slot. */
+[data-ui-region="workflow-diagram"] > [data-connector]:empty {
+  min-block-size: var(--space-0);
 }

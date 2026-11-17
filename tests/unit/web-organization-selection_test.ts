@@ -87,6 +87,9 @@ function fakeApi(
       sources: rejecting,
       createSource: rejecting,
       updateSource: rejecting,
+      source: rejecting,
+      preview: rejecting,
+      lookupPerson: rejecting,
       sync: rejecting,
     },
     workers: {
@@ -259,6 +262,8 @@ function fakeApi(
     updateAgent: rejecting,
     createWorkflow: rejecting,
     createWorkflowVersion: rejecting,
+    updateWorkflowVersion: rejecting,
+    publishWorkflowVersion: rejecting,
     validateWorkflow: rejecting,
   };
 }

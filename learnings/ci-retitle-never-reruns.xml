@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="ci-retitle-never-reruns" project="bakery">
+  <title>Metadata-only PR fixes clear via close+reopen, never via gh run rerun</title>
+  <trigger>CI fails on 'fast / semantic metadata' (or any PR-metadata lane) for a title/body defect; the seat retitles or edits the body; the check stays red at the same head.</trigger>
+  <rule>Two mechanisms combine to pin the old failure: (1) ci.yml triggers on pull_request [opened, synchronize, reopened] only - NOT edited - so a metadata-only fix never triggers a run; (2) gh run rerun replays the STORED event payload, re-reading the title captured at event time, so the rerun fails again quoting the old title (this is the same payload-reuse class as learnings/ci-rerun-reuses-the-event-payload.xml - rerun is never a metadata fix). The mechanism that works: close + reopen the PR. 'reopened' is in the trigger list, the run re-reads the CURRENT title/body, and the head SHA does not move. After the reopened run completes, the PR rollup may still DISPLAY stale failing check-runs on the same SHA (it aggregates every run's check-runs), but branch protection and the check-runs API evaluate the latest check-run per name - verify zero failures among max-by-started per name before merging.</rule>
+  <verification>
+    <requirement>After close+reopen and the new run's completion, query the check-runs API (or gh pr checks) for the latest check-run per name at the unchanged head SHA: zero failing/cancelled/pending. If any name's latest run still fails, read the job log for the actual policy complaint (title cap, missing section, ordering) before any further edit. Do not trust the PR page's aggregate rollup display on a reopened PR.</requirement>
+  </verification>
+</learning>

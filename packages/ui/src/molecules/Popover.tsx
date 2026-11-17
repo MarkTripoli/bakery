@@ -17,6 +17,12 @@ export type PopoverProps =
     onOpenChange?: (open: boolean) => void;
     open?: boolean;
     trigger: ReactNode;
+    /**
+     * The trigger button's accessible name, for when the trigger draws a glyph
+     * rather than words: without it the button announces nothing, and a screen
+     * reader meets an unnamed control (#67 UX ruling 6934081003 fix 2).
+     */
+    triggerLabel?: string;
     /** The trigger's tooltip, for when its label is drawn as an icon alone. */
     triggerTitle?: string;
     variant?: "information" | "interactive";
@@ -32,6 +38,7 @@ export function Popover(
     open,
     trigger,
     triggerAppearance = "plain",
+    triggerLabel,
     triggerTitle,
     variant = "information",
     ...unsafeProps
@@ -76,6 +83,39 @@ export function Popover(
     };
   }, [isOpen]);
 
+  /**
+   * How much room the content really has, measured rather than guessed.
+   *
+   * The content is anchored under its trigger, so CSS alone cannot know where
+   * that is: the difference between the viewport height and the content's own
+   * `top` is the only honest cap. A previous fixed subtraction guessed wrong at
+   * different scroll positions and let the content run past the bottom (#67 UX
+   * round 4, item 2: a 1090px page in a 900px viewport). When the space below
+   * is too small to be useful the content opens above its trigger instead.
+   */
+  useEffect(() => {
+    if (!isOpen) return;
+    const content = contentRef.current;
+    if (!content) return;
+    const MIN_USEFUL_ROOM = 320;
+    const place = () => {
+      const rect = content.getBoundingClientRect();
+      const room = Math.max(globalThis.innerHeight - rect.top - 16, 0);
+      // Written inline: `max-block-size` is a physical-agnostic length the CSS
+      // rail only lets a stylesheet take from a declared design token, and this
+      // value is a measurement, not a token.
+      content.style.maxBlockSize = `${Math.floor(room)}px`;
+      content.dataset.flip = room < MIN_USEFUL_ROOM ? "true" : "false";
+    };
+    place();
+    globalThis.addEventListener("resize", place);
+    globalThis.addEventListener("scroll", place, true);
+    return () => {
+      globalThis.removeEventListener("resize", place);
+      globalThis.removeEventListener("scroll", place, true);
+    };
+  }, [isOpen]);
+
   return (
     <span
       className="ui-popover"
@@ -85,6 +125,7 @@ export function Popover(
     >
       <button
         aria-expanded={isOpen}
+        aria-label={triggerLabel ?? label}
         aria-controls={contentId}
         aria-haspopup="dialog"
         className={`ui-popover__trigger ui-popover__trigger--${triggerAppearance}`}

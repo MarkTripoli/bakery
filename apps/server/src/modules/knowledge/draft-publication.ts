@@ -1,4 +1,5 @@
 import { StandardError } from "@bakery/contracts/http";
+import type { OrganizationBlobStore } from "../catalog/storage-port.ts";
 import type { PgTransactionClient } from "@bakery/persistence";
 import {
   appendAudit,
@@ -64,6 +65,12 @@ export type PublishFrozenDraftInput = Readonly<{
   traceId: string;
   /** Audit operation name of the calling action. */
   operation: string;
+  /**
+   * Where the published version's bytes go. Present, the version names a blob;
+   * absent, it stores its bytes inline. The draft publication path is the one
+   * that has a store today, so it is the one that writes blob-backed versions.
+   */
+  blobStore?: OrganizationBlobStore;
 }>;
 
 type PublicationRow = {
@@ -239,6 +246,7 @@ export async function publishFrozenDraft(
   }
 
   const version = await commitArtifactVersion(transaction, {
+    blobStore: input.blobStore,
     scope: {
       organizationId,
       taskId: draft.task_id,

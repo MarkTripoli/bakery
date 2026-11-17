@@ -50,6 +50,59 @@ const VERSIONS: VersionRow[] = [
   ]),
   version(4, 4, "draft", [{ id: "brief", uses: "task.brief" }]),
 ];
+/**
+ * A version whose steps Bakery cannot fully read (design-ux's ruling on #67,
+ * comment 6917906748): one step it can read, one with no id and no type, and
+ * one that is not a step at all. None may be dropped from the page.
+ */
+const BROKEN: Options = {
+  workflows: [WORKFLOW],
+  agents: [AGENT],
+  agentVersions: AGENT_VERSIONS,
+  versions: [
+    ...VERSIONS,
+    {
+      ...version(5, 5, "published", [{ id: "brief", uses: "task.brief" }]),
+      spec: [
+        { id: "brief", uses: "task.brief" },
+        { kind: "action" },
+        "not a step",
+      ],
+    },
+  ],
+};
+/**
+ * A workflow whose steps hold groups (#67 UX ruling 6932934119 fix 15): a
+ * condition with one empty arm, and a repeat. The read-only page must draw the
+ * groups as containers, not as loose labels.
+ */
+const GROUPED: Options = {
+  workflows: [WORKFLOW],
+  agents: [AGENT],
+  agentVersions: AGENT_VERSIONS,
+  versions: [
+    ...VERSIONS,
+    {
+      ...version(6, 6, "published", [{ id: "brief", uses: "task.brief" }]),
+      spec: [
+        { kind: "action", id: "brief", uses: "task.brief" },
+        {
+          kind: "branch",
+          then: [{
+            kind: "action",
+            id: "implement",
+            uses: "harness.implement",
+          }],
+          else: [],
+        },
+        {
+          kind: "repeat",
+          steps: [{ kind: "action", id: "review", uses: "agent.review" }],
+        },
+      ],
+    },
+  ],
+};
 const WORLD: Options = {
   workflows: [WORKFLOW],
   agents: [AGENT],
@@ -78,6 +131,52 @@ for (
     const more = (page: Page) =>
       page.getByRole("button", { name: "More actions for Release train" });
 
+    test("a built-in workflow draws its steps as cards too, read-only, and ends the path", async ({ page }) => {
+      await libraryFixture(page, WORLD);
+      await page.goto("/library/built-in/fixed-coding-reviewed");
+      const steps = page.getByTestId("workflow-steps");
+      // The same tree the editor draws: the start card, then one per step.
+      await expect(steps.locator("[data-card]")).toHaveCount(4);
+      expect(
+        await steps.locator("[data-card]").evaluateAll((cards) =>
+          cards.map((card) => card.getAttribute("data-card"))
+        ),
+      ).toEqual(["start", "brief", "implement", "review"]);
+      await expect(steps.locator(".ui-step-card").first()).toBeVisible();
+      await expect(steps.locator(".ui-step-item")).toHaveCount(0);
+      // Nothing to press: a built-in is maintained by Bakery.
+      await expect(steps.getByRole("button", { name: "Add a step" }))
+        .toHaveCount(0);
+      await expect(steps).not.toContainText("Remove");
+      // The line runs to the end and stops there.
+      await expect(steps.locator(".ui-step-connector")).not.toHaveCount(0);
+      await expect(steps.locator(".ui-step-connector__end")).toHaveText("End");
+      await shot(page, "workflow-built-in", [], { windowOnly: true });
+    });
+
+    test("a workflow with groups draws them as containers, read-only", async ({ page }) => {
+      await libraryFixture(page, GROUPED);
+      await page.goto(
+        `/library/workflows/${WORKFLOW.id}?version=${uuid(1006)}`,
+      );
+      const steps = page.getByTestId("workflow-steps");
+      // The If container holds both arms, one of them empty.
+      await expect(steps.locator("[data-group=if]")).toHaveCount(1);
+      await expect(steps.locator("[data-group=if]")).toContainText("If");
+      await expect(steps.locator("[data-group-arm=yes]")).toContainText(
+        "Implement",
+      );
+      await expect(steps.locator("[data-group-arm=otherwise]")).toContainText(
+        "No steps",
+      );
+      // The repeat is its own container.
+      await expect(steps.locator("[data-group=repeat]")).toHaveCount(1);
+      // A read-only page never says "Edited in code" (fix 14).
+      await expect(steps).not.toContainText("Edited in code");
+      await page.mouse.move(700, 700);
+      await shot(page, "workflow-groups", [], { windowOnly: true });
+    });
+
     test("opens from the list and shows the version in use: its steps, agents, and every version with its state", async ({ page }) => {
       await libraryFixture(page, WORLD);
       await page.goto("/library");
@@ -91,40 +190,40 @@ for (
       const steps = page.getByTestId("workflow-steps");
       await expect(steps).toContainText("Steps in version 3");
       // Steps are named by what they do, never by their id or action key.
-      await expect(steps.locator("[data-step-id=brief]")).toContainText(
+      await expect(steps.locator("[data-card=brief]")).toContainText(
         "Write the task brief",
       );
-      await expect(steps.locator("[data-step-id=implement]")).toContainText(
+      await expect(steps.locator("[data-card=implement]")).toContainText(
         "Implement",
       );
-      await expect(steps.locator("[data-step-id=implement]")).not
+      await expect(steps.locator("[data-card=implement]")).not
         .toContainText("Run the coding agent");
-      await expect(steps.locator("[data-step-id=implement]")).toContainText(
+      await expect(steps.locator("[data-card=implement]")).toContainText(
         "Agent: Code writer, version 2",
       );
-      await expect(steps.locator("[data-step-id=review]")).toContainText(
+      await expect(steps.locator("[data-card=review]")).toContainText(
         "Review",
       );
       await expect(steps).not.toContainText("harness.implement");
-      // Each step's mark holds its number; the title is in the normal colour.
-      const marks = await steps.locator(
-        '.ui-step-item__mark [aria-hidden="true"]',
-      )
-        .allInnerTexts();
-      expect(marks.map((text) => text.trim())).toEqual(["1", "2", "3"]);
-      // Screen readers get "Step n" for the same mark.
-      await expect(steps.locator(".ui-step-item__mark").first()).toContainText(
-        "Step 1",
-      );
-      const titleColor = await steps.locator(".ui-step-item__title").first()
-        .evaluate((element) => getComputedStyle(element).color);
-      const bodyColor = await page.locator("body").evaluate((element) =>
-        getComputedStyle(element).color
-      );
-      expect(titleColor).toBe(bodyColor);
+      // The ruling (design-ux, comment 6917906748): a step is a card, not a
+      // numbered row. Every step keeps one, in order, and none of them carries
+      // the editor's controls (no "+", no Move, no Remove).
+      await expect(steps.locator("[data-card]")).toHaveCount(4);
+      expect(
+        await steps.locator("[data-card]").evaluateAll((cards) =>
+          cards.map((card) => card.getAttribute("data-card"))
+        ),
+      ).toEqual(["start", "brief", "implement", "review"]);
+      await expect(steps.locator(".ui-step-card").first()).toBeVisible();
+      await expect(steps.locator(".ui-step-item")).toHaveCount(0);
+      await expect(steps.getByRole("button", { name: "Add a step" }))
+        .toHaveCount(0);
+      await expect(steps).not.toContainText("Move");
+      await expect(steps).not.toContainText("Remove");
+      // The path still runs from the first card to the last and stops.
+      await expect(steps.locator(".ui-step-connector")).not.toHaveCount(0);
+      await expect(steps.locator(".ui-step-connector__end")).toHaveText("End");
       await expect(steps).not.toContainText("task.brief");
-      await expect(page.getByRole("list", { name: "Steps" }))
-        .toBeVisible();
       const versions = page.getByTestId("workflow-versions");
       // The sentence about versions never changing belongs to Versions.
       await expect(versions).toContainText(
@@ -200,10 +299,10 @@ for (
       await page.getByRole("link", { name: "View version 2" }).click();
       const steps = page.getByTestId("workflow-steps");
       await expect(steps).toContainText("Steps in version 2");
-      await expect(steps.locator("[data-step-id=implement]")).toContainText(
+      await expect(steps.locator("[data-card=implement]")).toContainText(
         "Agent: Code writer, version 1",
       );
-      await expect(steps.locator("[data-step-id=review]")).toHaveCount(0);
+      await expect(steps.locator("[data-card=review]")).toHaveCount(0);
       // The version being shown is the address, and says so instead of View.
       await expect(page).toHaveURL(new RegExp(`\\?version=${uuid(1002)}$`));
       await expect(versionRow(page, 2)).toContainText("Shown above");
@@ -450,7 +549,7 @@ for (
     test("while the agents are read the step shows no agent line, then the agent; when the read fails it says it could not be read", async ({ page }) => {
       const seen = await libraryFixture(page, { ...WORLD, agentReads: "hold" });
       await page.goto(`/library/workflows/${WORKFLOW.id}`);
-      const implement = page.locator("[data-step-id=implement]");
+      const implement = page.locator("[data-card=implement]");
       await expect(implement).toContainText("Implement");
       // Nothing is said about the agent until the reads have answered.
       await expect(implement).not.toContainText("Agent:");
@@ -459,10 +558,28 @@ for (
       await expect(implement).toContainText("Agent: Code writer, version 2");
     });
 
+    test("a version with steps it cannot read keeps every step, and never says it has none", async ({ page }) => {
+      await libraryFixture(page, BROKEN);
+      await page.goto(
+        `/library/workflows/${WORKFLOW.id}?version=${uuid(1005)}`,
+      );
+      const steps = page.getByTestId("workflow-steps");
+      await expect(steps).not.toContainText("This version has no steps.");
+      // The readable step, and two cards for the two it cannot read.
+      await expect(steps).toContainText("Write the task brief");
+      await expect(steps.getByText("Unreadable step")).toHaveCount(2);
+      // Each of them is a card that says it needs setup (design-ux's ruling:
+      // the cards, not a numbered row, and the state is never colour alone).
+      await expect(steps.locator('.ui-step-card[data-needs-setup="true"]'))
+        .toHaveCount(2);
+      await expect(steps.getByText("Needs setup")).toHaveCount(2);
+      await shot(page, "workflow-unreadable-steps", [], { windowOnly: true });
+    });
+
     test("a failed agents read says the agent could not be read, not that its version is missing", async ({ page }) => {
       await libraryFixture(page, { ...WORLD, agentReads: "fail" });
       await page.goto(`/library/workflows/${WORKFLOW.id}`);
-      await expect(page.locator("[data-step-id=implement]")).toContainText(
+      await expect(page.locator("[data-card=implement]")).toContainText(
         "Agent: could not be read",
       );
       await expect(page.getByText("version not found")).toHaveCount(0);
@@ -475,7 +592,7 @@ for (
     test("an agent version that is truly missing says so once the reads have answered", async ({ page }) => {
       await libraryFixture(page, { ...WORLD, agentVersions: [] });
       await page.goto(`/library/workflows/${WORKFLOW.id}`);
-      await expect(page.locator("[data-step-id=implement]")).toContainText(
+      await expect(page.locator("[data-card=implement]")).toContainText(
         "Agent: version not found",
       );
     });
@@ -511,6 +628,532 @@ for (
         .toBeVisible();
       await page.getByRole("button", { name: "Back to the library" }).click();
       await expect(page).toHaveURL(/\/library$/);
+    });
+  });
+}
+
+for (
+  const viewport of [
+    { name: "desktop", width: 1280, height: 800 },
+    { name: "phone", width: 390, height: 844 },
+  ]
+) {
+  test.describe(`${viewport.name}: the workflow editor`, () => {
+    test.use({ viewport: { width: viewport.width, height: viewport.height } });
+
+    const openEditor = async (page: Page, options: Options = WORLD) => {
+      const seen = await libraryFixture(page, options);
+      await page.goto(`/library/workflows/${WORKFLOW.id}`);
+      await expect(page.getByTestId("workflow-page")).toBeVisible();
+      if (viewport.width < 744) {
+        await page
+          .getByRole("button", { name: "More actions for Release train" })
+          .click();
+        await page.getByRole("button", { name: "Edit", exact: true }).click();
+      } else {
+        await page.getByRole("link", { name: "Edit" }).click();
+      }
+      await expect(page).toHaveURL(`/library/workflows/${WORKFLOW.id}/edit`);
+      return seen;
+    };
+
+    test("Edit draws the workflow: how it starts, then a card per step", async ({ page }) => {
+      await openEditor(page);
+      // The ruled wording, and it is a card like any other so its sentence is reachable.
+      await expect(page.locator("[data-card='start']")).toContainText(
+        "Started by hand",
+      );
+      await expect(page.locator("[data-card='start']")).toContainText(
+        "From a task",
+      );
+      // The editor edits the workflow's DRAFT when there is one (revision 4 of
+      // this fixture holds a single step), so the drawing is the start plus one
+      // card — and the header still says which version new tasks get.
+      await expect(page.locator("[data-card]")).toHaveCount(2);
+      await expect(page.locator("[data-card]").nth(1)).toContainText(
+        "Write the task brief",
+      );
+      await expect(page.getByText("Version 3 is in use")).toBeVisible();
+      // There is no list editor and no tab strip: the design's own shape.
+      await expect(page.getByRole("tab")).toHaveCount(0);
+      await expect(page.getByRole("button", { name: "Check the steps" }))
+        .toHaveCount(0);
+      // The header says the draft is saved, not that it is unsaved.
+      await expect(page.getByRole("status")).toContainText("Saved");
+      await page.mouse.move(600, 700);
+      await shot(page, "workflow-editor-diagram");
+    });
+
+    test("the + on a connector opens the picker and adds the step picked", async ({ page }) => {
+      await openEditor(page);
+      const connectors = page.locator("[data-connector]");
+      await expect(connectors.first()).toBeVisible();
+      await page
+        .getByRole("button", { name: /Add a step after/ })
+        .first()
+        .click();
+      const picker = page.getByTestId("step-picker");
+      await expect(picker).toBeVisible();
+      // The picker says what each step does, and its search narrows the list:
+      // a bare list of names told a person nothing (#67 UX ruling 6934081003).
+      await expect(picker.locator("[data-pick-step]")).toHaveCount(8);
+      await expect(
+        picker.locator("[data-pick-step='review.independent']"),
+      ).toContainText(
+        "A separate agent reviews the changes and lists what it found.",
+      );
+      await picker
+        .getByRole("searchbox", { name: "Search step types" })
+        .fill("merge");
+      await expect(picker.locator("[data-pick-step]")).toHaveCount(1);
+      await expect(picker.locator("[data-pick-step='delivery.merge']"))
+        .toBeVisible();
+      await picker
+        .getByRole("searchbox", { name: "Search step types" })
+        .fill("");
+      // The still is the open picker itself, not the page after a pick: a
+      // capture taken after the picker closes is a byte copy of the selected
+      // card (#67 UX ruling 6932934119 fix 12).
+      await page.mouse.move(600, 700);
+      await shot(page, "workflow-editor-picker", [], { windowOnly: true });
+      // The fade rule (#67 UX ruling 6942486257) is about overflow, not a
+      // breakpoint, so both branches are asserted: the desktop list is longer
+      // than its box and fades, the phone sheet's list fits and must not fade at
+      // either edge. A fade that always showed would fail this on a phone.
+      const list = page.locator(
+        '[data-testid="step-picker"] > [data-picker-list="true"]',
+      );
+      if (viewport.width < 744) {
+        // Just opened, and nothing can be hidden above or below because the
+        // list fits: no fade at either edge.
+        await expect(list).not.toHaveAttribute("data-picker-fade-top", "true");
+        await expect(list).not.toHaveAttribute(
+          "data-picker-fade-bottom",
+          "true",
+        );
+      } else {
+        // Just opened: rows are hidden below, so only the bottom edge fades.
+        await expect(list).toHaveAttribute("data-picker-fade-bottom", "true");
+        await expect(list).not.toHaveAttribute("data-picker-fade-top", "true");
+        // Scroll the way a person does, so the real listener runs.
+        await list.hover();
+        await page.mouse.wheel(0, 4000);
+        // React re-renders the fade attributes on the next frame after a
+        // programmatic scroll; wait for that before reading them, and again
+        // before the capture, so the still shows the end state.
+        await page.waitForTimeout(200);
+        // At the end: nothing is hidden below, so only the top edge fades.
+        const after = await list.evaluate((n) => ({
+          top: n.getAttribute("data-picker-fade-top"),
+          bottom: n.getAttribute("data-picker-fade-bottom"),
+        }));
+        expect(after.top).toBe("true");
+        expect(after.bottom).toBeNull();
+        // `shot` resets the viewport per viewport, which resets the scroll, so
+        // capture the end state directly at the evidence viewport instead.
+        if (process.env.BAKERY_EVIDENCE_DIR) {
+          // Capture at the same 1440x900 the other desktop stills use, so the
+          // two picker states are directly comparable.
+          await page.setViewportSize({ width: 1440, height: 900 });
+          await page.evaluate(() =>
+            new Promise((resolve) => requestAnimationFrame(resolve))
+          );
+          await list.evaluate((n) => {
+            n.scrollTop = n.scrollHeight;
+            n.dispatchEvent(new Event("scroll", { bubbles: true }));
+          });
+          // Let the fade attributes settle on the end state, so the still and
+          // the assertions above cannot disagree.
+          await page.waitForFunction(
+            () => {
+              const n = document.querySelector(
+                '[data-testid="step-picker"] > [data-picker-list="true"]',
+              );
+              return n !== null &&
+                n.getAttribute("data-picker-fade-bottom") !== "true";
+            },
+            undefined,
+            { timeout: 5000 },
+          );
+          await page.screenshot({
+            path:
+              `${process.env.BAKERY_EVIDENCE_DIR}/workflow-editor-picker-end--desktop.png`,
+            fullPage: false,
+          });
+        }
+      }
+      await picker.locator("[data-pick-step='review.independent']").click();
+      // The picked step type is what got added — never a fixed one.
+      await expect(page.locator("[data-card]")).toHaveCount(3);
+      await expect(page.locator("[data-card]").nth(2)).toContainText("Review");
+    });
+
+    test("the panel moves and removes the selected step, and the draft saves itself", async ({ page }) => {
+      const seen = await openEditor(page);
+      // The draft holds one step; add a second through the picker so there is
+      // somewhere to move it to.
+      await page.getByRole("button", { name: /Add a step after/ }).first()
+        .click();
+      await page
+        .getByTestId("step-picker")
+        .locator("[data-pick-step='review.independent']")
+        .click();
+      // The step the picker added is the one slice 1 can move: a step type the
+      // picker does not offer (task.brief) is drawn "Edited in code" and its
+      // panel offers no Move or Remove (design-ux's ruling, comment 6917906748).
+      await page
+        .locator("[data-card]")
+        .filter({ hasText: "Review" })
+        .getByRole("button")
+        .first()
+        .click();
+      const panel = page.getByRole("complementary", {
+        name: "The selected step",
+      });
+      await expect(panel).toBeVisible();
+      await expect(panel.getByRole("button", { name: "Move up" }))
+        .toBeEnabled();
+      await page.mouse.move(600, 700);
+      await shot(page, "workflow-editor-card-selected");
+      await panel.getByRole("button", { name: "Move up" }).click();
+      await expect(page.locator("[data-card]").nth(1)).toContainText(
+        "Review",
+      );
+      // The draft saves after the person stops; the header says so.
+      // The draft save is a PATCH on the draft version, with its own If-Match.
+      await expect.poll(() => seen.draftSaves.length, { timeout: 10_000 })
+        .toBeGreaterThan(0);
+      expect(seen.draftSaves[0].ifMatch).not.toBeNull();
+      await expect(page.getByRole("status")).toContainText("Saved");
+    });
+
+    test("publish offers both forms when the draft differs from the version in use", async ({ page }) => {
+      await openEditor(page);
+      await page.getByRole("button", { name: "Publish" }).click();
+      const dialog = page.getByRole("alertdialog", {
+        name: /Publish version/,
+      });
+      await expect(dialog).toBeVisible();
+      await expect(dialog.getByRole("button", { name: "Publish only" }))
+        .toBeVisible();
+      await expect(dialog.getByRole("button", { name: "Publish and use" }))
+        .toBeVisible();
+      await page.mouse.move(600, 700);
+      await shot(page, "workflow-editor-publish");
+    });
+
+    test("a member who may not change workflows sees no plus, no panel footer and no Publish", async ({ page }) => {
+      await libraryFixture(page, { ...WORLD, role: "member" });
+      await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
+      await expect(page.locator("[data-card='start']")).toBeVisible();
+      await expect(page.getByRole("button", { name: /Add a step after/ }))
+        .toHaveCount(0);
+      await expect(page.getByRole("button", { name: "Publish" })).toHaveCount(
+        0,
+      );
+      await shot(page, "workflow-editor-read-only");
+    });
+  });
+}
+
+test("a draft that matches the version in use has nothing to publish", async ({ page }) => {
+  // The workflow's one version is the one it names as in use (uuid(1003)) and
+  // there is no separate draft, so the editor's steps and the steps in use are
+  // the same and publishing would change nothing.
+  const same = [{
+    id: uuid(1003),
+    workflowId: WORKFLOW.id,
+    revision: 3,
+    status: "published" as const,
+    steps: [{ id: "brief", uses: "task.brief" }],
+    normalizedSpec: {
+      kind: "fixed",
+      steps: [{ id: "brief", uses: "task.brief" }],
+    },
+  }];
+  await libraryFixture(page, { ...WORLD, versions: same });
+  await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
+  await expect(page.locator("[data-card='start']")).toBeVisible();
+  await page.getByRole("button", { name: "Publish" }).click();
+  const nothing = page.getByRole("alertdialog", { name: "Nothing to publish" });
+  await expect(nothing).toBeVisible();
+  await nothing.getByRole("button", { name: "Close" }).click();
+});
+
+test("the state selector shows the save states a spec cannot force", async ({ page }) => {
+  // The saved state is the real one; the two forced states exist so a failed or
+  // in-flight save can be seen without breaking the network on purpose (design's
+  // State menu, #67). Development builds only.
+  await libraryFixture(page, WORLD);
+  await page.goto(`/library/workflows/${WORKFLOW.id}/edit?state=save-failed`);
+  await expect(page.getByRole("status")).toContainText("Not saved");
+  await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
+  await shot(page, "workflow-editor-save-failed");
+
+  await page.goto(`/library/workflows/${WORKFLOW.id}/edit?state=saving`);
+  await expect(page.getByRole("status")).toContainText("Saving…");
+  await shot(page, "workflow-editor-saving");
+});
+
+test("the leave warning is armed only while a change is unsaved", async ({ page }) => {
+  // D8, tier 2: Chromium does not surface the beforeunload dialog to Playwright,
+  // and React double-invokes effects in development builds, so raw add counts
+  // cannot tell a correct page from a broken one. Net registrations can.
+  await page.addInitScript(() => {
+    const held = { adds: 0, removes: 0 };
+    (globalThis as unknown as { __leave: typeof held }).__leave = held;
+    const add = globalThis.addEventListener.bind(globalThis);
+    const remove = globalThis.removeEventListener.bind(globalThis);
+    globalThis.addEventListener = ((type: string, ...rest: unknown[]) => {
+      if (type === "beforeunload") held.adds += 1;
+      return (add as (...args: unknown[]) => void)(type, ...rest);
+    }) as typeof globalThis.addEventListener;
+    globalThis.removeEventListener = ((type: string, ...rest: unknown[]) => {
+      if (type === "beforeunload") held.removes += 1;
+      return (remove as (...args: unknown[]) => void)(type, ...rest);
+    }) as typeof globalThis.removeEventListener;
+  });
+  const net = async () => {
+    const held = await page.evaluate(() =>
+      (globalThis as unknown as { __leave: { adds: number; removes: number } })
+        .__leave
+    );
+    const value = held.adds - held.removes;
+    console.log(
+      `beforeunload net registrations: ${value} (adds ${held.adds}, removes ${held.removes})`,
+    );
+    return value;
+  };
+  await libraryFixture(page, WORLD);
+  // Straight to the address: on a phone the Edit action lives in the More menu,
+  // and this spec is about the leave warning, not about how a person got here.
+  await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
+  await expect(page.getByRole("status")).toContainText("Saved");
+  // Saved and untouched: this page contributes nothing — other parts of the app
+  // may register their own listener, so the baseline is what it is and the
+  // editor's contribution is the delta from here.
+  const baseline = await net();
+  // A change that is not saved yet arms one more.
+  await page.getByRole("button", { name: /Add a step after/ }).first().click();
+  await page
+    .getByTestId("step-picker")
+    .locator("[data-pick-step='review.independent']")
+    .click();
+  await expect.poll(net).toBe(baseline + 1);
+  // Once the draft is saved again, nothing is armed.
+  await expect(page.getByRole("status")).toContainText("Saved", {
+    timeout: 10_000,
+  });
+  await expect.poll(net).toBe(baseline);
+});
+
+test("a step with a problem keeps its card and shows the sentence", async ({ page }) => {
+  // (4) the problem card: the report's pointer lands on its step, and the card
+  // stays a card with the sentence under it. The warning points at the drawn
+  // step, so the chip counts it and its row can select that card.
+  await libraryFixture(page, { ...WORLD, validation: "warnings" });
+  await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
+  await expect(page.locator("[data-card='start']")).toBeVisible();
+  // The card wears the red outline and says "Needs setup" in place of its usual
+  // line; the sentence itself is the ruled one, never the server's message
+  // (#67 UX ruling 6932934119 fixes 1 and 2).
+  const problemCard = page.locator("[data-card]").nth(1);
+  await expect(problemCard).toContainText("Needs setup");
+  await expect(problemCard).not.toContainText(
+    "The step runs a model but no agent is bound.",
+  );
+  const sentence =
+    "This step has no agent to run it, and agents cannot be chosen on this page yet. Delete the step, or ask an administrator to set the workflow's agents.";
+  const chip = page.getByTestId("editor-problems");
+  await expect(chip).toHaveText("1 problem");
+  await chip.click();
+  const list = page.getByTestId("editor-problem-list");
+  await expect(list).toContainText(sentence);
+  await list.getByRole("button", { name: "Show me" }).click();
+  const panel = page.getByRole("complementary", {
+    name: "The selected step",
+  });
+  await expect(panel).toBeVisible();
+  await expect(panel).toContainText(sentence);
+  await page.mouse.move(600, 700);
+  await shot(page, "workflow-editor-card-problem");
+});
+
+test("a problem that points at no drawn step is counted and answered in code", async ({ page }) => {
+  // design-ux's ruling: a checker problem with no place in the drawing is in
+  // the chip and has no card, so its row offers "View as code" — never a
+  // "Show me" that selects nothing.
+  await libraryFixture(page, { ...WORLD, validation: "errors" });
+  await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
+  await expect(page.locator("[data-card='start']")).toBeVisible();
+  const chip = page.getByTestId("editor-problems");
+  await expect(chip).toHaveText("2 problems");
+  await chip.click();
+  const list = page.getByTestId("editor-problem-list");
+  // The ruled sentences, not the server's messages (fix 1). The step's code the
+  // table knows; the workflow's `field_missing` code falls back to one sentence.
+  await expect(list).toContainText(
+    "Bakery does not know this kind of step. Delete it and add a step from the list.",
+  );
+  await expect(list).toContainText(
+    "This step has a problem. Open View as code to see the detail.",
+  );
+  await expect(list.getByRole("button", { name: "Show me" })).toHaveCount(0);
+  await expect(list.getByRole("button", { name: "View as code" }))
+    .toHaveCount(2);
+  await page.mouse.move(600, 700);
+  await shot(page, "workflow-editor-problems-list");
+});
+
+/**
+ * design-ux's ruling on the three cases a definition can be in (issue 67
+ * comment 6917906748): a part only changeable in code is marked, an unreadable
+ * step keeps a card, and a definition whose steps cannot be read says so in
+ * place of the drawing. Nothing is ever dropped.
+ */
+const RULED: Options = {
+  ...WORLD,
+  versions: [
+    ...VERSIONS.filter((row) => row.status !== "draft"),
+    {
+      ...version(4, 4, "draft", [{ id: "brief", uses: "task.brief" }]),
+      spec: [
+        { kind: "action", id: "brief", uses: "task.brief" },
+        { kind: "action", id: "add", uses: "harness.implement" },
+        {
+          kind: "branch",
+          then: [],
+          else: [{ kind: "action", id: "rev", uses: "agent.review" }],
+        },
+        { kind: "wait" },
+        { kind: "repeat", steps: [] },
+      ],
+    },
+  ],
+};
+
+const UNREADABLE: Options = {
+  ...WORLD,
+  versions: [
+    ...VERSIONS.filter((row) => row.status !== "draft"),
+    {
+      ...version(4, 4, "draft", [{ id: "brief", uses: "task.brief" }]),
+      spec: "written in code",
+    },
+  ],
+};
+
+for (
+  const viewport of [
+    { name: "desktop", width: 1440, height: 900 },
+    { name: "phone", width: 390, height: 844 },
+  ]
+) {
+  test.describe(`${viewport.name}: the ruled three cases`, () => {
+    test.use({ viewport: { width: viewport.width, height: viewport.height } });
+
+    test("a part only changeable in code is marked and is not a problem", async ({ page }) => {
+      await libraryFixture(page, RULED);
+      await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
+      const brief = page.locator("[data-card='brief']");
+      await expect(brief).toContainText("Write the task brief");
+      await expect(brief).toContainText("Edited in code");
+      // A known type the picker does not offer is not a problem.
+      await expect(brief).not.toContainText("Needs setup");
+      // Both arms of a branch sit inside one If container, and an empty arm
+      // keeps its place with "No steps" (fix 10).
+      await expect(page.locator("[data-group='if']")).toContainText("If");
+      await expect(page.locator("[data-group='if']")).toContainText(
+        "Edited in code",
+      );
+      await expect(page.locator("[data-group-arm='yes']")).toContainText(
+        "No steps",
+      );
+      // Labels are the ruling's words, not the old ones.
+      await expect(page.locator("[data-group='wait']")).toContainText("Wait");
+      await expect(page.locator("[data-group='repeat']")).toContainText(
+        "Repeat",
+      );
+      // Nothing above is a problem: the chip says the workflow is ready.
+      await expect(page.getByTestId("editor-problems")).toHaveText(
+        "Ready to publish",
+      );
+      // Selecting a code-only step offers the code, never Move or Remove.
+      await brief.getByRole("button").first().click();
+      const panel = page.getByRole("complementary", {
+        name: "The selected step",
+      });
+      await expect(panel).toContainText(
+        "This part of the workflow is written in code.",
+      );
+      await expect(panel.getByRole("button", { name: "View as code" }))
+        .toBeVisible();
+      await expect(panel.getByRole("button", { name: "Delete" })).toHaveCount(
+        0,
+      );
+      await page.mouse.move(600, 700);
+      await shot(page, "workflow-editor-code-only");
+    });
+
+    test("a step with no id and no type keeps a card and one problem", async ({ page }) => {
+      // Case 2 of the ruling: an unreadable step is a card marked "Needs setup",
+      // one chip problem, and "Show me" selects it.
+      await libraryFixture(page, {
+        ...WORLD,
+        versions: [
+          ...VERSIONS.filter((row) => row.status !== "draft"),
+          {
+            ...version(4, 4, "draft", [{ id: "brief", uses: "task.brief" }]),
+            spec: [{ kind: "action" }],
+          },
+        ],
+      });
+      await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
+      const card = page.locator("[data-card^='unreadable']");
+      await expect(card).toContainText("Unreadable step");
+      await expect(card).toContainText("Needs setup");
+      const chip = page.getByTestId("editor-problems");
+      await expect(chip).toHaveText("1 problem");
+      await chip.click();
+      const list = page.getByTestId("editor-problem-list");
+      await expect(list).toContainText("Bakery cannot read this step.");
+      await list.getByRole("button", { name: "Show me" }).click();
+      await expect(
+        page.getByRole("complementary", { name: "The selected step" }),
+      ).toContainText("Bakery cannot read this step.");
+      await page.mouse.move(600, 700);
+      await shot(page, "workflow-editor-unreadable-step");
+    });
+
+    test("steps that cannot be read are said in place of the drawing", async ({ page }) => {
+      await libraryFixture(page, UNREADABLE);
+      await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
+      await expect(page.locator("[data-card='start']")).toBeVisible();
+      const notice = page.locator('[data-ui-region="workflow-diagram"]');
+      await expect(notice).toContainText(
+        "Bakery cannot draw this workflow's steps",
+      );
+      await expect(notice).toContainText(
+        "The steps are written in a way Bakery cannot read. Open the code to see them.",
+      );
+      await expect(notice.getByRole("button", { name: "View as code" }))
+        .toBeVisible();
+      // No "+" under the start card: there is nothing to add to.
+      await expect(page.getByRole("button", { name: /Add a step after/ }))
+        .toHaveCount(0);
+      // One problem, and its row can only be answered in the code.
+      const chip = page.getByTestId("editor-problems");
+      await expect(chip).toHaveText("1 problem");
+      await chip.click();
+      const list = page.getByTestId("editor-problem-list");
+      await expect(list).toContainText("The steps cannot be read.");
+      await expect(list.getByRole("button", { name: "View as code" }))
+        .toBeVisible();
+      await expect(list.getByRole("button", { name: "Show me" })).toHaveCount(
+        0,
+      );
+      await page.mouse.move(600, 700);
+      await shot(page, "workflow-editor-steps-unreadable");
     });
   });
 }

@@ -1,4 +1,4 @@
-/* Generated from Paper 01M1X504XVC45FC0VDK857A37D revision paper:49fea8f7; pages:14-0,15-0,16-0,V-0; accessed:2026-09-17; digest be0870041ec57a152f5982d9121f8aaa495d7dc7af5a16164ae82a26cf087877. */
+/* Generated from Paper 01M1X504XVC45FC0VDK857A37D revision paper:49fea8f7; pages:14-0,15-0,16-0,V-0; accessed:2026-09-17; digest 8402dd6f0dddfcf6605f92aa32948675924812baf5574ab861b65f4157f13aa4. */
 export const semanticTokens = {
   "border.default": "--border-default",
   "border.emphasis": "--border-emphasis",
@@ -78,6 +78,8 @@ export const semanticTokens = {
   "layout.message": "--layout-message",
   "layout.section.rail": "--layout-section-rail",
   "layout.session-pane": "--layout-session-pane",
+  "layout.step.card": "--layout-step-card",
+  "layout.step.panel": "--layout-step-panel",
   "radius.circle": "--radius-circle",
   "radius.control": "--radius-control",
   "radius.none": "--radius-none",
@@ -106,6 +108,7 @@ export const semanticTokens = {
   "size.logo.wordmark.inline": "--size-logo-wordmark-inline",
   "size.queue-row": "--size-queue-row",
   "size.status-dot": "--size-status-dot",
+  "size.step.connector": "--size-step-connector",
   "size.switch": "--size-switch",
   "size.theme.preview.title": "--size-theme-preview-title",
   "space.0": "--space-0",

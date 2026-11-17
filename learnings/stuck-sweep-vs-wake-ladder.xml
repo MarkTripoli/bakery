@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="stuck-sweep-vs-wake-ladder" project="bakery">
+  <title>Stuck sweep files false recovery rows against parked-owner wake reservations</title>
+  <trigger>The auto stuck-sweep files a recovery row while the underlying row's owner is inside the parked-owner wake ladder's window; recovery summaries cite rows whose last transition is a wake reservation, or whose owner is idle-at-prompt with needsInput.count 0 and a live nextBackstop dueAt in the future.</trigger>
+  <rule>Before reading a recovery row as a real stall, check two predicates; EITHER suppresses the finding (night of 2026-11-17, four false recoveries cost four seat-turns): (1) the underlying row's last transition is a parked-owner wake reservation - the sweep fired inside the wake ladder's window rather than after it ran out; (2) the owner is idle-at-prompt with needsInput.count 0 AND the row has a live nextBackstop dueAt in the future (a wake reservation always implies one). A seat that has been woken and is expected to act is not an abandoned row. Close such recovery rows no-follow-on with a one-line note naming the predicate; do not route them to the underlying owner. Sweep-config change (suppress at the filer) is an operator-side tuning item - surface it in the PM status, do not edit the scheduler config.</rule>
+  <verification>
+    <requirement>When dismissing on this class, cite the predicate in the closure note (wake reservation transition OR live backstop dueAt). If a recovery row survives both predicates - owner active, no wake reserved, no live backstop - treat it as a real stall and act.</requirement>
+  </verification>
+</learning>

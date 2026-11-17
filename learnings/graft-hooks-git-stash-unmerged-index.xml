@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="graft-hooks-git-stash-unmerged-index" project="bakery">
+  <title>Graft hook generators plus git stash in a worktree produce an alarming unmerged-index state</title>
+  <trigger>A seat's git index goes unmerged mid-session with no merge in progress; git stash trips over tracked-looking generated paths (.cursor/hooks.json, .github/copilot-instructions.md) and stash pop refuses.</trigger>
+  <rule>Graft hook generators write files that appear tracked in worktrees; a git stash then captures an index state the pop cannot restore, and the index reports unmerged with no merge running. The recovery that worked (2026-11-16, dev-bugfix on PR #501): restore the two tracked .claude/helpers files to HEAD, clear only the untracked generated paths, and verify the branch diff is exactly the intended change before continuing. Do not run git stash in a worktree where graft hooks have run until the generated paths are explicitly excluded; prefer committing or stashing with pathspecs. The state looks alarming but is recoverable - check the branch diff against the intended change before assuming corruption.</rule>
+  <verification>
+    <requirement>Prove the recovery by diff: after restoring tracked files to HEAD and clearing the generated untracked paths, git status must be clean and the branch diff must equal exactly the intended change (the 4-line mkdir fix verified this way). Record which generated paths the hook writes in the seat handover so a successor recognizes them instantly.</requirement>
+  </verification>
+</learning>

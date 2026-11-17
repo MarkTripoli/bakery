@@ -1,6 +1,7 @@
 import type { ActionContext } from "@bakery/contracts/action-registry";
 import { contractSchemas } from "@bakery/contracts/contracts";
 import { StandardError } from "@bakery/contracts/http";
+import type { OrganizationBlobStore } from "../../catalog/storage-port.ts";
 import type { z } from "zod";
 import { decodeCursor, encodeCursor } from "../../../platform/cursor.ts";
 import { sha256Hex } from "../../../platform/canonical-json.ts";
@@ -17,7 +18,10 @@ import { commentPlacement } from "./placement.ts";
 
 type Query = z.infer<typeof contractSchemas.CommentQuery>;
 
-export function commentQueries(secret: string) {
+export function commentQueries(
+  secret: string,
+  blobStore?: OrganizationBlobStore,
+) {
   return async (context: ActionContext, input: Query, across: boolean) => {
     const work = requireWorkTransaction(context);
     if (input.rootId && input.status) {
@@ -44,7 +48,10 @@ export function commentQueries(secret: string) {
       ) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
     }
     const view = input.viewVersionId
-      ? await loadVersion(work, input.viewVersionId, { bytes: true })
+      ? await loadVersion(work, input.viewVersionId, {
+        bytes: true,
+        ...(blobStore ? { blobStore } : {}),
+      })
       : undefined;
     if (view && view.artifact_id !== artifactId) {
       throw new StandardError({ code: "RESOURCE_NOT_FOUND" });

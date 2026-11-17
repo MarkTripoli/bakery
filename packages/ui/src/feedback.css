@@ -662,3 +662,11 @@
     flex-basis: 100%;
   }
 }
+
+/* A card the editor cannot read or does not know (#67, design-ux's G2 ruling):
+   it is drawn, never dropped, and a red outline says it needs setup without
+   relying on colour alone — the card also carries the words "Needs setup". */
+[data-needs-setup="true"] {
+  outline: var(--border-emphasis) solid var(--color-destructive);
+  outline-offset: var(--space-1);
+}

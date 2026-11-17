@@ -108,11 +108,20 @@ input:not([type="hidden"]) {
 }
 /* The primary fill is the light colour in the dark theme, so a disabled primary
    button faded to 55% was still the brightest thing on the page. There it takes
-   the subtle surface with the disabled ink instead, and no fade. */
+   the subtle surface with the disabled ink instead, and no fade.
+
+   The disabled ink is --color-fg-tertiary, not --color-fg-disabled: disabled
+   measures 2.67:1 on that surface, under the 4.5:1 floor, so the "Working…"
+   label on every auth loading state was near-invisible. Tertiary measures
+   4.61:1 - above the floor, and still below both the enabled (16.45:1) and the
+   disabled secondary (5.66:1), so it is readable and remains the dimmest of
+   the three. --color-fg-muted would also clear the floor (7.29:1) but it is the
+   token for text that is really pressable, so it made a disabled primary
+   out-shout a disabled secondary and read as available. */
 [data-theme="dark"] .ui-button--primary:disabled {
   background: var(--color-surface-subtle);
   border-color: var(--color-border);
-  color: var(--color-fg-disabled);
+  color: var(--color-fg-tertiary);
   opacity: 1;
 }
 .ui-link {

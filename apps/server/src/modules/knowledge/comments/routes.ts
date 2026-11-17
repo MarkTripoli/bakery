@@ -10,12 +10,19 @@ import {
 } from "@bakery/contracts/contracts";
 import { createComment, updateComment } from "./store.ts";
 import { commentQueries } from "./queries.ts";
+import type { OrganizationBlobStore } from "../../catalog/storage-port.ts";
 
 export function registerCommentActions(
   registry: ActionRegistry,
   secret: string,
+  /**
+   * Where a blob-backed version's bytes come from. Absent, a version with no
+   * inline content reads as having none, which is what every caller saw before
+   * versions could name a blob.
+   */
+  blobStore?: OrganizationBlobStore,
 ): void {
-  const list = commentQueries(secret);
+  const list = commentQueries(secret, blobStore);
   const read = {
     type: ActionKind.Query,
     access: ActionAccess.Developer,
@@ -29,7 +36,7 @@ export function registerCommentActions(
     input: contractSchemas.ArtifactCommentCreate,
     output: contractSchemas.ArtifactComment,
     policy: write,
-    handler: createComment,
+    handler: (context, input) => createComment(context, input, blobStore),
   });
   registry.register({
     name: "artifactComments.update",
@@ -38,7 +45,7 @@ export function registerCommentActions(
     input: contractSchemas.ArtifactCommentUpdate,
     output: contractSchemas.ArtifactComment,
     policy: write,
-    handler: updateComment,
+    handler: (context, input) => updateComment(context, input, blobStore),
   });
   registry.register({
     name: "artifactComments.list",

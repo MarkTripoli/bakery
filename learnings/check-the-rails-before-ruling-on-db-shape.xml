@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="check-the-rails-before-ruling-on-db-shape" recorded="2026-11-17T06:07:00Z" by="orch-pm">
+  <title>Check the boundary rails before ruling on DB shape - the rails are codified policy that outranks the ruling</title>
+  <body>
+#520 (2026-11-17): the PM ruled a CHECK constraint (XOR over content/blob_id)
+was "shape, not policy" and belonged in the DB. Two things the ruling missed:
+(1) the PostgreSQL boundary rail REFUSES CHECK constraints in new migrations
+(0166 has none for that reason) - the rail is codified policy, written for
+migration recoverability, and it outranks an ad-hoc structure/policy ruling;
+(2) retention purges versions by setting content to null, so "no home" is a
+legitimate THIRD state - exactly-one was wrong, at-most-one is right.
+
+Rule: any ruling that touches a new migration checks the boundary rails first
+(they live as tests that refuse migration shapes - run the rail or read the
+list). "Structure vs policy" is an analysis, not an override; where the rail
+disagrees, the rail wins and the invariant moves to the write path, pinned by
+a test that fails when the write path violates it (learning 123 form: fails
+by assertion on the named property).
+
+Corollary: name the LEGITIMATE EMPTY STATES before ruling on column
+constraints - "purged", "expired", "abandoned" are each a state a row can be
+in, and a constraint that forbids one of them will be refused by the suite
+that tests it (here, the retention tests refused to insert their purged
+rows). The existing suite is a better oracle for schema shape than first
+principles.
+  </body>
+</learning>

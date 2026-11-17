@@ -482,8 +482,10 @@ export function baselineMetadataIssues(
     issues.push("unsupported Paper baseline schema version");
   }
   const source = manifest.source ?? {};
+  const rulingSource = sourceKind(manifest) === "ux-ruling";
   if (
-    !source.fileId || !source.pageId || !source.manifestPath ||
+    !(rulingSource ? source.revision : source.fileId && source.pageId &&
+      source.manifestPath) ||
     !source.revision || !/^[a-f0-9]{64}$/.test(source.digest ?? "") ||
     !Array.isArray(source.inputs) || !source.inputs.length
   ) {
@@ -667,9 +669,138 @@ export function baselineMetadataIssues(
   return issues;
 }
 
+/**
+ * A source identity licenses baseline refresh. Two kinds qualify:
+ *
+ *  - a re-exported Paper source, whose `revision` and `digest` both move (the
+ *    V-0 path, verified against the input bytes by v0RefreshIssue);
+ *  - a redesign ruling, where the app is the sanctioned design and the Paper
+ *    export is what went stale (the owner's 2026-11-11 directive: the UX
+ *    design comment, not Paper, is the source of truth). That identity is
+ *    `ux-ruling:<issue>#<comment-id>; app:<sha>` and is verified as its own
+ *    kind by uxRulingRefreshIssue, never by pretending to be a Paper digest.
+ *
+ * Both kinds keep the gate sharp: a refresh is licensed once, and the
+ * re-anchored baselines drift-detect from then on. Nothing is waived.
+ */
+export function sourceKind(manifest) {
+  const revision = manifest?.source?.revision;
+  if (typeof revision === "string" && /^ux-ruling:/.test(revision)) {
+    return "ux-ruling";
+  }
+  if (typeof revision === "string" && /^paper:/.test(revision)) return "paper";
+  return "unknown";
+}
+
 export function sourceRefreshed(manifest, baseManifest) {
+  const kind = sourceKind(manifest);
+  if (kind === "ux-ruling") {
+    // A ruling identity refreshes when it names a different ruling than the
+    // merge base carried; its digest is bound to the ruling text, not to a
+    // Paper export that did not change.
+    return sourceKind(baseManifest) !== "ux-ruling" ||
+      manifest?.source?.revision !== baseManifest?.source?.revision ||
+      manifest?.source?.digest !== baseManifest?.source?.digest;
+  }
   return manifest?.source?.revision !== baseManifest?.source?.revision &&
     manifest?.source?.digest !== baseManifest?.source?.digest;
+}
+
+/**
+ * A redesign-ruling refresh is genuine only when the identity is bound to
+ * evidence the declarer cannot rewrite at will: every refreshed case names the
+ * ruling that licensed it, all of them name the same ruling as
+ * `source.revision`, the ruling's own comment body is vendored into the
+ * repository and hashed into the digest, `source.inputs` is hashed too, and
+ * `app:<sha>` must name a real commit. A ruling identity that merely asserts
+ * itself therefore cannot license drift.
+ *
+ * The body is vendored rather than fetched so the gate stays offline and
+ * reproducible in CI; `reanchor-design-references.mjs` fetches it once from
+ * the GitHub API and writes it, so the bytes in the repo are the comment's
+ * bytes at authoring time. A hostile declarer can still rewrite the vendored
+ * file, but then they have changed a file this gate hashes, in a diff a
+ * reviewer reads, which is the same trust boundary as every other pinned
+ * input here - not a self-declared string that no diff shows.
+ *
+ * Returns the reason a snapshot is not a lawful ruling refresh, or "" when it
+ * is one.
+ */
+export function uxRulingRefreshIssue(manifest, options = {}) {
+  const { source } = manifest ?? {};
+  if (sourceKind(manifest) !== "ux-ruling") return "not a ruling identity";
+  const match = /^ux-ruling:([\w.-]+)#(\d+); app:([0-9a-f]{7,40})$/.exec(
+    source.revision ?? "",
+  );
+  if (!match) {
+    return "the ruling identity must read ux-ruling:<issue>#<comment>; app:<sha>";
+  }
+  const ruling = `${match[1]}#${match[2]}`;
+  const cases = (manifest.cases ?? []).filter((entry) =>
+    entry.designRuling !== undefined
+  );
+  if (!cases.length) {
+    return "no case cites the ruling that licensed this refresh";
+  }
+  for (const entry of cases) {
+    if (entry.designRuling !== ruling) {
+      return `${entry.id}: cites "${entry.designRuling}", not "${ruling}"`;
+    }
+  }
+  if (!Array.isArray(source.inputs) || !source.inputs.length) {
+    return "the ruling identity is not bound to any evidence";
+  }
+  // The ruling's actual text, pinned alongside its citation. Without this the
+  // citation is a string the declarer chose, and #12345 would licence a
+  // redesign that #12345 never mentioned.
+  if (
+    typeof source.rulingBodySha256 !== "string" ||
+    !/^[a-f0-9]{64}$/.test(source.rulingBodySha256)
+  ) {
+    return "the ruling identity does not pin the ruling's comment body";
+  }
+  if (typeof options.readRulingBody === "function") {
+    const body = options.readRulingBody(ruling);
+    if (body === undefined || body === null) {
+      return "the vendored ruling body is missing";
+    }
+    if (
+      sha256(Buffer.from(String(body), "utf8")) !==
+        source.rulingBodySha256
+    ) {
+      return "the vendored ruling body does not match its pinned digest";
+    }
+  }
+  // `app:` names the commit that was sanctioned. It must be a real commit, so
+  // a typo or an invented sha cannot stand in for a reviewed head.
+  const commitExists = options.commitExists;
+  if (typeof commitExists === "function" && !commitExists(match[3])) {
+    return `app:${match[3]} does not name a commit in this repository`;
+  }
+  // `source.inputs` is required above, so it must be hashed below: requiring
+  // evidence and then ignoring it is the same self-attestation in a different
+  // place.
+  const inputMaterial = options.readInput
+    ? source.inputs.slice().sort().map((path) =>
+      `input\0${path}\0${options.readInput(path)}`
+    )
+    : [];
+  // The digest covers the ruling citation, its text digest, the app commit,
+  // every pinned input's bytes and every refreshed case identity, so neither
+  // the refreshed set nor the evidence can be widened without re-declaring.
+  const material = [
+    `ruling\0${ruling}`,
+    `rulingBody\0${source.rulingBodySha256}`,
+    `app\0${match[3]}`,
+    ...inputMaterial,
+    ...cases.map((entry) =>
+      `case\0${entry.id}\0${entry.imagePath}\0${entry.imageSha256}`
+    ).sort(),
+  ].join("\n");
+  if (sha256(Buffer.from(material, "utf8")) !== source.digest) {
+    return "the declared ruling digest does not match the licensed cases";
+  }
+  return "";
 }
 
 export function baselineMutationIssues(manifest, baseManifest) {
@@ -734,7 +865,7 @@ export function predecessorManifest(baseManifest, firstBranchManifest) {
 // nothing for automation to compare it against, so the report records that
 // fact instead of claiming verification or blocking a change that can never
 // gain a predecessor.
-export function baselineProvenance(manifest, predecessor) {
+export function baselineProvenance(manifest, predecessor, options = {}) {
   if (hasProfiles(manifest) || hasProfiles(predecessor)) {
     return {
       status: "blocked",
@@ -750,6 +881,13 @@ export function baselineProvenance(manifest, predecessor) {
     };
   }
   const issues = baselineMutationIssues(manifest, predecessor);
+  // A ruling identity must prove itself, not just declare itself: the same
+  // gate that would otherwise accept any moved source also verifies that the
+  // refresh is bound to the ruling, its text and its case list.
+  if (sourceKind(manifest) === "ux-ruling") {
+    const issue = uxRulingRefreshIssue(manifest, options);
+    if (issue) issues.push(`redesign refresh: ${issue}`);
+  }
   return issues.length ? { status: "blocked", issues } : { status: "passed" };
 }
 
@@ -828,6 +966,148 @@ function sourcePath(path) {
 
 function requireProvenance(condition, message) {
   if (!condition) throw new Error(message);
+}
+
+/**
+ * The baseline a commit ships must be the baseline its own tree produces.
+ *
+ * A pull request proves parity against a merge base. A push to main has no
+ * predecessor to compare against (`HEAD` is the base), and asking git for
+ * `merge-base --all HEAD origin/main` there answers with every base candidate in
+ * the history, so the parity path refuses with "Ambiguous or unavailable
+ * provenance merge base" - a refusal that looks like a defect. Instead, main
+ * proves what it can: every pinned source input and the declared source digest
+ * are recomputed from the commit's own bytes, and every case's reference image
+ * must hash to the digest the commit declares for it. A hand-edited reference
+ * PNG or a manifest whose digest does not describe its inputs is refused; a
+ * regenerated-and-committed baseline passes by construction.
+ */
+function selfConsistentBaselineProvenance({
+  git,
+  repositoryRoot,
+  baselinePath,
+  headCommit,
+}) {
+  const path = relative(root, baselinePath).replaceAll("\\", "/");
+  requireProvenance(
+    git(["ls-tree", "--name-only", headCommit, "--", path]) !== "",
+    "The baseline is absent from the commit under self-consistency",
+  );
+  const cache = new Map();
+  const read = (input) => {
+    sourcePath(input);
+    if (!cache.has(input)) {
+      cache.set(
+        input,
+        execFileSync("git", ["show", `${headCommit}:${input}`], {
+          cwd: repositoryRoot,
+          maxBuffer: 256 * 1024 * 1024,
+          stdio: ["ignore", "pipe", "pipe"],
+        }),
+      );
+    }
+    return cache.get(input);
+  };
+  const { manifest } = provenanceDocument(read(path));
+  requireProvenance(
+    manifest !== null && typeof manifest === "object",
+    "The baseline manifest is malformed",
+  );
+  const issues = [];
+  // `auth` is the manifest's own `source`; any other profile is named in
+  // `sourceProfiles` and resolved through `resolveSourceProfile` with a case
+  // that carries it, which is how the parity gate reads them too.
+  const profileCases = hasProfiles(manifest)
+    ? [
+      {},
+      ...Object.keys(manifest.sourceProfiles ?? {}).map((name) => ({
+        sourceProfile: name,
+      })),
+    ]
+    : [{}];
+  for (const designCase of profileCases) {
+    const name = designCase.sourceProfile ?? "auth";
+    try {
+      const profile = resolveSourceProfile(manifest, designCase);
+      const { source } = profile;
+      if (!Array.isArray(source.inputs) || source.inputs.length === 0) {
+        issues.push(`${name}: no pinned source inputs`);
+        continue;
+      }
+      if (
+        new Set(source.inputs).size !== source.inputs.length ||
+        !source.inputs.includes(source.manifestPath)
+      ) {
+        issues.push(`${name}: missing or duplicate pinned source inputs`);
+        continue;
+      }
+      // The same material the parity gate recomputes, recomputed here from the
+      // commit's own bytes, so main can prove the digest describes its inputs.
+      const material = source.inputs.map((input) =>
+        `${input}\0${sha256(read(input))}\n`
+      );
+      // A profile-less case (the default `auth` source) never folds launch
+      // options into its identity; only a named profile does.
+      if (designCase.sourceProfile !== undefined) {
+        material.push(
+          `browserLaunchOptions\0${
+            JSON.stringify(paperBrowserLaunchOptions(designCase))
+          }\n`,
+        );
+      }
+      if (sha256(material.join("")) !== source.digest) {
+        issues.push(`${name}: source digest mismatch`);
+      }
+      const revisionPrefix = `paper:${
+        sha256(read(source.manifestPath)).slice(0, 8)
+      }; mock:${source.digest.slice(0, 8)}; rendered:`;
+      if (
+        !source.revision.startsWith(revisionPrefix) ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(
+          source.revision.slice(revisionPrefix.length),
+        )
+      ) issues.push(`${name}: revision binding mismatch`);
+    } catch (error) {
+      issues.push(
+        `${name}: ${
+          error instanceof Error ? error.message.split("\n")[0] : String(error)
+        }`,
+      );
+    }
+  }
+  // Every reference image the manifest declares must hash to what it declares,
+  // read from the commit rather than the working tree.
+  const cases = Array.isArray(manifest.cases) ? manifest.cases : [];
+  if (cases.length === 0) issues.push("the manifest declares no cases");
+  for (const entry of cases) {
+    if (!entry || typeof entry !== "object") continue;
+    const id = String(entry.id ?? "a case");
+    const imagePath = entry.imagePath;
+    const declared = entry.imageSha256;
+    if (typeof imagePath !== "string" || !imagePath) {
+      issues.push(`${id}: reference image has no path`);
+      continue;
+    }
+    if (typeof declared !== "string" || !/^[a-f0-9]{64}$/.test(declared)) {
+      issues.push(`${id}: reference image has no declared digest`);
+      continue;
+    }
+    try {
+      if (sha256(read(imagePath)) !== declared) {
+        issues.push(
+          `${id}: reference image does not match its declared digest`,
+        );
+      }
+    } catch {
+      issues.push(`${id}: reference image is missing from the commit`);
+    }
+  }
+  if (issues.length) {
+    throw new Error(
+      `The main baseline is not self-consistent: ${issues.join("; ")}`,
+    );
+  }
+  return { status: "self-consistent", commit: headCommit };
 }
 
 // A V-0 refresh is genuine only when the snapshot's declared identity is bound
@@ -982,6 +1262,24 @@ function profileBindings(snapshot, name, original) {
 
 // The repository is the authority for absence/history, never a caller-supplied
 // null predecessor or an ignored task ledger. Options support isolated Git tests.
+//
+// Which proof a run owes is decided HERE, at the one seam every capture goes
+// through, and is tested there: a test that only calls
+// `repositoryBaselineProvenance` with `mode` spelled out proves the check works
+// when asked, and says nothing about whether anything asks. Hardcoding the mode
+// at this line is the exact regression that could reach main unnoticed.
+export function comparePaperProvenance({
+  baselinePath,
+  eventName = process.env.GITHUB_EVENT_NAME,
+  ...options
+} = {}) {
+  return repositoryBaselineProvenance({
+    baselinePath,
+    ...options,
+    mode: eventName === "push" ? "self-consistency" : "parity",
+  });
+}
+
 export function repositoryBaselineProvenance({
   repositoryRoot = root,
   baselinePath = manifestProfile("auth").baselinePath,
@@ -989,8 +1287,19 @@ export function repositoryBaselineProvenance({
     (process.env.GITHUB_BASE_REF
       ? `origin/${process.env.GITHUB_BASE_REF}`
       : "origin/main"),
+  // A push to main has no predecessor commit to compare against: `HEAD` is the
+  // base. A pull request can prove PARITY against the base; main can only prove
+  // SELF-CONSISTENCY - that the baseline the commit ships is the baseline its
+  // own tree produces. The mode is REQUIRED, with no default: a caller that
+  // forgets it fails loudly instead of silently taking the wrong proof, which is
+  // the failure this gate exists to prevent.
+  mode,
 } = {}) {
   try {
+    requireProvenance(
+      mode === "parity" || mode === "self-consistency",
+      "A baseline provenance run must state whether it proves parity or self-consistency",
+    );
     const git = (args) =>
       execFileSync("git", args, {
         cwd: repositoryRoot,
@@ -1002,6 +1311,21 @@ export function repositoryBaselineProvenance({
       git(["rev-parse", "--is-shallow-repository"]) === "false",
       "Incomplete shallow provenance history",
     );
+    // A main push proves its own tree, so there is no merge base to resolve and
+    // no history to walk: the commit under test is the baseline's authority.
+    if (mode === "self-consistency") {
+      const headCommit = git(["rev-parse", "HEAD"]);
+      requireProvenance(
+        /^[a-f0-9]{40}$/.test(headCommit),
+        "Unavailable commit for baseline self-consistency",
+      );
+      return selfConsistentBaselineProvenance({
+        git,
+        repositoryRoot,
+        baselinePath,
+        headCommit,
+      });
+    }
     const bases = git(["merge-base", "--all", "HEAD", comparisonRef]).split(
       "\n",
     );
@@ -1055,6 +1379,34 @@ export function repositoryBaselineProvenance({
         ...baselineProvenance(
           current.manifest,
           predecessorManifest(base.manifest, first?.manifest),
+          // The ruling body and pinned inputs are read through the same
+          // snapshot as the manifest, so a ruling cannot be verified against
+          // bytes that only exist in the working tree.
+          {
+            readRulingBody: () => {
+              const bodyPath = current.manifest?.source?.rulingBodyPath;
+              if (typeof bodyPath !== "string" || !bodyPath) return undefined;
+              return current.read(bodyPath).toString("utf8");
+            },
+            readInput: (input) => sha256(current.read(input)),
+            // `app:` must name a real commit that is not newer than the merge
+            // base: the sanctioned app state is what the merge base already
+            // contains, not a sha the declarer invented or borrowed from a
+            // future branch.
+            commitExists: (sha) => {
+              try {
+                git(["cat-file", "-e", `${sha}^{commit}`]);
+              } catch {
+                return false;
+              }
+              try {
+                git(["merge-base", "--is-ancestor", sha, baseCommit]);
+                return true;
+              } catch {
+                return false;
+              }
+            },
+          },
         ),
         baseCommit,
       };
@@ -1174,9 +1526,38 @@ export function repositoryBaselineProvenance({
         ? legacyRefresh.bytes
         : legacyReference ?? legacyBytes;
       if (legacyBytes !== expectedLegacy) {
+        // A redesign-ruling snapshot is lawful on the same terms as a V-0
+        // re-export: once per branch, and only when its own identity verifies.
+        // The ruling verifier is what stops "the app changed" from becoming a
+        // universal licence.
+        const ruling = sourceKind(manifest) === "ux-ruling"
+          ? uxRulingRefreshIssue(manifest, {
+            readRulingBody: () => {
+              const bodyPath = manifest.source.rulingBodyPath;
+              if (typeof bodyPath !== "string" || !bodyPath) return undefined;
+              return read(bodyPath).toString("utf8");
+            },
+            readInput: (input) => sha256(read(input)),
+            commitExists: (sha) => {
+              try {
+                git(["cat-file", "-e", `${sha}^{commit}`]);
+              } catch {
+                return false;
+              }
+              try {
+                git(["merge-base", "--is-ancestor", sha, baseCommit]);
+                return true;
+              } catch {
+                return false;
+              }
+            },
+          })
+          : null;
         const issue = legacyRefresh
-          ? "a V0 refresh already exists on this branch"
-          : v0RefreshIssue(snapshot, lineage);
+          ? "a refresh already exists on this branch"
+          : ruling === null
+          ? v0RefreshIssue(snapshot, lineage)
+          : ruling;
         requireProvenance(
           !issue,
           `Existing V0 objects or top-level settings changed: ${issue}`,
@@ -1191,9 +1572,12 @@ export function repositoryBaselineProvenance({
       }
       for (
         const entry of manifest.cases.filter((item) =>
-          item.sourceProfile === undefined
+          item.sourceProfile === undefined && item.designRuling === undefined
         )
       ) {
+        // A case that cites the ruling that licensed this refresh has just had
+        // its reference re-anchored on purpose; every other case must still
+        // match its pinned bytes, so an unlicensed edit is still caught.
         requireProvenance(
           sha256(read(sourcePath(entry.imagePath))) === entry.imageSha256,
           `${entry.id}: existing reference bytes changed`,
@@ -2193,8 +2577,21 @@ export async function comparePaper(
       : fullBaseline;
     if (only.length) report.partial = { only };
     // Selection cannot bypass history or hide mutations in unselected profiles.
-    const provenance = repositoryBaselineProvenance({ baselinePath });
+    // A push has no base to prove parity against, so it proves self-consistency
+    // instead; every other caller keeps the parity gate unchanged.
+    const provenance = comparePaperProvenance({ baselinePath });
     report.provenance = provenance;
+    // A blocked provenance is decided from the commit alone, so there is nothing
+    // a browser could add: refuse before rendering hundreds of cases. This also
+    // keeps the decision reachable from a test without a browser, which is what
+    // makes the entry point's mode selection provable rather than assumed.
+    if (provenance.status === "blocked") {
+      throw new Error(
+        `Paper baseline provenance ${provenance.status}: ${
+          (provenance.issues ?? []).join("; ")
+        }`,
+      );
+    }
     browser = await chromium.launch({
       headless: true,
       ...(isSiteManifest(manifestName) ? enterpriseLaunchOptions() : {}),
