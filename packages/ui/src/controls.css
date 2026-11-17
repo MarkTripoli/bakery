@@ -112,13 +112,18 @@ input:not([type="hidden"]) {
    near-invisible: --color-fg-disabled (#566173) on --color-surface-subtle
    (#191E28) is 2.67:1, well under the 4.5:1 floor, and the approved Paper
    loading baselines (login, register, reauth) show a light fill with dark ink
-   at 5.9:1. Keep the fill dark enough not to dominate, but put readable ink on
-   it: the muted foreground on the subtle surface measures 7.29:1 and still sits
-   below the full-strength primary, so it does not become the brightest thing. */
+   at 5.9:1.
+
+   The ink is --color-fg-tertiary, not --color-fg-muted. Muted cleared the floor
+   too (7.29:1) but it is the token for text that is really pressable, so the
+   disabled primary out-shouted the disabled secondary (5.66:1) and read as an
+   enabled control. Tertiary measures 4.61:1 - above the floor, below both the
+   enabled and the disabled secondary - so it is readable and still the dimmest
+   of the three. A token here has to mean "disabled", not only clear a number. */
 [data-theme="dark"] .ui-button--primary:disabled {
   background: var(--color-surface-subtle);
   border-color: var(--color-border);
-  color: var(--color-fg-muted);
+  color: var(--color-fg-tertiary);
   opacity: 1;
 }
 .ui-link {
@@ -130,7 +135,7 @@ input:not([type="hidden"]) {
   min-block-size: 0;
 }
 .ui-link--quiet {
-  color: var(--color-fg-muted);
+  color: var(--color-fg-tertiary);
   /* A quiet link often carries a glyph after its words ("Open on GitHub ^").
      The button variants get their gap from `.ui-button`; without this the
      glyph sat flush against the last letter (qa3, PR 482).
@@ -140,13 +145,13 @@ input:not([type="hidden"]) {
   gap: var(--space-1);
 }
 .ui-link[data-state="visited"] {
-  color: var(--color-fg-muted);
+  color: var(--color-fg-tertiary);
 }
 .ui-link--external::after {
   content: " ↗";
 }
 .ui-search-field__message {
-  color: var(--color-fg-muted);
+  color: var(--color-fg-tertiary);
   font: var(--type-hint);
 }
 .ui-search-field[data-state="error"] .ui-search-field__message {
@@ -166,7 +171,7 @@ input:not([type="hidden"]) {
   gap: var(--space-0-5);
 }
 .ui-field__note {
-  color: var(--color-fg-muted);
+  color: var(--color-fg-tertiary);
   font: var(--type-hint);
 }
 .ui-field__body {
@@ -181,7 +186,7 @@ input:not([type="hidden"]) {
   }
 }
 .ui-field__hint {
-  color: var(--color-fg-muted);
+  color: var(--color-fg-tertiary);
   font: var(--type-hint);
 }
 .ui-field__error {
@@ -265,7 +270,7 @@ input:not([type="hidden"]) {
    foreground instead of fading the whole control, and the label stays in the
    muted text colour so it can still be read. */
 .ui-switch[data-state="disabled"] {
-  color: var(--color-fg-muted);
+  color: var(--color-fg-tertiary);
 }
 .ui-switch input:disabled {
   cursor: not-allowed;
@@ -323,7 +328,7 @@ input:not([type="hidden"]) {
   background: transparent;
   border: var(--border-none);
   border-block-end: var(--border-emphasis) solid transparent;
-  color: var(--color-fg-muted);
+  color: var(--color-fg-tertiary);
   cursor: pointer;
   flex: 0 0 auto;
   padding: var(--space-2) var(--space-3);
@@ -367,7 +372,7 @@ input.ui-text-input::placeholder,
 textarea.ui-text-input::placeholder,
 input.ui-password-input__field::placeholder,
 input.ui-one-time-code-input::placeholder {
-  color: var(--color-fg-muted); /* auth.css:8 input::placeholder */
+  color: var(--color-fg-tertiary); /* auth.css:8 input::placeholder */
   opacity: 1;
 }
 .ui-text-input[aria-invalid="true"],
@@ -423,7 +428,7 @@ input.ui-password-input__field {
   gap: var(--space-3);
 }
 .ui-recovery-codes__status {
-  color: var(--color-fg-muted);
+  color: var(--color-fg-tertiary);
   font: var(--type-hint);
 }
 /* Navigation with a secondary-button frame (Paper 5J-0 "Open session"). The
@@ -633,7 +638,7 @@ input.ui-password-input__field {
 .ui-segmented-control--inline .ui-segmented-control__item {
   background: transparent;
   border: var(--border-none);
-  color: var(--color-fg-muted);
+  color: var(--color-fg-tertiary);
   font: var(--type-hint);
   min-block-size: var(--space-0);
   min-inline-size: var(--space-0);

@@ -2479,6 +2479,11 @@ test.describe("dark disabled primary keeps its label readable", () => {
   // the 4.5:1 floor. The approved Paper loading references (login, register,
   // reauth) show a readable label, so no dark disabled primary may fall below
   // the floor again.
+  //
+  // Clearing the floor is not enough on its own: --color-fg-muted does too
+  // (7.29:1), but it out-shouts the disabled secondary (5.66:1) and so reads as
+  // an enabled control. The ink must both clear the floor and stay the dimmest
+  // of the three states.
   const luminance = (hex: string) => {
     const channels = [1, 3, 5].map((offset) =>
       parseInt(hex.slice(offset, offset + 2), 16) / 255
@@ -2509,27 +2514,62 @@ test.describe("dark disabled primary keeps its label readable", () => {
     return { token };
   };
 
-  test("the muted ink used by the dark disabled primary clears 4.5:1", async () => {
+  test("the tertiary ink used by the dark disabled primary clears 4.5:1", async () => {
     const { token } = await readTokens();
     const ratio = contrastRatio(
-      token("color-fg-muted"),
+      token("color-fg-tertiary"),
       token("color-surface-subtle"),
     );
     expect(ratio).toBeGreaterThanOrEqual(4.5);
   });
 
-  test("the ink the rule used to set would not have cleared the floor", async () => {
-    // Guards the reason the change exists: if a future edit puts the disabled
-    // ink back, this records that doing so is the regression, not a tidy-up.
+  // .ui-button:disabled renders at 55% opacity, so a disabled secondary's ink
+  // is --color-fg blended 55/45 over --color-surface. Derive it rather than
+  // hardcode the measured value, so a token change moves this with it.
+  const blend = (foreground: string, background: string, alpha: number) => {
+    const channel = (hex: string, offset: number) =>
+      parseInt(hex.slice(offset, offset + 2), 16);
+    const mixed = [1, 3, 5].map((offset) =>
+      Math.round(
+        alpha * channel(foreground, offset) +
+          (1 - alpha) * channel(background, offset),
+      )
+    );
+    return `#${
+      mixed.map((value) => value.toString(16).padStart(2, "0")).join("")
+    }`;
+  };
+
+  test("a disabled primary is dimmer than a disabled secondary", async () => {
+    // This is the ordering that keeps the control reading as unavailable.
     const { token } = await readTokens();
-    const ratio = contrastRatio(
-      token("color-fg-disabled"),
+    const disabledPrimary = contrastRatio(
+      token("color-fg-tertiary"),
       token("color-surface-subtle"),
     );
-    expect(ratio).toBeLessThan(4.5);
+    const disabledSecondary = contrastRatio(
+      blend(token("color-fg"), token("color-surface"), 0.55),
+      token("color-surface"),
+    );
+    expect(disabledPrimary).toBeLessThan(disabledSecondary);
   });
 
-  test("the disabled rule actually uses the readable ink", async () => {
+  test("the muted ink would have out-shouted the disabled secondary", async () => {
+    // Records why the token is tertiary and not muted: muted clears the floor
+    // but inverts the hierarchy, so "tidy it back to muted" is the regression.
+    const { token } = await readTokens();
+    const muted = contrastRatio(
+      token("color-fg-muted"),
+      token("color-surface-subtle"),
+    );
+    const disabledSecondary = contrastRatio(
+      blend(token("color-fg"), token("color-surface"), 0.55),
+      token("color-surface"),
+    );
+    expect(muted).toBeGreaterThan(disabledSecondary);
+  });
+
+  test("the disabled rule actually uses the tertiary ink", async () => {
     const controls = await readFile(
       join(import.meta.dirname, "..", "src", "controls.css"),
       "utf8",
@@ -2539,7 +2579,8 @@ test.describe("dark disabled primary keeps its label readable", () => {
         controls,
       );
     expect(rule, "the dark disabled primary rule is missing").not.toBeNull();
-    expect(rule![0]).toContain("color: var(--color-fg-muted)");
+    expect(rule![0]).toContain("color: var(--color-fg-tertiary)");
+    expect(rule![0]).not.toContain("--color-fg-muted");
     expect(rule![0]).not.toContain("--color-fg-disabled");
   });
 });
