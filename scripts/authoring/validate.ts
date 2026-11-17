@@ -197,16 +197,25 @@ export function wordCount(text: string): number {
   return (text.match(/[\p{L}\p{N}][\p{L}\p{N}'’._/-]*/gu) ?? []).length;
 }
 
-function outlineCode(text: string): number {
+/**
+ * The Change outline's show-me views: each fenced block is one view, and its
+ * lines are the view's budget. A view's own labels and node names are part of
+ * the view, never prose — so a bigger diagram must not be paid for out of the
+ * prose cap, and the prose cap must not be dodged by hiding words in a fence.
+ */
+function outlineViews(text: string): { views: number; lines: number } {
+  let views = 0;
   let lines = 0;
   for (
     const block of text.matchAll(
       /^ {0,3}(`{3,}|~{3,})[^\n]*\n([\s\S]*?)^ {0,3}\1[ \t]*$/gm,
     )
   ) {
-    lines += block[2].split("\n").filter((line) => line.trim()).length;
+    const body = block[2].split("\n").filter((line) => line.trim());
+    if (body.length) views += 1;
+    lines += body.length;
   }
-  return lines;
+  return { views, lines };
 }
 
 export function relatedIssue(body: string): number | null {
@@ -322,8 +331,28 @@ export function validateDescription(kind: Kind, body: string): string[] {
       /^\s*\|/.test(line) && !/^\s*\|[\s|:-]*\|?\s*$/.test(line) &&
       /[\p{L}\p{N}]/u.test(line.replace(/\|/g, ""))
     );
-    if (rows.length < 2) {
-      errors.push("Evidence needs a table with at least one filled check row.");
+    // Owner rule: Evidence is UI evidence and new tests only. A PR with
+    // nothing to show says so, and says why, instead of filling the table with
+    // routine checks CI already reports.
+    // `- None.` either alone or opening a line that then says why.
+    const evidenceNone = /^(?:-\s*)?None\.(?:[ \t]+\S|[ \t]*$)/im.test(
+      evidence,
+    );
+    if (evidenceNone) {
+      const why = withoutFences(evidence).replace(
+        /^(?:-\s*)?None\./im,
+        "",
+      )
+        .trim();
+      if (!why) {
+        errors.push(
+          "Evidence None. needs one line saying why there is nothing to show.",
+        );
+      }
+    } else if (rows.length < 2) {
+      errors.push(
+        "Evidence needs a table with at least one filled check row, or None.",
+      );
     } else if (rows.length > 9) {
       errors.push("Evidence table: at most eight check rows.");
     }
@@ -349,9 +378,19 @@ export function validateDescription(kind: Kind, body: string): string[] {
         );
       }
     }
-    const codeLines = outlineCode(sections.get("change outline") ?? "");
-    if (codeLines > 30) {
-      errors.push("Too long: change outline view must be at most 30 lines.");
+    // The Change outline is the core of a PR: one to three show-me views,
+    // 80 lines of view in all. The 40-word prose cap above is counted only
+    // outside fences, so views and prose have separate budgets.
+    const outlineView = outlineViews(sections.get("change outline") ?? "");
+    if (outlineView.lines > 80) {
+      errors.push(
+        `Too long: change outline views must be at most 80 lines in all (${outlineView.lines}).`,
+      );
+    }
+    if (outlineView.views > 3) {
+      errors.push(
+        `Too many views: change outline takes at most three (${outlineView.views}).`,
+      );
     }
     const images = (body.match(/!\[[^\]]*\]\([^)]*\)/g) ?? []).length;
     if (images > 4) {

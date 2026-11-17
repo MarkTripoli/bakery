@@ -428,10 +428,41 @@ Deno.test("authoring keeps PR descriptions short and asks for risk, decisions an
     ),
     true,
   );
-  const outline = "```text\n" + Array(31).fill("a -> b").join("\n") + "\n```";
+  // The Change outline is the PR's core: one to three views, 80 lines in all.
+  // 79 lines passes, 81 fails — the boundary, not a round number either side.
+  const viewOf = (lines: number) =>
+    "```text\n" + Array(lines).fill("a -> b").join("\n") + "\n```";
   assertEquals(
-    has(pr.replace(/```text[\s\S]*?```/, outline), "at most 30 lines"),
+    has(pr.replace(/```text[\s\S]*?```/, viewOf(79)), "at most 80 lines"),
+    false,
+  );
+  assertEquals(
+    has(pr.replace(/```text[\s\S]*?```/, viewOf(80)), "at most 80 lines"),
+    false,
+  );
+  assertEquals(
+    has(pr.replace(/```text[\s\S]*?```/, viewOf(81)), "at most 80 lines"),
     true,
+  );
+  // Four views is one too many; three is the cap.
+  const views = (count: number) =>
+    Array(count).fill("```text\na -> b\n```").join("\n");
+  assertEquals(
+    has(pr.replace(/```text[\s\S]*?```/, views(3)), "at most three"),
+    false,
+  );
+  assertEquals(
+    has(pr.replace(/```text[\s\S]*?```/, views(4)), "at most three"),
+    true,
+  );
+  // A view's labels are the view's budget, not prose: a long diagram must not
+  // push the 40-word Change outline prose cap over.
+  const labelled = "```mermaid\n" + Array(80).fill("  A[word word word] --> B")
+    .join("\n") +
+    "\n```";
+  assertEquals(
+    has(pr.replace(/```text[\s\S]*?```/, labelled), "words of prose"),
+    false,
   );
   const shots = Array(5).fill("![s](https://example.com/s.png)").join(" ");
   assertEquals(has(pr + "\n\n" + shots, "at most four"), true);
@@ -473,6 +504,35 @@ Deno.test("review verdicts are short: verdict, head, severity-tagged findings", 
     validateReview(review + "\n\n" + Array(160).fill("filler").join(" ")).some((
       e,
     ) => e.includes("at most 150")),
+  );
+});
+
+Deno.test("Evidence None. is accepted when it says why there is nothing to show", () => {
+  // Owner rule: Evidence is UI evidence and new tests only, so a PR with
+  // neither states None. and why — it does not pad the table with CI checks.
+  const withEvidence = (evidence: string) =>
+    pr.replace(/## Evidence[\s\S]*$/, "## Evidence\n\n" + evidence);
+  assertEquals(
+    validateDescription(
+      "pr",
+      withEvidence(
+        "- None. Backend-only refactor: no visible UI, and the existing lane\n" +
+          "  already covers the changed branch.",
+      ),
+    ),
+    [],
+  );
+  assert(
+    validateDescription("pr", withEvidence("- None.")).some((e) =>
+      e.includes("needs one line saying why")
+    ),
+  );
+  // A bare None. with no reason is refused, so it is not a free pass.
+  assertEquals(
+    validateDescription("pr", withEvidence("None.")).some((e) =>
+      e.includes("needs one line saying why")
+    ),
+    true,
   );
 });
 
