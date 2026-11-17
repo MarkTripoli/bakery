@@ -5673,6 +5673,78 @@ export const clientManifest = {
       "implemented": true
     },
     {
+      "group": "Blobs",
+      "method": "POST",
+      "path": "/v1/blobs/uploads",
+      "action": "blobUploads.start",
+      "access": "Developer",
+      "permission": "artifact:create",
+      "input": "BlobUploadStart",
+      "output": "BlobUploadSession",
+      "event": "",
+      "mcp": "bakery_blobUploads_start",
+      "idempotency": "None: each call opens a new session, and a retry that completes twice stores nothing (recordBlob is insert-on-conflict)",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
+        "BODY_TOO_LARGE"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Blobs",
+      "method": "PUT",
+      "path": "/v1/blobs/uploads/{id}/parts/{partNumber}",
+      "action": "blobUploads.part",
+      "access": "Developer",
+      "permission": "artifact:create",
+      "input": "BlobUploadPart",
+      "output": "BlobUploadSession",
+      "event": "",
+      "mcp": "bakery_blobUploads_part",
+      "idempotency": "Natural: a part is keyed by its ordinal, so a retry replaces the same row rather than appending",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "BODY_TOO_LARGE"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Blobs",
+      "method": "POST",
+      "path": "/v1/blobs/uploads/{id}/complete",
+      "action": "blobUploads.complete",
+      "access": "Developer",
+      "permission": "artifact:create",
+      "input": "BlobUploadComplete",
+      "output": "Blob",
+      "event": "",
+      "mcp": "bakery_blobUploads_complete",
+      "idempotency": "Natural: completing an already-completed session answers with the blob it produced, so a client that never saw the first response can retry safely; recordBlob is insert-on-conflict-do-nothing, so the bytes are stored once",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
       "group": "Installation administration",
       "method": "GET",
       "path": "/v1/integration-auth/github/manifest-callback",
@@ -11425,6 +11497,9 @@ export const clientManifest = {
             "skillStorageSettings.get",
             "skillStorageSettings.put",
             "skillStorageSettings.verify",
+            "blobUploads.start",
+            "blobUploads.part",
+            "blobUploads.complete",
             "integrationAuth.githubManifestCallback",
             "integrationResources.list",
             "integrationDiscoveries.create",
@@ -18182,6 +18257,68 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Settles every unknown merge attempt of one pull request by re-reading it from GitHub; a merge that happened is recorded as merged and one that did not as refused, without ever sending a second merge."
+    },
+    "BlobUploadStart": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "sha256": {
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 64,
+          "description": "BlobUploadStart.sha256 must contain at most 64 characters."
+        },
+        "sizeBytes": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Total size of the file in bytes, declared up front and bounded by the 5 GiB per-blob limit. Declaring it lets the server refuse an incomplete assembly instead of accepting a truncated file."
+        },
+        "mediaType": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255,
+          "description": "BlobUploadStart.mediaType must contain at most 255 characters."
+        }
+      },
+      "required": [
+        "sha256",
+        "sizeBytes",
+        "mediaType"
+      ],
+      "additionalProperties": false,
+      "description": "Opens a resumable upload by declaring the whole file's digest, size and media type before any part is sent. The declaration is what the completed assembly is checked against, so a client cannot discover after the fact what it uploaded."
+    },
+    "BlobUploadPart": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "content": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536,
+          "description": "BlobUploadPart.content must contain at most 5242880 characters."
+        },
+        "sha256": {
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 64,
+          "description": "BlobUploadPart.sha256 must contain at most 64 characters."
+        }
+      },
+      "required": [
+        "content",
+        "sha256"
+      ],
+      "additionalProperties": false,
+      "description": "One ordinal piece of a resumable upload. Parts are addressed by their number, so re-sending a part replaces that number rather than appending a duplicate, which is what makes a retry safe."
+    },
+    "BlobUploadComplete": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false,
+      "description": "Completes a session with no body: the session already carries the declared digest, size and media type. Completing is idempotent, so a client that never saw the first response can retry without storing a second blob."
     },
     "UserPreferences": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -29761,6 +29898,9 @@ export const clientManifest = {
                   "skillStorageSettings.get",
                   "skillStorageSettings.put",
                   "skillStorageSettings.verify",
+                  "blobUploads.start",
+                  "blobUploads.part",
+                  "blobUploads.complete",
                   "integrationAuth.githubManifestCallback",
                   "integrationResources.list",
                   "integrationDiscoveries.create",
@@ -45338,6 +45478,9 @@ export const clientManifest = {
             "skillStorageSettings.get",
             "skillStorageSettings.put",
             "skillStorageSettings.verify",
+            "blobUploads.start",
+            "blobUploads.part",
+            "blobUploads.complete",
             "integrationAuth.githubManifestCallback",
             "integrationResources.list",
             "integrationDiscoveries.create",
@@ -52639,6 +52782,7 @@ export const clientManifest = {
               "integrationAuthAttempt:manage",
               "integrationAuthAttempt:read",
               "integrationInstallation:read",
+              "artifact:create",
               "integrationResource:read",
               "integrationDiscovery:manage",
               "integrationResource:manage",
@@ -63931,6 +64075,117 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "What one reconciliation read settled for a pull request: the number of unknown attempts moved, split by whether GitHub reports the pull request merged."
+    },
+    "BlobUploadSession": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID of this upload session, used in the part and complete paths."
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "completed",
+            "abandoned",
+            "expired"
+          ],
+          "description": "Lifecycle state: pending while parts are accepted, completed once the declared file is stored, expired once its deadline passed uncompleted, abandoned when a client gave the upload up."
+        },
+        "sha256": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The digest declared when the session opened; the completed assembly must match it."
+        },
+        "sizeBytes": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "The total size declared when the session opened."
+        },
+        "mediaType": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The media type declared when the session opened."
+        },
+        "receivedBytes": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Bytes accepted so far, so a client can tell how much of the file is already on the server."
+        },
+        "partCount": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Number of distinct part ordinals stored, which reveals a gap a client would otherwise have to discover on completion."
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "Absolute deadline for this session. It does not slide on activity, so a stalled upload cannot keep itself alive indefinitely."
+        }
+      },
+      "required": [
+        "id",
+        "state",
+        "sha256",
+        "sizeBytes",
+        "mediaType",
+        "receivedBytes",
+        "partCount",
+        "expiresAt"
+      ],
+      "additionalProperties": false,
+      "description": "A resumable upload in progress, scoped to the organization and the principal that opened it. It reports what has arrived so a client can resume from the right ordinal rather than restarting the file."
+    },
+    "Blob": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID of the stored blob, usable wherever an artifact version needs to reference these bytes."
+        },
+        "sha256": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Lowercase hexadecimal SHA-256 of the stored bytes, which is also the object's key within the organization."
+        },
+        "sizeBytes": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Size of the stored bytes in bytes."
+        },
+        "mediaType": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "IANA media type recorded for the stored bytes."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When this blob was first stored. A later upload of the same bytes does not change it."
+        }
+      },
+      "required": [
+        "id",
+        "sha256",
+        "sizeBytes",
+        "mediaType",
+        "createdAt"
+      ],
+      "additionalProperties": false,
+      "description": "A stored file identified by its organization and SHA-256. Two uploads of the same bytes in one organization are the same blob, so a repeated completion returns the existing record rather than storing the content twice."
     }
   }
 } as const;

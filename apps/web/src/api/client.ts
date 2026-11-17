@@ -141,6 +141,7 @@ export type ExternalTicketResponse = ClientOutputMap["ExternalTicket"];
 export type ExternalTicketListResponse =
   ClientOutputMap["Page<ExternalTicket>"];
 export type TicketSourceResponse = ClientOutputMap["TicketSource"];
+export type TicketSourcePersonResponse = ClientOutputMap["TicketSourcePerson"];
 export type TicketSourceListResponse = ClientOutputMap["Page<TicketSource>"];
 export type TicketSourceCreate = ClientInputMap["TicketSourceCreate"];
 export type TicketSourceUpdate = ClientInputMap["TicketSourceUpdate"];
@@ -709,6 +710,26 @@ export type BakeryApiClient = {
       readonly idempotencyKey?: string;
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<TicketSourceResponse>>;
+    /** `GET /v1/ticket-sources/{id}`: one repository's issue settings. */
+    readonly source: (options: {
+      readonly organizationId: string;
+      readonly id: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<TicketSourceResponse>>;
+    /** `POST /v1/ticket-sources/{id}/previews`: reads GitHub again with the saved settings and records what each issue needs. */
+    readonly preview: (options: {
+      readonly organizationId: string;
+      readonly sourceId: string;
+      readonly idempotencyKey?: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<TicketOperationReceiptResponse>>;
+    /** `GET /v1/ticket-sources/{id}/people/{login}`: turns a GitHub username into the id the settings store. */
+    readonly lookupPerson: (options: {
+      readonly organizationId: string;
+      readonly sourceId: string;
+      readonly login: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<TicketSourcePersonResponse>>;
     /** `POST /v1/ticket-sources/{id}/syncs`: asks Bakery to read GitHub again. Admin only. */
     readonly sync: (options: {
       readonly organizationId: string;
@@ -2036,6 +2057,35 @@ export function createBakeryApiClient({
               idempotencyKey: options.idempotencyKey,
               signal: options.signal,
             }),
+        );
+      },
+      source(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["ticketSources.get"]({ id: options.id }, {
+              signal: options.signal,
+            }),
+        );
+      },
+      preview(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["ticketSources.preview"]({ id: options.sourceId }, {
+              idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
+            }),
+        );
+      },
+      lookupPerson(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["ticketSources.lookupPerson"]({
+              id: options.sourceId,
+              login: options.login,
+            }, { signal: options.signal }),
         );
       },
       updateSource(options) {

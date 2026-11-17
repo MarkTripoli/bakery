@@ -5134,6 +5134,20 @@
       "frames": []
     },
     {
+      "routeId": "issue-settings",
+      "path": "/issues/settings",
+      "status": "no-mock",
+      "rationale": "The list of connected repositories and their issue settings is designed in words in design-ux's UX design on #69 (the settings page itself is mocked; the list is not); Paper has no frame for it.",
+      "frames": []
+    },
+    {
+      "routeId": "issue-settings-detail",
+      "path": "/issues/settings/$sourceId",
+      "status": "no-mock",
+      "rationale": "One repository's issue settings follow design-ux's mocked page in the UX design on #69 (light theme, example data); the mock is a design reference, not a Paper frame, so no golden is invented here.",
+      "frames": []
+    },
+    {
       "routeId": "machines",
       "path": "/machines",
       "status": "no-mock",
