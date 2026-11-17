@@ -111,6 +111,7 @@ export const ExecutionImplementedAction = Object.freeze(
     RunsControl: "runs.control",
     RunsControlCapabilities: "runs.controlCapabilities",
     SessionsGet: "sessions.get",
+    SessionsList: "sessions.list",
     SessionsFeed: "sessions.feed",
     SessionsSteer: "sessions.steer",
     TranscriptStatus: "outputStreams.transcript",

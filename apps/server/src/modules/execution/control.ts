@@ -58,7 +58,11 @@ import {
   enqueueWorkerControlCommand,
   resolveCanceledAttemptCleanup,
 } from "./coordination.ts";
-import { getAgentSession, steerAgentSession } from "./sessions.ts";
+import {
+  createSessionListHandler,
+  getAgentSession,
+  steerAgentSession,
+} from "./sessions.ts";
 import { createSessionFeedHandler } from "./session-feed.ts";
 import { openSessionFeedStream } from "./session-feed-stream.ts";
 import type { ExecutionRouteOptions } from "./shared.ts";
@@ -529,6 +533,20 @@ export function createExecutionRunControlApp(
         OrganizationContextPolicy.RequiredAuthenticatedContext,
     },
     handler: getAgentSession,
+  });
+  registry.register({
+    name: ExecutionImplementedAction.SessionsList,
+    method: HttpMethod.Get,
+    path: "/v1/sessions",
+    input: contractSchemas.SessionList,
+    output: contractSchemas.AgentSessionPage,
+    policy: {
+      type: ActionKind.Query,
+      access: ActionAccess.Developer,
+      organizationContext:
+        OrganizationContextPolicy.RequiredAuthenticatedContext,
+    },
+    handler: createSessionListHandler(options.secret),
   });
   registry.register({
     name: ExecutionImplementedAction.SessionsFeed,

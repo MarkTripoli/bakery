@@ -10049,6 +10049,37 @@ const transportSchemas = {
     "BlobUploadComplete": {
       "fields": [],
       "description": "Completes a session with no body: the session already carries the declared digest, size and media type. Completing is idempotent, so a client that never saw the first response can retry without storing a second blob."
+    },
+    "SessionList": {
+      "fields": [
+        {
+          "name": "runStepId",
+          "type": "uuid",
+          "required": true,
+          "description": "Run step whose agent sessions are being listed; every returned session belongs to it."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation cursor from a prior session list page; omit for the first page and never construct it directly."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum number of sessions returned; defaults to 25 and cannot exceed 100."
+        }
+      ],
+      "description": "Lists the agent sessions that belong to one run step, so a client can reach a session by run rather than by an id it already knows."
     }
   },
   "projections": {
@@ -26109,6 +26140,29 @@ const transportSchemas = {
         "mediaType": "IANA media type recorded for the stored bytes.",
         "createdAt": "When this blob was first stored. A later upload of the same bytes does not change it."
       }
+    },
+    "AgentSessionPage": {
+      "fields": [
+        "items",
+        "nextCursor"
+      ],
+      "fieldTypes": {
+        "items": "AgentSession[]",
+        "nextCursor": "string|null"
+      },
+      "fieldBounds": {
+        "items": {
+          "maxItems": 100
+        },
+        "nextCursor": {
+          "maxBytes": 512
+        }
+      },
+      "fieldDescriptions": {
+        "items": "Authorized agent sessions in stable createdAt then id ascending order.",
+        "nextCursor": "Opaque continuation after the last emitted session, or null when traversal is complete."
+      },
+      "description": "One page of the agent sessions that belong to a run step, newest page last."
     }
   },
   "pageEnvelope": {
