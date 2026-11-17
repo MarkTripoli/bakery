@@ -1080,6 +1080,10 @@ Deno.test("issue 69 ops: externalTickets.list answers the tickets linked to one 
     const otherTask = await fx.createPlainTask();
     // One task carries two tickets, and one of those is shared with a second
     // task, so "linked to this task" cannot be answered by "has any link".
+    // `created_at` defaults to `now()`, which is the transaction's start, so
+    // two links written in separate transactions can share an instant; the id
+    // is the tie-break, and asserting without knowing both is a coin flip.
+    const linkIds: string[] = [];
     for (
       const [ticket, task] of [
         [first, taskId],
@@ -1087,14 +1091,19 @@ Deno.test("issue 69 ops: externalTickets.list answers the tickets linked to one 
         [second, otherTask],
       ] as const
     ) {
-      await read(
-        await post(fx, `${TICKETS}/${ticket.id}/links`, {
-          taskId: task,
-          role: "reference",
-        }),
-        201,
+      linkIds.push(
+        (await read<{ id: string }>(
+          await post(fx, `${TICKETS}/${ticket.id}/links`, {
+            taskId: task,
+            role: "reference",
+          }),
+          201,
+        )).id,
       );
     }
+    // The second ticket carries two links, and the read answers newest first
+    // with the id as the tie-break, so which came first is the ids' to say.
+    const [, secondLinkId, otherLinkId] = linkIds;
     const forTask = (id: string, extra = "") =>
       ticketCall(fx, "GET", `${TICKETS}?taskId=${id}${extra}`).then((
         response,
@@ -1103,8 +1112,16 @@ Deno.test("issue 69 ops: externalTickets.list answers the tickets linked to one 
     const mine = await forTask(taskId);
     assertEquals(mine.items.map((item) => item.id), [second.id, first.id]);
     assert(!mine.items.some((item) => item.id === third.id));
-    // The ticket still serves every task it is linked to, from the same read.
-    assertEquals(mine.items[0].linkedTaskIds, [otherTask, taskId]);
+    // The ticket still serves every task it is linked to, from the same read,
+    // newest link first with the id as the tie-break, which is the order the
+    // read documents rather than the order this test happened to write them.
+    const linksOfSecond = otherLinkId < secondLinkId
+      ? [otherTask, taskId]
+      : [taskId, otherTask];
+    assertEquals(
+      [mine.items[0].id, mine.items[0].linkedTaskIds],
+      [second.id, linksOfSecond],
+    );
     assertEquals((await forTask(otherTask)).items.map((item) => item.id), [
       second.id,
     ]);
