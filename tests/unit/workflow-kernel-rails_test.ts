@@ -124,16 +124,6 @@ function assertOnlyAllowed(
 
 // --- (a) built-in definitions compile and declare apiVersion
 
-/**
- * Built-ins that are still flat preset specs (`kind: fixed`, no `apiVersion`).
- * #399 republishes both as compiled definitions; #400 deletes the flat path.
- */
-// #399 republished `fixed-coding` as a compiled definition; the reviewed
-// preset is the last flat built-in until its own republication lands.
-// #399 republished both presets as compiled definitions, so there is no flat
-// built-in left; a new one would have to be listed here and explained.
-const FLAT_BUILT_INS: Readonly<Record<string, string>> = Object.freeze({});
-
 /** Repository files that ship a workflow document, outside tests and docs. */
 async function shippedWorkflowDocuments(): Promise<string[]> {
   const found: string[] = [];
@@ -165,33 +155,17 @@ async function compiles(document: unknown) {
   assert(result.ok, result.ok ? "" : JSON.stringify(result.diagnostics));
 }
 
-Deno.test("every built-in workflow compiles and declares apiVersion, or is a listed flat preset", async () => {
+Deno.test("every built-in workflow compiles and declares apiVersion", async () => {
   for (const preset of WORKFLOW_PRESETS) {
     const decoded = decodeWorkflowYaml(preset.sourceYaml);
     assert(decoded.ok, `${preset.id}: source YAML does not decode`);
     const value = decoded.value as Record<string, unknown>;
-    const declaresApiVersion = typeof value["apiVersion"] === "string";
-    const compiled = declaresApiVersion &&
-      (await compileWorkflowDocument(value)).ok;
-    if (compiled) {
-      assert(
-        !(preset.id in FLAT_BUILT_INS),
-        `${preset.id} now compiles: remove it from FLAT_BUILT_INS (${
-          FLAT_BUILT_INS[preset.id]
-        })`,
-      );
-    } else {
-      assert(
-        preset.id in FLAT_BUILT_INS,
-        `${preset.id} is a new built-in that does not compile with apiVersion; the flat executor is frozen (O1)`,
-      );
-    }
-  }
-  for (const id of Object.keys(FLAT_BUILT_INS)) {
     assert(
-      WORKFLOW_PRESETS.some((preset) => preset.id === id),
-      `${id} is no longer a built-in: remove it from FLAT_BUILT_INS`,
+      typeof value["apiVersion"] === "string",
+      `${preset.id} is a built-in that declares no apiVersion; #400 removed the flat executor, so every built-in must compile`,
     );
+    const result = await compileWorkflowDocument(value);
+    assert(result.ok, `${preset.id}: ${JSON.stringify(result.diagnostics)}`);
   }
 });
 

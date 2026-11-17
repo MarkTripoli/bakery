@@ -403,6 +403,17 @@
     }
   },
   "inputs": {
+    "SecretIdentityToolRequest": {
+      "fields": [
+        {
+          "name": "preparedOperationId",
+          "type": "uuid",
+          "required": true,
+          "description": "Opaque prepared-operation identifier from the encrypted assignment replay."
+        }
+      ],
+      "description": "Bounded daemon-only request for the one server-selected fixed identity operation. The whole serialized request must stay within 128 bytes, so a caller cannot widen it into a general-purpose secret read."
+    },
     "CoordinationPlanCreate": {
       "fields": [
         {
@@ -7069,6 +7080,12 @@
           "type": "boolean",
           "required": false,
           "description": "Filters by whether the external ticket already has a `ticket_task_links` row connecting it to a Bakery task."
+        },
+        {
+          "name": "taskId",
+          "type": "uuid",
+          "required": false,
+          "description": "Restricts results to external tickets linked to this one Bakery task, whatever the link's role; a task with no link answers an empty page, and a task outside the caller's organization matches nothing rather than revealing that it exists."
         },
         {
           "name": "cursor",
@@ -15179,6 +15196,84 @@
     }
   },
   "outputs": {
+    "RepositoryInspectionSourceChunk": {
+      "fields": [
+        "receipt",
+        "offset",
+        "totalBytes",
+        "chunkDigest",
+        "bytesBase64",
+        "done"
+      ],
+      "fieldTypes": {
+        "receipt": "json",
+        "offset": "integer",
+        "totalBytes": "integer",
+        "chunkDigest": "sha256",
+        "bytesBase64": "string",
+        "done": "boolean"
+      },
+      "description": "Strict RepositoryInspectionSourceChunkSchema result: one bounded authenticated source chunk carrying the unchanged receipt, so a worker reads a large repository source without the whole envelope ever being held at once.",
+      "fieldDescriptions": {
+        "receipt": "The unchanged inspection receipt this chunk belongs to.",
+        "offset": "Exact contiguous decoded envelope byte offset this chunk starts at.",
+        "totalBytes": "Stable exact canonical envelope transfer length.",
+        "chunkDigest": "Digest of this chunk's transfer bytes.",
+        "bytesBase64": "Canonical base64 of at most 32 KiB transfer bytes.",
+        "done": "True only when this chunk reaches the exact final byte."
+      }
+    },
+    "PinnedContextInput": {
+      "fields": [
+        "slot",
+        "path",
+        "digest",
+        "sizeBytes",
+        "mediaType",
+        "content"
+      ],
+      "fieldTypes": {
+        "slot": "slug",
+        "path": "safeRelativePath",
+        "digest": "sha256",
+        "sizeBytes": "nonnegativeInteger",
+        "mediaType": "string",
+        "content": "bytes"
+      },
+      "bounds": {
+        "sizeBytesMax": 1073741824
+      },
+      "description": "One input slot as the worker's attempt context read returns it: the declared slot name, the path inside the attempt context directory, and the bytes together with the digest the server computed from those same bytes.",
+      "fieldDescriptions": {
+        "slot": "The name the workflow declared for this input, such as `brief`.",
+        "path": "Path of the input's bytes relative to the attempt context directory; it never starts with `/` and never climbs.",
+        "digest": "Digest the server computed from the bytes in this same response. It is authoritative: a worker verifies its written file against this value, never against a digest it supplied on the way in.",
+        "sizeBytes": "Size of these bytes, so the worker can bound the read and detect a truncated response.",
+        "mediaType": "Media type of the bytes, so the step knows how to read the file without guessing.",
+        "content": "The exact bytes pinned at admission."
+      }
+    },
+    "PinnedContextRead": {
+      "fields": [
+        "attemptId",
+        "runId",
+        "inputs"
+      ],
+      "fieldTypes": {
+        "attemptId": "uuid",
+        "runId": "uuid",
+        "inputs": "PinnedContextInput[]"
+      },
+      "bounds": {
+        "inputsMaxItems": 32
+      },
+      "description": "The pinned input context of the attempt that asked for it, fenced by the lease it presented: every declared input with its bytes and the server-computed digest, so a worker materializes exactly what admission pinned without re-fetching an artifact.",
+      "fieldDescriptions": {
+        "attemptId": "The attempt whose lease proof was presented; the read answers only while that lease still holds.",
+        "runId": "The run the attempt belongs to, so the worker can correlate the context with its job.",
+        "inputs": "Every input pinned for this attempt's run, ordered as the pins were created."
+      }
+    },
     "CoordinationPlan": {
       "projection": "coordination_plans",
       "fields": [
@@ -27142,7 +27237,7 @@
     "task.brief": {
       "inputSchema": "TaskBriefInput",
       "outputSchema": "ArtifactOutput",
-      "schemaSource": "docs/technical-design/transport-schemas.json",
+      "schemaSource": "packages/contracts/src/contracts.ts",
       "capabilities": [],
       "description": "Deterministic, model-free action that renders the frozen task brief to canonical JSON and publishes it as an immutable artifact through the worker byte boundary."
     },

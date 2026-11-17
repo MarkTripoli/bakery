@@ -63,6 +63,24 @@ Deno.test("a path that leaves the context directory is refused", () => {
   }
 });
 
+Deno.test("an empty slot is refused instead of rendering a nameless row", () => {
+  // The gap this closes was reachable and shipped: every check looked at the
+  // path, and `slots.has("")` is simply false, so an input with no slot
+  // validated clean and the index rendered a row whose name was blank. A
+  // reader cannot tell what it is reading, which is the exact failure the
+  // index exists to prevent.
+  for (const slot of ["", "   "]) {
+    assertEquals(
+      validateContextDocument({
+        ...base,
+        inputs: [{ ...base.inputs[0], slot }],
+      }),
+      { reason: "context_input_slot_missing" },
+      JSON.stringify(slot),
+    );
+  }
+});
+
 Deno.test("a repeated slot or path is refused rather than silently merged", () => {
   const two = (slot: string, path: string) => ({
     ...base,

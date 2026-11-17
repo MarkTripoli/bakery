@@ -75,6 +75,14 @@ export type AttemptScope = {
 export type AttemptLayout = {
   readonly root: string;
   readonly worktree: string;
+  /**
+   * Where the step's pinned inputs are materialised. It is a sibling of
+   * `worktree` and never inside it, because the agent runs `git status` and
+   * `git diff` inside the worktree: a directory of inputs living there would
+   * appear as untracked files the step never created, and a step that stages
+   * everything would commit them.
+   */
+  readonly context: string;
   readonly home: string;
   readonly tmp: string;
 };
@@ -131,7 +139,12 @@ export async function prepareAttemptRoot(
     const tmp = join(root, "tmp");
     await Deno.mkdir(tmp, { mode: 0o700 });
     await Deno.chmod(tmp, 0o700);
-    return { root, worktree: join(root, "worktree"), home, tmp };
+    // Created but left empty: an input is present when its bytes are on disk,
+    // and an empty directory means "no inputs yet", never "inputs missing".
+    const context = join(root, "context");
+    await Deno.mkdir(context, { mode: 0o700 });
+    await Deno.chmod(context, 0o700);
+    return { root, worktree: join(root, "worktree"), context, home, tmp };
   } catch (error) {
     await Deno.remove(root, { recursive: true }).catch(() => undefined);
     throw error;

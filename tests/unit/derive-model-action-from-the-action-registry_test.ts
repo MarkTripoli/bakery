@@ -17,6 +17,7 @@ import {
 } from "../../packages/contracts/src/workflow-action-registry.ts";
 import { compileWorkflowDocument } from "../../packages/contracts/src/workflow-compiler/mod.ts";
 import { isModelAction } from "../../apps/server/src/modules/work/budget.ts";
+import { workflowRuntimeImplementedActions } from "../../packages/contracts/src/implemented-actions.ts";
 
 // #182: the server decided "does this action run a model?" from the worker
 // transport table, which lists only 7 of the 19 registered workflow actions, so
@@ -348,5 +349,67 @@ Deno.test("admission reports a contract defect as the defect, not as unavailable
   assertEquals(
     wireCode(() => executionActionCapabilities("not.an.action")),
     "STATE_CONFLICT",
+  );
+});
+
+// #400: a THIRD table. `workflowRuntimeImplementedActions` lists the actions the
+// server runtime executes in-process. It overlaps the worker table on seven
+// actions and holds two the worker table lacks (`rpi.plan`, `workflow.noop`).
+// Plan admission used to know only the worker table and refused those two, which
+// is why the coordination lane could not admit a `workflow.noop` step. The
+// budget.ts precedent applies to capabilities too: where two tables hold an
+// action they must agree, so the order of lookup cannot matter.
+Deno.test("where the runtime and worker tables hold an action they agree on capabilities", () => {
+  const both = workflowRuntimeImplementedActions.filter((action) =>
+    workerActions.includes(action)
+  );
+  assert(both.length >= 7, "the runtime/worker overlap was not found");
+  for (const action of both) {
+    assertEquals(
+      executionActionCapabilities(action),
+      [...workerActionCapabilities(action)],
+      `${action}: the runtime and worker tables disagree on capabilities`,
+    );
+  }
+});
+
+Deno.test("an action only the runtime implements is admitted from registry capabilities", () => {
+  const runtimeOnly = workflowRuntimeImplementedActions.filter((action) =>
+    !workerActions.includes(action)
+  );
+  assert(runtimeOnly.length >= 2, "the runtime-only actions were not found");
+  for (const action of runtimeOnly) {
+    // The worker table refuses it: no worker runs it, and adding a row there
+    // would lie about the executor.
+    assertThrows(
+      () => workerActionCapabilities(action),
+      UnknownWorkerActionError,
+      `unsupported worker action capabilities: ${action}`,
+    );
+    // Admission answers from the registry instead, exactly as the registry
+    // answers for engine projections.
+    assertEquals(
+      executionActionCapabilities(action),
+      [...WORKFLOW_ACTION_METADATA[action as WorkflowActionName].capabilities],
+      `${action}: admission did not admit a runtime-implemented action`,
+    );
+  }
+});
+
+Deno.test("admitting runtime-implemented actions does not admit an unknown action", () => {
+  // The widening is bounded by the two known tables: a name in neither still
+  // gets the typed refusal rather than a silent pass.
+  const wireCode = (fn: () => unknown) => {
+    try {
+      fn();
+      return "no-throw";
+    } catch (error) {
+      return (error as { params?: { reason?: string } }).params?.reason ??
+        "no-reason";
+    }
+  };
+  assertEquals(
+    wireCode(() => executionActionCapabilities("rpi.unimplemented")),
+    "workflow_action_unavailable",
   );
 });

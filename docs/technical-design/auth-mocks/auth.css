@@ -28,6 +28,8 @@
   --subtle: #eef0f4;
   --ink: #141a24;
   --muted: #5d6675;
+  /* packages/ui/src/foundations/theme.css --color-fg-tertiary */
+  --tertiary: #6b7686;
   --line: #e3e6eb;
   --control: #8a939f;
   --link: #0b63c6;
@@ -51,6 +53,8 @@
   --subtle: #191e28;
   --ink: #f2f4f8;
   --muted: #a3acba;
+  /* packages/ui/src/foundations/theme.css [data-theme=dark] --color-fg-tertiary */
+  --tertiary: #7d879a;
   --line: #2d3542;
   --control: #59657a;
   --link: #6eaaf0;
@@ -96,6 +100,16 @@ button {
 button:disabled {
   cursor: not-allowed;
   opacity: .55;
+}
+/* packages/ui/src/controls.css [data-theme=dark] .ui-button--primary:disabled:
+   the primary fill is light in dark, so a faded disabled primary was the
+   brightest thing on the page; it takes the subtle surface with the tertiary
+   ink and no fade instead. */
+[data-theme=dark] .btn.primary:disabled {
+  background: var(--subtle);
+  border-color: var(--line);
+  color: var(--tertiary);
+  opacity: 1;
 }
 button:focus-visible,
 a:focus-visible,
@@ -489,6 +503,20 @@ input[aria-invalid=true] {
 .form-heading p {
   font-size: 16px;
   color: var(--muted);
+  /* packages/ui/src/foundations/tokens.css --layout-measure-prose */
+  max-width: 68ch;
+}
+/* packages/ui/src/navigation.css: a settings page whose heading is a direct
+   child of the column uses the 24/32 page heading over a 14px muted
+   description; a form page keeps the 28/36 auth heading because its heading
+   sits inside `.form-content`. */
+.settings-content > .form-heading h1 {
+  font-size: 24px;
+  line-height: 32px;
+}
+.settings-content > .form-heading p {
+  font-size: 14px;
+  line-height: 20px;
 }
 .form-footer {
   display: flex;
@@ -661,6 +689,12 @@ input[aria-invalid=true] {
   gap: 28px;
 }
 .settings-content > .form-content {
+  max-width: 520px;
+}
+/* packages/ui/src/navigation.css: `.ui-settings-content:has(> .ui-form-content)
+   > .ui-auth-heading { max-inline-size: 520px }` — the heading shares the
+   form's 520px column, so its description wraps at that measure. */
+.settings-content:has(> .form-content) > .form-heading {
   max-width: 520px;
 }
 .mobile-settings-nav {

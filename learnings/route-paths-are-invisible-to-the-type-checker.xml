@@ -1,0 +1,47 @@
+<learning scope="project">
+  <title>A route path is a string, so the type checker cannot see it</title>
+  <trigger>
+    A test or fixture that passes type checking and fails on its first real
+    call; or any change that moves a route path, a URL constant or a module
+    specifier into a new module.
+  </trigger>
+  <symptom>
+    A test module passes `deno check`, `pnpm fmt` and `pnpm lint`, and 404s on
+    its first request. Nothing static is red, so on the first run the failure
+    looks like a fixture or a server problem.
+  </symptom>
+  <cause>
+    `deno check` types a string as a string. Every route path in every test is
+    invisible to it, so a test can be type-clean and 404 on its first line.
+    The type checker, the reviewer's diff read and the diff itself are all blind
+    to this class by construction; only execution closes it.
+  </cause>
+  <rules>
+    <rule>
+      A declared unexecuted state is not a formality to clear toward a merge.
+      It is the only thing standing between a plausible path and a live one, so
+      "I did not run it" stays legible in the record even when every other gate
+      is green.
+    </rule>
+    <rule>
+      A head that moves under a tick gets announced. Ticks name a SHA, and a
+      SHA that is no longer the head is a claim nobody re-made.
+    </rule>
+    <rule>
+      When relocating or copying test code, copy the constants from the module
+      that owned them instead of retyping them from memory.
+    </rule>
+  </rules>
+  <evidence>
+    Bakery #69 / PR 540. Moving a case out of
+    `tests/helpers/ticket-admission/operations-integration.ts` into
+    `tests/integration/read-the-tickets-linked-to-one-task_test.ts` retyped the
+    source path as `/v1/external-ticket-sources`, which reads like the sibling
+    of `/v1/external-tickets` and does not exist. The route table registers
+    `/v1/ticket-sources` (`ticket-actions.ts:92,101`) and `ticket-routes.ts:25`
+    guards it, so the preview call would have answered 404. `deno check`,
+    `pnpm fmt` and `pnpm lint` were all clean at that commit; the defect was
+    found by reading the route table, not by any gate, and fixed in
+    `443ab7e96`. The class was named by qa-qa during review.
+  </evidence>
+</learning>
