@@ -132,4 +132,9 @@
   <entry file="compare-the-region-not-the-image.xml" scope="project" />
   <entry file="destructive-red-proof-pollutes-test-db.xml" scope="project" />
   <entry file="deno-check-is-the-gate-for-test-files.xml" scope="project" />
+  <entry file="resolved-blocker-resumes-on-owner-action.xml" scope="project" />
+  <entry file="now-is-the-transaction-start.xml" scope="project" />
+  <entry file="route-paths-are-invisible-to-the-type-checker.xml" scope="project" />
+  <entry file="assert-the-row-by-id-not-by-position.xml" scope="project" />
+  <entry file="database-name-is-not-database-identity.xml" scope="project" />
 </learnings>

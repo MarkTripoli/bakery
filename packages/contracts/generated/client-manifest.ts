@@ -16728,6 +16728,12 @@ export const clientManifest = {
           "description": "Filters by whether the external ticket already has a `ticket_task_links` row connecting it to a Bakery task.",
           "type": "boolean"
         },
+        "taskId": {
+          "description": "Restricts results to external tickets linked to this one Bakery task, whatever the link's role; a task with no link answers an empty page, and a task outside the caller's organization matches nothing rather than revealing that it exists.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
         "cursor": {
           "description": "ExternalTicketQuery.cursor must contain at most 512 UTF-8 bytes.",
           "type": "string",
