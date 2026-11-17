@@ -13,6 +13,7 @@ import { useProtectedScope } from "../../app/query-scope-context.tsx";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 import { RouterLink } from "../../app/router-link.tsx";
 import { ShellSlot } from "../../shell/shell-slots.tsx";
+import { WORK_HOME } from "../../shell/breadcrumb-paths.ts";
 import { type PanelTarget, StepPanel } from "./StepPanel.tsx";
 import { WorkflowDiagram } from "./WorkflowDiagram.tsx";
 import { versionSource } from "./copy-workflow.ts";
@@ -22,7 +23,11 @@ import {
   type EditorStep,
   freeStepId,
 } from "./editor-state.ts";
-import { problemsOf, stepProblemLine } from "./editor-validation.ts";
+import {
+  problemSentence,
+  problemsOf,
+  stepProblemLine,
+} from "./editor-validation.ts";
 import { ACTION_TITLES } from "./workflow-state.ts";
 import {
   type GroupLabel,
@@ -160,6 +165,8 @@ export function WorkflowEditorPage(
   const [codeOpen, setCodeOpen] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
   const [problemsOpen, setProblemsOpen] = useState(false);
+  // The step just deleted, by name, while its Undo is offered.
+  const [deleted, setDeleted] = useState<string | null>(null);
   // null until the version being edited is known: an unknown baseline is not a
   // change, so the leave warning is never armed on a page nobody has touched.
   const lastSaved = useRef<string | null>(null);
@@ -350,7 +357,11 @@ export function WorkflowEditorPage(
       setChecker({
         byStep,
         unmapped,
-        workflow: sorted.workflow.map((problem) => problem.message),
+        // The workflow's own problems are sentences too, never the server's
+        // message (ruling 6900485736 section 3).
+        workflow: sorted.workflow.map((problem) =>
+          problemSentence(problem.code)
+        ),
       });
     },
   });
@@ -478,19 +489,24 @@ export function WorkflowEditorPage(
       return {
         kind: "codeOnly",
         name: translate(GROUP_LABEL[group.label] as never),
+        problem: undefined,
       };
     }
     const step = stepsOfTree(tree).find((held) => held.id === selectedId);
     if (step === undefined) return null;
     if (step.codeOnly === true) {
-      return { kind: "codeOnly", name: stepName(step, translate) };
+      return {
+        kind: "codeOnly",
+        name: stepName(step, translate),
+        problem: checker.byStep.get(step.id),
+      };
     }
     const live = steps.find((held) => held.id === selectedId);
     const index = live === undefined ? -1 : steps.indexOf(live);
     return {
       kind: "step",
       name: stepName(step, translate),
-      named: ACTION_TITLES[step.uses] !== undefined,
+      deletable: editable,
       uses: step.uses,
       code: step.code,
       problem: step.problem === undefined
@@ -511,11 +527,31 @@ export function WorkflowEditorPage(
       },
       onRemove: () => {
         if (live === undefined) return;
+        // The toast names what went, so Undo reads as "put that back" rather
+        // than as a word under a card (#67 UX ruling 6932934119 fix 5).
+        setDeleted(stepName(step, translate));
         dispatch({ kind: "remove", id: live.id });
         setSelectedId(null);
       },
     };
   }, [selectedId, tree, steps, editable, translate]);
+
+  const breadcrumbs = (
+    <ShellSlot name="breadcrumbs">
+      <UI.Breadcrumbs
+        aria-label={translate("shell.navigation.breadcrumb")}
+        items={[
+          { href: WORK_HOME, label: translate("shell.navigation.workspace") },
+          { href: "/library", label: translate("library.title" as never) },
+          {
+            href: `/library/workflows/${workflowId}`,
+            label: workflow.data?.name ??
+              translate("library.workflow.breadcrumb" as never),
+          },
+        ]}
+      />
+    </ShellSlot>
+  );
 
   const back = (
     <RouterLink
@@ -530,35 +566,39 @@ export function WorkflowEditorPage(
   const problemList = (
     <UI.Stack gap="compact" data-testid="editor-problem-list">
       {rows.map((row) => (
-        <UI.Stack key={row.key} gap="tight" data-problem-row={row.key}>
-          {row.name === ""
-            ? null
-            : <UI.Text variant="strong">{row.name}</UI.Text>}
-          <UI.Text>{row.sentence}</UI.Text>
-          {row.stepId === null
-            ? (
-              <UI.Button
-                variant="secondary"
-                onClick={() => {
-                  setProblemsOpen(false);
-                  setCodeOpen(true);
-                }}
-              >
-                {translate("library.editor.viewAsCode" as never)}
-              </UI.Button>
-            )
-            : (
-              <UI.Button
-                variant="secondary"
-                onClick={() => {
-                  setProblemsOpen(false);
-                  setSelectedId(row.stepId);
-                }}
-              >
-                {translate("library.editor.problem.showMe" as never)}
-              </UI.Button>
-            )}
-        </UI.Stack>
+        <UI.Inline key={row.key} data-problem-row={row.key} gap="compact">
+          <UI.Stack gap="compact">
+            {row.name === ""
+              ? null
+              : <UI.Text variant="strong">{row.name}</UI.Text>}
+            <UI.Text>{row.sentence}</UI.Text>
+          </UI.Stack>
+          <UI.Inline gap="compact">
+            {row.stepId === null
+              ? (
+                <UI.Button
+                  variant="secondary"
+                  onClick={() => {
+                    setProblemsOpen(false);
+                    setCodeOpen(true);
+                  }}
+                >
+                  {translate("library.editor.viewAsCode" as never)}
+                </UI.Button>
+              )
+              : (
+                <UI.Button
+                  variant="secondary"
+                  onClick={() => {
+                    setProblemsOpen(false);
+                    setSelectedId(row.stepId);
+                  }}
+                >
+                  {translate("library.editor.problem.showMe" as never)}
+                </UI.Button>
+              )}
+          </UI.Inline>
+        </UI.Inline>
       ))}
     </UI.Stack>
   );
@@ -661,17 +701,17 @@ export function WorkflowEditorPage(
               </UI.Text>
               {problemCount === 0
                 ? (
-                  <UI.Text variant="muted" data-testid="editor-problems">
-                    {problemWord}
-                  </UI.Text>
+                  <span data-testid="editor-problems">
+                    <UI.Badge tone="neutral">{problemWord}</UI.Badge>
+                  </span>
                 )
                 : (
                   <UI.Button
-                    variant="destructive-quiet"
+                    variant="quiet"
                     data-testid="editor-problems"
                     onClick={() => setProblemsOpen(true)}
                   >
-                    {problemWord}
+                    <UI.Badge tone="danger">{problemWord}</UI.Badge>
                   </UI.Button>
                 )}
               <UI.Button
@@ -694,14 +734,43 @@ export function WorkflowEditorPage(
         variant="split"
         title={workflow.data?.name ??
           translate("library.editor.title" as never)}
-        subtitle={inUse === null
-          ? translate("library.editor.version.draft" as never)
-          : translate("library.editor.version.inUse" as never, {
-            version: inUse.revision,
-          })}
+        subtitle={[
+          inUse === null
+            ? translate("library.editor.version.draft" as never)
+            : translate("library.editor.version.inUse" as never, {
+              version: inUse.revision,
+            }),
+          // A member needs to know before they try: everything here is drawn
+          // for reading, and nothing will accept a change (#67 UX ruling
+          // 6932934119 fix 11).
+          ...(canManage
+            ? []
+            : [translate("library.editor.memberOnly" as never)]),
+        ].join(" ")}
       />
-      {back}
+      {breadcrumbs}
       {body}
+      {deleted === null ? null : (
+        <UI.Toast
+          tone="success"
+          action={
+            <UI.Button
+              variant="secondary"
+              onClick={() => {
+                dispatch({ kind: "undo" });
+                setDeleted(null);
+              }}
+            >
+              {translate("library.editor.undo" as never)}
+            </UI.Button>
+          }
+          onDismiss={() => setDeleted(null)}
+        >
+          {translate("library.editor.deleted" as never, {
+            name: deleted,
+          })}
+        </UI.Toast>
+      )}
       {problemsOpen
         ? (
           <UI.Dialog

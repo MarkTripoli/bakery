@@ -38,9 +38,19 @@ export function StepConnector(
     return (
       <span className="ui-step-connector" data-read-only="true">
         <span aria-hidden="true" className="ui-step-connector__line" />
-        {endLabel === undefined
-          ? null
-          : <span className="ui-step-connector__end">{endLabel}</span>}
+        {
+          /*
+          The word that ends the path sits on a line of its own, drawn from the
+          last card down to it. Without that second line the path stops in mid
+          air and the word hangs under a stub (#67 UX ruling 6932934119 fix 9).
+        */
+        }
+        {endLabel === undefined ? null : (
+          <>
+            <span aria-hidden="true" className="ui-step-connector__line" />
+            <span className="ui-step-connector__end">{endLabel}</span>
+          </>
+        )}
       </span>
     );
   }

@@ -3834,7 +3834,6 @@
   "library.editor.group.wait": "⟪Wait for approval⟫",
   "library.editor.group.codeOnly": "⟪Edited in code⟫",
   "library.editor.panel.label": "⟪The selected step⟫",
-  "library.editor.panel.nameIsType": "⟪Its name is the step type's name until a step can be named.⟫",
   "library.editor.panel.moveUp": "⟪Move up⟫",
   "library.editor.panel.moveDown": "⟪Move down⟫",
   "library.editor.panel.remove": "⟪Remove⟫",
@@ -3876,5 +3875,8 @@
   "problems.WORKER_ACTION_CAPABILITIES_INVALID.title": "⟪Worker action registration is invalid⟫",
   "problems.WORKER_ACTION_CONTRACT_DRIFT.description": "⟪A worker action does not match the contract Bakery published for it.⟫",
   "problems.WORKER_ACTION_CONTRACT_DRIFT.title": "⟪Worker action contract has drifted⟫",
-  "projects.repository.earlier.otherBranches": "⟪Works from other branches⟫"
+  "projects.repository.earlier.otherBranches": "⟪Works from other branches⟫",
+  "library.editor.memberOnly": "⟪Only organization administrators can change workflows.⟫",
+  "library.editor.deleted": "⟪{name} deleted⟫",
+  "library.editor.group.if": "⟪If⟫"
 }

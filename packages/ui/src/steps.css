@@ -255,18 +255,30 @@
   font: var(--type-hint);
 }
 
+/* The third line of a card on a read-only page: which agent the step runs. */
+.ui-step-card__detail {
+  color: var(--color-fg-muted);
+  font: var(--type-hint);
+}
+
 /* The link between cards (#67): one pixel of line with a small round "+" on it,
-   the circle small and the hit area comfortable. */
+   the circle small and the hit area comfortable.
+   The line runs the whole gap so the cards read as one path: the gap takes no
+   padding of its own, and the line is drawn above and below the "+" so the path
+   never stops short of the next card (#67 UX ruling 6932934119 fix 9). */
 .ui-step-connector {
   align-items: center;
   display: flex;
   flex-direction: column;
+  gap: 0;
   inline-size: 100%;
   max-inline-size: var(--layout-item-action);
+  padding-block: 0;
 }
 .ui-step-connector__line {
   background: var(--color-border);
   block-size: var(--space-3);
+  flex: 0 0 auto;
   inline-size: var(--border-default);
 }
 .ui-step-connector__button {
@@ -330,4 +342,40 @@
    reading width, not the width of its longest line. */
 [data-ui-component="dialog"]:has([data-testid="editor-problem-list"]) {
   inline-size: var(--layout-session-pane);
+}
+
+/* A group is a container, not a label above loose cards (#67 UX ruling
+   6932934119 fix 10): one border holds its label, its "edited in code" line and
+   its cards, so a person can see where the group begins and ends. The rules
+   hang off the data attributes the diagram already sets, so no app file needs a
+   one-off class. */
+[data-group] {
+  background: var(--color-surface);
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-control);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  inline-size: 100%;
+  padding: var(--space-3);
+}
+[data-group-label] {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+/* The two arms of a branch sit side by side inside their one If container, and
+   stack when there is no room for two columns. */
+[data-group-arms] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+[data-group-arm] {
+  display: flex;
+  flex: 1 1 var(--layout-item-action);
+  flex-direction: column;
+  gap: var(--space-2);
+  min-inline-size: 0;
 }

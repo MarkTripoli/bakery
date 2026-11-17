@@ -3834,7 +3834,6 @@
   "library.editor.group.wait": "⟦Ŵàïŧ ƒôŕ àþþŕôṽàļ ŧëš⟧",
   "library.editor.group.codeOnly": "⟦Ëðïŧëð ïñ çôðë ŧë⟧",
   "library.editor.panel.label": "⟦Ŧĥë šëļëçŧëð šŧëþ ŧëš⟧",
-  "library.editor.panel.nameIsType": "⟦Ïŧš ñàɱë ïš ŧĥë šŧëþ ŧÿþë'š ñàɱë ûñŧïļ à šŧëþ çàñ ƀë ñàɱëð. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
   "library.editor.panel.moveUp": "⟦Ṁôṽë ûþ…⟧",
   "library.editor.panel.moveDown": "⟦Ṁôṽë ðôŵñ ŧ⟧",
   "library.editor.panel.remove": "⟦Ŕëɱôṽë…⟧",
@@ -3876,5 +3875,8 @@
   "problems.WORKER_ACTION_CAPABILITIES_INVALID.title": "⟦Ŵôŕķëŕ àçŧïôñ ŕëĝïšŧŕàŧïôñ ïš ïñṽàļïð ŧëšŧ çôþÿŧ⟧",
   "problems.WORKER_ACTION_CONTRACT_DRIFT.description": "⟦À ŵôŕķëŕ àçŧïôñ ðôëš ñôŧ ɱàŧçĥ ŧĥë çôñŧŕàçŧ Ɓàķëŕÿ þûƀļïšĥëð ƒôŕ ïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
   "problems.WORKER_ACTION_CONTRACT_DRIFT.title": "⟦Ŵôŕķëŕ àçŧïôñ çôñŧŕàçŧ ĥàš ðŕïƒŧëð ŧëšŧ çôþÿ⟧",
-  "projects.repository.earlier.otherBranches": "⟦Ŵôŕķš ƒŕôɱ ôŧĥëŕ ƀŕàñçĥëš ŧëšŧ ç⟧"
+  "projects.repository.earlier.otherBranches": "⟦Ŵôŕķš ƒŕôɱ ôŧĥëŕ ƀŕàñçĥëš ŧëšŧ ç⟧",
+  "library.editor.memberOnly": "⟦Ôñļÿ ôŕĝàñïžàŧïôñ àðɱïñïšŧŕàŧôŕš çàñ çĥàñĝë ŵôŕķƒļôŵš. ŧëšŧ çôþÿ ŧëšŧ ç⟧",
+  "library.editor.deleted": "⟦{name} ðëļëŧëð ŧë⟧",
+  "library.editor.group.if": "⟦Ïƒ⟧"
 }

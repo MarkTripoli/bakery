@@ -48,11 +48,76 @@ export function problemsOf(
   return { byStep, workflow };
 }
 
-/** The line a step shows for its problems: the first message, and how many more. */
+/**
+ * The one sentence a person reads for a problem code (#67 comment 6900485736
+ * section 3). The server's own message is never shown: it names schema paths
+ * and validator internals, not the step in front of them.
+ *
+ * Every code the validator can return has a sentence, and any code this table
+ * does not know falls back to one written sentence rather than the message.
+ */
+const SENTENCES: Readonly<Record<string, string>> = {
+  // The workflow's own problems.
+  steps_required: "This workflow has no steps. Press + to add one.",
+  steps_too_many:
+    "This workflow has more steps than Bakery allows. Delete some steps.",
+  definition_too_large:
+    "This workflow is too large to publish. Delete some steps.",
+  agent_binding_action_unknown:
+    "This workflow's agent settings point at something Bakery cannot find. Ask an administrator to check the workflow's agents.",
+  agent_binding_id_invalid:
+    "This workflow's agent settings point at something Bakery cannot find. Ask an administrator to check the workflow's agents.",
+  agents_not_object:
+    "This workflow's agent settings point at something Bakery cannot find. Ask an administrator to check the workflow's agents.",
+  definition_not_object:
+    "Bakery cannot read this workflow. Open View as code to see what it holds.",
+  workflow_structure_invalid:
+    "Bakery cannot read this workflow. Open View as code to see what it holds.",
+  workflow_kind_unsupported:
+    "Bakery cannot read this workflow. Open View as code to see what it holds.",
+  // A step's problems.
+  action_unknown:
+    "Bakery does not know this kind of step. Delete it and add a step from the list.",
+  step_action_invalid:
+    "Bakery does not know this kind of step. Delete it and add a step from the list.",
+  action_not_executable:
+    "This kind of step cannot run yet. Delete it or put another step in its place.",
+  model_agent_unbound:
+    "This step has no agent to run it, and agents cannot be chosen on this page yet. Delete the step, or ask an administrator to set the workflow's agents.",
+  step_id_duplicate:
+    "This step's ID clashes with another step. Delete this step and add it again.",
+  step_id_invalid:
+    "This step's ID clashes with another step. Delete this step and add it again.",
+  step_binding_override_forbidden:
+    "This step chooses an agent it is not allowed to choose. Delete the step and add it again.",
+  step_not_object: "Bakery cannot read this step. Delete it and add it again.",
+  step_requires_invalid:
+    "Bakery cannot read this step. Delete it and add it again.",
+};
+
+/** The sentence shown where the table has no entry for a code. */
+export const PROBLEM_FALLBACK =
+  "This step has a problem. Open View as code to see the detail.";
+
+/** The sentence a problem code is shown as. Never the server's message. */
+export function problemSentence(code: string): string {
+  return SENTENCES[code] ?? PROBLEM_FALLBACK;
+}
+
+/**
+ * The lines a step shows for its problems: one sentence per problem, in the
+ * order the report lists them. Two problems are two sentences, never a count.
+ */
+export function stepProblemLines(
+  problems: readonly ValidationProblem[],
+): readonly string[] {
+  return problems.map((problem) => problemSentence(problem.code));
+}
+
+/** The single line under a step's card: its first problem's sentence. */
 export function stepProblemLine(
   problems: readonly ValidationProblem[],
 ): string | null {
-  if (problems.length === 0) return null;
-  const first = problems[0].message;
-  return problems.length === 1 ? first : `${first} (+${problems.length - 1})`;
+  const lines = stepProblemLines(problems);
+  return lines.length === 0 ? null : lines[0];
 }

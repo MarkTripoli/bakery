@@ -71,6 +71,38 @@ const BROKEN: Options = {
     },
   ],
 };
+/**
+ * A workflow whose steps hold groups (#67 UX ruling 6932934119 fix 15): a
+ * condition with one empty arm, and a repeat. The read-only page must draw the
+ * groups as containers, not as loose labels.
+ */
+const GROUPED: Options = {
+  workflows: [WORKFLOW],
+  agents: [AGENT],
+  agentVersions: AGENT_VERSIONS,
+  versions: [
+    ...VERSIONS,
+    {
+      ...version(6, 6, "published", [{ id: "brief", uses: "task.brief" }]),
+      spec: [
+        { kind: "action", id: "brief", uses: "task.brief" },
+        {
+          kind: "branch",
+          then: [{
+            kind: "action",
+            id: "implement",
+            uses: "harness.implement",
+          }],
+          else: [],
+        },
+        {
+          kind: "repeat",
+          steps: [{ kind: "action", id: "review", uses: "agent.review" }],
+        },
+      ],
+    },
+  ],
+};
 const WORLD: Options = {
   workflows: [WORKFLOW],
   agents: [AGENT],
@@ -120,6 +152,29 @@ for (
       await expect(steps.locator(".ui-step-connector")).not.toHaveCount(0);
       await expect(steps.locator(".ui-step-connector__end")).toHaveText("End");
       await shot(page, "workflow-built-in", [], { windowOnly: true });
+    });
+
+    test("a workflow with groups draws them as containers, read-only", async ({ page }) => {
+      await libraryFixture(page, GROUPED);
+      await page.goto(
+        `/library/workflows/${WORKFLOW.id}?version=${uuid(1006)}`,
+      );
+      const steps = page.getByTestId("workflow-steps");
+      // The If container holds both arms, one of them empty.
+      await expect(steps.locator("[data-group=if]")).toHaveCount(1);
+      await expect(steps.locator("[data-group=if]")).toContainText("If");
+      await expect(steps.locator("[data-group-arm=yes]")).toContainText(
+        "Implement",
+      );
+      await expect(steps.locator("[data-group-arm=otherwise]")).toContainText(
+        "No steps",
+      );
+      // The repeat is its own container.
+      await expect(steps.locator("[data-group=repeat]")).toHaveCount(1);
+      // A read-only page never says "Edited in code" (fix 14).
+      await expect(steps).not.toContainText("Edited in code");
+      await page.mouse.move(700, 700);
+      await shot(page, "workflow-groups", [], { windowOnly: true });
     });
 
     test("opens from the list and shows the version in use: its steps, agents, and every version with its state", async ({ page }) => {
@@ -639,12 +694,15 @@ for (
         .click();
       const picker = page.getByTestId("step-picker");
       await expect(picker).toBeVisible();
+      // The still is the open picker itself, not the page after a pick: a
+      // capture taken after the picker closes is a byte copy of the selected
+      // card (#67 UX ruling 6932934119 fix 12).
+      await page.mouse.move(600, 700);
+      await shot(page, "workflow-editor-picker");
       await picker.getByRole("button", { name: "Review" }).click();
       // The picked step type is what got added — never a fixed one.
       await expect(page.locator("[data-card]")).toHaveCount(3);
       await expect(page.locator("[data-card]").nth(2)).toContainText("Review");
-      await page.mouse.move(600, 700);
-      await shot(page, "workflow-editor-picker");
     });
 
     test("the panel moves and removes the selected step, and the draft saves itself", async ({ page }) => {
@@ -810,20 +868,27 @@ test("a step with a problem keeps its card and shows the sentence", async ({ pag
   await libraryFixture(page, { ...WORLD, validation: "warnings" });
   await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
   await expect(page.locator("[data-card='start']")).toBeVisible();
-  await expect(page.locator("[data-card]").nth(1)).toContainText(
+  // The card wears the red outline and says "Needs setup" in place of its usual
+  // line; the sentence itself is the ruled one, never the server's message
+  // (#67 UX ruling 6932934119 fixes 1 and 2).
+  const problemCard = page.locator("[data-card]").nth(1);
+  await expect(problemCard).toContainText("Needs setup");
+  await expect(problemCard).not.toContainText(
     "The step runs a model but no agent is bound.",
   );
+  const sentence =
+    "This step has no agent to run it, and agents cannot be chosen on this page yet. Delete the step, or ask an administrator to set the workflow's agents.";
   const chip = page.getByTestId("editor-problems");
   await expect(chip).toHaveText("1 problem");
   await chip.click();
   const list = page.getByTestId("editor-problem-list");
-  await expect(list).toContainText(
-    "The step runs a model but no agent is bound.",
-  );
+  await expect(list).toContainText(sentence);
   await list.getByRole("button", { name: "Show me" }).click();
-  await expect(
-    page.getByRole("complementary", { name: "The selected step" }),
-  ).toBeVisible();
+  const panel = page.getByRole("complementary", {
+    name: "The selected step",
+  });
+  await expect(panel).toBeVisible();
+  await expect(panel).toContainText(sentence);
   await page.mouse.move(600, 700);
   await shot(page, "workflow-editor-card-problem");
 });
@@ -839,8 +904,14 @@ test("a problem that points at no drawn step is counted and answered in code", a
   await expect(chip).toHaveText("2 problems");
   await chip.click();
   const list = page.getByTestId("editor-problem-list");
-  await expect(list).toContainText("The action is not registered.");
-  await expect(list).toContainText("A required field is missing.");
+  // The ruled sentences, not the server's messages (fix 1). The step's code the
+  // table knows; the workflow's `field_missing` code falls back to one sentence.
+  await expect(list).toContainText(
+    "Bakery does not know this kind of step. Delete it and add a step from the list.",
+  );
+  await expect(list).toContainText(
+    "This step has a problem. Open View as code to see the detail.",
+  );
   await expect(list.getByRole("button", { name: "Show me" })).toHaveCount(0);
   await expect(list.getByRole("button", { name: "View as code" }))
     .toHaveCount(2);
@@ -903,11 +974,13 @@ for (
       await expect(brief).toContainText("Edited in code");
       // A known type the picker does not offer is not a problem.
       await expect(brief).not.toContainText("Needs setup");
-      // Groups are marked the same way, and an empty one keeps its place.
-      await expect(page.locator("[data-group='yes']")).toContainText(
+      // Both arms of a branch sit inside one If container, and an empty arm
+      // keeps its place with "No steps" (fix 10).
+      await expect(page.locator("[data-group='if']")).toContainText("If");
+      await expect(page.locator("[data-group='if']")).toContainText(
         "Edited in code",
       );
-      await expect(page.locator("[data-group='yes']")).toContainText(
+      await expect(page.locator("[data-group-arm='yes']")).toContainText(
         "No steps",
       );
       // Labels are the ruling's words, not the old ones.
@@ -929,7 +1002,7 @@ for (
       );
       await expect(panel.getByRole("button", { name: "View as code" }))
         .toBeVisible();
-      await expect(panel.getByRole("button", { name: "Remove" })).toHaveCount(
+      await expect(panel.getByRole("button", { name: "Delete" })).toHaveCount(
         0,
       );
       await page.mouse.move(600, 700);

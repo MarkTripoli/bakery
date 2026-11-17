@@ -34,6 +34,13 @@ export type DiagramProps = {
   readonly canManage: boolean;
   /** Whether slice 1 can add, move and remove steps here. */
   readonly editable: boolean;
+  /**
+   * Whether this is a read-only page (the workflow page or a built-in), where
+   * nothing can be edited at all. "Edited in code" tells a person where to go
+   * and change something, so it is shown in the editor and not here (#67 UX
+   * ruling 6932934119 fix 14).
+   */
+  readonly readOnlyPage?: boolean;
   /** Open the picker after the step with this id, or at the start when null. */
   readonly onAdd: (afterId: string | null) => void;
   readonly onSelect: (id: string) => void;
@@ -70,11 +77,18 @@ export function WorkflowDiagram(
     onViewAsCode,
     pickerAt,
     problems,
+    readOnlyPage = false,
     selectedId,
     tree,
   }: DiagramProps,
 ) {
   const { translate } = useI18n();
+  // Fix 14 of the #67 UX ruling: "Edited in code" tells a person where to go and
+  // change something, so it belongs in the editor. On a read-only page nothing
+  // is editable there, so the label would only add noise.
+  const editedInCode = readOnlyPage
+    ? undefined
+    : translate("library.editor.group.codeOnly" as never);
   const title = (uses: string): string => {
     const key = ACTION_TITLES[uses];
     return key === undefined ? uses : translate(key as never);
@@ -152,15 +166,22 @@ export function WorkflowDiagram(
 
   const card = (node: TreeStep): ReactNode => {
     const id = node.id;
-    const drawing = node.problem !== undefined;
+    const problemLine = problems.get(id);
+    // A step with a problem wears the red outline and says "Needs setup" in
+    // place of its usual line, whether Bakery cannot read it or can only
+    // change it in code. The sentence is never loose text under the card; it
+    // belongs to the panel and the problem list (#67 UX ruling 6932934119
+    // fixes 2 and 3).
+    const drawing = node.problem !== undefined || problemLine !== undefined;
     const codeOnly = node.codeOnly === true && !drawing;
-    const glyph = node.problem !== undefined ? "info" : ACTION_ICONS[node.uses];
-    // A step Bakery knows but can only change in code says so in the line where
-    // its description would be: no red outline, and never a problem.
+    const glyph = drawing ? "info" : ACTION_ICONS[node.uses];
+    // On a read-only page a known step shows its usual line, not "Edited in
+    // code": nothing can be edited there, so the label would only add noise
+    // (#67 UX ruling 6932934119 fix 14).
     const summary = drawing
       ? undefined
-      : codeOnly
-      ? translate("library.editor.group.codeOnly" as never)
+      : codeOnly && editedInCode !== undefined
+      ? editedInCode
       : line(node.uses);
     const extra = drawing ? undefined : detail?.(node.uses, id);
     return (
@@ -179,39 +200,24 @@ export function WorkflowDiagram(
             })
           )}
           summary={summary}
+          detail={extra === undefined
+            ? undefined
+            : <span data-step-extra="true">{extra}</span>}
           disabled={!canManage}
           onClick={() => onSelect(id)}
         />
-        {extra === undefined
-          ? null
-          : <span data-step-extra="true">{extra}</span>}
-        {problems.get(id) === undefined
-          ? null
-          : <UI.Text variant="error">{problems.get(id)}</UI.Text>}
       </div>
     );
   };
 
-  const group = (
+  // A group is a container with an edge, not a loose label above cards: its
+  // label, its "edited in code" line and its cards sit inside one border, and
+  // the path line runs into the top and out of the bottom (#67 UX ruling
+  // 6932934119 fix 10). "Yes" and "Otherwise" are the two arms of one If.
+  const groupBody = (
     node: Extract<TreeNode, { kind: "group" }>,
   ): ReactNode => (
-    <UI.Stack
-      key={`group-${node.id}`}
-      gap="tight"
-      data-group={node.label}
-    >
-      <div data-group-label={node.id}>
-        <UI.Button
-          variant="text"
-          disabled={!canManage}
-          onClick={() => onSelect(node.id)}
-        >
-          {translate(GROUP_LABEL[node.label] as never)}
-        </UI.Button>
-        <UI.Text variant="caption">
-          {translate("library.editor.group.codeOnly" as never)}
-        </UI.Text>
-      </div>
+    <>
       {node.children.length === 0
         ? (
           <UI.Text variant="muted">
@@ -219,21 +225,93 @@ export function WorkflowDiagram(
           </UI.Text>
         )
         : nodes(node.children)}
-    </UI.Stack>
+    </>
   );
 
-  const nodes = (held: readonly TreeNode[]): ReactNode =>
-    held.map((node, index) => {
+  const groupLabel = (
+    node: Extract<TreeNode, { kind: "group" }>,
+  ): ReactNode => (
+    <div data-group-label={node.id}>
+      <UI.Button
+        variant="text"
+        disabled={!canManage}
+        onClick={() => onSelect(node.id)}
+      >
+        {translate(GROUP_LABEL[node.label] as never)}
+      </UI.Button>
+      {editedInCode === undefined
+        ? null
+        : <UI.Text variant="caption">{editedInCode}</UI.Text>}
+    </div>
+  );
+
+  const group = (
+    node: Extract<TreeNode, { kind: "group" }>,
+  ): ReactNode => (
+    <section key={`group-${node.id}`} data-group={node.label}>
+      {groupLabel(node)}
+      {groupBody(node)}
+    </section>
+  );
+
+  /** The two arms of a branch, side by side inside one container labelled If. */
+  const ifGroup = (
+    held: readonly [
+      Extract<TreeNode, { kind: "group" }>,
+      ...Extract<
+        TreeNode,
+        { kind: "group" }
+      >[],
+    ],
+  ): ReactNode => (
+    <section key={`if-${held[0].id}`} data-group="if" data-group-shape="if">
+      <div data-group-label="if">
+        <UI.Text variant="strong">
+          {translate("library.editor.group.if" as never)}
+        </UI.Text>
+        {editedInCode === undefined
+          ? null
+          : <UI.Text variant="caption">{editedInCode}</UI.Text>}
+      </div>
+      <div data-group-arms="true">
+        {held.map((arm) => (
+          <div key={`arm-${arm.id}`} data-group-arm={arm.label}>
+            {groupLabel(arm)}
+            {groupBody(arm)}
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+
+  const nodes = (held: readonly TreeNode[]): ReactNode => {
+    const out: ReactNode[] = [];
+    for (let index = 0; index < held.length; index += 1) {
+      const node = held[index];
       if (node.kind === "step") {
-        return (
+        out.push(
           <div key={`step-${node.id}`} data-node-index={index}>
             {card(node)}
             {connector(node.id)}
-          </div>
+          </div>,
         );
+        continue;
       }
-      return group(node);
-    });
+      // The two arms of a branch are consecutive in the tree: pair them into
+      // one If container so a person reads one decision, not two labels.
+      const next = held[index + 1];
+      if (
+        node.label === "yes" && next !== undefined && next.kind === "group" &&
+        next.label === "otherwise"
+      ) {
+        out.push(ifGroup([node, next]));
+        index += 1;
+        continue;
+      }
+      out.push(group(node));
+    }
+    return out;
+  };
 
   return (
     <UI.Stack gap="standard" data-ui-region="workflow-diagram">

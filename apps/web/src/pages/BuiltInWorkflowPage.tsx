@@ -222,6 +222,7 @@ export function BuiltInWorkflowPage(
               problems={EMPTY_PROBLEMS}
               canManage={false}
               editable={false}
+              readOnlyPage
               onAdd={() => {}}
               onSelect={() => {}}
               onViewAsCode={() => {}}

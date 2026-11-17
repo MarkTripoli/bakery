@@ -21,13 +21,18 @@ import { ACTION_LINES } from "./workflow-state.ts";
 /** What the panel is showing. */
 export type PanelTarget =
   | { readonly kind: "start" }
-  | { readonly kind: "codeOnly"; readonly name: string }
+  | {
+    readonly kind: "codeOnly";
+    readonly name: string;
+    /** The problem's sentence, shown above the code-only sentence. */
+    readonly problem: string | undefined;
+  }
   | {
     readonly kind: "step";
     /** The card's name: the step type's own name, or "Unreadable step". */
     readonly name: string;
-    /** Whether the name is the step type's, so the panel can say so. */
-    readonly named: boolean;
+    /** Whether this page may delete the step, which is every editable page. */
+    readonly deletable: boolean;
     readonly uses: string;
     /** What the definition states, when the step could not be drawn as an action. */
     readonly code: string | undefined;
@@ -81,9 +86,18 @@ export function StepPanel(
           </UI.Button>
         }
       >
-        <UI.Text>
-          {translate("library.editor.panel.codeOnly" as never)}
-        </UI.Text>
+        <UI.Stack gap="compact">
+          {target.problem === undefined
+            ? null
+            : (
+              <UI.InlineNotice role="status" tone="error">
+                {target.problem}
+              </UI.InlineNotice>
+            )}
+          <UI.Text>
+            {translate("library.editor.panel.codeOnly" as never)}
+          </UI.Text>
+        </UI.Stack>
       </UI.InspectorPanel>
     );
   }
@@ -96,18 +110,7 @@ export function StepPanel(
       id="editor-step-panel"
       label={label}
       variant="column"
-      header={
-        <UI.Stack gap="tight">
-          <UI.Text variant="strong">{target.name}</UI.Text>
-          {target.named
-            ? (
-              <UI.Text variant="muted">
-                {translate("library.editor.panel.nameIsType" as never)}
-              </UI.Text>
-            )
-            : null}
-        </UI.Stack>
-      }
+      header={<UI.Text variant="strong">{target.name}</UI.Text>}
       footer={
         <UI.Inline gap="compact">
           <UI.Button
@@ -126,7 +129,10 @@ export function StepPanel(
           </UI.Button>
           <UI.Button
             variant="destructive"
-            disabled={target.disabled}
+            // A step Bakery cannot read is exactly the one a person must be
+            // able to delete, so only a read-only page disables this button
+            // (#67 UX ruling 6932934119 fix 6).
+            disabled={!target.deletable}
             onClick={target.onRemove}
           >
             {translate("library.editor.panel.remove" as never)}
