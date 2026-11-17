@@ -552,7 +552,7 @@ Deno.test("Evidence refuses routine checks that CI already reports", () => {
     ),
   );
   // Each of the three named checks is refused, not just the one in the sample.
-  for (const check of ["lint", "typecheck", "format"]) {
+  for (const check of ["lint", "typecheck"]) {
     const one = table.replace("pnpm fmt", `pnpm ${check}`);
     assert(
       validateDescription("pr", withEvidence(one)).some((e) =>
@@ -576,6 +576,17 @@ Deno.test("Evidence refuses routine checks that CI already reports", () => {
       "pr",
       withEvidence(
         "| check | result |\n|---|---|\n| reduced-motion skeleton | still, no animation |",
+      ),
+    ),
+    [],
+  );
+  // "format" is not one of the three refused words: a PR must be able to cite
+  // a real test file that carries it in the name.
+  assertEquals(
+    validateDescription(
+      "pr",
+      withEvidence(
+        "| check | result |\n|---|---|\n| `packages/ui/tests/contracts-module-format.node.mjs` | 12 passed |",
       ),
     ),
     [],

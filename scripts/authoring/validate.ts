@@ -359,9 +359,12 @@ export function validateDescription(kind: Kind, body: string): string[] {
     // Owner rule: never list routine checks. CI already shows fmt, lint and
     // typecheck results, and an Evidence table full of green ticks says
     // nothing about whether the change works. Fenced code is exempt, because
-    // a PR about the linter legitimately quotes it.
+    // a PR about the linter legitimately quotes it. The owner's rule names
+    // those three commands, so only those three are matched: "format" is
+    // deliberately absent, since real test files carry it in their names
+    // (`contracts-module-format.node.mjs`) and a PR must be able to cite them.
     const routine = withoutFences(evidence).match(
-      /\b(?:fmt|format|lint|typecheck)\b/i,
+      /\b(?:fmt|lint|typecheck)\b/i,
     );
     if (routine) {
       errors.push(
