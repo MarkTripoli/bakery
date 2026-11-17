@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="paper-baseline-torn-by-racing-reanchor" project="bakery">
+  <title>A ruling digest that does not describe its own bytes means two reanchor runs raced on paper-baselines.json</title>
+  <trigger>paper-baselines.json declares a ux-ruling digest, or a reanchor run is started while another may still be alive.</trigger>
+  <mistake>reanchor-design-references.mjs closed the browser but not the renderer's static server, so every run hung forever holding a Chromium instance after writing its baseline. Six such runs accumulated at up to 2h12m each. Because they all wrote the same file, one wrote the digest from its in-memory cases while another wrote the cases, and the torn result was committed. The declared digest 48241a0f did not match the b4b45db9 its own bytes recompute to, so compare-paper.mjs rejected the commit on main even though an earlier local compare had passed.</mistake>
+  <rule>Run the reanchor once, alone, and wait for it to exit before touching paper-baselines.json. If a run does not exit, kill it by PID and check for orphans (pgrep -af reanchor-design) before starting another. A digest that does not recompute from the file's own bytes is a torn write, not a stale value: re-run the reanchor once rather than hand-editing the digest. packages/ui/tests/paper-ruling-digest.node.mjs now fails the gate on this, so a torn file is caught without a manual recompute.</rule>
+  <verification>
+    <requirement>node --test packages/ui/tests/paper-ruling-digest.node.mjs passes, and pgrep -af reanchor-design prints nothing after a reanchor run.</requirement>
+  </verification>
+</learning>

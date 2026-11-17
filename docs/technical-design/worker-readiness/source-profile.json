@@ -52,8 +52,8 @@
       "packages/ui/scripts/qualification-visible-union.mjs",
       "packages/ui/scripts/image-score.mjs"
     ],
-    "revision": "paper:497c75cc; mock:80cfefa5; rendered:2026-10-18",
-    "digest": "80cfefa5933999ecb5e079d2c3150213e01ba106f84a3f234c15d6c0125823db"
+    "revision": "paper:497c75cc; mock:cdcdcfe0; rendered:2026-10-18",
+    "digest": "cdcdcfe02b289110904289e332504213e7fe0882832c1b6f926e30c27ca331c2"
   },
   "render": {
     "entryPath": "worker-readiness/index.html",

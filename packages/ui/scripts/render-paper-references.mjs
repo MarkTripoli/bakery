@@ -408,13 +408,51 @@ async function renderDesignReferenceOnce(browser, baseline, designCase) {
     if (measure && !measured) {
       throw new Error(`comparison region selector ${measure} matched nothing`);
     }
+    // A `candidateOrigin: "main"` case compares only the content box, but a
+    // full-artboard screenshot stores the shell around it too. The settings
+    // shell is illustrative and drifts (it still drew the pre-#341 chrome), so
+    // the stored reference showed a product that no longer exists while the
+    // comparison, which crops to the box, stayed green. Clip the reference to
+    // the same box it is compared on, so what a reader sees is what the
+    // reference asserts. `referenceClip` keeps the box's place in the full
+    // artboard, which the cropped image can no longer record.
+    const clipsToContentBox = !rasterProfile &&
+      designCase.comparisonRegion?.candidateOrigin === "main";
+    const referenceClip = clipsToContentBox
+      ? {
+        ...(designCase.referenceClip ?? measured ??
+          designCase.comparisonRegion),
+      }
+      : null;
     const bytes = rasterProfile
       ? await captureK0Raster(page, render.mountSelector, rasterProfile)
-      : await page.screenshot({ fullPage: true });
+      : await page.screenshot(
+        referenceClip
+          ? {
+            clip: {
+              x: referenceClip.x,
+              y: referenceClip.y,
+              width: referenceClip.width,
+              height: referenceClip.height,
+            },
+          }
+          : { fullPage: true },
+      );
     return {
       bytes,
       height,
       measured,
+      referenceClip,
+      // The cropped image is its own content box, so the region inside it is
+      // the whole image. The box's artboard position lives in `referenceClip`.
+      croppedRegion: referenceClip
+        ? {
+          x: 0,
+          y: 0,
+          width: referenceClip.width,
+          height: referenceClip.height,
+        }
+        : null,
       ...(designCase.sourceProfile === undefined ? {} : {
         rasterProfile,
         rasterContract: {
@@ -754,11 +792,12 @@ export async function renderAndFillCase(browser, baseline, designCase) {
   if (designCase.sourceProfile !== undefined) {
     throw new Error("K-0 originals are immutable; use --check, never refill");
   }
-  const { bytes, height, measured } = await renderDesignReference(
-    browser,
-    baseline,
-    designCase,
-  );
+  const { bytes, height, measured, referenceClip, croppedRegion } =
+    await renderDesignReference(
+      browser,
+      baseline,
+      designCase,
+    );
   const absolutePath = join(root, designCase.imagePath);
   await mkdir(dirname(absolutePath), { recursive: true });
   await writeFile(absolutePath, bytes);
@@ -768,6 +807,16 @@ export async function renderAndFillCase(browser, baseline, designCase) {
     designCase.comparisonRegion = {
       ...designCase.comparisonRegion,
       ...measured,
+    };
+  }
+  // The cropped image cannot record where its box sat in the full artboard, so
+  // the next render reads that position from `referenceClip` instead.
+  if (referenceClip) {
+    designCase.referenceClip = referenceClip;
+    designCase.comparisonRegion = {
+      ...designCase.comparisonRegion,
+      ...croppedRegion,
+      candidateOrigin: "main",
     };
   }
   designCase.fontDigests = await fontDigests(baseline, designCase);

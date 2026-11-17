@@ -10,6 +10,7 @@
   <entry file="ui-catalog.xml" scope="project" />
   <entry file="ui-token-manifest-digest.xml" scope="project" />
   <entry file="paper-export-dimensions.xml" scope="project" />
+  <entry file="paper-baseline-torn-by-racing-reanchor.xml" scope="project" />
   <entry file="reference-proof-working-tree.xml" scope="project" />
   <entry file="verification-memory-floor.xml" scope="project" />
   <entry file="github-closing-keywords.xml" scope="project" />
@@ -130,6 +131,7 @@
   <entry file="capture-mode-must-match-the-property.xml" scope="process" />
   <entry file="check-the-rails-before-ruling-on-db-shape.xml" scope="process" />
   <entry file="compare-the-region-not-the-image.xml" scope="project" />
+  <entry file="first-lawful-path-exercise-updates-its-expected-value.xml" scope="process" />
   <entry file="destructive-red-proof-pollutes-test-db.xml" scope="project" />
   <entry file="deno-check-is-the-gate-for-test-files.xml" scope="project" />
   <entry file="resolved-blocker-resumes-on-owner-action.xml" scope="project" />
