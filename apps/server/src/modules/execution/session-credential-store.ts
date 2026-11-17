@@ -44,6 +44,7 @@ const COLUMNS = `id,
   worker_session_id as "workerSessionId",
   worker_session_generation::text as "workerSessionGeneration",
   fence::text as "fence",
+  lease_token_hash as "leaseTokenHash",
   token_hash as "tokenHash",
   scopes,
   expires_at as "expiresAt",
@@ -92,8 +93,9 @@ export async function issueStoredSessionCredential(
   const result = await tx.query<{ id: string }>(
     `insert into bakery.session_operation_credentials
        (organization_id, attempt_id, acts_for_principal_id, worker_session_id,
-        worker_session_generation, fence, token_hash, scopes, expires_at)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        worker_session_generation, fence, lease_token_hash, token_hash, scopes,
+        expires_at)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
      returning id`,
     [
       input.organizationId,
@@ -102,6 +104,7 @@ export async function issueStoredSessionCredential(
       input.workerSessionId,
       input.workerSessionGeneration,
       input.fence,
+      input.leaseTokenHash,
       tokenHash,
       issued.claim.scopes,
       issued.claim.expiresAt,
