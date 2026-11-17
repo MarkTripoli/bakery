@@ -233,6 +233,49 @@ workflow run, copy the case image over the file in `paper/`, and update
 pinned and never refilled; `--write` refuses them. Either kind of refresh is a reviewed commit, and
 the image diff is the evidence.
 
+### Refreshing after a sanctioned redesign
+
+A Paper re-export is not the only thing that can make a reference stale. The
+owner's 2026-11-11 directive makes the UX design comment, not the Paper export,
+the source of truth: when a reviewed redesign lands and Paper is what drifted,
+the app is the sanctioned design and the baselines are behind it. Re-exporting
+Paper is then neither possible nor the point.
+
+That case declares a second identity kind:
+
+```
+ux-ruling:<issue>#<comment-id>; app:<sanctioned-head-sha>
+```
+
+It licenses exactly one refresh per branch, on the same term as a re-export: the
+re-anchored baselines carry the new identity and drift-detect from then on, so
+nothing is waived. It is also verified rather than asserted, by
+`uxRulingRefreshIssue` in `compare-paper.mjs`, which trusts nothing the
+declarer wrote:
+
+- every refreshed case carries `designRuling`, and all of them name the same
+  `<issue>#<comment>` that `source.revision` names, so a case the ruling does not
+  cover cannot ride the refresh;
+- the ruling's own comment body is **vendored into the repository** by
+  `reanchor-design-references.mjs` (which fetches it once from the GitHub API)
+  and pinned by `source.rulingBodySha256`; the gate re-hashes those bytes and
+  refuses when they moved. A citation on its own would be a string the declarer
+  chose, so any comment id could licence any redesign;
+- `source.inputs` is hashed into the digest, not merely required. Requiring
+  evidence and then ignoring it is the same self-attestation one field over;
+- `app:<sha>` must name a real commit that is **at or before the merge base**, so
+  an invented sha, or one borrowed from a future branch, cannot stand in for a
+  reviewed head;
+- `source.digest` covers the ruling citation, its body digest, the app commit,
+  every pinned input's bytes and each refreshed case's id, path and image
+  digest - so neither the refreshed set nor the evidence can be widened without
+  re-declaring the identity.
+
+A case without `designRuling` is still refused when its bytes change, so an
+unlicensed edit stays caught. The ruling itself stays the evidence for review:
+the refresh commit records which comment licensed it, and the image diff is what
+a reviewer checks against that comment.
+
 Each source identity licenses exactly one such refresh on a branch. The
 comparison takes its predecessor
 from the first branch commit carrying the current manifest's exact
