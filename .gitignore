@@ -27,3 +27,6 @@ test-results/
 # Deployment-specific Railway config stays local.
 .railway/
 graphify-out/
+
+# Local scratch space for browser evidence (never committed).
+.scratch/
