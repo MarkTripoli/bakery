@@ -1066,6 +1066,75 @@ Deno.test("issue 82 ops: ticketTaskLinks.create makes reference links only and r
   });
 });
 
+Deno.test("issue 69 ops: externalTickets.list answers the tickets linked to one task, and only those", async () => {
+  await withTicketFixture(async (fx) => {
+    const sourceId = await fx.insertSource();
+    seedIssues(fx, 3);
+    await previewAll(fx, sourceId);
+    const [first, second, third] = [
+      await ticketOf(fx, sourceId, 1),
+      await ticketOf(fx, sourceId, 2),
+      await ticketOf(fx, sourceId, 3),
+    ];
+    const taskId = await fx.createPlainTask();
+    const otherTask = await fx.createPlainTask();
+    // One task carries two tickets, and one of those is shared with a second
+    // task, so "linked to this task" cannot be answered by "has any link".
+    for (
+      const [ticket, task] of [
+        [first, taskId],
+        [second, taskId],
+        [second, otherTask],
+      ] as const
+    ) {
+      await read(
+        await post(fx, `${TICKETS}/${ticket.id}/links`, {
+          taskId: task,
+          role: "reference",
+        }),
+        201,
+      );
+    }
+    const forTask = (id: string, extra = "") =>
+      ticketCall(fx, "GET", `${TICKETS}?taskId=${id}${extra}`).then((
+        response,
+      ) => read<Page<TicketView>>(response, 200));
+    // Newest link first; the third ticket was never linked to this task.
+    const mine = await forTask(taskId);
+    assertEquals(mine.items.map((item) => item.id), [second.id, first.id]);
+    assert(!mine.items.some((item) => item.id === third.id));
+    // The ticket still serves every task it is linked to, from the same read.
+    assertEquals(mine.items[0].linkedTaskIds, [otherTask, taskId]);
+    assertEquals((await forTask(otherTask)).items.map((item) => item.id), [
+      second.id,
+    ]);
+    // A task with no link answers an empty page, not an error.
+    const none = await forTask(await fx.createPlainTask());
+    assertEquals([none.items, none.nextCursor], [[], null]);
+    // An id that names no task matches nothing rather than failing.
+    assertEquals((await forTask(crypto.randomUUID())).items, []);
+    // The filter composes with keyset paging.
+    const page = await forTask(taskId, "&limit=1");
+    assertEquals(page.items.map((item) => item.id), [second.id]);
+    const rest = await forTask(taskId, `&limit=1&cursor=${page.nextCursor}`);
+    assertEquals(rest.items.map((item) => item.id), [first.id]);
+    assertEquals(rest.nextCursor, null);
+    // A cursor carries the filters it was issued under, so an unfiltered
+    // cursor cannot be replayed against a task-scoped read.
+    const unfiltered = await read<Page<TicketView>>(
+      await ticketCall(fx, "GET", `${TICKETS}?limit=1`),
+      200,
+    );
+    const replayed = await ticketCall(
+      fx,
+      "GET",
+      `${TICKETS}?taskId=${taskId}&limit=1&cursor=${unfiltered.nextCursor}`,
+    );
+    assertEquals(replayed.status, 400);
+    assertEquals((await replayed.json() as Problem).code, "INVALID_CURSOR");
+  });
+});
+
 Deno.test("issue 82 ops: ticketRequests.create admits a ready issue as its caller, once, and answers a replay from the stored response", async () => {
   await withTicketFixture(async (fx) => {
     const sourceId = await fx.insertSource();
