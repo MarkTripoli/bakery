@@ -10,11 +10,14 @@
  * The count is a ratchet against
  * `docs/technical-design/integration-baselines/provider-literals.json`: a slice
  * that removes a mention lowers a line, a slice that adds one fails, and a line
- * with nothing left to count must be deleted. At zero the ledger file goes away
- * and the rule becomes strict.
+ * with nothing left to count must be deleted. At zero the ledger file goes away.
+ *
+ * A regression is a non-zero exit. `--report-only` prints the same report and
+ * exits 0 for a person reading it by hand; no script or workflow uses it.
  *
  * Usage:
  *   deno run --allow-read --allow-write scripts/check-provider-literals.ts
+ *   deno run --allow-read --allow-write scripts/check-provider-literals.ts --report-only
  *   deno run --allow-read --allow-write scripts/check-provider-literals.ts --write-baseline
  */
 import { extname, join, relative } from "node:path";
@@ -368,6 +371,10 @@ if (import.meta.main) {
   console.log(formatLiteralReport(comparison, hits.length));
   const failed = comparison.novel.length > 0 || comparison.grown.length > 0 ||
     comparison.stale.length > 0;
-  if (args.has("--strict") && failed) Deno.exit(1);
+  // Strict by default: a regression must be a non-zero exit, or the ledger is a
+  // comment rather than a ratchet. `--report-only` is for reading the report by
+  // hand; nothing in the repo calls it. See the same note in
+  // check-integration-boundaries.ts.
+  if (failed && !args.has("--report-only")) Deno.exit(1);
   Deno.exit(0);
 }

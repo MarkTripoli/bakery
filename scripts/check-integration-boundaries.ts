@@ -7,11 +7,15 @@
  * past them (`apps/worker` already reaches into `packages/contracts/src`), so the
  * boundary has to be read out of the source text itself.
  *
- * Two modes:
- * - report (default): print every violation, exit 0 unless `--strict`, so the
- *   rail runs while the migration is still in progress.
- * - strict: a violation is a failure. It is not default because slices 5-11 lower
- *   the ledger one zone at a time; the last slice switches this on.
+ * A ledger regression - a novel violation, a grown count, or a stale row - is a
+ * non-zero exit. That is the only shape in which the ratchet means anything: the
+ * comparison and the ledger can both be correct while nothing consumes them, and
+ * a stale row is exactly the direction that silently re-admits coupling a later
+ * slice removed. `--report-only` prints the same report and always exits 0 for a
+ * person reading it by hand; no script or workflow uses it.
+ *
+ * Report-only was the design's starting mode through slices 1-4; the rows below
+ * shrink one slice at a time and the rails never relax.
  *
  * Violations are counted per (rule, path) and compared against
  * `docs/technical-design/integration-baselines/boundaries.json`, so a slice that
@@ -21,7 +25,7 @@
  *
  * Usage:
  *   deno run --allow-read --allow-write scripts/check-integration-boundaries.ts
- *   deno run --allow-read --allow-write scripts/check-integration-boundaries.ts --strict
+ *   deno run --allow-read --allow-write scripts/check-integration-boundaries.ts --report-only
  *   deno run --allow-read --allow-write scripts/check-integration-boundaries.ts --write-baseline
  */
 import { extname, join, relative, resolve } from "node:path";
@@ -552,7 +556,12 @@ if (import.meta.main) {
   const failed = comparison.novel.length > 0 ||
     comparison.stale.length > 0 || comparison.exceeded.length > 0;
   console.log(formatReport(comparison, violations.length));
-  if (args.has("--strict") && failed) Deno.exit(1);
-  if (failed) Deno.exit(0);
+  // Strict is the default and a regression is a non-zero exit. The reverse shape
+  // - report unless `--strict`, with nothing in the repo passing `--strict` -
+  // made this ratchet decorative: the comparison was right, the ledger was
+  // right, and no exit code ever consumed either, so a stale line could sit
+  // there while CI stayed green. `--report-only` exists for a person reading the
+  // output by hand, and nothing calls it.
+  if (failed && !args.has("--report-only")) Deno.exit(1);
   Deno.exit(0);
 }

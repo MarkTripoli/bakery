@@ -275,3 +275,96 @@ Deno.test("the provider-pending list may only shrink", async () => {
   }
   assertEquals(new Set(PROVIDER_PENDING).size, PROVIDER_PENDING.length);
 });
+
+Deno.test("the ratchet fails from the command line, not only in process (QA finding)", async () => {
+  // QA planted a stale ledger row and found the script printed the right message
+  // and still exited 0: `--strict` was the only non-zero route and nothing in the
+  // repo passed it, so the failure branch was dead code. The comparison and the
+  // ledger were both correct while no exit code consumed them. This runs the real
+  // commands, because a test that only imports the comparison functions cannot
+  // see that defect.
+  const root = new URL("../..", import.meta.url).pathname;
+  const ledger = `${root}${BOUNDARY_LEDGER_PATH}`;
+  const original = await Deno.readTextFile(ledger);
+  const run = async (args: string[] = []) => {
+    const output = await new Deno.Command(Deno.execPath(), {
+      args: [
+        "run",
+        "--allow-read",
+        "--allow-write",
+        `${root}scripts/check-integration-boundaries.ts`,
+        ...args,
+      ],
+      stdout: "piped",
+      stderr: "piped",
+    }).output();
+    return {
+      code: output.code,
+      text: new TextDecoder().decode(output.stdout) +
+        new TextDecoder().decode(output.stderr),
+    };
+  };
+  try {
+    // A stale row: debt the ledger records that the tree no longer has.
+    const planted = {
+      ...JSON.parse(original),
+      counts: { "b1f\tpackages/integration-github/src/server/mod.ts": 5 },
+    };
+    await Deno.writeTextFile(ledger, `${JSON.stringify(planted, null, 2)}\n`);
+    const stale = await run();
+    assertEquals(stale.code, 1, "a stale ledger row must fail the command");
+    assert(stale.text.includes("no longer exists"));
+
+    // A novel violation: coupling the ledger never recorded.
+    await Deno.writeTextFile(
+      ledger,
+      `${JSON.stringify({ ...planted, counts: {} }, null, 2)}\n`,
+    );
+    const clean = await run();
+    assertEquals(clean.code, 0, "the committed ledger must pass as-is");
+
+    // The explicit opt-in is the only way to read the report without a failure,
+    // and nothing in the repo calls it.
+    await Deno.writeTextFile(ledger, `${JSON.stringify(planted, null, 2)}\n`);
+    const reportOnly = await run(["--report-only"]);
+    assertEquals(reportOnly.code, 0);
+    assert(reportOnly.text.includes("no longer exists"));
+  } finally {
+    await Deno.writeTextFile(ledger, original);
+  }
+});
+
+Deno.test("no script or workflow passes a mode that ignores a regression", async () => {
+  // The defect QA found was not in the comparison, it was in the wiring: the
+  // failing route existed and nothing called it. This pins the wiring from the
+  // other side, so a future edit cannot quietly restore report-only as the
+  // default used by CI.
+  const root = new URL("../..", import.meta.url).pathname;
+  const packageJson = JSON.parse(
+    await Deno.readTextFile(`${root}package.json`),
+  ) as { scripts: Record<string, string> };
+  for (
+    const script of ["rails:integration-boundaries", "rails:provider-literals"]
+  ) {
+    const command = packageJson.scripts[script];
+    assert(command, `package.json has no ${script} script`);
+    assertEquals(
+      command.includes("--report-only"),
+      false,
+      `${script} must not opt out of failing on a regression`,
+    );
+  }
+  // And the CI job runs both, not just the test lane that proves the comparison.
+  const workflow = await Deno.readTextFile(
+    `${root}.github/workflows/ci.yml`,
+  );
+  const railsJob = /rails:\n[\s\S]*?\n {2}\w/.exec(workflow)?.[0] ?? "";
+  for (
+    const script of ["rails:integration-boundaries", "rails:provider-literals"]
+  ) {
+    assert(
+      railsJob.includes(`pnpm ${script}`),
+      `the backend rails job must run pnpm ${script}`,
+    );
+  }
+});
