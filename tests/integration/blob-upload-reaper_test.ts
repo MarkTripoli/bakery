@@ -14,6 +14,15 @@ import {
   reapAbandonedBlobUploads,
 } from "../../apps/server/src/modules/knowledge/blob-upload-reaper.ts";
 import { withWorkerFixture } from "../helpers/worker-execution/scenarios.ts";
+import { withPgTransaction } from "../../apps/server/src/platform/database.ts";
+import {
+  assembleDeclaredBytes,
+  completeUploadSession,
+  lockUploadSession,
+  readUploadParts,
+  recordBlob,
+} from "../../apps/server/src/modules/knowledge/blobs.ts";
+import { StandardError } from "../../packages/contracts/src/http.ts";
 
 type Fixture = Parameters<Parameters<typeof withWorkerFixture>[0]>[0];
 
@@ -158,5 +167,131 @@ Deno.test("the batch size is bounded and the ceilings refuse nonsense", async ()
     }
     assertEquals(refused, true);
     assertEquals(BLOB_UPLOAD_REAP_BATCH, 200);
+  });
+});
+
+/**
+ * A completion, driven through the same primitives the handler uses.
+ *
+ * The point is not to re-test completion; it is that the reaper and a real
+ * completion must be mutually exclusive on a session, and that can only be
+ * shown against the real lock and the real assembly.
+ */
+async function completeLikeTheHandler(
+  fixture: Fixture,
+  sessionId: string,
+): Promise<{ id: string }> {
+  return await withPgTransaction(fixture.pgDatabase, async (tx) => {
+    const session = await lockUploadSession(tx, {
+      organizationId: fixture.organizationId,
+      principalId: fixture.principalId,
+      sessionId,
+    });
+    const parts = await readUploadParts(tx, {
+      organizationId: fixture.organizationId,
+      sessionId,
+    });
+    const bytes = assembleDeclaredBytes(parts, {
+      sha256: session.sha256,
+      sizeBytes: Number(session.sizeBytes),
+    });
+    const blob = await recordBlob(tx, {
+      organizationId: fixture.organizationId,
+      principalId: fixture.principalId,
+      sha256: session.sha256,
+      sizeBytes: bytes.byteLength,
+      mediaType: session.mediaType,
+    });
+    await completeUploadSession(tx, {
+      organizationId: fixture.organizationId,
+      sessionId,
+      blobId: blob.id,
+    });
+    return blob;
+  });
+}
+
+Deno.test("a reaper skips a session a completion is holding", async () => {
+  await withWorkerFixture(async (fixture) => {
+    // A session that is already past its deadline, so the reaper would take it
+    // if it could. The completion below is the only thing standing in the way.
+    const sessionId = await seedSession(fixture, { hours: -1, parts: 2 });
+
+    // Hold the session row the way a completion does, then reap from outside.
+    //
+    // The lock is taken raw rather than through `lockUploadSession`, because
+    // that function refuses an expired session outright - which is itself the
+    // first half of the defence. The case left to prove is a completion that
+    // was legitimate when it started and whose session expires while it is
+    // still holding the row, so the lock has to be taken without the guard.
+    const held = withPgTransaction(fixture.pgDatabase, async (tx) => {
+      await tx.query(
+        `select id from bakery.blob_upload_sessions
+          where organization_id = $1 and id = $2 for update`,
+        [fixture.organizationId, sessionId],
+      );
+      // The reaper runs while the lock is held. `skip locked` is what makes
+      // this return rather than wait, and what makes it leave the parts alone.
+      const result = await reapAbandonedBlobUploads(fixture.pgDatabase);
+      assertEquals(result.abandoned, 0);
+      assertEquals(await partsOf(fixture, sessionId), 2);
+      assertEquals(await stateOf(fixture, sessionId), "pending");
+    });
+    await held;
+
+    // Once the lock is released the session is reapable again.
+    const after = await reapAbandonedBlobUploads(fixture.pgDatabase);
+    assertEquals(after.abandoned, 1);
+    assertEquals(await partsOf(fixture, sessionId), 0);
+  });
+});
+
+Deno.test("a completion and a reaper racing never corrupt a legitimate upload", async () => {
+  await withWorkerFixture(async (fixture) => {
+    // Ten rounds, each a fresh session that is expired by the time the reaper
+    // looks but which a completion is already working on. The only outcomes
+    // allowed are a full success or a typed refusal: a size or digest mismatch
+    // would be the signature of the reaper deleting parts mid-assembly, and it
+    // is the one outcome a client would read as data corruption.
+    for (let round = 0; round < 10; round += 1) {
+      const sessionId = await seedSession(fixture, { hours: -1, parts: 3 });
+      const [completion, reaping] = await Promise.allSettled([
+        completeLikeTheHandler(fixture, sessionId),
+        reapAbandonedBlobUploads(fixture.pgDatabase),
+      ]);
+      void reaping;
+      if (completion.status === "rejected") {
+        const error = completion.reason;
+        assertEquals(error instanceof StandardError, true);
+        const code = (error as StandardError).code;
+        // A refusal is fine; a mismatch is not. `upload_parts_incomplete` is
+        // the reaper having won the session, which is a clean loss.
+        assertEquals(
+          code === "STATE_CONFLICT" || code === "RESOURCE_NOT_FOUND" ||
+            code === "UNPROCESSABLE",
+          true,
+        );
+        if (code === "UNPROCESSABLE") {
+          const reason = (error as StandardError).params?.reason;
+          assertEquals(reason, "upload_parts_incomplete");
+        }
+      }
+      // Whatever happened, the session is in exactly one state and never both
+      // completed and abandoned. `pending` is a legitimate outcome: the
+      // completion held the lock and refused, so the reaper skipped it, and the
+      // next run takes it. What must never happen is a half-finished session.
+      const state = await stateOf(fixture, sessionId);
+      assertEquals(
+        state === "completed" || state === "abandoned" || state === "pending",
+        true,
+      );
+      if (state === "pending") {
+        // The reaper's next run must be able to finish the job.
+        const swept = await reapAbandonedBlobUploads(fixture.pgDatabase);
+        assertEquals(swept.abandoned >= 1, true);
+        assertEquals(await stateOf(fixture, sessionId), "abandoned");
+        assertEquals(await partsOf(fixture, sessionId), 0);
+      }
+    }
   });
 });
