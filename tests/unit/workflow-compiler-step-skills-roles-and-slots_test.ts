@@ -176,6 +176,41 @@ Deno.test("an unknown slot field is refused rather than ignored", async () => {
   ]);
 });
 
+Deno.test("an input slot carrying an output-only key is refused at that key", async () => {
+  // The input reader builds {name, from} and nothing else, so a `kind` here
+  // would be accepted and silently dropped. It is refused at the key itself,
+  // not merely at the entry, so the diagnostic points at what to remove.
+  const diagnostics = await diagnose([
+    brief,
+    implement({
+      inputs: [{
+        name: "plan",
+        from: "$step.brief.artifact.versionId",
+        kind: "patch",
+      }],
+    }),
+  ]);
+  assertEquals(diagnostics, [
+    { path: "/steps/1/inputs/0/kind", code: "action_slots_invalid" },
+  ]);
+});
+
+Deno.test("an output slot keeps its kind, and an input slot keeps its binding", async () => {
+  // The mirror of the refusal above: the per-reader key sets must not have
+  // narrowed the output reader, and the input reader must still build `from`.
+  const result = await compile([
+    brief,
+    implement({
+      inputs: [{ name: "plan", from: "$step.brief.artifact.versionId" }],
+      outputs: [{ name: "patch", kind: "patch" }],
+    }),
+  ]);
+  const node = actionNode(result, "implement");
+  assertEquals(node.inputs?.map((slot) => slot.name), ["plan"]);
+  assert(node.inputs?.[0].from !== undefined, "the input keeps its binding");
+  assertEquals(node.outputs, [{ name: "patch", kind: "patch" }]);
+});
+
 Deno.test("an input slot must bind a value the compiler can build", async () => {
   const diagnostics = await diagnose([
     brief,

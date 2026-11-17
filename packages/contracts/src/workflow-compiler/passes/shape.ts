@@ -254,6 +254,14 @@ function readDurationField(
 const STEP_ROLE = /^[a-z][a-z0-9_]{1,63}$/;
 /** A slot name is what a step sees as a file name, so it stays a plain segment. */
 const SLOT_NAME = /^[A-Za-z][A-Za-z0-9_]{0,63}$/;
+
+/**
+ * The keys each slot reader actually builds. Input slots bind a value node and
+ * output slots name an artifact kind, so a key belonging to the other reader is
+ * refused rather than accepted and dropped.
+ */
+const INPUT_SLOT_KEYS: ReadonlySet<string> = new Set(["name", "from"]);
+const OUTPUT_SLOT_KEYS: ReadonlySet<string> = new Set(["name", "kind"]);
 const UUID_TEXT =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -302,14 +310,20 @@ function readInputSlots(
   raw: unknown,
   path: Path,
 ): WorkflowInputSlot[] | undefined | null {
-  return readSlots(context, raw, path, (entry, entryPath) => {
-    const from = compileWorkflowValue(
-      entry["from"],
-      [...entryPath, "from"],
-      context.collector,
-    );
-    return from ? { name: entry["name"] as string, from } : null;
-  });
+  return readSlots(
+    context,
+    raw,
+    path,
+    INPUT_SLOT_KEYS,
+    (entry, entryPath) => {
+      const from = compileWorkflowValue(
+        entry["from"],
+        [...entryPath, "from"],
+        context.collector,
+      );
+      return from ? { name: entry["name"] as string, from } : null;
+    },
+  );
 }
 
 /** Reads named output slots; `kind` is optional but never invented. */
@@ -318,21 +332,30 @@ function readOutputSlots(
   raw: unknown,
   path: Path,
 ): WorkflowOutputSlot[] | undefined | null {
-  return readSlots(context, raw, path, (entry, entryPath) => {
-    if (!Object.hasOwn(entry, "kind")) return { name: entry["name"] as string };
-    const kind = entry["kind"];
-    if (typeof kind !== "string" || !STEP_ROLE.test(kind)) {
-      report(context, [...entryPath, "kind"], "action_slots_invalid");
-      return null;
-    }
-    return { name: entry["name"] as string, kind };
-  });
+  return readSlots(
+    context,
+    raw,
+    path,
+    OUTPUT_SLOT_KEYS,
+    (entry, entryPath) => {
+      if (!Object.hasOwn(entry, "kind")) {
+        return { name: entry["name"] as string };
+      }
+      const kind = entry["kind"];
+      if (typeof kind !== "string" || !STEP_ROLE.test(kind)) {
+        report(context, [...entryPath, "kind"], "action_slots_invalid");
+        return null;
+      }
+      return { name: entry["name"] as string, kind };
+    },
+  );
 }
 
 function readSlots<T>(
   context: Context,
   raw: unknown,
   path: Path,
+  allowedKeys: ReadonlySet<string>,
   build: (entry: Record<string, unknown>, entryPath: Path) => T | null,
 ): T[] | undefined | null {
   if (raw === undefined) return undefined;
@@ -349,7 +372,10 @@ function readSlots<T>(
       return null;
     }
     for (const key of Object.keys(entry)) {
-      if (key !== "name" && key !== "from" && key !== "kind") {
+      // Each reader states the keys it actually builds. A key the reader would
+      // drop is refused here rather than silently discarded, so an input slot
+      // carrying `kind` is an error, not a field that quietly disappears.
+      if (!allowedKeys.has(key)) {
         report(context, [...entryPath, key], "action_slots_invalid");
         return null;
       }
