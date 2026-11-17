@@ -92,52 +92,6 @@ Deno.test("a step carries its skills, role and named slots into the compiled pla
   }]);
 });
 
-Deno.test("an input slot always carries a concrete path", async () => {
-  // An artifact has no filename of its own - it is bytes with a digest and a
-  // media type - so the author is the only one who can name the file. When they
-  // say nothing the slot's name is the filename, applied here so no consumer
-  // re-derives the default and two consumers cannot disagree about it.
-  const result = await compile([
-    brief,
-    implement({
-      inputs: [
-        { name: "plan", from: "$step.brief.artifact.versionId" },
-        {
-          name: "notes",
-          path: "docs/notes.md",
-          from: "$step.brief.artifact.versionId",
-        },
-      ],
-    }),
-  ]);
-  const node = actionNode(result, "implement");
-  // The compiled path, not the authored spelling: `plan` gets the default and
-  // `docs/notes.md` is kept verbatim, so both arrive concrete.
-  assertEquals(node.inputs?.map((slot) => [slot.name, slot.path]), [
-    ["plan", "plan"],
-    ["notes", "docs/notes.md"],
-  ]);
-});
-
-Deno.test("a slot path that could leave the context directory is refused", async () => {
-  // The renderer refuses an unsafe path. Refusing it here as well means the
-  // document never carries one, so a consumer cannot be handed a path its own
-  // safety check would reject.
-  for (const path of ["../secret", "/etc/passwd", "a//b", "a/../b"]) {
-    const result = await compile([
-      brief,
-      implement({
-        inputs: [{
-          name: "plan",
-          path,
-          from: "$step.brief.artifact.versionId",
-        }],
-      }),
-    ]);
-    assertEquals(result.ok, false, path);
-  }
-});
-
 Deno.test("a step without the new fields compiles exactly as before", async () => {
   const result = await compile([brief, implement()]);
   const node = actionNode(result, "implement");

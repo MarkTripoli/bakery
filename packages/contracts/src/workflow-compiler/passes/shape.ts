@@ -260,7 +260,7 @@ const SLOT_NAME = /^[A-Za-z][A-Za-z0-9_]{0,63}$/;
  * output slots name an artifact kind, so a key belonging to the other reader is
  * refused rather than accepted and dropped.
  */
-const INPUT_SLOT_KEYS: ReadonlySet<string> = new Set(["name", "path", "from"]);
+const INPUT_SLOT_KEYS: ReadonlySet<string> = new Set(["name", "from"]);
 const OUTPUT_SLOT_KEYS: ReadonlySet<string> = new Set(["name", "kind"]);
 const UUID_TEXT =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -321,37 +321,7 @@ function readInputSlots(
         [...entryPath, "from"],
         context.collector,
       );
-      if (!from) return null;
-      // A slot always carries a concrete path, because an artifact has no
-      // filename of its own: it is bytes with a digest and a media type. The
-      // author may say where those bytes land; when they say nothing the slot's
-      // own name is the filename at the context root. Applying the default here,
-      // where the slot is compiled, means no consumer ever re-derives it and no
-      // two consumers can disagree about what the default was.
-      const declared = entry["path"];
-      if (declared !== undefined && typeof declared !== "string") {
-        report(context, [...entryPath, "path"], "action_slots_invalid");
-        return null;
-      }
-      // A path that could leave the context directory is refused here as well
-      // as in the renderer, so a consumer is never handed a path its own safety
-      // check would reject. No segment may be empty, `.`, or `..`, and the path
-      // may not start at the root.
-      if (
-        declared !== undefined &&
-        (declared.startsWith("/") ||
-          declared.split("/").some((segment) =>
-            segment === "" || segment === "." || segment === ".."
-          ))
-      ) {
-        report(context, [...entryPath, "path"], "action_slots_invalid");
-        return null;
-      }
-      return {
-        name: entry["name"] as string,
-        path: declared ?? (entry["name"] as string),
-        from,
-      };
+      return from ? { name: entry["name"] as string, from } : null;
     },
   );
 }
