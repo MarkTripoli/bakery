@@ -49,13 +49,18 @@ most five `[High|Medium|Low]` findings of at most 25 words each, an optional
 check table, at most 150 words in all. Run `validate.ts review` on the draft
 before posting it.
 
-Apply `$show-me` when available. These portable rules preserve the requested
-style when that user-level skill is absent on a worker:
+The Change outline is the core of the PR: a reader should understand the
+design, the implementation and the design pattern without reading the code.
+Use one to three views (at most 80 lines in total). Apply `$show-me` when
+available. These portable rules preserve the requested style when that
+user-level skill is absent on a worker:
 
 - Existing structure changing: prefer one focused `diff` block.
 - Mostly new ownership: a shallow file/component tree.
 - Runtime behavior: pseudocode, a call tree or a small Mermaid flow/sequence.
 - Data contract: the smallest relevant before/after or complete target shape.
+- API or contract change: a `diff` of the signature, schema or payload.
+- Name the design pattern when there is one, for example `Pattern: outbox`.
 - Use real names; put one brief explanation beside the view. Omit irrelevant
   details and redundant views. Mermaid needs a readable title/description.
 - A typo-only or similarly structure-free change may say

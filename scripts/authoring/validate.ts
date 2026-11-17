@@ -185,6 +185,12 @@ export function wordCount(text: string): number {
   return (text.match(/[\p{L}\p{N}][\p{L}\p{N}'’._/-]*/gu) ?? []).length;
 }
 
+function outlineViews(text: string): number {
+  return [
+    ...text.matchAll(/^ {0,3}(`{3,}|~{3,})[^\n]*\n[\s\S]*?^ {0,3}\1[ \t]*$/gm),
+  ].length;
+}
+
 function outlineCode(text: string): number {
   let lines = 0;
   for (
@@ -319,7 +325,7 @@ export function validateDescription(kind: Kind, body: string): string[] {
       ["purpose", 40, 0],
       ["risk", 0, 25],
       ["special things to note", 0, 25],
-      ["change outline", 40, 0],
+      ["change outline", 60, 0],
       ["decisions", 0, 30],
       ["evidence", 40, 0],
     ];
@@ -338,8 +344,16 @@ export function validateDescription(kind: Kind, body: string): string[] {
       }
     }
     const codeLines = outlineCode(sections.get("change outline") ?? "");
-    if (codeLines > 30) {
-      errors.push("Too long: change outline view must be at most 30 lines.");
+    const viewCount = outlineViews(sections.get("change outline") ?? "");
+    if (codeLines > 80) {
+      errors.push(
+        "Too long: change outline views must total at most 80 lines.",
+      );
+    }
+    if (viewCount > 3) {
+      errors.push(
+        "Change outline: at most three views; keep the ones that explain the most.",
+      );
     }
     const images = (body.match(/!\[[^\]]*\]\([^)]*\)/g) ?? []).length;
     if (images > 4) {

@@ -26,7 +26,12 @@ was skipped.
 
 ## Write for an executive
 
-Descriptions and review verdicts are read by someone deciding, not studying.
+Descriptions and review verdicts are read by a person who wants to understand
+the system without reading the code. Explain with visuals, not paragraphs: the
+Change outline is the core of a PR. Use one to three show-me views (a Mermaid
+flow or sequence diagram, a call tree, an API or contract diff, a shallow file
+tree, pseudocode) with real names, and name the design pattern when there is
+one.
 Plain words, short sentences, no filler, no restating the diff. If a sentence
 doesn't change a decision, cut it. The validator enforces:
 
@@ -36,7 +41,7 @@ doesn't change a decision, cut it. The validator enforces:
 | Purpose | one sentence, at most 40 words |
 | Risk | `Level: Low`, `Medium` or `High`, then one to three bullets of at most 25 words: what could break, who it hits, how to roll back |
 | Special things to note | one to four bullets of at most 25 words, or `- None.` |
-| Change outline | a view of at most 30 lines, plus at most 40 words of prose |
+| Change outline | one to three views of at most 80 lines in total, plus at most 60 words of prose |
 | Decisions | one to three bullets of at most 30 words ("Chose X over Y because Z"), or `- None.` |
 | Evidence | a table of at most eight checks with one short result each, at most 40 words of prose, and at most four screenshots in the whole body (link a folder for the rest) |
 

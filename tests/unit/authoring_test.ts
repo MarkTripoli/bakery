@@ -428,11 +428,19 @@ Deno.test("authoring keeps PR descriptions short and asks for risk, decisions an
     ),
     true,
   );
-  const outline = "```text\n" + Array(31).fill("a -> b").join("\n") + "\n```";
+  const outline = "```text\n" + Array(81).fill("a -> b").join("\n") + "\n```";
   assertEquals(
-    has(pr.replace(/```text[\s\S]*?```/, outline), "at most 30 lines"),
+    has(pr.replace(/```text[\s\S]*?```/, outline), "at most 80 lines"),
     true,
   );
+  const view = "```mermaid\nflowchart LR\n  A --> B\n```";
+  const withViews = (n: number) =>
+    pr.replace(
+      /(```text[\s\S]*?```)/,
+      "$1\n\n" + Array(n).fill(view).join("\n\n"),
+    );
+  assertEquals(validateDescription("pr", withViews(2)), []);
+  assertEquals(has(withViews(3), "at most three views"), true);
   const shots = Array(5).fill("![s](https://example.com/s.png)").join(" ");
   assertEquals(has(pr + "\n\n" + shots, "at most four"), true);
   const filler = "\n\n## Notes\n\n" + Array(300).fill("filler").join(" ");
