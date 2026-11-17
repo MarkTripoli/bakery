@@ -10,6 +10,7 @@
   <entry file="ui-catalog.xml" scope="project" />
   <entry file="ui-token-manifest-digest.xml" scope="project" />
   <entry file="paper-export-dimensions.xml" scope="project" />
+  <entry file="paper-baseline-torn-by-racing-reanchor.xml" scope="project" />
   <entry file="reference-proof-working-tree.xml" scope="project" />
   <entry file="verification-memory-floor.xml" scope="project" />
   <entry file="github-closing-keywords.xml" scope="project" />

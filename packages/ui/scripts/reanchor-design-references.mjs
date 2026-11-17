@@ -20,6 +20,7 @@ import { fileURLToPath } from "node:url";
 import { chromium } from "@playwright/test";
 
 import {
+  closeServer,
   lookupArtboard,
   readDesignManifest,
   renderAndFillCase,
@@ -100,8 +101,12 @@ async function main() {
       `paper-baselines.json is schemaVersion ${baseline.schemaVersion}; design references require schemaVersion 2`,
     );
   }
+  // K-0 originals are pinned and immutable: their source identity pins the
+  // renderer's own bytes, so a ruling refresh must never refill them. They are
+  // excluded from the refreshed set entirely, which also keeps them out of the
+  // identity digest.
   const designCases = (baseline.cases ?? []).filter((designCase) =>
-    designCase.reference === "design"
+    designCase.reference === "design" && designCase.sourceProfile === undefined
   );
   for (const designCase of designCases) {
     designCase.designRuling = args.ruling;
@@ -126,6 +131,11 @@ async function main() {
     }
   } finally {
     await browser.close();
+    // The renderer's static mock server keeps the event loop alive, so without
+    // this the process renders every case, writes the baseline, and then hangs
+    // forever holding a Chromium instance. compare-paper.mjs closes the same
+    // server for the same reason.
+    await closeServer();
   }
 
   // Vendored rather than trusted: the citation alone is a string the
