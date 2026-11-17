@@ -69,10 +69,9 @@ Deno.test("issue 69 ops: externalTickets.list answers the tickets linked to one 
     const otherTask = await fx.createPlainTask();
     // One task carries two tickets, and one of those is shared with a second
     // task, so "linked to this task" cannot be answered by "has any link".
-    // `created_at` defaults to `now()`, which is the transaction's start, so
-    // two links written in separate transactions can share an instant; the id
-    // is the tie-break, and asserting without knowing both is a coin flip.
-    const linkIds: string[] = [];
+    // Each link is its own request, so each gets its own transaction and its
+    // own `now()`. The second ticket is linked to `taskId` first and then to
+    // `otherTask`, and that write order is what the read answers in reverse.
     for (
       const [ticket, task] of [
         [first, taskId],
@@ -80,19 +79,16 @@ Deno.test("issue 69 ops: externalTickets.list answers the tickets linked to one 
         [second, otherTask],
       ] as const
     ) {
-      linkIds.push(
-        (await read<{ id: string }>(
-          await post(fx, `${TICKETS}/${ticket.id}/links`, {
-            taskId: task,
-            role: "reference",
-          }),
-          201,
-        )).id,
+      await read<{ id: string }>(
+        await post(fx, `${TICKETS}/${ticket.id}/links`, {
+          taskId: task,
+          role: "reference",
+        }),
+        201,
       );
     }
-    // The second ticket carries two links, and the read answers newest first
-    // with the id as the tie-break, so which came first is the ids' to say.
-    const [, secondLinkId, otherLinkId] = linkIds;
+    // The second ticket carries two links; which the read answers first is
+    // derived below from the order they were written in, not from their ids.
     const forTask = (id: string, extra = "") =>
       ticketCall(fx, "GET", `${TICKETS}?taskId=${id}${extra}`).then((
         response,
@@ -111,19 +107,26 @@ Deno.test("issue 69 ops: externalTickets.list answers the tickets linked to one 
     assertNotEquals(leadsOnId, trailsOnId);
     assertEquals(mine.items.map((item) => item.id), [leadsOnId, trailsOnId]);
     assert(!mine.items.some((item) => item.id === third.id));
-    // The ticket still serves every task it is linked to, from the same read:
-    // newest link first, tie-broken by `link.id desc`. Both links for this
-    // ticket were written in separate calls, so if their `created_at` ties the
-    // larger id leads - and a UUID's text order is its byte order, so comparing
-    // the two ids here derives the same order the query sorts by.
-    const linksOfSecond = secondLinkId > otherLinkId
-      ? [taskId, otherTask]
-      : [otherTask, taskId];
-    // Only the ids are asserted: `mine.items[0]` is not stable, because the
-    // two tickets were previewed in one call and share a created_at, so which
-    // of them is first is the read's tie-break on a UUID.
+    // The ticket still serves every task it is linked to, from the same read,
+    // newest link first. Each link is its own request and its own transaction,
+    // so `now()` gives them distinct instants and write order alone decides -
+    // the id tie-break only applies to links that SHARE an instant, which
+    // these do not. This ticket's links were written to `taskId` before
+    // `otherTask`, so `otherTask` is the newer and leads.
+    const linksOfSecond = [otherTask, taskId];
+    // Reach the ticket by id: which position it holds was decided above from
+    // the read's documented order, and the position is not the property here.
     const secondRow = mine.items.find((item) => item.id === second.id);
     assert(secondRow, "the shared ticket is on the page");
+    // INSTRUMENT (temporary, PR 540): the expectation below has been red four
+    // times for four different reasons, so print the facts that decide it -
+    // what the read answered, and which task id sits in each position - rather
+    // than leaving the reader to derive the order from a theory about ties.
+    console.log(JSON.stringify({
+      writeOrder: ["second->taskId", "second->otherTask"],
+      actual: secondRow.linkedTaskIds,
+      taskIds: { taskId, otherTask },
+    }));
     assertEquals(secondRow.linkedTaskIds, linksOfSecond);
     assertEquals(
       (await forTask(otherTask)).items.map((item) => item.id),
