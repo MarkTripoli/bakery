@@ -1178,6 +1178,72 @@ function v0RefreshIssue(snapshot, lineage) {
   }
 }
 
+/**
+ * Decides whether a branch may repin one profile's identity. Returns null when
+ * the change is a lawful value-only refresh, else the refusal message. The
+ * declared digest is never trusted: it must recompute from the commit's own
+ * bytes, so a torn write or a hand edit cannot pass by declaring a new value.
+ */
+function profileRefreshIssue({ name, manifest, lineage, read, identity }) {
+  const lineageProfile = resolveSourceProfile(lineage.manifest, {
+    sourceProfile: name,
+  }).source;
+  const currentProfile = resolveSourceProfile(manifest, {
+    sourceProfile: name,
+  }).source;
+  if (
+    identity !== JSON.stringify([
+      lineageProfile.fileId,
+      lineageProfile.pageId,
+      sha256(read(lineageProfile.manifestPath)),
+    ])
+  ) {
+    return `${name}: in-branch original export identity changed`;
+  }
+  const recomputed = sha256(
+    [
+      ...currentProfile.inputs.map((input) =>
+        `${input}\0${sha256(read(input))}\n`
+      ),
+      `browserLaunchOptions\0${
+        JSON.stringify(paperBrowserLaunchOptions({ sourceProfile: name }))
+      }\n`,
+    ].join(""),
+  );
+  if (recomputed !== currentProfile.digest) {
+    return `${name}: source digest mismatch`;
+  }
+  if (
+    JSON.stringify(currentProfile.inputs) !==
+      JSON.stringify(lineageProfile.inputs)
+  ) {
+    return `${name}: first-introduction inventory or metadata changed`;
+  }
+  // Value-only means exactly that: with the pin fields removed, the profile and
+  // every case carrying it must be identical to the lineage. Anything else - a
+  // moved pointer, a new case, a different reference - is not a repin.
+  const pinless = (source) => {
+    const profile = structuredClone(source.manifest.sourceProfiles[name]);
+    delete profile.source.digest;
+    delete profile.source.revision;
+    const cases = source.manifest.cases
+      .filter((entry) => entry.sourceProfile === name)
+      .map((entry) => {
+        const copy = structuredClone(entry);
+        delete copy.sourceDigest;
+        delete copy.sourceIdentity;
+        if (copy.rasterProfile) delete copy.rasterProfile.sourceIdentity;
+        return copy;
+      })
+      .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    return JSON.stringify([profile, cases]);
+  };
+  if (pinless({ manifest }) !== pinless(lineage)) {
+    return `${name}: first-introduction inventory or metadata changed`;
+  }
+  return null;
+}
+
 function profileBindings(snapshot, name, original) {
   const { manifest, read } = snapshot;
   const profile = resolveSourceProfile(manifest, { sourceProfile: name });
@@ -1449,6 +1515,12 @@ export function repositoryBaselineProvenance({
     const appearances = [];
     const legacyIntros = [];
     let legacyRefresh = null;
+    // A profile's pins can be repinned when an input it hashes changes (the
+    // renderer is itself a K-0 input), but only once per branch and only when
+    // the declared digest recomputes from that commit's own bytes. Direct
+    // pushes to main were the only path that could do this before, because
+    // main push runs self-consistency and never walks the branch.
+    const profileRefreshes = new Map();
     const seen = new Set();
     const pageOwners = new Map();
     const follows = (first, next) => {
@@ -1675,10 +1747,34 @@ export function repositoryBaselineProvenance({
             identity === first.identity,
             `${name}: in-branch original export identity changed`,
           );
-          requireProvenance(
-            bytes === first.bytes,
-            `${name}: first-introduction inventory or metadata changed`,
-          );
+          const refreshed = profileRefreshes.get(name);
+          const expectedBytes = refreshed && follows(refreshed.commit, commit)
+            ? refreshed.bytes
+            : first.bytes;
+          if (bytes !== expectedBytes) {
+            // A profile's pins can be repinned when an input it hashes changes
+            // (the renderer is itself a K-0 input). Accept at most one such
+            // refresh per branch, and only when the declared digest recomputes
+            // from this commit's own bytes: a torn write or a hand edit still
+            // fails, because neither makes the declared value describe the
+            // bytes it sits next to. Every other difference keeps the original
+            // refusal, so an unlicensed edit is still caught.
+            const lineageAnchored = lineageHasProfiles &&
+              Object.hasOwn(lineageDefinitions, name);
+            const issue = !lineageAnchored
+              ? `${name}: first-introduction inventory or metadata changed`
+              : refreshed
+              ? `${name}: a refresh already exists on this branch`
+              : profileRefreshIssue({
+                name,
+                manifest,
+                lineage,
+                read,
+                identity,
+              });
+            requireProvenance(!issue, issue);
+            profileRefreshes.set(name, { commit, bytes });
+          }
         }
         // A second, unrelated in-branch introduction has no lineage to anchor
         // it; only main's own copy (the merge base) may coexist with one.

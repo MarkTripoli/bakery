@@ -780,6 +780,50 @@ test("V-0 refresh under profiles is bound to the refreshed V-0 input bytes", asy
         Object.assign(next.source, await v0Identity(fixtureRead, next.source));
         return next;
       };
+      // Edits a pinned K-0 input and returns the manifest carrying the K-0
+      // identity that input's new bytes produce - the value-only repin shape a
+      // branch is allowed exactly once.
+      const profileScript = "packages/ui/scripts/render-paper-references.mjs";
+      const profileRefresh = async (marker, value = candidate) => {
+        await write(
+          profileScript,
+          (await fixtureRead(profileScript)).toString() + `\n// ${marker}\n`,
+        );
+        const next = structuredClone(value);
+        // Hash the FIXTURE's bytes, not the real repository's: the parity walk
+        // reads the commit under test, so a helper that read the working tree
+        // would declare a digest describing a different file.
+        const source = next.sourceProfiles["K-0"].source;
+        const parts = [];
+        for (const input of source.inputs) {
+          parts.push(`${input}\0${sha(await fixtureRead(input))}\n`);
+        }
+        parts.push(
+          `browserLaunchOptions\0${
+            JSON.stringify(paperBrowserLaunchOptions({ sourceProfile: "K-0" }))
+          }\n`,
+        );
+        const digest = sha(parts.join(""));
+        const identity = {
+          digest,
+          revision: `paper:${
+            sha(await fixtureRead(source.manifestPath)).slice(0, 8)
+          }; mock:${digest.slice(0, 8)}; rendered:2026-10-10`,
+        };
+        next.sourceProfiles["K-0"].source.digest = identity.digest;
+        next.sourceProfiles["K-0"].source.revision = identity.revision;
+        for (const entry of next.cases) {
+          if (entry.sourceProfile !== "K-0") continue;
+          entry.sourceDigest = identity.digest;
+          if (entry.sourceIdentity !== undefined) {
+            entry.sourceIdentity = identity.digest;
+          }
+          if (entry.rasterProfile) {
+            entry.rasterProfile.sourceIdentity = identity.digest;
+          }
+        }
+        return next;
+      };
       try {
         git("init", "-q", "-b", "main");
         git("config", "user.name", "Provenance Test");
@@ -808,6 +852,7 @@ test("V-0 refresh under profiles is bound to the refreshed V-0 input bytes", asy
           blocked,
           passes,
           refresh,
+          profileRefresh,
         });
       } finally {
         await rm(repositoryRoot, { recursive: true, force: true });
@@ -918,6 +963,45 @@ test("V-0 refresh under profiles is bound to the refreshed V-0 input bytes", asy
     c.commit("test: back to the merge base");
     c.blocked(/already exists/);
   });
+  await scenario(
+    "one value-only profile refresh on a branch is accepted",
+    async (c) => {
+      await c.store(await c.profileRefresh("first"));
+      c.commit();
+      c.passes();
+    },
+  );
+  await scenario(
+    "two profile refreshes on one branch still refuse",
+    async (c) => {
+      await c.store(await c.profileRefresh("first"));
+      c.commit();
+      await c.store(await c.profileRefresh("second"));
+      c.commit();
+      c.blocked(/already exists/);
+    },
+  );
+  await scenario(
+    "a profile refresh whose declared digest does not recompute still refuses",
+    async (c) => {
+      const refreshed = await c.profileRefresh("first");
+      refreshed.sourceProfiles["K-0"].source.digest = "f".repeat(64);
+      await c.store(refreshed);
+      c.commit();
+      c.blocked(/source digest mismatch/);
+    },
+  );
+  await scenario(
+    "a hand-edited profile still refuses",
+    async (c) => {
+      const refreshed = await c.profileRefresh("first");
+      refreshed.cases.find((entry) => entry.sourceProfile === "K-0").pointer =
+        "coarse";
+      await c.store(refreshed);
+      c.commit();
+      c.blocked(/inventory|metadata/);
+    },
+  );
   await scenario(
     "K-0 object change after the refresh still blocks",
     async (c) => {
