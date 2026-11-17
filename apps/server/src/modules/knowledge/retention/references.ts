@@ -60,6 +60,15 @@ export const artifactVersionReferences = [
     constraint: "check_runs_evidence_version_fk",
     protection: "retained-evidence",
   },
+  {
+    // A run pins the exact version each declared input resolved to at
+    // admission (#402). The bytes stay readable for as long as the run is
+    // live, then the pin ends with it; a person's separate hold is untouched.
+    kind: "run-input-pin",
+    table: "run_input_pins",
+    constraint: "run_input_pins_version_fk",
+    protection: "run-pin",
+  },
 ] as const;
 export const declaredArtifactReferenceKinds = [
   "current-pointer",
@@ -71,6 +80,7 @@ export const declaredArtifactReferenceKinds = [
   "retained-evidence",
   "output-transcript",
   "external-effect-arguments",
+  "run-input-pin",
 ] as const;
 export type ArtifactReferenceKind =
   typeof declaredArtifactReferenceKinds[number];
@@ -83,6 +93,21 @@ export type ReferenceCheck = {
   ) => Promise<boolean>;
 };
 export const additionalArtifactReferenceChecks: readonly ReferenceCheck[] = [
+  {
+    kind: "run-input-pin",
+    async protects(transaction, organizationId, versionId) {
+      const result = await transaction.query(
+        `select 1 from bakery.run_input_pins p
+           join bakery.workflow_runs r
+             on r.organization_id = p.organization_id and r.id = p.run_id
+          where p.organization_id=$1 and p.artifact_version_id=$2
+            and r.status not in ('completed','failed','canceled')
+          limit 1`,
+        [organizationId, versionId],
+      );
+      return result.rows.length > 0;
+    },
+  },
   {
     kind: "unresolved-comment",
     async protects(transaction, organizationId, versionId) {

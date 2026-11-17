@@ -31,6 +31,7 @@ import type { PgTransactionClient } from "../../platform/database.ts";
 import { nextOrganizationSequence } from "../../platform/event-clock.ts";
 import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
 import { requireWorkTransaction } from "./work-transaction.ts";
+import { pinDeclaredRunInputs } from "./run-input-pins.ts";
 import { requestRunStart } from "./run-start.ts";
 import { resolveDependencyReadiness } from "./dependency-readiness.ts";
 import {
@@ -1251,6 +1252,13 @@ export async function createRunCommand(
     organizationId,
     runId: run.id,
     steps,
+  });
+  // Pin the exact version each declared input resolved to, now, so a later
+  // publication of the same path cannot change what this run reads.
+  await pinDeclaredRunInputs(transaction, {
+    organizationId,
+    runId: run.id,
+    inputs,
   });
   const taskUpdate = await transaction.query<{ id: string; version: number }>(
     `update bakery.tasks
