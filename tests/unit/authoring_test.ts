@@ -471,9 +471,8 @@ Deno.test("authoring keeps PR descriptions short and asks for risk, decisions an
   );
   // A view's labels are the view's budget, not prose: a long diagram must not
   // push the 40-word Change outline prose cap over.
-  const labelled = "```mermaid\n" + Array(80).fill("  A[word word word] --> B")
-    .join("\n") +
-    "\n```";
+  const labelled = "```mermaid\n" +
+    Array(80).fill("  A[word word word] --> B").join("\n") + "\n```";
   assertEquals(
     has(pr.replace(/```text[\s\S]*?```/, labelled), "words of prose"),
     false,
@@ -518,6 +517,36 @@ Deno.test("review verdicts are short: verdict, head, severity-tagged findings", 
     validateReview(review + "\n\n" + Array(160).fill("filler").join(" ")).some((
       e,
     ) => e.includes("at most 150")),
+  );
+});
+
+Deno.test("Evidence refuses routine checks but accepts a test file named format", () => {
+  // Owner rule: Evidence is UI screenshots or recordings and the new tests.
+  // Routine checks belong to CI, so a table of green ticks proves nothing.
+  const withEvidence = (evidence: string) =>
+    pr.replace(/## Evidence[\s\S]*$/, "## Evidence\n\n" + evidence);
+  const table = (row: string) =>
+    ["| check | result |", "|---|---|", row].join("\n");
+  const refused = (row: string) =>
+    validateDescription("pr", withEvidence(table(row))).some((e) =>
+      e.includes("drop routine checks")
+    );
+  for (const check of ["fmt", "lint", "typecheck"]) {
+    assertEquals(refused(`\`pnpm ${check}\` | passed`), true, check);
+  }
+  // A real test file carrying "format" in its name is evidence, not a routine
+  // check. Refusing it stopped a PR from citing the test it added.
+  assertEquals(
+    refused("`packages/ui/tests/contracts-module-format.node.mjs` | 12 passed"),
+    false,
+  );
+  // Evidence that shows something still passes.
+  assertEquals(
+    validateDescription(
+      "pr",
+      withEvidence(table("reduced-motion skeleton | still, no animation")),
+    ),
+    [],
   );
 });
 
