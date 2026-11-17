@@ -709,8 +709,15 @@ Deno.test("pull-request lane flags match the workflow gate routing", async () =>
     // runners; it does not route, so a lane gated by it alone runs everywhere.
     const forkGuard =
       "    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository";
+    // A lane that admits `gate` and only additionally excludes the `metadata`
+    // route still runs on every pull request that has a commit, so it stays
+    // pull-request required: `metadata` is an edit, which runs no new commit.
+    const routeGateWithMetadataSkip =
+      condition?.includes("needs.changes.outputs.route == 'gate'") === false &&
+      condition?.includes("needs.changes.outputs.route != 'metadata'") === true;
     const admitsGate = condition === undefined || condition === forkGuard ||
-      condition.includes("needs.changes.outputs.route == 'gate'");
+      condition.includes("needs.changes.outputs.route == 'gate'") ||
+      routeGateWithMetadataSkip;
     assertEquals(
       lane.pullRequestRequired !== false,
       admitsGate,
@@ -921,8 +928,11 @@ Deno.test("TypeSafe advisory steps can never gate and always run for pull reques
   // instead of a stream of cancelled ones. Scheduled and manual runs keep their
   // own group.
   assert(workflow.includes(
-    "group: bakery-ci-${{ (github.event_name == 'pull_request' || github.event_name == 'push') && github.ref || github.run_id }}",
+    "group: bakery-ci-${{ github.event.action == 'edited' && format('metadata-{0}', github.ref) || (github.event_name == 'pull_request' || github.event_name == 'push') && github.ref || github.run_id }}",
   ));
+  // A metadata (`edited`) run must not cancel a full gate on the same ref, so
+  // it takes its own group; a newer commit still supersedes the older run.
+  assert(workflow.includes("format('metadata-{0}', github.ref)"));
   assert(workflow.includes(
     "cancel-in-progress: ${{ github.event_name == 'pull_request' }}",
   ));
