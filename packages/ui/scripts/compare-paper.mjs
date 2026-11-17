@@ -1262,6 +1262,24 @@ function profileBindings(snapshot, name, original) {
 
 // The repository is the authority for absence/history, never a caller-supplied
 // null predecessor or an ignored task ledger. Options support isolated Git tests.
+//
+// Which proof a run owes is decided HERE, at the one seam every capture goes
+// through, and is tested there: a test that only calls
+// `repositoryBaselineProvenance` with `mode` spelled out proves the check works
+// when asked, and says nothing about whether anything asks. Hardcoding the mode
+// at this line is the exact regression that could reach main unnoticed.
+export function comparePaperProvenance({
+  baselinePath,
+  eventName = process.env.GITHUB_EVENT_NAME,
+  ...options
+} = {}) {
+  return repositoryBaselineProvenance({
+    baselinePath,
+    ...options,
+    mode: eventName === "push" ? "self-consistency" : "parity",
+  });
+}
+
 export function repositoryBaselineProvenance({
   repositoryRoot = root,
   baselinePath = manifestProfile("auth").baselinePath,
@@ -1272,11 +1290,16 @@ export function repositoryBaselineProvenance({
   // A push to main has no predecessor commit to compare against: `HEAD` is the
   // base. A pull request can prove PARITY against the base; main can only prove
   // SELF-CONSISTENCY - that the baseline the commit ships is the baseline its
-  // own tree produces. Callers say which of the two they are asking for so the
-  // gate never infers it and never silently passes.
-  mode = "parity",
+  // own tree produces. The mode is REQUIRED, with no default: a caller that
+  // forgets it fails loudly instead of silently taking the wrong proof, which is
+  // the failure this gate exists to prevent.
+  mode,
 } = {}) {
   try {
+    requireProvenance(
+      mode === "parity" || mode === "self-consistency",
+      "A baseline provenance run must state whether it proves parity or self-consistency",
+    );
     const git = (args) =>
       execFileSync("git", args, {
         cwd: repositoryRoot,
@@ -2556,13 +2579,19 @@ export async function comparePaper(
     // Selection cannot bypass history or hide mutations in unselected profiles.
     // A push has no base to prove parity against, so it proves self-consistency
     // instead; every other caller keeps the parity gate unchanged.
-    const provenance = repositoryBaselineProvenance({
-      baselinePath,
-      mode: process.env.GITHUB_EVENT_NAME === "push"
-        ? "self-consistency"
-        : "parity",
-    });
+    const provenance = comparePaperProvenance({ baselinePath });
     report.provenance = provenance;
+    // A blocked provenance is decided from the commit alone, so there is nothing
+    // a browser could add: refuse before rendering hundreds of cases. This also
+    // keeps the decision reachable from a test without a browser, which is what
+    // makes the entry point's mode selection provable rather than assumed.
+    if (provenance.status === "blocked") {
+      throw new Error(
+        `Paper baseline provenance ${provenance.status}: ${
+          (provenance.issues ?? []).join("; ")
+        }`,
+      );
+    }
     browser = await chromium.launch({
       headless: true,
       ...(isSiteManifest(manifestName) ? enterpriseLaunchOptions() : {}),

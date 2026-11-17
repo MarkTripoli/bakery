@@ -21,6 +21,8 @@ const {
   new URL("../scripts/render-paper-references.mjs", import.meta.url).href
 );
 const {
+  comparePaper,
+  comparePaperProvenance,
   comparisonStatus,
   designCompatibilityIssues,
   designReferenceInputs,
@@ -198,7 +200,11 @@ test("profile provenance binds actual original bytes and earliest Git appearance
   };
   let base;
   const result = (comparisonRef = base) =>
-    repositoryBaselineProvenance({ repositoryRoot, comparisonRef });
+    repositoryBaselineProvenance({
+      repositoryRoot,
+      comparisonRef,
+      mode: "parity",
+    });
   const blocked = (expected) => {
     const observed = result();
     assert.equal(observed.status, "blocked", JSON.stringify(observed));
@@ -520,7 +526,11 @@ test("merge-based branches follow their own main lineage", async (t) => {
         return git("rev-parse", "HEAD");
       };
       const result = () =>
-        repositoryBaselineProvenance({ repositoryRoot, comparisonRef: "main" });
+        repositoryBaselineProvenance({
+          repositoryRoot,
+          comparisonRef: "main",
+          mode: "parity",
+        });
       const blocked = (expected) => {
         const observed = result();
         assert.equal(observed.status, "blocked", JSON.stringify(observed));
@@ -736,7 +746,11 @@ test("V-0 refresh under profiles is bound to the refreshed V-0 input bytes", asy
         return git("rev-parse", "HEAD");
       };
       const result = () =>
-        repositoryBaselineProvenance({ repositoryRoot, comparisonRef: "main" });
+        repositoryBaselineProvenance({
+          repositoryRoot,
+          comparisonRef: "main",
+          mode: "parity",
+        });
       const blocked = (expected = /V0/) => {
         const observed = result();
         assert.equal(observed.status, "blocked", JSON.stringify(observed));
@@ -1237,6 +1251,29 @@ test("main proves its baseline is self-consistent and refuses a tampered one", a
     assert.equal(clean.status, "self-consistent", JSON.stringify(clean));
     assert.equal(clean.commit, git("rev-parse", "HEAD"));
 
+    // The mode is SELECTED by the seam the capture entry point calls. This is
+    // the assertion that a test aimed at `repositoryBaselineProvenance` cannot
+    // make: reverting or hardcoding `mode` at that seam leaves the checks above
+    // green, so only asking the entry seam can catch it.
+    const viaEntryPoint = (eventName) =>
+      comparePaperProvenance({ repositoryRoot, baselinePath, eventName });
+    assert.equal(viaEntryPoint("push").status, "self-consistent");
+    assert.equal(viaEntryPoint("push").commit, git("rev-parse", "HEAD"));
+    // A pull request proves parity against its base. Give the fixture the base a
+    // real PR has, so the parity path resolves and passes rather than failing
+    // for want of a ref: that is the behaviour a PR must keep.
+    git("update-ref", "refs/remotes/origin/main", git("rev-parse", "HEAD"));
+    for (const eventName of ["pull_request", "workflow_dispatch", undefined]) {
+      const parity = viaEntryPoint(eventName);
+      assert.equal(
+        parity.status,
+        "passed",
+        `event ${String(eventName)} must take the parity path: ${
+          JSON.stringify(parity)
+        }`,
+      );
+    }
+
     // A reference image that does not hash to what the manifest declares is
     // exactly the unproven baseline main must refuse.
     await store({
@@ -1256,5 +1293,52 @@ test("main proves its baseline is self-consistent and refuses a tampered one", a
     );
   } finally {
     await rm(repositoryRoot, { recursive: true, force: true });
+  }
+});
+
+// The seam test above proves the mode is chosen correctly when the seam is
+// asked. This one proves the CAPTURE ENTRY POINT asks it: it drives the real
+// `comparePaper`, so replacing the seam call with a hardcoded mode, or dropping
+// the seam entirely, fails here. A blocked provenance is decided from the commit
+// alone, so the entry point refuses before it launches a browser, which is what
+// makes this reachable without one.
+test("the capture entry point refuses a blocked provenance before rendering", async () => {
+  const artifacts = await mkdtemp(join(tmpdir(), "paper-entry-"));
+  const previousBase = process.env.PAPER_BASE_REF;
+  try {
+    // A base that cannot resolve makes the parity path block, which is the
+    // pre-PR behaviour on a main push: the entry point must surface it.
+    process.env.PAPER_BASE_REF = "refs/heads/paper-entry-point-absent";
+    const candidatePath = join(artifacts, "manifest.json");
+    await writeFile(
+      candidatePath,
+      JSON.stringify({ schemaVersion: 2, cases: [] }),
+    );
+    // The gate's own refusal, reached without a browser: the provenance is
+    // decided from the commit, so a blocked one never starts a render.
+    await assert.rejects(
+      () => comparePaper({ manifestName: "auth", candidatePath }),
+      /Paper parity gate blocked/,
+    );
+    // Assert the CAUSE, not just that something blocked: a missing browser also
+    // blocks, so only the recorded refusal proves the parity path was taken.
+    const report = JSON.parse(
+      await readFile("artifacts/ui-baseline/paper/comparison.json", "utf8"),
+    );
+    const refusal = (report.results ?? [])
+      .flatMap((entry) => entry.issues ?? [])
+      .join("\n");
+    // Only the parity path ever asks git for a merge base; the self-consistency
+    // path reads HEAD alone. So this refusal is proof of which mode was chosen.
+    assert.match(
+      refusal,
+      /merge-base --all HEAD/,
+      "the entry point must take the parity path for a non-push event",
+    );
+    assert.doesNotMatch(refusal, /self-consistent/);
+  } finally {
+    if (previousBase === undefined) delete process.env.PAPER_BASE_REF;
+    else process.env.PAPER_BASE_REF = previousBase;
+    await rm(artifacts, { recursive: true, force: true });
   }
 });
