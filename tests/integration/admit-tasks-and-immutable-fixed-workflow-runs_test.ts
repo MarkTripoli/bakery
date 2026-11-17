@@ -1754,10 +1754,45 @@ Deno.test("admit tasks and keep fixed-workflow run snapshots immutable", async (
       items: Array<{ stepKey: string }>;
       nextCursor: string | null;
     };
-    // A plan run appends no step at admission, so the second run's step list is
-    // empty and there is no second page to walk.
+    // A plan run appends no step at admission, so the list is empty here.
     assertEquals(secondPageOne.items, []);
     assertEquals(secondPageOne.nextCursor, null);
+    // The keyset walk over run_steps is still covered: append the two steps the
+    // plan would append, then page through them one at a time.
+    await owner`
+      insert into bakery.run_steps (
+        organization_id, run_id, step_key, position, iteration, status, input
+      ) values
+        (${organizationId}, ${secondRunId}, 'review', 0, 0, 'pending', '{}'::jsonb),
+        (${organizationId}, ${secondRunId}, 'research', 1, 0, 'pending', '{}'::jsonb)`;
+    const pagedOne = await productionApp.fetch(
+      new Request(
+        `http://test/v1/runs/${secondRunId}/steps?limit=1`,
+        { headers: productionHeaders },
+      ),
+    );
+    assertEquals(pagedOne.status, 200);
+    const pagedOneBody = await pagedOne.json() as {
+      items: Array<{ stepKey: string }>;
+      nextCursor: string | null;
+    };
+    assertEquals(pagedOneBody.items.map((step) => step.stepKey), ["review"]);
+    assertEquals(typeof pagedOneBody.nextCursor, "string");
+    const pagedTwo = await productionApp.fetch(
+      new Request(
+        `http://test/v1/runs/${secondRunId}/steps?limit=1&cursor=${
+          encodeURIComponent(pagedOneBody.nextCursor!)
+        }`,
+        { headers: productionHeaders },
+      ),
+    );
+    assertEquals(pagedTwo.status, 200);
+    const pagedTwoBody = await pagedTwo.json() as {
+      items: Array<{ stepKey: string }>;
+      nextCursor: string | null;
+    };
+    assertEquals(pagedTwoBody.items.map((step) => step.stepKey), ["research"]);
+    assertEquals(pagedTwoBody.nextCursor, null);
 
     const dependencyEdge = await send(
       "POST",
