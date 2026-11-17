@@ -142,4 +142,5 @@
   <entry file="route-paths-are-invisible-to-the-type-checker.xml" scope="project" />
   <entry file="assert-the-row-by-id-not-by-position.xml" scope="project" />
   <entry file="database-name-is-not-database-identity.xml" scope="project" />
+  <entry file="generated-file-without-its-source.xml" scope="project" />
 </learnings>
