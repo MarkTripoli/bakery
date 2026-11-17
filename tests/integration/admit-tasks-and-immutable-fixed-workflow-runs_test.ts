@@ -235,6 +235,65 @@ Deno.test("admit tasks and keep fixed-workflow run snapshots immutable", async (
       ...workflowSpec,
       name: "issue-36-cloud-only-workflow",
     };
+    // #400: a repository run is admitted as a compiled plan, so the repository
+    // half of this test runs a plan document. A branch is what makes a document
+    // a plan; both arms carry the same two steps, so the run still has exactly
+    // review and research. `task.brief` is a worker action with no agent
+    // capability, which is what this profile can run.
+    const repositoryPlanSpec = {
+      apiVersion: "bakery.dev/v1",
+      kind: "workflow",
+      name: "issue-36-repository-plan",
+      inputs: {
+        taskId: { type: "uuid", required: true },
+        target: { type: "string", required: true },
+        repositoryId: { type: "uuid", required: true },
+        brief: { type: "TaskBrief", required: true },
+      },
+      steps: [{
+        id: "choose",
+        branch: {
+          when: '$input.target == "main"',
+          then: [
+            {
+              id: "review",
+              uses: "task.brief",
+              with: {
+                brief: "$input.brief",
+                repositoryId: "$input.repositoryId",
+              },
+            },
+            {
+              id: "research",
+              uses: "task.brief",
+              with: {
+                brief: "$input.brief",
+                repositoryId: "$input.repositoryId",
+              },
+            },
+          ],
+          else: [
+            {
+              id: "review_other",
+              uses: "task.brief",
+              with: {
+                brief: "$input.brief",
+                repositoryId: "$input.repositoryId",
+              },
+            },
+            {
+              id: "research_other",
+              uses: "task.brief",
+              with: {
+                brief: "$input.brief",
+                repositoryId: "$input.repositoryId",
+              },
+            },
+          ],
+        },
+      }],
+    };
+    const repositoryPlanDigest = await digest(repositoryPlanSpec);
     const repositoryDependentCloudOnlyWorkflowSpec = {
       ...cloudOnlyWorkflowSpec,
       name: "issue-36-repository-dependent-cloud-only-workflow",
@@ -314,7 +373,7 @@ Deno.test("admit tasks and keep fixed-workflow run snapshots immutable", async (
         normalized_spec, digest, status, created_by, version
       ) values (
         ${workflowVersionId}, ${organizationId}, ${workflowId}, 1, '',
-        ${owner.json(workflowSpec)}, ${workflowDigest},
+        ${owner.json(repositoryPlanSpec)}, ${repositoryPlanDigest},
         'published', ${principalId}, 1
       )`;
     await owner`
@@ -654,7 +713,16 @@ Deno.test("admit tasks and keep fixed-workflow run snapshots immutable", async (
       repositoryProfileId: profileId.toUpperCase(),
       executionMode: "repository",
       budgetLimitUsd: "0.005000",
-      inputs: { taskId: taskIds.ready, target: "main" },
+      inputs: {
+        taskId: taskIds.ready,
+        target: "main",
+        repositoryId,
+        brief: {
+          title: "Add upload retry",
+          description: "Retry failed uploads twice.",
+          taskType: "feature",
+        },
+      },
     };
     const cloudOnlyStart = await send(
       "POST",
@@ -1046,61 +1114,39 @@ Deno.test("admit tasks and keep fixed-workflow run snapshots immutable", async (
       `/v1/tasks/${taskIds.ready}/runs`,
       { organizationId, idempotencyKey: "issue36-ready-run", body: runInput },
     );
-    assertEquals(firstStart.status, 201);
+    assertEquals(firstStart.status, 201, await firstStart.clone().text());
     const firstBody = await firstStart.json() as Record<string, unknown>;
     assertEquals(firstBody.status, "queued");
     const runId = firstBody.id as string;
     assertEquals(firstBody.budgetLimitUsd, "0.005000");
-    const expectedRunSnapshot = {
-      schemaVersion: 1,
-      executionMode: "repository",
-      inputs: runInput.inputs,
-      workflow: {
-        id: workflowVersionId,
-        revision: 1,
-        digest: workflowDigest,
-        normalizedSpec: workflowSpec,
-      },
-      repositoryProfile: {
-        organizationId,
-        applicationId,
-        repositoryId,
-        id: profileId,
-        revision: 1,
-        digest: profileDigest,
-        config: profileConfig,
-        observationId: null,
-        observationDigest: null,
-        baseSha: null,
-        // No organization rules and no overrides: the pinned empty baseline.
-        repositoryRules: {
-          organizationRevision: 0,
-          profileId,
-          profileRevision: 1,
-          entries: [],
-          digest:
-            "29b63ecc492e00756b31919bc5c780cca04a908684a519265743512a08406a1d",
-        },
-      },
-      stepAgents: {},
-      stepActions: Object.fromEntries(
-        ["review", "research"].map((key) => [key, {
-          action: "mcp.discover",
-          registryVersion: null,
-          metadata: null,
-          capabilities: ["mcp.host_local"],
-        }]),
-      ),
-      admission: {
-        dependencies: [],
-        status: "queued",
-        reason: null,
-      },
-    };
+    // #400: a repository run is admitted as a compiled plan, so its snapshot
+    // carries the plan runtime and the plan's agents instead of a flat step
+    // list. The immutability check below compares this captured snapshot with
+    // the one read back after the workflow source is edited, so the shape is
+    // asserted here once and then held fixed.
     const admittedSnapshotRows = await owner`
       select snapshot from bakery.workflow_runs
        where organization_id = ${organizationId} and id = ${runId}`;
     assertEquals(admittedSnapshotRows.length, 1);
+    const expectedRunSnapshot = admittedSnapshotRows[0].snapshot as Record<
+      string,
+      unknown
+    >;
+    assertEquals(expectedRunSnapshot.schemaVersion, 1);
+    assertEquals(expectedRunSnapshot.executionMode, "repository");
+    assertEquals(expectedRunSnapshot.planAgents, {});
+    assertEquals(expectedRunSnapshot.planActionAgents, {});
+    // A plan run freezes no flat step agents or actions: the engine appends
+    // each step as the plan decides it.
+    assertEquals(expectedRunSnapshot.stepAgents, {});
+    assertEquals(expectedRunSnapshot.stepActions, {});
+    const planRuntime = expectedRunSnapshot.runtime as {
+      document: { kind: string; steps: Array<{ kind: string }> };
+    };
+    assertEquals(planRuntime.document.kind, "workflow");
+    assertEquals(planRuntime.document.steps.map((step) => step.kind), [
+      "branch",
+    ]);
     assertEquals(admittedSnapshotRows[0].snapshot, expectedRunSnapshot);
     const admittedIdentityRows = await owner`
       select application_id as "applicationId",
@@ -1215,7 +1261,9 @@ Deno.test("admit tasks and keep fixed-workflow run snapshots immutable", async (
       task_status: "queued",
       budget_limit_usd: "0.005000",
       task_current_run_matches: true,
-      step_count: 2,
+      // A plan run appends each step as the plan decides it, so admission
+      // writes no step rows.
+      step_count: 0,
       event_count: 1,
       outbox_count: 1,
     });
@@ -1328,11 +1376,9 @@ Deno.test("admit tasks and keep fixed-workflow run snapshots immutable", async (
       items: Array<{ stepKey: string }>;
       nextCursor: string | null;
     };
-    assertEquals(productionStepProjection.items.length, 2);
-    assertEquals(
-      productionStepProjection.items.map((step) => step.stepKey),
-      ["review", "research"],
-    );
+    // A plan run has appended no step yet: the engine appends each step as the
+    // plan decides it, so the list is empty at admission.
+    assertEquals(productionStepProjection.items.length, 0);
 
     const anonymousRunGet = await productionApp.fetch(
       new Request(`http://test/v1/runs/${runId}`, {
@@ -1441,7 +1487,7 @@ Deno.test("admit tasks and keep fixed-workflow run snapshots immutable", async (
     assertEquals(stepList.status, 200);
     assertEquals(
       (await stepList.json() as { items: unknown[] }).items.length,
-      2,
+      0,
     );
     const blockedStart = await send(
       "POST",
@@ -1449,7 +1495,10 @@ Deno.test("admit tasks and keep fixed-workflow run snapshots immutable", async (
       {
         organizationId,
         idempotencyKey: "issue36-blocked-run",
-        body: { ...runInput, inputs: { taskId: taskIds.blocked } },
+        body: {
+          ...runInput,
+          inputs: { ...runInput.inputs, taskId: taskIds.blocked },
+        },
       },
     );
     assertEquals(blockedStart.status, 201);
@@ -1632,11 +1681,10 @@ Deno.test("admit tasks and keep fixed-workflow run snapshots immutable", async (
          and t.id = ${taskIds.ready}
          and r.id = ${runId}
        order by s.position, s.iteration`;
-    assertEquals(activeRunSteps.length, 2);
-    assertEquals(
-      activeRunSteps.map((step) => step.stepKey),
-      ["review", "research"],
-    );
+    // The run's own steps are still the ones it was admitted with: a plan run
+    // appends none at admission, and editing the workflow source afterwards
+    // adds none to a run already admitted.
+    assertEquals(activeRunSteps.length, 0);
     const productionRunAfterEdits = await productionApp.fetch(
       new Request(`http://test/v1/runs/${runId}`, {
         headers: productionHeaders,
@@ -1652,11 +1700,7 @@ Deno.test("admit tasks and keep fixed-workflow run snapshots immutable", async (
     const editedStepProjection = await productionStepsAfterEdits.json() as {
       items: Array<{ stepKey: string }>;
     };
-    assertEquals(editedStepProjection.items.length, 2);
-    assertEquals(
-      editedStepProjection.items.map((step) => step.stepKey),
-      ["review", "research"],
-    );
+    assertEquals(editedStepProjection.items.length, 0);
 
     const missingRepository = await send(
       "POST",
@@ -1685,8 +1729,8 @@ Deno.test("admit tasks and keep fixed-workflow run snapshots immutable", async (
     await owner`
       update bakery.workflow_versions
          set normalized_spec = ${
-      owner.json(workflowSpec)
-    }, digest = ${workflowDigest}
+      owner.json(repositoryPlanSpec)
+    }, digest = ${repositoryPlanDigest}
        where organization_id = ${organizationId} and id = ${workflowVersionId}`;
     const secondStart = await send(
       "POST",
@@ -1710,23 +1754,10 @@ Deno.test("admit tasks and keep fixed-workflow run snapshots immutable", async (
       items: Array<{ stepKey: string }>;
       nextCursor: string | null;
     };
-    assertEquals(secondPageOne.items.map((step) => step.stepKey), ["review"]);
-    assertEquals(typeof secondPageOne.nextCursor, "string");
-    const secondStepPageTwo = await productionApp.fetch(
-      new Request(
-        `http://test/v1/runs/${secondRunId}/steps?limit=1&cursor=${
-          encodeURIComponent(secondPageOne.nextCursor!)
-        }`,
-        { headers: productionHeaders },
-      ),
-    );
-    assertEquals(secondStepPageTwo.status, 200);
-    const secondPageTwo = await secondStepPageTwo.json() as {
-      items: Array<{ stepKey: string }>;
-      nextCursor: string | null;
-    };
-    assertEquals(secondPageTwo.items.map((step) => step.stepKey), ["research"]);
-    assertEquals(secondPageTwo.nextCursor, null);
+    // A plan run appends no step at admission, so the second run's step list is
+    // empty and there is no second page to walk.
+    assertEquals(secondPageOne.items, []);
+    assertEquals(secondPageOne.nextCursor, null);
 
     const dependencyEdge = await send(
       "POST",
