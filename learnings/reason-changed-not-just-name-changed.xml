@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="reason-changed-not-just-name-changed" project="bakery">
+  <title>A failing test that stays red can still have changed its cause — compare the reason, not the count</title>
+  <trigger>Evidence after a fix reports how many tests fail, before and after.</trigger>
+  <mistake>#518 replaced a fixture's `mcp.discover` step with `workflow.noop` and the suite stayed at "2 passed / 2 failed", the same shape as before. It read as "the change did nothing". The refusal had in fact moved from the unknown-action code to `workflow_action_unavailable` — a different cause, hiding a different defect. Fixing that moved it again to `input_unknown`. Three causes, three layers, and a pass/fail count called all three of them "unchanged".</mistake>
+  <rule>Account for a failure by name AND by refusal reason. A count that stays the same across a change can hide a one-for-one swap; names narrow it; reasons close it. Report carried failures in buckets — name and reason identical, name identical with a changed reason, gone, unexpected — and treat "gone" as a mode change too, not as a shorter list.</rule>
+  <verification>
+    <requirement>Evidence comments for a fix that leaves a suite red state the per-test refusal reason before and after, not only the totals. A suite that goes from N red to N red with a moved reason is reported as progress with a named second cause, never as "unchanged".</requirement>
+  </verification>
+</learning>

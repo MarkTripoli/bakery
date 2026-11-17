@@ -637,7 +637,10 @@ Deno.test("authenticated run admission freezes agent pins and job admission proj
       const cases = [
         { action: "unknown.action" },
         { action: "rpi.research" },
-        { action: "workflow.noop" },
+        // `workflow.noop` left this list in 9f2cb7ba0: admission now answers
+        // for runtime-implemented actions, so it is admissible rather than
+        // refused. `rpi.research` above stays refused - it is in neither the
+        // worker transport table nor the runtime-implemented one.
         { requires: ["unknown"] },
         { requires: ["git", "git"] },
         { action: "rpi.design" },

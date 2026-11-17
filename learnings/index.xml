@@ -110,6 +110,9 @@
   <entry file="ci-rerun-reuses-the-event-payload.xml" scope="project" />
   <entry file="pr-ci-runs-the-gate-route-only.xml" scope="project" />
   <entry file="catalog-change-runs-both-generators.xml" scope="project" />
+  <entry file="admission-knows-every-execution-table.xml" scope="project" />
+  <entry file="reason-changed-not-just-name-changed.xml" scope="project" />
+  <entry file="wide-change-falsifies-untouched-tests.xml" scope="project" />
   <entry file="playwright-port-collision-between-seats.xml" scope="project" />
   <entry file="graft-hooks-git-stash-unmerged-index.xml" scope="project" />
   <entry file="ci-retitle-never-reruns.xml" scope="project" />
