@@ -470,3 +470,43 @@ Deno.test("a blob-backed version is collectable, and collection clears both home
     assertEquals(row.rows[0].purged_at !== null, true);
   }, { skillFileStore: store });
 });
+
+Deno.test("a purged version reads as purged, not as a broken blob version", async () => {
+  const store = objectStore();
+  await withWorkerFixture(async (fixture) => {
+    const seeded = await seedArtifact(fixture);
+    const content = new TextEncoder().encode("purged after being blob-backed");
+    const published = await publish(
+      fixture,
+      seeded,
+      content,
+      new ScopedOrganizationBlobStore(store),
+    ) as { id: string };
+    // The purged shape: no home for the bytes, and purged_at set. This is a
+    // third legitimate state, not a malformed row - retention produces it.
+    await fixture.pgDatabase.query(
+      `update bakery.artifact_versions
+          set content = null, blob_id = null, purged_at = now()
+        where organization_id = $1 and id = $2`,
+      [fixture.organizationId, published.id],
+    );
+
+    const response = await fixture.app.fetch(
+      new Request(
+        `${fixture.config.publicBaseUrl}/v1/artifact-versions/${published.id}/content`,
+        {
+          headers: {
+            cookie: fixture.adminCookie,
+            "bakery-organization-id": fixture.organizationId,
+          },
+        },
+      ),
+    );
+    // Exactly what a purged inline version answers today. A blob-backed version
+    // that was later purged must not answer differently from one that was never
+    // blob-backed: the client is told the bytes are gone, not that the server
+    // is confused.
+    assertEquals(response.status, 410);
+    assertEquals((await response.json()).code, "ARTIFACT_CONTENT_EXPIRED");
+  }, { skillFileStore: store });
+});

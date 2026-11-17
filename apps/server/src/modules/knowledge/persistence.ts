@@ -98,8 +98,13 @@ export async function commitArtifactVersion(
     /**
      * Where a new version's bytes go. Present, the version names a blob and
      * carries no inline content; absent, it stores its bytes inline exactly as
-     * before. The two shapes are mutually exclusive by a database constraint,
-     * so a caller cannot produce a row that is half of each.
+     * before.
+     *
+     * The two shapes are kept exclusive by the insert below, which sets exactly
+     * one of the two columns, and by a test that reads the row back and counts
+     * homes. There is no database constraint behind it: the PostgreSQL boundary
+     * rail refuses CHECK constraints in new migrations, so the invariant is a
+     * write-path rule. Do not go looking for a constraint - there is not one.
      */
     blobStore?: OrganizationBlobStore;
   },
