@@ -17,6 +17,7 @@
     "./repository-profile-config": "./src/repository-profile-config.ts",
     "./repository-rule-preview": "./src/repository-rule-preview.ts",
     "./repository-rules": "./src/repository-rules.ts",
+    "./human-approval": "./src/human-approval.ts",
     "./repository-inspection": "./src/repository-inspection.ts",
     "./coordinator-turn": "./src/coordinator-turn.ts",
     "./health-app": "./src/health-app.ts",
@@ -36,8 +37,8 @@
     "./workflow-interpreter": "./src/workflow-interpreter/mod.ts"
   },
   "scripts": {
-    "typecheck": "deno check src/health.ts src/health-app.ts src/shutdown.ts src/contracts.ts src/client.ts src/auth-provider-client.ts src/implemented-actions.ts src/check-evidence.ts src/review-evidence.ts src/ticket-admission.ts src/action-registry.ts src/workflow-action-registry.ts src/events.ts src/http.ts src/exceptions.ts src/secret-identity.ts src/workflow-presets.ts src/integrations.ts src/description-quality.ts src/workflow-compiler/mod.ts src/workflow-interpreter/mod.ts src/workflow-compiler/expression.ts src/workflow-compiler/default-catalog.ts generated/client-manifest.ts",
-    "build": "deno check src/health.ts src/health-app.ts src/shutdown.ts src/contracts.ts src/client.ts src/auth-provider-client.ts src/implemented-actions.ts src/check-evidence.ts src/review-evidence.ts src/ticket-admission.ts src/action-registry.ts src/workflow-action-registry.ts src/events.ts src/http.ts src/exceptions.ts src/secret-identity.ts src/workflow-presets.ts src/integrations.ts src/description-quality.ts src/workflow-compiler/mod.ts src/workflow-interpreter/mod.ts src/workflow-compiler/expression.ts src/workflow-compiler/default-catalog.ts generated/client-manifest.ts"
+    "typecheck": "deno check src/health.ts src/health-app.ts src/shutdown.ts src/contracts.ts src/client.ts src/auth-provider-client.ts src/implemented-actions.ts src/check-evidence.ts src/review-evidence.ts src/ticket-admission.ts src/action-registry.ts src/workflow-action-registry.ts src/events.ts src/http.ts src/exceptions.ts src/secret-identity.ts src/workflow-presets.ts src/integrations.ts src/description-quality.ts src/workflow-compiler/mod.ts src/workflow-interpreter/mod.ts src/workflow-compiler/expression.ts src/workflow-compiler/default-catalog.ts generated/client-manifest.ts src/human-approval.ts",
+    "build": "deno check src/health.ts src/health-app.ts src/shutdown.ts src/contracts.ts src/client.ts src/auth-provider-client.ts src/implemented-actions.ts src/check-evidence.ts src/review-evidence.ts src/ticket-admission.ts src/action-registry.ts src/workflow-action-registry.ts src/events.ts src/http.ts src/exceptions.ts src/secret-identity.ts src/workflow-presets.ts src/integrations.ts src/description-quality.ts src/workflow-compiler/mod.ts src/workflow-interpreter/mod.ts src/workflow-compiler/expression.ts src/workflow-compiler/default-catalog.ts generated/client-manifest.ts src/human-approval.ts"
   },
   "dependencies": {
     "@bakery/i18n": "workspace:*",

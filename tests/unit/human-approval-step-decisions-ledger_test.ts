@@ -1,0 +1,238 @@
+import { assert, assertEquals, assertThrows } from "@std/assert";
+import {
+  DECISION_LEDGER_KINDS,
+  decisionKindRequiresReason,
+  DecisionLedgerError,
+  DEFAULT_STOP_OUTCOME,
+  HUMAN_APPROVAL_WAIT_LIMIT_MS,
+  humanApprovalContinues,
+  humanApprovalHasExpired,
+  HumanApprovalInputSchema,
+  humanApprovalWaitMs,
+  isStorableDecisionText,
+  normalizeWorkflowStop,
+  validateDecisionLedgerEntry,
+  WorkflowStopInputSchema,
+} from "../../packages/contracts/src/human-approval.ts";
+
+// #411, slice 9 of the one-engine design: human.approval, the decisions ledger,
+// waits up to seven days outside the active clock, named outcomes and
+// workflow.stop.
+
+const decided = "00000000-0000-4000-8000-0000000000d1";
+const subject = "00000000-0000-4000-8000-0000000000s1";
+
+Deno.test("only an approval lets a human.approval step continue", () => {
+  assert(humanApprovalContinues("approve"));
+  // The other two end the run with their own named outcome; neither proceeds.
+  assertEquals(humanApprovalContinues("request_changes"), false);
+  assertEquals(humanApprovalContinues("reject"), false);
+});
+
+Deno.test("a human.approval step needs a prompt and may name its audience", () => {
+  const minimal = HumanApprovalInputSchema.safeParse({ prompt: "Ship it?" });
+  assert(minimal.success);
+  // No audience means the workflow owner, which is the design's default.
+  assertEquals(minimal.data.audience, undefined);
+
+  const withAudience = HumanApprovalInputSchema.safeParse({
+    prompt: "Ship it?",
+    audience: ["@design-reviewers", "member:sam"],
+    allowRequestChanges: false,
+    approveLabel: "Release",
+  });
+  assert(withAudience.success);
+  assertEquals(withAudience.data.allowRequestChanges, false);
+});
+
+Deno.test("a human.approval step with no prompt, or an empty audience, is refused", () => {
+  assertEquals(
+    HumanApprovalInputSchema.safeParse({ prompt: "" }).success,
+    false,
+  );
+  assertEquals(
+    HumanApprovalInputSchema.safeParse({ prompt: "Ok?" }).success,
+    true,
+  );
+  // An empty audience would be a step nobody can answer: it could only expire.
+  assertEquals(
+    HumanApprovalInputSchema.safeParse({ prompt: "Ok?", audience: [] }).success,
+    false,
+  );
+  // Unknown keys are refused rather than silently dropped.
+  assertEquals(
+    HumanApprovalInputSchema.safeParse({ prompt: "Ok?", aprroveLabel: "x" })
+      .success,
+    false,
+  );
+});
+
+Deno.test("a human.approval wait expires at seven days, never before", () => {
+  const requested = "2026-11-01T00:00:00.000Z";
+  const at = (ms: number) => new Date(Date.parse(requested) + ms);
+
+  assertEquals(humanApprovalHasExpired(requested, at(0)), false);
+  assertEquals(
+    humanApprovalHasExpired(requested, at(HUMAN_APPROVAL_WAIT_LIMIT_MS - 1)),
+    false,
+  );
+  // Exactly at the limit it has expired: the boundary is a closed one so the
+  // timer cannot be read as "still waiting" forever.
+  assertEquals(
+    humanApprovalHasExpired(requested, at(HUMAN_APPROVAL_WAIT_LIMIT_MS)),
+    true,
+  );
+  assertEquals(HUMAN_APPROVAL_WAIT_LIMIT_MS, 7 * 24 * 60 * 60 * 1000);
+});
+
+Deno.test("the wait is outside the active clock and cannot go negative", () => {
+  const requested = "2026-11-01T00:00:00.000Z";
+  const hour = 60 * 60 * 1000;
+
+  // Still open: the wait counts up to now.
+  assertEquals(
+    humanApprovalWaitMs(
+      requested,
+      null,
+      new Date(Date.parse(requested) + hour),
+    ),
+    hour,
+  );
+  // Settled: the wait is frozen at the decision.
+  assertEquals(
+    humanApprovalWaitMs(
+      requested,
+      new Date(Date.parse(requested) + 2 * hour),
+      new Date(Date.parse(requested) + 9 * hour),
+    ),
+    2 * hour,
+  );
+  // A clock skew that puts the decision before the request credits no time,
+  // rather than subtracting from the run's active clock.
+  assertEquals(
+    humanApprovalWaitMs(
+      requested,
+      new Date(Date.parse(requested) - hour),
+      new Date(Date.parse(requested)),
+    ),
+    0,
+  );
+});
+
+Deno.test("workflow.stop names its outcome and defaults it when unnamed", () => {
+  const named = WorkflowStopInputSchema.safeParse({
+    outcome: "nothing_to_do",
+    reason: "the ticket was already fixed upstream",
+  });
+  assert(named.success);
+  assertEquals(normalizeWorkflowStop(named.data).outcome, "nothing_to_do");
+
+  // A stop still ends the run when it names nothing: the reason often explains
+  // the ending better than a name would.
+  const unnamed = normalizeWorkflowStop({ outcome: "" });
+  assertEquals(unnamed.outcome, DEFAULT_STOP_OUTCOME);
+  assertEquals(unnamed.reason, null);
+
+  // An unknown key is refused rather than ignored.
+  assertEquals(
+    WorkflowStopInputSchema.safeParse({ outcome: "x", cause: "y" }).success,
+    false,
+  );
+});
+
+Deno.test("only accept_with_reason and stop must give a reason", () => {
+  for (const kind of DECISION_LEDGER_KINDS) {
+    const required = decisionKindRequiresReason(kind);
+    if (kind === "accept_with_reason" || kind === "stop") {
+      assert(required, `${kind} must require a reason`);
+    } else {
+      assertEquals(required, false, `${kind} must not require a reason`);
+    }
+  }
+});
+
+Deno.test("a ledger entry records what, about what, by whom", () => {
+  const entry = validateDecisionLedgerEntry({
+    kind: "approval",
+    subjectKind: "approval",
+    subjectId: subject,
+    decidedBy: decided,
+    decidedAt: "2026-11-01T00:00:00.000Z",
+  });
+  assertEquals(entry.kind, "approval");
+  assertEquals(entry.subjectId, subject);
+});
+
+Deno.test("an override or a stop without a reason is refused", () => {
+  for (const kind of ["accept_with_reason", "stop"] as const) {
+    assertThrows(
+      () =>
+        validateDecisionLedgerEntry({
+          kind,
+          subjectKind: "run",
+          subjectId: subject,
+          decidedBy: decided,
+          decidedAt: "2026-11-01T00:00:00.000Z",
+        }),
+      DecisionLedgerError,
+      undefined,
+      `${kind} without a reason must be refused`,
+    );
+    // Whitespace is not a reason.
+    assertThrows(() =>
+      validateDecisionLedgerEntry({
+        kind,
+        subjectKind: "run",
+        subjectId: subject,
+        decidedBy: decided,
+        decidedAt: "2026-11-01T00:00:00.000Z",
+        reason: "   ",
+      })
+    );
+    // A real reason is accepted.
+    assertEquals(
+      validateDecisionLedgerEntry({
+        kind,
+        subjectKind: "run",
+        subjectId: subject,
+        decidedBy: decided,
+        decidedAt: "2026-11-01T00:00:00.000Z",
+        reason: "the reviewer is right and the owner accepts the risk",
+      }).kind,
+      kind,
+    );
+  }
+});
+
+Deno.test("a ledger entry refuses text it cannot store", () => {
+  assertEquals(isStorableDecisionText("plain note"), true);
+  assertEquals(isStorableDecisionText("nul\u0000inside"), false);
+  assertEquals(isStorableDecisionText("lone\ud800surrogate"), false);
+
+  assertThrows(() =>
+    validateDecisionLedgerEntry({
+      kind: "stop",
+      subjectKind: "run",
+      subjectId: subject,
+      decidedBy: decided,
+      decidedAt: "2026-11-01T00:00:00.000Z",
+      reason: "bad\u0000reason",
+    })
+  );
+});
+
+Deno.test("a ledger entry is strict about its shape", () => {
+  // subjectKind is bounded free text because the subjects grow with the
+  // extension points; subjectId must be a real identifier.
+  assertEquals(
+    validateDecisionLedgerEntry({
+      kind: "steer",
+      subjectKind: "session",
+      subjectId: subject,
+      decidedBy: decided,
+      decidedAt: "2026-11-01T00:00:00.000Z",
+      text: "try the other approach",
+    }).text,
+    "try the other approach",
+  );
+});
