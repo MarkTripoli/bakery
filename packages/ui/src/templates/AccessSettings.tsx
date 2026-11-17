@@ -320,7 +320,11 @@ export function AccessSettings(
                     >
                       {row.identity}
                     </div>
-                    {(row.cells ?? []).map((cell, index) => (
+                    {
+                      /* Always two cells, so a row and its header share one
+                        grid even when a row has only one value (issue 233). */
+                    }
+                    {[0, 1].map((index) => (
                       <div
                         className="ui-access-settings__cell"
                         data-phone-hidden={row.phoneHiddenCells?.includes(index)
@@ -328,7 +332,7 @@ export function AccessSettings(
                           : undefined}
                         key={index}
                       >
-                        {cell}
+                        {(row.cells ?? [])[index] ?? null}
                       </div>
                     ))}
                     {row.phoneCells

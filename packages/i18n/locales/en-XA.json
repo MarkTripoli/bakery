@@ -4002,5 +4002,7 @@
   "settings.orgAccess.token.endingShort": "⟦ëñðïñĝ {ending} ŧëš⟧",
   "settings.orgAccess.column.email": "⟦Ëɱàïļ⟧",
   "settings.orgAccess.summary": "⟦{people, plural, one {# person} other {# people}} ŧëšŧ çôþÿ ŧëšŧŧ⟧",
-  "settings.orgAccess.token.needsAccount": "⟦Çŕëàŧë à šëŕṽïçë àççôûñŧ ƒïŕšŧ. ŧëšŧ çôþ⟧"
+  "settings.orgAccess.token.needsAccount": "⟦Çŕëàŧë à šëŕṽïçë àççôûñŧ ƒïŕšŧ. ŧëšŧ çôþ⟧",
+  "settings.orgAccess.invitation.keep": "⟦Ķëëþ ïñṽïŧàŧïôñ ŧëš⟧",
+  "settings.orgAccess.token.revokeLong": "⟦Ŕëṽôķë ŧôķëñ ŧë⟧"
 }

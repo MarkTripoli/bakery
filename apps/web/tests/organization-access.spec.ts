@@ -418,6 +418,22 @@ for (
       } else {
         await expect(memberColumns).toBeHidden();
       }
+      // A header and its cells share one grid even when a row has a single
+      // value, so a cell starts under its header in every table (issue 233,
+      // design round 3).
+      if (viewport.name === "desktop") {
+        const clientsHeader = page.getByTestId("org-access-clients-columns");
+        const clientsCell = page.getByTestId(`org-access-client-${CLIENT_1}`);
+        const headerBox = await clientsHeader.getByText("Authorized")
+          .boundingBox();
+        const cellBox = await clientsCell
+          .getByText("1 Oct 2026", { exact: true })
+          .boundingBox();
+        expect(headerBox).not.toBeNull();
+        expect(cellBox).not.toBeNull();
+        expect(Math.abs((headerBox?.x ?? 0) - (cellBox?.x ?? 0)))
+          .toBeLessThanOrEqual(1);
+      }
       // A person has ONE row however many roles they hold: the scoped role
       // sits inside the member's row beside the organization one, named by
       // its resource, rather than in a nameless duplicate (issue 233, fix 2).

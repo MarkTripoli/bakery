@@ -4002,5 +4002,7 @@
   "settings.orgAccess.token.endingShort": "⟪ending {ending}⟫",
   "settings.orgAccess.column.email": "⟪Email⟫",
   "settings.orgAccess.summary": "⟪{people, plural, one {# person} other {# people}}⟫",
-  "settings.orgAccess.token.needsAccount": "⟪Create a service account first.⟫"
+  "settings.orgAccess.token.needsAccount": "⟪Create a service account first.⟫",
+  "settings.orgAccess.invitation.keep": "⟪Keep invitation⟫",
+  "settings.orgAccess.token.revokeLong": "⟪Revoke token⟫"
 }

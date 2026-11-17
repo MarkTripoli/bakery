@@ -150,9 +150,8 @@
 .ui-access-settings__cell + .ui-access-settings__cell {
   inline-size: 160px;
 }
-.ui-access-settings__rows[data-columns="detail"] .ui-access-settings__cell {
-  inline-size: 340px;
-}
+/* Every table shares the same two cell widths, so the four tables line up
+   with each other as well as with their own headers (issue 233, round 3). */
 /* The row's one action is a real button (issue 233, fix 5), so the column is
    wide enough for a whole label and never wraps it (AC 3). */
 .ui-access-settings__action {
@@ -162,6 +161,13 @@
   /* One width for the header and every row, so a cell starts under its header
      and all four tables share the same column starts (issue 233, round 2). */
   inline-size: calc(var(--space-16) + var(--space-16) + var(--space-12));
+}
+/* A row's destructive action takes Edit's box - same height, radius and border
+   width - with the label and the border in the destructive colour on the
+   normal surface (issue 233, design round 3). */
+.ui-access-settings__action .ui-button {
+  border-color: var(--color-destructive);
+  color: var(--color-destructive);
   font: var(--type-control-preview-compact);
   line-height: var(--space-5);
 }

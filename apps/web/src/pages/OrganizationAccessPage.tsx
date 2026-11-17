@@ -595,7 +595,8 @@ export function OrganizationAccessPage() {
             },
           ),
           body: translate("settings.orgAccess.confirm.cancelInvitation.body"),
-          action: translate("settings.orgAccess.invitation.cancel"),
+          dismiss: translate("settings.orgAccess.invitation.keep"),
+          action: translate("settings.orgAccess.invitation.cancelLong"),
         };
       case "revokeToken":
         return {
@@ -603,7 +604,8 @@ export function OrganizationAccessPage() {
             name: confirm.token.name,
           }),
           body: translate("settings.orgAccess.confirm.revokeToken.body"),
-          action: translate("settings.orgAccess.token.revoke"),
+          dismiss: translate("settings.orgAccess.cancel"),
+          action: translate("settings.orgAccess.token.revokeLong"),
         };
       case "removeBinding":
         return {
@@ -779,7 +781,7 @@ export function OrganizationAccessPage() {
         data-testid={`org-access-cancel-${invitation.id}`}
         onClick={() => setConfirm({ kind: "cancelInvitation", invitation })}
         type="button"
-        variant="destructive-quiet"
+        variant="secondary"
       >
         {translate("settings.orgAccess.invitation.cancelLong")}
       </UI.Button>
@@ -880,7 +882,7 @@ export function OrganizationAccessPage() {
             data-testid={`org-access-revoke-${token.id}`}
             onClick={() => setConfirm({ kind: "revokeToken", token })}
             type="button"
-            variant="destructive-quiet"
+            variant="secondary"
           >
             {translate("settings.orgAccess.token.revoke")}
           </UI.Button>
@@ -890,6 +892,7 @@ export function OrganizationAccessPage() {
   );
   const clientRows: UI.AccessSettingsRow[] = myClients.map((client) => ({
     id: client.id,
+    testId: `org-access-client-${client.id}`,
     identity: client.clientName,
     cells: [when.format(new Date(client.authorizedAt))],
     phoneCells: [
@@ -909,7 +912,7 @@ export function OrganizationAccessPage() {
             name: client.clientName,
           })}
         type="button"
-        variant="destructive-quiet"
+        variant="secondary"
       >
         {translate("settings.orgAccess.client.revoke")}
       </UI.Button>
@@ -1512,7 +1515,7 @@ export function OrganizationAccessPage() {
             type="button"
             variant="quiet"
           >
-            {translate("settings.orgAccess.cancel")}
+            {confirmCopy?.dismiss ?? translate("settings.orgAccess.cancel")}
           </UI.Button>
         }
         confirmAction={
