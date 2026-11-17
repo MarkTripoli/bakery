@@ -2294,7 +2294,7 @@
           "bounds": {
             "maxItems": 256
           },
-          "description": "Complete set of this version's files — SKILL.md, scripts, templates and references — each base64-encoded with its path and executable bit; must exactly match the manifest's file inventory and total at most 10MiB decoded."
+          "description": "Complete set of this version's files \u2014 SKILL.md, scripts, templates and references \u2014 each base64-encoded with its path and executable bit; must exactly match the manifest's file inventory and total at most 10MiB decoded."
         }
       ],
       "rules": [
@@ -2506,7 +2506,7 @@
           "description": "Upstream commit, tag or manifest version this server definition was imported or synced from, recorded for provenance in the same way as a skill version's source revision."
         }
       ],
-      "description": "Registers a new MCP server definition — its transport, launch or endpoint configuration, connection config schema, and required capabilities — that organization connections can later be created against."
+      "description": "Registers a new MCP server definition \u2014 its transport, launch or endpoint configuration, connection config schema, and required capabilities \u2014 that organization connections can later be created against."
     },
     "McpServerUpdate": {
       "fields": [
@@ -3798,7 +3798,7 @@
           "bounds": {
             "maxLength": 255
           },
-          "description": "Upstream revision to import — a Git commit/tag or the source's exact version identifier — pinned so the imported skill version is reproducible rather than tracking a floating branch head."
+          "description": "Upstream revision to import \u2014 a Git commit/tag or the source's exact version identifier \u2014 pinned so the imported skill version is reproducible rather than tracking a floating branch head."
         },
         {
           "name": "path",
@@ -3848,7 +3848,7 @@
           "description": "License identifier declared for content imported from this source, recorded for compliance and surfaced wherever the resulting skill is listed."
         }
       ],
-      "description": "Registers a new skill source — a Git repository or URL — that skill imports can later fetch from; the locator is normalized and checked against permitted origins before any import runs against it."
+      "description": "Registers a new skill source \u2014 a Git repository or URL \u2014 that skill imports can later fetch from; the locator is normalized and checked against permitted origins before any import runs against it."
     },
     "SkillSourceUpdate": {
       "fields": [
@@ -7284,7 +7284,7 @@
           "bounds": {
             "maxBytes": 16000
           },
-          "description": "Structured record of this package's origin — such as author, generation method, or source repository — carried through its versions so an installer can trace where the code came from."
+          "description": "Structured record of this package's origin \u2014 such as author, generation method, or source repository \u2014 carried through its versions so an installer can trace where the code came from."
         }
       ],
       "rules": [
@@ -7346,7 +7346,7 @@
           "bounds": {
             "maxBytes": 32000
           },
-          "description": "Record of the source inputs — such as repository, commit, or authoring prompt — that produced this version, kept for provenance and later review."
+          "description": "Record of the source inputs \u2014 such as repository, commit, or authoring prompt \u2014 that produced this version, kept for provenance and later review."
         },
         {
           "name": "buildEvidence",
@@ -7355,7 +7355,7 @@
           "bounds": {
             "maxBytes": 32000
           },
-          "description": "Record of the build and validation checks — type, permission, dependency-lock and preview checks — this version passed before it became eligible to publish."
+          "description": "Record of the build and validation checks \u2014 type, permission, dependency-lock and preview checks \u2014 this version passed before it became eligible to publish."
         }
       ],
       "rules": [
@@ -9649,7 +9649,7 @@
             "minLength": 1,
             "maxLength": 100
           },
-          "description": "Public OAuth client id of the App, such as Iv23li…; not a secret. GitHub must report the same client id for the App."
+          "description": "Public OAuth client id of the App, such as Iv23li\u2026; not a secret. GitHub must report the same client id for the App."
         },
         {
           "name": "clientSecret",
@@ -13449,7 +13449,7 @@
         "inputTokens": "Number of input tokens charged to the usage record record.",
         "outputTokens": "Number of output tokens charged to the usage record record.",
         "costUsd": "Execution cost for the usage record record, measured in US dollars.",
-        "measurement": "How this usage amount was determined: \"reported\" comes directly from the provider's own accounting, \"estimated\" is computed by Bakery from available signals when an authoritative provider figure isn't available, and \"unknown\" means usage is known to have occurred but could not be measured — it is never treated as zero for cost purposes.",
+        "measurement": "How this usage amount was determined: \"reported\" comes directly from the provider's own accounting, \"estimated\" is computed by Bakery from available signals when an authoritative provider figure isn't available, and \"unknown\" means usage is known to have occurred but could not be measured \u2014 it is never treated as zero for cost purposes.",
         "provenance": "Authority classification for the stored usage: \"provider-authoritative\" is backed by an immutable provider receipt matched to the persisted call identity; \"worker-unverified\" preserves a worker assertion without treating it as known cost.",
         "dedupeKey": "Key used to deduplicate the usage record.",
         "occurredAt": "UTC timestamp when the usage record event occurred.",
@@ -15614,7 +15614,7 @@
     },
     "Page<Run>": {
       "pageOf": "Run",
-      "description": "Cursor page of a task's runs — pinned execution attempts with domain-visible state — returned by GET /v1/tasks/{id}/runs. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, totalPages or offsets."
+      "description": "Cursor page of a task's runs \u2014 pinned execution attempts with domain-visible state \u2014 returned by GET /v1/tasks/{id}/runs. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, totalPages or offsets."
     },
     "Page<RunStep>": {
       "pageOf": "RunStep",
@@ -15666,7 +15666,7 @@
     },
     "Page<SkillSource>": {
       "pageOf": "SkillSource",
-      "description": "Cursor page of registered skill sources — Git repositories or URLs that skill imports fetch from — returned by GET /v1/skill-sources. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, totalPages or offsets."
+      "description": "Cursor page of registered skill sources \u2014 Git repositories or URLs that skill imports fetch from \u2014 returned by GET /v1/skill-sources. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, totalPages or offsets."
     },
     "Page<Skill>": {
       "pageOf": "Skill",
@@ -15678,11 +15678,11 @@
     },
     "Page<IntegrationProvider>": {
       "pageOf": "IntegrationProvider",
-      "description": "Cursor page of the deployment-wide integration provider registry — supported auth modes, action/event schemas and resource kinds for each registered provider — returned by `GET /v1/integration-providers`. `nextCursor: null` marks the last page; there are no page numbers or offsets."
+      "description": "Cursor page of the deployment-wide integration provider registry \u2014 supported auth modes, action/event schemas and resource kinds for each registered provider \u2014 returned by `GET /v1/integration-providers`. `nextCursor: null` marks the last page; there are no page numbers or offsets."
     },
     "Page<IntegrationConnection>": {
       "pageOf": "IntegrationConnection",
-      "description": "Cursor page of this organization's integration connections — its bindings to host-owned provider installations, including status and health — returned by `GET /v1/integration-connections`. `nextCursor: null` marks the last page; there are no page numbers or offsets."
+      "description": "Cursor page of this organization's integration connections \u2014 its bindings to host-owned provider installations, including status and health \u2014 returned by `GET /v1/integration-connections`. `nextCursor: null` marks the last page; there are no page numbers or offsets."
     },
     "Page<IntegrationGrant>": {
       "pageOf": "IntegrationGrant",
@@ -15690,7 +15690,7 @@
     },
     "Page<McpServer>": {
       "pageOf": "McpServer",
-      "description": "Cursor page of registered external MCP server definitions — transport, launch spec and required capabilities — returned by `GET /v1/mcp-servers`. `nextCursor: null` marks the last page; there are no page numbers or offsets."
+      "description": "Cursor page of registered external MCP server definitions \u2014 transport, launch spec and required capabilities \u2014 returned by `GET /v1/mcp-servers`. `nextCursor: null` marks the last page; there are no page numbers or offsets."
     },
     "Page<McpConnection>": {
       "pageOf": "McpConnection",
@@ -15702,15 +15702,15 @@
     },
     "Page<PermissionGrant>": {
       "pageOf": "PermissionGrant",
-      "description": "Cursor page of exact permission grants — organization, operation or external-action authority bound to one principal or automation, never a role assignment — returned by `GET /v1/permission-grants` or, scoped to one connection, `GET /v1/integration-connections/{id}/grants`. `nextCursor: null` marks the last page; there are no page numbers or offsets."
+      "description": "Cursor page of exact permission grants \u2014 organization, operation or external-action authority bound to one principal or automation, never a role assignment \u2014 returned by `GET /v1/permission-grants` or, scoped to one connection, `GET /v1/integration-connections/{id}/grants`. `nextCursor: null` marks the last page; there are no page numbers or offsets."
     },
     "Page<Principal>": {
       "pageOf": "Principal",
-      "description": "Cursor page of principals — authenticated human, service or worker identities in this organization — returned by `GET /v1/principals`. `nextCursor: null` marks the last page; there are no page numbers or offsets."
+      "description": "Cursor page of principals \u2014 authenticated human, service or worker identities in this organization \u2014 returned by `GET /v1/principals`. `nextCursor: null` marks the last page; there are no page numbers or offsets."
     },
     "Page<SecretMetadata>": {
       "pageOf": "SecretMetadata",
-      "description": "Admin-only cursor page of registered secret references — name, allowed principals/actions and active-version/revocation state, never the underlying secret value — returned by GET /v1/secrets. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, totalPages or offsets."
+      "description": "Admin-only cursor page of registered secret references \u2014 name, allowed principals/actions and active-version/revocation state, never the underlying secret value \u2014 returned by GET /v1/secrets. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, totalPages or offsets."
     },
     "Page<MemoryEntry>": {
       "pageOf": "MemoryEntry",
@@ -15718,19 +15718,19 @@
     },
     "Page<MemoryRevision>": {
       "pageOf": "MemoryRevision",
-      "description": "Cursor page of one memory's revisions — sourced, reversible learning content, each tied to the artifact version it was derived from — returned by `GET /v1/memories/{id}/revisions`. `nextCursor: null` marks the last page; there are no page numbers or offsets."
+      "description": "Cursor page of one memory's revisions \u2014 sourced, reversible learning content, each tied to the artifact version it was derived from \u2014 returned by `GET /v1/memories/{id}/revisions`. `nextCursor: null` marks the last page; there are no page numbers or offsets."
     },
     "Page<Job>": {
       "pageOf": "Job",
-      "description": "Cursor page of jobs — units of work queued until a compatible worker claims capacity for them — returned by `GET /v1/jobs`. `nextCursor: null` marks the last page; there are no page numbers or offsets."
+      "description": "Cursor page of jobs \u2014 units of work queued until a compatible worker claims capacity for them \u2014 returned by `GET /v1/jobs`. `nextCursor: null` marks the last page; there are no page numbers or offsets."
     },
     "Page<JobAttempt>": {
       "pageOf": "JobAttempt",
-      "description": "Cursor page of one job's fenced execution-lease attempts — the recovery-authoritative record of who claimed the job and when — returned by `GET /v1/jobs/{id}/attempts`. `nextCursor: null` marks the last page; there are no page numbers or offsets."
+      "description": "Cursor page of one job's fenced execution-lease attempts \u2014 the recovery-authoritative record of who claimed the job and when \u2014 returned by `GET /v1/jobs/{id}/attempts`. `nextCursor: null` marks the last page; there are no page numbers or offsets."
     },
     "Page<WorkerHost>": {
       "pageOf": "WorkerHost",
-      "description": "Cursor page of registered worker hosts — their machine identity and declared toolchain capacity — returned by GET /v1/workers. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, totalPages or offsets."
+      "description": "Cursor page of registered worker hosts \u2014 their machine identity and declared toolchain capacity \u2014 returned by GET /v1/workers. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, totalPages or offsets."
     },
     "Page<WorkerEnrollmentSummary>": {
       "pageOf": "WorkerEnrollmentSummary",
@@ -15754,7 +15754,7 @@
     },
     "Page<PullRequest>": {
       "pageOf": "PullRequest",
-      "description": "Cursor page of tracked pull requests — remote PR identity plus current head/base/merged SHAs for a run's delivered change — returned by `GET /v1/pull-requests`. `nextCursor: null` marks the last page; there are no page numbers or offsets."
+      "description": "Cursor page of tracked pull requests \u2014 remote PR identity plus current head/base/merged SHAs for a run's delivered change \u2014 returned by `GET /v1/pull-requests`. `nextCursor: null` marks the last page; there are no page numbers or offsets."
     },
     "Page<ReviewCycle>": {
       "pageOf": "ReviewCycle",
@@ -15778,11 +15778,11 @@
     },
     "Page<Deployment>": {
       "pageOf": "Deployment",
-      "description": "Cursor page of this scope's deployment records — release attempts with their health-verification outcome and rollback history — returned by `GET /v1/deployments`. `nextCursor: null` marks the last page; there are no page numbers or offsets."
+      "description": "Cursor page of this scope's deployment records \u2014 release attempts with their health-verification outcome and rollback history \u2014 returned by `GET /v1/deployments`. `nextCursor: null` marks the last page; there are no page numbers or offsets."
     },
     "Page<EvaluationDefinition>": {
       "pageOf": "EvaluationDefinition",
-      "description": "Cursor page of versioned evaluator definitions — scorers or deterministic checks pinned per evaluation run — returned by `GET /v1/evaluation-definitions`. `nextCursor: null` marks the last page; there are no page numbers or offsets."
+      "description": "Cursor page of versioned evaluator definitions \u2014 scorers or deterministic checks pinned per evaluation run \u2014 returned by `GET /v1/evaluation-definitions`. `nextCursor: null` marks the last page; there are no page numbers or offsets."
     },
     "Page<EvaluationCase>": {
       "pageOf": "EvaluationCase",
@@ -15790,11 +15790,11 @@
     },
     "Page<EvaluationRun>": {
       "pageOf": "EvaluationRun",
-      "description": "Cursor page of evaluation runs — a pinned batch comparison or an online sample, each tied to one evaluator definition — returned by `GET /v1/evaluation-runs`. `nextCursor: null` marks the last page; there are no page numbers or offsets."
+      "description": "Cursor page of evaluation runs \u2014 a pinned batch comparison or an online sample, each tied to one evaluator definition \u2014 returned by `GET /v1/evaluation-runs`. `nextCursor: null` marks the last page; there are no page numbers or offsets."
     },
     "Page<EvaluationResult>": {
       "pageOf": "EvaluationResult",
-      "description": "Cursor page of individual measured evaluation results — one case's score, pass/fail and supporting evidence per scorer — returned by `GET /v1/evaluation-runs/{id}/results`. `nextCursor: null` marks the last page; there are no page numbers or offsets."
+      "description": "Cursor page of individual measured evaluation results \u2014 one case's score, pass/fail and supporting evidence per scorer \u2014 returned by `GET /v1/evaluation-runs/{id}/results`. `nextCursor: null` marks the last page; there are no page numbers or offsets."
     },
     "Page<ExternalEffect>": {
       "pageOf": "ExternalEffect",
@@ -19109,7 +19109,7 @@
         "lastHeartbeatAt",
         "readinessReason"
       ],
-      "description": "A registered worker machine's identity, derived operating state and declared capacity: OS/architecture, advertised capabilities and toolchain versions, concurrent execution slots, lifecycle status, and the server-derived desired mode, connectivity and readiness dimensions. desiredMode is Admin intent (accepting, paused, draining, revoked); connectivity derives only from authenticated heartbeat receipt times (stale after 30 seconds, offline after 60); readiness derives from current-generation checks, protocol compatibility, credential state and scheduling policy — never from a client-writable flag. Old inventory/check generations, unsafe secret isolation or offline capability cannot advertise usable capacity: readinessReason explains a needs_attention state. credentialGeneration increments on rotation or revocation, invalidating any bearer credential from an earlier generation; the credential itself is never returned in a response.",
+      "description": "A registered worker machine's identity, derived operating state and declared capacity: OS/architecture, advertised capabilities and toolchain versions, concurrent execution slots, lifecycle status, and the server-derived desired mode, connectivity and readiness dimensions. desiredMode is Admin intent (accepting, paused, draining, revoked); connectivity derives only from authenticated heartbeat receipt times (stale after 30 seconds, offline after 60); readiness derives from current-generation checks, protocol compatibility, credential state and scheduling policy \u2014 never from a client-writable flag. Old inventory/check generations, unsafe secret isolation or offline capability cannot advertise usable capacity: readinessReason explains a needs_attention state. credentialGeneration increments on rotation or revocation, invalidating any bearer credential from an earlier generation; the credential itself is never returned in a response.",
       "fieldDescriptions": {
         "id": "Stable UUID identifying the worker host record.",
         "principalId": "Stable UUID linking this record to the related principal entity.",
@@ -20425,7 +20425,7 @@
         "version": "integer",
         "snapshotCursor": "string"
       },
-      "description": "One enrollment's server-confirmed status used before Start Listening and after any page reload: state is derived from the locked registration/cancel transaction, so a registration that raced cancel/replacement or checked in early is resolved here — the true machine is always found. worker is a bounded safe projection of the linked machine, never credential material; snapshotCursor feeds the scoped event subscription.",
+      "description": "One enrollment's server-confirmed status used before Start Listening and after any page reload: state is derived from the locked registration/cancel transaction, so a registration that raced cancel/replacement or checked in early is resolved here \u2014 the true machine is always found. worker is a bounded safe projection of the linked machine, never credential material; snapshotCursor feeds the scoped event subscription.",
       "fieldDescriptions": {
         "enrollmentId": "Stable UUID identifying the enrollment record.",
         "organizationId": "Stable UUID identifying the owning organization.",
@@ -20543,7 +20543,7 @@
         "quotaRemaining": "decimalString",
         "quotaObservedAt": "timestamp"
       },
-      "description": "One organization-owned provider account with its verified billing identity and account-level quota observation. Many machines sharing an account share this row and its single observation — remaining usage is never multiplied. Unverifiable quota stays null with its source and observation time; a display email alone never proves the same billing account. The raw billing identity value is never returned; different organizations never discover each other's accounts through deduplication.",
+      "description": "One organization-owned provider account with its verified billing identity and account-level quota observation. Many machines sharing an account share this row and its single observation \u2014 remaining usage is never multiplied. Unverifiable quota stays null with its source and observation time; a display email alone never proves the same billing account. The raw billing identity value is never returned; different organizations never discover each other's accounts through deduplication.",
       "fieldDescriptions": {
         "id": "Stable UUID identifying the provider account record.",
         "provider": "Provider key the account belongs to.",
@@ -26978,6 +26978,30 @@
       "schemaSource": "docs/technical-design/transport-schemas.json",
       "capabilities": [],
       "description": "Deterministic, model-free action that renders the frozen task brief to canonical JSON and publishes it as an immutable artifact through the worker byte boundary."
+    },
+    "session.tools": {
+      "inputFields": {},
+      "outputFields": {
+        "catalog": "json"
+      },
+      "capabilities": [
+        "session.tools"
+      ],
+      "description": "Built-in host control action listing exactly the operations this session may call, derived from the credential's scopes and the live lease. The catalog is a JSON array of {name, scope, description}, sorted by name, and is a view of current authority rather than a pinned snapshot. Not user-definable code and not an extra YAML workflow primitive."
+    },
+    "session.call": {
+      "inputFields": {
+        "tool": "string",
+        "arguments": "json"
+      },
+      "outputFields": {
+        "outcome": "enum(allowed|denied|unknown)",
+        "result": "json"
+      },
+      "capabilities": [
+        "session.tools"
+      ],
+      "description": "Built-in host control action invoking one operation the session was offered, through the lease-protected tool route. arguments is validated against the target operation's own input schema, so it is carried as JSON rather than restated here. outcome is keyed on the error class: a typed policy refusal is denied, any other failure is unknown. Not user-definable code and not an extra YAML workflow primitive."
     }
   },
   "workerEvents": {
