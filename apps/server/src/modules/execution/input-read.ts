@@ -82,6 +82,25 @@ type PinnedInputRow = {
  * moment to decide the caller still holds the lease is the one just before the
  * answer is produced. A snapshot taken before the fence moved is not returned.
  */
+let afterGatherForTest: (() => Promise<void> | void) | null = null;
+
+/**
+ * One-shot fixture seam between gathering the bytes and the re-assert.
+ *
+ * The window a read can go stale in exists only inside one transaction, and
+ * that transaction holds the attempt and job rows, so no other connection can
+ * move the fence underneath it. What a test CAN move is time: `lease_expired`
+ * is compared against clock_timestamp() whenever the row is read, so a test can
+ * shorten the lease, park the route here, and wait past the deadline. The first
+ * assert then passes and only a re-assert after gathering can catch the lapse.
+ * Deleting the re-assert turns that test red.
+ */
+export function setInputReadAfterGatherForTest(
+  observe: (() => Promise<void> | void) | null,
+): void {
+  afterGatherForTest = observe;
+}
+
 export async function inputReadRoute(
   context: Context,
   options: ExecutionRouteOptions,
@@ -154,6 +173,12 @@ export async function inputReadRoute(
           mediaType: row.media_type,
           contentBase64: toBase64(bytes),
         });
+      }
+
+      const afterGather = afterGatherForTest;
+      if (afterGather) {
+        afterGatherForTest = null;
+        await afterGather();
       }
 
       // Re-assert under the same lock, after gathering: the read only answers

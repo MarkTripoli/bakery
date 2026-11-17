@@ -2,6 +2,7 @@ import { assert, assertEquals } from "@std/assert";
 import { sha256Bytes } from "../../apps/server/src/modules/knowledge/bytes.ts";
 import { authTestOrigin } from "../helpers/auth.ts";
 import { withWorkerFixture } from "../helpers/worker-execution/scenarios.ts";
+import { setInputReadAfterGatherForTest } from "../../apps/server/src/modules/execution/input-read.ts";
 import { setup } from "../helpers/output-ingestion.ts";
 
 type Fixture = Parameters<typeof setup>[0];
@@ -156,4 +157,71 @@ Deno.test("bytes that no longer match the pin fail closed instead of serving", (
     );
     const body = await response.json();
     assertEquals(body.code, "PRECONDITION_FAILED");
+  }));
+
+Deno.test("a read under a moved fence answers with nothing", () =>
+  withWorkerFixture(async (fixture) => {
+    const own = await setup(fixture);
+    const seed = await seedVersion(fixture, own.job.taskId, "pinned");
+    await pin(fixture, own.job.runId, seed);
+
+    // The plan's §6.23 case, held as a durable property: the fence the proof
+    // names must equal the job's CURRENT fence, so once the job moves on, a
+    // proof captured before the move can no longer read. The route asserts this
+    // both before gathering and again just before answering; this case pins the
+    // invariant the re-assert exists to preserve, so a route that answered from
+    // a snapshot taken before the move would return 200 and bytes here.
+    await fixture.pgDatabase.query(
+      `update bakery.jobs set current_fence = current_fence + 1 where id = $1`,
+      [own.job.jobId],
+    );
+
+    const response = await readContext(
+      fixture,
+      own.assignment.attemptId,
+      proof(own.worker.credential, own.assignment, own.worker.registration),
+    );
+    assertEquals(response.status, 409);
+    const body = await response.json();
+    assertEquals(body.code, "LEASE_FENCED");
+    // Nothing rides along with the refusal: no bytes, no digests, no paths.
+    assertEquals(body.items, undefined);
+  }));
+
+Deno.test("a read whose lease runs out mid-flight answers with nothing", () =>
+  withWorkerFixture(async (fixture) => {
+    const own = await setup(fixture);
+    const seed = await seedVersion(fixture, own.job.taskId, "pinned");
+    await pin(fixture, own.job.runId, seed);
+
+    // The §6.23 case. A read has no write to roll back, so the only safe moment
+    // to decide the caller still holds the lease is just before answering. The
+    // window is real: the lease is shortened to two seconds, the route gathers
+    // its bytes, and the seam then waits past the deadline. The FIRST assert
+    // passes (the lease was live when the route started); only a re-assert
+    // AFTER gathering can catch that it lapsed in between. Delete the re-assert
+    // and this returns 200 with bytes.
+    await fixture.pgDatabase.query(
+      `update bakery.job_attempts
+          set lease_expires_at = clock_timestamp() + interval '2 seconds'
+        where id = $1`,
+      [own.assignment.attemptId],
+    );
+    setInputReadAfterGatherForTest(async () => {
+      await new Promise((done) => setTimeout(done, 2500));
+    });
+    try {
+      const response = await readContext(
+        fixture,
+        own.assignment.attemptId,
+        proof(own.worker.credential, own.assignment, own.worker.registration),
+      );
+      assertEquals(response.status, 409);
+      const body = await response.json();
+      assertEquals(body.code, "LEASE_EXPIRED");
+      // Nothing rides along with the refusal.
+      assertEquals(body.items, undefined);
+    } finally {
+      setInputReadAfterGatherForTest(null);
+    }
   }));
