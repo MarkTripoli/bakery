@@ -1665,6 +1665,8 @@
   "tasks.run.output.savedState": "{state} · sequence {sequence}",
   "problems.ARTIFACT_CONTENT_EXPIRED.title": "Artifact content expired",
   "problems.ARTIFACT_CONTENT_EXPIRED.description": "Retention collection removed these bytes. Version metadata remains available.",
+  "problems.RANGE_NOT_SATISFIABLE.title": "Range not served",
+  "problems.RANGE_NOT_SATISFIABLE.description": "This object is too large to serve a partial range. Request the whole file instead.",
   "tasks.run.output.archive": "Download transcript {number} · sequences {first}–{last}",
   "tasks.run.output.archiveExpired": "Transcript bytes expired. Immutable version metadata remains available.",
   "tasks.run.output.archiveError": "Transcript download failed. Retry to retrieve verified bytes.",

@@ -10,11 +10,19 @@ import {
 } from "../../platform/cursor.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import { storedMediaSafety } from "./media.ts";
+import { assertStoredBytes } from "./stored-bytes.ts";
+import type { OrganizationBlobStore } from "../catalog/storage-port.ts";
 
 const ARTIFACT_ORDERING = "createdAt:desc,id:desc";
 const VERSION_ORDERING = "createdAt:desc,id:desc";
 const MAX_PAGE_SIZE = 100;
 const MAX_RANGE_HEADER_BYTES = 100;
+/**
+ * The largest blob-backed version a range request will read whole in order to
+ * slice it. Above this the request is refused rather than served, because the
+ * cost of serving it is the whole object in memory.
+ */
+const MAX_BLOB_RANGE_BYTES = 8 * 1024 * 1024;
 
 type ArtifactRow = {
   id: string;
@@ -197,32 +205,6 @@ function resolveRange(
   return { start, end: Math.min(end, size - 1) };
 }
 
-async function assertStoredBytes(
-  row: Pick<VersionRow, "size_bytes" | "sha256">,
-  bytes: Uint8Array,
-): Promise<void> {
-  const size = Number(row.size_bytes);
-  if (
-    !Number.isSafeInteger(size) ||
-    size < 0 ||
-    bytes.byteLength !== size ||
-    !/^[0-9a-f]{64}$/.test(row.sha256)
-  ) {
-    throw new StandardError({ code: "INTERNAL" });
-  }
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    bytes as unknown as BufferSource,
-  );
-  const actualSha256 = Array.from(
-    new Uint8Array(digest),
-    (byte) => byte.toString(16).padStart(2, "0"),
-  ).join("");
-  if (actualSha256 !== row.sha256) {
-    throw new StandardError({ code: "INTERNAL" });
-  }
-}
-
 function ifRangeMatches(value: string | null, sha256: string): boolean {
   return value === null || value.trim() === `"${sha256}"`;
 }
@@ -249,9 +231,10 @@ async function loadContentMetadata(
   const metadata = await transaction.query<
     Pick<VersionRow, "id" | "media_type" | "size_bytes" | "sha256"> & {
       purged_at: Date | null;
+      blob_id: string | null;
     }
   >(
-    `select v.id,v.media_type,v.size_bytes,v.sha256,v.purged_at
+    `select v.id,v.media_type,v.size_bytes,v.sha256,v.purged_at,v.blob_id
            from bakery.artifact_versions v
            join bakery.artifacts a
              on a.organization_id=v.organization_id
@@ -293,7 +276,110 @@ async function loadContentMetadata(
   return { row, size, mediaSafety };
 }
 
-export function createArtifactReadHandlers(secret: string) {
+type StoredVersion = Pick<VersionRow, "size_bytes" | "sha256">;
+
+/**
+ * The bytes of a version that carries them inline, checked against the digest
+ * and size the version declares.
+ *
+ * The check is not ceremony: a version row is the server's claim about what its
+ * bytes are, and a reader that served them without checking would turn a
+ * corrupted row into a corrupted download with no way to tell which.
+ */
+async function readInlineBytes(
+  stored: StoredVersion & { content: Buffer | null },
+): Promise<Uint8Array> {
+  if (stored.content === null) {
+    // The XOR constraint makes this unreachable, and it is still refused rather
+    // than assumed: a row with neither home is a row whose bytes cannot be
+    // read, and guessing would hide the constraint being dropped.
+    throw new StandardError({ code: "ARTIFACT_CONTENT_EXPIRED" });
+  }
+  await assertStoredBytes(stored, stored.content);
+  return stored.content;
+}
+
+function readInlineRange(
+  stored: StoredVersion & {
+    content: Buffer | null;
+    content_size_bytes: number | null;
+    content_sha256: string | null;
+  },
+  resolved: { start: number; end: number },
+): Uint8Array {
+  if (stored.content === null) {
+    throw new StandardError({ code: "ARTIFACT_CONTENT_EXPIRED" });
+  }
+  const size = Number(stored.size_bytes);
+  if (
+    Number(stored.content_size_bytes) !== size ||
+    stored.content_sha256 !== stored.sha256 ||
+    stored.content.byteLength !== resolved.end - resolved.start + 1
+  ) {
+    throw new StandardError({ code: "INTERNAL" });
+  }
+  return stored.content;
+}
+
+/**
+ * The bytes of a version that names a blob, read through the organization's
+ * store and verified against the version's own digest and size.
+ *
+ * The store is asked for `(organizationId, sha256)` and never for a key, so a
+ * version cannot name another organization's bytes even if its row were wrong:
+ * the key is built from the organization the caller is already scoped to.
+ */
+async function readBlobBytes(
+  store: OrganizationBlobStore | undefined,
+  organizationId: string,
+  stored: StoredVersion,
+): Promise<Uint8Array> {
+  if (!store) {
+    // A version that names a blob and a server with no store is a
+    // misconfiguration, not a missing file: reporting it as expired would send
+    // whoever reads it looking for a retention problem that does not exist.
+    throw new StandardError({ code: "INTERNAL" });
+  }
+  const bytes = await store.read(
+    organizationId,
+    stored.sha256,
+    Number(stored.size_bytes),
+  );
+  await assertStoredBytes(stored, bytes);
+  return bytes;
+}
+
+/**
+ * A range of a blob-backed version.
+ *
+ * The store port has no ranged read yet, so this reads the whole object and
+ * slices it. That is fine for the sizes a range request is actually used for -
+ * a media player seeking, a client resuming a download - and it is a memory
+ * blowout for a 1 KiB range on a 2 GiB object, which is why it is bounded
+ * rather than merely documented. Over the ceiling the request is refused with a
+ * typed code, so a client learns the server will not serve that range instead
+ * of the server discovering it by running out of memory.
+ *
+ * The ranged read belongs on the port, and it rides the streaming-port row
+ * rather than widening this one.
+ */
+async function readBlobRange(
+  store: OrganizationBlobStore | undefined,
+  organizationId: string,
+  stored: StoredVersion,
+  resolved: { start: number; end: number },
+): Promise<Uint8Array> {
+  if (Number(stored.size_bytes) > MAX_BLOB_RANGE_BYTES) {
+    throw new StandardError({ code: "RANGE_NOT_SATISFIABLE" });
+  }
+  const bytes = await readBlobBytes(store, organizationId, stored);
+  return bytes.subarray(resolved.start, resolved.end + 1);
+}
+
+export function createArtifactReadHandlers(
+  secret: string,
+  blobStore?: OrganizationBlobStore,
+) {
   return {
     async listArtifacts(
       context: ActionContext,
@@ -507,12 +593,13 @@ export function createArtifactReadHandlers(secret: string) {
         }
         const content = await transaction.query<
           Pick<VersionRow, "size_bytes" | "sha256"> & {
-            content_size_bytes: number;
-            content_sha256: string;
+            content_size_bytes: number | null;
+            content_sha256: string | null;
             content: Buffer | null;
+            blob_id: string | null;
           }
         >(
-          `select v.size_bytes,v.sha256,
+          `select v.size_bytes,v.sha256,v.blob_id,
                   octet_length(v.content) as content_size_bytes,
                   encode(sha256(v.content), 'hex') as content_sha256,
                   substring(v.content from $3::integer for $4::integer) as content
@@ -545,19 +632,18 @@ export function createArtifactReadHandlers(secret: string) {
         );
         const stored = content.rows[0];
         if (!stored) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
-        if (stored.content === null) {
-          throw new StandardError({ code: "ARTIFACT_CONTENT_EXPIRED" });
-        }
         if (
-          Number(stored.size_bytes) !== size ||
-          stored.sha256 !== row.sha256 ||
-          Number(stored.content_size_bytes) !== size ||
-          stored.content_sha256 !== row.sha256 ||
-          stored.content.byteLength !== resolved.end - resolved.start + 1
+          Number(stored.size_bytes) !== size || stored.sha256 !== row.sha256
         ) {
           throw new StandardError({ code: "INTERNAL" });
         }
-        const ranged = stored.content;
+        // A version names its bytes in exactly one place. A blob-backed version
+        // has no `content` at all, so the bytea branch below is not a fallback
+        // for it - it is a different row shape, and reading it as "expired"
+        // would report a healthy version as gone.
+        const ranged = stored.blob_id === null
+          ? readInlineRange(stored, resolved)
+          : await readBlobRange(blobStore, organizationId, stored, resolved);
         headers.set("Content-Length", String(ranged.byteLength));
         headers.set(
           "Content-Range",
@@ -569,9 +655,12 @@ export function createArtifactReadHandlers(secret: string) {
         });
       }
       const content = await transaction.query<
-        Pick<VersionRow, "size_bytes" | "sha256"> & { content: Buffer | null }
+        Pick<VersionRow, "size_bytes" | "sha256"> & {
+          content: Buffer | null;
+          blob_id: string | null;
+        }
       >(
-        `select v.size_bytes,v.sha256,v.content
+        `select v.size_bytes,v.sha256,v.content,v.blob_id
            from bakery.artifact_versions v
            join bakery.artifacts a
              on a.organization_id=v.organization_id
@@ -596,17 +685,13 @@ export function createArtifactReadHandlers(secret: string) {
       );
       const stored = content.rows[0];
       if (!stored) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
-      if (stored.content === null) {
-        throw new StandardError({ code: "ARTIFACT_CONTENT_EXPIRED" });
-      }
-      await assertStoredBytes(stored, stored.content);
-      if (
-        Number(stored.size_bytes) !== size ||
-        stored.sha256 !== row.sha256
-      ) {
+      if (Number(stored.size_bytes) !== size || stored.sha256 !== row.sha256) {
         throw new StandardError({ code: "INTERNAL" });
       }
-      return new Response(stored.content as unknown as BodyInit, {
+      const bytes = stored.blob_id === null
+        ? await readInlineBytes(stored)
+        : await readBlobBytes(blobStore, organizationId, stored);
+      return new Response(bytes as unknown as BodyInit, {
         status: 200,
         headers,
       });
