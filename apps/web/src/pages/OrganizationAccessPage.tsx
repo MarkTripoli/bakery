@@ -547,12 +547,6 @@ export function OrganizationAccessPage() {
   const myClients = (clients.data?.items ?? []).filter((item) =>
     item.organizationId === organizationId
   );
-  // The empty card replaces every section, so it only shows when no section
-  // has anything to manage: no other person, invitation, service account,
-  // token or connected client, and no failed client read to report.
-  const onlyYou = humans.length <= 1 && pendingInvitations.length === 0 &&
-    serviceAccounts.length === 0 && liveTokens.length === 0 &&
-    myClients.length === 0 && !clients.isError;
   const bindingsOf = (principalId: string) =>
     (bindings.data?.items ?? []).filter((item) =>
       item.principalId === principalId
@@ -648,9 +642,10 @@ export function OrganizationAccessPage() {
     ? "default"
     : loadFailures.length > 0
     ? "error"
-    : showSections && onlyYou
-    ? "empty"
     : "default";
+  // A token's stored prefix is "bk_…9d2f"; only the last four characters are
+  // worth reading (issue 233, fix 7).
+  const tokenEnding = (prefix: string) => prefix.slice(-4);
   const scopeText = (type: string, role: string) =>
     `${translate(SCOPE_TYPE_KEYS[type as ScopeType])} · ${roleLabel(role)}`;
   const organizationText = (role: string | null, inactive: boolean) =>
@@ -710,13 +705,27 @@ export function OrganizationAccessPage() {
           ))}
         </UI.Stack>,
       ],
-      // Paper's phone rows read "Organization · Admin": an organization-wide
-      // role's reach is implied there, so a phone keeps "All applications"
-      // for assistive technology only. A scoped row keeps its resource, and a
-      // guest keeps the note that only a scope grants anything.
-      phoneHiddenCells: scopedOnly || membership.role === "guest"
-        ? undefined
-        : [1],
+      // A phone reads each role with the scope it applies to, one line each
+      // (issue 233, fix 1/5).
+      phoneCells: [
+        ...(scopedOnly ? [] : [
+          `${
+            organizationText(
+              membership.role,
+              membership.status === "inactive",
+            )
+          } · ${
+            membership.role === "guest"
+              ? translate("settings.orgAccess.scope.guestOnly")
+              : translate("settings.orgAccess.scope.all")
+          }`,
+        ]),
+        ...scoped.map((binding) =>
+          `${scopeText(binding.scopeType, binding.roleKey)} · ${
+            resourceName(binding.scopeType, binding.scopeId)
+          }`
+        ),
+      ],
       action: (
         <UI.Button
           aria-label={translate("settings.orgAccess.member.editNamed", {
@@ -752,6 +761,12 @@ export function OrganizationAccessPage() {
       `${translate("settings.orgAccess.scope.organization")} · ${
         roleLabel(invitation.role)
       }`,
+      whenShort.format(new Date(invitation.expiresAt)),
+    ],
+    phoneCells: [
+      `${translate("settings.orgAccess.scope.organization")} · ${
+        roleLabel(invitation.role)
+      }`,
       translate("settings.orgAccess.invitation.expires", {
         date: whenShort.format(new Date(invitation.expiresAt)),
       }),
@@ -764,12 +779,11 @@ export function OrganizationAccessPage() {
         data-testid={`org-access-cancel-${invitation.id}`}
         onClick={() => setConfirm({ kind: "cancelInvitation", invitation })}
         type="button"
-        variant="destructive-quiet"
+        variant="destructive"
       >
-        {translate("settings.orgAccess.invitation.cancel")}
+        {translate("settings.orgAccess.invitation.cancelLong")}
       </UI.Button>
     ),
-    actionTone: "destructive",
   }));
   const accountRows: UI.AccessSettingsRow[] = serviceAccounts.flatMap(
     (account) => {
@@ -834,8 +848,8 @@ export function OrganizationAccessPage() {
               })
             }`}
           >
-            {translate("settings.orgAccess.token.ending", {
-              ending: token.prefix,
+            {translate("settings.orgAccess.token.endingShort", {
+              ending: tokenEnding(token.prefix),
             })}
             <UI.VisuallyHidden>
               {` · ${
@@ -852,7 +866,12 @@ export function OrganizationAccessPage() {
             </UI.VisuallyHidden>
           </span>,
         ],
-        phoneHiddenCells: [0],
+        phoneCells: [
+          grant,
+          translate("settings.orgAccess.token.ending", {
+            ending: tokenEnding(token.prefix),
+          }),
+        ],
         action: (
           <UI.Button
             aria-label={`${
@@ -861,19 +880,19 @@ export function OrganizationAccessPage() {
             data-testid={`org-access-revoke-${token.id}`}
             onClick={() => setConfirm({ kind: "revokeToken", token })}
             type="button"
-            variant="destructive-quiet"
+            variant="destructive"
           >
             {translate("settings.orgAccess.token.revoke")}
           </UI.Button>
         ),
-        actionTone: "destructive" as const,
       }));
     },
   );
   const clientRows: UI.AccessSettingsRow[] = myClients.map((client) => ({
     id: client.id,
     identity: client.clientName,
-    cells: [
+    cells: [when.format(new Date(client.authorizedAt))],
+    phoneCells: [
       translate("settings.orgAccess.clients.authorized", {
         date: when.format(new Date(client.authorizedAt)),
       }),
@@ -890,12 +909,11 @@ export function OrganizationAccessPage() {
             name: client.clientName,
           })}
         type="button"
-        variant="destructive-quiet"
+        variant="destructive"
       >
         {translate("settings.orgAccess.client.revoke")}
       </UI.Button>
     ),
-    actionTone: "destructive",
   }));
 
   const accountForm = accountDraft.open
@@ -1106,12 +1124,11 @@ export function OrganizationAccessPage() {
           : undefined}
         summary={showSections && pageState === "default"
           ? translate("settings.orgAccess.summary", {
-            people: humans.length + pendingInvitations.length,
+            people: humans.length,
             pending: pendingInvitations.length,
           })
           : undefined}
         actions={showSections ? inviteAction : null}
-        hideActionsOnPhone={pageState === "empty"}
         state={pageState}
         status={pageState === "loading"
           ? {
@@ -1136,38 +1153,7 @@ export function OrganizationAccessPage() {
               </UI.Button>
             ),
           }
-          : {
-            testId: "org-access-empty",
-            title: translate("settings.orgAccess.empty.title"),
-            description: translate("settings.orgAccess.empty.description"),
-            descriptionShort: translate("settings.orgAccess.empty.short"),
-            // The card hides the accounts section, so it also offers the first
-            // service account (and through it a token) to a lone admin.
-            action: (
-              <UI.Inline>
-                <UI.Button
-                  data-testid="org-access-invite-first"
-                  onClick={() =>
-                    setInvite((value) => ({ ...value, open: !value.open }))}
-                  type="button"
-                >
-                  {translate("settings.orgAccess.empty.action")}
-                </UI.Button>
-                <UI.Button
-                  data-testid="org-access-new-account-first"
-                  onClick={() =>
-                    setAccountDraft((value) => ({
-                      ...value,
-                      open: !value.open,
-                    }))}
-                  type="button"
-                  variant="secondary"
-                >
-                  {translate("settings.orgAccess.account.new")}
-                </UI.Button>
-              </UI.Inline>
-            ),
-          }}
+          : undefined}
         notice={
           <>
             {forbidden
@@ -1193,184 +1179,192 @@ export function OrganizationAccessPage() {
               : null}
           </>
         }
-        sections={showSections
-          ? [{
-            id: "org-access-members",
-            testId: "org-access-members",
-            title: translate("settings.orgAccess.members.heading"),
-            columnHeaders: [
-              translate("settings.orgAccess.column.member"),
-              translate("settings.orgAccess.column.role"),
-              translate("settings.orgAccess.column.appliesTo"),
-              "",
-            ],
-            titleHelp: (
+        sections={[{
+          id: "org-access-members",
+          testId: "org-access-members",
+          title: translate("settings.orgAccess.members.heading"),
+          columnHeaders: [
+            translate("settings.orgAccess.column.member"),
+            <UI.Inline gap="compact" key="role">
+              {translate("settings.orgAccess.column.role")}
               <UI.HelpTip
                 label={translate("settings.orgAccess.column.role")}
               >
                 {translate("settings.orgAccess.help.role")}
               </UI.HelpTip>
-            ),
-            titleDetail: translate("settings.orgAccess.members.count", {
-              count: humans.length + pendingInvitations.length,
-            }),
-            // A count that reads like an action should be one: it goes to the
-            // section it counts (#233 fix 8).
-            aside: pendingInvitations.length > 0
-              ? (
-                <UI.Button
-                  data-testid="org-access-pending-link"
-                  onClick={() =>
-                    document.getElementById("org-access-invitations")
-                      ?.scrollIntoView({ behavior: "smooth" })}
-                  type="button"
-                  variant="secondary"
-                >
-                  {translate("settings.orgAccess.members.pending", {
-                    count: pendingInvitations.length,
-                  })}
-                </UI.Button>
-              )
-              : null,
-            phoneLayout: "overlay",
-            rows: memberRows,
-            children: inviteForm,
-          }, {
-            id: "org-access-invitations",
-            testId: "org-access-invitations",
-            title: translate("settings.orgAccess.invitations.title"),
-            columnHeaders: [
-              translate("settings.orgAccess.column.member"),
-              translate("settings.orgAccess.column.role"),
-              translate("settings.orgAccess.column.expires"),
-              "",
-            ],
-            phoneLayout: "stacked",
-            rows: invitationRows,
-            empty: translate("settings.orgAccess.invitations.none"),
-            emptyAction: inviteAction,
-          }, {
-            id: "org-access-accounts",
-            testId: "org-access-accounts",
-            title: translate("settings.orgAccess.accounts.title"),
-            columnHeaders: [
-              translate("settings.orgAccess.column.account"),
-              translate("settings.orgAccess.column.role"),
-              translate("settings.orgAccess.column.token"),
-              "",
-            ],
-            titleHelp: (
-              <UI.HelpTip
-                label={translate("settings.orgAccess.accounts.title")}
-              >
-                {translate("settings.orgAccess.help.accounts")}
-              </UI.HelpTip>
-            ),
-            phoneLayout: "inline",
-            actions: (
-              <>
-                <UI.Button
-                  data-testid="org-access-new-account"
-                  onClick={() =>
-                    setAccountDraft((value) => ({
-                      ...value,
-                      open: !value.open,
-                    }))}
-                  type="button"
-                  variant="secondary"
-                >
-                  {translate("settings.orgAccess.account.new")}
-                </UI.Button>
-                <UI.Button
-                  data-testid="org-access-new-token-action"
-                  disabled={serviceAccounts.length === 0}
-                  onClick={() =>
-                    setTokenDraft((value) => ({
-                      ...value,
-                      open: !value.open,
-                      principalId: value.principalId ||
-                        serviceAccounts[0]?.id || "",
-                    }))}
-                  type="button"
-                  variant="secondary"
-                >
-                  {translate("settings.orgAccess.token.new")}
-                </UI.Button>
-              </>
-            ),
-            rows: accountRows,
-            empty: translate("settings.orgAccess.accounts.none"),
-            emptyAction: (
+            </UI.Inline>,
+            translate("settings.orgAccess.column.appliesTo"),
+            "",
+          ],
+          titleHelp: (
+            <UI.HelpTip
+              label={translate("settings.orgAccess.column.role")}
+            >
+              {translate("settings.orgAccess.help.role")}
+            </UI.HelpTip>
+          ),
+          titleHelpPhoneOnly: true,
+          titleDetail: translate("settings.orgAccess.members.count", {
+            count: humans.length,
+          }),
+          // A count that reads like an action should be one: it goes to the
+          // section it counts (#233 fix 8).
+          aside: pendingInvitations.length > 0
+            ? (
               <UI.Button
-                data-testid="org-access-new-account-empty"
+                data-testid="org-access-pending-link"
+                onClick={() =>
+                  document.getElementById("org-access-invitations")
+                    ?.scrollIntoView({ behavior: "smooth" })}
+                type="button"
+                variant="secondary"
+              >
+                {translate("settings.orgAccess.members.pending", {
+                  count: pendingInvitations.length,
+                })}
+              </UI.Button>
+            )
+            : null,
+          phoneLayout: "block",
+          rows: memberRows,
+          children: inviteForm,
+        }, {
+          id: "org-access-invitations",
+          testId: "org-access-invitations",
+          title: translate("settings.orgAccess.invitations.title"),
+          columnHeaders: [
+            translate("settings.orgAccess.column.email"),
+            translate("settings.orgAccess.column.role"),
+            translate("settings.orgAccess.column.expires"),
+            "",
+          ],
+          phoneLayout: "block",
+          rows: invitationRows,
+          empty: translate("settings.orgAccess.invitations.none"),
+          emptyAction: (
+            <UI.Button
+              data-testid="org-access-invite-empty"
+              onClick={() =>
+                setInvite((value) => ({ ...value, open: !value.open }))}
+              type="button"
+              variant="secondary"
+            >
+              {translate("settings.orgAccess.invite.action")}
+            </UI.Button>
+          ),
+        }, {
+          id: "org-access-accounts",
+          testId: "org-access-accounts",
+          title: translate("settings.orgAccess.accounts.title"),
+          columnHeaders: [
+            translate("settings.orgAccess.column.account"),
+            translate("settings.orgAccess.column.role"),
+            translate("settings.orgAccess.column.token"),
+            "",
+          ],
+          titleHelp: (
+            <UI.HelpTip
+              label={translate("settings.orgAccess.accounts.title")}
+            >
+              {translate("settings.orgAccess.help.accounts")}
+            </UI.HelpTip>
+          ),
+          phoneLayout: "block",
+          actions: (
+            <>
+              <UI.Button
+                data-testid="org-access-new-account"
                 onClick={() =>
                   setAccountDraft((value) => ({
                     ...value,
-                    open: true,
+                    open: !value.open,
                   }))}
                 type="button"
                 variant="secondary"
               >
                 {translate("settings.orgAccess.account.new")}
               </UI.Button>
-            ),
-            callout: created
-              ? {
-                testId: "org-access-new-token",
-                text: translate("settings.orgAccess.token.shownOnce"),
-                textShort: translate("settings.orgAccess.token.shownOnceShort"),
-                value: (
-                  <span data-testid="org-access-token-secret">
-                    {created.secret}
-                  </span>
-                ),
-                onDismiss: () => setCreated(null),
-                dismissLabel: translate("settings.orgAccess.dismiss"),
-              }
-              : undefined,
-            children: (
-              <>
-                {accountForm}
-                {tokenForm}
-              </>
-            ),
-          }, {
-            id: "org-access-clients",
-            testId: "org-access-clients",
-            title: translate("settings.orgAccess.clients.title"),
-            columnHeaders: [
-              translate("settings.orgAccess.column.client"),
-              translate("settings.orgAccess.column.authorized"),
-              "",
-              "",
-            ],
-            titleHelp: (
-              <UI.HelpTip
-                label={translate("settings.orgAccess.clients.title")}
+              <UI.Button
+                data-testid="org-access-new-token-action"
+                disabled={serviceAccounts.length === 0}
+                onClick={() =>
+                  setTokenDraft((value) => ({
+                    ...value,
+                    open: !value.open,
+                    principalId: value.principalId ||
+                      serviceAccounts[0]?.id || "",
+                  }))}
+                type="button"
+                variant="secondary"
               >
-                {translate("settings.orgAccess.help.clients")}
-              </UI.HelpTip>
-            ),
-            columns: "detail",
-            phoneLayout: "stacked",
-            rows: clientRows,
-            empty: clients.isError
-              ? translate("settings.orgAccess.clients.error")
-              : translate("settings.orgAccess.clients.none"),
-            emptyHelp: clients.isError
-              ? undefined
-              : translate("settings.orgAccess.clients.emptyHelp"),
-          }]
-          : []}
-      >
-        {pageState === "empty"
-          ? (
-            <>
-              {inviteForm}
-              {accountForm}
+                {translate("settings.orgAccess.token.new")}
+              </UI.Button>
             </>
-          )
-          : null}
+          ),
+          rows: accountRows,
+          empty: translate("settings.orgAccess.accounts.none"),
+          emptyAction: (
+            <UI.Button
+              data-testid="org-access-new-account-empty"
+              onClick={() =>
+                setAccountDraft((value) => ({
+                  ...value,
+                  open: true,
+                }))}
+              type="button"
+              variant="secondary"
+            >
+              {translate("settings.orgAccess.account.new")}
+            </UI.Button>
+          ),
+          callout: created
+            ? {
+              testId: "org-access-new-token",
+              text: translate("settings.orgAccess.token.shownOnce"),
+              textShort: translate("settings.orgAccess.token.shownOnceShort"),
+              value: (
+                <span data-testid="org-access-token-secret">
+                  {created.secret}
+                </span>
+              ),
+              onDismiss: () => setCreated(null),
+              dismissLabel: translate("settings.orgAccess.dismiss"),
+            }
+            : undefined,
+          children: (
+            <>
+              {accountForm}
+              {tokenForm}
+            </>
+          ),
+        }, {
+          id: "org-access-clients",
+          testId: "org-access-clients",
+          title: translate("settings.orgAccess.clients.title"),
+          columnHeaders: [
+            translate("settings.orgAccess.column.client"),
+            translate("settings.orgAccess.column.authorized"),
+            "",
+            "",
+          ],
+          titleHelp: (
+            <UI.HelpTip
+              label={translate("settings.orgAccess.clients.title")}
+            >
+              {translate("settings.orgAccess.help.clients")}
+            </UI.HelpTip>
+          ),
+          columns: "detail",
+          phoneLayout: "block",
+          rows: clientRows,
+          empty: clients.isError
+            ? translate("settings.orgAccess.clients.error")
+            : translate("settings.orgAccess.clients.none"),
+          emptyHelp: clients.isError
+            ? undefined
+            : translate("settings.orgAccess.clients.emptyHelp"),
+        }]}
+      >
       </UI.AccessSettings>
 
       <UI.Dialog

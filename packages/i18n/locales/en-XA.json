@@ -3998,5 +3998,8 @@
   "settings.orgAccess.confirm.revokeToken.title": "⟦Ŕëṽôķë ŧĥïš ŧôķëñ? ŧëšŧ⟧",
   "settings.orgAccess.confirm.revokeToken.body": "⟦Àñÿŧĥïñĝ ûšïñĝ ïŧ šŧôþš ŵôŕķïñĝ ïɱɱëðïàŧëļÿ. Ŧĥïš çàññôŧ ƀë ûñðôñë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
   "settings.orgAccess.column.authorized": "⟦Àûŧĥôŕïžëð ŧ⟧",
-  "settings.orgAccess.column.account": "⟦Àççôûñŧ…⟧"
+  "settings.orgAccess.column.account": "⟦Àççôûñŧ…⟧",
+  "settings.orgAccess.invitation.cancelLong": "⟦Çàñçëļ ïñṽïŧàŧïôñ ŧëš⟧",
+  "settings.orgAccess.token.endingShort": "⟦ëñðïñĝ {ending} ŧëš⟧",
+  "settings.orgAccess.column.email": "⟦Ëɱàïļ⟧"
 }

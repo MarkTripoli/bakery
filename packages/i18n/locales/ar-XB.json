@@ -3998,5 +3998,8 @@
   "settings.orgAccess.confirm.revokeToken.title": "⟪Revoke this token?⟫",
   "settings.orgAccess.confirm.revokeToken.body": "⟪Anything using it stops working immediately. This cannot be undone.⟫",
   "settings.orgAccess.column.authorized": "⟪Authorized⟫",
-  "settings.orgAccess.column.account": "⟪Account⟫"
+  "settings.orgAccess.column.account": "⟪Account⟫",
+  "settings.orgAccess.invitation.cancelLong": "⟪Cancel invitation⟫",
+  "settings.orgAccess.token.endingShort": "⟪ending {ending}⟫",
+  "settings.orgAccess.column.email": "⟪Email⟫"
 }

@@ -16,6 +16,11 @@ export type AccessSettingsRow = {
    * second line, and that stay readable to assistive technology when hidden.
    */
   readonly phoneHiddenCells?: readonly number[];
+  /**
+   * Lines a phone reads instead of `cells`, so a role can carry its scope on
+   * one line ("Organization · Developer · All applications").
+   */
+  readonly phoneCells?: readonly ReactNode[];
   /** The row's one action: Edit, Cancel or Revoke. */
   readonly action?: ReactNode;
   /** Edit is link-coloured, Cancel and Revoke are destructive. */
@@ -36,15 +41,20 @@ export type AccessSettingsSection = {
   readonly columnHeaders?: readonly ReactNode[];
   /** Help next to the section title, for a term the rows use. */
   readonly titleHelp?: ReactNode;
+  /**
+   * Show `titleHelp` on a phone only. A wide screen puts the same help beside
+   * the column it explains, where a phone has no column headers.
+   */
+  readonly titleHelpPhoneOnly?: boolean;
   /** `role` rows carry two cells (scope and resource), `detail` one wide cell. */
   readonly columns?: "role" | "detail";
   /**
    * How a row reads on a phone: `overlay` stacks the cells under the identity
    * and lets the action cover the whole row, `stacked` also puts the action at
    * the end of the second line, `inline` keeps one line with the action at the
-   * right.
+   * right, `block` drops the action to its own full-width line under the row.
    */
-  readonly phoneLayout?: "overlay" | "stacked" | "inline";
+  readonly phoneLayout?: "overlay" | "stacked" | "inline" | "block";
   readonly rows?: readonly AccessSettingsRow[];
   /** Shown instead of rows when there are none. */
   readonly empty?: ReactNode;
@@ -238,7 +248,12 @@ export function AccessSettings(
             </h2>
             {section.titleHelp
               ? (
-                <span className="ui-access-settings__title-help">
+                <span
+                  className="ui-access-settings__title-help"
+                  data-phone-only={section.titleHelpPhoneOnly
+                    ? "true"
+                    : undefined}
+                >
                   {section.titleHelp}
                 </span>
               )
@@ -295,6 +310,7 @@ export function AccessSettings(
                 {section.rows.map((row) => (
                   <li
                     className="ui-access-settings__row"
+                    data-has-phone-cells={row.phoneCells ? "true" : undefined}
                     data-testid={row.testId}
                     key={row.id}
                   >
@@ -315,6 +331,20 @@ export function AccessSettings(
                         {cell}
                       </div>
                     ))}
+                    {row.phoneCells
+                      ? (
+                        <div className="ui-access-settings__phone-cells">
+                          {row.phoneCells.map((line, index) => (
+                            <div
+                              className="ui-access-settings__phone-line"
+                              key={index}
+                            >
+                              {line}
+                            </div>
+                          ))}
+                        </div>
+                      )
+                      : null}
                     {row.action
                       ? (
                         <div

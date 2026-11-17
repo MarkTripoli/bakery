@@ -394,7 +394,7 @@ for (
       );
       if (viewport.name === "desktop") {
         await expect(
-          page.getByRole("heading", { name: /Members · 4 people/ }),
+          page.getByRole("heading", { name: /Members · 3 people/ }),
         ).toBeVisible();
       } else {
         // A phone moves the counts into the page summary.
@@ -402,7 +402,7 @@ for (
           page.getByRole("heading", { name: "Members", exact: true }),
         )
           .toBeVisible();
-        await expect(page.getByText("4 people · 1 pending invitation"))
+        await expect(page.getByText("3 people · 1 pending invitation"))
           .toBeVisible();
       }
       // Column names explain the cells on a wide screen; a phone reads each
@@ -433,7 +433,7 @@ for (
       // A token reads as a labelled value, never a bare prefix
       // (issue 233, fix 7).
       await expect(page.getByTestId(`org-access-token-${TOK_1}`))
-        .toContainText("Token ending bk_…9d2f");
+        .toContainText("ending 9d2f");
       await expect(page.getByTestId("org-access-clients"))
         .toContainText("Bakery CLI");
       // The page never scrolls sideways, on a phone least of all.
@@ -443,29 +443,40 @@ for (
       expect(overflow).toBeLessThanOrEqual(0);
     });
 
-    test("an organization with only you shows the first-invite empty state", async ({ page }) => {
+    test("an organization with only you keeps every section and its own empty line", async ({ page }) => {
       const world = emptyWorld();
       await accessFixture(page, world);
       await page.goto("/settings/organization/access");
-      await expect(page.getByTestId("org-access-empty")).toContainText(
-        "Only you are in this organization",
-      );
-      await expect(page.getByTestId("org-access-invite-first")).toBeVisible();
-      // The header action stays on a wide screen; a phone keeps only the card's.
-      if (viewport.name === "desktop") {
-        await expect(page.getByTestId("org-access-invite")).toBeVisible();
-      } else {
-        await expect(page.getByTestId("org-access-invite")).toBeHidden();
-      }
 
-      // The card hides the accounts section, so it offers the first service
-      // account itself; once one exists the sections take over.
-      await page.getByTestId("org-access-new-account-first").click();
+      // No page-wide card: the Members section lists the one person in it.
+      await expect(page.getByTestId("org-access-members"))
+        .toContainText("Ada Rivera");
+      await expect(page.getByTestId("org-access-members"))
+        .not.toContainText("Only you are in this organization");
+
+      // Each other section keeps its heading and says what will appear, with
+      // the one action that fills it (issue 233, fix 10).
+      await expect(page.getByTestId("org-access-invitations"))
+        .toContainText("No pending invitations");
+      await expect(page.getByTestId("org-access-invite-empty")).toBeVisible();
+      await expect(page.getByTestId("org-access-accounts"))
+        .toContainText("No service accounts yet");
+      await expect(page.getByTestId("org-access-new-account-empty"))
+        .toBeVisible();
+      await expect(page.getByTestId("org-access-clients"))
+        .toContainText("No connected clients");
+      await expect(page.getByTestId("org-access-clients"))
+        .toContainText("Apps appear here after a member signs in");
+
+      // One primary on the page: the header's Invite member, on a phone too.
+      await expect(page.getByTestId("org-access-invite")).toBeVisible();
+
+      // The section's own action creates the first service account.
+      await page.getByTestId("org-access-new-account-empty").click();
       const form = page.getByTestId("org-access-account-form");
       await form.getByLabel("Name").fill("release-bot");
       await form.getByRole("button", { name: "Create service account" })
         .click();
-      await expect(page.getByTestId("org-access-empty")).toHaveCount(0);
       await expect(page.getByTestId("org-access-accounts")).toContainText(
         "release-bot",
       );
@@ -483,10 +494,11 @@ for (
       await expect(page.getByTestId("org-access-clients")).toContainText(
         "Bakery CLI",
       );
-      await expect(page.getByTestId("org-access-empty")).toHaveCount(0);
+      await expect(page.getByTestId("org-access-members"))
+        .toContainText("Ada Rivera");
     });
 
-    test("the page waits for connected clients before it picks the empty card", async ({ page }) => {
+    test("the page waits for connected clients before it shows the client section", async ({ page }) => {
       const world = { ...emptyWorld(), clients: fullWorld().clients };
       await accessFixture(page, world);
       // Registered last, so it takes the client read before the fixture does.
@@ -510,12 +522,12 @@ for (
         ].every((path) => sent(world, "GET", path).length > 0)
       ).toBe(true);
       await expect(page.getByTestId("org-access-loading")).toBeVisible();
-      await expect(page.getByTestId("org-access-empty")).toHaveCount(0);
       release();
       await expect(page.getByTestId("org-access-clients")).toContainText(
         "Bakery CLI",
       );
-      await expect(page.getByTestId("org-access-empty")).toHaveCount(0);
+      await expect(page.getByTestId("org-access-members"))
+        .toContainText("Ada Rivera");
     });
 
     test("a non-admin gets a notice and no admin data is read", async ({ page }) => {
