@@ -2471,3 +2471,75 @@ test.describe("device chrome on phone references", () => {
     expect(deviceChromeIssues(baseline, "enterprise")).toEqual([]);
   });
 });
+
+test.describe("dark disabled primary keeps its label readable", () => {
+  // #343 replaced the faded primary fill with the subtle surface so a disabled
+  // button stopped being the brightest thing in dark mode. That also swapped the
+  // ink to --color-fg-disabled, which measures 2.67:1 on that surface - under
+  // the 4.5:1 floor. The approved Paper loading references (login, register,
+  // reauth) show a readable label, so no dark disabled primary may fall below
+  // the floor again.
+  const luminance = (hex: string) => {
+    const channels = [1, 3, 5].map((offset) =>
+      parseInt(hex.slice(offset, offset + 2), 16) / 255
+    );
+    const [r, g, b] = channels.map((value) =>
+      value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
+    );
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  const contrastRatio = (foreground: string, background: string) => {
+    const [light, dark] = [luminance(foreground), luminance(background)].sort((
+      a,
+      b,
+    ) => b - a);
+    return (light + 0.05) / (dark + 0.05);
+  };
+  const readTokens = async () => {
+    const root = join(import.meta.dirname, "..", "src", "foundations");
+    const theme = await readFile(join(root, "theme.css"), "utf8");
+    const darkBlock = theme.slice(theme.indexOf('[data-theme="dark"]'));
+    const token = (name: string) => {
+      const match = new RegExp(`--${name}:\\s*(#[0-9A-Fa-f]{6})`).exec(
+        darkBlock,
+      );
+      if (!match) throw new Error(`dark theme does not declare --${name}`);
+      return match[1];
+    };
+    return { token };
+  };
+
+  test("the muted ink used by the dark disabled primary clears 4.5:1", async () => {
+    const { token } = await readTokens();
+    const ratio = contrastRatio(
+      token("color-fg-muted"),
+      token("color-surface-subtle"),
+    );
+    expect(ratio).toBeGreaterThanOrEqual(4.5);
+  });
+
+  test("the ink the rule used to set would not have cleared the floor", async () => {
+    // Guards the reason the change exists: if a future edit puts the disabled
+    // ink back, this records that doing so is the regression, not a tidy-up.
+    const { token } = await readTokens();
+    const ratio = contrastRatio(
+      token("color-fg-disabled"),
+      token("color-surface-subtle"),
+    );
+    expect(ratio).toBeLessThan(4.5);
+  });
+
+  test("the disabled rule actually uses the readable ink", async () => {
+    const controls = await readFile(
+      join(import.meta.dirname, "..", "src", "controls.css"),
+      "utf8",
+    );
+    const rule = /\[data-theme="dark"\] \.ui-button--primary:disabled \{[^}]*\}/
+      .exec(
+        controls,
+      );
+    expect(rule, "the dark disabled primary rule is missing").not.toBeNull();
+    expect(rule![0]).toContain("color: var(--color-fg-muted)");
+    expect(rule![0]).not.toContain("--color-fg-disabled");
+  });
+});

@@ -107,12 +107,18 @@ input:not([type="hidden"]) {
   opacity: .55;
 }
 /* The primary fill is the light colour in the dark theme, so a disabled primary
-   button faded to 55% was still the brightest thing on the page. There it takes
-   the subtle surface with the disabled ink instead, and no fade. */
+   button faded to 55% was still the brightest thing on the page. #343 replaced
+   the faded fill with the subtle surface, which fixed that but made the label
+   near-invisible: --color-fg-disabled (#566173) on --color-surface-subtle
+   (#191E28) is 2.67:1, well under the 4.5:1 floor, and the approved Paper
+   loading baselines (login, register, reauth) show a light fill with dark ink
+   at 5.9:1. Keep the fill dark enough not to dominate, but put readable ink on
+   it: the muted foreground on the subtle surface measures 7.29:1 and still sits
+   below the full-strength primary, so it does not become the brightest thing. */
 [data-theme="dark"] .ui-button--primary:disabled {
   background: var(--color-surface-subtle);
   border-color: var(--color-border);
-  color: var(--color-fg-disabled);
+  color: var(--color-fg-muted);
   opacity: 1;
 }
 .ui-link {
