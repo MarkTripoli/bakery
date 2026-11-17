@@ -35,16 +35,31 @@ function randomBandPort(): number {
 }
 
 /**
+ * Binds a candidate to prove it is free, then releases it.
+ *
+ * Injectable so a unit test can exercise the probe without a socket: the unit
+ * lane grants no `--allow-net`, and a real bind there fails with
+ * `PermissionDenied` rather than a conflict.
+ */
+export type LoopbackBind = (port: number) => void;
+
+export function bindLoopbackCandidate(port: number): void {
+  const listener = Deno.listen({ hostname: "127.0.0.1", port });
+  listener.close();
+}
+
+/**
  * Draws a free port from the band by binding it and closing again.
  *
  * A candidate already held is skipped rather than returned, so a busy port in
  * the band costs one attempt instead of a lost bind race later. `nextCandidate`
- * is injectable so a test can prove the skip without depending on which port
- * the random draw happens to pick.
+ * and `bind` are injectable so a test can prove the skip without depending on
+ * which port the random draw happens to pick.
  */
 export function probeLoopbackPort(
   nextCandidate: () => number = randomBandPort,
   candidateLimit = DEFAULT_CANDIDATE_LIMIT,
+  bind: LoopbackBind = bindLoopbackCandidate,
 ): number {
   for (let attempt = 0; attempt < candidateLimit; attempt++) {
     const candidate = nextCandidate();
@@ -52,17 +67,13 @@ export function probeLoopbackPort(
       throw new Error(`LOOPBACK_PORT_OUTSIDE_BAND:${candidate}`);
     }
     try {
-      const listener = Deno.listen({
-        hostname: "127.0.0.1",
-        port: candidate,
-      });
-      try {
-        return (listener.addr as Deno.NetAddr).port;
-      } finally {
-        listener.close();
-      }
-    } catch {
-      // Held by someone else; draw another candidate.
+      bind(candidate);
+      return candidate;
+    } catch (error) {
+      // A denied permission is not a held port. Swallowing it would report
+      // BAND_EXHAUSTED and hide the real cause, so it rethrows here.
+      if (error instanceof Deno.errors.PermissionDenied) throw error;
+      // Otherwise the port is held; draw another candidate.
     }
   }
   throw new Error("LOOPBACK_PORT_BAND_EXHAUSTED");
