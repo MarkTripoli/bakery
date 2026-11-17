@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="compose-down-v-leaves-worker" project="bakery">
+  <title>docker compose down -v leaves the worker container and its state volume behind</title>
+  <trigger>Any seat tearing down a per-worktree bakery stack with 'docker compose -p &lt;project&gt; down -v' and considering the teardown complete (night of 2026-11-17: qa-qa leaked qa-510-worker-1 and qa-479-worker-1 plus both _worker-state volumes - down -v removed the postgres service but not the worker service; hit twice in one night).</trigger>
+  <rule>down -v does not reach the worker service on this stack. The reliable teardown is: docker compose -p &lt;project&gt; down -v, THEN explicitly check for and remove &lt;project&gt;-worker-1 (container) and &lt;project&gt;_worker-state (volume). Every seat that spins a stack runs both steps before reporting cleanup done. Leaks cost host memory under the 25 GB budget across ~11 seats.</rule>
+  <verification>
+    <requirement>After teardown: 'docker ps -a --filter name=&lt;project&gt;' and 'docker volume ls --filter name=&lt;project&gt;' both return empty before cleanup is reported.</requirement>
+  </verification>
+</learning>

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="verify-every-branch-snapshot-not-the-endpoints" project="bakery">
+  <title>A gate that walks branch commits can fail on a commit you checked past</title>
+  <trigger>Debugging a gate that reports a stale or mismatched digest (paper parity K-0, contract compatibility digests, any provenance check) when the artifact "obviously" matches, especially after a rebase, squash or amend.</trigger>
+  <mistake>Verified the endpoints — origin/main and the current branch tip — found both clean, and concluded the gate was wrong or the failure was pre-existing. The gate in fact iterated every snapshot in the branch's history, and an intermediate commit (a pre-rebase commit still reachable after a reword-only rebase) carried the bad digest. Endpoints agreeing says nothing about the commits between them.</mistake>
+  <rule>Read the gate's snapshot enumeration before reproducing. `snapshotAt(commit)` in compare-paper.mjs reads a specific commit, not the worktree; a rebase that only rewords or reorders keeps old commits reachable, so a bad one survives. Enumerate `git log --oneline origin/main..HEAD` and test each commit's artifact, not just the tip. Reproduce with the gate's own arguments — its default parameters, its own `read`, its own helper imports — because a hand-written reproduction that differs in one default (a wrong module path for launch options, a wrong repository root) will "disprove" a correct gate.</rule>
+  <rule>Distinguish "pre-existing on main" from "mine" by stashing and re-running at the base, not by reading the diff. If the count and the message are identical with your work stashed, it is pre-existing; if the message names a commit that is an ancestor of your branch, it is yours.</rule>
+  <verification>
+    <requirement>Every commit in the branch range must pass the gate's own check before the failure is called external.</requirement>
+    <requirement>A failure is only called pre-existing when the identical count and message reproduce with the branch's changes stashed at the base.</requirement>
+  </verification>
+  <boundary>The squash that fixes this is legitimate only once the offending commit is identified and the removal understood; squashing to silence an unexplained gate is the failure mode this rule exists to prevent.</boundary>
+</learning>

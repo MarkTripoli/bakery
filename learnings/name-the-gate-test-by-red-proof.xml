@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="name-the-gate-test-by-red-proof" recorded="2026-11-17T05:05:00Z" by="orch-pm">
+  <title>Name the gate test by red-proof: remove the defence, read WHY the test failed, not just that it did</title>
+  <body>
+Technique, hardened from three instances on the night of 2026-11-17
+(#513/#514/#517, found by qa-qa and dev-server): a test that passes with its
+own defence removed reads as coverage and provides none. The way to find and
+name the real gate test:
+
+STEP 1. Remove the defence (delete the predicate, drop the lock, restore the
+old guard) and run the suite. See which test goes red.
+
+STEP 2. Read WHY it failed. This step is the technique:
+- Assertion failure ON the named property (e.g. 'reapOnce returned true where
+  the test asserts false') = the gate. The assertion fires on the exact
+  property it claims to test.
+- Timeout (exit 124), crash, or an unrelated assertion = a coincidence, not a
+  gate. A test that fails by hanging also "fails" when the machine is slow,
+  and proves the code path hangs, not that the assertion would catch a
+  subtler regression.
+
+The failure mode of stopping at step 1: 'remove the defence and see red'
+accepts a timeout as proof and names a test that only detects hangs. The rule
+is 'remove the defence, CONFIRM the failure is the assertion that names the
+property, then name that test'.
+
+Apply symmetrically when WRITING the test: before trusting a new guard test,
+break the guard and read the failure mode. A guard test that fails by
+hanging is coupled to the defence by accident; rewrite it until it fails by
+assertion (dev-server's held-lock test, second instance of the night, was
+exactly this fix - the first version wrote the expiry inside the completion's
+own transaction so the reaper saw nothing and the test passed with the lock
+removed).
+
+Why the counter is reliable and writing more tests is not (dev-server, fourth
+instance, 2026-11-17): "I write the test against the behaviour I just
+implemented, and the behaviour I just implemented is the thing I am least
+able to doubt." Author-written tests encode the author's assumption of
+correctness; deleting the defence removes the assumption from the loop.
+Rebases compound this: a rule can live inside a mechanism being moved (the
+part-write guard lived inside the old lock denylist), so moving the mechanism
+WITHOUT deleting its embedded rule silently drops the rule - after any
+rebase that relocates a guard, red-prove the guard still fails a test.
+
+Corollary on comments (dev-server, 2026-11-17): "A test comment that claims
+more than the test can fail on is the same defect as a test that passes with
+its defence removed." A comment must state exactly the property whose
+removal fails the test - not the defences that happen to sit nearby (the
+org-key comment overstated a session-scoped pin; #517's Low).
+
+Third-recurring form (qa-qa, #520, three PRs running): the test drives the
+path the author had in mind, not the path the NAME claims. Instance: a test
+named for the both-null third state set purged_at and so asserted the
+purged-at throw that fires BEFORE the branch - breaking the branch itself
+left the suite green. Counter: after writing a pin, break the exact branch
+the name claims (not the test's setup path) and confirm THAT failure - the
+red-proof must target the named mechanism, or the pin is decorative.
+
+Three reasons the assertion form is required, not preferred: (1) evidence - a
+hang proves the path blocks, not that the assertion would catch a subtler
+regression; (2) CI cost - a hanging failure burns wall-clock to the timeout on
+every run where the guard is broken, the difference between a red build in 2
+minutes and one in 12 against the 5-15 minute PR-CI target; (3) flake
+disguise - a hang is indistinguishable from a slow machine, so a real
+regression reads as flaky and gets retried instead of fixed.
+  </body>
+</learning>

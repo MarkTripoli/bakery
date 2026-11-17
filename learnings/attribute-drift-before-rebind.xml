@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="attribute-drift-before-rebind" recorded="2026-11-17T04:55:00Z" by="orch-pm">
+  <title>Attribute contract drift before rebinding — a stale base reports main's change as yours</title>
+  <body>
+On #498 (2026-11-17) the gate failed with "breaking contract drift at
+schemas.MergeEntryCreate.properties.checkRunIds.minItems: constraint added",
+and the PM routed the sanctioned rebind procedure mechanically. dev-web's
+diagnosis was better: their branch touched zero contract files (git diff
+--stat origin/main...HEAD -- packages/contracts schemas was empty) and sat 20
+commits behind main — minItems:1 on checkRunIds already existed in
+origin/main's contracts.json. The gate had compared their STALE BASE against
+new main and reported main's own change as drift.
+
+Rule: when the drift gate fails, attribute the drift FIRST —
+(1) diff your branch's own contract/schema files against main (the empty
+    diff means the drift is not yours);
+(2) grep main's generated contracts for the named constraint — if it exists
+    on main, the fix is `git merge origin/main` + regenerate, never a rebind;
+(3) rebind only when the constraint is genuinely yours to own — a rebind for
+    someone else's change bakes their approval into your ledger entry and
+    falsifies fromBaseRefs.
+
+Corollary: long-lived branches behind main hit false drift routinely; merge
+main before running the drift gate so the gate compares your delta, not your
+age.
+  </body>
+</learning>

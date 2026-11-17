@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="destructive-red-proof-pollutes-test-db" recorded="2026-11-17T05:35:00Z" by="qa-qa">
+  <title>A destructive red-proof pollutes the test database: reset it before trusting the green that follows</title>
+  <body>
+Found by qa-qa gating #517 at 45ca3cc07 (2026-11-17). Red-proving a reaper by
+broadening its delete to `where part.part_number > 0` wipes every row in
+bakery.blob_upload_parts. Restoring the source and re-running the same suite
+then gave 0 passed / 27 failed with:
+
+  CreateSuperuserError: AUTH_BOOTSTRAP_CONFLICT
+
+The test-database reset (BAKERY_TEST_DATABASE_RESET_CONFIRMATION=
+RESET_BAKERY_TEST_DATABASE) does not clear the superuser the wiped run left
+behind, so the next run cannot bootstrap and every test fails at setup. The
+code was correct the whole time; the red was pollution.
+
+The trap: a destructive red-proof produces a red that is not the code, and the
+green you run afterwards to prove you restored correctly is not green either.
+Both readings are wrong in the same direction - you either chase a regression
+that does not exist or, worse, accept a polluted run as evidence.
+
+Rule: after any red-proof that deletes or rewrites rows (broadened delete,
+dropped predicate, truncated table), drop and recreate the database before
+running the suite you intend to trust:
+
+  docker exec &lt;project&gt;-postgres-1 psql -U postgres -d postgres \
+    -c "drop database if exists bakery with (force);" \
+    -c "create database bakery owner bakery;"
+
+Note the owner: the application role (bakery) cannot create databases
+("permission denied to create database"), so the recreate must run as the
+postgres superuser even though the drop succeeds as bakery.
+
+Same shape as the night's other findings: a green that is not green and a red
+that is not the code. The counter is the same - ask what the failure would
+look like if the thing under test were fine, and if the answer is "exactly
+this", suspect the instrument before the code.
+
+SHARPER RULE, from the author breaking it the same night: a red-proof
+measurement is only valid on a database that has not already been through the
+red-proof. The first run is clean; every run after it is polluted. So it is
+one destructive red-proof per fresh database, and a second measurement needs
+a recreated database first, not a reset.
+
+The instance: qa-qa reported "0 passed / 14 failed" as a counter-example to
+dev-server's "8 passed / 5 failed" for the same broadening, in the same
+message that argued a number depending on the environment is not evidence.
+The 0/14 was the second run in a sequence and was pure pollution. Re-measured
+on a fresh database it was 8 passed / 6 failed - the 8 matching dev-server
+exactly, the 1-test gap being environment. The counter-example was not a
+measurement at all, and the tell ("name what would have to be true for this
+to be valid") would have caught it if applied to the reporter's own claim
+rather than only to the other party's.
+  </body>
+</learning>

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="curated-file-list-is-not-a-lane" recorded="2026-11-17T04:08:00Z" by="orch-pm">
+  <title>A curated file list is not a lane — path deletions are proven by the lane that owns the deleted path, run whole</title>
+  <body>
+dev-workflows on #518 (2026-11-17): five named test files passed and the
+report said "integration suites green" — but four tests in
+tests/integration/admit-a-compiled-plan-run-from-the-run-command_test.ts
+FAILED at the same head. That file runs only in the full integration lane, and
+CI skipped it (affected-route filter did not pull it in for the change set).
+The evidence was true about the five files and false as an impression of the
+lane.
+
+Rule: for any change that DELETES a code path, the proof is the lane that owns
+the deleted path, run whole (pnpm test:integration or the equivalent), not a
+hand-picked list of files that touch the new code. CI's affected-route skip is
+a throughput tool, not a coverage claim; when CI skips a lane your change set
+did not "pull in" but your diff deletes behavior that lane pins, run it
+yourself and say so.
+
+Corollary: phrase evidence claims at the scope you actually ran ("these five
+files pass") — never let a true statement about a subset read as a claim about
+the lane.
+  </body>
+</learning>

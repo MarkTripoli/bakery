@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="capture-mode-must-match-the-property" recorded="2026-11-17T05:46:00Z" by="orch-pm">
+  <title>Capture mode must match the property: a full-page shot cannot prove a viewport-relative cap</title>
+  <body>
+#479 round 4 (2026-11-17, qa-qa): the picker's 100dvh cap was "proven" by a
+1440x1090 capture - but dvh is relative to the VIEWPORT, and a full-page
+capture makes the viewport the page, so the image cannot show the cap at all.
+The cap was real (qa-qa ran the app at 1440x900 and measured picker bottom=884
+inside the viewport), but the PR's own evidence did not prove it: same class
+as the tests chased all night - evidence that reads as proof and is not.
+
+Rule: the capture instrument must carry the property being proven, or it
+proves nothing:
+- viewport-relative properties (dvh/dvh caps, sticky headers, above-the-fold
+  placement, fold clipping) need windowOnly: true captures, never full-page;
+- full-page captures answer "does anything anywhere differ" (sibling of
+  compare-the-region-not-the-image: choose the scope that carries the
+  property, and state which one the image is);
+- when an AC names a viewport property, the evidence section names the
+  capture mode beside it, so the reviewer can see the instrument matches the
+  claim.
+
+Corollary: a visual AC verified by a capture whose mode cannot show it is
+UNPROVEN even when the underlying fix is correct - re-capture with the right
+mode in the same push as the fix, never "the measurement was run manually so
+the image is fine".
+  </body>
+</learning>

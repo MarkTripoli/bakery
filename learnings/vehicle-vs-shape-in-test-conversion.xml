@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="vehicle-vs-shape-in-test-conversion" recorded="2026-11-17T05:25:00Z" by="orch-pm">
+  <title>Vehicle vs shape: when a contract change breaks tests, flip the shape and convert the vehicle - never delete invariants riding the old shape</title>
+  <body>
+Night of 2026-11-17, #518 (workflow admission: flat repository runs become
+refused, cloud_only keeps a structural exception). The PM ruled "flip the
+failing flat-admission tests to assert the refusal." dev-workflows measured
+before forcing it and reversed the ruling with evidence: the 201 at :1044
+feeds 26 assertions across 656 lines, and what those assertions test is NOT
+the flat walk - it is admission-agnostic invariants asserted THROUGH a flat
+run as a vehicle: idempotency replay, one-active-run, 409-on-competing-key,
+step listing, and the snapshot-immutability spine that is the file's
+namesake.
+
+Distinction: after a contract change breaks a test, separate its assertions
+into two kinds -
+- SHAPE assertions: content that exists only in the deleted form (flat
+  snapshot fields, flat-specific walk). Flipping these to assert the new
+  refusal is asserting the new contract - the honest small edit.
+- VEHICLE assertions: invariants that ride the old form but are not about it
+  (immutability, idempotency, cardinality, isolation). Flipping the admission
+  deletes these in the same stroke - weakening wearing the right hat. The
+  vehicle must be CONVERTED (same invariants, re-derived snapshot against the
+  new form), which is PR-sized work, not an edit.
+
+Rule: before flipping a broken test, count what its post-201/post-success
+body asserts. If anything after the changed shape is an admission-agnostic
+invariant, the test converts, it does not flip. And measure before converting
+- "flip" sounded small until the 26-uses/656-lines count said otherwise.
+
+Merge-shape corollary (same night): when the conversion is PR-sized, the
+split-PR alternative (base PR red until a stacked conversion lands) buys
+bookkeeping and a red window; the lane must be green at the merged head, so
+the conversion lands as its own commit in the same PR - commit granularity
+answers the big-diff objection, and the review handoff names the two units.
+  </body>
+</learning>

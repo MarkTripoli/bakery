@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="reaper-window-rule-two-reasons" recorded="2026-11-17T04:35:00Z" by="orch-pm">
+  <title>The reaper's refuse-shorter-windows rule is load-bearing twice: resume race AND reaping-implies-expiry</title>
+  <body>
+From qa-qa's proof on the #514/#517 blob-reaper work (2026-11-17), recorded
+because the second reason is cheap to state now and expensive to rediscover.
+
+THE INVARIANT: with abandonmentMs >= UPLOAD_SESSION_TTL_MS, the abandonment
+condition can never reap a session that is not also past expires_at. Proof in
+three lines: expires_at is set once at session open (created_at + TTL, never
+extended); the reaper's last-activity bound L >= created_at by construction;
+abandonment fires when L <= now - abandonmentMs, and abandonmentMs >= TTL
+gives expires_at = created_at + TTL <= L + TTL <= now. QED.
+
+WHY IT MATTERS BEYOND THE RESUME RACE: during the #514→#517 inter-merge
+window, lockUploadSession still carried a denylist that caught reaped
+sessions only because reaping implies expiry — and reaping implies expiry
+ONLY because shorter windows are refused, not clamped. Relax the rule (or add
+a third reap condition not bounded by expires_at) and a session can be
+reaped with expires_at still future; a denylist guard then ADMITS a part
+write into a session the reaper already emptied. The rule is not a preference,
+it is the invariant that keeps every guard over reaped sessions correct —
+including allowlists that scope expiry to pending, which otherwise read a
+future expires_at as live.
+
+RULE FOR FUTURE CHANGES: any new reap condition must be provably bounded by
+expires_at (or the guard family re-verified), and the window validation keeps
+refusing below-TTL values silently-clamped shortcuts. Two independent
+reasons, one rule.
+  </body>
+</learning>

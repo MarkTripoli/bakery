@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="handoff-row-is-a-head-claim" project="bakery">
+  <title>A handoff or recheck row is a claim about a HEAD - name the SHA, close it with the push</title>
+  <trigger>Triaging a QA-addressed or handoff row whose status is ambiguous; a superseded recheck and a stalled one look identical from outside (night of 2026-11-17: dev-server's row 1ac2b2c2 cited 38964ba3d while PR 510's head had already moved to 69ebe7a3f, closing the two findings the row listed as NOT FIXED).</trigger>
+  <rule>A handoff or recheck row is a claim about a HEAD, not about an issue. (1) Name the head SHA in the row BODY so the next reader can falsify it without asking anyone - a row that does not name its head can only be argued to be stale, never shown to be. (2) Whoever opens the row owns closing it in the SAME TURN the push lands; the window where two rows both look live is exactly what generates a false recovery row. (3) When triaging, after the two stuck-sweep predicates, the next check is: is the cited SHA still the PR's headRefOid? If not, the row is superseded, not stalled - close it no-follow-on with the movement noted.</rule>
+  <verification>
+    <requirement>Rows that gate a PR carry the SHA they judged; on head movement the opener's row closes in the same turn as the push. A triager reads PR headRefOid directly (gh pr view --json headRefOid), never argues staleness without it.</requirement>
+  </verification>
+</learning>

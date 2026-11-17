@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="queue-block-needs-wake-arg" project="bakery">
+  <title>rig queue block with only --on gate: arms no timer - always pass a wake argument</title>
+  <trigger>A seat blocks a row with 'rig queue block --on gate:...' and no wake argument: the command returns state=blocked and looks fine, but waiting.nextBackstop becomes UNVERIFIED with dueAt null, the parked-owner watchdog re-flags the seat on every sweep, and each sweep costs a seat-turn (night of 2026-11-17: #36 flagged twice this way).</trigger>
+  <rule>Blocking on a gate names the blocker but arms nothing. 'rig queue block' needs exactly one of --wake-after &lt;duration&gt;, --wake-watchdog &lt;jobId&gt;, or --on qitem-... to arm a real backstop. After ANY block, read back waiting.nextBackstop and require a watchdog mechanism with a future dueAt before considering the row parked; if nextBackstop reads UNVERIFIED/no timed backstop, re-block with --wake-after. This is the stuck-sweep false-positive class from the seat side: the seat itself created the wake-free row. Evidence: ~/.openrig/handover/evidence/dev-workflows.learning-queue-block-needs-wake-after.xml</rule>
+  <verification>
+    <requirement>After blocking, waiting.nextBackstop shows a watchdog mechanism with a dueAt in the future (e.g. --wake-after 2h arms a due ~2h out). A blocked row with dueAt null is not parked - it is a wake-free obligation the watchdog will keep re-flagging.</requirement>
+  </verification>
+</learning>
