@@ -28,29 +28,49 @@ export type StepConnectorProps =
     readOnly?: boolean;
     /** The word that ends the path, drawn under the line of a read-only link. */
     endLabel?: ReactNode;
+    /**
+     * A control to draw centred on the line instead of the connector's own
+     * button. The editor's picker is a popover that owns its own trigger
+     * button, and a button cannot be nested in a button, so the popover passes
+     * its trigger here and the connector draws the line around it (#67 UX
+     * ruling comment 6935518498 fix 1).
+     */
+    control?: ReactNode;
   };
 
 /** The line between two cards, with the round "+" that adds a step there. */
 export function StepConnector(
-  { children, endLabel, label, readOnly, ...props }: StepConnectorProps,
+  { children, control, endLabel, label, readOnly, ...props }:
+    StepConnectorProps,
 ) {
   if (readOnly) {
     return (
-      <span className="ui-step-connector" data-read-only="true">
-        <span aria-hidden="true" className="ui-step-connector__line" />
+      <span
+        className="ui-step-connector"
+        data-read-only="true"
+        data-ends-path={endLabel === undefined ? undefined : "true"}
+      >
         {
           /*
-          The word that ends the path sits on a line of its own, drawn from the
-          last card down to it. Without that second line the path stops in mid
-          air and the word hangs under a stub (#67 UX ruling 6932934119 fix 9).
+          One unbroken line for the whole link, drawn by the connector itself.
+          A previous version rendered a second `__line` for the end marker;
+          both were absolutely positioned across the full height, so they
+          stacked on each other and the word sat in a grey box with no line
+          running into it (#67 UX ruling 6935518498 fix 1).
         */
         }
-        {endLabel === undefined ? null : (
-          <>
-            <span aria-hidden="true" className="ui-step-connector__line" />
-            <span className="ui-step-connector__end">{endLabel}</span>
-          </>
-        )}
+        <span aria-hidden="true" className="ui-step-connector__line" />
+        {endLabel === undefined
+          ? null
+          : <span className="ui-step-connector__end">{endLabel}</span>}
+      </span>
+    );
+  }
+  if (control !== undefined) {
+    return (
+      <span className="ui-step-connector" data-has-control="true">
+        <span aria-hidden="true" className="ui-step-connector__line" />
+        <span className="ui-step-connector__control">{control}</span>
       </span>
     );
   }

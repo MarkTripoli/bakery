@@ -120,25 +120,27 @@ export function WorkflowDiagram(
         value={pickQuery}
         onChange={(event) => setPickQuery(event.currentTarget.value)}
       />
-      {offered.length === 0
-        ? (
-          <UI.Text variant="muted">
-            {translate("library.editor.picker.none" as never)}
-          </UI.Text>
-        )
-        : offered.map((uses) => (
-          <UI.Button
-            key={uses}
-            variant="quiet"
-            data-pick-step={uses}
-            onClick={() => onPick(uses)}
-          >
-            <span data-pick-body="true">
-              <span data-pick-title="true">{title(uses)}</span>
-              <span data-pick-line="true">{line(uses)}</span>
-            </span>
-          </UI.Button>
-        ))}
+      <UI.Stack gap="compact" data-picker-list="true">
+        {offered.length === 0
+          ? (
+            <UI.Text variant="muted">
+              {translate("library.editor.picker.none" as never)}
+            </UI.Text>
+          )
+          : offered.map((uses) => (
+            <UI.Button
+              key={uses}
+              variant="quiet"
+              data-pick-step={uses}
+              onClick={() => onPick(uses)}
+            >
+              <span data-pick-body="true">
+                <span data-pick-title="true">{title(uses)}</span>
+                <span data-pick-line="true">{line(uses)}</span>
+              </span>
+            </UI.Button>
+          ))}
+      </UI.Stack>
       <UI.Button variant="secondary" onClick={onPickClose}>
         {translate("library.editor.picker.cancel" as never)}
       </UI.Button>
@@ -187,19 +189,24 @@ export function WorkflowDiagram(
             </UI.Sheet>
           )
           : (
-            <UI.Popover
-              open={open}
+            <UI.StepConnector
               label={addLabel}
-              triggerLabel={addLabel}
-              variant="interactive"
-              onOpenChange={(next) => {
-                if (next) onAdd(afterId);
-                else if (open) onPickClose();
-              }}
-              trigger={<span data-add-highlight="true">+</span>}
-            >
-              {pickerBody}
-            </UI.Popover>
+              control={
+                <UI.Popover
+                  open={open}
+                  label={addLabel}
+                  triggerLabel={addLabel}
+                  variant="interactive"
+                  onOpenChange={(next) => {
+                    if (next) onAdd(afterId);
+                    else if (open) onPickClose();
+                  }}
+                  trigger={<span data-add-highlight="true">+</span>}
+                >
+                  {pickerBody}
+                </UI.Popover>
+              }
+            />
           )}
       </div>
     );
@@ -384,8 +391,12 @@ export function WorkflowDiagram(
     return out;
   };
 
+  // gap="none": a connector must touch the cards above and below it, so the
+  // space between cards is the connector's own 40px, not a stack gap plus a
+  // connector (#67 UX ruling comment 6935518498 fix 1). Every non-connector
+  // child carries its own spacing.
   return (
-    <UI.Stack gap="standard" data-ui-region="workflow-diagram">
+    <UI.Stack gap="none" data-ui-region="workflow-diagram">
       <div data-card="start">
         <UI.StepCard
           icon={<UI.IconGlyph name="lightning" size="small" />}

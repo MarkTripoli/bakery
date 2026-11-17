@@ -267,34 +267,35 @@
    padding of its own, and the line is drawn above and below the "+" so the path
    never stops short of the next card (#67 UX ruling 6932934119 fix 9). */
 /*
- * One unbroken line from card to card (#67 UX ruling 6934081003 fix 3). The
- * line is a single element the full height of the link and the "+" sits on top
- * of it, centred: stacking a short line above a tall button left a stub, a gap
- * where the hit area was, and a "+" hanging off the line's axis.
+ * The link between two cards, to design-ux's measurements (#67 UX ruling
+ * comment 6935518498 fix 1):
+ * - a 40px block that touches both cards, with no other gap above or below;
+ * - a 1px line the full 40px, at the x of the card icon tile's centre, the
+ *   same x for every connector, inside groups too;
+ * - editable: a 22px "+" centred on the line's midpoint with the page surface
+ *   behind it, so the line reads as passing behind the circle, 44px to hit;
+ * - read-only: the same line and no "+".
+ * The line is drawn by the connector itself, so the popover that owns the "+"
+ * does not have to draw anything.
  */
 .ui-step-connector {
   align-items: center;
+  block-size: var(--space-10);
   display: flex;
+  flex: 0 0 var(--space-10);
   inline-size: 100%;
   justify-content: center;
-  max-inline-size: var(--layout-item-action);
-  min-block-size: calc(var(--target-coarse) + var(--space-3));
-  padding-block: 0;
   position: relative;
 }
+/* The line sits at the icon tile's centre, not the diagram column's. */
 .ui-step-connector__line {
   background: var(--color-border);
   block-size: 100%;
   inline-size: var(--border-default);
   inset-block: 0;
-  inset-inline-start: 50%;
+  inset-inline-start: calc(var(--space-4) + (var(--size-control) / 2));
   position: absolute;
   translate: -50% 0;
-}
-/* A read-only link has no button to sit on the line, so it keeps no circle's
-   worth of height and the line alone spans the gap. */
-.ui-step-connector[data-read-only="true"] {
-  min-block-size: var(--space-3);
 }
 .ui-step-connector__button {
   align-items: center;
@@ -302,20 +303,24 @@
   border: var(--border-none);
   cursor: pointer;
   display: inline-flex;
-  /* 44px to hit and 22px drawn: the button is the hit area and the circle is
-     drawn inside it, so no minimum can win over the drawn size. */
   block-size: var(--target-coarse);
   inline-size: var(--target-coarse);
   justify-content: center;
-  position: relative;
+  /* The hit area is centred on the line's x, not on the column, and centred on
+     the line vertically, so the "+" sits at the line's midpoint. */
+  inset-block: 0;
+  inset-inline-start: calc(var(--space-4) + (var(--size-control) / 2));
+  position: absolute;
+  translate: -50% 0;
 }
 .ui-step-connector__button > span {
   align-items: center;
+  /* The page surface behind the circle, so the line passes behind it. */
   background: var(--color-surface);
-  box-sizing: border-box;
+  block-size: var(--size-step-connector);
   border: var(--border-default) solid var(--color-border);
   border-radius: var(--radius-circle);
-  block-size: var(--size-step-connector);
+  box-sizing: border-box;
   display: inline-flex;
   inline-size: var(--size-step-connector);
   justify-content: center;
@@ -327,20 +332,25 @@
   outline: var(--border-emphasis) solid var(--color-selection);
   outline-offset: var(--space-1);
 }
-
-/* The read-only link (#67): the same one-pixel line as the connector with no
-   "+" on it, and an optional word marking the end of the path. A person who may
-   not change the workflow still sees the path run from the first card to the
-   last and stop, instead of the connector vanishing. */
-/* The word that ends the path sits at the bottom of the one line, centred on
-   it, with surface behind it so the line does not run through the letters
-   (#67 UX ruling 6934081003 fix 3: it used to hang under a second stub). */
+/* Read-only ends with the word, plain muted text, sitting on the line at the
+   link's midpoint with the page surface behind it, so the line reads as passing
+   behind the word instead of stopping in mid air above a box (#67 UX ruling
+   6935518498 fix 1: it used to be a grey block with no line running into it). */
 .ui-step-connector__end {
-  background: var(--color-canvas);
+  background: var(--color-surface);
   color: var(--color-fg-muted);
   font: var(--type-label);
+  inset-block-start: 50%;
+  inset-inline-start: calc(var(--space-4) + (var(--size-control) / 2));
   padding-block: var(--space-1);
-  position: relative;
+  padding-inline: var(--space-2);
+  position: absolute;
+  translate: -50% -50%;
+}
+/* The last link ends the path, so it keeps the full 40px its line needs and the
+   word sits on it; there is no second stub below the word. */
+.ui-step-connector[data-ends-path="true"] {
+  margin-block-end: var(--space-0);
 }
 
 /* The step panel beside the diagram is the width the owner's spec names: the
@@ -415,6 +425,9 @@
 [data-pick-step] {
   align-items: start;
   display: flex;
+  /* Each row keeps its own height when the list is shorter than its contents:
+     without this the flex column shrinks them onto each other. */
+  flex: 0 0 auto;
   inline-size: 100%;
   justify-content: start;
   text-align: start;
@@ -435,27 +448,21 @@
   overflow-wrap: anywhere;
 }
 
-/* The "+" that opens the picker is the popover's own trigger button, so it
-   keeps the connector's geometry: a 44px hit area centred on the line with a
-   22px circle drawn inside (#67 UX ruling 6934081003 fix 3). The popover owns
-   the button, so the diagram never nests one button inside another. */
-.ui-popover:has(> [data-add-highlight]) {
+/* The "+" that opens the picker is the popover's own trigger button. When the
+   popover is drawn inside a connector's `control` slot the connector owns all
+   the geometry (line, height, x), so the popover must not draw a second line,
+   width or height of its own (#67 UX ruling comment 6935518498 fix 1: two
+   drawers on one link produced no line at all plus a floating "+"). */
+[data-has-control] .ui-popover:has(> [data-add-highlight]) {
   display: flex;
-  inline-size: 100%;
+  inline-size: auto;
   justify-content: center;
-  max-inline-size: var(--layout-item-action);
-  min-block-size: calc(var(--target-coarse) + var(--space-3));
+  max-inline-size: none;
+  min-block-size: var(--space-0);
   position: relative;
 }
-.ui-popover:has(> [data-add-highlight])::before {
-  background: var(--color-border);
-  block-size: 100%;
-  content: "";
-  inline-size: var(--border-default);
-  inset-block: 0;
-  inset-inline-start: 50%;
-  position: absolute;
-  translate: -50% 0;
+[data-has-control] .ui-popover:has(> [data-add-highlight])::before {
+  content: none;
 }
 .ui-popover__trigger--plain:has(> [data-add-highlight]) {
   align-items: center;
@@ -476,4 +483,105 @@
   display: inline-flex;
   inline-size: var(--size-step-connector);
   justify-content: center;
+}
+
+/* A control the caller owns, centred on the same x as the line (the editor's
+   picker popover, which owns the "+" button itself). */
+.ui-step-connector__control {
+  align-items: center;
+  display: inline-flex;
+  inset-block: 0;
+  inset-inline-start: calc(var(--space-4) + (var(--size-control) / 2));
+  justify-content: center;
+  position: absolute;
+  translate: -50% 0;
+}
+/* The popover's trigger draws the circle; the connector draws only the line
+   behind it, so the two never fight over the same geometry. */
+[data-has-control] .ui-popover__trigger--plain {
+  align-items: center;
+  background: transparent;
+  border: var(--border-none);
+  block-size: var(--target-coarse);
+  display: inline-flex;
+  inline-size: var(--target-coarse);
+  justify-content: center;
+}
+[data-has-control] [data-add-highlight] {
+  align-items: center;
+  background: var(--color-surface);
+  block-size: var(--size-step-connector);
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-circle);
+  box-sizing: border-box;
+  display: inline-flex;
+  inline-size: var(--size-step-connector);
+  justify-content: center;
+}
+
+/*
+ * The desktop picker never runs past the viewport (#67 UX ruling comment
+ * 6935518498 fix 2): it is at most the space below its "+" down to 16px above
+ * the bottom, the list scrolls inside, and the search field and Cancel stay
+ * visible at the top and bottom because they are outside the scrolling list.
+ */
+[data-testid="step-picker"] {
+  display: flex;
+  flex-direction: column;
+  max-block-size: 100%;
+  min-block-size: 0;
+}
+/* The list is the only part that scrolls; the search field above it and Cancel
+   below it are siblings, so they stay visible at both ends of the popover. */
+[data-testid="step-picker"] > [data-picker-list="true"] {
+  flex: 0 1 auto;
+  min-block-size: 0;
+  overflow-y: auto;
+}
+/*
+ * The desktop picker never runs past the viewport (#67 UX ruling comment
+ * 6935518498 fix 2: Cancel sat below the fold). The popover content is anchored
+ * under its "+", so the honest room it may use is what is left of the viewport
+ * below that point. CSS cannot read the trigger's offset, so the cap is the
+ * viewport less the band above the diagram: the page header, plus the title,
+ * version line and first card that always sit above the first "+". The list
+ * inside scrolls; the search field and Cancel never do.
+ * `dvh` so a phone's collapsing address bar is accounted for.
+ */
+.ui-popover__content:has([data-testid="step-picker"]) {
+  display: flex;
+  flex-direction: column;
+  max-block-size: calc(
+    100dvh - var(--layout-header) - var(--space-10) - var(--space-10)
+  );
+  overflow: hidden;
+}
+
+/* The diagram is a column with no gap, because a connector has to touch the
+   cards on both sides. Everything that is not a connector carries its own
+   block spacing instead (#67 UX ruling comment 6935518498 fix 1). */
+[data-ui-region="workflow-diagram"] > *:not([data-connector]):not(.ui-step-connector) {
+  margin-block: var(--space-3);
+}
+[data-ui-region="workflow-diagram"] > *:first-child {
+  margin-block-start: var(--space-0);
+}
+[data-ui-region="workflow-diagram"] > *:last-child {
+  margin-block-end: var(--space-0);
+}
+/*
+ * The connector's wrapper is a plain `div` between flex children, so it must
+ * keep the connector's own 40px and never shrink; otherwise the flex column
+ * squeezed the line into a stub with gaps either side of it (#67 UX ruling
+ * comment 6935518498 fix 1).
+ */
+[data-ui-region="workflow-diagram"] > [data-connector] {
+  flex: 0 0 auto;
+  margin-block: var(--space-0);
+  min-block-size: var(--space-10);
+}
+/* A connector for a workflow this person cannot change draws nothing, so it
+   takes no room at all instead of holding an empty 40px slot. */
+[data-ui-region="workflow-diagram"] > [data-connector]:empty {
+  min-block-size: var(--space-0);
 }
