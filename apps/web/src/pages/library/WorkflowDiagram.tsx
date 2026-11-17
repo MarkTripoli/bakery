@@ -1,4 +1,10 @@
-import { type ReactNode, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import * as UI from "@bakery/ui";
 import { useShellViewport } from "../../app/responsive.ts";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
@@ -112,6 +118,30 @@ export function WorkflowDiagram(
       title(uses).toLowerCase().includes(needle) ||
       (line(uses) ?? "").toLowerCase().includes(needle);
   });
+  // The picker's list scrolls, so it says so: a 24px fade at whichever end has
+  // rows hidden past it, and none when everything fits (#67 UX ruling
+  // 6942486257, option 1). QA found the last visible row sliced mid-glyph with
+  // no scrollbar painted, which read as a broken render rather than "there is
+  // more". The rule is about overflow, not a breakpoint, so the phone sheet
+  // follows it too.
+  const [listFade, setListFade] = useState({ top: false, bottom: false });
+  const listEl = useRef<HTMLElement | null>(null);
+  const measureListFade = useCallback((list: HTMLElement | null) => {
+    if (!list) return;
+    const { scrollTop, clientHeight, scrollHeight } = list;
+    // One pixel of slack: sub-pixel layout rounds scrollHeight, and a strict
+    // comparison would leave the fade on at the very end of the list.
+    const top = scrollTop > 0;
+    const bottom = scrollTop + clientHeight < scrollHeight - 1;
+    setListFade((was) =>
+      was.top === top && was.bottom === bottom ? was : { top, bottom }
+    );
+  }, []);
+  useEffect(() => {
+    // A narrower search changes what is hidden; re-measure after that render.
+    measureListFade(listEl.current);
+  }, [measureListFade, pickQuery]);
+
   const pickerBody = (
     <UI.Stack gap="compact" data-testid="step-picker">
       <UI.SearchField
@@ -120,7 +150,17 @@ export function WorkflowDiagram(
         value={pickQuery}
         onChange={(event) => setPickQuery(event.currentTarget.value)}
       />
-      <UI.Stack gap="compact" data-picker-list="true">
+      <UI.Stack
+        gap="compact"
+        data-picker-fade-bottom={listFade.bottom ? "true" : undefined}
+        data-picker-fade-top={listFade.top ? "true" : undefined}
+        data-picker-list="true"
+        onScroll={(event) => measureListFade(event.currentTarget)}
+        ref={(node) => {
+          listEl.current = node;
+          measureListFade(node);
+        }}
+      >
         {offered.length === 0
           ? (
             <UI.Text variant="muted">

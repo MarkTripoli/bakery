@@ -716,6 +716,79 @@ for (
       // card (#67 UX ruling 6932934119 fix 12).
       await page.mouse.move(600, 700);
       await shot(page, "workflow-editor-picker", [], { windowOnly: true });
+      // The fade rule (#67 UX ruling 6942486257) is about overflow, so the stills
+      // must show both edges: just opened (bottom fade only) and scrolled to the
+      // end (top fade only, last row fully visible). Desktop only: the phone
+      // sheet's list fits, so its end state is the just-opened state.
+      if (viewport.width >= 744) {
+        const list = page.locator(
+          '[data-testid="step-picker"] > [data-picker-list="true"]',
+        );
+        // Just opened: rows are hidden below, so only the bottom edge fades
+        // (the phone sheet's list fits, so it fades at neither edge).
+        if (viewport.width >= 744) {
+          await expect(list).toHaveAttribute("data-picker-fade-bottom", "true");
+          await expect(list).not.toHaveAttribute(
+            "data-picker-fade-top",
+            "true",
+          );
+        } else {
+          await expect(list).not.toHaveAttribute(
+            "data-picker-fade-top",
+            "true",
+          );
+          await expect(list).not.toHaveAttribute(
+            "data-picker-fade-bottom",
+            "true",
+          );
+        }
+        // Scroll the way a person does, so the real listener runs.
+        await list.hover();
+        await page.mouse.wheel(0, 4000);
+        // React re-renders the fade attributes on the next frame after a
+        // programmatic scroll; wait for that before reading them, and again
+        // before the capture, so the still shows the end state.
+        await page.waitForTimeout(200);
+        // At the end: nothing is hidden below, so only the top edge fades.
+        const after = await list.evaluate((n) => ({
+          top: n.getAttribute("data-picker-fade-top"),
+          bottom: n.getAttribute("data-picker-fade-bottom"),
+        }));
+        expect(after.top).toBe("true");
+        expect(after.bottom).toBeNull();
+        // `shot` resets the viewport per viewport, which resets the scroll, so
+        // capture the end state directly at the evidence viewport instead.
+        if (process.env.BAKERY_EVIDENCE_DIR) {
+          // Capture at the same 1440x900 the other desktop stills use, so the
+          // two picker states are directly comparable.
+          await page.setViewportSize({ width: 1440, height: 900 });
+          await page.evaluate(() =>
+            new Promise((resolve) => requestAnimationFrame(resolve))
+          );
+          await list.evaluate((n) => {
+            n.scrollTop = n.scrollHeight;
+            n.dispatchEvent(new Event("scroll", { bubbles: true }));
+          });
+          // Let the fade attributes settle on the end state, so the still and
+          // the assertions above cannot disagree.
+          await page.waitForFunction(
+            () => {
+              const n = document.querySelector(
+                '[data-testid="step-picker"] > [data-picker-list="true"]',
+              );
+              return n !== null &&
+                n.getAttribute("data-picker-fade-bottom") !== "true";
+            },
+            undefined,
+            { timeout: 5000 },
+          );
+          await page.screenshot({
+            path:
+              `${process.env.BAKERY_EVIDENCE_DIR}/workflow-editor-picker-end--desktop.png`,
+            fullPage: false,
+          });
+        }
+      }
       await picker.locator("[data-pick-step='review.independent']").click();
       // The picked step type is what got added — never a fixed one.
       await expect(page.locator("[data-card]")).toHaveCount(3);

@@ -574,6 +574,39 @@
   overflow-y: auto;
 }
 /*
+ * The list says where it continues (#67 UX ruling 6942486257, option 1). A row
+ * clipped mid-glyph at the bottom edge read as a broken render, and no scrollbar
+ * was painted, so nothing else hinted that more rows existed. The fade is a mask
+ * on the list itself, not a coloured overlay, so it is right in light and dark
+ * and can never cover the search field or Cancel. It follows overflow, not a
+ * breakpoint, so the phone sheet obeys the same rule; when the rows fit there is
+ * no fade at any width. WorkflowDiagram.tsx sets these attributes from the real
+ * scroll position, so the fade appears only while rows are hidden past that edge.
+ */
+[data-testid="step-picker"] > [data-picker-list="true"][data-picker-fade-bottom="true"] {
+  mask-image: linear-gradient(
+    to bottom,
+    black calc(100% - var(--space-6)),
+    transparent
+  );
+}
+[data-testid="step-picker"] > [data-picker-list="true"][data-picker-fade-top="true"] {
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    black var(--space-6)
+  );
+}
+[data-testid="step-picker"] > [data-picker-list="true"][data-picker-fade-top="true"][data-picker-fade-bottom="true"] {
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    black var(--space-6),
+    black calc(100% - var(--space-6)),
+    transparent
+  );
+}
+/*
  * The desktop picker never runs past the viewport (#67 UX round 4, item 2: a
  * 1090px page in a 900px viewport, Cancel at y 1055). The popover measures its
  * own `top` when it opens and writes the room that leaves as an inline
