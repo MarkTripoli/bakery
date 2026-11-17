@@ -75,7 +75,10 @@ Deno.test("workflow producer retains registry capabilities when requirements are
   ]);
 });
 
-for (const action of ["unknown.action", "rpi.research", "workflow.noop"]) {
+// `rpi.research` is in the registry but in neither execution table, so it is
+// still refused. `workflow.noop` moved OUT of this list: it is
+// runtime-implemented, so admission answers for it now.
+for (const action of ["unknown.action", "rpi.research"]) {
   Deno.test(`workflow producer rejects unavailable or control-only action ${action}`, () => {
     assertThrows(
       () => workflowActionCapabilities(action),
