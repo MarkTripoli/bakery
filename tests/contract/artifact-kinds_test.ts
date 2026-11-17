@@ -463,3 +463,45 @@ Deno.test("free text refuses NUL and unpaired surrogates", () => {
     ).success,
   );
 });
+
+Deno.test("the publication lock key is the uniqueness key, not a proxy for it", async () => {
+  // QA asked for this to be pinned: the DB enforces one revision per
+  // (organization_id, kind_id, revision) via
+  // `artifact_kind_versions_revision_unique`, while publication serializes with
+  // an advisory lock. Those two agree only while the lock key IS the uniqueness
+  // key. A rename, or a second key resolving to one kind, would silently make
+  // the lock serialize a different pair of requests than the constraint
+  // protects: both publishers pass the expectedRevision check under different
+  // locks and collide at insert instead of being ordered.
+  const root = new URL("../../", import.meta.url).pathname;
+  const source = await Deno.readTextFile(
+    `${root}apps/server/src/modules/artifact-kinds/postgres.ts`,
+  );
+  const sql = await Deno.readTextFile(
+    `${root}apps/server/src/modules/artifact-kinds/migrations/bakery/0171_artifact_kinds.sql`,
+  );
+  const lock =
+    /pg_advisory_xact_lock\(\s*hashtextextended\(\$1::text \|\| ':' \|\| \$2::text, 0\)\)/
+      .exec(source);
+  assert(lock, "publication must serialize with the advisory lock");
+  // The lock is taken over (organizationId, kindId) and nothing else...
+  const lockArguments =
+    /hashtextextended\(\$1::text \|\| ':' \|\| \$2::text, 0\)\)`,\s*\[([^\]]+)\]/
+      .exec(source)?.[1] ?? "";
+  assert(
+    lockArguments.includes("organizationId"),
+    `the lock must start from the organization, saw ${lockArguments}`,
+  );
+  // ...where kindId is the identity the constraint names, or the not-yet-created
+  // key while the first revision is being published.
+  assert(
+    /kindId \?\? `new:\$\{pathKey\}`/.test(lockArguments),
+    `the lock's second half must be the kind identity, saw ${lockArguments}`,
+  );
+  // The constraint must still be exactly (organization_id, kind_id, revision),
+  // so the comment above stays true and not merely once true.
+  const constraint =
+    /artifact_kind_versions_revision_unique\s+unique \(([^)]*)\)/.exec(sql)?.[1]
+      ?.replace(/\s+/g, " ") ?? "";
+  assertEquals(constraint, "organization_id, kind_id, revision");
+});

@@ -289,22 +289,30 @@ export async function publishArtifactKindVersion(
         `The definition names ${key} but the path addresses ${pathKey}; a publication must not rename the kind it addresses.`,
     }]);
   }
-  // Serialize publishers of one kind with an advisory lock rather than
-  // `select ... for update`. The kind tables are insert-only - bakery_app has no
-  // UPDATE privilege on them, which is what makes a published revision
-  // immutable - and a row lock needs UPDATE. The advisory lock gives the same
-  // "one publisher at revision n" guarantee without that privilege.
-  await transaction.query(
-    `select pg_advisory_xact_lock(
-       hashtextextended($1::text || ':' || $2::text, 0))`,
-    [organizationId, pathKey],
-  );
   const kind = await transaction.query<{ id: string }>(
     `select id from bakery.artifact_kinds
       where organization_id = $1 and key = $2`,
     [organizationId, pathKey],
   );
   const kindId = kind.rows[0]?.id ?? null;
+  // Serialize publishers of one kind with an advisory lock rather than
+  // `select ... for update`. The kind tables are insert-only - bakery_app has no
+  // UPDATE privilege on them, which is what makes a published revision
+  // immutable - and a row lock needs UPDATE.
+  //
+  // The lock key is the uniqueness key of
+  // `artifact_kind_versions_revision_unique`, which is
+  // (organization_id, kind_id, *not* key). Both halves matter, and a future
+  // rename or a second key resolving to the same kind would make them disagree
+  // silently: the lock would then serialize a different pair of requests than
+  // the constraint protects, so two publishers could pass the expectedRevision
+  // check under different locks and collide at insert instead of being ordered.
+  // pin: artifact-kinds-lock-key-matches-unique-constraint
+  await transaction.query(
+    `select pg_advisory_xact_lock(
+       hashtextextended($1::text || ':' || $2::text, 0))`,
+    [organizationId, kindId ?? `new:${pathKey}`],
+  );
   const latest = kindId === null ? 0 : (await transaction.query<
     { max: number }
   >(
