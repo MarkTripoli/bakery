@@ -121,6 +121,9 @@ function fakeApi(
       sources: rejecting,
       createSource: rejecting,
       updateSource: rejecting,
+      source: rejecting,
+      preview: rejecting,
+      lookupPerson: rejecting,
       sync: rejecting,
     },
     workers: {

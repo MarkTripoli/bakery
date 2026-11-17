@@ -18,7 +18,14 @@ import {
  * organisation's prefix is refused by `blobObjectKey` before any store call.
  */
 export class ScopedOrganizationBlobStore implements OrganizationBlobStore {
-  constructor(private readonly store: SkillObjectStore) {}
+  // Only these three calls are ever made, so the adapter does not demand a
+  // `list()` a blob store has no business having.
+  constructor(
+    private readonly store: Pick<
+      SkillObjectStore,
+      "putIfAbsent" | "read" | "recover"
+    >,
+  ) {}
 
   async putIfAbsent(
     organizationId: string,

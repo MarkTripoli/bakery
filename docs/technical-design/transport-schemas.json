@@ -9937,6 +9937,70 @@
         }
       ],
       "description": "Settles every unknown merge attempt of one pull request by re-reading it from GitHub; a merge that happened is recorded as merged and one that did not as refused, without ever sending a second merge."
+    },
+    "BlobUploadStart": {
+      "fields": [
+        {
+          "name": "sha256",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 64,
+            "maxLength": 64
+          },
+          "description": "Lowercase hexadecimal SHA-256 of the whole file, declared before any byte is sent. The server compares the assembled bytes against it, so a wrong declaration is refused rather than stored under a digest the content does not have."
+        },
+        {
+          "name": "sizeBytes",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "minimum": 0,
+            "maximum": 5368709120
+          },
+          "description": "Total size of the file in bytes, declared up front and bounded by the 5 GiB per-blob limit. Declaring it lets the server refuse an incomplete assembly instead of accepting a truncated file."
+        },
+        {
+          "name": "mediaType",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "description": "IANA media type of the content, such as application/octet-stream. It is served back on download and used to decide whether the bytes may be read inline as text."
+        }
+      ],
+      "description": "Opens a resumable upload by declaring the whole file's digest, size and media type before any part is sent. The declaration is what the completed assembly is checked against, so a client cannot discover after the fact what it uploaded."
+    },
+    "BlobUploadPart": {
+      "fields": [
+        {
+          "name": "content",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 5242880
+          },
+          "description": "Raw bytes of this part, base64 in JSON and raw in a binary request. A part is bounded at 5 MiB so one request cannot exhaust the server's memory."
+        },
+        {
+          "name": "sha256",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 64,
+            "maxLength": 64
+          },
+          "description": "Lowercase hexadecimal SHA-256 of this part's bytes. It lets a resume detect a part that arrived corrupt without re-sending the whole file."
+        }
+      ],
+      "description": "One ordinal piece of a resumable upload. Parts are addressed by their number, so re-sending a part replaces that number rather than appending a duplicate, which is what makes a retry safe."
+    },
+    "BlobUploadComplete": {
+      "fields": [],
+      "description": "Completes a session with no body: the session already carries the declared digest, size and media type. Completing is idempotent, so a client that never saw the first response can retry without storing a second blob."
     }
   },
   "projections": {
@@ -25656,6 +25720,67 @@
         "reconciled": "Total unknown attempts the read settled.",
         "merged": "Attempts settled as merged because GitHub reports the pull request merged.",
         "refused": "Attempts settled as refused because GitHub reports the pull request not merged."
+      }
+    },
+    "BlobUploadSession": {
+      "projection": "blob_upload_sessions",
+      "fields": [
+        "id",
+        "state",
+        "sha256",
+        "sizeBytes",
+        "mediaType",
+        "receivedBytes",
+        "partCount",
+        "expiresAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "state": "enum(pending|completed|abandoned|expired)",
+        "sha256": "string",
+        "sizeBytes": "integer",
+        "mediaType": "string",
+        "receivedBytes": "integer",
+        "partCount": "integer",
+        "expiresAt": "timestamp"
+      },
+      "nullableFields": [],
+      "description": "A resumable upload in progress, scoped to the organization and the principal that opened it. It reports what has arrived so a client can resume from the right ordinal rather than restarting the file.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of this upload session, used in the part and complete paths.",
+        "state": "Lifecycle state: pending while parts are accepted, completed once the declared file is stored, expired once its deadline passed uncompleted, abandoned when a client gave the upload up.",
+        "sha256": "The digest declared when the session opened; the completed assembly must match it.",
+        "sizeBytes": "The total size declared when the session opened.",
+        "mediaType": "The media type declared when the session opened.",
+        "receivedBytes": "Bytes accepted so far, so a client can tell how much of the file is already on the server.",
+        "partCount": "Number of distinct part ordinals stored, which reveals a gap a client would otherwise have to discover on completion.",
+        "expiresAt": "Absolute deadline for this session. It does not slide on activity, so a stalled upload cannot keep itself alive indefinitely."
+      }
+    },
+    "Blob": {
+      "projection": "blobs",
+      "fields": [
+        "id",
+        "sha256",
+        "sizeBytes",
+        "mediaType",
+        "createdAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "sha256": "string",
+        "sizeBytes": "integer",
+        "mediaType": "string",
+        "createdAt": "timestamp"
+      },
+      "nullableFields": [],
+      "description": "A stored file identified by its organization and SHA-256. Two uploads of the same bytes in one organization are the same blob, so a repeated completion returns the existing record rather than storing the content twice.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of the stored blob, usable wherever an artifact version needs to reference these bytes.",
+        "sha256": "Lowercase hexadecimal SHA-256 of the stored bytes, which is also the object's key within the organization.",
+        "sizeBytes": "Size of the stored bytes in bytes.",
+        "mediaType": "IANA media type recorded for the stored bytes.",
+        "createdAt": "When this blob was first stored. A later upload of the same bytes does not change it."
       }
     }
   },

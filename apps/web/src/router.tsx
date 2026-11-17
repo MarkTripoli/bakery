@@ -31,6 +31,8 @@ import { TasksPage } from "./pages/TasksPage.tsx";
 import { IssuePage } from "./pages/IssuePage.tsx";
 import { ProjectsPage } from "./pages/ProjectsPage.tsx";
 import { IssuesPage } from "./pages/IssuesPage.tsx";
+import { IssueSettingsListPage } from "./pages/IssueSettingsListPage.tsx";
+import { IssueSettingsPage } from "./pages/IssueSettingsPage.tsx";
 import { LibraryPage } from "./pages/LibraryPage.tsx";
 import { AgentPage } from "./pages/AgentPage.tsx";
 import { BuiltInWorkflowPage } from "./pages/BuiltInWorkflowPage.tsx";
@@ -271,6 +273,32 @@ export const routeCoverage = [
   {
     id: "issue-detail",
     path: "/issues/$issueId",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "error",
+      "forbidden",
+      "offline",
+      "long-copy",
+    ],
+  },
+  {
+    id: "issue-settings",
+    path: "/issues/settings",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "empty",
+      "error",
+      "forbidden",
+      "offline",
+    ],
+  },
+  {
+    id: "issue-settings-detail",
+    path: "/issues/settings/$sourceId",
     classification: "production",
     states: [
       "loading",
@@ -1057,6 +1085,28 @@ const issueDetailRoute = createRoute({
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
   component: () => <IssuePage issueId={issueDetailRoute.useParams().issueId} />,
+  errorComponent: ProtectedRouteError,
+});
+
+const issueSettingsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/issues/settings",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: IssueSettingsListPage,
+  errorComponent: ProtectedRouteError,
+});
+
+const issueSettingsDetailRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/issues/settings/$sourceId",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => (
+    <IssueSettingsPage
+      sourceId={issueSettingsDetailRoute.useParams().sourceId}
+    />
+  ),
   errorComponent: ProtectedRouteError,
 });
 
@@ -2022,6 +2072,8 @@ const routeTree = rootRoute.addChildren([
   taskCoordinationRoute,
   issuesRoute,
   issueDetailRoute,
+  issueSettingsRoute,
+  issueSettingsDetailRoute,
   machinesRoute,
   libraryRoute,
   workflowRoute,

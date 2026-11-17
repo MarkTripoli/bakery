@@ -16,11 +16,14 @@ import {
 import { withWorkerFixture } from "../helpers/worker-execution/scenarios.ts";
 import { withPgTransaction } from "../../apps/server/src/platform/database.ts";
 import {
-  assembleDeclaredBytes,
+  assembleVerifiedBytes,
   completeUploadSession,
   lockUploadSession,
-  readUploadParts,
+  lockUploadSessionForCompletion,
+  putUploadPart,
+  readBlob,
   recordBlob,
+  streamUploadParts,
 } from "../../apps/server/src/modules/knowledge/blobs.ts";
 import { StandardError } from "../../packages/contracts/src/http.ts";
 import { sha256Bytes } from "../../apps/server/src/modules/knowledge/bytes.ts";
@@ -183,19 +186,30 @@ async function completeLikeTheHandler(
   sessionId: string,
 ): Promise<{ id: string }> {
   return await withPgTransaction(fixture.pgDatabase, async (tx) => {
-    const session = await lockUploadSession(tx, {
+    // The completion door, not the part door - this has to be the function the
+    // real handler calls, or the test proves something the handler does not do.
+    const session = await lockUploadSessionForCompletion(tx, {
       organizationId: fixture.organizationId,
       principalId: fixture.principalId,
       sessionId,
     });
-    const parts = await readUploadParts(tx, {
-      organizationId: fixture.organizationId,
-      sessionId,
-    });
-    const bytes = assembleDeclaredBytes(parts, {
-      sha256: session.sha256,
-      sizeBytes: Number(session.sizeBytes),
-    });
+    // The handler answers a retry with the blob it already produced, before it
+    // reaches `completeUploadSession`, whose update is correctly limited to a
+    // pending session. Skipping this branch would make a retry look like a
+    // refusal and prove nothing about the guard.
+    if (session.state === "completed") {
+      return await readBlob(tx, {
+        organizationId: fixture.organizationId,
+        blobId: session.completedBlobId!,
+      });
+    }
+    const bytes = await assembleVerifiedBytes(
+      streamUploadParts(tx, {
+        organizationId: fixture.organizationId,
+        sessionId,
+      }),
+      { sha256: session.sha256, sizeBytes: Number(session.sizeBytes) },
+    );
     const blob = await recordBlob(tx, {
       organizationId: fixture.organizationId,
       principalId: fixture.principalId,
@@ -205,6 +219,7 @@ async function completeLikeTheHandler(
     });
     await completeUploadSession(tx, {
       organizationId: fixture.organizationId,
+      principalId: fixture.principalId,
       sessionId,
       blobId: blob.id,
     });
@@ -254,6 +269,19 @@ Deno.test("a completion and a reaper racing never corrupt a legitimate upload", 
     // allowed are a full success or a typed refusal: a size or digest mismatch
     // would be the signature of the reaper deleting parts mid-assembly, and it
     // is the one outcome a client would read as data corruption.
+    //
+    // This is a SMOKE TEST, not the proof. qa-qa red-proved it: removing
+    // `for update` from the lock still passes here, because a race test only
+    // fails when the thread schedule happens to land in the damaging window,
+    // and ten rounds do not reliably hit it. The proof that the lock exists and
+    // excludes is "a reaper skips a session a completion is holding" above: it
+    // holds the lock in an open transaction, lets real time carry the session
+    // past its deadline, and asserts the sweep declines. That test fails when
+    // the lock is removed, so that one is the gate - if it is ever weakened or
+    // deleted, this test stays green and will not tell you.
+    //
+    // It also drives the real reapAbandonedBlobUploads rather than a reaper
+    // shaped delete, which is what makes it worth keeping at all.
     for (let round = 0; round < 10; round += 1) {
       const sessionId = await seedSession(fixture, { hours: -1, parts: 3 });
       const [completion, reaping] = await Promise.allSettled([
@@ -492,5 +520,73 @@ Deno.test("a reaped session refuses a late part with a named reason", async () =
     // The reason is what tells a client the difference between "you are too
     // late" and "someone else finished this".
     assertEquals(refused?.params?.reason, "upload_session_expired");
+  });
+});
+
+Deno.test("a part cannot be written into a completed session", async () => {
+  await withWorkerFixture(async (fixture) => {
+    // The lock admits a completed session so the completion path can read a
+    // finished upload and answer a retry with its blob. That admission is safe
+    // only because the part write refuses one itself - so this is the test that
+    // holds the two guards apart. Without it, relocating the rule out of the
+    // shared lock would quietly reopen part writes into finished uploads, which
+    // is the mutation that matters because it is exactly what the relocation
+    // made possible.
+    // Real bytes, hashed, so the completion path will accept them: the session
+    // under test has to be finished the way a client finishes one.
+    const chunks = [
+      new TextEncoder().encode("first"),
+      new TextEncoder().encode("second"),
+    ];
+    const whole = new Uint8Array([...chunks[0], ...chunks[1]]);
+    const digest = await sha256Bytes(whole);
+    const created = await fixture.pgDatabase.query<{ id: string }>(
+      `insert into bakery.blob_upload_sessions
+         (organization_id, created_by_id, sha256, size_bytes, media_type,
+          expires_at)
+       values ($1, $2, $3, $4, 'text/plain', now() + interval '1 hour')
+       returning id`,
+      [fixture.organizationId, fixture.principalId, digest, whole.byteLength],
+    );
+    const sessionId = created.rows[0].id;
+    for (const [index, chunk] of chunks.entries()) {
+      await fixture.pgDatabase.query(
+        `insert into bakery.blob_upload_parts
+           (organization_id, session_id, part_number, sha256, size_bytes, content)
+         values ($1, $2, $3, $4, $5, $6)`,
+        [
+          fixture.organizationId,
+          sessionId,
+          index + 1,
+          await sha256Bytes(chunk),
+          chunk.byteLength,
+          chunk,
+        ],
+      );
+    }
+    await completeLikeTheHandler(fixture, sessionId);
+
+    let refused: StandardError | undefined;
+    try {
+      await withPgTransaction(
+        fixture.pgDatabase,
+        (tx) =>
+          putUploadPart(tx, {
+            organizationId: fixture.organizationId,
+            principalId: fixture.principalId,
+            sessionId,
+            partNumber: 3,
+            sha256: "0".repeat(64),
+            content: new Uint8Array([1]),
+          }),
+      );
+    } catch (error) {
+      refused = error as StandardError;
+    }
+    assertEquals(refused instanceof StandardError, true);
+    assertEquals(refused?.code, "STATE_CONFLICT");
+    // The part was not written: the two parts the upload arrived with are all
+    // there is, and no third row appeared.
+    assertEquals(await partsOf(fixture, sessionId), 2);
   });
 });
