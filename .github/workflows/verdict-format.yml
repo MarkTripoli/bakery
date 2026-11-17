@@ -1,0 +1,50 @@
+name: Verdict format
+
+# Review and QA verdicts must stay short (see .github/AUTHORING.md). A PR
+# comment or review whose first line starts with "Verdict:" is checked with the
+# trusted base-branch validator. The job's own pass/fail is the signal: it is
+# deliberately NOT a required check, so a malformed verdict shows red on the run
+# without freezing merges. No workflow in this repository may write statuses or
+# checks (scripts/ci/runner-label-policy.mjs), so this job reports by failing
+# rather than by publishing a commit status. The comment body is passed as data
+# on stdin, never interpolated into a shell command.
+on:
+  issue_comment:
+    types: [created, edited]
+  pull_request_review:
+    types: [submitted, edited]
+
+permissions: {}
+
+jobs:
+  verdict:
+    if: >-
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request &&
+       startsWith(github.event.comment.body, 'Verdict:')) ||
+      (github.event_name == 'pull_request_review' &&
+       startsWith(github.event.review.body, 'Verdict:'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
+        with:
+          deno-version: v2.9.1
+      - name: Check the verdict format
+        env:
+          BODY: ${{ github.event.comment.body || github.event.review.body }}
+        run: |
+          if result=$(printf '%s' "$BODY" | deno run --no-config --allow-read=scripts/authoring scripts/authoring/validate.ts review -); then
+            echo "Verdict is short and well formed."
+          else
+            echo "::error::Verdict is not in the required format."
+            printf '%s' "$result" | jq -r '.errors[]' | while IFS= read -r line; do
+              echo "::error::$line"
+            done
+            exit 1
+          fi
