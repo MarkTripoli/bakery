@@ -1,13 +1,22 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "1f1ba04f2d66d2783516ac1c46b42743c7331ea9"
+    "465e9476c657f880d1b4057040d661a4ade1d10c"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:4c56e576cd84a373f4e2beb0d3d3bfa9f0e4093a3da28b12bbe5c4cb84dc3934",
-  "reason": "#233 owner-directed split of Members & access, rebind by dev-web on 2026-11-17 under the owner's standing breaking-change authorization: five actions move from Admin to 'Initiating principal or Admin' so a member can create and manage their own service accounts and tokens while an Admin still sees the whole organization (principals.list, principals.create, accessTokens.list, accessTokens.create, accessTokens.revoke). principals.create also takes a distinct principal:create permission so it no longer collides with the Admin-only principals.update. The drift is the access policy and permission of existing actions changing, not a request or response shape.",
+  "targetCompatibilityDigest": "sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685",
+  "reason": "#233 owner-directed split of Members & access, rebind by dev-web on 2026-11-17 under the owner's standing breaking-change authorization. Two changes ride together: five actions move from Admin to 'Initiating principal or Admin' so a member can create and manage their own service accounts and tokens (principals.list, principals.create, accessTokens.list, accessTokens.create, accessTokens.revoke), and Principal gains a required nullable createdByPrincipalId so an Admin can see who created a service account. principals.create also takes a distinct principal:create permission so it no longer collides with the Admin-only principals.update. The projection is additive by value but the field is required like its neighbour disabledAt, which is what moves the digest.",
   "priorApprovals": [
+    {
+      "fromBaseRefs": [
+        "1f1ba04f2d66d2783516ac1c46b42743c7331ea9"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:4c56e576cd84a373f4e2beb0d3d3bfa9f0e4093a3da28b12bbe5c4cb84dc3934",
+      "reason": "#233 owner-directed split of Members & access, rebind by dev-web on 2026-11-17 under the owner's standing breaking-change authorization: five actions move from Admin to 'Initiating principal or Admin' so a member can create and manage their own service accounts and tokens while an Admin still sees the whole organization (principals.list, principals.create, accessTokens.list, accessTokens.create, accessTokens.revoke). principals.create also takes a distinct principal:create permission so it no longer collides with the Admin-only principals.update. The drift is the access policy and permission of existing actions changing, not a request or response shape."
+    },
     {
       "fromBaseRefs": [
         "faa03d56e99e036c0d3271f1028c18086a5cce45"

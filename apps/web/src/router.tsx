@@ -580,6 +580,18 @@ export const routeCoverage = [
     states: ["loading", "default", "empty", "error", "forbidden"],
   },
   {
+    id: "settings-organization-access-invitations",
+    path: "/settings/organization/access/invitations",
+    classification: "production",
+    states: ["loading", "default", "empty", "error", "forbidden"],
+  },
+  {
+    id: "settings-organization-service-accounts",
+    path: "/settings/organization/service-accounts",
+    classification: "production",
+    states: ["loading", "default", "empty", "error"],
+  },
+  {
     id: "settings-organization-roles",
     path: "/settings/organization/roles",
     classification: "production",
