@@ -1166,3 +1166,95 @@ test("production candidate capture records the same K-0 raster profile", {
     );
   }
 });
+
+// A push to main has no base to compare against: `HEAD` is the base, so the
+// parity path asks git for `merge-base --all HEAD origin/main` and gets every
+// base candidate, refusing with "Ambiguous or unavailable provenance merge
+// base". Main proves self-consistency instead: the baseline a commit ships must
+// be the baseline its own tree produces.
+test("main proves its baseline is self-consistent and refuses a tampered one", async () => {
+  const repositoryRoot = await mkdtemp(join(tmpdir(), "paper-selfcheck-"));
+  const baselinePath =
+    "docs/technical-design/ui-baselines/paper-baselines.json";
+  const git = (...args) =>
+    execFileSync("git", args, {
+      cwd: repositoryRoot,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    }).trim();
+  const write = async (path, bytes) => {
+    await mkdir(dirname(join(repositoryRoot, path)), { recursive: true });
+    await writeFile(join(repositoryRoot, path), bytes);
+  };
+  const store = (value) =>
+    write(baselinePath, JSON.stringify(value, null, 2) + "\n");
+  const commit = (message) => {
+    git("add", ".");
+    git("commit", "-m", message);
+    return git("rev-parse", "HEAD");
+  };
+  // No `comparisonRef` is passed anywhere here on purpose: main-push mode must
+  // never consult one, which is what makes it viable where a base cannot resolve.
+  const selfConsistency = () =>
+    repositoryBaselineProvenance({
+      repositoryRoot,
+      baselinePath,
+      mode: "self-consistency",
+    });
+  const legacy = {
+    ...baseline,
+    cases: [baseline.cases.find((entry) => entry.sourceProfile === undefined)],
+  };
+  delete legacy.sourceProfiles;
+  try {
+    git("init", "-q");
+    git("config", "user.name", "Provenance Test");
+    git("config", "user.email", "provenance@example.invalid");
+    git("config", "commit.gpgsign", "false");
+    // Both source identities own inputs: the manifest default (`auth`) and the
+    // named profile. A self-consistency check recomputes whichever the manifest
+    // declares, so both sets must exist in the commit.
+    for (
+      const path of new Set([
+        ...legacy.source.inputs,
+        ...profile.source.inputs,
+        legacy.cases[0].imagePath,
+      ])
+    ) {
+      await write(path, await readFile(path));
+    }
+    const imagePath = legacy.cases[0].imagePath;
+    const imageBytes = await readFile(imagePath);
+    await write(imagePath, imageBytes);
+    const declared = createHash("sha256").update(imageBytes).digest("hex");
+    await store({
+      ...legacy,
+      cases: [{ ...legacy.cases[0], imageSha256: declared }],
+    });
+    // A main push tests a commit, so the fixture must have one.
+    commit("test: self-consistent baseline");
+    const clean = selfConsistency();
+    assert.equal(clean.status, "self-consistent", JSON.stringify(clean));
+    assert.equal(clean.commit, git("rev-parse", "HEAD"));
+
+    // A reference image that does not hash to what the manifest declares is
+    // exactly the unproven baseline main must refuse.
+    await store({
+      ...legacy,
+      cases: [{ ...legacy.cases[0], imageSha256: "6".repeat(64) }],
+    });
+    commit("test: tampered reference digest");
+    const tampered = selfConsistency();
+    assert.equal(tampered.status, "blocked", JSON.stringify(tampered));
+    assert.match(
+      tampered.issues.join("\n"),
+      /reference image does not match its declared digest/,
+    );
+    assert.equal(
+      JSON.stringify(tampered).includes('self-consistent":true'),
+      false,
+    );
+  } finally {
+    await rm(repositoryRoot, { recursive: true, force: true });
+  }
+});
