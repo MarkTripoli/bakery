@@ -692,3 +692,23 @@ Deno.test("a duplicated verification item is an unresolved edit", () => {
   // One line per item is still the accepted form.
   assertEquals(validateDescription("pr", pr), []);
 });
+
+Deno.test("N/A cannot stand in for work that has not happened yet", () => {
+  const body = pr.replace(
+    /- \[x\] UI verified[^\n]*/,
+    "- [ ] UI verified (design-ux): N/A: not yet signed off.",
+  );
+  assert(
+    validateDescription("pr", body).some((e) =>
+      e.includes("means not done yet")
+    ),
+  );
+  const fine = pr.replace(
+    /- \[x\] UI verified[^\n]*/,
+    "- [ ] UI verified (design-ux) N/A: no UI change.",
+  );
+  assertEquals(
+    validateDescription("pr", fine).filter((e) => e.includes("ui verified")),
+    [],
+  );
+});
