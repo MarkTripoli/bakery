@@ -405,21 +405,25 @@ for (
         await expect(page.getByText("4 people · 1 pending invitation"))
           .toBeVisible();
       }
-      // The scoped developer role shows under its member, named by resource.
+      // A person has ONE row however many roles they hold: the scoped role
+      // sits inside the member's row beside the organization one, named by
+      // its resource, rather than in a nameless duplicate (issue 233, fix 2).
       const jon = page.getByTestId(`org-access-member-${M_DEV}`);
       await expect(jon).toContainText("Organization · Developer");
-      await expect(page.getByTestId(`org-access-binding-${BIND_1}`))
-        .toContainText("Application · Developer");
-      await expect(page.getByTestId(`org-access-binding-${BIND_1}`))
-        .toContainText("storefront");
+      await expect(jon).toContainText("Application · Developer");
+      await expect(jon).toContainText("storefront");
+      await expect(page.getByTestId("org-access-members"))
+        .not.toContainText("No organization role");
       await expect(page.getByTestId(`org-access-invitation-${INV_1}`))
         .toContainText("sam@example.test");
       await expect(page.getByTestId(`org-access-invitation-${INV_1}`))
         .toContainText("Organization · Guest");
       await expect(page.getByTestId("org-access-account-" + BOT_PRINCIPAL))
         .toContainText("ci-deployer");
+      // A token reads as a labelled value, never a bare prefix
+      // (issue 233, fix 7).
       await expect(page.getByTestId(`org-access-token-${TOK_1}`))
-        .toContainText("bk_…9d2f");
+        .toContainText("Token ending bk_…9d2f");
       await expect(page.getByTestId("org-access-clients"))
         .toContainText("Bakery CLI");
       // The page never scrolls sideways, on a phone least of all.
@@ -640,25 +644,27 @@ for (
         REPO_ID,
       );
       await dialog.getByTestId("org-access-binding-add").click();
-      await expect(page.getByTestId(`org-access-binding-${BIND_2}`))
-        .toContainText("Repository · Viewer");
-      await expect(page.getByTestId(`org-access-binding-${BIND_2}`))
-        .toContainText("oven-api");
+      // The new scoped role joins the person's own row, naming its resource
+      // (issue 233, fix 2).
+      const viewer = page.getByTestId(`org-access-member-${M_VIEWER}`);
+      await expect(viewer).toContainText("Repository · Viewer");
+      await expect(viewer).toContainText("oven-api");
       expect(sent(world, "POST", "/v1/access-bindings")[0].body).toEqual({
         principalId: VIEWER_PRINCIPAL,
         roleKey: "viewer",
         scopeType: "repository",
         scopeId: REPO_ID,
       });
-      await dialog.getByRole("button", { name: "Close dialog" }).click();
-
-      await page.getByTestId(`org-access-binding-${BIND_2}`)
-        .getByRole("button", { name: "Remove" }).click();
+      // A scoped role is removed from the person's edit dialog, which is the
+      // row's one action; the row itself never carries a second control
+      // (issue 233, fix 5).
+      await dialog.getByRole("button", { name: "Remove acme/oven-api" })
+        .click();
       await page.getByTestId("org-access-confirm-action").click();
-      await expect(page.getByTestId(`org-access-binding-${BIND_2}`))
-        .toHaveCount(
-          0,
-        );
+      // The dialog stays open so the person can keep editing; what this test
+      // pins is that the right request went out.
+      await expect(page.getByTestId(`org-access-member-${M_VIEWER}`))
+        .not.toContainText("oven-api");
       expect(
         sent(world, "DELETE", `/v1/access-bindings/${BIND_2}`)[0]
           .headers["if-match"],

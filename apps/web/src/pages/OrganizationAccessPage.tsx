@@ -587,6 +587,7 @@ export function OrganizationAccessPage() {
         return {
           title: translate("settings.orgAccess.confirm.removeMember.title", {
             name: confirm.name,
+            organization: organizationName,
           }),
           body: translate("settings.orgAccess.confirm.removeMember.body"),
           action: translate("settings.orgAccess.member.remove"),
@@ -658,23 +659,6 @@ export function OrganizationAccessPage() {
     }${
       inactive ? ` · ${translate("settings.orgAccess.member.inactive")}` : ""
     }`;
-  const removeBindingButton = (binding: AccessBindingRecord) => (
-    <UI.Button
-      aria-label={`${translate("settings.orgAccess.binding.remove")} ${
-        resourceName(binding.scopeType, binding.scopeId)
-      }`}
-      onClick={() =>
-        setConfirm({
-          kind: "removeBinding",
-          binding,
-          name: resourceName(binding.scopeType, binding.scopeId),
-        })}
-      type="button"
-      variant="text"
-    >
-      {translate("settings.orgAccess.binding.remove")}
-    </UI.Button>
-  );
   /**
    * A person with no organization-wide role (a guest) is shown by what a scope
    * grants them: their first scoped role is the row, the rest follow it.
@@ -682,30 +666,57 @@ export function OrganizationAccessPage() {
   const memberRows: UI.AccessSettingsRow[] = humans.flatMap((membership) => {
     const name = nameOf(membership.principalId);
     const own = bindingsOf(membership.principalId);
+    // A guest with scoped roles has no organization role worth showing, so the
+    // scopes lead; everyone else shows their organization role first and then
+    // whatever their scopes add. Either way it is one row per person (fix 2).
     const scopedOnly = membership.role === "guest" && own.length > 0;
-    const lead = scopedOnly ? own[0] : null;
-    const rest = scopedOnly ? own.slice(1) : own;
+    const scoped = own;
     const rows: UI.AccessSettingsRow[] = [{
       id: membership.id,
       testId: `org-access-member-${membership.id}`,
+
       identity: name,
       emphasis: true,
-      cells: lead
-        ? [
-          scopeText(lead.scopeType, lead.roleKey),
-          resourceName(lead.scopeType, lead.scopeId),
-        ]
-        : [
-          organizationText(membership.role, membership.status === "inactive"),
-          membership.role === "guest"
-            ? translate("settings.orgAccess.scope.guestOnly")
-            : translate("settings.orgAccess.scope.all"),
-        ],
+      // One person, one row: further scoped roles stack inside the same row
+      // rather than appearing under a nameless duplicate (#233 fix 2).
+      cells: [
+        <UI.Stack gap="compact" key="role">
+          {scopedOnly ? null : (
+            <UI.Text>
+              {organizationText(
+                membership.role,
+                membership.status === "inactive",
+              )}
+            </UI.Text>
+          )}
+          {scoped.map((binding) => (
+            <UI.Text key={binding.id}>
+              {scopeText(binding.scopeType, binding.roleKey)}
+            </UI.Text>
+          ))}
+        </UI.Stack>,
+        <UI.Stack gap="compact" key="resource">
+          {scopedOnly ? null : (
+            <UI.Text>
+              {membership.role === "guest"
+                ? translate("settings.orgAccess.scope.guestOnly")
+                : translate("settings.orgAccess.scope.all")}
+            </UI.Text>
+          )}
+          {scoped.map((binding) => (
+            <UI.Text key={binding.id}>
+              {resourceName(binding.scopeType, binding.scopeId)}
+            </UI.Text>
+          ))}
+        </UI.Stack>,
+      ],
       // Paper's phone rows read "Organization · Admin": an organization-wide
       // role's reach is implied there, so a phone keeps "All applications"
       // for assistive technology only. A scoped row keeps its resource, and a
       // guest keeps the note that only a scope grants anything.
-      phoneHiddenCells: lead || membership.role === "guest" ? undefined : [1],
+      phoneHiddenCells: scopedOnly || membership.role === "guest"
+        ? undefined
+        : [1],
       action: (
         <UI.Button
           aria-label={translate("settings.orgAccess.member.editNamed", {
@@ -723,25 +734,12 @@ export function OrganizationAccessPage() {
             });
           }}
           type="button"
-          variant="text"
+          variant="secondary"
         >
           {translate("settings.orgAccess.member.edit")}
         </UI.Button>
       ),
     }];
-    for (const binding of rest) {
-      rows.push({
-        id: binding.id,
-        testId: `org-access-binding-${binding.id}`,
-        identity: <UI.VisuallyHidden>{name}</UI.VisuallyHidden>,
-        cells: [
-          scopeText(binding.scopeType, binding.roleKey),
-          resourceName(binding.scopeType, binding.scopeId),
-        ],
-        action: removeBindingButton(binding),
-        actionTone: "destructive",
-      });
-    }
     return rows;
   });
   const invitationRows: UI.AccessSettingsRow[] = pendingInvitations.map((
@@ -766,7 +764,7 @@ export function OrganizationAccessPage() {
         data-testid={`org-access-cancel-${invitation.id}`}
         onClick={() => setConfirm({ kind: "cancelInvitation", invitation })}
         type="button"
-        variant="text"
+        variant="destructive-quiet"
       >
         {translate("settings.orgAccess.invitation.cancel")}
       </UI.Button>
@@ -836,7 +834,9 @@ export function OrganizationAccessPage() {
               })
             }`}
           >
-            <code>{token.prefix}</code>
+            {translate("settings.orgAccess.token.ending", {
+              ending: token.prefix,
+            })}
             <UI.VisuallyHidden>
               {` · ${
                 token.scopes.map((scopeName) =>
@@ -861,7 +861,7 @@ export function OrganizationAccessPage() {
             data-testid={`org-access-revoke-${token.id}`}
             onClick={() => setConfirm({ kind: "revokeToken", token })}
             type="button"
-            variant="text"
+            variant="destructive-quiet"
           >
             {translate("settings.orgAccess.token.revoke")}
           </UI.Button>
@@ -890,7 +890,7 @@ export function OrganizationAccessPage() {
             name: client.clientName,
           })}
         type="button"
-        variant="text"
+        variant="destructive-quiet"
       >
         {translate("settings.orgAccess.client.revoke")}
       </UI.Button>
@@ -1161,7 +1161,7 @@ export function OrganizationAccessPage() {
                       open: !value.open,
                     }))}
                   type="button"
-                  variant="text"
+                  variant="secondary"
                 >
                   {translate("settings.orgAccess.account.new")}
                 </UI.Button>
@@ -1198,26 +1198,75 @@ export function OrganizationAccessPage() {
             id: "org-access-members",
             testId: "org-access-members",
             title: translate("settings.orgAccess.members.heading"),
+            columnHeaders: [
+              translate("settings.orgAccess.column.member"),
+              translate("settings.orgAccess.column.role"),
+              translate("settings.orgAccess.column.appliesTo"),
+              "",
+            ],
+            titleHelp: (
+              <UI.HelpTip
+                label={translate("settings.orgAccess.column.role")}
+              >
+                {translate("settings.orgAccess.help.role")}
+              </UI.HelpTip>
+            ),
             titleDetail: translate("settings.orgAccess.members.count", {
               count: humans.length + pendingInvitations.length,
             }),
-            aside: translate("settings.orgAccess.members.pending", {
-              count: pendingInvitations.length,
-            }),
+            // A count that reads like an action should be one: it goes to the
+            // section it counts (#233 fix 8).
+            aside: pendingInvitations.length > 0
+              ? (
+                <UI.Button
+                  data-testid="org-access-pending-link"
+                  onClick={() =>
+                    document.getElementById("org-access-invitations")
+                      ?.scrollIntoView({ behavior: "smooth" })}
+                  type="button"
+                  variant="secondary"
+                >
+                  {translate("settings.orgAccess.members.pending", {
+                    count: pendingInvitations.length,
+                  })}
+                </UI.Button>
+              )
+              : null,
             phoneLayout: "overlay",
+            inlineActions: true,
             rows: memberRows,
             children: inviteForm,
           }, {
             id: "org-access-invitations",
             testId: "org-access-invitations",
             title: translate("settings.orgAccess.invitations.title"),
+            columnHeaders: [
+              translate("settings.orgAccess.column.member"),
+              translate("settings.orgAccess.column.role"),
+              translate("settings.orgAccess.column.expires"),
+              "",
+            ],
             phoneLayout: "stacked",
             rows: invitationRows,
             empty: translate("settings.orgAccess.invitations.none"),
+            emptyAction: inviteAction,
           }, {
             id: "org-access-accounts",
             testId: "org-access-accounts",
             title: translate("settings.orgAccess.accounts.title"),
+            columnHeaders: [
+              translate("settings.orgAccess.column.token"),
+              translate("settings.orgAccess.column.role"),
+              translate("settings.orgAccess.column.scopes"),
+              "",
+            ],
+            titleHelp: (
+              <UI.HelpTip
+                label={translate("settings.orgAccess.accounts.title")}
+              >
+                {translate("settings.orgAccess.help.accounts")}
+              </UI.HelpTip>
+            ),
             phoneLayout: "inline",
             actions: (
               <>
@@ -1229,7 +1278,7 @@ export function OrganizationAccessPage() {
                       open: !value.open,
                     }))}
                   type="button"
-                  variant="text"
+                  variant="secondary"
                 >
                   {translate("settings.orgAccess.account.new")}
                 </UI.Button>
@@ -1244,7 +1293,7 @@ export function OrganizationAccessPage() {
                         serviceAccounts[0]?.id || "",
                     }))}
                   type="button"
-                  variant="text"
+                  variant="secondary"
                 >
                   {translate("settings.orgAccess.token.new")}
                 </UI.Button>
@@ -1252,6 +1301,20 @@ export function OrganizationAccessPage() {
             ),
             rows: accountRows,
             empty: translate("settings.orgAccess.accounts.none"),
+            emptyAction: (
+              <UI.Button
+                data-testid="org-access-new-account-empty"
+                onClick={() =>
+                  setAccountDraft((value) => ({
+                    ...value,
+                    open: true,
+                  }))}
+                type="button"
+                variant="secondary"
+              >
+                {translate("settings.orgAccess.account.new")}
+              </UI.Button>
+            ),
             callout: created
               ? {
                 testId: "org-access-new-token",
@@ -1276,12 +1339,28 @@ export function OrganizationAccessPage() {
             id: "org-access-clients",
             testId: "org-access-clients",
             title: translate("settings.orgAccess.clients.title"),
+            columnHeaders: [
+              translate("settings.orgAccess.column.client"),
+              translate("settings.orgAccess.column.role"),
+              translate("settings.orgAccess.column.appliesTo"),
+              "",
+            ],
+            titleHelp: (
+              <UI.HelpTip
+                label={translate("settings.orgAccess.clients.title")}
+              >
+                {translate("settings.orgAccess.help.clients")}
+              </UI.HelpTip>
+            ),
             columns: "detail",
             phoneLayout: "stacked",
             rows: clientRows,
             empty: clients.isError
               ? translate("settings.orgAccess.clients.error")
               : translate("settings.orgAccess.clients.none"),
+            emptyHelp: clients.isError
+              ? undefined
+              : translate("settings.orgAccess.clients.emptyHelp"),
           }]
           : []}
       >
