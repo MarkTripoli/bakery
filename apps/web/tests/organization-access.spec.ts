@@ -81,11 +81,16 @@ function membership(id: string, principalId: string, role: string): Body {
     version: 1,
   };
 }
-function principal(id: string, displayName: string, type = "human"): Body {
+function principal(
+  id: string,
+  displayName: string,
+  type = "human",
+  createdByPrincipalId: string | null = null,
+): Body {
   return {
     id,
     principalType: type,
-    createdByPrincipalId: null,
+    createdByPrincipalId,
     displayName,
     disabledAt: null,
     createdAt: STAMP,
@@ -118,7 +123,7 @@ function fullWorld(): World {
       principal(ADMIN_PRINCIPAL, "Ada Rivera"),
       principal(DEVELOPER_PRINCIPAL, "Jon Okafor"),
       principal(VIEWER_PRINCIPAL, "Priya Nair"),
-      principal(BOT_PRINCIPAL, "ci-deployer", "service"),
+      principal(BOT_PRINCIPAL, "ci-deployer", "service", ADMIN_PRINCIPAL),
     ],
     tokens: [{
       id: TOK_1,
@@ -785,5 +790,45 @@ for (
       await expect(page.getByTestId(`org-access-member-${M_ADMIN}`))
         .toBeVisible();
     });
+  });
+}
+
+// Evidence capture for PR 534. Not a gate: it writes stills of the screens this
+// change builds, run by hand when the PR needs viewable proof at its head.
+const shotDir = process.env.BAKERY_EVIDENCE_DIR;
+if (shotDir !== undefined) {
+  test.describe("organization access evidence", () => {
+    for (
+      const shape of [
+        { name: "desktop", width: 1440, height: 900 },
+        { name: "phone", width: 390, height: 844 },
+      ]
+    ) {
+      test(`stills (${shape.name})`, async ({ page }) => {
+        await page.setViewportSize(shape);
+        const world = fullWorld();
+        await accessFixture(page, world);
+        for (
+          const screen of [
+            { name: "members", path: "/settings/organization/access" },
+            {
+              name: "invitations",
+              path: "/settings/organization/access/invitations",
+            },
+            {
+              name: "service-accounts",
+              path: "/settings/organization/service-accounts",
+            },
+          ]
+        ) {
+          await page.goto(screen.path);
+          await page.waitForTimeout(900);
+          await page.screenshot({
+            path: `${shotDir}/${screen.name}-${shape.name}-light.png`,
+            fullPage: true,
+          });
+        }
+      });
+    }
   });
 }

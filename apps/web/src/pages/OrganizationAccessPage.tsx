@@ -1211,7 +1211,7 @@ export function OrganizationAccessPage({
       </ShellSlot>
       <UI.AccessSettings
         data-testid="org-access"
-        tabs={showSections && pageState === "default"
+        tabs={showSections && pageState === "default" && page === "members"
           ? (
             <UI.Tabs
               aria-label={translate("settings.orgAccess.title")}
