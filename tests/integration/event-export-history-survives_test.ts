@@ -1,5 +1,6 @@
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import { openPgDatabase } from "../../apps/server/src/platform/database.ts";
+import { openAuthFixture } from "../helpers/auth.ts";
 import { deleteEventExportHistory } from "../../apps/server/src/modules/integrations/event-export-retention.ts";
 
 /**
@@ -17,6 +18,30 @@ import { deleteEventExportHistory } from "../../apps/server/src/modules/integrat
  * The writes that matter run as `bakery_app`, the role the application actually
  * uses, so a grant that looks right but is defeated by a cascade still fails.
  */
+
+/**
+ * Applies migrations before any test touches the database.
+ *
+ * This used to depend on whatever ran first: on a fresh database the suite failed
+ * with "relation bakery.integration_deliveries does not exist", which means a
+ * file that passes only because another file migrated first is not evidence. QA
+ * found it by running the file alone on an empty PG16.
+ *
+ * `openAuthFixture` already applies every module's migrations plus data
+ * migrations, so this reuses that path instead of a second one, and closes the
+ * fixture immediately - only the schema is wanted here, not an app instance.
+ */
+let migrated: Promise<void> | undefined;
+function ensureMigrated(): Promise<void> {
+  migrated ??= (async () => {
+    const fixture = await openAuthFixture();
+    await fixture.close();
+  })().catch((error) => {
+    migrated = undefined;
+    throw error;
+  });
+  return migrated;
+}
 
 function required(name: string): string {
   const value = Deno.env.get(name)?.trim();
@@ -294,6 +319,7 @@ const DELIVERY_INSERT = `insert into bakery.integration_deliveries (
 Deno.test("deleting a subscription cannot erase delivery history", async () => {
   const admin = openPgDatabase(adminUrl);
   const app = openPgDatabase(appUrl);
+  await ensureMigrated();
   const deliveryId = crypto.randomUUID();
   try {
     await seedParents(admin);
@@ -361,6 +387,7 @@ Deno.test("deleting a subscription cannot erase delivery history", async () => {
 Deno.test("a subscription cannot reach another connection's destination or source", async () => {
   const admin = openPgDatabase(adminUrl);
   const app = openPgDatabase(appUrl);
+  await ensureMigrated();
   try {
     await seedParents(admin);
 
@@ -439,6 +466,7 @@ Deno.test("a subscription cannot reach another connection's destination or sourc
 Deno.test("a connection with history is deleted only after its history is swept", async () => {
   const admin = openPgDatabase(adminUrl);
   const app = openPgDatabase(appUrl);
+  await ensureMigrated();
   const deliveryId = crypto.randomUUID();
   try {
     await seedParents(admin);

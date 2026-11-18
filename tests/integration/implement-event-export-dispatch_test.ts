@@ -1,5 +1,6 @@
 import { assert, assertEquals } from "@std/assert";
 import { openPgDatabase } from "../../apps/server/src/platform/database.ts";
+import { openAuthFixture } from "../helpers/auth.ts";
 import type { AuthoritySnapshot } from "../../apps/server/src/modules/catalog/integration-gate.ts";
 import {
   deliveryIdentity,
@@ -25,6 +26,30 @@ import type {
  * The authorized baseline runs alongside every refusal, in the same test file,
  * so "nothing was sent" cannot be satisfied by a path that never sends at all.
  */
+
+/**
+ * Applies migrations before any test touches the database.
+ *
+ * This used to depend on whatever ran first: on a fresh database the suite failed
+ * with "relation bakery.integration_deliveries does not exist", which means a
+ * file that passes only because another file migrated first is not evidence. QA
+ * found it by running the file alone on an empty PG16.
+ *
+ * `openAuthFixture` already applies every module's migrations plus data
+ * migrations, so this reuses that path instead of a second one, and closes the
+ * fixture immediately - only the schema is wanted here, not an app instance.
+ */
+let migrated: Promise<void> | undefined;
+function ensureMigrated(): Promise<void> {
+  migrated ??= (async () => {
+    const fixture = await openAuthFixture();
+    await fixture.close();
+  })().catch((error) => {
+    migrated = undefined;
+    throw error;
+  });
+  return migrated;
+}
 
 function required(name: string): string {
   const value = Deno.env.get(name)?.trim();
@@ -406,6 +431,7 @@ async function dispatch(
 Deno.test("an authorized export writes one delivery row and sends one request", async () => {
   const admin = openPgDatabase(adminUrl);
   const app = openPgDatabase(appUrl);
+  await ensureMigrated();
   try {
     await seed(admin);
 
@@ -434,6 +460,7 @@ Deno.test("an authorized export writes one delivery row and sends one request", 
 Deno.test("a revoked subscription sends nothing and writes no delivery row", async () => {
   const admin = openPgDatabase(adminUrl);
   const app = openPgDatabase(appUrl);
+  await ensureMigrated();
   try {
     await seed(admin);
 
@@ -460,6 +487,7 @@ Deno.test("a revoked subscription sends nothing and writes no delivery row", asy
 Deno.test("a private source resource sends nothing and writes no delivery row", async () => {
   const admin = openPgDatabase(adminUrl);
   const app = openPgDatabase(appUrl);
+  await ensureMigrated();
   try {
     await seed(admin);
 
@@ -482,6 +510,7 @@ Deno.test("a private source resource sends nothing and writes no delivery row", 
 Deno.test("an install re-approved without events:subscribe sends nothing", async () => {
   const admin = openPgDatabase(adminUrl);
   const app = openPgDatabase(appUrl);
+  await ensureMigrated();
   try {
     await seed(admin);
 
@@ -502,6 +531,7 @@ Deno.test("an install re-approved without events:subscribe sends nothing", async
 Deno.test("an uncertain acknowledgement keeps the delivery and retries under the same identity", async () => {
   const admin = openPgDatabase(adminUrl);
   const app = openPgDatabase(appUrl);
+  await ensureMigrated();
   const eventId = `event-${crypto.randomUUID()}`;
   try {
     await seed(admin);
@@ -562,6 +592,24 @@ Deno.test("an uncertain acknowledgement keeps the delivery and retries under the
       retry.deliveryIdentity,
       rows[0]!.delivery_identity,
       "a retry must present the same delivery identity, or the receiver stores one event twice",
+    );
+
+    // Both attempts must be recorded. A stable identity made the old
+    // `unique (delivery_identity)` collide on the second attempt, so an uncertain
+    // delivery could not be retried at all - the constraint had to move to
+    // (identity, attempt), which 0191 does. Asserting the rows rather than the
+    // constraint name is what proves the retry is actually possible.
+    const attempts = await q<{ attempt: number; delivery_identity: string }>(
+      app,
+      "select attempt, delivery_identity from bakery.integration_deliveries where organization_id = $1 order by attempt",
+      [organizationId],
+    );
+    assertEquals(attempts.length, 2);
+    assertEquals(attempts.map((row) => row.attempt), [1, 2]);
+    assertEquals(
+      attempts[0]!.delivery_identity,
+      attempts[1]!.delivery_identity,
+      "both attempts must carry the same receiver-facing identity",
     );
   } finally {
     await cleanup(admin);
