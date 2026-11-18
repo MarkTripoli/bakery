@@ -281,3 +281,60 @@ function sameLabels(
   if (keys.length !== Object.keys(right).length) return false;
   return keys.every((key) => left[key] === right[key]);
 }
+
+Deno.test("export failures are published per destination, as deltas", async () => {
+  // The sink counts per destination, but a metric write from inside its own call
+  // tree is refused as reentrant, so this is the only place the numbers can be
+  // published. Per destination matters: a full disk and a rejecting collector
+  // need different fixes, and one total hid which one was broken.
+  const telemetry = createServerTelemetry();
+  let log = 0;
+  let otlp = 0;
+  const failures = () =>
+    telemetry.metrics.snapshot()
+      .filter((sample) =>
+        sample.name === "bakery_export_destination_failures_total"
+      )
+      .map((sample) => [sample.labels.destination, sample.value] as const);
+  const sampler = createOperationalMetricSampler({
+    database: database(),
+    telemetry,
+    sink: { stats: () => ({ log: { failed: log }, otlp: { failed: otlp } }) },
+  });
+
+  // Nothing has failed yet, so nothing is recorded.
+  await sampler.sample();
+  assertEquals(failures().length, 0);
+
+  log = 2;
+  await sampler.sample();
+  // The sink's counter is cumulative and unchanged, so no second increment.
+  await sampler.sample();
+
+  otlp = 3;
+  await sampler.sample();
+
+  assertEquals(new Map(failures()), new Map([["log", 2], ["otlp", 3]]));
+});
+
+Deno.test("a sink rebuilt under the sampler never emits a negative count", async () => {
+  // A rebuilt sink starts its counters again at zero. Recording the raw value
+  // would subtract 5 from a counter, and a counter that goes backwards is a
+  // number an operator acts on wrongly.
+  const telemetry = createServerTelemetry();
+  let failed = 5;
+  const sampler = createOperationalMetricSampler({
+    database: database(),
+    telemetry,
+    sink: { stats: () => ({ log: { failed } }) },
+  });
+  await sampler.sample();
+  failed = 0;
+  await sampler.sample();
+  const values = telemetry.metrics.snapshot()
+    .filter((sample) =>
+      sample.name === "bakery_export_destination_failures_total"
+    )
+    .map((sample) => sample.value);
+  assert(values.every((value) => value >= 0), `negative delta: ${values}`);
+});

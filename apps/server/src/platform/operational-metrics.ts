@@ -75,6 +75,19 @@ export const OPERATIONAL_METRIC_SPECS = Object.freeze(
       kind: "counter",
       help: "Job attempts after the first, cumulatively.",
     },
+    /**
+     * Batches a telemetry destination refused.
+     *
+     * Per destination, because "the collector is rejecting us" and "the log
+     * directory is full" call for different fixes, and a single total hid which
+     * one was broken. The sink already counts them; nothing could publish them
+     * from inside its own call tree, which is why this lives here.
+     */
+    bakery_export_destination_failures_total: {
+      kind: "counter",
+      help: "Telemetry batches a destination failed to accept.",
+      labels: { destination: ["log", "otlp"] },
+    },
   } as const satisfies MetricSpecs,
 );
 
@@ -135,6 +148,8 @@ select
 export type OperationalMetricSamplerDeps = {
   readonly database: Pick<PgDatabase, "query">;
   readonly telemetry: Pick<Telemetry, "metrics" | "flushMetrics">;
+  /** Per-destination batch failures, read from the sink's own counters. */
+  readonly sink?: { stats(): Readonly<Record<string, { failed: number }>> };
 };
 
 export type OperationalMetricSampler = {
@@ -153,6 +168,7 @@ export function createOperationalMetricSampler(
   deps: OperationalMetricSamplerDeps,
 ): OperationalMetricSampler {
   let previousRetries = 0;
+  const previousFailed: Record<string, number> = {};
 
   return {
     async sample() {
@@ -218,6 +234,26 @@ export function createOperationalMetricSampler(
         deps.telemetry.metrics.inc("bakery_job_retries_total", {}, delta);
       }
       previousRetries = retries;
+
+      // A destination failure is cumulative in the sink, so what is recorded is
+      // the delta since the last sample. Clamped at zero for the same reason the
+      // retry counter is: a rebuilt sink starts again at nothing, and a counter
+      // that goes backwards is a number an operator will act on wrongly.
+      for (
+        const [destination, counters] of Object.entries(
+          deps.sink?.stats() ?? {},
+        )
+      ) {
+        const delta = counters.failed - (previousFailed[destination] ?? 0);
+        previousFailed[destination] = counters.failed;
+        if (delta > 0) {
+          deps.telemetry.metrics.inc(
+            "bakery_export_destination_failures_total",
+            { destination },
+            delta,
+          );
+        }
+      }
 
       // The whole point of recording is that the numbers leave the process. The
       // facade's metrics sat unflushed before this existed, so flushing belongs

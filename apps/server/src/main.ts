@@ -197,6 +197,9 @@ async function runServer(config: RuntimeConfig): Promise<void> {
     // aggregate, and it must not join a caller's transaction.
     database: pgDatabase,
     telemetry,
+    // Per-destination export failures are counted by the sink and published from
+    // here, because a metric write from inside the sink is refused as reentrant.
+    sink: telemetry.sink,
   });
   const app = createApp({
     telemetry,
