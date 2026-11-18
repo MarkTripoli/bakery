@@ -229,16 +229,23 @@ export async function ensurePresetWorkflowVersion(
     "select pg_advisory_xact_lock(hashtext('preset:' || $1::text || ':' || $2::text))",
     [organizationId, preset.id],
   );
+  // The catalog origin is written once, at install. `on conflict do nothing`
+  // means a second install of the same preset cannot rewrite it, which is what
+  // makes the provenance immutable: there is no update path for these columns
+  // and the only insert that could set them is a no-op after the first.
   await transaction.query(
     `insert into bakery.workflow_definitions (
-       organization_id, slug, name, description, enabled
-     ) values ($1, $2, $3, $4, true)
+       organization_id, slug, name, description, enabled,
+       origin_kind, origin_catalog_key, origin_catalog_version
+     ) values ($1, $2, $3, $4, true, 'catalog', $5, $6)
      on conflict (organization_id, slug) do nothing`,
     [
       organizationId,
       preset.slug,
       preset.id,
       "Code-owned workflow preset materialized by the server.",
+      preset.id,
+      preset.revision,
     ],
   );
   const definition = await transaction.query<{ id: string }>(
