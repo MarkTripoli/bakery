@@ -8,6 +8,7 @@ import { createAgentsRoutes } from "./modules/agents/index.ts";
 import { createRepositoryRulesRoutes } from "./modules/repository-rules/index.ts";
 import { createArtifactKindsRoutes } from "./modules/artifact-kinds/index.ts";
 import { createMemoryRoutes } from "./modules/knowledge/memory-routes.ts";
+import { createPluginPackageRoutes } from "./modules/catalog/plugin-routes.ts";
 import { createDeliveryRoutes } from "./modules/delivery/index.ts";
 import {
   createFetchGitHubAppClient,
@@ -18,6 +19,10 @@ import {
   type GitHubAppClient,
   type InstallationTokenBroker,
 } from "./modules/integrations/index.ts";
+import { createProviderRequestPort } from "./modules/integrations/credential-port.ts";
+import { readAppCredentials } from "./modules/integrations/callbacks.ts";
+import { loadSnapshot } from "./modules/catalog/authority-snapshot-postgres.ts";
+import { withPgTransaction } from "./platform/database.ts";
 import { createWorkflowsRoutes } from "./modules/workflows/index.ts";
 import { createAutomationsRoutes } from "./modules/workflows/automations/routes.ts";
 import {
@@ -213,6 +218,27 @@ export function createApp(options: {
       github: githubAppClient,
       secretsKey: options.config.secretsKey,
     });
+  // The provider request port the invoke door sends through. Assembled here, once
+  // per process, so the door cannot be wired without a credential source: the
+  // store and the sender are created together or not at all.
+  const providerRequests = createProviderRequestPort({
+    database: options.pgDatabase,
+    broker: installationTokenBroker,
+    readAppCredentials,
+    // The same broker the port mints through, so the counter the broker compares
+    // against is the counter the door read.
+    generationOf: (connectionId) =>
+      installationTokenBroker.generation(connectionId),
+    registry: integrationRegistry,
+    fetch: globalThis.fetch,
+    snapshotPort: {
+      load: (key) =>
+        withPgTransaction(
+          options.pgDatabase,
+          (transaction) => loadSnapshot(transaction, integrationRegistry, key),
+        ),
+    },
+  });
   const integrations = {
     github: githubAppClient,
     secretsKey: options.config.secretsKey,
@@ -645,6 +671,20 @@ export function createApp(options: {
   );
   app.route(
     "/",
+    createPluginPackageRoutes({
+      database: options.pgDatabase,
+      // Absent when no object store is configured; publishing a version then
+      // fails closed rather than recording a digest nobody can verify.
+      ...(skillFileStore
+        ? { bundles: new ScopedOrganizationBlobStore(skillFileStore) }
+        : {}),
+      browserSession,
+      publicBaseUrl: options.config.publicBaseUrl,
+      cursorSecret: options.config.auth.secret,
+    }),
+  );
+  app.route(
+    "/",
     createDeliveryRoutes({
       database: options.pgDatabase,
       session: tokenSession,
@@ -690,6 +730,7 @@ export function createApp(options: {
       // the invoke door. Every consumer now reads the same set of deployed
       // providers instead of re-deriving one.
       integrationRegistry,
+      providerRequests,
     }),
   );
   app.route(

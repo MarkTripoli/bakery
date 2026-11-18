@@ -9,9 +9,11 @@ import { StreamOutput } from "./TaskRunOutputStream.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 
 export function TaskRunOutput(
-  { taskId, stepId, stepStatus, stepErrorCode, onUsageChange }: {
+  { taskId, stepId, stepStatus, stepErrorCode, onUsageChange, quiet }: {
     readonly taskId: string;
     readonly stepId: string;
+    /** The session thread is the live region, so the panel announces nothing. */
+    readonly quiet?: boolean;
     /** Step status; a failed or canceled step with no stream still shows its outcome. */
     readonly stepStatus?: string;
     /** Recorded step fault code; only the closed set below is ever rendered. */
@@ -33,7 +35,10 @@ export function TaskRunOutput(
     streams[0];
   if (query.isError) {
     return (
-      <UI.InlineNotice tone="warning">
+      <UI.InlineNotice
+        tone="warning"
+        {...(quiet ? { role: "note" } : {})}
+      >
         {t("tasks.run.output.unavailable")}
       </UI.InlineNotice>
     );
@@ -45,7 +50,10 @@ export function TaskRunOutput(
     )
   ) {
     return (
-      <UI.InlineNotice tone="error">
+      <UI.InlineNotice
+        tone="error"
+        {...(quiet ? { role: "note" } : {})}
+      >
         {t("tasks.run.output.unavailable")}
       </UI.InlineNotice>
     );
@@ -90,6 +98,7 @@ export function TaskRunOutput(
               key={`${scope.sessionGeneration}:${scope.organizationId}:${selected.streamId}`}
               stream={selected}
               onUsageChange={onUsageChange}
+              quiet={quiet}
               onReload={() => void query.refetch()}
             />
           </>

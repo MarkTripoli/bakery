@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="client-schema-generator" project="bakery">
+  <title>catalog:literals regenerates the client transport schemas, not contracts:generate</title>
+  <trigger>Editing docs/technical-design/transport-schemas.json or api-catalog.json to add a field bound, enum or description.</trigger>
+  <mistake>Running `deno task contracts:generate`, seeing it succeed, and assuming packages/contracts/generated/transport-schemas.ts now carries the new bounds. It does not. A probe against contractSchemas still validates the old rules, so the change looks applied and is not.</mistake>
+  <rule>scripts/generate-catalog-literals.ts is the writer for packages/contracts/generated/transport-schemas.ts and catalog-literals.ts; contracts:generate writes contracts.json and the approval digests. Run `deno task catalog:literals` after editing a transport schema, then confirm the generated file changed (git diff, or grep the bound) before trusting any test that claims the rule is enforced. Bounds reach Zod only for the keys contracts.ts applies: minLength, maxLength, pattern, min/max, minBytes/maxBytes, maxDepth.</rule>
+  <verification>
+    <command>deno task catalog:literals</command>
+    <command>deno task catalog:literals:check</command>
+    <command>deno test -A tests/unit/generate-described-contracts-and-reject-contract-drift_test.ts</command>
+  </verification>
+</learning>
