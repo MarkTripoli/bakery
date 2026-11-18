@@ -1262,6 +1262,70 @@ async function relayCost(members: number, tabs: number) {
   }
 }
 
+Deno.test("in one relay round the valid member gets the bytes and the revoked one gets nothing (#160)", async () => {
+  // The sweep is held far away, so only the relay round can stop the revoked
+  // member. Both recipients share one round, the valid member first: a verdict
+  // keyed by organization alone would hand the second the first's pass.
+  const harness = await openHarness({ sweepMilliseconds: 600_000 });
+  try {
+    const valid = await addMember(
+      harness.fixture,
+      harness.fixture.ids.organizationId,
+      "Valid Recipient",
+    );
+    const revoked = await addMember(
+      harness.fixture,
+      harness.fixture.ids.organizationId,
+      "Revoked Recipient",
+    );
+    harness.extra.push(valid, revoked);
+    const a = await open(harness, harness.owner);
+    const aState = await joinAndSync(a, harness);
+    keepPresent(harness, a);
+    const validPeer = await open(harness, valid);
+    await joinAndSync(validPeer, harness);
+    const revokedPeer = await open(harness, revoked);
+    await joinAndSync(revokedPeer, harness);
+    await harness.fixture.pgDatabase.query(
+      "delete from bakery.organization_memberships where principal_id=$1",
+      [revoked.principalId],
+    );
+    await a.sendRaw(
+      0x2,
+      updateFrame(
+        harness,
+        aState.epoch,
+        crypto.randomUUID(),
+        localEdit(aState.doc, 0, "secret "),
+      ),
+    );
+    assertEquals((await until(a, "ack", ACK_WAIT_MS)).type, "ack");
+    // The valid member receives the committed update.
+    await until(validPeer, "committed");
+    assertEquals(
+      (await nextBinary(validPeer)).kind,
+      BinaryFrameKind.ServerUpdate,
+    );
+    // The revoked member receives no draft bytes, only the refusal.
+    const binaries: Uint8Array[] = [];
+    const refusal = await untilWithBinary(
+      revokedPeer,
+      "problem",
+      binaries,
+      3_000,
+    );
+    assertEquals(binaries.length, 0);
+    assert(
+      ["AUTH_FORBIDDEN", "RESOURCE_NOT_FOUND"].includes(
+        (refusal.problem as { code: string }).code,
+      ),
+      JSON.stringify(refusal.problem),
+    );
+  } finally {
+    await closeHarness(harness);
+  }
+});
+
 Deno.test("relay access checks do not grow with the number of peers (#160)", async () => {
   const small = await relayCost(1, 2);
   // The room holds 64 participants at most: the writer and 63 peers.
