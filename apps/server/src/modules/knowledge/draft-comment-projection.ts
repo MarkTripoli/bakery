@@ -94,9 +94,10 @@ export async function prepareThreadProjection(
     if (!row || row.parent_comment_id !== null) {
       throw refusedProjection("STATE_CONFLICT", "projected_thread_not_found");
     }
-    if (row.deleted_at !== null || row.status !== "open") {
-      throw refusedProjection("STATE_CONFLICT", "projected_thread_not_open");
-    }
+    // Open and retained is decided only under the root lock in
+    // projectDraftThreads: a check here, without a lock and before the
+    // publication locks the draft, could pass for a root resolved or deleted
+    // before the copy.
     if (
       row.epoch !== checkpoint.epoch || row.start_cursor === null ||
       row.end_cursor === null || row.quote === null
@@ -206,6 +207,27 @@ export async function projectDraftThreads(
   if (projection.positions.length !== projection.rootIds.length) {
     throw new Error("DRAFT_PROJECTION_POSITIONS_INVALID");
   }
+  // The caller holds the draft lock. Lock each named root in id order (the
+  // draft-then-comment order comment updates take) and decide here, so a
+  // resolve or delete that committed after preparation refuses the publish.
+  for (const rootId of [...projection.rootIds].sort()) {
+    const root = (await transaction.query<{
+      parent_comment_id: string | null;
+      status: string | null;
+      deleted_at: Date | null;
+    }>(
+      `select parent_comment_id,status,deleted_at
+         from bakery.artifact_draft_comments
+        where organization_id=$1 and draft_id=$2 and id=$3 for update`,
+      [organizationId, projection.draftId, rootId],
+    )).rows[0];
+    if (!root || root.parent_comment_id !== null) {
+      throw refusedProjection("STATE_CONFLICT", "projected_thread_not_found");
+    }
+    if (root.deleted_at !== null || root.status !== "open") {
+      throw refusedProjection("STATE_CONFLICT", "projected_thread_not_open");
+    }
+  }
   const text = new TextDecoder("utf-8", { fatal: true }).decode(
     version.content,
   );
@@ -237,7 +259,8 @@ export async function projectDraftThreads(
       `select id,parent_comment_id,author_id,body
          from bakery.artifact_draft_comments
         where organization_id=$1 and draft_id=$2
-          and (id=$3 or (parent_comment_id=$3 and deleted_at is null))
+          and deleted_at is null
+          and ((id=$3 and status='open') or parent_comment_id=$3)
         order by parent_comment_id nulls first, created_at, id`,
       [organizationId, projection.draftId, rootId],
     )).rows;

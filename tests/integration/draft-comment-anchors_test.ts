@@ -389,3 +389,33 @@ Deno.test("another organization reads a draft's comments as not found", async ()
     await cleanup(fixture);
   }
 });
+
+Deno.test("a draft on an archived task has no comment reads or writes", async () => {
+  const fixture = await openDraftFixture("alpha target omega");
+  try {
+    const { draft, root } = await anchoredRoot(fixture);
+    await fixture.pgDatabase.query(
+      `update bakery.tasks set archived_at=now() where id=$1`,
+      [fixture.ids.taskId],
+    );
+    const listed = await fixture.app.fetch(
+      draftRequest(fixture, `/v1/drafts/${draft.id}/comments`),
+    );
+    assertEquals(listed.status, 404, await listed.clone().text());
+    await listed.body?.cancel();
+    const created = await comment(fixture, draft.id, {
+      body: "still here?",
+      rootId: root.id,
+      mutationId: crypto.randomUUID(),
+    });
+    assertEquals(created.status, 404, await created.clone().text());
+    await created.body?.cancel();
+    const updated = await update(fixture, draft.id, root.id, root.version, {
+      resolved: true,
+    });
+    assertEquals(updated.status, 404, await updated.clone().text());
+    await updated.body?.cancel();
+  } finally {
+    await cleanup(fixture);
+  }
+});

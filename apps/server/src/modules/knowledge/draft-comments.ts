@@ -179,7 +179,8 @@ async function loadDraftScope(
      join bakery.tasks task
        on task.organization_id = draft.organization_id
        and task.id = draft.task_id
-     where draft.organization_id = $1 and draft.id = $2${
+     where draft.organization_id = $1 and draft.id = $2
+       and draft.status = 'active' and task.archived_at is null${
       lock ? " for update of draft" : ""
     }`,
     [organizationId, draftId],

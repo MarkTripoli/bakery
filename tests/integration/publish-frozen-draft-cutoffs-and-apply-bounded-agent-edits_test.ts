@@ -7,6 +7,10 @@ import {
   openDraftFixture,
   responseJson,
 } from "../helpers/draft-fixture.ts";
+import {
+  createDraftIsolation,
+  type DraftIsolation,
+} from "../../apps/server/src/modules/knowledge/draft-isolation.ts";
 
 // Publishing a frozen cutoff while editing continues, bounded guarded edits,
 // and draft threads projected onto the published version (#28, chapter 20
@@ -458,3 +462,85 @@ Deno.test("a projected thread lands on the version with its mapping, once, and a
     await cleanup(fixture);
   }
 });
+
+/**
+ * An isolation that, once armed, runs one change against the database while
+ * the publication's anchors are resolved: after projection was prepared and
+ * before the publish transaction takes the draft lock.
+ */
+function racingAnchors(): {
+  isolation: DraftIsolation;
+  arm: (change: () => Promise<unknown>) => void;
+} {
+  const real = createDraftIsolation();
+  let pending: (() => Promise<unknown>) | undefined;
+  return {
+    arm: (change) => {
+      pending = change;
+    },
+    isolation: {
+      initialize: real.initialize,
+      slice: real.slice,
+      verify: real.verify,
+      edit: real.edit,
+      importUpdate: real.importUpdate,
+      async anchors(...args) {
+        const positions = await real.anchors(...args);
+        const change = pending;
+        pending = undefined;
+        if (change) await change();
+        return positions;
+      },
+    },
+  };
+}
+
+for (
+  const [name, change] of [
+    ["resolved", "status='resolved'"],
+    ["deleted", "deleted_at=now()"],
+  ] as const
+) {
+  Deno.test(`a root ${name} after projection was prepared refuses the publish with nothing written`, async () => {
+    const race = racingAnchors();
+    const fixture = await openDraftFixture("alpha target omega", {
+      draftIsolation: race.isolation,
+    });
+    try {
+      const draft = await openDraft(fixture);
+      const selected = await slice(fixture, draft, 6, 12);
+      const created = await fixture.app.fetch(jsonDraftRequest(
+        fixture,
+        `/v1/drafts/${draft.id}/comments`,
+        "POST",
+        {
+          body: "Is this the right word?",
+          epoch: draft.epoch,
+          startCursor: selected.startCursor,
+          endCursor: selected.endCursor,
+          quote: selected.text,
+          mutationId: crypto.randomUUID(),
+        },
+      ));
+      assertEquals(created.status, 201, await created.clone().text());
+      const root = await responseJson(created) as DraftComment;
+      const cutoff = await readDraft(fixture, draft.id);
+      const before = await counts(fixture, draft.id);
+      race.arm(() =>
+        fixture.pgDatabase.query(
+          `update bakery.artifact_draft_comments set ${change} where id=$1`,
+          [root.id],
+        )
+      );
+      const published = await publish(fixture, cutoff, [root.id]);
+      assertEquals(published.status, 409, await published.clone().text());
+      assertEquals(
+        (await published.json()).reason,
+        "projected_thread_not_open",
+      );
+      assertEquals(await counts(fixture, draft.id), before);
+    } finally {
+      await cleanup(fixture);
+    }
+  });
+}

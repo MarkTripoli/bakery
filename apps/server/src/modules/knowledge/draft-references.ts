@@ -227,8 +227,12 @@ export async function createDraftReference(
     mutationId: create.mutationId,
   }));
   const draft = (await transaction.query<{ epoch: number }>(
-    `select epoch from bakery.artifact_drafts
-      where organization_id=$1 and id=$2 for update`,
+    `select d.epoch from bakery.artifact_drafts d
+       join bakery.tasks t
+         on t.organization_id=d.organization_id and t.id=d.task_id
+      where d.organization_id=$1 and d.id=$2
+        and d.status='active' and t.archived_at is null
+      for update of d`,
     [organizationId, draftId],
   )).rows[0];
   if (!draft) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
