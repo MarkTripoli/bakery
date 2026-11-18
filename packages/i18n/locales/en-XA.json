@@ -2426,7 +2426,6 @@
   "repository.rules.details.organization": "⟦Ôŕĝàñïžàŧïôñ ŕûļëš ṽëŕšïôñ ŧëšŧ çô⟧",
   "repository.rules.details.repository": "⟦Ŕëþôšïŧôŕÿ šëŧŧïñĝš ṽëŕšïôñ ŧëšŧ çô⟧",
   "repository.rules.details.fingerprint": "⟦Ŕûļëš ƒïñĝëŕþŕïñŧ ŧëš⟧",
-  "repository.rules.details.fingerprint.help": "⟦Ïðëñŧïƒïëš ŧĥë ëẋàçŧ ŕûļëš ïñ ƒôŕçë. Ëàçĥ ŕûñ ŕëçôŕðš ŧĥë šàɱë ṽàļûë, šô ÿôû çàñ ŧëļļ ŵĥïçĥ ŕûļëš ïŧ ûšëð. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "repository.rules.details.copy": "⟦Çôþÿ⟧",
   "repository.rules.details.copied": "⟦Çôþïëð…⟧",
   "repository.rules.details.none": "⟦Ñôñë⟧",
@@ -4238,7 +4237,6 @@
   "tasks.run.rules.checks.help": "⟦Ïðëñŧïƒïëš ŧĥë çĥëçķ çôɱɱàñðš Ɓàķëŕÿ ŧŕûšŧëð ƒôŕ ŧĥïš ŕûñ. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
   "tasks.run.rules.checks.helpLabel": "⟦Àƀôûŧ ŧĥë çĥëçķš ƒïñĝëŕþŕïñŧ ŧëšŧ çô⟧",
   "tasks.run.rules.fromStep": "⟦ƒŕôɱ {step} ŧ⟧",
-  "tasks.run.rules.settingsVersion": "⟦Ŕëþôšïŧôŕÿ šëŧŧïñĝš ṽëŕšïôñ: {version} ŧëšŧ çôþÿ ŧ⟧",
   "tasks.run.rules.noChecks": "⟦Ñô çĥëçķ çôɱɱàñðš àþþļïëð ŧô ŧĥïš ŕûñ. ŧëšŧ çôþÿ ŧ⟧",
   "tasks.run.rules.same": "⟦Šàɱë àš ŧĥë ŕûļëš ïñ ƒôŕçë ñôŵ. ŧëšŧ çôþ⟧",
   "tasks.run.rules.changed.running": "⟦Ŧĥë ŕûļëš ĥàṽë çĥàñĝëð šïñçë ŧĥïš ŕûñ šŧàŕŧëð. Ŧĥïš ŕûñ ķëëþš ŧĥë ŕûļëš ïŧ šŧàŕŧëð ŵïŧĥ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
@@ -4252,5 +4250,7 @@
   "tasks.run.rules.noFixedPolicy": "⟦Ŧĥïš ŕëþôšïŧôŕÿ'š šëŧŧïñĝš ñàɱë ñô çĥëçķš, šô ŕûñš ĥëŕë ŕëçôŕð ñô ŕûļëš ƒïñĝëŕþŕïñŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "tasks.run.rules.loadFailed": "⟦Ŧĥë ŕûļëš ŧĥïš ŕûñ ûšëð çôûļð ñôŧ ƀë ļôàðëð. ŧëšŧ çôþÿ ŧëš⟧",
   "tasks.run.rules.forbidden": "⟦Ÿôû ðô ñôŧ ĥàṽë àççëšš ŧô šëë ŵĥïçĥ ŕûļëš ŧĥïš ŕûñ ûšëð. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
-  "repository.rules.details.fingerprint.helpNoChecks": "⟦Ïðëñŧïƒïëš ŧĥë ëẋàçŧ ŕûļëš ïñ ƒôŕçë. ŧëšŧ çôþÿŧ⟧"
+  "repository.rules.details.fingerprint.helpNoChecks": "⟦Ïðëñŧïƒïëš ŧĥë ëẋàçŧ ŕûļëš ïñ ƒôŕçë. ŧëšŧ çôþÿŧ⟧",
+  "tasks.run.rules.settingsVersion": "⟦Ŕëþôšïŧôŕÿ šëŧŧïñĝš ṽëŕšïôñ: {version} ŧëšŧ çôþÿ ŧ⟧",
+  "repository.rules.details.fingerprint.help": "⟦Ïðëñŧïƒïëš ŧĥë ëẋàçŧ ŕûļëš àñð çĥëçķš ïñ ƒôŕçë. Ëàçĥ ŕûñ ŕëçôŕðš ŧĥë ƒïñĝëŕþŕïñŧ ïŧ šŧàŕŧëð ŵïŧĥ, šô ÿôû çàñ ŧëļļ ŵĥëŧĥëŕ à ŕûñ ûšëð ŧĥëšë ŕûļëš. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþ⟧"
 }
