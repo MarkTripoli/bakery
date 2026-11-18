@@ -177,9 +177,46 @@ Deno.test("storing an extract writes the key verifyCitation recomputes", async (
   assertEquals(values[9], 5, "text bytes are counted, not trusted");
   assertEquals(
     values[12],
-    extractCacheKey(ORG, { ...citation }),
-    "the stored key is the one the projection module computes",
+    extractCacheKey(ORG, { ...citation }, "p1|org"),
+    "the stored key is the one the projection module computes, scope included",
   );
+});
+
+Deno.test("two scopes for the same window are two rows, not one lost insert", async () => {
+  // The scope used to be outside the key, so the second scope's insert hit the
+  // primary key and `on conflict do nothing` dropped it silently: that scope was
+  // never cached and every read of it re-read the bytes.
+  const { transaction, queries } = stubTransaction(() => []);
+  for (const scope of ["p1|org", "p2|narrower"]) {
+    await storeCachedExtract(transaction, {
+      organizationId: ORG,
+      scope,
+      citation: { ...citation },
+      text: "hello",
+      hasMore: false,
+      maxBytes: 4096,
+    });
+  }
+  assertEquals(queries.length, 2);
+  const keys = queries.map((query) => String(query.values[12]));
+  assertEquals(keys[0] === keys[1], false);
+  assertEquals(keys[0]!.includes("p1|org"), true);
+  assertEquals(keys[1]!.includes("p2|narrower"), true);
+});
+
+Deno.test("a window carrying a NUL byte is not written to the cache", async () => {
+  // Postgres text cannot hold a NUL. The sniff only looks at the first 4 KB, so
+  // a NUL later in the window reached the insert and failed the whole request.
+  const { transaction, queries } = stubTransaction(() => []);
+  await storeCachedExtract(transaction, {
+    organizationId: ORG,
+    scope: "p1|org",
+    citation: { ...citation },
+    text: `${"a".repeat(5000)}\u0000tail`,
+    hasMore: false,
+    maxBytes: 8192,
+  });
+  assertEquals(queries.length, 0, "nothing is inserted for unstorable text");
 });
 
 Deno.test("an extraction reuses a cached window without reading content", async () => {

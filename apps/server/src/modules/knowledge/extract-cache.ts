@@ -120,7 +120,10 @@ export async function findCachedExtract(
         and e.start_byte=$4
         and e.max_bytes=$5
         and e.extractor_version=$6
-        and e.scope=$7`,
+        and e.scope=$7
+        -- A purged version's text is gone; a row that outlived it must never
+        -- answer, whatever the purge did or did not delete.
+        and v.purged_at is null`,
     [
       query.organizationId,
       query.versionId,
@@ -171,6 +174,11 @@ export async function storeCachedExtract(
     maxBytes: number;
   }>,
 ): Promise<void> {
+  // Postgres text cannot hold a NUL byte, so a window that carries one is not
+  // storable at all. Refusing the write (rather than failing the request) keeps
+  // a readable extract readable: the cache is an optimization, and content the
+  // store cannot represent is simply not cached.
+  if (stored.text.includes("\u0000")) return;
   await transaction.query(
     `insert into bakery.artifact_extracts
        (organization_id,artifact_version_id,digest,start_byte,end_byte_exclusive,scope,
@@ -190,7 +198,10 @@ export async function storeCachedExtract(
       new TextEncoder().encode(stored.text).byteLength,
       stored.maxBytes,
       stored.hasMore,
-      extractCacheKey(stored.organizationId, stored.citation),
+      // The scope is part of the key, not only of a unique constraint: two
+      // scopes asking for the same window are two rows, and the second one
+      // would otherwise be dropped by `on conflict do nothing` and never cached.
+      extractCacheKey(stored.organizationId, stored.citation, stored.scope),
     ],
   );
 }

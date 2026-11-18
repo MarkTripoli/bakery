@@ -274,6 +274,8 @@ export function verifyCitation(
 export function extractCacheKey(
   organizationId: string,
   citation: ContextCitation,
+  /** The authorization scope the extract was produced under. */
+  scope?: string,
 ): string {
   const range = citation.location === null
     ? "ref"
@@ -284,5 +286,6 @@ export function extractCacheKey(
     citation.sha256,
     range,
     citation.extractorVersion ?? "none",
+    ...(scope === undefined ? [] : [scope]),
   ].join("|");
 }
