@@ -813,7 +813,7 @@ Deno.test("a repository rule that requires a check is read against a plan's shap
     // (The same plan without a check is admitted where no rule requires one: the first test.)
   }));
 
-Deno.test("a bare list of steps is admitted as a plan, not kept on a fixed executor", () =>
+Deno.test("a bare list of steps is kept on the fixed executor: flat rows, no plan runtime", () =>
   withWorkerFixture(async (fixture) => {
     const { repository } = await repositoryWithAgent(fixture, "bare");
     const { versionId } = await publishWorkflow(
@@ -825,10 +825,15 @@ Deno.test("a bare list of steps is admitted as a plan, not kept on a fixed execu
     const { response } = await start(fixture, repository, versionId);
     const run = await expectJson<RunBody>(response, 201);
     const snapshot = await snapshotOf(fixture, run.id);
-    // #400: admission resolves a plan for every run, so even a bare step list
-    // carries a plan runtime and gets no flat rows of its own.
-    assert(Object.hasOwn(snapshot, "runtime"));
-    assertEquals(await stepRows(fixture, run.id), []);
+    // Admission dispatches on the document: a bare step list is the flat
+    // grammar, which the fixed executor runs, so the run carries no plan
+    // runtime and gets its step rows at admission. (#400 deletes this path and
+    // turns this case into a refusal.)
+    assert(!Object.hasOwn(snapshot, "runtime"));
+    assertEquals(
+      (await stepRows(fixture, run.id)).map((row) => row.stepKey),
+      ["brief", "implement"],
+    );
   }));
 
 Deno.test("a plan with a duration wait is admitted, and the engine puts the wait between its steps as a row without a job", () =>
@@ -918,13 +923,12 @@ Deno.test("a plan with an event wait, which the engine cannot run yet, is refuse
     );
   }));
 
-Deno.test("a preset run is admitted as a plan: plan sections written, no flat step agents", () =>
+Deno.test("a bare-list run freezes flat step sections and no plan sections", () =>
   withWorkerFixture(async (fixture) => {
     const { repository } = await repositoryWithAgent(fixture, "flat");
     // A bare list of steps, not a sequence: the fixed executor runs this one, so
-    // it keeps its step rows and freezes no plan sections. The `fixed-coding`
-    // preset used to be this shape; it is a compiled plan since it was written
-    // as a document, so the flat case needs a definition of its own.
+    // it keeps its step rows and freezes no plan sections. (The `fixed-coding`
+    // presets are compiled plans; the flat case needs a definition of its own.)
     const flat = await publishWorkflow(
       fixture,
       fixture,
@@ -936,17 +940,45 @@ Deno.test("a preset run is admitted as a plan: plan sections written, no flat st
       201,
     );
     const snapshot = await snapshotOf(fixture, run.id);
-    // #400: a preset used to be the one remaining flat run. It is now admitted
-    // as a plan like everything else, so the plan sections are present and the
-    // flat ones the old path wrote are absent.
-    for (const key of ["runtime", "task", "planAgents", "planActionAgents"]) {
-      assert(Object.hasOwn(snapshot, key), key);
+    for (const key of ["runtime", "planAgents", "planActionAgents"]) {
+      assert(!Object.hasOwn(snapshot, key), key);
     }
-    assertEquals(snapshot.stepAgents, {});
-    assertEquals(snapshot.stepActions, {});
+    assertEquals(
+      Object.keys(snapshot.stepActions as object).sort(),
+      ["brief", "implement"],
+    );
   }));
 
-Deno.test("a plan that reviews is refused when the profile cannot run a review loop, and a plan that does not is admitted without one", () =>
+const reviewedDocument = (name: string, agent: string) =>
+  reviewedPlanDocument({
+    name,
+    agents: {
+      "harness.implement": agent,
+      "harness.repair": agent,
+      "review.independent": agent,
+    },
+    repairs: 3,
+  });
+
+Deno.test("a plan that reviews is refused when the profile cannot run a review loop", () =>
+  withWorkerFixture(async (fixture) => {
+    // A v1 profile has no fixed policy and no trusted checker, so it cannot run
+    // checks or a review. The refusal is the point: the plan's review loop is
+    // read at admission and the run is refused before anything is written.
+    const { agent, repository } = await repositoryWithAgent(fixture, "v1");
+    const reviewed = await publishWorkflow(
+      fixture,
+      fixture,
+      "plan-reviewed-v1",
+      reviewedDocument("plan-reviewed-v1", agent),
+    );
+    assertEquals(
+      (await refused(fixture, repository, reviewed.versionId, 422)).reason,
+      undefined,
+    );
+  }));
+
+Deno.test("a plan that reviews is admitted on a server-derived v2 profile with its review loop frozen, and a plan that does not review freezes none", () =>
   withWorkerFixture(async (fixture) => {
     const { agent, repository } = await observedRepositoryWithAgent(
       fixture,
@@ -956,27 +988,13 @@ Deno.test("a plan that reviews is refused when the profile cannot run a review l
       fixture,
       fixture,
       "plan-reviewed",
-      reviewedPlanDocument({
-        name: "plan-reviewed",
-        agents: {
-          "harness.implement": agent,
-          "harness.repair": agent,
-          "review.independent": agent,
-        },
-        repairs: 3,
-      }),
+      reviewedDocument("plan-reviewed", agent),
     );
-    // A plan that reviews runs checks and a review, so its profile has to allow
-    // those effects. This profile is v1 and cannot, so the run is refused before
-    // anything is written. The refusal is the point: it proves the plan's review
-    // loop is read at admission, which the flat path did not do.
-    // The positive case - a loop freezing from its own repeat bound - is covered
-    // by the review and repair loop suites and by
-    // freeze-the-review-loop-of-a-compiled-plan.
-    assertEquals(
-      (await refused(fixture, repository, reviewed.versionId, 422)).reason,
-      undefined,
+    const first = await expectJson<RunBody>(
+      (await start(fixture, repository, reviewed.versionId)).response,
+      201,
     );
+    assert(Object.hasOwn(await snapshotOf(fixture, first.id), "reviewLoop"));
 
     const plain = await publishWorkflow(fixture, fixture, "plan-plain", plan());
     const second = await start(fixture, repository, plain.versionId);

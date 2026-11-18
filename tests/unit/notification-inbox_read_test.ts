@@ -70,6 +70,9 @@ function fixtureTransaction(
       if (/from bakery\.workflow_runs/.test(sql)) {
         return Promise.resolve({ rows: [{ id: targetId }] });
       }
+      if (/insert into bakery\.notification_read_batches/.test(sql)) {
+        return Promise.resolve({ rows: [{ id: crypto.randomUUID() }] });
+      }
       if (/count\(\*\)/.test(sql)) {
         return Promise.resolve({ rows: [{ unread: "3", revision: 7 }] });
       }
