@@ -892,6 +892,9 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
   // them may pass again, or a stale digest would silently re-authorise a delta
   // nobody reviewed.
   const rejectedPriorDigests = [
+    // Newest first, matching the file: a displaced approval is prepended, so the
+    // approval this change removed from force heads the history it joins.
+    "sha256:c2ea1145b2b35476f0f1f55b7034d2e12ad9df0a5ed876f7221e90fe1d5ddd1f",
     "sha256:4cc7f7f231a01ca2973fbc286f4835dbafded08006c964c3efc5bf6aa2151636",
     "sha256:09b09f0f1fac1d0159314e792984f878628b3d34d48218f5793892e72943c4c1",
     "sha256:622f0d8afe0eec3d53230a4b5ffe7b365ef882e20baf3832dc82ba93e1921077",
@@ -978,10 +981,6 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
     "sha256:23925a33300c5bace9bf0ea5729725c8779c2e6ac70f0a3290aaf2335daff1f2",
     "sha256:6bda73092281a4782bdf22990a05724cb6689eb6521e6002ce90c8a3649b68f8",
     "sha256:7f121f3dd6d394422c44dbe266e087428464c62344c4a4c38fa568d0fefa008f",
-    // The approval this one displaced. It authorised the provider-route delta
-    // against the base before the fold; after the fold it authorises nothing,
-    // so it is history in the same list as every approval before it.
-    "sha256:c2ea1145b2b35476f0f1f55b7034d2e12ad9df0a5ed876f7221e90fe1d5ddd1f",
   ];
   const options = {
     baseRef: approvedBases[0],
