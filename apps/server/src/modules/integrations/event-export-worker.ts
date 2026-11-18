@@ -33,6 +33,21 @@ import { createPostgresDeliveryLedger } from "./event-export-ledger.ts";
 
 const EXPORT_FUNCTION_ID = "bakery-integration-event-export";
 
+/**
+ * Every two minutes. The intake route is already durable, so a short delay costs
+ * nothing but latency, while a tighter tick would spend more on empty queries
+ * than on deliveries.
+ */
+const EXPORT_SWEEP_CRON = "*/2 * * * *";
+
+/**
+ * How many times one delivery may be attempted before it is settled failed.
+ *
+ * An endpoint that has never acknowledged in this many tries is broken rather
+ * than slow, and retrying it forever spends the sweep budget on it.
+ */
+const EXPORT_MAX_ATTEMPTS = 8;
+
 /** Most subscriptions one source event is fanned out to in one run. */
 export const EXPORT_FAN_OUT_LIMIT = 50;
 
@@ -327,11 +342,110 @@ export async function exportPendingIntakeEvents(
 }
 
 /**
- * Runs on every recorded source event.
+ * Retries uncertain attempts whose backoff has elapsed.
  *
- * Concurrency is capped so one organization's burst cannot starve the rest, and
- * retries are left to the delivery ledger: an uncertain attempt is rescheduled
- * by the recovery sweep with its own backoff, so the worker itself retrying
+ * An `uncertain` attempt means the receiver may or may not have acted, so it is
+ * the one status that must be retried - and the only safe way to retry it is with
+ * the same delivery identity, which is what makes the receiver's dedupe work.
+ * `not_before` is when that becomes allowed; nothing else was reading it, so
+ * uncertain attempts were written and then forgotten, which turned "the receiver
+ * might have it" into "the receiver will never get it".
+ *
+ * Attempts are capped: past `EXPORT_MAX_ATTEMPTS` the delivery is settled failed
+ * rather than retried forever, because an endpoint that has never acknowledged in
+ * that many tries is broken, not slow.
+ */
+export async function retryDueUncertainAttempts(
+  dependencies: Parameters<typeof exportSourceEvent>[0],
+  limit = EXPORT_SWEEP_BATCH,
+): Promise<{ readonly retried: number }> {
+  const due = await dependencies.database.query<{
+    organization_id: string;
+    destination_id: string;
+    subscription_id: string;
+    source_event_id: string;
+    event_kind: string;
+    payload: string;
+    source_resource_id: string;
+    attempt: number;
+    delivery_id: string;
+  }>(
+    `select attempt.organization_id,
+            attempt.destination_id,
+            attempt.subscription_id,
+            attempt.source_event_id,
+            attempt.event_kind,
+            coalesce(receipt.normalized_projection::text, '{}') as payload,
+            subscription.source_resource_id,
+            (array_agg(attempt.id order by attempt.attempt desc))[1] as delivery_id,
+            max(attempt.attempt) as attempt
+       from bakery.integration_deliveries as attempt
+       join bakery.integration_event_subscriptions as subscription
+         on subscription.id = attempt.subscription_id
+       join bakery.inbound_events as receipt
+         on receipt.id::text = attempt.source_event_id
+      where attempt.status = 'uncertain'
+        and (attempt.not_before is null or attempt.not_before <= now())
+        and subscription.status = 'active'
+      group by attempt.organization_id,
+               attempt.destination_id,
+               attempt.subscription_id,
+               attempt.source_event_id,
+               attempt.event_kind,
+               receipt.normalized_projection,
+               subscription.source_resource_id
+      order by attempt.source_event_id
+      limit $1`,
+    [limit],
+  );
+
+  let retried = 0;
+  for (const row of due.rows) {
+    if (Number(row.attempt) >= EXPORT_MAX_ATTEMPTS) {
+      // Out of retries: settle the attempt so it stops being swept. The identity
+      // is unchanged, so a receiver that did act can still dedupe.
+      const ledger = createPostgresDeliveryLedger(dependencies.database);
+      await ledger.settle({
+        deliveryId: row.delivery_id,
+        status: "failed",
+        acknowledgementState: "uncertain",
+        responseStatus: null,
+        outcomeCode: "attempts_exhausted",
+        notBefore: null,
+      }).catch(() => undefined);
+      continue;
+    }
+    await exportSourceEvent(
+      dependencies,
+      {
+        organizationId: row.organization_id,
+        sourceEventId: row.source_event_id,
+        eventKind: row.event_kind,
+        sourceResourceId: row.source_resource_id,
+        payload: row.payload,
+      },
+      { retryExisting: true },
+    );
+    retried += 1;
+  }
+  return { retried };
+}
+
+/**
+ * Sweeps for exportable source events on a schedule.
+ *
+ * A cron, not an event trigger, and that is the whole point: an event trigger
+ * needs something in another module to emit `bakery/source-event.recorded`, and
+ * nothing in production does. A function nothing triggers is not a feature, it is
+ * a registration - the same shape as an uncalled predicate, which this issue has
+ * already been sent back for twice.
+ *
+ * Reading the source events itself costs one indexed query per tick and makes the
+ * worker self-sufficient: it exports whatever completed intake routes have no
+ * delivery row yet, including anything a previous tick missed.
+ *
+ * Retries are left to the delivery ledger. An uncertain attempt is rescheduled by
+ * the sweep with its own backoff (`not_before`), so the worker retrying as well
  * would send the same delivery twice for two different reasons.
  */
 export function createIntegrationEventExport(
@@ -344,12 +458,18 @@ export function createIntegrationEventExport(
       id: EXPORT_FUNCTION_ID,
       retries: 0,
       concurrency: [{ limit: 5 }],
-      triggers: [{ event: "bakery/source-event.recorded" }],
+      triggers: [{ cron: EXPORT_SWEEP_CRON }],
     },
-    async ({ event, step }) =>
+    async ({ step }) =>
       await step.run(
-        "export-recorded-event",
-        () => exportSourceEvent(options, event.data as SourceEventRecorded),
+        "export-pending-events",
+        async () => {
+          // Both paths run: the sweep for anything unnoticed, and the retry pass
+          // for uncertain attempts whose backoff has elapsed.
+          const swept = await exportPendingIntakeEvents(options);
+          const retried = await retryDueUncertainAttempts(options);
+          return { ...swept, retried };
+        },
       ),
   );
 }

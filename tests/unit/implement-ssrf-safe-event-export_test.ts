@@ -261,3 +261,23 @@ Deno.test("a resolved answer that is not an ip literal is refused", () => {
   // check that refuses everything.
   assertEquals(checkResolvedAddresses(["93.184.216.34"]).ok, true);
 });
+
+Deno.test("the SIIT and local-use NAT64 prefixes are refused as ranges", () => {
+  // The reviewer's two named ranges. Both are translation mechanisms that carry
+  // an IPv4 address, not destinations, so they are refused as prefixes rather
+  // than unwrapped: an unwrapped 0.0.0.0 would be refused anyway, but the prefix
+  // itself is what says "this is not a place to deliver an event".
+  assertEquals(isPrivateAddress("64:ff9b:1::1"), true);
+  assertEquals(isPrivateAddress("::ffff:0:0:0"), true);
+});
+
+Deno.test("refusing those prefixes does not refuse a real public destination", () => {
+  // The rule is the prefix, not the family. A well-known NAT64 prefix embedding a
+  // public address, and an IPv4-mapped public address, both stay public - so the
+  // two refusals above are the ranges and not a blanket ban on translation.
+  assertEquals(isPrivateAddress("64:ff9b::5db8:d822"), false);
+  assertEquals(isPrivateAddress("::ffff:5db8:d822"), false);
+  // And the well-known NAT64 prefix is still judged by what it embeds, which is
+  // the property that actually stops the metadata endpoint.
+  assertEquals(isPrivateAddress("64:ff9b::a9fe:a9fe"), true);
+});

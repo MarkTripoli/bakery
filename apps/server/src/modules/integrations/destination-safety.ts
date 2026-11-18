@@ -146,6 +146,26 @@ export function isPrivateIpv6(value: string): boolean {
   ) {
     return true;
   }
+  // 64:ff9b:1::/48 is the LOCAL-USE NAT64 prefix (RFC 8215), separate from the
+  // 64:ff9b::/96 well-known prefix above and never globally routable. Refused as
+  // a range rather than unwrapped, because the prefix itself marks a local
+  // translation domain rather than a destination.
+  if (
+    parsed[0] === 0x00 && parsed[1] === 0x64 && parsed[2] === 0xff &&
+    parsed[3] === 0x9b && parsed[4] === 0x00 && parsed[5] === 0x01
+  ) {
+    return true;
+  }
+  // The SIIT IPv4-translated range `::ffff:0:0:0/96` puts its markers at bytes 8-9
+  // and carries the IPv4 address in the last 32 bits - one group earlier than the
+  // IPv4-mapped range at bytes 10-11. Refused as a range: it is a translation
+  // mechanism (RFC 6052/RFC 6145), not a place to deliver an event.
+  if (
+    parsed[8] === 0xff && parsed[9] === 0xff && parsed[10] === 0x00 &&
+    parsed[11] === 0x00 && parsed.slice(0, 8).every((byte) => byte === 0)
+  ) {
+    return true;
+  }
 
   return false;
 }

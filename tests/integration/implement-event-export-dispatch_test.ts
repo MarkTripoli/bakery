@@ -13,7 +13,11 @@ import type {
   ExportDestination,
   ExportSubscription,
 } from "../../apps/server/src/modules/integrations/event-export-authorization.ts";
-import { exportSourceEvent } from "../../apps/server/src/modules/integrations/event-export-worker.ts";
+import {
+  exportPendingIntakeEvents,
+  exportSourceEvent,
+  retryDueUncertainAttempts,
+} from "../../apps/server/src/modules/integrations/event-export-worker.ts";
 
 /**
  * Slice 3 of issue #21, AC2, proved at the seam that matters.
@@ -943,3 +947,206 @@ Deno.test("the sweep does not export the same event twice", async () => {
     await app.end();
   }
 });
+
+Deno.test("an uncertain attempt is retried, but not before its backoff", async () => {
+  // An `uncertain` attempt is the one status that must be retried: the receiver
+  // may or may not have acted. Before this, nothing read `not_before`, so an
+  // uncertain delivery was written and then forgotten - which turns "the receiver
+  // might have it" into "the receiver will never get it".
+  //
+  // The event is a real recorded one, because the retry pass reads its payload
+  // from `bakery.inbound_events`: a delivery row holds a digest, not the bytes, so
+  // a retry that could not find its source could not resend the same body.
+  const admin = openPgDatabase(adminUrl);
+  const app = openPgDatabase(appUrl);
+  await ensureMigrated();
+  try {
+    await seed(admin);
+    const eventId = crypto.randomUUID();
+    const registration = await q<{ id: string }>(
+      admin,
+      "select id from bakery.integration_app_registrations limit 1",
+    );
+    await q(
+      admin,
+      `insert into bakery.inbound_events (
+         id, provider, registration_id, external_delivery_id, payload_digest,
+         event_kind, normalized_projection, status, received_at, expires_at
+       ) values ($1, 'github', $2, $3, 'digest', 'issue.opened',
+         '{"event":"issue.opened"}'::jsonb, 'accepted', now(), now() + interval '1 day')`,
+      [eventId, registration[0]!.id, `delivery-${eventId}`],
+    );
+
+    // The sweep is deliberately global (one cron tick serves every tenant), so
+    // this test settles any uncertain row another test left behind. Otherwise the
+    // counts below would depend on which test ran first, and a test that passes
+    // only in one order is a test that will fail in CI.
+    await q(
+      admin,
+      `update bakery.integration_deliveries
+          set status = 'failed', not_before = null
+        where status = 'uncertain' and source_event_id <> $1`,
+      [eventId],
+    );
+
+    const deps = (transport: DeliveryTransport) => ({
+      database: app,
+      authority: { load: () => Promise.resolve(snapshot()) },
+      registry: {} as never,
+      transport,
+      resolve: () => Promise.resolve(["93.184.216.34"]),
+      secretFor: () => Promise.resolve("a".repeat(32)),
+    });
+    const event = {
+      organizationId,
+      sourceEventId: eventId,
+      eventKind: "issue.opened",
+      sourceResourceId: resourceId,
+      payload: '{"event":"issue.opened"}',
+    };
+
+    // First pass: the transport says it does not know what happened.
+    const first = await exportSourceEvent(
+      deps(recordingTransport({ kind: "uncertain", reason: "no_response" })),
+      event,
+    );
+    assertEquals(first.offered, 1);
+
+    const settled = await q<{ status: string; not_before: string | null }>(
+      admin,
+      `select status, not_before::text from bakery.integration_deliveries
+        where organization_id = $1 and source_event_id = $2`,
+      [organizationId, eventId],
+    );
+    assertEquals(settled[0]!.status, "uncertain");
+    assert(
+      settled[0]!.not_before !== null,
+      "an uncertain attempt needs a backoff",
+    );
+
+    // A retry pass before the backoff elapses must do NOTHING. This is the
+    // property `not_before` exists for, and nothing read it before.
+    const transport = recordingTransport();
+    const early = await retryDueUncertainAttempts(deps(transport), 10);
+    assertEquals(early.retried, 0);
+    assertEquals(transport.sent, 0);
+
+    // Move the backoff into the past: now it is due.
+    await q(
+      admin,
+      `update bakery.integration_deliveries
+          set not_before = now() - interval '1 minute'
+        where organization_id = $1 and source_event_id = $2`,
+      [organizationId, eventId],
+    );
+    const due = await retryDueUncertainAttempts(deps(transport), 10);
+    assertEquals(due.retried, 1);
+    assertEquals(transport.sent, 1);
+
+    // The retry is attempt 2 with the SAME delivery identity, which is what makes
+    // the receiver's dedupe work across the two attempts.
+    const attempts = await q<{ attempt: number; delivery_identity: string }>(
+      admin,
+      `select attempt, delivery_identity from bakery.integration_deliveries
+        where organization_id = $1 and source_event_id = $2
+        order by attempt`,
+      [organizationId, eventId],
+    );
+    assertEquals(attempts.length, 2);
+    assertEquals(attempts[1]!.attempt, 2);
+    assertEquals(
+      attempts[1]!.delivery_identity,
+      attempts[0]!.delivery_identity,
+    );
+  } finally {
+    await cleanup(admin);
+    await admin.end();
+    await app.end();
+  }
+});
+
+Deno.test("a recorded source event becomes exactly one delivery through the sweep", async () => {
+  // The production path, end to end: a completed intake route is read by the sweep
+  // that the cron function calls, and the sweep dispatches it. Neither
+  // `dispatchEventExport` nor `exportSourceEvent` is called directly here, which is
+  // the point - the wiring itself is what this asserts. A worker whose parts all
+  // pass in isolation and whose assembly nobody runs is the defect this replaces.
+  const admin = openPgDatabase(adminUrl);
+  const app = openPgDatabase(appUrl);
+  await ensureMigrated();
+  try {
+    await seed(admin);
+    const eventId = crypto.randomUUID();
+    const registration = await q<{ id: string }>(
+      admin,
+      "select id from bakery.integration_app_registrations limit 1",
+    );
+    await q(
+      admin,
+      `insert into bakery.inbound_events (
+         id, provider, registration_id, external_delivery_id, payload_digest,
+         event_kind, normalized_projection, status, received_at, expires_at
+       ) values ($1, 'github', $2, $3, 'digest', 'issue.opened',
+         '{"event":"issue.opened"}'::jsonb, 'accepted', now(), now() + interval '1 day')`,
+      [eventId, registration[0]!.id, `delivery-${eventId}`],
+    );
+    const connection = await q<{ id: string; installation_id: string }>(
+      admin,
+      `select connection_id as id, installation_id
+         from bakery.integration_event_subscriptions
+        where organization_id = $1 and id = $2`,
+      [organizationId, subscriptionId],
+    );
+    await q(
+      admin,
+      `insert into bakery.inbound_event_routes (
+         id, inbound_event_id, organization_id, connection_id, installation_id,
+         resource_id, purpose, status, created_at, updated_at, version
+       ) values ($1, $2, $3, $4, $5, $6, 'route', 'completed', now(), now(), 1)`,
+      [
+        crypto.randomUUID(),
+        eventId,
+        organizationId,
+        connection[0]!.id,
+        connection[0]!.installation_id,
+        resourceId,
+      ],
+    );
+
+    const transport = recordingTransport();
+    const dependencies = {
+      database: app,
+      authority: { load: () => Promise.resolve(snapshot()) },
+      registry: {} as never,
+      transport,
+      resolve: () => Promise.resolve(["93.184.216.34"]),
+      secretFor: () => Promise.resolve("a".repeat(32)),
+    };
+
+    const first = await exportPendingIntakeEvents(dependencies, 10);
+    assertEquals(first.events >= 1, true);
+    assertEquals(transport.sent, 1);
+    assertEquals(await deliveryRowsFor(app, eventId), 1);
+
+    // A second tick finds nothing new: the delivery row is the marker, so the
+    // schedule cannot export the same event again.
+    const second = await exportPendingIntakeEvents(dependencies, 10);
+    assertEquals(second.events, 0);
+    assertEquals(transport.sent, 1);
+    assertEquals(await deliveryRowsFor(app, eventId), 1);
+  } finally {
+    await cleanup(admin);
+    await admin.end();
+    await app.end();
+  }
+});
+
+async function deliveryRowsFor(database: Db, sourceEventId: string) {
+  const rows = await q<{ count: string }>(
+    database,
+    `select count(*)::text as count from bakery.integration_deliveries
+      where organization_id = $1 and source_event_id = $2`,
+    [organizationId, sourceEventId],
+  );
+  return Number(rows[0]!.count);
+}
