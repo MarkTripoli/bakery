@@ -1852,7 +1852,7 @@
   align-items: center;
   background: none;
   box-sizing: border-box;
-  border: 0;
+  border: var(--border-none);
   border-radius: var(--radius-control);
   color: var(--color-fg-muted);
   display: flex;
@@ -2002,7 +2002,7 @@ button.ui-activity-line__row:hover {
    boxed thing, so a reader sees who is speaking before reading a word. */
 .ui-conversation-message[data-appearance="plain"] {
   background: none;
-  border: 0;
+  border: var(--border-none);
   padding: 0;
 }
 
@@ -2015,7 +2015,7 @@ button.ui-activity-line__row:hover {
 }
 
 .ui-conversation-message[data-appearance="plain"] .ui-conversation-message__body {
-  max-inline-size: 68ch;
+  max-inline-size: var(--layout-measure-prose);
 }
 
 .ui-session-thread .ui-conversation-message[data-appearance="card"] {
@@ -2035,7 +2035,7 @@ button.ui-activity-line__row:hover {
 .ui-session-thread__summary {
   align-items: center;
   background: none;
-  border: 0;
+  border: var(--border-none);
   border-radius: var(--radius-control);
   color: var(--color-fg-muted);
   cursor: pointer;
@@ -2218,36 +2218,22 @@ button.ui-activity-line__row:hover {
   font-variant-numeric: tabular-nums;
 }
 
-/* The slow shimmer on a running line is the "Thinking" cue; it stops under
-   reduced motion and the text keeps its ellipsis. */
+/* The slow shimmer on a running line is the "Thinking" cue: a gentle pulse that
+   stops under reduced motion, and the text keeps its ellipsis. */
 .ui-session-now[data-tone="active"] .ui-session-now__text {
-  animation: ui-session-shimmer calc(var(--duration-transition) * 10) linear
-    infinite;
-  background: linear-gradient(
-    90deg,
-    var(--color-fg-muted) 40%,
-    var(--color-fg) 50%,
-    var(--color-fg-muted) 60%
-  );
-  background-clip: text;
-  background-size: 250% 100%;
-  color: transparent;
+  animation: ui-session-shimmer calc(var(--duration-transition) * 5)
+    var(--ease-standard) infinite alternate;
 }
 
 @keyframes ui-session-shimmer {
-  from {
-    background-position: 100% 0;
-  }
   to {
-    background-position: -100% 0;
+    opacity: 0.56;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .ui-session-now[data-tone="active"] .ui-session-now__text {
     animation: none;
-    background: none;
-    color: var(--color-fg-muted);
   }
 }
 
@@ -2259,7 +2245,7 @@ button.ui-activity-line__row:hover {
   color: var(--color-fg);
   font: var(--type-data);
   margin: var(--space-1) 0 var(--space-2) var(--space-6);
-  max-block-size: 15rem;
+  max-block-size: calc(var(--space-12) * 5);
   overflow: auto;
   overflow-wrap: anywhere;
   padding: var(--space-3);
@@ -2274,7 +2260,7 @@ button.ui-activity-line__row:hover {
 /* A running line for another step is a button: it switches to that step. */
 .ui-session-now__select {
   background: none;
-  border: 0;
+  border: var(--border-none);
   color: inherit;
   cursor: pointer;
   flex: 1 1 auto;

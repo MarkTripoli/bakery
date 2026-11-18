@@ -8,6 +8,7 @@
 import { expect, test } from "@playwright/test";
 import { createHash } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
+import { laneBudgetMs } from "./helpers/lane-budget.ts";
 import { mockAuthenticatedSession } from "./helpers/mock-session.ts";
 
 const OUT = process.env.CAPTURE_OUT ?? "/tmp/session-thread-shots";
@@ -43,7 +44,7 @@ for (const theme of ["light", "dark"] as const) {
   for (const viewport of VIEWPORTS) {
     test(`session thread stills ${viewport.name} ${theme}`, async ({ page }) => {
       // Seven states in one still set outlives the default budget.
-      test.setTimeout(180_000);
+      test.setTimeout(laneBudgetMs(180_000));
       await page.setViewportSize({
         width: viewport.width,
         height: viewport.height,
@@ -90,7 +91,7 @@ for (const theme of ["light", "dark"] as const) {
 
 /** The work under a message must be visible in one frame, not cut at the fold. */
 test("session thread stills running tall light", async ({ page }) => {
-  test.setTimeout(120_000);
+  test.setTimeout(laneBudgetMs(120_000));
   await page.setViewportSize({ width: 1440, height: 1400 });
   await mockAuthenticatedSession(page);
   await mkdir(OUT, { recursive: true });
