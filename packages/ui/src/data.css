@@ -342,10 +342,6 @@
   border-collapse: collapse;
   inline-size: 100%;
 }
-.ui-data-table td time {
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
 .ui-data-table caption {
   text-align: start;
 }
@@ -1732,11 +1728,7 @@
 .ui-data-table__select > * {
   display: block;
 }
-/* In a plain table the first cell's text starts where the other cells' text
-   does, instead of centring in the 44px target. */
-.ui-data-table:not(.ui-data-table--ruled) button.ui-data-table__select {
-  justify-content: flex-start;
-}
+
 @media (max-width: 743px) {
   .ui-data-table--ruled[data-inset="edge"] td {
     block-size: auto;

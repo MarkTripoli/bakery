@@ -636,3 +636,15 @@
     min-block-size: var(--target-coarse);
   }
 }
+
+/* The audit log's table (the only table on an access-layout page): a time keeps
+   one line with tabular figures, and the first cell's text starts where the
+   other cells' text does instead of centring in the 44px target. Scoped here so
+   no other table changes. */
+.ui-access-settings .ui-data-table td time {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.ui-access-settings .ui-data-table:not(.ui-data-table--ruled) button.ui-data-table__select {
+  justify-content: flex-start;
+}
