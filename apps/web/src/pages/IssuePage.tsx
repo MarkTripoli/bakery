@@ -7,6 +7,7 @@ import type { TicketRequestIntent } from "../api/client.ts";
 import {
   effectiveAccessQueryOptions,
   externalTicketQueryOptions,
+  repositoryQueryOptions,
   ticketSourcesListQueryOptions,
 } from "../api/query.ts";
 import { isUuid } from "@bakery/contracts/contracts";
@@ -62,11 +63,41 @@ const DEPENDENCY_TONE = {
 } as const;
 
 /** The sentence's next step: a link to where the fix lives, or a control, or nothing. */
+function RepositorySetupButton({ repositoryId }: { repositoryId: string }) {
+  const api = useBakeryApi();
+  const scope = useProtectedScope();
+  const navigate = useNavigate();
+  const { translate } = useI18n();
+  const repository = useQuery({
+    ...repositoryQueryOptions(api, scope, repositoryId),
+    enabled: scope.organizationId !== null,
+  });
+  return (
+    <UI.Button
+      variant="quiet"
+      onClick={() =>
+        void navigate({
+          to: "/projects/repositories/$repositoryId",
+          params: { repositoryId },
+          search: { check: undefined },
+        })}
+    >
+      {repository.data === undefined
+        ? translate("issues.next.openProjects" as never)
+        : translate("issues.next.openRepositorySetup" as never, {
+          name: `${repository.data.owner}/${repository.data.name}`,
+        })}
+    </UI.Button>
+  );
+}
+
 function ReasonNext(
-  { code, disabled, isAdmin, row, onCheck, onStart }: {
+  { code, disabled, isAdmin, repositoryId, row, onCheck, onStart }: {
     code: string;
     disabled: boolean;
     isAdmin: boolean;
+    /** The repository the issue's source reads, when it is known. */
+    repositoryId: string | null;
     row: IssueRow;
     onCheck: () => void;
     onStart: () => void;
@@ -129,9 +160,12 @@ function ReasonNext(
       </UI.Link>
     );
   }
+  if (action.kind !== "integrations" && repositoryId !== null) {
+    return <RepositorySetupButton repositoryId={repositoryId} />;
+  }
   const to = action.kind === "integrations"
     ? "/settings/organization/integrations" as const
-    : "/projects/onboarding" as const;
+    : "/projects" as const;
   return (
     <UI.Button
       variant="quiet"
@@ -384,6 +418,7 @@ export function IssuePage({ issueId }: { readonly issueId: string }) {
               row={row}
               disabled={!canAsk}
               isAdmin={isAdmin}
+              repositoryId={source?.repositoryId ?? null}
               onCheck={() => check.mutate()}
               onStart={() => openDialog("start")}
             />

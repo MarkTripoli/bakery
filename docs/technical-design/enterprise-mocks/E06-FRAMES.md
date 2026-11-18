@@ -18,9 +18,6 @@ Source: `paper-source/<nodeId>.jsx` + `.computed-styles.json`, listed in `paper-
 | `2JQJ-0` | `task-coordination` | `/tasks/$taskId/coordination` | default | light | phone | 390×844 |
 | `2JH8-0` | `task-coordination` | `/tasks/$taskId/coordination` | empty | light | desktop | 1440×900 |
 | `2JLA-0` | `task-coordination` | `/tasks/$taskId/coordination` | partial | light | desktop | 1440×900 |
-| `2JSH-0` | `projects-onboarding` | `/projects/onboarding` | default | light | desktop | 1440×900 |
-| `2JZO-0` | `projects-onboarding` | `/projects/onboarding` | default | dark | desktop | 1440×900 |
-| `2K4U-0` | `projects-onboarding` | `/projects/onboarding` | default | light | phone | 390×844 |
 
 Notes:
 

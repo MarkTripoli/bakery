@@ -1054,10 +1054,22 @@ function primitive(
   ) {
     schema = resolveNamed(base, source, stack.concat(base));
   } else schema = namedFormat(base);
+  // The worker action enum applies to every field named `action` EXCEPT the
+  // integration action id, which names a registered integration action
+  // (`github.issue.comment.create`) of which there are hundreds.
+  //
+  // The rule used to be `path.endsWith(".action")`, which rewrote the
+  // integration id to the six-value worker enum and made every real id a
+  // MALFORMED_REQUEST at the transport boundary. Deleting the branch outright
+  // fixed that and broke the other direction: `Job.action`, `Jobs`,
+  // `Page<Job>` items and `JobAssignment.action` all lost their enum and became
+  // unconstrained 64 KiB strings. The exemption is one path, not the rule.
+  const workerActionField = path.endsWith(".action") &&
+    !path.endsWith("IntegrationAction.action");
   if (path === "JobAssignment.action" && record(source.workerActions)) {
     schema = z.enum(Object.keys(source.workerActions) as [string, ...string[]]);
   } else if (
-    path.endsWith(".action") && !Array.isArray(field.enum) &&
+    workerActionField && !Array.isArray(field.enum) &&
     base !== "enum" && !base.startsWith("enum(")
   ) {
     schema = z.enum([

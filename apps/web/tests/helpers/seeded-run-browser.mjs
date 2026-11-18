@@ -135,38 +135,38 @@ async function proveIntake(page, baseUrl, organizationId) {
     config,
     digest,
   });
-  await page.goto(
-    `${baseUrl}/projects/onboarding?application=${app.id}&repository=${repo.id}&profile=${profile.id}`,
-  );
-  const composer = page.getByTestId("projects-onboarding-task-scope");
+  // The Projects page no longer carries a draft-task composer (design-ux #65,
+  // slice 3), so the draft is written the way the New task page sends it; what
+  // this case proves is unchanged: the server pins the active profile and an
+  // idempotent replay returns the same task.
   const title = `Phone intake ${suffix}`;
-  await composer.getByLabel("Task title").fill(title);
-  await composer.getByLabel("Task description", { exact: true }).fill(
-    "Real authenticated phone intake; no coding execution claimed.",
-  );
-  const admitted = page.waitForResponse((response) =>
-    response.request().method() === "POST" &&
-    new URL(response.url()).pathname === "/v1/tasks"
-  );
-  await composer.getByRole("button", { name: "Create draft task", exact: true })
-    .click();
-  const response = await admitted;
-  assert.equal(response.status(), 201);
-  const task = await response.json();
-  const request = response.request();
-  const key = request.headers()["idempotency-key"];
-  assert.ok(key);
+  const body = {
+    applicationId: app.id,
+    repositoryId: repo.id,
+    repositoryProfileId: profile.id,
+    taskType: "feature",
+    title,
+    description:
+      "Real authenticated phone intake; no coding execution claimed.",
+  };
+  const key = randomUUID();
+  const admitted = await page.request.post(`${baseUrl}/v1/tasks`, {
+    headers: { ...headers, "Idempotency-Key": key },
+    data: body,
+  });
+  assert.equal(admitted.status(), 201);
+  const task = await admitted.json();
   assert.equal(task.repositoryProfileId, profile.id);
   assert.equal(task.repositoryProfileRevision, 1);
   assert.equal(task.repositoryProfileDigest, digest);
   assert.equal(task.currentRunId, null);
   const replay = await page.request.post(`${baseUrl}/v1/tasks`, {
     headers: { ...headers, "Idempotency-Key": key },
-    data: request.postDataJSON(),
+    data: body,
   });
   assert.equal(replay.status(), 201);
   assert.deepEqual(await replay.json(), task);
-  await composer.getByRole("link", { name: task.id, exact: true }).click();
+  await page.goto(`${baseUrl}/tasks/${task.id}`);
   await expect(page).toHaveURL(`${baseUrl}/tasks/${task.id}`);
   await expect(page.getByText(title, { exact: true })).toBeVisible();
   await page.reload();

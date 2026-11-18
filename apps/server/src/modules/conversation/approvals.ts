@@ -20,6 +20,7 @@ import type {
 import type { ApprovedPlanForInstructions } from "@bakery/contracts/workflow-presets";
 import type { PlanRevisionBody } from "./plan-revisions.ts";
 import { lockConversationScope } from "./postgres.ts";
+import { decideHumanApproval } from "../work/human-approval-store.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import {
   approvalPolicyDigest,
@@ -556,6 +557,35 @@ export async function decideApproval(
   // non-audience caller cannot confirm the approval exists, whatever its
   // conversation state.
   assertAudienceMember(peek, principalId);
+
+  // A step approval and a stage approval are decided by the same route, so a
+  // caller has one place to answer and one vocabulary of refusals. The step path
+  // owns the extra work: the decisions ledger entry, closing the wait that keeps
+  // the approval out of the active clock, and the run's named outcome.
+  if (peek.subject_type === "run_step") {
+    // The event scope needs the task's application and repository, which the
+    // approval row does not carry.
+    const scope = await transaction.query<
+      { application_id: string; repository_id: string | null }
+    >(
+      `select application_id, repository_id from bakery.tasks
+        where organization_id = $1 and id = $2`,
+      [organizationId, peek.task_id],
+    );
+    await decideHumanApproval(transaction, {
+      organizationId,
+      approvalId: id,
+      principalId,
+      decision: input.decision,
+      ...(comment === "" ? {} : { note: comment }),
+      expectedVersion: input.expectedVersion,
+      actorKind: "person",
+      traceId: context.requestId,
+      applicationId: scope.rows[0]!.application_id,
+      repositoryId: scope.rows[0]!.repository_id,
+    });
+    return toApproval(await loadApproval(transaction, organizationId, id));
+  }
   // Conversation first, then the approval: the order turn admission uses.
   // Archived conversation, application or repository refuse, like questions.answer.
   await lockConversationScope(
