@@ -17,23 +17,27 @@ function Row(
     headline: string;
     destination: string;
     minutesAgo?: number;
+    state?: "long-text";
   },
 ) {
   return (
-    <NotificationRow
-      id={props.id}
-      unread={props.unread ?? true}
-      highlighted={props.highlighted}
-      unreadLabel="Unread"
-      headline={props.headline}
-      destination={props.destination}
-      actor={props.kind === undefined || props.kind === "person"
-        ? { kind: "person", name: "Sam Lee", src: null }
-        : { kind: "event", tile: props.kind }}
-      href={props.href === undefined ? "#" : props.href}
-      relativeTime={`${props.minutesAgo ?? 5} min ago`}
-      exactTime="11 November 2026 at 21:04"
-    />
+    <ul className="ui-notification-group__rows">
+      <NotificationRow
+        id={props.id}
+        unread={props.unread ?? true}
+        highlighted={props.highlighted}
+        state={props.state}
+        unreadLabel="Unread"
+        headline={props.headline}
+        destination={props.destination}
+        actor={props.kind === undefined || props.kind === "person"
+          ? { kind: "person", name: "Sam Lee", src: null }
+          : { kind: "event", tile: props.kind }}
+        href={props.href === undefined ? "#" : props.href}
+        relativeTime={`${props.minutesAgo ?? 5} min ago`}
+        exactTime="11 November 2026 at 21:04"
+      />
+    </ul>
   );
 }
 
@@ -65,6 +69,7 @@ export const Contract: StoryObj = {
       <Row
         id="d"
         kind="warning"
+        state="long-text"
         headline="Your task failed after three attempts on the nightly dependency refresh"
         destination="Nightly dependency refresh · Repository onboarding · main"
       />
