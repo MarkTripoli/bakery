@@ -9,6 +9,8 @@
     "@bakery/config/telemetry": "./packages/config/src/telemetry.ts",
     "@bakery/config/telemetry-attributes": "./packages/config/src/telemetry-attributes.ts",
     "@bakery/config/telemetry-trace": "./packages/config/src/telemetry-trace.ts",
+    "@bakery/config/telemetry-export": "./packages/config/src/telemetry-export.ts",
+    "@bakery/config/telemetry-sink": "./packages/config/src/telemetry-sink.ts",
     "@bakery/integration-sdk": "./packages/integration-sdk/mod.ts",
     "@bakery/workflow-sdk": "./packages/workflow-sdk/mod.ts",
     "@bakery/integration-sdk/testing": "./packages/integration-sdk/testing.ts",

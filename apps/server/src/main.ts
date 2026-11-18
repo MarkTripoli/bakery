@@ -17,9 +17,10 @@ import {
 } from "./modules/execution/control.ts";
 import { createApp } from "./app.ts";
 import {
-  createServerTelemetry,
+  createServerTelemetryFromConfig,
   SERVER_TELEMETRY_CLOSE_MS,
 } from "./platform/telemetry.ts";
+import { readTelemetrySinkConfig } from "@bakery/config/telemetry-sink";
 import {
   isPreviewRequestHost,
   previewHostname,
@@ -183,9 +184,14 @@ async function runServer(config: RuntimeConfig): Promise<void> {
   });
   const eventsSocketRegistry = createEventsSocketRegistry();
   const secretsFetch = createSecretIdentityProviderFixtureFetch(config);
-  // No sink yet: events cost a counter and nothing is queued. A sink is wired
-  // by the slice that adds one, and nothing here depends on it.
-  const telemetry = createServerTelemetry();
+  // The sink comes from configuration: rotated structured logs, an optional OTLP
+  // destination, or neither. With neither, export stays disabled and an event
+  // costs a counter and nothing is queued - the behaviour before this slice.
+  const telemetry = createServerTelemetryFromConfig(
+    // `process.env`, not `Deno.env`: portable to the Node runtime #139 moves to,
+    // and identical under both.
+    readTelemetrySinkConfig(process.env),
+  );
   const app = createApp({
     telemetry,
     config,

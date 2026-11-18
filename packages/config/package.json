@@ -7,14 +7,16 @@
     ".": "./src/env.ts",
     "./sentry": "./src/sentry.ts",
     "./sentry-build": "./src/sentry-build.ts",
-    "./sentry-privacy": "./src/sentry-privacy.ts",
     "./sentry-deno": "./src/sentry-deno.ts",
+    "./sentry-privacy": "./src/sentry-privacy.ts",
     "./telemetry": "./src/telemetry.ts",
     "./telemetry-attributes": "./src/telemetry-attributes.ts",
+    "./telemetry-export": "./src/telemetry-export.ts",
+    "./telemetry-sink": "./src/telemetry-sink.ts",
     "./telemetry-trace": "./src/telemetry-trace.ts"
   },
   "scripts": {
-    "typecheck": "deno check src/env.ts src/telemetry.ts src/telemetry-attributes.ts",
+    "typecheck": "deno check src/env.ts src/telemetry.ts src/telemetry-attributes.ts src/telemetry-sink.ts",
     "build": "deno check src/env.ts"
   },
   "dependencies": {

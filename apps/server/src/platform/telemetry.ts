@@ -16,6 +16,18 @@ import {
 } from "@bakery/config/telemetry";
 import { createTelemetryRedactor } from "@bakery/config/telemetry-attributes";
 import {
+  TELEMETRY_LOG_MAX_BYTES,
+  TELEMETRY_LOG_MAX_FILES,
+  type TelemetrySinkConfig,
+} from "@bakery/config/telemetry-sink";
+import { mkdir, open, rename, rm, stat } from "node:fs/promises";
+import {
+  createOtlpSink,
+  createRotatingLogSink,
+  createTelemetrySink,
+  type RotatingLogFileSystem,
+} from "./telemetry-sink.ts";
+import {
   EXECUTION_TELEMETRY_EVENTS,
   JOB_OUTCOMES,
 } from "../modules/execution/telemetry.ts";
@@ -61,3 +73,69 @@ export function createServerTelemetry(
     events: Object.values(EXECUTION_TELEMETRY_EVENTS),
   });
 }
+
+/**
+ * Builds the server's telemetry from configuration.
+ *
+ * This exists as a named function rather than three lines inside `main.ts`
+ * because the wiring itself is what has failed before: a facade that is built
+ * with no sink looks identical to a working one from every behaviour test, and
+ * the only way to prove production exports is to call the same function
+ * production calls.
+ *
+ * With no sink configured this returns a disabled telemetry, which is the
+ * documented default and not an error.
+ */
+export function createServerTelemetryFromConfig(
+  config: TelemetrySinkConfig | undefined,
+  options: { readonly fetch?: typeof fetch } = {},
+): Telemetry {
+  if (config === undefined) return createServerTelemetry();
+  const log = config.logDir === undefined ? undefined : createRotatingLogSink({
+    directory: config.logDir,
+    maxBytes: config.logMaxBytes ?? TELEMETRY_LOG_MAX_BYTES,
+    maxFiles: config.logMaxFiles ?? TELEMETRY_LOG_MAX_FILES,
+    fileSystem: nodeRotatingLogFileSystem,
+  });
+  const otlp = config.otlpEndpoint === undefined ? undefined : createOtlpSink({
+    endpoint: config.otlpEndpoint,
+    fetch: options.fetch ?? fetch,
+  });
+  const send = createTelemetrySink({ log, otlp });
+  return createServerTelemetry({ send });
+}
+
+/**
+ * The filesystem the rotating sink uses.
+ *
+ * `node:fs/promises` rather than `Deno.writeTextFile`, because #139 removes Deno
+ * and new code should not add to the migration. Appends open with `a` so two
+ * writers cannot interleave inside a line.
+ */
+const nodeRotatingLogFileSystem: RotatingLogFileSystem = {
+  async append(path, bytes) {
+    const handle = await open(path, "a");
+    try {
+      await handle.write(bytes);
+    } finally {
+      await handle.close();
+    }
+  },
+  async size(path) {
+    try {
+      const stats = await stat(path);
+      return stats.size;
+    } catch {
+      return 0;
+    }
+  },
+  async rename(from, to) {
+    await rename(from, to);
+  },
+  async remove(path) {
+    await rm(path, { force: true });
+  },
+  async ensureDirectory(path) {
+    await mkdir(path, { recursive: true });
+  },
+};
