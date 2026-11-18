@@ -405,7 +405,7 @@ test(
     await prepare(page);
     await page.goto(`/tasks/${taskId}`);
     await expect(thread(page)).toBeVisible({ timeout: 20_000 });
-    await page.getByLabel("Output step").selectOption(doneStepId);
+    await page.getByLabel("Step", { exact: true }).selectOption(doneStepId);
     await expect(page.getByText("This step has no agent session."))
       .toBeVisible();
     const line = now(page);
@@ -416,7 +416,9 @@ test(
       ).first(),
     });
     await line.getByRole("button").click();
-    await expect(page.getByLabel("Output step")).toHaveValue(runningStepId);
+    await expect(page.getByLabel("Step", { exact: true })).toHaveValue(
+      runningStepId,
+    );
     await expect(thread(page)).toBeVisible();
   },
 );
@@ -511,5 +513,37 @@ test(
         page.getByText("This step has no agent session."),
       ).first(),
     });
+  },
+);
+
+test(
+  "the now line sits in the footer above the composer, and stays in view",
+  async ({ page }, testInfo) => {
+    if (testInfo.project.name === "desktop") {
+      await page.setViewportSize({ width: 1440, height: 900 });
+    }
+    await prepare(page);
+    await page.goto(`/tasks/${taskId}`);
+    await expect(thread(page)).toBeVisible({ timeout: 20_000 });
+    const line = page.locator(
+      '.ui-task-detail__composer [data-ui-component="sessionNowLine"]',
+    );
+    await expect(line).toHaveCount(1);
+    await expect(line).toContainText("Running run_tests…");
+    // It stays on screen however far the page is scrolled, directly above the composer.
+    await page.mouse.wheel(0, 4000);
+    await expect(line).toBeInViewport();
+    const geometry = await page.evaluate(() => {
+      const now = document.querySelector(
+        '[data-ui-component="sessionNowLine"]',
+      )!
+        .getBoundingClientRect();
+      const composer = document.querySelector(".ui-message-composer")!
+        .getBoundingClientRect();
+      return { nowBottom: now.bottom, composerTop: composer.top };
+    });
+    expect(geometry.nowBottom).toBeLessThanOrEqual(geometry.composerTop);
+    await expect(page.locator('[data-ui-component="sessionNowLine"]'))
+      .toHaveCount(1);
   },
 );

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { contractSchemas } from "@bakery/contracts/contracts";
 import type { AgentSessionPageResponse } from "../api/client.ts";
 import { useBakeryApi } from "../api/context.tsx";
@@ -45,6 +45,8 @@ const NOTHING: Omit<SessionThreadSource, "retry" | "reconnect"> = {
 };
 
 type Snapshot = Omit<SessionThreadSource, "retry" | "reconnect">;
+
+const LOADING: Snapshot = { ...NOTHING, phase: "loading" };
 
 const bySequence = (a: SessionFeedItem, b: SessionFeedItem) => {
   const left = BigInt(a.sequence);
@@ -233,10 +235,15 @@ export function useSessionThread(
 
   const retry = useCallback(() => setAttempt((value) => value + 1), []);
   const reconnect = useCallback(() => wake.current?.(), []);
-  const value = snapshot.authority === authority ? snapshot.value : (
-    organizationId && runStepId
-      ? { ...NOTHING, phase: "loading" as const }
-      : NOTHING
-  );
-  return { ...value, retry, reconnect };
+  const value = snapshot.authority === authority
+    ? snapshot.value
+    : organizationId && runStepId
+    ? LOADING
+    : NOTHING;
+  // Stable while nothing changed, so a caller can depend on it.
+  return useMemo(() => ({ ...value, retry, reconnect }), [
+    value,
+    retry,
+    reconnect,
+  ]);
 }

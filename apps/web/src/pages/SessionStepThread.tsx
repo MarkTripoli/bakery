@@ -82,6 +82,7 @@ export function SessionStepThread(
       <SessionThread
         items={source.items}
         running={source.session ? LIVE.has(source.session.status) : false}
+        sessionStatus={source.session?.status}
         highlightedItemId={highlightedItemId}
         renderArtifact={({ artifactId, name }) => (
           <RouterLink

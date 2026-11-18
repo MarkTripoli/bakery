@@ -4338,5 +4338,6 @@
   "session.thread.statusName.active": "⟦ŕûññïñĝ…⟧",
   "session.thread.statusName.waiting": "⟦ŵàïŧïñĝ…⟧",
   "session.thread.noSession": "⟦Ŧĥïš šŧëþ ĥàš ñô àĝëñŧ šëššïôñ. ŧëšŧ çôþ⟧",
-  "session.thread.rawOutput": "⟦Ŕàŵ ôûŧþûŧ ŧ⟧"
+  "session.thread.rawOutput": "⟦Ŕàŵ ôûŧþûŧ ŧ⟧",
+  "session.thread.stepSelect": "⟦Šŧëþ⟧"
 }

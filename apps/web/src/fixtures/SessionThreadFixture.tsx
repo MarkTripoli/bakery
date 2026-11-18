@@ -262,6 +262,8 @@ const STATE: Record<string, {
   running?: boolean;
   /** The run heading's status word; Running unless the session ended. */
   status?: string;
+  /** The sessions own status, as the page would pass it. */
+  sessionStatus?: string;
   loading?: boolean;
   error?: boolean;
 }> = {
@@ -291,6 +293,7 @@ const STATE: Record<string, {
     ],
     now: { kind: "failed", reason: "The signing key expired on 2026-11-02." },
     status: "Failed",
+    sessionStatus: "failed",
   },
   lost: {
     items: sessionThreadRunning,
@@ -390,6 +393,7 @@ export function SessionThreadFixture() {
           <SessionThread
             items={fixture.items}
             running={fixture.running}
+            sessionStatus={fixture.sessionStatus}
             onLoadEarlier={state === "long" ? () => {} : undefined}
             now={<SessionNow state={fixture.now} />}
           />

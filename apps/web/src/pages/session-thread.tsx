@@ -160,6 +160,8 @@ export type SessionThreadProps = {
   items: readonly SessionThreadItem[];
   /** The session is running: its newest turn opens its work. */
   running?: boolean;
+  /** The session's own status; a failed one is said by the now line, not twice. */
+  sessionStatus?: string;
   /** Present when earlier history exists. */
   onLoadEarlier?: () => void;
   loadingEarlier?: boolean;
@@ -192,6 +194,7 @@ export function SessionThread(
     onLoadEarlier,
     renderArtifact,
     running = false,
+    sessionStatus,
   }: SessionThreadProps,
 ) {
   const { locale, translate } = useI18n();
@@ -245,7 +248,8 @@ export function SessionThread(
       }),
     [model, locale, clock, translate, running, renderArtifact],
   );
-  const end = model.end
+  const end = model.end &&
+      !(model.end.outcome === "failed" && sessionStatus === "failed")
     ? {
       outcome: model.end.outcome,
       label: translate(`session.thread.end.${model.end.outcome}`),

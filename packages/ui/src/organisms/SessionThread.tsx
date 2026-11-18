@@ -412,9 +412,9 @@ export function SessionThread(
       data-ui-component="sessionThread"
       ref={rootRef}
     >
-      <div className="ui-session-thread__bar">
-        {onLoadEarlier
-          ? (
+      {onLoadEarlier
+        ? (
+          <div className="ui-session-thread__bar">
             <Button
               variant="quiet"
               loading={loadingEarlier}
@@ -422,8 +422,15 @@ export function SessionThread(
             >
               {labels.loadEarlier}
             </Button>
-          )
-          : <span />}
+          </div>
+        )
+        : null}
+      {
+        /* Over the thread's top end corner, so it takes no height of its own,
+          and gone on a touch screen, where there are no keys and a tooltip
+          cannot be opened. */
+      }
+      <div className="ui-session-thread__help">
         <Tooltip
           variant="description"
           content={labels.shortcutHelp.join(" · ")}

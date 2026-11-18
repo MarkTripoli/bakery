@@ -1945,7 +1945,20 @@ button.ui-activity-line__row:hover {
   flex-direction: column;
   gap: var(--space-4);
   inline-size: 100%;
-  max-inline-size: 45rem;
+  position: relative;
+}
+
+.ui-session-thread__help {
+  inset-block-start: 0;
+  inset-inline-end: 0;
+  position: absolute;
+  z-index: 1;
+}
+
+@media (pointer: coarse) {
+  .ui-session-thread__help {
+    display: none;
+  }
 }
 
 .ui-session-thread__bar {
@@ -2019,6 +2032,7 @@ button.ui-activity-line__row:hover {
 }
 
 .ui-session-thread .ui-conversation-message[data-appearance="card"] {
+  max-inline-size: none;
   background: var(--color-surface);
   border: var(--border-default) solid var(--color-border);
   border-radius: var(--radius-surface);
@@ -2177,8 +2191,7 @@ button.ui-activity-line__row:hover {
   padding-inline: var(--space-1);
 }
 
-.ui-session-now[data-tone="danger"],
-.ui-session-now[data-tone="warning"] {
+.ui-session-now[data-tone="danger"] {
   align-items: flex-start;
   color: var(--color-fg);
   padding-block: var(--space-2);

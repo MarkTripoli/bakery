@@ -221,14 +221,52 @@ test("the now line is the only live region, and it names what is running", async
   );
 });
 
-test("a failed session says so once, in full, and ends with its own row", async ({ page }) => {
+test("a failed session says so once, in the now line, and has no second row", async ({ page }) => {
   await open(page, "failed");
   const now = page.locator('[data-ui-component="sessionNowLine"]');
   await expect(now).toContainText("Session failed.");
   await expect(now).toContainText("The signing key expired on 2026-11-02.");
-  const end = page.locator(".ui-session-thread__end");
-  await expect(end).toHaveAttribute("data-outcome", "failed");
-  await expect(end).toContainText("Session failed");
+  await expect(page.getByText("Session failed", { exact: false })).toHaveCount(
+    1,
+  );
+  await expect(page.locator(".ui-session-thread__end")).toHaveCount(0);
+});
+
+test("there is no bar above the thread, and the shortcuts button takes no height", async ({ page }) => {
+  await open(page, "running");
+  await expect(page.locator(".ui-session-thread__bar")).toHaveCount(0);
+  const gap = await page.evaluate(() => {
+    const thread = document.querySelector(".ui-session-thread")!
+      .getBoundingClientRect();
+    const first = document.querySelector(".ui-session-thread__turn")!
+      .getBoundingClientRect();
+    const help = document.querySelector(".ui-session-thread__help")!
+      .getBoundingClientRect();
+    return {
+      top: first.top - thread.top,
+      helpRight: help.right,
+      threadRight: thread.right,
+    };
+  });
+  // The first message starts at the thread's own top, and the button sits at its end corner.
+  expect(gap.top).toBeLessThanOrEqual(1);
+  expect(Math.abs(gap.helpRight - gap.threadRight)).toBeLessThanOrEqual(1);
+});
+
+test("the message box, the times and the thread share one right-hand edge", async ({ page }) => {
+  await open(page, "running");
+  const edges = await page.evaluate(() => {
+    const right = (selector: string) =>
+      Math.round(
+        document.querySelector(selector)!.getBoundingClientRect().right,
+      );
+    return [
+      right(".ui-conversation-message[data-appearance=card]"),
+      right(".ui-activity-line__row"),
+      right(".ui-session-thread"),
+    ];
+  });
+  expect(new Set(edges).size, JSON.stringify(edges)).toBe(1);
 });
 
 test("a lost connection offers Try now and keeps the thread", async ({ page }) => {
@@ -238,6 +276,18 @@ test("a lost connection offers Try now and keeps the thread", async ({ page }) =
     "Connection lost. Reconnecting… Last update 2 min ago.",
   );
   await expect(now.getByRole("button", { name: "Try now" })).toBeVisible();
+  // Centred on its line, not hanging below it.
+  const centres = await now.evaluate((node) => {
+    const mid = (element: Element) => {
+      const box = element.getBoundingClientRect();
+      return box.top + box.height / 2;
+    };
+    return [
+      mid(node.querySelector(".ui-session-now__text")!),
+      mid(node.querySelector("button")!),
+    ];
+  });
+  expect(Math.abs(centres[0] - centres[1])).toBeLessThanOrEqual(2);
   await expect(page.locator(".ui-session-thread__turn").first()).toBeVisible();
 });
 

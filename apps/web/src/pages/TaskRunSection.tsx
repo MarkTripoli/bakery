@@ -2,6 +2,7 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -13,6 +14,7 @@ import type { JobAttemptRead } from "../api/client.ts";
 import { runQueryOptions, runStepsListQueryOptions } from "../api/query.ts";
 import { SessionRunNow, SessionStepThread } from "./SessionStepThread.tsx";
 import { useSessionThread } from "./useSessionThread.ts";
+import { usePublishNowLine } from "./now-line-slot.tsx";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import type { DurableSyncConnectivity } from "../api/durable-sync.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
@@ -248,6 +250,27 @@ export function TaskRunSection(
     step.id === runningStepId
   )?.stepKey;
   const threadShown = selectedThread.phase === "ready";
+  // The line about the running step lives in the footer above the composer, so
+  // it stays in view however far the page has scrolled; where the page has no
+  // footer for it, it is drawn here.
+  const selectRunning = useCallback(
+    () => setOutputStepId(runningStepId),
+    [runningStepId],
+  );
+  const nowLine = useMemo(
+    () =>
+      runningSource
+        ? (
+          <SessionRunNow
+            source={runningSource}
+            stepName={otherRunning ? runningStepKey : undefined}
+            onSelect={selectRunning}
+          />
+        )
+        : null,
+    [runningSource, otherRunning, runningStepKey, selectRunning],
+  );
+  const nowLinePublished = usePublishNowLine(nowLine);
   const usageAuthority = `${authority}:${selectedStepId}`;
   const [usageRecord, setUsageRecord] = useState<
     {
@@ -485,7 +508,7 @@ export function TaskRunSection(
                     <>
                       {steps.data.items.length > 1 && (
                         <UI.Combobox
-                          label={t("tasks.run.output.step")}
+                          label={t("session.thread.stepSelect")}
                           value={selectedStepId}
                           options={steps.data.items.map((step) => ({
                             value: step.id,
@@ -517,15 +540,7 @@ export function TaskRunSection(
                           />
                         }
                       />
-                      {runningSource
-                        ? (
-                          <SessionRunNow
-                            source={runningSource}
-                            stepName={otherRunning ? runningStepKey : undefined}
-                            onSelect={() => setOutputStepId(runningStepId)}
-                          />
-                        )
-                        : null}
+                      {nowLinePublished ? null : nowLine}
                     </>
                   )}
                 </>

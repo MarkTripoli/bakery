@@ -107,3 +107,43 @@ test("session thread stills running tall light", async ({ page }) => {
   await page.waitForTimeout(250);
   await page.screenshot({ path: `${OUT}/running-tall-light.png` });
 });
+
+/** Arabic pseudo-locale: the column mirrors, paths and tool names stay left to right. */
+test("session thread stills rtl desktop light", async ({ page }) => {
+  test.setTimeout(laneBudgetMs(120_000));
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await mockAuthenticatedSession(page);
+  await mkdir(OUT, { recursive: true });
+  await page.goto("/__fixtures__/session-thread/running?locale=ar-XB");
+  await expect(page.locator('[data-ui-component="sessionThread"]')).toBeVisible(
+    {
+      timeout: 15_000,
+    },
+  );
+  await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
+  await page.waitForTimeout(250);
+  await page.screenshot({ path: `${OUT}/running-rtl-desktop-light.png` });
+});
+
+test.describe("200% zoom", () => {
+  test.use({ viewport: { width: 720, height: 450 }, deviceScaleFactor: 2 });
+  test("session thread stills running 200 percent desktop light", async ({ page }) => {
+    test.setTimeout(laneBudgetMs(120_000));
+    await mockAuthenticatedSession(page);
+    await mkdir(OUT, { recursive: true });
+    await page.goto("/__fixtures__/session-thread/running");
+    await expect(page.locator('[data-ui-component="sessionThread"]'))
+      .toBeVisible({
+        timeout: 15_000,
+      });
+    // Nothing may run off the side at this zoom.
+    const overflow = await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth -
+        document.documentElement.clientWidth,
+    );
+    expect(overflow).toBeLessThanOrEqual(0);
+    await page.waitForTimeout(250);
+    await page.screenshot({ path: `${OUT}/running-zoom200-desktop-light.png` });
+  });
+});
