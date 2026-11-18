@@ -44762,7 +44762,8 @@
               "type": "string",
               "minLength": 1,
               "maxLength": 40,
-              "description": "TaskCreate.taskType must contain at most 40 characters."
+              "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+              "description": "TaskCreate.taskType must match the pattern ^[a-z0-9]+(?:-[a-z0-9]+)*$."
             },
             "title": {
               "type": "string",
@@ -57986,7 +57987,8 @@
               "type": "string",
               "minLength": 1,
               "maxLength": 40,
-              "description": "TaskBrief.taskType must contain at most 40 characters."
+              "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+              "description": "TaskBrief.taskType must match the pattern ^[a-z0-9]+(?:-[a-z0-9]+)*$."
             },
             "approvedPlan": {
               "description": "Plan revision a human approved for this task, frozen with the brief; absent when the plan stage ran without an approval.",
@@ -58209,7 +58211,8 @@
                   "type": "string",
                   "minLength": 1,
                   "maxLength": 40,
-                  "description": "TaskBrief.taskType must contain at most 40 characters."
+                  "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+                  "description": "TaskBrief.taskType must match the pattern ^[a-z0-9]+(?:-[a-z0-9]+)*$."
                 },
                 "approvedPlan": {
                   "description": "Plan revision a human approved for this task, frozen with the brief; absent when the plan stage ran without an approval.",
@@ -139063,7 +139066,8 @@
               "type": "string",
               "minLength": 40,
               "maxLength": 64,
-              "description": "RepositoryProfileObservation.baseSha must contain at most 64 characters."
+              "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$",
+              "description": "RepositoryProfileObservation.baseSha must match the pattern ^(?:[0-9a-f]{40}|[0-9a-f]{64})$."
             },
             "payload": {
               "type": "object",
@@ -175343,7 +175347,8 @@
                           "type": "string",
                           "minLength": 1,
                           "maxLength": 40,
-                          "description": "TaskBrief.taskType must contain at most 40 characters."
+                          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+                          "description": "TaskBrief.taskType must match the pattern ^[a-z0-9]+(?:-[a-z0-9]+)*$."
                         },
                         "approvedPlan": {
                           "description": "Plan revision a human approved for this task, frozen with the brief; absent when the plan stage ran without an approval.",
@@ -214655,7 +214660,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:2d51efe814057b12b6c5c2804ae0f30dff7fd5084fd9f40563d055bcd6b4d93b",
+  "compatibilityDigest": "sha256:97dc48dcabad39c5ac9c54f779e84293049b1b600437cbef9ff98f291703ee2a",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -225212,7 +225217,8 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 40,
-          "description": "TaskCreate.taskType must contain at most 40 characters."
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "description": "TaskCreate.taskType must match the pattern ^[a-z0-9]+(?:-[a-z0-9]+)*$."
         },
         "title": {
           "type": "string",
@@ -238486,7 +238492,8 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 40,
-          "description": "TaskBrief.taskType must contain at most 40 characters."
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "description": "TaskBrief.taskType must match the pattern ^[a-z0-9]+(?:-[a-z0-9]+)*$."
         },
         "approvedPlan": {
           "description": "Plan revision a human approved for this task, frozen with the brief; absent when the plan stage ran without an approval.",
@@ -238709,7 +238716,8 @@
               "type": "string",
               "minLength": 1,
               "maxLength": 40,
-              "description": "TaskBrief.taskType must contain at most 40 characters."
+              "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+              "description": "TaskBrief.taskType must match the pattern ^[a-z0-9]+(?:-[a-z0-9]+)*$."
             },
             "approvedPlan": {
               "description": "Plan revision a human approved for this task, frozen with the brief; absent when the plan stage ran without an approval.",
@@ -319827,7 +319835,8 @@
           "type": "string",
           "minLength": 40,
           "maxLength": 64,
-          "description": "RepositoryProfileObservation.baseSha must contain at most 64 characters."
+          "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$",
+          "description": "RepositoryProfileObservation.baseSha must match the pattern ^(?:[0-9a-f]{40}|[0-9a-f]{64})$."
         },
         "payload": {
           "type": "object",
@@ -356139,7 +356148,8 @@
                       "type": "string",
                       "minLength": 1,
                       "maxLength": 40,
-                      "description": "TaskBrief.taskType must contain at most 40 characters."
+                      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+                      "description": "TaskBrief.taskType must match the pattern ^[a-z0-9]+(?:-[a-z0-9]+)*$."
                     },
                     "approvedPlan": {
                       "description": "Plan revision a human approved for this task, frozen with the brief; absent when the plan stage ran without an approval.",

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="measure-the-right-tree-and-the-mutation" project="bakery" issue="559">
+  <title>A red-proof or a grep only counts if you know what it measured</title>
+  <trigger>A builder, QA or reviewer mutates code to prove a test fails, or greps a branch to confirm or refute someone's report.</trigger>
+  <mistake>A mutation that never applied left the test green, and the green was read as a weak test. A literal counted once was present in a second place, so the mutant changed only one copy. A value was edited without reading the container around it, so the edit sat in a comment or an unused branch. On #571 a grep of the branch for the symbols a fix introduced (isZodSchema, freezeDeep) found nothing, and the empty result was read as an unverifiable claim. The branch predated the fix, so the absence was the bug the report described.</mistake>
+  <rule>1. Assert the mutation applied (git diff shows it) before reading any result. 2. Count the literal you mutate across the tree; mutate every copy or say which one. 3. Read the container shape around the value, not just the value. 4. When a red-proof comes back green, suspect the mutation before the test. 5. When a measurement appears to refute a report, ask which tree it was taken from before believing it: grepping a branch for the symbols a fix introduces returns nothing precisely because the branch predates the fix, so the absence is the finding. A result that agrees with you can still be measuring the wrong tree; state what the result would look like if the report were true, and check that.</rule>
+  <verification>
+    <requirement>Every red-proof in a PR comment names the git diff line that shows the mutation applied.</requirement>
+    <requirement>Every refuting measurement names the commit it was taken from and the merge base it is compared with.</requirement>
+  </verification>
+</learning>
