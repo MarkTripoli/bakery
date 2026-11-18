@@ -88,3 +88,38 @@ Deno.test("every job that runs a repository script checks the repository out", a
     }`,
   );
 });
+
+// The same concealment, one layer out. `nightly-signal.ts` reads the run it is
+// signalling about before it writes anything, so the job's token needs
+// `actions: read`. It declared `contents: read` and `issues: write` only, so the
+// very first API call it made was refused; `continue-on-error` reported the job
+// successful and the tracking issue was never created on any red night. The
+// defect is a permissions block, not code, so no unit test could have seen it -
+// the signal injects a fake `gh` and the fake is never refused.
+//
+// This asks the narrow question the failure needs answered: does the job that
+// runs the signal grant the read its first step depends on?
+type JobPermissions = { actions?: unknown };
+
+Deno.test("the job that reads a run's jobs may read actions", async () => {
+  const workflow = parse(await Deno.readTextFile(WORKFLOW)) as {
+    jobs?: Record<string, Job & { permissions?: unknown }>;
+  };
+  const jobs = workflow?.jobs ?? {};
+  const signal = jobs["nightly_signal"];
+  assert(
+    signal !== undefined,
+    "the nightly_signal job is gone, so this rail proved nothing; the workflow's shape changed",
+  );
+  const permissions = signal.permissions as JobPermissions | undefined;
+  assert(
+    permissions !== undefined && typeof permissions === "object",
+    "the nightly_signal job has no permissions block, so it inherits a default that cannot read the run it signals about",
+  );
+  assert(
+    permissions.actions === "read",
+    `the nightly_signal job must declare \`actions: read\`; it reads repos/:repo/actions/runs/:id/jobs as its first call and is refused without it, while continue-on-error reports success: found ${
+      JSON.stringify(permissions.actions ?? null)
+    }`,
+  );
+});

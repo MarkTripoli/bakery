@@ -164,6 +164,24 @@ async function organizationId(context) {
 }
 
 /**
+ * The badge is placed with `inset-inline-start`, so a right-to-left page moves
+ * it to the icon's top left. That is a designed position, not a mirror check
+ * bolted on afterwards, so it is captured here with the same preconditions as
+ * every other still. `dir` has to be set on the theme provider's own wrapper as
+ * well as on `<html>`: the wrapper writes an explicit direction and would
+ * otherwise win, which is a trap worth paying for once.
+ */
+async function applyRightToLeft(page) {
+  await page.evaluate(() => {
+    document.documentElement.setAttribute("dir", "rtl");
+    const provider = document.querySelector(
+      '[data-ui-component="themeProvider"]',
+    );
+    provider?.setAttribute("dir", "rtl");
+  });
+}
+
+/**
  * Fails loudly if the page is not in the state the still will claim. The bell
  * reaches the screen two ways — a popover trigger from 744px up, and its own
  * button on a phone — so this asserts on the badge parts and the accessible
@@ -278,6 +296,32 @@ for (const state of STATES) {
         console.log("  shot", `${name}--crop`);
       }
 
+      // Right to left, at the same state and re-asserted: the badge must move
+      // to the icon's top left and stay whole, so a shot that merely "looks
+      // mirrored" is not enough. Only the desktop width; the phone flakes at
+      // this width in a popover-free bar and RTL placement is not width-scoped.
+      if (label === "desktop") {
+        await applyRightToLeft(page);
+        await page.waitForTimeout(600);
+        const rtlTrigger = await assertState(page, state);
+        const rtlName = `${name}--rtl`;
+        const rtlBox = await rtlTrigger.boundingBox();
+        if (rtlBox !== null) {
+          const rtlX = Math.max(0, rtlBox.x - 140);
+          const rtlY = Math.max(0, rtlBox.y - 14);
+          await page.screenshot({
+            path: join(OUT, `${rtlName}--crop.png`),
+            clip: {
+              x: rtlX,
+              y: rtlY,
+              width: Math.min(viewport.width - rtlX, 220),
+              height: Math.min(viewport.height - rtlY, rtlBox.height + 28),
+            },
+          });
+          console.log("  shot", `${rtlName}--crop`);
+        }
+      }
+
       await context.close();
     }
   }
@@ -296,6 +340,7 @@ const manifest = await writeManifest(OUT, {
   states: STATES.map((state) => state.id),
   viewports: VIEWPORTS.map(([label, size]) => ({ label, ...size })),
   themes: THEMES,
+  rightToLeft: "desktop only; the badge mirrors to the icon's top left",
   note:
     "B3 is the count request aborted at the network layer; the underlying data was a true zero, so the ring is the app refusing to claim a zero it could not confirm.",
 });

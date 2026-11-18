@@ -56,9 +56,6 @@ type RemovalReason = "left" | "closed" | "expired" | "revoked";
 
 export const COLLABORATION_PROTOCOL_VERSION = 1;
 
-/** Longest time a peer's positive access check is reused for relays. */
-const ACCESS_VERDICT_MS = 1_000;
-
 /** Binary frame kinds; see the CollaborationFrame contract description. */
 export const BinaryFrameKind = Object.freeze(
   {
@@ -462,9 +459,10 @@ export function createCollaborationSocketHandler(
   const now = options.now ?? (() => new Date());
   const upgradeWebSocket = options.upgradeWebSocket ?? Deno.upgradeWebSocket;
 
-  /** Checks the session is still live and fully assured. */
-  async function assertSession(token: string): Promise<void> {
-    const state = await options.store.findSessionState(token);
+  /** Throws unless the session state is live and fully assured. */
+  function checkSessionState(
+    state: Awaited<ReturnType<SessionStore["findSessionState"]>> | undefined,
+  ): void {
     if (!state) throw new StandardError({ code: "AUTH_INVALID" });
     if (state.expiresAt.getTime() <= now().getTime()) {
       throw new StandardError({ code: "AUTH_EXPIRED" });
@@ -472,6 +470,11 @@ export function createCollaborationSocketHandler(
     if (resolveSessionAssurance(state) === SessionAssurance.Pending) {
       throw new StandardError({ code: "AUTH_FACTOR_REQUIRED" });
     }
+  }
+
+  /** Checks the session is still live and fully assured. */
+  async function assertSession(token: string): Promise<void> {
+    checkSessionState(await options.store.findSessionState(token));
   }
 
   /** Current read access to one room, in a fresh transaction. */
@@ -854,6 +857,8 @@ export function createCollaborationSocketHandler(
    * A client update: authorize, import outside any transaction in the
    * isolated worker, then commit with a highwater check and receipt before
    * acknowledging and only then relaying the committed bytes to the room.
+   * An update that adds nothing is acknowledged with a null receipt and does
+   * not reserve its mutation id (see `admit`).
    */
   async function onBinary(connection: Connection, bytes: Uint8Array) {
     if (bytes.length > BINARY_HEADER_BYTES + DRAFT_LIMITS.updateBytes) {
@@ -890,17 +895,178 @@ export function createCollaborationSocketHandler(
   }
 
   /**
-   * Draft bytes go only to a peer whose session and read access hold now.
-   * Peers are checked in parallel. Lost access evicts the peer; a transient
-   * failure tells only that peer to resynchronize, without changing membership.
+   * Relay access checks, one round per room at a time. A verdict is never
+   * reused: an update committed at time T is relayed only after a round that
+   * STARTED after T, so a removal that committed before T is always seen.
+   *
+   * The cost does not grow with the peers or the updates. A round checks every
+   * distinct session once, then every distinct principal in ONE transaction
+   * with a single read of the draft, however many peers the room holds. At
+   * most one round runs per room; every relay that arrives while it runs
+   * shares the single next round, which starts only after the running one ends
+   * and therefore after all of their commits. Relays for one room also finish
+   * in the order they began, so a peer receives committed updates in order.
    */
-  /**
-   * A positive access verdict per participant, reused for at most
-   * ACCESS_VERDICT_MS so a burst of updates costs one recheck per peer, not
-   * one per update. A failed check is never cached.
-   */
-  const accessVerdicts = new WeakMap<Participant, number>();
+  type RoomChecks = {
+    running: Promise<unknown> | null;
+    queued: {
+      peers: Set<Participant>;
+      done: Promise<ReadonlyMap<Participant, unknown>>;
+    } | null;
+  };
+  const roomChecks = new Map<string, RoomChecks>();
 
+  /** Why each peer failed the check; a peer that passed is not in the map. */
+  async function checkRound(
+    room: Room,
+    peers: readonly Participant[],
+  ): Promise<ReadonlyMap<Participant, unknown>> {
+    const failed = new Map<Participant, unknown>();
+    const live = peers.filter((peer) => !peer.connection.closed);
+    const sessionError = new Map<string, unknown>();
+    const tokens = [...new Set(live.map((peer) => peer.connection.token))];
+    if (options.store.findSessionStates) {
+      // One query for every distinct session in the room.
+      try {
+        const states = await options.store.findSessionStates(tokens);
+        for (const token of tokens) {
+          try {
+            checkSessionState(states.get(token));
+          } catch (error) {
+            sessionError.set(token, error);
+          }
+        }
+      } catch (error) {
+        for (const token of tokens) sessionError.set(token, error);
+      }
+    } else {
+      await Promise.all(tokens.map(async (token) => {
+        try {
+          await assertSession(token);
+        } catch (error) {
+          sessionError.set(token, error);
+        }
+      }));
+    }
+    const accessKey = (peer: Participant) =>
+      `${peer.connection.organizationId}:${peer.connection.principal.principalId}`;
+    const accessError = new Map<string, unknown>();
+    const pending = live.filter((peer) =>
+      !sessionError.has(peer.connection.token)
+    );
+    if (pending.length > 0) {
+      try {
+        await withPgTransaction(
+          options.database,
+          async (transaction) => {
+            const organizations = new Set<string>();
+            const seen = new Set<string>();
+            for (const peer of pending) {
+              const key = accessKey(peer);
+              if (seen.has(key)) continue;
+              seen.add(key);
+              try {
+                const actor = await resolveOrganizationActor(
+                  transaction,
+                  principalId(peer.connection.principal.principalId),
+                  peer.connection.organizationId,
+                );
+                authorize(actor, "draft:read", {
+                  action: "collaboration.connect",
+                });
+                organizations.add(peer.connection.organizationId);
+              } catch (error) {
+                accessError.set(key, error);
+              }
+            }
+            const draftError = new Map<string, unknown>();
+            for (const organization of organizations) {
+              try {
+                await readDraft(transaction, organization, room.id);
+              } catch (error) {
+                draftError.set(organization, error);
+              }
+            }
+            for (const peer of pending) {
+              const error = draftError.get(peer.connection.organizationId);
+              if (error !== undefined && !accessError.has(accessKey(peer))) {
+                accessError.set(accessKey(peer), error);
+              }
+            }
+          },
+          undefined,
+          "read committed",
+        );
+      } catch (error) {
+        // The transaction itself failed: nothing was decided, so every peer in
+        // it gets a transient failure and resynchronizes.
+        for (const peer of pending) {
+          if (!accessError.has(accessKey(peer))) {
+            accessError.set(accessKey(peer), error);
+          }
+        }
+      }
+    }
+    for (const peer of live) {
+      const error = sessionError.get(peer.connection.token) ??
+        accessError.get(accessKey(peer));
+      if (error !== undefined) failed.set(peer, error);
+    }
+    return failed;
+  }
+
+  function verifyPeers(
+    room: Room,
+    peers: readonly Participant[],
+  ): Promise<ReadonlyMap<Participant, unknown>> {
+    const key = roomKey(room);
+    let state = roomChecks.get(key);
+    if (!state) {
+      state = { running: null, queued: null };
+      roomChecks.set(key, state);
+    }
+    const current = state;
+    const start = (
+      group: ReadonlySet<Participant>,
+    ): Promise<ReadonlyMap<Participant, unknown>> => {
+      const tracked: Promise<ReadonlyMap<Participant, unknown>> = checkRound(
+        room,
+        [...group],
+      ).finally(() => {
+        if (current.running !== tracked) return;
+        current.running = null;
+        if (current.queued === null) roomChecks.delete(key);
+      });
+      current.running = tracked;
+      return tracked;
+    };
+    if (current.running === null) return start(new Set(peers));
+    if (current.queued === null) {
+      const group = new Set<Participant>();
+      const running = current.running;
+      current.queued = {
+        peers: group,
+        done: running.then(() => undefined, () => undefined).then(() => {
+          current.queued = null;
+          return start(group);
+        }),
+      };
+    }
+    for (const peer of peers) current.queued.peers.add(peer);
+    return current.queued.done;
+  }
+
+  /** Whether the participant is still registered in its room. */
+  function isJoined(peer: Participant): boolean {
+    return internals!.rooms.get(peer.room)?.get(peer.key) === peer;
+  }
+
+  /**
+   * Draft bytes go only to a peer whose session and read access hold now.
+   * Peers are checked together, in one round per room. Lost access evicts the
+   * peer; a transient failure tells only that peer to resynchronize, without
+   * changing membership. A peer that left while the round ran gets nothing.
+   */
   async function relayCommitted(
     peers: readonly Participant[],
     room: Room,
@@ -908,27 +1074,21 @@ export function createCollaborationSocketHandler(
     committed: Frame,
     relayed: Uint8Array,
   ): Promise<void> {
-    await Promise.all(peers.map(async (peer) => {
-      if (peer.connection.closed) return;
-      try {
-        const verified = accessVerdicts.get(peer);
-        if (verified === undefined || now().getTime() >= verified) {
-          await assertSession(peer.connection.token);
-          await assertRoomAccess(peer.connection, room);
-          accessVerdicts.set(peer, now().getTime() + ACCESS_VERDICT_MS);
-        }
-      } catch (error) {
-        accessVerdicts.delete(peer);
+    const failed = await verifyPeers(room, peers);
+    for (const peer of peers) {
+      if (peer.connection.closed || !isJoined(peer)) continue;
+      if (failed.has(peer)) {
+        const error = failed.get(peer);
         if (accessLost(error)) {
           removeParticipant(peer, "revoked");
           problem(peer.connection, null, error);
         } else {
           resync(peer.connection, room, mutationId, "stale");
         }
-        return;
+        continue;
       }
       sendBinary(peer.connection, committed, relayed);
-    }));
+    }
   }
 
   async function admit(
@@ -1015,6 +1175,12 @@ export function createCollaborationSocketHandler(
       }
       if (candidate.update.length === 0) {
         // Everything in the update is already committed: nothing new to save.
+        // No receipt is stored, so this mutation id is NOT reserved: a later
+        // frame with the same id and different bytes is a new mutation, not
+        // IDEMPOTENCY_PAYLOAD_MISMATCH. A receipt needs a checkpoint, an update
+        // row and a server sequence, and a no-op commits none of them; faking
+        // them would put a duplicate sequence in the draft's receipt list.
+        // Only a mutation that changed the draft reserves its id.
         send(connection, {
           type: "ack",
           room,

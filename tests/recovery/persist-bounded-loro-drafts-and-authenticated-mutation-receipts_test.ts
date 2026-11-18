@@ -197,6 +197,7 @@ Deno.test("failed isolated worker leaves committed state authoritative for the n
     initialize: real.initialize,
     slice: real.slice,
     verify: real.verify,
+    anchors: real.anchors,
     importUpdate: real.importUpdate,
     async edit(current, source, editInput, signal) {
       if (fail) {

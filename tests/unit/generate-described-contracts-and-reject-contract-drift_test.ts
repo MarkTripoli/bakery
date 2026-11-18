@@ -882,11 +882,20 @@ Deno.test("CheckOutput field descriptions say what each field means before they 
 
 Deno.test("compatibility migration approves only its exact generated delta", () => {
   const approvedBases = [
-    "465e9476c657f880d1b4057040d661a4ade1d10c",
+    "9fcf4e1adcc02ae09065355a20314fb476f45220",
   ];
   const approvedDigest =
-    "sha256:7e4e457c805485ab1f60b08ce27d39ddab856e952ab3a85e23aafc7c8a24607e";
+    "sha256:65049b75d0ce9f83d0abc3d3e42405c13de27df0dccadbc2706a677d7f877f5b";
   const rejectedPriorDigests = [
+    // The approval displaced by this re-bind (the digest for bases 07135954 and
+    // c4f389bf) is now only a prior approval, so it must not pass again.
+    "sha256:0ef9bcaa65279e2c611ac87438f9ec7e9b8417274528801e50a0ca66885713ef",
+    // The approval displaced by this re-bind (the estimate for main
+    // 6a94e678) is now only a prior approval, so it must not pass again.
+    "sha256:c4f2e0edb6e258b45e83f975b16500b8d9cc45f69d0879d9fb06f236aecce3be",
+    // The approval displaced by this re-bind (the estimate for main
+    // 465e9476) is now only a prior approval, so it must not pass again.
+    "sha256:7e4e457c805485ab1f60b08ce27d39ddab856e952ab3a85e23aafc7c8a24607e",
     // The approval displaced by this re-bind (the estimate for main
     // 1f1ba04f) is now only a prior approval, so it must not pass again.
     "sha256:4c56e576cd84a373f4e2beb0d3d3bfa9f0e4093a3da28b12bbe5c4cb84dc3934",

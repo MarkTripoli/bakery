@@ -38,7 +38,7 @@ function registration(
 }
 
 Deno.test("workflow registry exposes the exact documented metadata allowlist", () => {
-  assertEquals(WORKFLOW_ACTION_NAMES.length, 19);
+  assertEquals(WORKFLOW_ACTION_NAMES.length, 21);
   assertEquals(Object.keys(WORKFLOW_ACTION_METADATA), [
     ...WORKFLOW_ACTION_NAMES,
   ]);
@@ -83,6 +83,25 @@ Deno.test("workflow registry exposes the exact documented metadata allowlist", (
     output: "EmptyOutput",
     capabilities: [],
     cancel: "immediate",
+    retry: { maxAttempts: 1, backoff: "0s", faults: [] },
+    effectPolicy: "none",
+  });
+  // #554 added these two without teaching the enumerations about them, which is
+  // what left this lane red on main. Pinning their metadata here is what makes
+  // the count above mean something: a bump alone would pass for any two actions.
+  assertEquals(WORKFLOW_ACTION_METADATA["workflow.stop"], {
+    input: "WorkflowStopInput",
+    output: "WorkflowStopOutput",
+    capabilities: [],
+    cancel: "immediate",
+    retry: { maxAttempts: 1, backoff: "0s", faults: [] },
+    effectPolicy: "none",
+  });
+  assertEquals(WORKFLOW_ACTION_METADATA["human.approval"], {
+    input: "HumanApprovalInput",
+    output: "HumanApprovalOutput",
+    capabilities: [],
+    cancel: "cooperative",
     retry: { maxAttempts: 1, backoff: "0s", faults: [] },
     effectPolicy: "none",
   });
@@ -227,12 +246,14 @@ Deno.test("workflow runtime registers the exact runtime set with strict schemas"
       "agent.freeform",
       "harness.implement",
       "harness.repair",
+      "human.approval",
       "quality.check",
       "review.independent",
       "rpi.design",
       "rpi.plan",
       "task.brief",
       "workflow.noop",
+      "workflow.stop",
     ],
   );
   const { handle } = runtime.get("workflow.noop").handler;

@@ -1069,6 +1069,33 @@ Deno.test("what a closed exporter refuses is counted and nothing is reported or 
   }
 });
 
+Deno.test("the shutdown total in stats is what was reported plus what was refused after close (#162)", async () => {
+  const reported: ExportLoss[] = [];
+  const exporter = make<number>(() => Promise.reject(new Error("down")), {
+    capacity: 10,
+    batchSize: 10,
+    maxAttempts: 1,
+    onLoss: (loss) => {
+      reported.push(loss);
+    },
+  });
+  for (let item = 0; item < 4; item += 1) exporter.offer(item);
+  await exporter.close(1);
+  const shutdownReported = () =>
+    reported.filter((loss) => loss.reason === "shutdown")
+      .reduce((sum, loss) => sum + loss.count, 0);
+  const atClose = shutdownReported();
+  const refusedAfter = 7;
+  for (let item = 0; item < refusedAfter; item += 1) exporter.offer(item);
+  await pause(3 * MIN_LOSS_REPORT_GAP_MS);
+  // close ends loss reporting: the post-close refusals never reach onLoss...
+  assertEquals(shutdownReported(), atClose);
+  // ...so a metric reconciles from stats, which holds the exact total.
+  const stats = exporter.stats();
+  assertEquals(stats.dropped.shutdown, atClose + refusedAfter);
+  conserved(stats);
+});
+
 Deno.test("a reporter that is still working does not make the application's own offers fail", async () => {
   // The first design held the refusal until the reporter's promise settled,
   // which blacked out every offer for as long as an async reporter took.

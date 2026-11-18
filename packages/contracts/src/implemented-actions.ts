@@ -111,6 +111,8 @@ export const ExecutionImplementedAction = Object.freeze(
     RunsControl: "runs.control",
     RunsControlCapabilities: "runs.controlCapabilities",
     SessionsGet: "sessions.get",
+    SessionsList: "sessions.list",
+    SessionsFeed: "sessions.feed",
     SessionsSteer: "sessions.steer",
     TranscriptStatus: "outputStreams.transcript",
   } as const satisfies Record<string, CatalogActionName>,
@@ -359,6 +361,7 @@ export const WorkflowImplementedAction = Object.freeze(
     WorkflowsGet: "workflows.get",
     WorkflowsCreate: "workflows.create",
     WorkflowsUpdate: "workflows.update",
+    WorkflowsCopy: "workflows.copy",
     WorkflowVersionsList: "workflowVersions.list",
     WorkflowVersionsGet: "workflowVersions.get",
     WorkflowVersionsCreate: "workflowVersions.create",
@@ -432,6 +435,11 @@ export const DraftImplementedAction = Object.freeze(
     SuggestionList: "draftSuggestions.list",
     SuggestionAccept: "draftSuggestions.accept",
     SuggestionReject: "draftSuggestions.reject",
+    CommentCreate: "draftComments.create",
+    CommentList: "draftComments.list",
+    CommentUpdate: "draftComments.update",
+    ReferenceCreate: "draftReferences.create",
+    ReferenceGet: "draftReferences.get",
   } as const satisfies Record<string, CatalogActionName>,
 );
 

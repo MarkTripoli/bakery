@@ -5,6 +5,7 @@
   <entry file="css-rail-scans-comments.xml" scope="project" />
   <entry file="deno-fixed-read-capability.xml" scope="project" />
   <entry file="ephemeral-worktree-stack.xml" scope="project" />
+  <entry file="edited-run-is-a-metadata-run.xml" scope="project" />
   <entry file="local-services-before-test-blocker.xml" scope="project" />
   <entry file="test-lane-database-env-per-command.xml" scope="project" />
   <entry file="websocket-backpressure-modelled-buffer.xml" scope="project" />
@@ -138,6 +139,7 @@
   <entry file="compare-the-region-not-the-image.xml" scope="project" />
   <entry file="first-lawful-path-exercise-updates-its-expected-value.xml" scope="process" />
   <entry file="destructive-red-proof-pollutes-test-db.xml" scope="project" />
+  <entry file="measure-the-right-tree-and-the-mutation.xml" scope="process" />
   <entry file="deno-check-is-the-gate-for-test-files.xml" scope="project" />
   <entry file="resolved-blocker-resumes-on-owner-action.xml" scope="project" />
   <entry file="now-is-the-transaction-start.xml" scope="project" />
@@ -155,4 +157,8 @@
   <entry file="three-checks-that-answer-a-different-question.xml" scope="process" />
   <entry file="count-against-both-parents-before-unioning-a-conflict.xml" scope="process" />
   <entry file="a-pr-reference-is-not-a-work-item.xml" scope="process" />
+  <entry file="a-declared-bound-nothing-enforced.xml" scope="project" />
+  <entry file="a-default-that-means-two-things.xml" scope="project" />
+  <entry file="the-thing-exists-and-nothing-calls-it.xml" scope="project" />
+  <entry file="wiring-needs-a-request.xml" scope="project" />
 </learnings>

@@ -100,7 +100,11 @@ export type ExportSink<T> = (
 /** Items lost, and why. */
 export type ExportLoss = {
   readonly count: number;
-  /** `queue-full`: no room. `send-failed`: every attempt failed or timed out. `shutdown`: still queued or in flight at close. */
+  /**
+   * `queue-full`: no room. `send-failed`: every attempt failed or timed out.
+   * `shutdown`: still queued or in flight when `close` ran. Offers refused
+   * after `close` has returned are not reported here.
+   */
   readonly reason: "queue-full" | "send-failed" | "shutdown";
 };
 
@@ -122,11 +126,15 @@ export type BoundedExporterOptions<T> = {
   /**
    * Told of losses: one call per reason with the count since the last, a tick
    * after the first of them and never sooner than `MIN_LOSS_REPORT_GAP_MS`
-   * after the previous. May throw, or be async and reject; neither changes
-   * anything, and what it returns is never waited for, so a slow async reporter
-   * can overlap the next report. An item offered by code the reporter started,
-   * synchronously or later (after an `await`, in a timer or a microtask), is
-   * refused and counted as `dropped.reentrant`.
+   * after the previous. `close` reports what is pending and then ends loss
+   * reporting: an offer refused after `close` returns is counted in
+   * `stats().dropped.shutdown` and never reaches this callback, so an
+   * export-loss metric reads `stats()` once after `close` for the final total.
+   * May throw, or be async and reject; neither changes anything, and what it
+   * returns is never waited for, so a slow async reporter can overlap the next
+   * report. An item offered by code the reporter started, synchronously or
+   * later (after an `await`, in a timer or a microtask), is refused and counted
+   * as `dropped.reentrant`.
    */
   readonly onLoss?: (loss: ExportLoss) => void | PromiseLike<unknown>;
 };
@@ -157,6 +165,8 @@ export type BoundedExporter<T> = {
   stats(): ExportStats;
   /**
    * Flushes what it can until `deadlineMs`, then abandons the rest. Idempotent.
+   * Reports what is pending to `onLoss` once, then ends loss reporting: later
+   * offers are refused and counted in `stats().dropped.shutdown`, silently.
    * A deadline past what a timer holds waits that long; one that is missing,
    * negative or not a number abandons at once.
    */
