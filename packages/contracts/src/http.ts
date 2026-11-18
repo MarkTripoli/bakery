@@ -301,7 +301,14 @@ function safeUnavailableReason(value: unknown): string | undefined {
  */
 export const DRAFT_EDIT_REFUSAL_REASONS = Object.freeze(
   {
-    PRECONDITION_FAILED: new Set(["text_changed", "draft_moved_on"]),
+    PRECONDITION_FAILED: new Set([
+      "text_changed",
+      "draft_moved_on",
+      // A refused draft comment anchor (#28).
+      "comment_quote_mismatch",
+      "comment_anchor_stale",
+      "comment_anchor_splits_character",
+    ]),
     AUTH_FORBIDDEN: new Set([
       "agent_edit_requires_suggestion",
       "suggestion_decision_requires_person",
