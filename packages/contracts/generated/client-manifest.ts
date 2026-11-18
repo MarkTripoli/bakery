@@ -21345,13 +21345,13 @@ export const clientManifest = {
                 "type": "string",
                 "minLength": 1,
                 "maxLength": 100,
-                "description": "TicketRoutingRuleInput.labelId must contain at most 100 characters."
+                "description": "The provider's stable id of one label of the ticket source (for example a numeric label id written as a string), exactly as the source's ticket reader reports it. Rules match this id, never the name, so renaming the label keeps its routing. TicketRoutingRuleInput.labelId must contain at least 1 characters. TicketRoutingRuleInput.labelId must contain at most 100 characters."
               },
               "labelName": {
                 "type": "string",
                 "minLength": 1,
                 "maxLength": 100,
-                "description": "TicketRoutingRuleInput.labelName must contain at most 100 characters."
+                "description": "Display name of the label, shown in settings and in readiness evidence; never matched. Send the current name to rename it; a rename alone changes nothing about routing. TicketRoutingRuleInput.labelName must contain at least 1 characters. TicketRoutingRuleInput.labelName must contain at most 100 characters."
               },
               "repositoryId": {
                 "type": "string",
@@ -21363,7 +21363,7 @@ export const clientManifest = {
                 "type": "string",
                 "maxLength": 63,
                 "pattern": "^[a-z0-9]+(?:[-_][a-z0-9]+)*$",
-                "description": "TicketRoutingRuleInput.role must contain at most 63 characters."
+                "description": "Role the repository plays for a routed ticket, such as backend or frontend. The application must bind this repository to this role with an alias (applicationRepositoryRoles.set), because the target runs as a lane of a coordination plan that names it by that alias. Within one ticket a role must resolve to one repository and a repository to one role, or admission is blocked as ambiguous. TicketRoutingRuleInput.role must contain at most 63 characters."
               },
               "presetId": {
                 "description": "Workflow preset the routed repository target runs; omitted means fixed-coding, the only preset admission runs. The preset's revision and digest are pinned on each admitted target.",
@@ -21382,7 +21382,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "The complete rule set of the ticket source, at most 50 rules, each (labelId, repositoryId) pair at most once. An empty list removes every rule, so tickets route to the source's own repository again. Each array item follows this format."
           },
-          "description": "TicketRoutingRulesReplace.rules must contain at most 50 items."
+          "description": "The complete rule set of the ticket source, at most 50 rules, each (labelId, repositoryId) pair at most once. An empty list removes every rule, so tickets route to the source's own repository again. TicketRoutingRulesReplace.rules must contain at most 50 items."
         }
       },
       "required": [
