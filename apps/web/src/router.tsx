@@ -816,6 +816,8 @@ export const routeCoverage = [
       "finished",
       "empty",
       "long",
+      "loading",
+      "error",
     ],
   },
   {

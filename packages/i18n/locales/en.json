@@ -4332,5 +4332,11 @@
   "session.feed.tryNow": "Try now",
   "session.thread.you": "You",
   "session.thread.agent": "Agent",
-  "session.thread.system": "System"
+  "session.thread.system": "System",
+  "session.thread.now.step": "{step}: {what}",
+  "session.thread.statusName.starting": "starting",
+  "session.thread.statusName.active": "running",
+  "session.thread.statusName.waiting": "waiting",
+  "session.thread.noSession": "This step has no agent session.",
+  "session.thread.rawOutput": "Raw output"
 }

@@ -4332,5 +4332,11 @@
   "session.feed.tryNow": "⟦Ŧŕÿ ñôŵ…⟧",
   "session.thread.you": "⟦Ÿôû⟧",
   "session.thread.agent": "⟦Àĝëñŧ⟧",
-  "session.thread.system": "⟦Šÿšŧëɱ…⟧"
+  "session.thread.system": "⟦Šÿšŧëɱ…⟧",
+  "session.thread.now.step": "⟦{step}: {what} ŧë⟧",
+  "session.thread.statusName.starting": "⟦šŧàŕŧïñĝ…⟧",
+  "session.thread.statusName.active": "⟦ŕûññïñĝ…⟧",
+  "session.thread.statusName.waiting": "⟦ŵàïŧïñĝ…⟧",
+  "session.thread.noSession": "⟦Ŧĥïš šŧëþ ĥàš ñô àĝëñŧ šëššïôñ. ŧëšŧ çôþ⟧",
+  "session.thread.rawOutput": "⟦Ŕàŵ ôûŧþûŧ ŧ⟧"
 }

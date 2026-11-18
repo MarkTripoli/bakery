@@ -1849,7 +1849,7 @@
 }
 
 .ui-activity-line__row {
-  align-items: baseline;
+  align-items: center;
   background: none;
   border: 0;
   border-radius: var(--radius-control);
@@ -1858,7 +1858,9 @@
   font: var(--type-hint);
   gap: var(--space-2);
   inline-size: 100%;
-  padding: var(--space-1);
+  min-block-size: calc(var(--space-6) + var(--space-1));
+  padding-block: var(--space-1);
+  padding-inline: var(--space-1);
   text-align: start;
 }
 
@@ -1876,27 +1878,39 @@ button.ui-activity-line__row:hover {
   outline-offset: var(--focus-offset-inset);
 }
 
+@media (pointer: coarse) {
+  .ui-activity-line__row {
+    min-block-size: var(--target-coarse);
+  }
+}
+
 .ui-activity-line__icon {
   display: inline-flex;
   flex: none;
 }
 
+/* The sentence takes its own width, so a chevron sits right after it and the
+   time column stays on one right-hand edge for every row. */
 .ui-activity-line__text {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-inline-size: 0;
 }
 
 .ui-activity-line__time {
+  color: var(--color-fg-tertiary);
   flex: none;
   font: var(--type-meta);
-  color: var(--color-fg-tertiary);
+  font-variant-numeric: tabular-nums;
   margin-inline-start: auto;
+  min-inline-size: var(--space-12);
+  text-align: end;
+  white-space: nowrap;
 }
 
 .ui-activity-line__chevron {
-  flex: none;
-  display: inline-flex;
   color: var(--color-fg-tertiary);
+  display: inline-flex;
+  flex: none;
   transition: transform var(--duration-disclosure) var(--ease-standard);
 }
 
@@ -1906,6 +1920,12 @@ button.ui-activity-line__row:hover {
 
 .ui-activity-line[data-tone="danger"] .ui-activity-line__icon {
   color: var(--color-destructive);
+}
+
+/* A failure is not red alone: the icon is a different shape and the sentence
+   is full-colour text, so it reads by shape and weight too. */
+.ui-activity-line[data-tone="danger"] .ui-activity-line__row {
+  color: var(--color-fg);
 }
 
 .ui-activity-line[data-tone="success"] .ui-activity-line__icon {
@@ -1923,11 +1943,18 @@ button.ui-activity-line__row:hover {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
+  inline-size: 100%;
+  max-inline-size: 45rem;
 }
 
-.ui-session-thread__earlier {
+.ui-session-thread__bar {
+  align-items: center;
   display: flex;
-  justify-content: center;
+  justify-content: space-between;
+}
+
+.ui-session-thread__shortcut {
+  display: block;
 }
 
 .ui-session-thread__turns {
@@ -1939,6 +1966,15 @@ button.ui-activity-line__row:hover {
   padding: 0;
 }
 
+.ui-session-thread__turn {
+  border-radius: var(--radius-surface);
+}
+
+.ui-session-thread__turn:focus-visible {
+  outline: var(--focus-width) solid var(--color-focus);
+  outline-offset: var(--focus-offset-inset);
+}
+
 .ui-session-thread__turn[data-position="far"] {
   content-visibility: auto;
   contain-intrinsic-size: auto var(--space-16);
@@ -1947,7 +1983,12 @@ button.ui-activity-line__row:hover {
 .ui-session-thread__turn[data-highlighted="true"] {
   outline: var(--focus-width) solid var(--color-focus);
   outline-offset: var(--focus-offset-inset);
-  border-radius: var(--radius-surface);
+}
+
+.ui-session-thread__started {
+  color: var(--color-fg-muted);
+  font: var(--type-hint);
+  margin: 0;
 }
 
 .ui-session-thread__receipt {
@@ -1956,24 +1997,169 @@ button.ui-activity-line__row:hover {
   margin: var(--space-2) 0 0;
 }
 
+/* The agent speaks in plain text on the page; a person's message is the only
+   boxed thing, so a reader sees who is speaking before reading a word. */
+.ui-conversation-message[data-appearance="plain"] {
+  background: none;
+  border: 0;
+  padding: 0;
+}
+
+.ui-conversation-message[data-appearance="plain"] header {
+  justify-content: flex-start;
+}
+
+.ui-conversation-message[data-appearance="plain"] strong {
+  font: var(--type-label);
+}
+
+.ui-conversation-message[data-appearance="plain"] .ui-conversation-message__body {
+  max-inline-size: 68ch;
+}
+
+.ui-session-thread .ui-conversation-message[data-appearance="card"] {
+  background: var(--color-surface);
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-surface);
+  padding: var(--space-3) var(--space-4);
+}
+
 .ui-session-thread__work {
   border-inline-start: var(--border-default) solid var(--color-border);
-  margin-block-start: calc(var(--space-2) * -1);
+  margin-block-start: var(--space-2);
   margin-inline-start: var(--space-2);
   padding-inline-start: var(--space-3);
 }
 
 .ui-session-thread__summary {
+  align-items: center;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-control);
   color: var(--color-fg-muted);
+  cursor: pointer;
+  display: flex;
   font: var(--type-hint);
-  margin: 0;
-  padding: var(--space-1);
+  gap: var(--space-2);
+  min-block-size: calc(var(--space-6) + var(--space-1));
+  padding-inline: var(--space-1);
+  text-align: start;
+}
+
+.ui-session-thread__summary:hover {
+  background: var(--color-surface-subtle);
+  color: var(--color-fg);
+}
+
+.ui-session-thread__summary:focus-visible {
+  outline: var(--focus-width) solid var(--color-focus);
+  outline-offset: var(--focus-offset-inset);
+}
+
+@media (pointer: coarse) {
+  .ui-session-thread__summary {
+    min-block-size: var(--target-coarse);
+  }
+}
+
+.ui-session-thread__chevron {
+  color: var(--color-fg-tertiary);
+  display: inline-flex;
+  transition: transform var(--duration-disclosure) var(--ease-standard);
+}
+
+.ui-session-thread__chevron[data-expanded="false"] {
+  transform: rotate(-90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-session-thread__chevron {
+    transition-duration: var(--duration-reduced);
+  }
 }
 
 .ui-session-thread__steps {
   list-style: none;
   margin: 0;
   padding: 0;
+}
+
+/* Fine print that ends a turn's work: not a step, so no icon and no time. */
+.ui-session-thread__usage {
+  color: var(--color-fg-tertiary);
+  font: var(--type-meta);
+  font-variant-numeric: tabular-nums;
+  margin: var(--space-1) 0 0;
+  padding-inline: var(--space-1);
+}
+
+/* Names, paths and terminal text are data: the platform's mono face. */
+.ui-activity-line .ui-data-text {
+  font: var(--type-data);
+}
+
+/* A path always fits one line: the folder truncates, the file name never. */
+.ui-session-path {
+  display: inline-flex;
+  font: var(--type-data);
+  max-inline-size: 100%;
+  min-inline-size: 0;
+  vertical-align: bottom;
+  white-space: nowrap;
+}
+
+.ui-session-path__folder {
+  flex: 0 1 auto;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ui-session-path__name {
+  flex: none;
+}
+
+.ui-activity-line:has(.ui-session-path) .ui-activity-line__text {
+  min-inline-size: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.ui-session-thread__end {
+  align-items: center;
+  border-block-start: var(--border-default) solid var(--color-border);
+  color: var(--color-fg);
+  display: flex;
+  font: var(--type-hint);
+  gap: var(--space-2);
+  padding-block-start: var(--space-3);
+}
+
+.ui-session-thread__end[data-outcome="completed"] svg {
+  color: var(--color-status-success);
+}
+
+.ui-session-thread__end[data-outcome="failed"] svg {
+  color: var(--color-destructive);
+}
+
+.ui-session-thread__end[data-outcome="cancelled"] svg {
+  color: var(--color-fg-muted);
+}
+
+.ui-session-thread__reason {
+  color: var(--color-fg-muted);
+}
+
+.ui-session-thread__bottom {
+  block-size: 1px;
+}
+
+.ui-session-thread__jump {
+  display: flex;
+  inset-block-end: var(--space-2);
+  justify-content: center;
+  position: sticky;
 }
 
 /* Now line: the one polite live region, sitting above the composer. */
@@ -1983,19 +2169,26 @@ button.ui-activity-line__row:hover {
   display: flex;
   font: var(--type-hint);
   gap: var(--space-2);
+  margin: 0;
   padding-inline: var(--space-1);
 }
 
 .ui-session-now[data-tone="danger"],
 .ui-session-now[data-tone="warning"] {
   align-items: flex-start;
+  color: var(--color-fg);
   padding-block: var(--space-2);
+}
+
+.ui-session-now__mark {
+  align-items: center;
+  display: inline-flex;
+  flex: none;
 }
 
 .ui-session-now__dot {
   background: var(--color-status-success);
   border-radius: var(--radius-circle);
-  flex: none;
   block-size: var(--space-2);
   inline-size: var(--space-2);
 }
@@ -2004,17 +2197,57 @@ button.ui-activity-line__row:hover {
   background: var(--color-fg-disabled);
 }
 
-.ui-session-now[data-tone="danger"] .ui-session-now__dot {
-  background: var(--color-destructive);
+.ui-session-now[data-tone="danger"] .ui-session-now__mark {
+  color: var(--color-destructive);
 }
 
-.ui-session-now[data-tone="warning"] .ui-session-now__dot {
-  background: var(--color-status-warning);
+.ui-session-now[data-tone="warning"] .ui-session-now__mark {
+  color: var(--color-status-warning);
 }
 
 .ui-session-now__text {
   flex: 1 1 auto;
   min-inline-size: 0;
+}
+
+.ui-session-now__elapsed {
+  color: var(--color-fg-tertiary);
+  flex: none;
+  font: var(--type-meta);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The slow shimmer on a running line is the "Thinking" cue; it stops under
+   reduced motion and the text keeps its ellipsis. */
+.ui-session-now[data-tone="active"] .ui-session-now__text {
+  animation: ui-session-shimmer calc(var(--duration-transition) * 10) linear
+    infinite;
+  background: linear-gradient(
+    90deg,
+    var(--color-fg-muted) 40%,
+    var(--color-fg) 50%,
+    var(--color-fg-muted) 60%
+  );
+  background-clip: text;
+  background-size: 250% 100%;
+  color: transparent;
+}
+
+@keyframes ui-session-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-session-now[data-tone="active"] .ui-session-now__text {
+    animation: none;
+    background: none;
+    color: var(--color-fg-muted);
+  }
 }
 
 /* Terminal output under a step: monospace, scrolls its own overflow. */
@@ -2025,18 +2258,32 @@ button.ui-activity-line__row:hover {
   color: var(--color-fg);
   font: var(--type-data);
   margin: var(--space-1) 0 var(--space-2) var(--space-6);
-  max-block-size: 28rem;
+  max-block-size: 15rem;
   overflow: auto;
+  overflow-wrap: anywhere;
   padding: var(--space-3);
   white-space: pre-wrap;
-  overflow-wrap: anywhere;
 }
 
-/* In the thread a person's message is a boxed card and the agent's is plain
-   text, so a reader can tell who is speaking before reading a word. */
-.ui-session-thread .ui-conversation-message[data-variant="person"] {
-  background: var(--color-surface);
-  border: var(--border-default) solid var(--color-border);
-  border-radius: var(--radius-surface);
-  padding: var(--space-3) var(--space-4);
+.ui-session-thread__terminal:focus-visible {
+  outline: var(--focus-width) solid var(--color-focus);
+  outline-offset: var(--focus-offset-inset);
+}
+
+/* A running line for another step is a button: it switches to that step. */
+.ui-session-now__select {
+  background: none;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  flex: 1 1 auto;
+  font: inherit;
+  min-inline-size: 0;
+  padding: 0;
+  text-align: start;
+}
+
+.ui-session-now__select:focus-visible {
+  outline: var(--focus-width) solid var(--color-focus);
+  outline-offset: var(--focus-offset-inset);
 }

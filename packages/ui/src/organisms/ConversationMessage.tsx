@@ -17,6 +17,12 @@ export type ConversationMessageProps =
      */
     timestampTitle?: string;
     variant?: "person" | "agent" | "system";
+    /**
+     * How the message sits on the page: a `card` is boxed (the default), a
+     * `plain` one has no border, fill or padding, so an agent can speak in
+     * text on the page while a person's message stays the only boxed thing.
+     */
+    appearance?: "card" | "plain";
   };
 
 /** A single authored message in a conversation transcript. */
@@ -29,6 +35,7 @@ export function ConversationMessage(
     timestamp,
     timestampTitle,
     variant = "person",
+    appearance = "card",
     ...props
   }: ConversationMessageProps,
 ) {
@@ -43,6 +50,7 @@ export function ConversationMessage(
       {...props}
       data-state={state}
       data-variant={variant}
+      data-appearance={appearance}
       data-ui-component="conversationMessage"
     >
       <header>

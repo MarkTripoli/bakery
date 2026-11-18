@@ -203,15 +203,30 @@ const longThread: readonly SessionFeedItem[] = Array.from(
   },
 );
 
+const ended = (
+  sequence: number,
+  toStatus: "finished" | "failed" | "interrupted",
+  reason: string | null = null,
+): SessionFeedItem => ({
+  ...base(sequence, "status", at(1)),
+  status: { fromStatus: "active", toStatus, reason },
+});
+
 const STATE: Record<string, {
   items: readonly SessionFeedItem[];
   now: SessionNowState;
   empty?: boolean;
+  running?: boolean;
+  loading?: boolean;
+  error?: boolean;
 }> = {
   running: {
     items: sessionThreadRunning,
-    now: { kind: "working", toolName: "run_tests" },
+    now: { kind: "working", toolName: "run_tests", since: at(1) },
+    running: true,
   },
+  loading: { items: [], now: { kind: "idle" }, loading: true },
+  error: { items: [], now: { kind: "idle" }, error: true },
   waiting: {
     items: [
       said(1, 2, "person", "Add a retry to the upload step and run the tests."),
@@ -220,15 +235,19 @@ const STATE: Record<string, {
     now: { kind: "waiting" },
   },
   failed: {
-    items: failedThread,
+    items: [
+      ...failedThread,
+      ended(6, "failed", "The signing key expired on 2026-11-02."),
+    ],
     now: { kind: "failed", reason: "The signing key expired on 2026-11-02." },
   },
   lost: {
-    items: failedThread,
-    now: { kind: "lost", lastUpdate: "2 min ago" },
+    items: sessionThreadRunning,
+    now: { kind: "lost", lastUpdate: "2 min ago", onTryNow: () => {} },
+    running: true,
   },
   finished: {
-    items: sessionThreadRunning,
+    items: [...sessionThreadRunning, ended(15, "finished")],
     now: { kind: "idle" },
   },
   empty: {
@@ -239,6 +258,7 @@ const STATE: Record<string, {
   long: {
     items: longThread,
     now: { kind: "working", toolName: "run_tests" },
+    running: true,
   },
 };
 
@@ -270,7 +290,32 @@ export function SessionThreadFixture() {
           send={<UI.Button type="submit" variant="primary">Send</UI.Button>}
         />
       }
-      thread={fixture.empty
+      thread={fixture.loading
+        ? (
+          <div
+            aria-busy="true"
+            role="status"
+            aria-label={translate("session.thread.loading")}
+          >
+            <UI.Skeleton shape="row" />
+            <UI.Skeleton shape="row" />
+            <UI.Skeleton shape="row" />
+          </div>
+        )
+        : fixture.error
+        ? (
+          <UI.InlineNotice
+            tone="error"
+            action={
+              <UI.Button variant="outline">
+                {translate("tasks.live.retry")}
+              </UI.Button>
+            }
+          >
+            {translate("session.thread.loadFailed")}
+          </UI.InlineNotice>
+        )
+        : fixture.empty
         ? (
           <UI.EmptyState
             title={translate("session.thread.empty.title")}
@@ -280,6 +325,7 @@ export function SessionThreadFixture() {
         : (
           <SessionThread
             items={fixture.items}
+            running={fixture.running}
             onLoadEarlier={state === "long" ? () => {} : undefined}
             now={<SessionNow state={fixture.now} />}
           />
