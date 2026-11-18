@@ -4085,8 +4085,6 @@
   "settings.audit.description.organization": "⟦Çĥàñĝëš ŧô ɱëɱƀëŕš, ŕôļëš àñð šëŧŧïñĝš ïñ {organization}, ñëŵëšŧ ƒïŕšŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
   "settings.audit.outcome.denied": "⟦Ŕëƒûšëð…⟧",
   "projects.repository.support.title": "⟦Ðëŧàïļš ƒôŕ šûþþôŕŧ ŧëšŧ⟧",
-  "projects.repository.support.repositoryId": "⟦Ŕëþôšïŧôŕÿ ŧ⟧",
-  "projects.repository.support.applicationId": "⟦Àþþļïçàŧïôñ ŧ⟧",
   "projects.repository.support.profileId": "⟦Šëŧŧïñĝš ṽëŕšïôñ ïñ ûšë ŧëšŧ ç⟧",
   "projects.repository.support.profileDigest": "⟦Šëŧŧïñĝš ƒïñĝëŕþŕïñŧ ŧëšŧ⟧",
   "projects.repository.support.checkId": "⟦Çĥëçķ⟧",
@@ -4094,7 +4092,6 @@
   "projects.repository.support.observationId": "⟦Çĥëçķ ŕëšûļŧ ŧë⟧",
   "projects.repository.support.observationDigest": "⟦Ŕëšûļŧ ƒïñĝëŕþŕïñŧ ŧëšŧ⟧",
   "projects.repository.support.baseSha": "⟦Çôðë çĥëçķëð (çôɱɱïŧ) ŧëšŧŧ⟧",
-  "projects.repository.support.none": "⟦Ñôŧ ķñôŵñ ŧ⟧",
   "projects.repository.more": "⟦Ṁôŕë⟧",
   "projects.repository.moreNamed": "⟦Ṁôŕë àçŧïôñš ƒôŕ {name} ŧëšŧ ç⟧",
   "projects.repository.moreAbout": "⟦ àƀôûŧ {name} ŧë⟧",
@@ -4169,5 +4166,10 @@
   "projects.repository.test.empty": "⟦Ëñŧëŕ à ñàɱë. ŧë⟧",
   "issues.next.openRepositorySetup": "⟦Ôþëñ {name}'š šëŧûþ ŧëšŧ⟧",
   "projects.repository.names.form.used": "⟦“{name}” ïš àļŕëàðÿ ûšëð ïñ ŧĥïš àþþļïçàŧïôñ. Ñàɱëš ɱûšŧ ƀë ûñïǫûë ïñ àñ àþþļïçàŧïôñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
-  "projects.repository.support.copy": "⟦Çôþÿ {name} ŧ⟧"
+  "projects.repository.support.copy": "⟦Çôþÿ {name} ŧ⟧",
+  "projects.repository.support.intro": "⟦Ǫûôŧë ŧĥëšë ŵĥëñ àšķïñĝ ƒôŕ ĥëļþ. ŧëšŧ çôþÿ⟧",
+  "projects.repository.support.nothing": "⟦Ñôŧĥïñĝ ŧô ǫûôŧë ÿëŧ. ŧëšŧŧ⟧",
+  "projects.repository.support.repositoryId": "⟦Ŕëþôšïŧôŕÿ ÏÐ ŧë⟧",
+  "projects.repository.support.applicationId": "⟦Àþþļïçàŧïôñ ÏÐ ŧë⟧",
+  "projects.repository.support.providerRepoId": "⟦ĜïŧĤûƀ ŕëþôšïŧôŕÿ ÏÐ ŧëšŧ⟧"
 }

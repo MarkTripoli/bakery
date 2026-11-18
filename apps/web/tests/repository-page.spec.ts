@@ -1546,20 +1546,22 @@ test.describe("names, testing a name, and details for support", () => {
     expect(seen.resolves).toHaveLength(0);
   });
 
-  test("Details for support are closed until opened, and say Not known for what the page has not read", async ({ page }) => {
+  test("Details for support are closed until opened, open with a line to quote from, and leave out what the page has not read", async ({ page }) => {
     await open(page, { profiles: SETTINGS, active: 2 });
     const details = page.getByTestId("support-details");
     await expect(details.getByText(REPOSITORY_ID)).toBeHidden();
     await details.getByRole("button", { name: "Details for support" }).click();
     await expect(details.getByText(REPOSITORY_ID)).toBeVisible();
     await expect(details).toContainText("Settings version in use");
+    await expect(details).toContainText("GitHub repository ID");
     // Each known value has its own Copy, named for what it copies.
-    await expect(details.getByRole("button", { name: "Copy Repository" }))
+    await expect(details.getByRole("button", { name: "Copy Repository ID" }))
       .toBeVisible();
-    // No check is known, so its details say so.
-    await expect(
-      details.getByText("Not known", { exact: true }).first(),
-    ).toBeVisible();
+    await expect(details.getByText("Quote these when asking for help."))
+      .toBeVisible();
+    // No check is known, so those rows are not there.
+    await expect(details.getByText("Not known")).toHaveCount(0);
+    await expect(details).not.toContainText("Check job");
   });
 
   test("with a check in the address its job and result are in the details", async ({ page }) => {

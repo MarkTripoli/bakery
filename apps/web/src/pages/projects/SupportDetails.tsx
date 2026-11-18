@@ -48,9 +48,12 @@ export function SupportDetails(
       finished.profileId !== null,
   });
 
+  // A value the page does not know is left out: a row with nothing in it
+  // would only say so.
   const rows: readonly [string, string | null][] = [
     ["repositoryId", repository.id],
     ["applicationId", repository.applicationId],
+    ["providerRepoId", repository.providerRepoId],
     ["profileId", active?.id ?? null],
     ["profileDigest", active?.digest ?? null],
     ["checkId", check.data?.id ?? null],
@@ -59,6 +62,10 @@ export function SupportDetails(
     ["observationDigest", observation.data?.observationDigest ?? null],
     ["baseSha", observation.data?.baseSha ?? null],
   ];
+
+  const known = rows.filter(
+    (row): row is [string, string] => row[1] !== null,
+  );
 
   return (
     <UI.Stack gap="compact" data-testid="support-details">
@@ -71,18 +78,24 @@ export function SupportDetails(
         {translate("projects.repository.support.title" as never)}
       </UI.Button>
       <div id={`${id}-details`} hidden={!open}>
-        <UI.DescriptionList>
-          {rows.map(([key, value]) => (
-            <UI.DescriptionItem
-              key={key}
-              title={translate(`projects.repository.support.${key}` as never)}
-              description={
-                <UI.Inline gap="compact">
-                  <UI.DataText>
-                    {value ??
-                      translate("projects.repository.support.none" as never)}
-                  </UI.DataText>
-                  {value === null ? null : (
+        <UI.Stack gap="compact">
+          <UI.Text variant="muted">
+            {translate(
+              (known.length === 0
+                ? "projects.repository.support.nothing"
+                : "projects.repository.support.intro") as never,
+            )}
+          </UI.Text>
+          {known.length === 0 ? null : (
+            <UI.DescriptionList>
+              {known.map(([key, value]) => (
+                <UI.DescriptionItem
+                  key={key}
+                  title={translate(
+                    `projects.repository.support.${key}` as never,
+                  )}
+                  description={<UI.DataText>{value}</UI.DataText>}
+                  action={
                     <CopyValueButton
                       label={translate(
                         "projects.repository.support.copy" as never,
@@ -94,12 +107,12 @@ export function SupportDetails(
                       )}
                       value={value}
                     />
-                  )}
-                </UI.Inline>
-              }
-            />
-          ))}
-        </UI.DescriptionList>
+                  }
+                />
+              ))}
+            </UI.DescriptionList>
+          )}
+        </UI.Stack>
       </div>
     </UI.Stack>
   );
