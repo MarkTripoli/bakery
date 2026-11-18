@@ -658,3 +658,33 @@
     min-block-size: var(--target-coarse);
   }
 }
+
+/* The custom-roles form: a permission's label wraps beside its checkbox, the key
+   trails the sentence (under it on a phone), and a plain group draws no box.
+   Scoped here, the only page that uses them. */
+.ui-access-settings .ui-checkbox > span {
+  flex: 1 1 0%;
+  min-inline-size: 0;
+}
+.ui-access-settings .ui-checkbox .ui-data-text {
+  color: var(--color-fg-muted);
+  inline-size: auto;
+  margin-inline-start: var(--space-2);
+}
+@media (max-width: 743px) {
+  .ui-access-settings .ui-checkbox .ui-data-text {
+    display: block;
+    margin-inline-start: var(--space-0);
+  }
+}
+.ui-access-settings fieldset[data-group="plain"] {
+  border: var(--border-none);
+  margin: var(--space-0);
+  min-inline-size: 0;
+  padding: var(--space-0);
+}
+.ui-access-settings fieldset[data-group="plain"] > legend {
+  font: var(--type-control);
+  margin-block-end: var(--space-2);
+  padding: var(--space-0);
+}

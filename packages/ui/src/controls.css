@@ -724,37 +724,6 @@ input.ui-password-input__field {
   padding: var(--space-0);
 }
 
-/* A label of its own text box wraps beside the checkbox, never under it. */
-.ui-checkbox > span {
-  flex: 1 1 0%;
-  min-inline-size: 0;
-}
-/* A key inside a checkbox label trails the sentence on the same line, muted. */
-.ui-checkbox .ui-data-text {
-  color: var(--color-fg-muted);
-  inline-size: auto;
-  margin-inline-start: var(--space-2);
-}
-@media (max-width: 743px) {
-  /* On a phone the key sits under the sentence, beside the checkbox. */
-  .ui-checkbox .ui-data-text {
-    display: block;
-    margin-inline-start: var(--space-0);
-  }
-}
-/* A fieldset that only groups (its legend names it) draws no box of its own. */
-fieldset[data-group="plain"] {
-  border: var(--border-none);
-  margin: var(--space-0);
-  min-inline-size: 0;
-  padding: var(--space-0);
-}
-fieldset[data-group="plain"] > legend {
-  font: var(--type-control);
-  margin-block-end: var(--space-2);
-  padding: var(--space-0);
-}
-
 /* Disclosure: a text control with a chevron, and its facts beneath when open. */
 .ui-disclosure__summary {
   align-items: center;
