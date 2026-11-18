@@ -294,6 +294,43 @@ Deno.test("an organization copies a workflow into an independent draft, with its
       404,
     );
 
+    // A workflow that exists in another organization is not a source here: 404,
+    // and no definition is created.
+    const otherOrganizationId = crypto.randomUUID();
+    const otherWorkflowId = crypto.randomUUID();
+    await owner`insert into bakery.organizations (id, name, slug, metadata, created_at, updated_at, version)
+      values (${otherOrganizationId}, 'Other org', ${`other-${otherOrganizationId}`}, '{}'::jsonb, ${now}, ${now}, 1)`;
+    await owner`insert into bakery.workflow_definitions (id, organization_id, slug, name, description)
+      values (${otherWorkflowId}, ${otherOrganizationId}, 'foreign-flow', 'Foreign', 'Not ours.')`;
+    const before = await count(
+      "select count(*) as n from bakery.workflow_definitions where organization_id = $1",
+      [organizationId],
+    );
+    const foreign = await send(
+      "POST",
+      `/v1/workflows/${otherWorkflowId}/copy`,
+      {
+        slug: "from-foreign",
+        name: "From foreign",
+        description: "x",
+      },
+    );
+    assertEquals(foreign.status, 404);
+    assertEquals(
+      await count(
+        "select count(*) as n from bakery.workflow_definitions where organization_id = $1",
+        [organizationId],
+      ),
+      before,
+    );
+    assertEquals(
+      await count(
+        "select count(*) as n from bakery.workflow_definitions where slug = 'from-foreign'",
+        [],
+      ),
+      0,
+    );
+
     // A draft is a legitimate source, with its digest as the guard.
     const draftOnly = await json<{ id: string; digest: string }>(
       await send("POST", `/v1/workflows/${empty.id}/versions`, { definition }),
