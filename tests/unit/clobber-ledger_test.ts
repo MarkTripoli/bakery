@@ -197,6 +197,31 @@ Deno.test("the head inside the attribution is part of the claim hash", () => {
   assert(a.claimHash !== b.claimHash);
 });
 
+// A label may carry prose between the item and its attribution. Without the
+// item table those words become part of the key, so a reworded label reads as a
+// delete plus an add instead of a re-label - the class the check exists for.
+Deno.test("prose between the item and its attribution still keys the item", () => {
+  const line =
+    "- [x] backend verified by read (reviewer) @ 583e043c3: the three surfaces agree";
+  const [parsed] = parseVerifierLines(`## Verification\n${line}\n`);
+  assertEquals(parsed.item, "backend verified");
+  assertEquals(parsed.seat, "reviewer");
+});
+
+Deno.test("a reworded label keys the same item, so it is no deletion", () => {
+  const before =
+    "- [x] backend verified (reviewer) @ 583e043c3: the three surfaces agree";
+  const after =
+    "- [x] backend verified by read (reviewer) @ 583e043c3: the three surfaces agree";
+  const { errors, ledger } = compare([snapshot(before)], after);
+  // The prose sits in the label, so the claim is genuinely unchanged and an
+  // edit that only rewords the label is not a clobber. Without the item table
+  // the two keys differ, and the same body would read as a deletion plus an
+  // addition instead of nothing at all.
+  assertEquals(errors, []);
+  assertEquals(ledger.length, 1);
+});
+
 // Three orders appear in real bodies; all three must key the same item, or the
 // ledger would see a delete plus an add and miss a re-label.
 Deno.test("the three real attribution orders key the same item", () => {
