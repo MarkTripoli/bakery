@@ -73,6 +73,11 @@ export function failingJobs(jobs: readonly Job[]): readonly string[] {
 /**
  * The issue body: when, which jobs, and the run that said so. Short on purpose -
  * the run link is the evidence, the body points at it.
+ *
+ * It is a work item, not a note: the description check validates the issue a
+ * pull request links, so a body without the work-item sections made every PR
+ * that fixed a red lane fail that check. The sections are the template's, in its
+ * order, and the checklist is what a fixer actually has to do.
  */
 export function redBody(
   failing: readonly string[],
@@ -82,12 +87,45 @@ export function redBody(
 ): string {
   const stamp = now.toISOString().replace(/\.\d{3}Z$/, "Z");
   return [
-    `The ${trigger} run on ${stamp} failed.`,
+    "### Description",
     "",
-    "Failing jobs:",
-    ...failing.map((job) => `- \`${job}\``),
+    `The ${trigger} CI run on ${stamp} failed (run ${runUrl}). Outcome: the failing lanes are green again, or each red lane is fixed by a PR that links this issue. Out of scope: lanes that are green.`,
     "",
-    `Run: ${runUrl}`,
+    `Failing jobs: ${failing.map((job) => `\`${job}\``).join(", ")}.`,
+    "",
+    "### Execution classification",
+    "",
+    "AFK",
+    "",
+    "### Dependencies",
+    "",
+    "None",
+    "",
+    "### Checklist",
+    "",
+    "- [ ] Each failing lane is attributed to a cause (test, product or environment).",
+    "- [ ] Each product or test cause is fixed in a PR that links this issue.",
+    "- [ ] A later run is green on those lanes.",
+    "",
+    "### Technical details",
+    "",
+    "Lanes are defined in .github/workflows/ci.yml; the nightly signal (scripts/ci/nightly-signal.ts) opens this issue on a red run and closes it on a green one.",
+    "",
+    "### Acceptance criteria",
+    "",
+    "1. Given the next run after the fixes, when it completes, then every job listed above concludes success.",
+    "",
+    "### Design and UX",
+    "",
+    "Not applicable: CI only, no visible UI.",
+    "",
+    "### Verification and closure",
+    "",
+    "Closes when a run is green on the listed lanes; the signal closes it with a link to that run.",
+    "",
+    "### Sources",
+    "",
+    "The failing run linked above.",
   ].join("\n");
 }
 
