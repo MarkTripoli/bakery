@@ -180,50 +180,6 @@ function extractWindow(
 }
 
 /**
- * Reads one chunk's text for the cache row.
- *
- * Only reached when the request started inside a chunk rather than at its
- * boundary, which is the case the chunked key exists for: the row must hold the
- * whole chunk or a later request for an earlier offset in it would be answered
- * from text that begins after where it asked. It reuses the same authorized row
- * read, so the widening cannot reach a version the caller was not allowed.
- */
-async function readChunkAtStart(
-  transaction: PgTransactionClient,
-  organizationId: string,
-  versionId: string,
-  chunkStart: number,
-  chunkBytes: number,
-): Promise<Pick<ArtifactExtraction, "text" | "hasMore">> {
-  const row = await loadArtifactExtractionRow(
-    transaction,
-    organizationId,
-    versionId,
-    chunkStart,
-    chunkBytes,
-  );
-  const size = Number(row.size_bytes);
-  const media = classifyArtifactMedia({
-    declaredType: row.media_type,
-    content: bytes(row.media_probe),
-  });
-  if (
-    media === null ||
-    media.safety !== "safe" ||
-    !media.viewerEligible ||
-    !isTextMediaType(media.mediaType)
-  ) rejectExtraction();
-  const extracted = extractWindow(
-    bytes(row.window),
-    chunkStart - Math.max(0, chunkStart - MAX_UTF8_CODE_POINT_BYTES),
-    chunkBytes,
-    size,
-    chunkStart,
-  );
-  return { text: extracted.text, hasMore: extracted.hasMore };
-}
-
-/**
  * Proves the caller may read the version and returns its metadata, without
  * reading the content column. The joins are the same ones the content read uses,
  * so a caller that reaches the cache hit has already been authorized by exactly
@@ -369,8 +325,13 @@ export async function extractArtifactVersion(
     // The cache stores one row per 64 KiB chunk, so a request is looked up under
     // its chunk rather than under the exact offset it named. Without this the
     // row count would be a function of how many offsets a reader asks for.
+    // Only a request that names the chunk itself can be answered from it: any
+    // other window starts inside the row's text, and returning the row would
+    // label chunk text with the window the caller asked for.
     const storage = cachedExtractWindow(startByte);
-    const cached = await findCachedExtract(transaction, {
+    const servesChunk = startByte === storage.startByte &&
+      maxBytes === storage.maxBytes;
+    const cached = !servesChunk ? null : await findCachedExtract(transaction, {
       organizationId,
       versionId,
       sha256: identity.sha256,
@@ -457,43 +418,36 @@ export async function extractArtifactVersion(
       startByte,
       ...extracted,
     };
-    // The row holds the chunk's text, so a later request for any window inside
-    // that chunk is answered from it without reading the bytes again. The
-    // caller still receives exactly the window it asked for: only the cache row
-    // is widened, never the answer.
-    const chunkStart = storage.startByte;
-    const chunk = chunkStart === startByte
-      ? extracted.text
-      : (await readChunkAtStart(
-        transaction,
+    // Only the chunk-aligned request is cached, and it is cached as what it is:
+    // the chunk's own text with the chunk's own range. Any other window is
+    // answered from the bytes just read and writes nothing, so the row count
+    // stays one per chunk and no row ever holds text that does not start where
+    // its citation says it does.
+    if (servesChunk) {
+      const chunkEnd = Math.min(startByte + maxBytes, size);
+      await storeCachedExtract(transaction, {
+        organizationId,
+        scope,
+        maxBytes,
+        text: extracted.text,
+        hasMore: extracted.hasMore,
+        citation: ContextCitationSchema.parse({
+          artifactId: identity.artifact_id,
+          versionId: row.id,
+          sha256: row.sha256,
+          mediaType: result.mediaType,
+          location: {
+            startByte,
+            endByteExclusive: chunkEnd,
+          },
+          extractorVersion: CONTEXT_EXTRACTOR_VERSION,
+        }),
+      });
+      await evictExtractCacheBeyondCap(transaction, {
         organizationId,
         versionId,
-        chunkStart,
-        storage.maxBytes,
-      )).text;
-    const citation = ContextCitationSchema.parse({
-      artifactId: identity.artifact_id,
-      versionId: row.id,
-      sha256: row.sha256,
-      mediaType: result.mediaType,
-      location: {
-        startByte: chunkStart,
-        endByteExclusive: Math.min(chunkStart + storage.maxBytes, size),
-      },
-      extractorVersion: CONTEXT_EXTRACTOR_VERSION,
-    });
-    await storeCachedExtract(transaction, {
-      organizationId,
-      scope,
-      maxBytes: storage.maxBytes,
-      text: chunk,
-      hasMore: chunkStart + storage.maxBytes < size,
-      citation,
-    });
-    await evictExtractCacheBeyondCap(transaction, {
-      organizationId,
-      versionId,
-    });
+      });
+    }
     return result;
   } finally {
     mediaProbe = undefined;
