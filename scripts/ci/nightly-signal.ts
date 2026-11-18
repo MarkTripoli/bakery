@@ -217,13 +217,18 @@ export function ghRunner(repo: string, token: string): GhRunner {
       // pages instead, so every job is read no matter how many pages the run
       // takes. Assuming one page would be an assumption about the size of CI
       // rather than a property of the query.
+      //
+      // The `api` rejection is deliberately NOT caught here. It carries gh's
+      // stderr, and that text is the only thing that names the real cause: a
+      // missing `actions: read` scope reaches the log as exactly that, while
+      // swallowing it here reported "could not read the run's jobs" three
+      // dispatches in a row and left the permissions bug invisible.
       const pages = await api([
         "api",
         `repos/${repo}/actions/runs/${runId}/jobs?per_page=100`,
         "--paginate",
         "--slurp",
-      ]).catch(() => null);
-      if (pages === null) throw new Error("could not read the run's jobs");
+      ]);
       return jobsFromPages(pages);
     },
     findOpenIssues: async (title) => {
