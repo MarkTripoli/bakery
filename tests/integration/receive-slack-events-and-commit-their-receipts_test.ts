@@ -184,17 +184,18 @@ Deno.test("a receipt is recorded once; the same bytes again are a duplicate, dif
     assert(made.ok);
     const id = made.installation.installationId;
     const event = eventId();
-    assertEquals(await commit(f, value, id, event, digest("a")), {
-      kind: "recorded",
-    });
+    const recorded = await commit(f, value, id, event, digest("a"));
+    assert(recorded.kind === "recorded");
+    const receiptId = recorded.receiptId;
     assertEquals(await commit(f, value, id, event, digest("a")), {
       kind: "duplicate",
+      receiptId,
       outcome: "accepted",
     });
     // The first outcome stands, whatever a retry would have decided.
     assertEquals(
       await commit(f, value, id, event, digest("a"), "ignored"),
-      { kind: "duplicate", outcome: "accepted" },
+      { kind: "duplicate", receiptId, outcome: "accepted" },
     );
     assertEquals(await commit(f, value, id, event, digest("b")), {
       kind: "conflict",
@@ -285,13 +286,12 @@ Deno.test("receipts expire after the retention window, and only those are swept"
       (tx) => sweepExpiredSlackReceipts(tx, { now: new Date(), limit: 100 }),
     );
     assertEquals(swept >= 1, true);
-    assertEquals(await commit(f, value, id, old, digest("e")), {
-      kind: "recorded",
-    });
-    assertEquals(await commit(f, value, id, fresh, digest("f")), {
-      kind: "duplicate",
-      outcome: "accepted",
-    });
+    assertEquals(
+      (await commit(f, value, id, old, digest("e"))).kind,
+      "recorded",
+    );
+    const again = await commit(f, value, id, fresh, digest("f"));
+    assert(again.kind === "duplicate" && again.outcome === "accepted");
   });
 });
 
