@@ -239,6 +239,39 @@ Deno.test("every inbox change signals its recipient and mark-all undo is bounded
       assertEquals(late.code, "STATE_CONFLICT");
       assertEquals(await unread(), 0);
     });
+
+    await t.step(
+      "a press with nothing unread marks nothing and signals nothing",
+      async () => {
+        assertEquals(await unread(), 0);
+        const before = await signals();
+        const empty = await json<
+          { marked: number; remainingUnread: number; batchId: string | null }
+        >(
+          await api(fixture, "POST", "/v1/notifications/read-all", {
+            readBefore: new Date(Date.now() + 1_000).toISOString(),
+          }),
+          201,
+        );
+        assertEquals([empty.marked, empty.remainingUnread, empty.batchId], [
+          0,
+          0,
+          null,
+        ]);
+        assertEquals(await signals(), before, "no change, no signal");
+        // No batch id is handed out, so there is nothing to undo: any id the
+        // client could send answers not found and changes nothing.
+        const undo = await json<{ code: string }>(
+          await api(fixture, "POST", "/v1/notifications/read-all/undo", {
+            batchId: crypto.randomUUID(),
+          }),
+          404,
+        );
+        assertEquals(undo.code, "RESOURCE_NOT_FOUND");
+        assertEquals(await signals(), before);
+        assertEquals(await unread(), 0);
+      },
+    );
   } finally {
     await fixture.pgDatabase.query(
       "delete from bakery.notifications where organization_id = $1",

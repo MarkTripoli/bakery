@@ -405,12 +405,20 @@ const OWN_INBOX_WRITE_ACTIONS: ReadonlySet<string> = new Set([
   "notifications.undoMarkAllRead",
 ]);
 
-function authorizeOwnInboxWrite(
+function isPermissionMiss(error: unknown): boolean {
+  return error instanceof StandardError &&
+    (error.code === "AUTH_FORBIDDEN" || error.code === "RESOURCE_NOT_FOUND");
+}
+
+export function authorizeOwnInboxWrite(
   action: ActionDefinition,
   actor: OrganizationActor,
   denied: unknown,
 ): OrganizationActor {
+  // Only a permission miss falls back to the own-inbox rule. A scope miss, a
+  // binding fault or any other error is the real answer and is passed on.
   if (
+    !isPermissionMiss(denied) ||
     !OWN_INBOX_WRITE_ACTIONS.has(action.name) ||
     actor.subject.principalType !== PrincipalType.Human ||
     actor.role === undefined ||
