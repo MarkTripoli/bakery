@@ -314,3 +314,67 @@ Deno.test("a sweep whose removal fails still prints its report and says why (#26
     removeTreeSync(base);
   }
 });
+
+Deno.test("the runner reports a lane root swapped for a link, never follows it, and fails a strict run (#268)", async () => {
+  const strict = await runUnitLane(
+    ["tests/unit/fixtures/swap-lane-root.fixture.ts"],
+    true,
+  );
+  assertEquals(strict.code, 3, strict.text.slice(-1200));
+  assertEquals(
+    strict.text.includes(
+      "the lane root was changed under the run (root_symlink",
+    ),
+    true,
+    strict.text.slice(-800),
+  );
+  assertEquals(
+    strict.text.includes("swap-target"),
+    true,
+    "the report names where the link pointed",
+  );
+  // The link is gone, and what it pointed at is untouched.
+  assertEquals(strict.left, ["swap-target"]);
+
+  const lenient = await runUnitLane(
+    ["tests/unit/fixtures/swap-lane-root.fixture.ts"],
+    false,
+  );
+  assertEquals(
+    lenient.code,
+    0,
+    "outside strict mode a swap does not fail the lane",
+  );
+  assertEquals(
+    lenient.text.includes("the lane root was changed under the run"),
+    true,
+    "a lenient run still reports the swap",
+  );
+});
+
+Deno.test("the runner reports a lane root it could not remove, and fails a strict run (#268)", async () => {
+  const strict = await runUnitLane(
+    ["tests/unit/fixtures/unremovable-lane-root.fixture.ts"],
+    true,
+  );
+  assertEquals(strict.code, 3, strict.text.slice(-1200));
+  assertEquals(
+    strict.text.includes("the root could not be removed ("),
+    true,
+    strict.text.slice(-800),
+  );
+  const lenient = await runUnitLane(
+    ["tests/unit/fixtures/unremovable-lane-root.fixture.ts"],
+    false,
+  );
+  assertEquals(
+    lenient.code,
+    0,
+    "outside strict mode a failed removal does not fail the lane",
+  );
+  assertEquals(
+    lenient.text.includes("the root could not be removed ("),
+    true,
+    "a lenient run still reports it",
+  );
+});
