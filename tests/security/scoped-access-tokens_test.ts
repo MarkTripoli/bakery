@@ -235,7 +235,9 @@ Deno.test("a token of a disabled principal, a revoked token and an expired token
 Deno.test("non-admins and tokens cannot mint stronger service accounts, grants or tokens", async () => {
   const f = await openInstallationFixture();
   try {
-    // A developer human holds neither principal:manage nor accessToken:manage.
+    // Since #534 a developer may create the service accounts and tokens they
+    // own, but never one stronger than themselves.
+    const admin = await createServiceAccount(f, "Token admin", "admin");
     const asDeveloper = (path: string, body: unknown) =>
       call(f, "POST", path, f.developerCookie, {
         body,
@@ -250,15 +252,35 @@ Deno.test("non-admins and tokens cannot mint stronger service accounts, grants o
     });
     assertEquals(devPrincipal.status, 403, await devPrincipal.clone().text());
     const devToken = await asDeveloper("/v1/access-tokens", {
+      principalId: admin.id,
       name: "x",
       scopes: ["bakery:admin"],
       expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
     });
     assertEquals(devToken.status, 403, await devToken.clone().text());
 
+    // A developer's own token may carry the admin scope, but a scope only
+    // narrows the principal's live permissions: it still cannot do what only
+    // an Admin may.
+    const ownToken = await asDeveloper("/v1/access-tokens", {
+      name: "own",
+      scopes: ["bakery:admin"],
+      expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+    });
+    assertEquals(ownToken.status, 201, await ownToken.clone().text());
+    const ownSecret = String((await ownToken.json()).secret);
+    const adminWrite = await bearerCall(
+      f,
+      "POST",
+      "/v1/applications",
+      ownSecret,
+      { body: applicationBody },
+    );
+    assertEquals(adminWrite.status, 403, await adminWrite.clone().text());
+    assertEquals((await problem(adminWrite)).code, "AUTH_FORBIDDEN");
+
     // A token, even an admin-scoped one of an admin-role service account,
     // cannot change access: those mutations need a browser session.
-    const admin = await createServiceAccount(f, "Token admin", "admin");
     const adminToken = await mintToken(f, admin.id, ["bakery:admin"]);
     const expiresAt = new Date(Date.now() + 86_400_000).toISOString();
     const attempts: [string, string, unknown][] = [
