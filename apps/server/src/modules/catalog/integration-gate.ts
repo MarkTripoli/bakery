@@ -426,9 +426,14 @@ export type AuthoritySnapshot = Readonly<{
     binding: Readonly<Record<string, unknown>>;
     applicationId?: string;
     /**
-     * The provider's own numeric repository id. Distinct from a grant's
-     * `repositoryId`, which names a Bakery repository record: one is what a
-     * token is narrowed to, the other is what an inbound grant targets.
+     * The Bakery repository record id. This is what an `into_bakery` grant's
+     * `repositoryId` names, so grant matching compares it against that.
+     */
+    repositoryId?: string;
+    /**
+     * The provider's own numeric repository id, which is what a token for this
+     * resource is narrowed to. A different id from `repositoryId` above, and
+     * never a substitute for it.
      */
     providerRepositoryId?: string;
   }>;
@@ -808,11 +813,9 @@ export type BoundInvocation = Readonly<{
     kind: string;
     binding: Readonly<Record<string, unknown>>;
     applicationId?: string;
-    /**
-     * The provider's own numeric repository id. Distinct from a grant's
-     * `repositoryId`, which names a Bakery repository record: one is what a
-     * token is narrowed to, the other is what an inbound grant targets.
-     */
+    /** The Bakery repository record id an inbound grant targets. */
+    repositoryId?: string;
+    /** The provider's numeric id a token is narrowed to. */
     providerRepositoryId?: string;
   }>;
   grantId: string;
@@ -994,6 +997,9 @@ export async function authorizeInvocation(
       ...(resource.applicationId === undefined
         ? {}
         : { applicationId: resource.applicationId }),
+      ...(resource.repositoryId === undefined
+        ? {}
+        : { repositoryId: resource.repositoryId }),
       ...(resource.providerRepositoryId === undefined
         ? {}
         : { providerRepositoryId: resource.providerRepositoryId }),
@@ -1227,8 +1233,8 @@ async function bakeryCall(
           parsed.target.applicationId === resource.applicationId
         ) return { applicationId: parsed.target.applicationId };
       } else if (
-        resource.providerRepositoryId !== undefined &&
-        parsed.target.repositoryId === resource.providerRepositoryId
+        resource.repositoryId !== undefined &&
+        parsed.target.repositoryId === resource.repositoryId
       ) return { repositoryId: parsed.target.repositoryId };
     }
     return null;

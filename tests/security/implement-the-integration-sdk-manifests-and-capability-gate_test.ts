@@ -146,13 +146,11 @@ function snapshotFor(over: Overrides = {}): AuthoritySnapshot {
       selected: true,
       available: true,
       binding: { ...BINDING },
-      // The provider's own numeric repository id, as the production snapshot
-      // reads it from resource.external_id. It is deliberately its own field:
-      // a grant's `repositoryId` names a Bakery repository record, and sharing
-      // one field for both made every granted call answer AUTH_FORBIDDEN. The
-      // gate only dispatches to the target of the grant that matched, so the
-      // two must name the same repository here.
-      providerRepositoryId: REPOSITORY,
+      // Two different ids, deliberately: `repositoryId` is the Bakery record a
+      // grant targets (the gate matches on it), `providerRepositoryId` is the
+      // provider's number a token is narrowed to (the broker reads it).
+      repositoryId: REPOSITORY,
+      providerRepositoryId: String(BINDING.repositoryId),
       ...over.resource,
     },
     grants: over.grants ?? [outbound()],
@@ -1136,7 +1134,7 @@ Deno.test("broker: request goes to the template URL with fixed headers and the b
     subject: {
       installId: "inst-1",
       resourceKind: "github.repository",
-      repositoryId: REPOSITORY,
+      repositoryId: "1234",
     },
   });
 });
@@ -1775,9 +1773,10 @@ Deno.test("bakery.call: resource with both ids dispatches only the matched grant
       withBakery({
         resource: {
           applicationId: APPLICATION,
-          // Both ids present: the app grant matches on the application id, and
+          // Both targets available: the app grant matches on the application id,
           // the repository id is there for the repository-bound grant.
-          providerRepositoryId: REPOSITORY,
+          repositoryId: REPOSITORY,
+          providerRepositoryId: String(BINDING.repositoryId),
         },
         grants: [outbound(), inbound("tasks:read")],
       }),
