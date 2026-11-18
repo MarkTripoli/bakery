@@ -1,0 +1,4 @@
+
+> bakery@ contracts:generate /home/marktripoli/Development/bakery-wt/rig-542-resolve
+> deno run --allow-read --allow-write --allow-run=git scripts/generate-contracts.ts
+

@@ -17,6 +17,7 @@
     "./repository-profile-config": "./src/repository-profile-config.ts",
     "./repository-rule-preview": "./src/repository-rule-preview.ts",
     "./repository-rules": "./src/repository-rules.ts",
+    "./artifact-kinds": "./src/artifact-kinds.ts",
     "./scope-profiles": "./src/scope-profiles.ts",
     "./repository-inspection": "./src/repository-inspection.ts",
     "./coordinator-turn": "./src/coordinator-turn.ts",

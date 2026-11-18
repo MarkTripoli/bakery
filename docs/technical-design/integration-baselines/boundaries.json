@@ -1,0 +1,5 @@
+{
+  "schemaVersion": 1,
+  "description": "B1 import-boundary debt per rule and file (chapter 09 section 12.8). This ledger may only shrink: a slice lowers its own lines, and the last slice deletes the file. `pnpm rails:integration-boundaries --write-baseline` regenerates it.",
+  "counts": {}
+}

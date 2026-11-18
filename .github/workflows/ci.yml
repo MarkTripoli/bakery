@@ -126,6 +126,12 @@ jobs:
       - run: pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile
       - run: pnpm --dir packages/ui build-storybook
       - run: pnpm test:rails
+      # The ledgers prove their comparison in `test:rails`, but only these
+      # commands turn a regression into a red job. Without them a stale ledger
+      # row - the direction that re-admits coupling a slice removed - would sit
+      # in the tree while every check stayed green.
+      - run: pnpm rails:integration-boundaries
+      - run: pnpm rails:provider-literals
       - name: Write rails evidence
         if: always()
         env:
@@ -133,7 +139,7 @@ jobs:
           CANDIDATE_SHA: ${{ env.CANDIDATE_SHA }}
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.sha }}
           WORKFLOW_SHA: ${{ github.workflow_sha }}
-        run: deno run --allow-env --allow-read --allow-write scripts/ci/write-evidence.ts rails "pnpm test:rails" "backend rails"
+        run: deno run --allow-env --allow-read --allow-write scripts/ci/write-evidence.ts rails "pnpm test:rails && pnpm rails:integration-boundaries && pnpm rails:provider-literals" "backend rails"
       - name: Emit rails evidence handoff to job log
         if: always()
         env:

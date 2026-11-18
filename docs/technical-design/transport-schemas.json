@@ -403,6 +403,17 @@
     }
   },
   "inputs": {
+    "SecretIdentityToolRequest": {
+      "fields": [
+        {
+          "name": "preparedOperationId",
+          "type": "uuid",
+          "required": true,
+          "description": "Opaque prepared-operation identifier from the encrypted assignment replay."
+        }
+      ],
+      "description": "Bounded daemon-only request for the one server-selected fixed identity operation. The whole serialized request must stay within 128 bytes, so a caller cannot widen it into a general-purpose secret read."
+    },
     "CoordinationPlanCreate": {
       "fields": [
         {
@@ -674,6 +685,48 @@
         "Idempotency-Key and If-Match required; If-Match is the agent definition's current version. A missing If-Match is a PRECONDITION_REQUIRED and a stale one a PRECONDITION_FAILED. Admin only. A version that does not belong to this agent in this organization is UNPROCESSABLE with path versionId and code agent_version_unknown. Activating the already active version changes nothing and returns the current definition. The change is audited as agents.activateVersion and announced as agents.updated."
       ],
       "description": "Makes one published version of an agent definition the active version that new conversations, tasks and runs resolve to. Versions stay immutable and earlier versions stay readable; running work keeps the version it was admitted with."
+    },
+    "ArtifactKindKeyPath": {
+      "fields": [
+        {
+          "name": "key",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "description": "Lowercase kebab-case key of the kind addressed by this route, such as brief or render-cut. It is unique among the organization's kinds, so the key names exactly one kind; an unknown key is RESOURCE_NOT_FOUND and never another organization's kind."
+        }
+      ],
+      "description": "Shared path-parameter body addressing one of the organization's kinds by its stable key rather than its UUID, because the key is what a workflow author writes and what a template names."
+    },
+    "ArtifactKindVersionCreate": {
+      "fields": [
+        {
+          "name": "expectedRevision",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 0
+          },
+          "description": "Revision of the addressed kind the caller built this definition on; 0 when the kind has no published version yet. Publication fails with PRECONDITION_FAILED when the latest published revision of that kind differs, so two authors editing the same kind one after the other cannot silently overwrite each other."
+        },
+        {
+          "name": "definition",
+          "type": "json",
+          "required": true,
+          "bounds": {
+            "maxBytes": 65536
+          },
+          "description": "Complete definition of the new kind version: its key, name, description, whether it is text, the facts the engine may read and the platform rule types it composes. It contains declarations only; there is no field that accepts code, a script or a URL, which is what keeps customer logic out of the publication path."
+        }
+      ],
+      "configSchema": "definition: { key: lowercase kebab-case <=64, name: <=120, description: <=1000, text: boolean, facts: [{ name: lowerCamelCase <=64, type: string|integer|number|boolean|timestamp, required: boolean, description: <=500 }] <=50, rules: [{ type: maxLength|nonEmpty|mediaType|maxBytes|linesAtMost, severity: require|warn, options: { value?: integer >= 0, mediaTypes?: string[] <=20 } }] <=20 }. The strict ArtifactKindDefinitionSchema in @bakery/contracts/artifact-kinds enforces it; unknown keys, unknown rule types, duplicate fact names and duplicate rule types are refused.",
+      "rules": [
+        "Idempotency-Key required. Admin only. The server assigns revision = expectedRevision + 1 and never accepts a client revision. The path organization and kind key must be the caller's own, otherwise the answer is RESOURCE_NOT_FOUND; a key that does not exist yet is created by the first publication at revision 1. A stale expectedRevision is PRECONDITION_FAILED and writes nothing. Publication is audited as artifactKindVersions.create and announced as artifactKinds.published. A definition must stay within 65,536 canonical bytes so every publisher reports the same digest for the same definition."
+      ],
+      "description": "Publishes a new immutable version of an organization's artifact kind. A version states what a document of that kind must contain and which facts the engine may read from it; history stays immutable, so restoring an earlier definition publishes a new version rather than rewriting an old one."
     },
     "RepositoryRuleVersionCreate": {
       "fields": [
@@ -15183,6 +15236,84 @@
     }
   },
   "outputs": {
+    "RepositoryInspectionSourceChunk": {
+      "fields": [
+        "receipt",
+        "offset",
+        "totalBytes",
+        "chunkDigest",
+        "bytesBase64",
+        "done"
+      ],
+      "fieldTypes": {
+        "receipt": "json",
+        "offset": "integer",
+        "totalBytes": "integer",
+        "chunkDigest": "sha256",
+        "bytesBase64": "string",
+        "done": "boolean"
+      },
+      "description": "Strict RepositoryInspectionSourceChunkSchema result: one bounded authenticated source chunk carrying the unchanged receipt, so a worker reads a large repository source without the whole envelope ever being held at once.",
+      "fieldDescriptions": {
+        "receipt": "The unchanged inspection receipt this chunk belongs to.",
+        "offset": "Exact contiguous decoded envelope byte offset this chunk starts at.",
+        "totalBytes": "Stable exact canonical envelope transfer length.",
+        "chunkDigest": "Digest of this chunk's transfer bytes.",
+        "bytesBase64": "Canonical base64 of at most 32 KiB transfer bytes.",
+        "done": "True only when this chunk reaches the exact final byte."
+      }
+    },
+    "PinnedContextInput": {
+      "fields": [
+        "slot",
+        "path",
+        "digest",
+        "sizeBytes",
+        "mediaType",
+        "content"
+      ],
+      "fieldTypes": {
+        "slot": "slug",
+        "path": "safeRelativePath",
+        "digest": "sha256",
+        "sizeBytes": "nonnegativeInteger",
+        "mediaType": "string",
+        "content": "bytes"
+      },
+      "bounds": {
+        "sizeBytesMax": 1073741824
+      },
+      "description": "One input slot as the worker's attempt context read returns it: the declared slot name, the path inside the attempt context directory, and the bytes together with the digest the server computed from those same bytes.",
+      "fieldDescriptions": {
+        "slot": "The name the workflow declared for this input, such as `brief`.",
+        "path": "Path of the input's bytes relative to the attempt context directory; it never starts with `/` and never climbs.",
+        "digest": "Digest the server computed from the bytes in this same response. It is authoritative: a worker verifies its written file against this value, never against a digest it supplied on the way in.",
+        "sizeBytes": "Size of these bytes, so the worker can bound the read and detect a truncated response.",
+        "mediaType": "Media type of the bytes, so the step knows how to read the file without guessing.",
+        "content": "The exact bytes pinned at admission."
+      }
+    },
+    "PinnedContextRead": {
+      "fields": [
+        "attemptId",
+        "runId",
+        "inputs"
+      ],
+      "fieldTypes": {
+        "attemptId": "uuid",
+        "runId": "uuid",
+        "inputs": "PinnedContextInput[]"
+      },
+      "bounds": {
+        "inputsMaxItems": 32
+      },
+      "description": "The pinned input context of the attempt that asked for it, fenced by the lease it presented: every declared input with its bytes and the server-computed digest, so a worker materializes exactly what admission pinned without re-fetching an artifact.",
+      "fieldDescriptions": {
+        "attemptId": "The attempt whose lease proof was presented; the read answers only while that lease still holds.",
+        "runId": "The run the attempt belongs to, so the worker can correlate the context with its job.",
+        "inputs": "Every input pinned for this attempt's run, ordered as the pins were created."
+      }
+    },
     "CoordinationPlan": {
       "projection": "coordination_plans",
       "fields": [
@@ -15715,6 +15846,14 @@
     "Page<AgentVersion>": {
       "pageOf": "AgentVersion",
       "description": "Cursor page of one agent's pinned version history: prompts, harness, model and constraints frozen at each revision, with credentials held only as references. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers or offsets."
+    },
+    "Page<ArtifactKind>": {
+      "pageOf": "ArtifactKind",
+      "description": "Cursor page of the organization's artifact kinds, each resolved to its latest published version. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers or offsets."
+    },
+    "Page<ArtifactKindVersion>": {
+      "pageOf": "ArtifactKindVersion",
+      "description": "Cursor page of one kind's published versions, newest revision first. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers or offsets."
     },
     "Page<OrganizationRepositoryRuleVersion>": {
       "pageOf": "OrganizationRepositoryRuleVersion",
@@ -17935,6 +18074,83 @@
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
         "version": "Optimistic-concurrency version used when updating the record."
+      }
+    },
+    "ArtifactKind": {
+      "projection": "artifact_kinds",
+      "fields": [
+        "id",
+        "organizationId",
+        "key",
+        "revision",
+        "definition",
+        "digest",
+        "createdAt",
+        "createdBy"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "organizationId": "uuid",
+        "key": "string",
+        "revision": "integer",
+        "definition": "json",
+        "digest": "string",
+        "createdAt": "timestamp",
+        "createdBy": "uuid|null"
+      },
+      "nullableFields": [
+        "createdBy"
+      ],
+      "description": "One of an organization's artifact kinds, resolved to its latest published version: the stable key, plus the definition, revision and digest of the newest version of that kind. The kind's identity is the UUID; the key is what workflow authors and templates name.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of the kind; it never changes across versions, renames of the definition or restores of an earlier revision.",
+        "organizationId": "Organization that owns the kind; kinds never cross organizations.",
+        "key": "Lowercase kebab-case key of the kind, unique among this organization's kinds.",
+        "revision": "Revision number of the latest published version of this kind, which orders its history.",
+        "definition": "Complete definition of the latest published version, exactly as it was published.",
+        "digest": "SHA-256 hex of the canonical JSON of {key, revision, definition}; recompute it from the returned fields to verify the content.",
+        "createdAt": "UTC timestamp when the latest published version was created.",
+        "createdBy": "Principal who published the latest version of this kind."
+      }
+    },
+    "ArtifactKindVersion": {
+      "projection": "artifact_kind_versions",
+      "fields": [
+        "id",
+        "organizationId",
+        "kindId",
+        "key",
+        "revision",
+        "definition",
+        "digest",
+        "createdAt",
+        "createdBy"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "organizationId": "uuid",
+        "kindId": "uuid",
+        "key": "string",
+        "revision": "integer",
+        "definition": "json",
+        "digest": "string",
+        "createdAt": "timestamp",
+        "createdBy": "uuid|null"
+      },
+      "nullableFields": [
+        "createdBy"
+      ],
+      "description": "One immutable published version of an artifact kind: the complete definition, its revision and digest, and the principal who published it. A run or a published document pins a version, so the rules it was validated against keep meaning what they meant.",
+      "fieldDescriptions": {
+        "id": "Stable UUID identifying this published kind version.",
+        "organizationId": "Organization that owns the kind this version belongs to.",
+        "kindId": "UUID of the kind identity these versions belong to.",
+        "key": "Lowercase kebab-case key of the kind at this revision.",
+        "revision": "Positive revision number of this version within the kind; revisions are dense and never reused.",
+        "definition": "Complete definition published at this revision: name, description, text flag, facts and rules.",
+        "digest": "SHA-256 hex of the canonical JSON of {key, revision, definition}; recompute it from the returned fields to verify the content.",
+        "createdAt": "UTC timestamp when this version was published.",
+        "createdBy": "Principal who published this version."
       }
     },
     "OrganizationRepositoryRuleVersion": {
@@ -25875,6 +26091,17 @@
     "description": "Cursor page envelope shared by paginated transport outputs."
   },
   "events": {
+    "artifactKinds.published": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer",
+        "kindId": "uuid",
+        "key": "string"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification that a new version of an artifact kind was published; fetch the authoritative kind through its REST operation. Trigger consumers always re-read durable state, so a consumer that misses this event still sees the new revision."
+    },
     "coordinationPlan.created": {
       "schemaVersion": 1,
       "payloadFields": {
@@ -27142,7 +27369,7 @@
     "task.brief": {
       "inputSchema": "TaskBriefInput",
       "outputSchema": "ArtifactOutput",
-      "schemaSource": "docs/technical-design/transport-schemas.json",
+      "schemaSource": "packages/contracts/src/contracts.ts",
       "capabilities": [],
       "description": "Deterministic, model-free action that renders the frozen task brief to canonical JSON and publishes it as an immutable artifact through the worker byte boundary."
     },
