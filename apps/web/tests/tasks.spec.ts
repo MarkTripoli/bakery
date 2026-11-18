@@ -1028,7 +1028,7 @@ test("invalid deep link never requests invented task identity", async ({ page })
     return route.abort();
   });
   await page.goto("/tasks/not-a-uuid");
-  await expect(page.getByText("Task not found or no longer accessible."))
+  await expect(page.getByText("This task is not available"))
     .toBeVisible();
   expect(calls).toBe(0);
 });

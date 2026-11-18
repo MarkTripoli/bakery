@@ -244,6 +244,9 @@ function InboxResults(
     : query.data.items.length === 0
     ? "empty"
     : "ready";
+  // A failed load has nothing to filter: one error block, no controls above it.
+  const failed = state === "error" ||
+    (scopeFailure !== null && scopeFailure !== "forbidden");
   // Nothing is filtered, so "no tasks" means none exist yet, not "none match".
   const noFilters = !filters.search && !filters.repositoryId && !filters.status;
   const message = !valid
@@ -301,7 +304,7 @@ function InboxResults(
       layout={layout}
       inspector={composer}
       state={state}
-      filters={filtersContent}
+      filters={failed ? undefined : filtersContent}
       groups={groups}
       selectedId={selected?.id}
       onSelect={setSelectedId}
@@ -358,26 +361,34 @@ function InboxResults(
         : "all"}
       onSelectView={(id) =>
         onStatus(viewStatuses.find((status) => status === id))}
-      stateContent={message && (
-        <UI.Stack gap="compact">
-          <UI.Text>{message}</UI.Text>
-          {state === "empty" && noFilters && (
-            <RouterLink to="/tasks/new" activeProps={{}} inactiveProps={{}}>
-              {t("tasks.queue.newTask")}
-            </RouterLink>
-          )}
-          {(state === "error" || (scopeFailure !== null &&
-            scopeFailure !== "forbidden")) && (
-            <UI.Button
-              onClick={scopeFailure !== null
-                ? scopeRestore.retry
-                : () => void query.refetch()}
-            >
-              {t("tasks.live.retry")}
-            </UI.Button>
-          )}
-        </UI.Stack>
-      )}
+      stateContent={failed
+        ? (
+          <UI.ErrorState
+            variant={layout === "sheet" ? "page" : "region"}
+            title={t("tasks.error.title")}
+            description={t("tasks.error.description")}
+            action={
+              <UI.Button
+                variant="secondary"
+                onClick={scopeFailure !== null
+                  ? scopeRestore.retry
+                  : () => void query.refetch()}
+              >
+                {t("tasks.live.retry")}
+              </UI.Button>
+            }
+          />
+        )
+        : message && (
+          <UI.Stack gap="compact">
+            <UI.Text>{message}</UI.Text>
+            {state === "empty" && noFilters && (
+              <RouterLink to="/tasks/new" activeProps={{}} inactiveProps={{}}>
+                {t("tasks.queue.newTask")}
+              </RouterLink>
+            )}
+          </UI.Stack>
+        )}
       cursorControls={pageable && (
         <UI.CursorControls
           variant="previousNext"
@@ -420,6 +431,7 @@ function Detail(
 ) {
   const { translate: t } = useI18n();
   const viewport = useShellViewport();
+  const navigate = useNavigate();
   const scope = useProtectedScope();
   const api = useBakeryApi();
   const online = useOnline();
@@ -500,7 +512,11 @@ function Detail(
   return (
     <TaskSessionView
       layout={viewport === "phone" ? "sheet" : "rail"}
-      title={t("tasks.live.detail")}
+      title={t("tasks.detail.pageTitle")}
+      breadcrumbs={[
+        { label: t("tasks.queue.title"), href: "/tasks" },
+        { label: t("tasks.detail.pageTitle") },
+      ]}
       state={forbidden
         ? "forbidden"
         : missing || query.isError || scopeFailure !== null
@@ -508,7 +524,6 @@ function Detail(
         : query.isPending
         ? "loading"
         : "ready"}
-      presence={<RouterLink to="/tasks">{t("tasks.live.back")}</RouterLink>}
       messages={[]}
     >
       {(!online || scopeFailure === "offline") && (
@@ -516,10 +531,22 @@ function Detail(
           {t("tasks.live.offline")}
         </UI.InlineNotice>
       )}
-      {missing
-        ? <UI.Text>{t("tasks.live.notFound")}</UI.Text>
-        : forbidden
-        ? <UI.Text>{t("tasks.detail.forbidden")}</UI.Text>
+      {missing || forbidden
+        ? (
+          <UI.EmptyState
+            title={t("tasks.detail.unavailable.title")}
+            description={t("tasks.detail.unavailable.body")}
+            action={
+              <UI.Button
+                variant="secondary"
+                onClick={() => void navigate({ to: "/tasks" })}
+              >
+                {t("tasks.detail.unavailable.back")}
+              </UI.Button>
+            }
+            variant="firstUse"
+          />
+        )
         : query.isError || scopeFailure !== null
         ? (
           <UI.ErrorState

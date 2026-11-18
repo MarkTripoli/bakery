@@ -4229,5 +4229,11 @@
   "session.thread.rawOutput": "⟦Ŕàŵ ôûŧþûŧ ŧ⟧",
   "session.thread.stepSelect": "⟦Šŧëþ⟧",
   "session.thread.truncated": "⟦Ŧĥïš šëššïôñ ïš ļôñĝ, šô ŧĥë ŧĥŕëàð šĥôŵš ôñļÿ ïŧš ñëŵëšŧ ëṽëñŧš. Ŧĥë ŕàŵ ôûŧþûŧ ƀëļôŵ ĥàš ŧĥë ŵĥôļë ŕëçôŕð. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧",
-  "session.thread.earlierHidden": "⟦Ëàŕļïëŕ ëṽëñŧš àŕë ñôŧ šĥôŵñ ŧëšŧ çô⟧"
+  "session.thread.earlierHidden": "⟦Ëàŕļïëŕ ëṽëñŧš àŕë ñôŧ šĥôŵñ ŧëšŧ çô⟧",
+  "tasks.error.title": "⟦Ŵôŕķ çôûļð ñôŧ ƀë ļôàðëð ŧëšŧ ç⟧",
+  "tasks.error.description": "⟦Çĥëçķ ÿôûŕ çôññëçŧïôñ, ŧĥëñ ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧ⟧",
+  "tasks.detail.pageTitle": "⟦Ŧàšķ⟧",
+  "tasks.detail.unavailable.title": "⟦Ŧĥïš ŧàšķ ïš ñôŧ àṽàïļàƀļë ŧëšŧ çô⟧",
+  "tasks.detail.unavailable.body": "⟦Ïŧ ɱàÿ ĥàṽë ƀëëñ ðëļëŧëð, ôŕ ÿôû ɱàÿ ñôŧ ĥàṽë àççëšš ŧô ïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
+  "tasks.detail.unavailable.back": "⟦Ɓàçķ ŧô Ŵôŕķ ŧë⟧"
 }

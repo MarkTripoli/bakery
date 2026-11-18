@@ -359,7 +359,7 @@ test(
         }),
     );
     await page.goto("/tasks/new");
-    const error = "Tasks could not be loaded. Try again.";
+    const error = "Work could not be loaded";
     await expect(page.getByText(error)).toBeVisible();
     await expect(page.getByRole("button", { name: "Try again", exact: true }))
       .toBeVisible();

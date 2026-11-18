@@ -4229,5 +4229,11 @@
   "session.thread.rawOutput": "⟪Raw output⟫",
   "session.thread.stepSelect": "⟪Step⟫",
   "session.thread.truncated": "⟪This session is long, so the thread shows only its newest events. The raw output below has the whole record.⟫",
-  "session.thread.earlierHidden": "⟪Earlier events are not shown⟫"
+  "session.thread.earlierHidden": "⟪Earlier events are not shown⟫",
+  "tasks.error.title": "⟪Work could not be loaded⟫",
+  "tasks.error.description": "⟪Check your connection, then try again.⟫",
+  "tasks.detail.pageTitle": "⟪Task⟫",
+  "tasks.detail.unavailable.title": "⟪This task is not available⟫",
+  "tasks.detail.unavailable.body": "⟪It may have been deleted, or you may not have access to it.⟫",
+  "tasks.detail.unavailable.back": "⟪Back to Work⟫"
 }
