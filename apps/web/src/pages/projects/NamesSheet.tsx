@@ -32,6 +32,7 @@ export function NamesSheet(
   const id = useId();
   const writes = useRepositoryNames(repository.applicationId, repository.id);
   const [editing, setEditing] = useState<RoleBindingResponse | null>(null);
+  const [adding, setAdding] = useState(false);
   const [values, setValues] = useState<NameValues>(EMPTY_NAME);
   const [tried, setTried] = useState(false);
 
@@ -40,6 +41,7 @@ export function NamesSheet(
   const set = (patch: Partial<NameValues>) =>
     setValues({ ...values, ...patch });
   const reset = () => {
+    setAdding(false);
     setEditing(null);
     setValues(EMPTY_NAME);
     setTried(false);
@@ -89,83 +91,6 @@ export function NamesSheet(
             )}
           </UI.InlineNotice>
         )}
-        <UI.Field
-          label={translate("projects.repository.names.form.name" as never)}
-          htmlFor={`${id}-name`}
-          required
-          error={tried && problem === "empty"
-            ? translate("projects.repository.names.form.empty" as never)
-            : tried && problem === "tooLong"
-            ? translate("projects.repository.names.form.tooLong" as never)
-            : undefined}
-        >
-          <UI.TextInput
-            type="text"
-            id={`${id}-name`}
-            name="name"
-            autoComplete="off"
-            disabled={disabled}
-            invalid={tried && problem !== null}
-            value={values.name}
-            onChange={(name) => set({ name })}
-          />
-        </UI.Field>
-        <UI.Field
-          label={translate("projects.repository.names.form.others" as never)}
-          htmlFor={`${id}-others`}
-          hint={translate("projects.repository.names.form.othersHelp" as never)}
-        >
-          <UI.TextInput
-            type="text"
-            id={`${id}-others`}
-            name="others"
-            autoComplete="off"
-            disabled={disabled}
-            value={values.others}
-            onChange={(others) => set({ others })}
-          />
-        </UI.Field>
-        <UI.Field
-          label={translate("projects.repository.names.form.note" as never)}
-          htmlFor={`${id}-note`}
-          hint={translate("projects.repository.names.form.noteHelp" as never)}
-        >
-          <UI.TextInput
-            type="text"
-            id={`${id}-note`}
-            name="note"
-            autoComplete="off"
-            disabled={disabled}
-            value={values.note}
-            onChange={(note) => set({ note })}
-          />
-        </UI.Field>
-        <UI.Inline gap="compact">
-          <UI.Button
-            variant="primary"
-            disabled={disabled ||
-              (editing !== null && !changed(editing, values))}
-            loading={writes.pending}
-            onClick={() => void submit()}
-          >
-            {writes.pending
-              ? translate("projects.repository.names.form.saving" as never)
-              : translate(
-                (editing === null
-                  ? "projects.repository.names.form.add"
-                  : "projects.repository.names.form.save") as never,
-              )}
-          </UI.Button>
-          {editing === null ? null : (
-            <UI.Button
-              variant="secondary"
-              disabled={writes.pending}
-              onClick={reset}
-            >
-              {translate("projects.repository.names.form.cancel" as never)}
-            </UI.Button>
-          )}
-        </UI.Inline>
         {names.length === 0 ? null : (
           <UI.Stack
             gap="compact"
@@ -206,13 +131,14 @@ export function NamesSheet(
                         <UI.Button
                           variant="text"
                           disabled={disabled}
+                          aria-label={translate(
+                            "projects.repository.names.row.edit" as never,
+                            { name: binding.role },
+                          )}
                           onClick={() => choose(binding)}
                         >
                           {translate(
-                            "projects.repository.names.row.edit" as never,
-                            {
-                              name: binding.role,
-                            },
+                            "projects.repository.names.row.editShort" as never,
                           )}
                         </UI.Button>
                       )
@@ -220,13 +146,18 @@ export function NamesSheet(
                     <UI.Button
                       variant="text"
                       disabled={disabled}
-                      onClick={() => void writes.archive(binding)}
-                    >
-                      {translate(
+                      aria-label={translate(
                         (isActive(binding)
                           ? "projects.repository.names.row.archive"
                           : "projects.repository.names.row.restore") as never,
                         { name: binding.role },
+                      )}
+                      onClick={() => void writes.archive(binding)}
+                    >
+                      {translate(
+                        (isActive(binding)
+                          ? "projects.repository.names.row.archiveShort"
+                          : "projects.repository.names.row.restoreShort") as never,
                       )}
                     </UI.Button>
                   </UI.Inline>
@@ -235,12 +166,124 @@ export function NamesSheet(
             ))}
           </UI.Stack>
         )}
+        {canManage && !adding && editing === null
+          ? (
+            <UI.Inline gap="compact">
+              <UI.Button
+                variant="secondary"
+                disabled={writes.pending}
+                onClick={() => {
+                  writes.clearFailure();
+                  setAdding(true);
+                }}
+              >
+                {translate("projects.repository.names.add" as never)}
+              </UI.Button>
+            </UI.Inline>
+          )
+          : null}
+        {adding || editing !== null
+          ? (
+            <UI.Stack gap="standard" data-testid="names-form">
+              <UI.Field
+                label={translate(
+                  "projects.repository.names.form.name" as never,
+                )}
+                htmlFor={`${id}-name`}
+                required
+                hint={translate(
+                  "projects.repository.names.form.nameHelp" as never,
+                )}
+                error={tried && problem === "empty"
+                  ? translate("projects.repository.names.form.empty" as never)
+                  : tried && problem === "tooLong"
+                  ? translate("projects.repository.names.form.tooLong" as never)
+                  : undefined}
+              >
+                <UI.TextInput
+                  type="text"
+                  id={`${id}-name`}
+                  name="name"
+                  autoComplete="off"
+                  disabled={disabled}
+                  invalid={tried && problem !== null}
+                  value={values.name}
+                  onChange={(name) => set({ name })}
+                />
+              </UI.Field>
+              <UI.Field
+                label={translate(
+                  "projects.repository.names.form.others" as never,
+                )}
+                htmlFor={`${id}-others`}
+                hint={translate(
+                  "projects.repository.names.form.othersHelp" as never,
+                )}
+              >
+                <UI.TextInput
+                  type="text"
+                  id={`${id}-others`}
+                  name="others"
+                  autoComplete="off"
+                  disabled={disabled}
+                  value={values.others}
+                  onChange={(others) => set({ others })}
+                />
+              </UI.Field>
+              <UI.Field
+                label={translate(
+                  "projects.repository.names.form.note" as never,
+                )}
+                htmlFor={`${id}-note`}
+                hint={translate(
+                  "projects.repository.names.form.noteHelp" as never,
+                )}
+              >
+                <UI.TextInput
+                  type="text"
+                  id={`${id}-note`}
+                  name="note"
+                  autoComplete="off"
+                  disabled={disabled}
+                  value={values.note}
+                  onChange={(note) => set({ note })}
+                />
+              </UI.Field>
+              <UI.Inline gap="compact">
+                <UI.Button
+                  variant="primary"
+                  disabled={disabled ||
+                    (editing !== null && !changed(editing, values))}
+                  loading={writes.pending}
+                  onClick={() => void submit()}
+                >
+                  {writes.pending
+                    ? translate(
+                      "projects.repository.names.form.saving" as never,
+                    )
+                    : translate(
+                      (editing === null
+                        ? "projects.repository.names.form.add"
+                        : "projects.repository.names.form.save") as never,
+                    )}
+                </UI.Button>
+                <UI.Button
+                  variant="secondary"
+                  disabled={writes.pending}
+                  onClick={reset}
+                >
+                  {translate("projects.repository.names.form.cancel" as never)}
+                </UI.Button>
+              </UI.Inline>
+            </UI.Stack>
+          )
+          : null}
         <UI.Button
           variant="secondary"
           onClick={onClose}
           disabled={writes.pending}
         >
-          {translate("core.actions.close")}
+          {translate("projects.repository.names.done" as never)}
         </UI.Button>
       </UI.Stack>
     </UI.Sheet>

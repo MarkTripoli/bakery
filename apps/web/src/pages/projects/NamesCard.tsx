@@ -78,6 +78,17 @@ export function NamesCard(
       title={translate("projects.repository.names.title" as never)}
       description={translate("projects.repository.names.intro" as never)}
       variant="list"
+      actions={roles.state === "ready" && canManage && !archived
+        ? (
+          <UI.Button variant="secondary" onClick={show}>
+            {translate(
+              (active.length === 0
+                ? "projects.repository.names.add"
+                : "projects.repository.names.change") as never,
+            )}
+          </UI.Button>
+        )
+        : undefined}
     >
       {roles.state === "loading"
         ? (
@@ -111,13 +122,12 @@ export function NamesCard(
                   )}
                 >
                   {active.map((binding) => (
-                    <div
-                      key={binding.id}
-                      role="listitem"
-                      data-testid={`name-${binding.role}`}
-                    >
-                      <UI.Stack gap="tight">
-                        <UI.Text>{binding.role}</UI.Text>
+                    <div key={binding.id} role="listitem">
+                      <UI.StackedRow
+                        flush
+                        data-testid={`name-${binding.role}`}
+                        title={binding.role}
+                      >
                         {binding.alias === null
                           ? null
                           : (
@@ -128,24 +138,11 @@ export function NamesCard(
                               )}
                             </UI.Text>
                           )}
-                      </UI.Stack>
+                      </UI.StackedRow>
                     </div>
                   ))}
                 </UI.Stack>
               )}
-            {canManage && !archived
-              ? (
-                <UI.Inline gap="compact">
-                  <UI.Button variant="secondary" onClick={show}>
-                    {translate(
-                      (active.length === 0
-                        ? "projects.repository.names.add"
-                        : "projects.repository.names.change") as never,
-                    )}
-                  </UI.Button>
-                </UI.Inline>
-              )
-              : null}
           </UI.Stack>
         )}
       {open

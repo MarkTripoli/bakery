@@ -5,14 +5,13 @@ import { useBakeryApi } from "../../api/context.tsx";
 import { useProtectedScope } from "../../app/query-scope-context.tsx";
 import { type ProjectFailure, projectFailure } from "./useProjectMutations.ts";
 
-/** What the Edit dialog changes: the display name and the default branch. */
+/** What the dialog changes: the default branch. */
 export type RepositoryEdit = {
-  readonly name: string;
   readonly defaultBranch: string;
 };
 
 /**
- * Edit one repository's name and default branch (#65, slice 3). One
+ * Change one repository's default branch (#65, slice 3). One
  * idempotency key per distinct change, so a retry after a lost answer changes
  * nothing twice; only the fields that differ are sent. A conflict (the version
  * moved) is reported as such and the page refreshes to show what is there now.
@@ -31,8 +30,7 @@ export function useEditRepository(repository: RepositoryResponse) {
     mutationKey: ["repositories.edit"],
     mutationFn: async (edit: RepositoryEdit) => {
       setFailure(null);
-      const input: { name?: string; defaultBranch?: string } = {};
-      if (edit.name !== repository.name) input.name = edit.name;
+      const input: { defaultBranch?: string } = {};
       if (edit.defaultBranch !== repository.defaultBranch) {
         input.defaultBranch = edit.defaultBranch;
       }

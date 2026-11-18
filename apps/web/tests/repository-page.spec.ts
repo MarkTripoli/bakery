@@ -1350,9 +1350,10 @@ test.describe("names, testing a name, and details for support", () => {
   test("adding a name sends it trimmed, with a key, and shows it on the card", async ({ page }) => {
     const { seen } = await open(page);
     await card(page).getByRole("button", { name: "Add a name" }).click();
+    await sheet(page).getByRole("button", { name: "Add a name" }).click();
     await sheet(page).getByLabel(/^Name\*?$/).fill("  api  ");
     await sheet(page).getByLabel("Other names").fill("backend");
-    await sheet(page).getByRole("button", { name: "Add name" }).click();
+    await sheet(page).getByRole("button", { name: "Save name" }).click();
     await expect(card(page).getByTestId("name-api")).toContainText(
       "also: backend",
     );
@@ -1369,7 +1370,8 @@ test.describe("names, testing a name, and details for support", () => {
   test("a name is required, and nothing is sent without one", async ({ page }) => {
     const { seen } = await open(page);
     await card(page).getByRole("button", { name: "Add a name" }).click();
-    await sheet(page).getByRole("button", { name: "Add name" }).click();
+    await sheet(page).getByRole("button", { name: "Add a name" }).click();
+    await sheet(page).getByRole("button", { name: "Save name" }).click();
     await expect(sheet(page).getByText("Enter a name.")).toBeVisible();
     await expect(sheet(page).getByLabel(/^Name\*?$/))
       .toHaveAttribute(
@@ -1425,8 +1427,9 @@ test.describe("names, testing a name, and details for support", () => {
   test("a name that is already used says so and applies nothing", async ({ page }) => {
     await open(page, { nameWrite: "conflict" });
     await card(page).getByRole("button", { name: "Add a name" }).click();
+    await sheet(page).getByRole("button", { name: "Add a name" }).click();
     await sheet(page).getByLabel(/^Name\*?$/).fill("api");
-    await sheet(page).getByRole("button", { name: "Add name" }).click();
+    await sheet(page).getByRole("button", { name: "Save name" }).click();
     await expect(
       sheet(page).getByText(/That name is already used in this application/),
     ).toBeVisible();
@@ -1436,12 +1439,13 @@ test.describe("names, testing a name, and details for support", () => {
   test("a retry after a lost answer keeps its key", async ({ page }) => {
     const { seen } = await open(page, { nameWrite: "down" });
     await card(page).getByRole("button", { name: "Add a name" }).click();
+    await sheet(page).getByRole("button", { name: "Add a name" }).click();
     await sheet(page).getByLabel(/^Name\*?$/).fill("api");
-    await sheet(page).getByRole("button", { name: "Add name" }).click();
+    await sheet(page).getByRole("button", { name: "Save name" }).click();
     await expect(
       sheet(page).getByText("The change could not be saved. Try again."),
     ).toBeVisible();
-    await sheet(page).getByRole("button", { name: "Add name" }).click();
+    await sheet(page).getByRole("button", { name: "Save name" }).click();
     await expect.poll(() => seen.nameWrites.length).toBe(2);
     expect(seen.nameWrites[1].key).toBe(seen.nameWrites[0].key);
   });
@@ -1467,12 +1471,14 @@ test.describe("names, testing a name, and details for support", () => {
     // The entries are plain buttons in the popover (the Menu says so itself).
     await page.getByRole("button", { name: "Test a name", exact: true })
       .click();
-    const dialog = page.getByRole("dialog", { name: "Test a name" });
+    const dialog = page.getByRole("alertdialog", {
+      name: "Which repository does a name point to?",
+    });
     await expect(dialog).toBeVisible();
     if (name !== "") {
       await dialog.getByLabel(/^Name\*?$/).fill(name);
     }
-    await dialog.getByRole("button", { name: "Test" }).click();
+    await dialog.getByRole("button", { name: "Check" }).click();
     return dialog;
   };
 
@@ -1480,7 +1486,7 @@ test.describe("names, testing a name, and details for support", () => {
     const { seen } = await open(page, { names: NAMES });
     const dialog = await test_(page, "api");
     await expect(dialog.getByTestId("test-name-result")).toContainText(
-      "“api” means this repository.",
+      "“api” points to this repository.",
     );
     expect(seen.resolves).toEqual([{ role: "api" }]);
     await page.mouse.move(700, 700);
@@ -1491,7 +1497,7 @@ test.describe("names, testing a name, and details for support", () => {
     await open(page, { resolve: "other" });
     const dialog = await test_(page, "billing");
     await expect(dialog.getByTestId("test-name-result")).toContainText(
-      "“billing” means acme/billing.",
+      "“billing” points to acme/billing.",
     );
   });
 
@@ -1499,7 +1505,7 @@ test.describe("names, testing a name, and details for support", () => {
     await open(page, { resolve: "none" });
     const dialog = await test_(page, "x");
     await expect(dialog.getByTestId("test-name-result")).toContainText(
-      "No repository in this application has that name.",
+      "Nothing in this application is called “x”.",
     );
   });
 
@@ -1507,7 +1513,7 @@ test.describe("names, testing a name, and details for support", () => {
     await open(page, { resolve: "ambiguous" });
     const dialog = await test_(page, "api");
     await expect(dialog.getByTestId("test-name-result")).toContainText(
-      "2 repositories have that name",
+      "“api” matches more than one repository",
     );
   });
 
@@ -1649,7 +1655,7 @@ test.describe("archive and restore from More", () => {
   });
 });
 
-test.describe("edit name and default branch from More", () => {
+test.describe("change the default branch from More", () => {
   const more = (page: Page) =>
     page.getByRole("button", { name: /^More/ }).first();
   const openEdit = async (page: Page, options: Options = {}) => {
@@ -1657,27 +1663,41 @@ test.describe("edit name and default branch from More", () => {
     await page.goto(`/projects/repositories/${REPOSITORY_ID}`);
     await expect(more(page)).toBeVisible({ timeout: 20_000 });
     await more(page).click();
-    await page.getByRole("button", { name: "Edit", exact: true }).click();
-    return { fixture, dialog: page.getByRole("dialog", { name: /^Edit / }) };
+    await page.getByRole("button", {
+      name: "Change default branch",
+      exact: true,
+    })
+      .click();
+    return {
+      fixture,
+      dialog: page.getByRole("alertdialog", { name: "Change default branch" }),
+    };
   };
 
-  test("Edit is first in the menu and the dialog starts untouched", async ({ page }) => {
+  test("Change default branch is first in the menu and the dialog starts untouched", async ({ page }) => {
     await repositoryFixture(page, {});
     await page.goto(`/projects/repositories/${REPOSITORY_ID}`);
     await more(page).click();
     const items = page.getByRole("button", {
-      name: /^(Edit|Test a name|Archive repository|Restore repository)$/,
+      name:
+        /^(Change default branch|Test a name|Archive repository|Restore repository)$/,
     });
-    await expect(items.first()).toHaveText("Edit");
-    await page.getByRole("button", { name: "Edit", exact: true }).click();
-    const dialog = page.getByRole("dialog", { name: "Edit acme/api-service" });
-    await expect(dialog.getByLabel(/^Name\*?$/)).toHaveValue("api-service");
+    await expect(items.first()).toHaveText("Change default branch");
+    await page.getByRole("button", {
+      name: "Change default branch",
+      exact: true,
+    })
+      .click();
+    const dialog = page.getByRole("alertdialog", {
+      name: "Change default branch",
+    });
     await expect(dialog.getByLabel(/^Default branch/)).toHaveValue("main");
+    await expect(dialog.getByLabel(/^Name/)).toHaveCount(0);
     await expect(dialog.getByRole("button", { name: "Save changes" }))
       .toBeDisabled();
   });
 
-  test("saving sends only the changed field with the version, then shows it", async ({ page }) => {
+  test("saving sends only the branch with the version, then shows it", async ({ page }) => {
     const { fixture, dialog } = await openEdit(page);
     await dialog.getByLabel(/^Default branch/).fill("develop");
     await expect(dialog.getByRole("button", { name: "Save changes" }))
@@ -1685,27 +1705,16 @@ test.describe("edit name and default branch from More", () => {
     await dialog.getByRole("button", { name: "Save changes" }).click();
     await expect(dialog).toHaveCount(0);
     await expect(page.getByText("Changes saved")).toBeVisible();
+    await expect(page.getByText(/default branch develop/)).toBeVisible();
     const sent = fixture.seen.updates.at(-1)!;
     expect(sent.ifMatch).toBe('"v1"');
     expect(sent.body).toEqual({ defaultBranch: "develop" });
   });
 
-  test("a renamed repository shows its new name in the header", async ({ page }) => {
-    const { dialog } = await openEdit(page);
-    await dialog.getByLabel(/^Name\*?$/).fill("payments");
-    await dialog.getByRole("button", { name: "Save changes" }).click();
-    await expect(page.getByRole("heading", { name: "acme/payments" }))
-      .toBeVisible();
-  });
-
-  test("an empty name or branch says what to enter and sends nothing", async ({ page }) => {
+  test("an empty branch says what to enter and sends nothing", async ({ page }) => {
     const { fixture, dialog } = await openEdit(page);
-    await dialog.getByLabel(/^Name\*?$/).fill("");
     await dialog.getByLabel(/^Default branch/).fill("");
-    await expect(dialog.getByRole("button", { name: "Save changes" }))
-      .toBeEnabled();
-    await dialog.getByRole("button", { name: "Save changes" }).click();
-    await expect(dialog.getByText("Enter a name.")).toBeVisible();
+    await dialog.getByLabel(/^Default branch/).press("Enter");
     await expect(dialog.getByText("Enter a branch.")).toBeVisible();
     expect(fixture.seen.updates).toEqual([]);
   });
@@ -1720,7 +1729,7 @@ test.describe("edit name and default branch from More", () => {
     await expect(dialog.getByRole("button", { name: "Reload" })).toBeVisible();
   });
 
-  test("Cancel sends nothing; an archived repository has no Edit; a non-administrator has none", async ({ page }) => {
+  test("Cancel sends nothing; an archived repository and a non-administrator have no Change default branch", async ({ page }) => {
     const { fixture, dialog } = await openEdit(page);
     await dialog.getByRole("button", { name: "Cancel" }).click();
     await expect(dialog).toHaveCount(0);
@@ -1729,13 +1738,15 @@ test.describe("edit name and default branch from More", () => {
     await repositoryFixture(page, { archived: true });
     await page.goto(`/projects/repositories/${REPOSITORY_ID}`);
     await more(page).click();
-    await expect(page.getByRole("button", { name: "Edit", exact: true }))
-      .toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "Change default branch", exact: true }),
+    ).toHaveCount(0);
     await page.unrouteAll({ behavior: "ignoreErrors" });
     await repositoryFixture(page, { role: "member" });
     await page.goto(`/projects/repositories/${REPOSITORY_ID}`);
     await more(page).click();
-    await expect(page.getByRole("button", { name: "Edit", exact: true }))
-      .toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "Change default branch", exact: true }),
+    ).toHaveCount(0);
   });
 });
