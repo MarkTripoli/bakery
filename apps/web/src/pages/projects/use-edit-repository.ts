@@ -47,7 +47,8 @@ export function useEditRepository(repository: RepositoryResponse) {
         idempotencyKey: intent.current.key,
       });
       if (!result.ok) {
-        // A definite refusal did not happen: the next try is a new intent.
+        // The request was definitely refused (not an unknown outcome): the next
+        // try is a new intent.
         if (!outcomeUnknown(result.error)) intent.current = null;
         setFailure(projectFailure(result.error));
         throw result.error;
