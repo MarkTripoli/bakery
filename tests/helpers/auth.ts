@@ -181,7 +181,6 @@ export async function openAuthFixture(options: {
       ...await loadMigrations(deliveryBakeryMigrationSource),
       ...await loadMigrations(mcpBakeryMigrationSource),
       ...await loadMigrations(knowledgeBakeryMigrationSource),
-      ...await loadMigrations(knowledgeBakeryMigrationSource),
     ]);
     await migrateData(database, [
       ...bakeryDataMigrations,

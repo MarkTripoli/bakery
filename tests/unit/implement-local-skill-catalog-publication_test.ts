@@ -57,7 +57,6 @@ Deno.test("Bakery migrations follow the globally unique migration sequence", asy
     ...await loadMigrations(deliveryBakeryMigrationSource),
     ...await loadMigrations(mcpBakeryMigrationSource),
     ...await loadMigrations(knowledgeBakeryMigrationSource),
-    ...await loadMigrations(knowledgeBakeryMigrationSource),
   ];
   for (
     const [version, error] of [
