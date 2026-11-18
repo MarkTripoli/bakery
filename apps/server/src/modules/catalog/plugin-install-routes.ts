@@ -17,6 +17,7 @@ export function createPluginInstallRoutes(options: {
   database: PgDatabase;
   browserSession: MiddlewareHandler<{ Variables: AuthVariables }>;
   publicBaseUrl: string;
+  cursorSecret: string;
 }) {
   const app = new Hono<{ Variables: AuthVariables }>();
   app.use("/v1/plugin-installs", options.browserSession);
@@ -26,7 +27,7 @@ export function createPluginInstallRoutes(options: {
     createApiRouter({
       registry: createPluginInstallActionRegistry(
         options.database,
-        createPluginInstallHandlers(),
+        createPluginInstallHandlers(options.cursorSecret),
       ),
       publicBaseUrl: options.publicBaseUrl,
       createContext: createActionContext,

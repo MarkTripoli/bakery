@@ -1987,6 +1987,8 @@
   "settings.roles.thing.integrationInstallation": "integration installations",
   "settings.roles.thing.integrationProvider": "integration providers",
   "settings.roles.thing.integrationResource": "integration resources",
+  "settings.roles.thing.providerIncident": "AI provider outages",
+  "settings.roles.thing.providerRoute": "AI provider connections",
   "settings.roles.thing.integrationSubscription": "integration subscriptions",
   "settings.roles.thing.channelLink": "channel links",
   "settings.roles.thing.externalIdentityLink": "linked outside accounts",

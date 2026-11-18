@@ -15,15 +15,18 @@ import {
  * rather than repeated in the body: a body naming its own install could
  * disagree with the path it was sent to.
  */
-export function createPluginInstallHandlers(): PluginInstallActionHandlers {
+export function createPluginInstallHandlers(
+  cursorSecret: string,
+): PluginInstallActionHandlers {
   return {
-    listInstalls: listPluginInstalls,
+    listInstalls: (context, input) =>
+      listPluginInstalls(context, input, cursorSecret),
     getInstall: (context) => getPluginInstall(context, installId(context)),
     createInstall: createPluginInstall,
     updateInstall: (context, input) =>
       updatePluginInstall(context, input, installId(context)),
     getState: (context, input) =>
-      listPluginState(context, input, installId(context)),
+      listPluginState(context, input, installId(context), cursorSecret),
     putState: (context, input) =>
       putPluginState(context, input, installId(context)),
   };

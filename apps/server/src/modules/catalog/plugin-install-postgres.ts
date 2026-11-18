@@ -13,6 +13,11 @@ import { OrganizationRole } from "../auth/domain/authorization.ts";
 import type { PgTransactionClient } from "../../platform/database.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import {
+  type CursorBinding,
+  decodeCursor,
+  encodeCursor,
+} from "../../platform/cursor.ts";
+import {
   POSTGRES_UNIQUE_VIOLATION,
   postgresErrorCode,
 } from "../../platform/postgres-errors.ts";
@@ -37,6 +42,10 @@ import {
  *    rows are visible to their owner, a shared install's rows to the
  *    organization. A caller cannot widen that by supplying a namespace.
  */
+
+/** One ordering per list, so a cursor cannot be reused against another order. */
+const INSTALLS_ORDERING = "createdAt:desc,id:desc";
+const STATE_ORDERING = "createdAt:desc,id:desc";
 
 const INSTALL_COLUMNS = `
   i.id, i.plugin_package_id, i.plugin_version_id, i.scope,
@@ -164,6 +173,59 @@ async function liveRole(
 }
 
 /** Refuse unless the caller may act on an install of this scope. */
+/**
+ * Restores the grant set a pinned version's manifest declares.
+ *
+ * Revocation deletes grants, so every path back to `enabled` has to re-derive
+ * them from the manifest the install pins. Copying an earlier set would let a
+ * grant survive an edit to the version it came from.
+ */
+async function restoreGrants(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  installId: string,
+  versionId: string,
+): Promise<void> {
+  const version = await transaction.query<{ manifest: unknown }>(
+    `select v.manifest
+       from bakery.plugin_versions v
+      where v.organization_id = $1 and v.id = $2`,
+    [organizationId, versionId],
+  );
+  const versionRow = version.rows[0];
+  if (versionRow === undefined) {
+    throw new StandardError({
+      code: "STATE_CONFLICT",
+      params: { reason: "plugin_version_not_found" },
+    });
+  }
+  let manifest;
+  try {
+    manifest = parsePluginManifest(versionRow.manifest);
+  } catch (error) {
+    if (error instanceof PluginManifestError) {
+      throw new StandardError({
+        code: "STATE_CONFLICT",
+        params: { reason: `plugin_manifest_${error.code.toLowerCase()}` },
+      });
+    }
+    throw error;
+  }
+  await transaction.query(
+    `delete from bakery.plugin_install_grants
+      where organization_id = $1 and plugin_install_id = $2`,
+    [organizationId, installId],
+  );
+  for (const capability of manifest.requestedCapabilities) {
+    await transaction.query(
+      `insert into bakery.plugin_install_grants
+         (organization_id, plugin_install_id, capability)
+       values ($1, $2, $3)`,
+      [organizationId, installId, capability],
+    );
+  }
+}
+
 async function assertMayManageInstall(
   transaction: PgTransactionClient,
   organizationId: string,
@@ -176,7 +238,13 @@ async function assertMayManageInstall(
     // its state or upgrade it, even with Admin: it is that person's own
     // customization, and an admin acting on it would be acting as its owner.
     if (ownerPrincipalId !== principalId) {
-      throw new StandardError({ code: "AUTH_FORBIDDEN" });
+      // Not found, not forbidden. A 403 would confirm that a personal install
+      // exists and belongs to somebody else, which get and the state routes
+      // already refuse to say; answering differently on PATCH would leak it.
+      throw new StandardError({
+        code: "RESOURCE_NOT_FOUND",
+        params: { reason: "plugin_install_not_found" },
+      });
     }
     return;
   }
@@ -215,41 +283,68 @@ async function loadInstall(
 export async function listPluginInstalls(
   context: ActionContext,
   search: { scope?: string; status?: string; cursor?: string; limit?: number },
+  secret: string,
 ): Promise<{ items: PluginInstall[]; nextCursor: string | null }> {
   const { transaction, organizationId, principalId } = requireWorkTransaction(
     context,
   );
   const limit = search.limit ?? 25;
+  // The cursor is signed and bound to the action, the caller, the organization,
+  // the ordering and the filters. A bare id would accept anything uuid-shaped
+  // and replay across a different filter, a different caller or another
+  // organization, and a non-uuid id would reach Postgres as a 500.
+  const binding: CursorBinding = {
+    action: "pluginInstalls.list",
+    principalId,
+    organizationId,
+    ordering: INSTALLS_ORDERING,
+    // The filters are part of the binding, so a cursor issued for one scope or
+    // status can never be replayed against another and skip rows.
+    filters: JSON.stringify({
+      scope: search.scope ?? null,
+      status: search.status ?? null,
+    }),
+    schemaVersion: 1,
+  };
+  const position = await decodeCursor(secret, search.cursor, binding);
   // A personal install is only listed to its owner. The predicate is in the
   // query rather than applied afterwards, so a page size cannot be used to
   // count somebody else's installs.
-  const rows = await transaction.query<InstallRow>(
-    `select ${INSTALL_COLUMNS}
+  const rows = await transaction.query<
+    InstallRow & { cursor_created_at: string }
+  >(
+    `select ${INSTALL_COLUMNS},
+            to_char(
+              i.created_at at time zone 'UTC',
+              'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'
+            ) as cursor_created_at
        from bakery.plugin_installs i
       where i.organization_id = $1
         and (i.scope = 'organization' or i.owner_principal_id = $2)
         and ($3::text is null or i.scope = $3)
         and ($4::text is null or i.status = $4)
-        and ($5::uuid is null or (i.updated_at, i.id) < (
-          select b.updated_at, b.id from bakery.plugin_installs b
-           where b.organization_id = $1 and b.id = $5
-        ))
-      order by i.updated_at desc, i.id desc
-      limit $6`,
+        and ($5::timestamptz is null or (i.created_at, i.id) < ($5, $6::uuid))
+      order by i.created_at desc, i.id desc
+      limit $7`,
     [
       organizationId,
       principalId,
       search.scope ?? null,
       search.status ?? null,
-      search.cursor ?? null,
+      position?.createdAt ?? null,
+      position?.id ?? null,
       limit + 1,
     ],
   );
   const visible = rows.rows.slice(0, limit);
+  const last = visible.at(-1);
   return {
     items: visible.map((row) => toInstall(row, organizationId)),
-    nextCursor: rows.rows.length > limit && visible.length > 0
-      ? visible[visible.length - 1].id
+    nextCursor: rows.rows.length > limit && last
+      ? await encodeCursor(secret, binding, {
+        createdAt: last.cursor_created_at,
+        id: last.id,
+      })
       : null,
   };
 }
@@ -446,6 +541,7 @@ export async function updatePluginInstall(
 
   const nextStatus = input.status ?? row.status;
   const nextVersionId = input.versionId ?? row.plugin_version_id;
+  const upgraded = nextVersionId !== row.plugin_version_id;
 
   if (
     input.versionId !== undefined && input.versionId !== row.plugin_version_id
@@ -512,6 +608,26 @@ export async function updatePluginInstall(
     );
   }
 
+  // An uninstalled row is finished. Reactivating it would resurrect a row the
+  // caller was told was gone, and the partial unique index on a live install of
+  // the same package and owner would then fire inside this UPDATE as a 500.
+  if (row.status === "uninstalled" && nextStatus !== "uninstalled") {
+    throw new StandardError({
+      code: "STATE_CONFLICT",
+      params: { reason: "plugin_install_uninstalled" },
+    });
+  }
+
+  // Re-enabling restores exactly the grants the pinned version's manifest
+  // declares. Disabling deleted them, so without this an enabled install would
+  // sit with no authority at all: the caller asked to turn it back on and every
+  // action would silently refuse.
+  if (
+    row.status !== "enabled" && nextStatus === "enabled" && !upgraded
+  ) {
+    await restoreGrants(transaction, organizationId, installId, nextVersionId);
+  }
+
   const revoked = nextStatus === "disabled" || nextStatus === "uninstalled";
   if (revoked) {
     // AC3: revocation happens with the lifecycle change, in this transaction.
@@ -554,13 +670,17 @@ export async function listPluginState(
   context: ActionContext,
   search: { cursor?: string; limit?: number },
   installId: string,
+  secret: string,
 ): Promise<{ items: PluginState[]; nextCursor: string | null }> {
   const { transaction, organizationId, principalId } = requireWorkTransaction(
     context,
   );
   const limit = search.limit ?? 25;
   const install = await loadInstall(transaction, organizationId, installId);
-  // Reading state requires the same authority as seeing the install at all.
+  // Reading state requires the same authority as seeing the install at all, and
+  // the owner check comes first: a status check before it would answer 409 for
+  // a disabled install someone else owns, which confirms both that it exists
+  // and how it is configured.
   if (
     install.scope === "personal" && install.owner_principal_id !== principalId
   ) {
@@ -570,24 +690,49 @@ export async function listPluginState(
     });
   }
   const owner = stateOwnerFor(install);
-  const rows = await transaction.query<StateRow>(
-    `select ${STATE_COLUMNS}
+  // Bound to the install as well as the caller: replaying a cursor across two
+  // installs would page over another install's rows.
+  const binding: CursorBinding = {
+    action: "pluginState.list",
+    principalId,
+    organizationId,
+    ordering: STATE_ORDERING,
+    filters: JSON.stringify({ installId, owner: owner ?? null }),
+    schemaVersion: 1,
+  };
+  const position = await decodeCursor(secret, search.cursor, binding);
+  const rows = await transaction.query<
+    StateRow & { cursor_created_at: string }
+  >(
+    `select ${STATE_COLUMNS},
+            to_char(
+              s.created_at at time zone 'UTC',
+              'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'
+            ) as cursor_created_at
        from bakery.plugin_state s
       where s.organization_id = $1 and s.plugin_install_id = $2
         and s.owner_principal_id is not distinct from $3
-        and ($4::uuid is null or (s.updated_at, s.id) < (
-          select b.updated_at, b.id from bakery.plugin_state b
-           where b.organization_id = $1 and b.id = $4
-        ))
-      order by s.updated_at desc, s.id desc
-      limit $5`,
-    [organizationId, installId, owner, search.cursor ?? null, limit + 1],
+        and ($4::timestamptz is null or (s.created_at, s.id) < ($4, $5::uuid))
+      order by s.created_at desc, s.id desc
+      limit $6`,
+    [
+      organizationId,
+      installId,
+      owner,
+      position?.createdAt ?? null,
+      position?.id ?? null,
+      limit + 1,
+    ],
   );
   const visible = rows.rows.slice(0, limit);
+  const last = visible.at(-1);
   return {
     items: visible.map((row) => toState(row, organizationId)),
-    nextCursor: rows.rows.length > limit && visible.length > 0
-      ? visible[visible.length - 1].id
+    nextCursor: rows.rows.length > limit && last
+      ? await encodeCursor(secret, binding, {
+        createdAt: last.cursor_created_at,
+        id: last.id,
+      })
       : null,
   };
 }
@@ -622,6 +767,17 @@ export async function putPluginState(
   }
 
   const install = await loadInstall(transaction, organizationId, installId);
+  // The owner check comes first. Checking status here would answer 409 for a
+  // disabled personal install belonging to somebody else, which confirms both
+  // that it exists and how it is configured; a colleague must get 404 instead.
+  if (
+    install.scope === "personal" && install.owner_principal_id !== principalId
+  ) {
+    throw new StandardError({
+      code: "RESOURCE_NOT_FOUND",
+      params: { reason: "plugin_install_not_found" },
+    });
+  }
   if (install.status !== "enabled") {
     // A disabled or uninstalled install cannot write. State it kept from before
     // is still readable under policy, which is why this refuses the write and

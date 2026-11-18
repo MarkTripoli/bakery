@@ -5,6 +5,9 @@ export {
 } from "./src/descriptions.ts";
 export type { SchemaDescriptionDefect } from "./src/descriptions.ts";
 export {
+  graphqlBody,
+  graphqlBodyCarriesDocument,
+  isGraphqlRead,
   isStrictObject,
   MAX_RESPONSE_BYTES,
   parsePathTemplate,
@@ -43,6 +46,7 @@ export type {
   ValidationResult,
 } from "./src/activation.ts";
 export { deepFreeze } from "./src/context.ts";
+export type { IntakeIntent, WebhookIngress } from "./src/strategies.ts";
 export type {
   ActionContext,
   BakeryOperation,

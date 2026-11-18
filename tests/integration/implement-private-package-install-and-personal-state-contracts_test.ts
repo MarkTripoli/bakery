@@ -1405,3 +1405,320 @@ Deno.test("a personal install's state is invisible to a colleague", () =>
     assertEquals(page.items.length, 1);
     assertEquals(page.items[0].value.theme, "dark");
   }));
+
+Deno.test("a colleague gets not found on every route to somebody else's personal install", () =>
+  withPluginFixture(async (fixture, store) => {
+    const published = await publishInstallable(fixture, store);
+    const ownerCookie = await inviteColleague(fixture, "developer");
+    const owner = asCookie(fixture, ownerCookie);
+    const installed = await (await owner("/v1/plugin-installs", {
+      method: "POST",
+      body: {
+        packageId: published.packageId,
+        versionId: published.versionId,
+        scope: "personal",
+      },
+    })).json();
+
+    // A second person, an Admin for good measure: authority over the
+    // organization is not authority over somebody's own customization.
+    const colleagueCookie = await inviteColleague(fixture, "admin");
+    const colleague = asCookie(fixture, colleagueCookie);
+
+    // Every route that takes an install id must answer the same way. A 403 on
+    // one and a 404 on another would confirm the install exists.
+    const read = await colleague(`/v1/plugin-installs/${installed.id}`, {
+      method: "GET",
+    });
+    assertEquals(read.status, 404, await read.clone().text());
+
+    const patch = await colleague(`/v1/plugin-installs/${installed.id}`, {
+      method: "PATCH",
+      body: { status: "disabled" },
+    });
+    assertEquals(
+      patch.status,
+      404,
+      `PATCH must not leak a colleague's install: ${await patch.clone()
+        .text()}`,
+    );
+
+    const state = await colleague(
+      `/v1/plugin-installs/${installed.id}/state`,
+      { method: "GET" },
+    );
+    assertEquals(state.status, 404, await state.clone().text());
+
+    const write = await colleague(
+      `/v1/plugin-installs/${installed.id}/state/settings/theme`,
+      {
+        method: "PUT",
+        body: {
+          namespace: "settings",
+          key: "theme",
+          schemaVersion: 1,
+          value: { mode: "dark" },
+          expectedCasVersion: 0,
+        },
+      },
+    );
+    assertEquals(
+      write.status,
+      404,
+      `a PUT to a colleague's install must not leak it: ${await write
+        .clone()
+        .text()}`,
+    );
+
+    // The owner still sees their own install.
+    const mine = await owner(`/v1/plugin-installs/${installed.id}`, {
+      method: "GET",
+    });
+    assertEquals(mine.status, 200, await mine.clone().text());
+  }));
+
+Deno.test("a PUT to a disabled personal install answers not found, not a status conflict", () =>
+  withPluginFixture(async (fixture, store) => {
+    const published = await publishInstallable(fixture, store);
+    const owner = asCookie(
+      fixture,
+      await inviteColleague(fixture, "developer"),
+    );
+    const installed = await (await owner("/v1/plugin-installs", {
+      method: "POST",
+      body: {
+        packageId: published.packageId,
+        versionId: published.versionId,
+        scope: "personal",
+      },
+    })).json();
+    const disabled = await owner(`/v1/plugin-installs/${installed.id}`, {
+      method: "PATCH",
+      body: { status: "disabled" },
+    });
+    assertEquals(disabled.status, 200, await disabled.clone().text());
+
+    // The status check runs AFTER the owner check, so a colleague learns
+    // nothing about this install: not that it exists, and not that it is off.
+    const colleague = asCookie(
+      fixture,
+      await inviteColleague(fixture, "admin"),
+    );
+    const write = await colleague(
+      `/v1/plugin-installs/${installed.id}/state/settings/theme`,
+      {
+        method: "PUT",
+        body: {
+          namespace: "settings",
+          key: "theme",
+          schemaVersion: 1,
+          value: { mode: "dark" },
+          expectedCasVersion: 0,
+        },
+      },
+    );
+    assertEquals(
+      write.status,
+      404,
+      `a disabled install must not answer 409 to a colleague: ${await write
+        .clone()
+        .text()}`,
+    );
+  }));
+
+Deno.test("re-enabling an install restores the grants its manifest declares", () =>
+  withPluginFixture(async (fixture, store) => {
+    const published = await publishInstallable(fixture, store);
+    const install = await (await call(fixture, "/v1/plugin-installs", {
+      method: "POST",
+      body: {
+        packageId: published.packageId,
+        versionId: published.versionId,
+        scope: "organization",
+      },
+    })).json();
+
+    const grants = () =>
+      fixture.pgDatabase.query<{ capability: string }>(
+        `select capability from bakery.plugin_install_grants
+          where organization_id = $1 and plugin_install_id = $2
+          order by capability`,
+        [fixture.organizationId, install.id],
+      );
+    const declared = (await grants()).rows.map((row) => row.capability);
+    assertEquals(declared.length, 2);
+
+    await call(fixture, `/v1/plugin-installs/${install.id}`, {
+      method: "PATCH",
+      body: { status: "disabled" },
+    });
+    assertEquals((await grants()).rows.length, 0);
+
+    const enabled = await call(fixture, `/v1/plugin-installs/${install.id}`, {
+      method: "PATCH",
+      body: { status: "enabled" },
+    });
+    assertEquals(enabled.status, 200, await enabled.clone().text());
+    assertEquals((await enabled.json()).status, "enabled");
+
+    // An enabled install with no grants would refuse every action while
+    // telling the caller it was on: the set must come back, and come back
+    // equal to what the pinned manifest declares.
+    assertEquals(
+      (await grants()).rows.map((row) => row.capability),
+      declared,
+      "re-enabling must restore exactly the declared grants",
+    );
+  }));
+
+Deno.test("an uninstalled install cannot be reactivated", () =>
+  withPluginFixture(async (fixture, store) => {
+    const published = await publishInstallable(fixture, store);
+    const install = await (await call(fixture, "/v1/plugin-installs", {
+      method: "POST",
+      body: {
+        packageId: published.packageId,
+        versionId: published.versionId,
+        scope: "organization",
+      },
+    })).json();
+
+    const uninstalled = await call(
+      fixture,
+      `/v1/plugin-installs/${install.id}`,
+      { method: "PATCH", body: { status: "uninstalled" } },
+    );
+    assertEquals(uninstalled.status, 200, await uninstalled.clone().text());
+
+    // A new install of the same package exists now, so without this refusal the
+    // partial unique index would fire inside the UPDATE and answer 500.
+    await call(fixture, "/v1/plugin-installs", {
+      method: "POST",
+      body: {
+        packageId: published.packageId,
+        versionId: published.versionId,
+        scope: "organization",
+      },
+    });
+
+    const revived = await call(
+      fixture,
+      `/v1/plugin-installs/${install.id}`,
+      { method: "PATCH", body: { status: "enabled" } },
+    );
+    assertEquals(
+      revived.status,
+      409,
+      `an uninstalled install is finished: ${await revived.clone().text()}`,
+    );
+  }));
+
+Deno.test("a Developer cannot change an organization install", () =>
+  withPluginFixture(async (fixture, store) => {
+    const published = await publishInstallable(fixture, store);
+    const shared = await (await call(fixture, "/v1/plugin-installs", {
+      method: "POST",
+      body: {
+        packageId: published.packageId,
+        versionId: published.versionId,
+        scope: "organization",
+      },
+    })).json();
+
+    // The access floor for update is Developer, so the live role check in the
+    // action is the only Admin barrier for organization scope. This is the test
+    // that proves that barrier, not just the floor.
+    const developer = asCookie(
+      fixture,
+      await inviteColleague(fixture, "developer"),
+    );
+    const refused = await developer(
+      `/v1/plugin-installs/${shared.id}`,
+      { method: "PATCH", body: { status: "disabled" } },
+    );
+    assertEquals(
+      refused.status,
+      403,
+      `a Developer must not change an organization install: ${await refused
+        .clone()
+        .text()}`,
+    );
+    assertEquals(
+      (await (await call(fixture, `/v1/plugin-installs/${shared.id}`, {
+        method: "GET",
+      })).json()).status,
+      "enabled",
+      "the refusal must not have changed anything",
+    );
+  }));
+
+Deno.test("a list cursor is signed and bound, so it cannot be forged or replayed", () =>
+  withPluginFixture(async (fixture, store) => {
+    const published = await publishInstallable(fixture, store);
+    await call(fixture, "/v1/plugin-installs", {
+      method: "POST",
+      body: {
+        packageId: published.packageId,
+        versionId: published.versionId,
+        scope: "organization",
+      },
+    });
+
+    // A bare id reached Postgres as $N::uuid and answered 500, which is the
+    // defect #638 sent back. A cursor is opaque and signed now, so anything
+    // that is not one is a plain 400.
+    for (
+      const cursor of [
+        "not-a-uuid",
+        "00000000-0000-4000-8000-000000000001",
+        crypto.randomUUID(),
+        "AAAA",
+      ]
+    ) {
+      const refused = await call(
+        fixture,
+        `/v1/plugin-installs?cursor=${encodeURIComponent(cursor)}`,
+        { method: "GET" },
+      );
+      assertEquals(
+        refused.status,
+        400,
+        `a forged cursor must be a 400, not a 500: ${await refused.clone()
+          .text()}`,
+      );
+    }
+
+    // A cursor issued by one organization must not page another's rows.
+    const first = await call(fixture, "/v1/plugin-installs?limit=1", {
+      method: "GET",
+    });
+    assertEquals(first.status, 200, await first.clone().text());
+    const cursor = (await first.clone().json()).nextCursor;
+    if (cursor) {
+      // The same principal, acting in a second organization it belongs to.
+      // The only thing that can keep the rows apart is the tenant binding.
+      const { organizationId: otherId } = await secondOrganization(fixture);
+      const replayed = await fixture.app.fetch(
+        new Request(
+          `${fixture.config.publicBaseUrl}/v1/plugin-installs?limit=1&cursor=${
+            encodeURIComponent(cursor)
+          }`,
+          {
+            method: "GET",
+            headers: {
+              Origin: fixture.config.publicBaseUrl,
+              "Bakery-Organization-Id": otherId,
+              Cookie: fixture.adminCookie,
+            },
+          },
+        ),
+      );
+      assertEquals(
+        replayed.status,
+        400,
+        `another organization must not replay a cursor: ${await replayed
+          .clone()
+          .text()}`,
+      );
+    }
+  }));
