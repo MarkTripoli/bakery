@@ -831,6 +831,103 @@ Deno.test("a bare list of steps is admitted as a plan, not kept on a fixed execu
     assertEquals(await stepRows(fixture, run.id), []);
   }));
 
+Deno.test("a cloud-only plan run with a model agent admits a real job that carries no repository pins", () =>
+  withWorkerFixture(async (fixture) => {
+    // The job-level half of the cloud-only property: a run that mounts no
+    // repository freezes none, so the job the engine builds from it pins none
+    // either, while still running as the agent the plan names.
+    const { agent, repository } = await repositoryWithAgent(fixture, "cloud");
+    const task = await expectJson<{ id: string }>(
+      await apiCall(fixture, fixture, "POST", "/v1/tasks", {
+        body: {
+          applicationId: repository.applicationId,
+          taskType: "maintenance",
+          title: "Cloud-only plan",
+          description: "A plan that mounts no repository.",
+        },
+      }),
+      201,
+    );
+    const { versionId } = await publishWorkflow(
+      fixture,
+      fixture,
+      "plan-cloud-only",
+      {
+        apiVersion: "bakery.dev/v1",
+        kind: "workflow",
+        name: "plan-cloud-only",
+        description: "A model step with no repository.",
+        agents: { "rpi.plan": agent },
+        inputs: { designArtifact: { type: "uuid", required: true } },
+        steps: [{
+          id: "flow",
+          steps: [{
+            id: "draft",
+            uses: "rpi.plan",
+            with: { designArtifact: "$input.designArtifact" },
+          }],
+        }],
+      },
+    );
+    const response = await apiCall(
+      fixture,
+      fixture,
+      "POST",
+      `/v1/tasks/${task.id}/runs`,
+      {
+        body: {
+          workflowVersionId: versionId,
+          executionMode: "cloud_only",
+          budgetLimitUsd: "5.00",
+          inputs: { designArtifact: crypto.randomUUID() },
+        },
+      },
+    );
+    const run = await expectJson<RunBody>(response, 201);
+    const snapshot = await snapshotOf(fixture, run.id);
+    assertEquals(snapshot.executionMode, "cloud_only");
+    assertEquals(snapshot.repositoryProfile, null);
+    assertEquals(Object.keys(snapshot.planAgents as object), [agent]);
+
+    const engine = createBakeryPostgresWorkflowRepository({
+      database: fixture.pgDatabase,
+      maxAttempts: 3,
+      budgetPolicy: presetBudgetPolicy,
+    });
+    const owner = await engine.acquireEngineOwner(
+      run.id,
+      `cloud-${crypto.randomUUID()}`,
+      60_000,
+    );
+    assert(owner !== undefined);
+    const key = await engine.findNext(run.id, owner);
+    assertEquals(key?.stepKey, "flow.draft");
+    const admission = await engine.admit(key!, owner);
+    assertEquals(admission.terminal, false);
+    assert(admission.jobId !== undefined);
+    const job = (await fixture.pgDatabase.query<Record<string, unknown>>(
+      `select application_id, repository_id, repository_profile_id,
+              repository_profile_revision, repository_profile_digest,
+              observation_id, observation_digest, base_sha, action, status,
+              agent_version_id
+         from bakery.jobs where id = $1`,
+      [admission.jobId],
+    )).rows[0];
+    assertEquals(job, {
+      application_id: null,
+      repository_id: null,
+      repository_profile_id: null,
+      repository_profile_revision: null,
+      repository_profile_digest: null,
+      observation_id: null,
+      observation_digest: null,
+      base_sha: null,
+      action: "rpi.plan",
+      status: "queued",
+      agent_version_id: agent,
+    });
+  }));
+
 Deno.test("a plan with a duration wait is admitted, and the engine puts the wait between its steps as a row without a job", () =>
   withWorkerFixture(async (fixture) => {
     const { repository } = await repositoryWithAgent(fixture, "duration");
