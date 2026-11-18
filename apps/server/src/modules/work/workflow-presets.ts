@@ -229,23 +229,19 @@ export async function ensurePresetWorkflowVersion(
     "select pg_advisory_xact_lock(hashtext('preset:' || $1::text || ':' || $2::text))",
     [organizationId, preset.id],
   );
-  // The catalog origin is written once, at install. The conflict clause fills
-  // in an origin that is still the 'authored' default - a preset row that
-  // predates the columns - and never rewrites one already set, so a second
-  // install of the same preset cannot change its provenance. That is what makes
-  // the provenance immutable: there is no other statement that writes these
-  // columns.
+  // The catalog origin is written once, at install, and only for a row this
+  // insert creates. A row that already exists keeps whatever origin it has:
+  // repairing a legacy row here would need a predicate that cannot tell a
+  // pre-column preset row from a workflow a person authored under the same
+  // `preset:` slug, which is precisely the provenance confusion this column
+  // exists to prevent. The one-time repair lives in
+  // migrations/data/0175_workflow_origin_provenance.ts instead.
   await transaction.query(
     `insert into bakery.workflow_definitions (
        organization_id, slug, name, description, enabled,
        origin_kind, origin_catalog_key, origin_catalog_version
      ) values ($1, $2, $3, $4, true, 'catalog', $5, $6)
-     on conflict (organization_id, slug) do update
-        set origin_kind = excluded.origin_kind,
-            origin_catalog_key = excluded.origin_catalog_key,
-            origin_catalog_version = excluded.origin_catalog_version
-      where bakery.workflow_definitions.origin_kind = 'authored'
-        and bakery.workflow_definitions.slug like 'preset:%'`,
+     on conflict (organization_id, slug) do nothing`,
     [
       organizationId,
       preset.slug,

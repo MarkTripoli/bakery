@@ -7,6 +7,7 @@ import {
 } from "../../packages/persistence/src/postgres.ts";
 import { FIXED_CODING_PRESET } from "../../packages/contracts/src/workflow-presets.ts";
 import { ensurePresetWorkflowVersion } from "../../apps/server/src/modules/work/workflow-presets.ts";
+import { workflowOriginProvenanceBackfill } from "../../apps/server/src/modules/work/migrations/data/0175_workflow_origin_provenance.ts";
 
 /**
  * Installing a catalog workflow records where it came from, once.
@@ -129,15 +130,12 @@ Deno.test("installing a catalog workflow records its origin once", async () => {
 
 Deno.test("a preset row that predates the columns has its origin filled in", async () => {
   // The migration is structural only, so existing preset rows default to
-  // 'authored' and are repaired by the install path the next time the preset is
-  // used. Without that repair the read shape would report a catalog install as
-  // an authored workflow, which is the one thing provenance exists to prevent.
+  // 'authored'. The one-time repair is the 0175 data migration, not the install
+  // path: an install that rewrote the origin could not tell a pre-column preset
+  // row from a workflow a person authored under the same slug.
   const db = openPgDatabase(databaseUrl, 2);
   try {
-    const { organizationId, principalId } = await seedOrganization(
-      db,
-      "origin-legacy",
-    );
+    const { organizationId } = await seedOrganization(db, "origin-legacy");
     await db.query(
       `insert into bakery.workflow_definitions
          (organization_id, slug, name, description, enabled)
@@ -147,13 +145,33 @@ Deno.test("a preset row that predates the columns has its origin filled in", asy
     const legacy = await originOf(db, organizationId, FIXED_CODING_PRESET.slug);
     assertEquals(legacy[0]!.origin_kind, "authored");
 
-    await withPgTransaction(db, (transaction) =>
-      ensurePresetWorkflowVersion(
-        transaction,
-        organizationId,
-        principalId,
-        FIXED_CODING_PRESET,
-      ));
+    // Data migrations run on the postgres.js client, not the pg pool the rest
+    // of this file uses, so open one for the run and close it again.
+    const { openDatabase, closeDatabase } = await import(
+      "../../packages/persistence/src/postgres.ts"
+    );
+    const { readDatabaseConfig } = await import(
+      "../../packages/config/src/env.ts"
+    );
+    const owner = openDatabase(
+      readDatabaseConfig(Deno.env.toObject(), "owner").url,
+      1,
+    );
+    try {
+      const connection = await owner.reserve();
+      try {
+        assertEquals(
+          await workflowOriginProvenanceBackfill.run(connection, {
+            maxBatches: 2,
+          }),
+          true,
+        );
+      } finally {
+        connection.release();
+      }
+    } finally {
+      await closeDatabase(owner);
+    }
 
     const repaired = await originOf(
       db,
@@ -162,10 +180,44 @@ Deno.test("a preset row that predates the columns has its origin filled in", asy
     );
     assertEquals(repaired[0]!.origin_kind, "catalog");
     assertEquals(repaired[0]!.origin_catalog_key, FIXED_CODING_PRESET.id);
-    assertEquals(
-      repaired[0]!.origin_catalog_version,
-      FIXED_CODING_PRESET.revision,
+    // The legacy row has no versions, so the repair records the catalog's first
+    // revision rather than inventing one from an absent version row.
+    assertEquals(repaired[0]!.origin_catalog_version, 1);
+  } finally {
+    await closePgDatabase(db);
+  }
+});
+
+Deno.test("installing a preset never rewrites a row a person authored", async () => {
+  // The finding this replaces: an upsert that repaired an 'authored' origin
+  // silently turned a human-authored workflow into a catalog install, because
+  // 'authored' means both "predates the columns" and "a person wrote this".
+  const db = openPgDatabase(databaseUrl, 2);
+  try {
+    const { organizationId, principalId } = await seedOrganization(
+      db,
+      "origin-authored",
     );
+    await db.query(
+      `insert into bakery.workflow_definitions
+         (organization_id, slug, name, description, enabled)
+       values ($1,$2,'hand-written','mine',true)`,
+      [organizationId, FIXED_CODING_PRESET.slug],
+    );
+
+    await withPgTransaction(db, (transaction) =>
+      ensurePresetWorkflowVersion(
+        transaction,
+        organizationId,
+        principalId,
+        FIXED_CODING_PRESET,
+      ));
+
+    const after = await originOf(db, organizationId, FIXED_CODING_PRESET.slug);
+    assertEquals(after.length, 1);
+    assertEquals(after[0]!.origin_kind, "authored");
+    assertEquals(after[0]!.origin_catalog_key, null);
+    assertEquals(after[0]!.origin_catalog_version, null);
   } finally {
     await closePgDatabase(db);
   }
