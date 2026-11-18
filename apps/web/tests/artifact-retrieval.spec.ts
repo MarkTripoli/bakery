@@ -204,7 +204,6 @@ const CONTENT_SHA256 = createHash("sha256").update(CONTENT).digest("hex");
 const AUTHENTICATED_IDENTITY = {
   principalId: "00000000-0000-4000-8000-000000000001",
   principalType: "human",
-  createdByPrincipalId: null,
   displayName: "Fixture Admin",
   locale: "en",
   timeZone: null,
