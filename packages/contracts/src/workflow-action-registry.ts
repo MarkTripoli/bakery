@@ -241,6 +241,10 @@ export const WORKFLOW_ACTION_METADATA = Object.freeze(
       effectPolicy: "none",
     }),
     "workflow.stop": metadata({
+      // Not `projection_only`: a projection's output IS its validated input,
+      // and a stop normalizes the outcome it is given into a different shape.
+      // `none` matches the other control actions, `workflow.noop` and
+      // `human.approval`, which also declare no capability and no effect.
       input: "WorkflowStopInput",
       output: "WorkflowStopOutput",
       capabilities: [],

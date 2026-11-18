@@ -1123,6 +1123,75 @@ Deno.test("a peer revoked between sweeps receives no draft bytes (AC1)", async (
   }
 });
 
+Deno.test("a peer revoked right after a relayed update receives no later draft bytes (#174)", async () => {
+  // The sweep is held far away. B has just passed a relay check, so any reuse
+  // of that verdict would still deliver the next update to a removed session.
+  const harness = await openHarness({ sweepMilliseconds: 600_000 });
+  try {
+    const second = await addMember(
+      harness.fixture,
+      harness.fixture.ids.organizationId,
+      "Revoked After Relay",
+    );
+    harness.extra.push(second);
+    const a = await open(harness, harness.owner);
+    const aState = await joinAndSync(a, harness);
+    keepPresent(harness, a);
+    const b = await open(harness, second);
+    await joinAndSync(b, harness);
+    keepPresent(harness, b);
+
+    await a.sendRaw(
+      0x2,
+      updateFrame(
+        harness,
+        aState.epoch,
+        crypto.randomUUID(),
+        localEdit(aState.doc, 0, "first "),
+      ),
+    );
+    assertEquals((await until(a, "ack", ACK_WAIT_MS)).type, "ack");
+    // The control: a still-valid peer does receive the update.
+    await until(b, "committed");
+    assertEquals((await nextBinary(b)).kind, BinaryFrameKind.ServerUpdate);
+
+    await harness.fixture.pgDatabase.query(
+      "delete from public.session where token=$1",
+      [second.sessionToken],
+    );
+    await a.sendRaw(
+      0x2,
+      updateFrame(
+        harness,
+        aState.epoch,
+        crypto.randomUUID(),
+        localEdit(aState.doc, 0, "secret "),
+      ),
+    );
+    assertEquals((await until(a, "ack", ACK_WAIT_MS)).type, "ack");
+    const binaries: Uint8Array[] = [];
+    let closed: { code: number; reason: string } | undefined;
+    const deadline = Date.now() + 1_500;
+    while (Date.now() < deadline) {
+      const value = await b.nextMessage(deadline - Date.now()).catch(() =>
+        undefined
+      );
+      if (value === undefined) break;
+      if (typeof value === "object" && "binary" in value) {
+        binaries.push(value.binary);
+      } else if (typeof value === "object" && "code" in value) {
+        closed = value;
+        break;
+      }
+    }
+    assertEquals(binaries.length, 0);
+    assertExists(closed);
+    assertEquals(closed.code, 1008);
+  } finally {
+    await closeHarness(harness);
+  }
+});
+
 Deno.test("frames queued behind a slow join are bounded and the connection is closed (AC3)", async () => {
   // The rate limit is set out of reach so only the pending-frame cap applies.
   const harness = await openHarness({
