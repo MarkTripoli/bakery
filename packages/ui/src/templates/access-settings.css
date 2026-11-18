@@ -169,6 +169,10 @@
   display: flex;
   flex: none;
   justify-content: flex-end;
+  /* Tall enough for its button, which is centred in it rather than stretched
+     past it by its own negative margin. */
+  align-items: center;
+  min-block-size: var(--target-min);
   /* One width for the header and every row, so a cell starts under its header
      and all four tables share the same column starts (issue 233, round 2). */
   inline-size: calc(var(--space-16) + var(--space-16) + var(--space-12));

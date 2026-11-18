@@ -153,7 +153,10 @@ export function NotificationBell(
 ) {
   const props = withoutSemanticOwnerProps(unsafeProps);
   const resolvedState = state === "default" && open ? "open" : state;
-  const variant = status.state;
+  // The approved variants are "unread" and "clear" (the catalog's names); a
+  // bell with nothing unread is "clear", and one whose count is unknown keeps
+  // its own name.
+  const variant = status.state === "none" ? "clear" : status.state;
   const accessibleName = status.state === "unread"
     ? unreadLabel(status.count)
     : status.state === "unknown"
