@@ -668,17 +668,25 @@ async function loadWorkflowVersion(
   return row;
 }
 
-async function loadActiveWorkflowVersionId(
+/**
+ * The version a run starts from: the definition's active one. A catalog
+ * definition is system managed and is run through ticket admission, which pins
+ * its revision, never started directly by id. The refusal reads the
+ * definition's immutable origin, like the authoring lock, and never the slug: a
+ * person's own definition whose slug merely starts with "preset:" is theirs to
+ * run, and a catalog definition under an ordinary slug is not.
+ */
+export async function loadActiveWorkflowVersionId(
   transaction: PgTransactionClient,
   organizationId: string,
   workflowId: string,
 ): Promise<string> {
   const result = await transaction.query<{
-    slug: string;
+    origin_kind: string;
     enabled: boolean;
     active_version_id: string | null;
   }>(
-    `select slug, enabled, active_version_id
+    `select origin_kind, enabled, active_version_id
        from bakery.workflow_definitions
       where organization_id = $1
         and id = $2
@@ -687,7 +695,7 @@ async function loadActiveWorkflowVersionId(
   );
   const row = result.rows[0];
   if (!row) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
-  if (row.slug.startsWith("preset:")) {
+  if (row.origin_kind === "catalog") {
     throw new StandardError({
       code: "STATE_CONFLICT",
       params: { reason: "workflow_locked" },

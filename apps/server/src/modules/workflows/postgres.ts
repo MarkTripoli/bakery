@@ -38,7 +38,6 @@ const DEFINITIONS_ORDERING = "createdAt:desc,id:desc";
 const VERSIONS_ORDERING = "revision:desc,id:desc";
 const DEFINITION_COLUMNS =
   "id, slug, name, description, active_version_id, enabled, created_at, updated_at, version, origin_kind, origin_catalog_key, origin_catalog_version";
-const PRESET_SLUG_PREFIX = "preset:";
 
 type WorkflowDefinitionRow = {
   id: string;
@@ -300,20 +299,15 @@ export async function updateWorkflowDefinition(
   if (expectedVersion === undefined) {
     throw new StandardError({ code: "PRECONDITION_REQUIRED" });
   }
-  const locked = await transaction.query<{ slug: string }>(
-    `select slug from bakery.workflow_definitions
+  const locked = await transaction.query<{ origin_kind: string }>(
+    `select origin_kind from bakery.workflow_definitions
       where organization_id = $1 and id = $2
       for update`,
     [organizationId, workflowId],
   );
   const target = locked.rows[0];
   if (!target) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
-  if (target.slug.startsWith(PRESET_SLUG_PREFIX)) {
-    throw new StandardError({
-      code: "STATE_CONFLICT",
-      params: { reason: "workflow_locked" },
-    });
-  }
+  requireOrganizationMayEdit(target.origin_kind);
   const updated = await boundedMutation(() =>
     transaction.query<WorkflowDefinitionRow>(
       `update bakery.workflow_definitions
@@ -485,26 +479,38 @@ const DRAFT_RETURNING =
   `id, workflow_id, revision, source_yaml, definition as spec, digest,
    'draft'::text as status, created_by, created_at, updated_at, version`;
 
-/** Locks the definition row; locked presets reject every authoring mutation. */
+/**
+ * A definition installed from the code-owned catalog is system managed: only
+ * the catalog publisher changes it, so every organization-facing authoring
+ * mutation refuses it. The decision reads the definition's origin, the
+ * immutable column the install wrote, and never the slug, which is a string a
+ * person can also type. An organization that wants its own version copies the
+ * definition; the copy's origin is not `catalog`.
+ */
+function requireOrganizationMayEdit(originKind: string): void {
+  if (originKind === "catalog") {
+    throw new StandardError({
+      code: "STATE_CONFLICT",
+      params: { reason: "workflow_locked" },
+    });
+  }
+}
+
+/** Locks the definition row; a system-managed definition rejects every authoring mutation. */
 async function lockAuthoringDefinition(
   transaction: PgTransactionClient,
   organizationId: string,
   workflowId: string,
 ): Promise<void> {
-  const locked = await transaction.query<{ slug: string }>(
-    `select slug from bakery.workflow_definitions
+  const locked = await transaction.query<{ origin_kind: string }>(
+    `select origin_kind from bakery.workflow_definitions
       where organization_id = $1 and id = $2
       for update`,
     [organizationId, workflowId],
   );
   const target = locked.rows[0];
   if (!target) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
-  if (target.slug.startsWith(PRESET_SLUG_PREFIX)) {
-    throw new StandardError({
-      code: "STATE_CONFLICT",
-      params: { reason: "workflow_locked" },
-    });
-  }
+  requireOrganizationMayEdit(target.origin_kind);
 }
 
 export async function createWorkflowVersion(

@@ -1262,12 +1262,17 @@ Deno.test("manage workflow definitions and version reads through the mounted Pos
       assertEquals((await problemOf(early)).code, "STATE_CONFLICT");
     });
 
-    await test.step("5c-6 a preset definition is locked for every authoring mutation", async () => {
+    await test.step("5c-6 a catalog-origin definition is locked for every authoring mutation", async () => {
       const presetId = crypto.randomUUID();
       const presetVersionId = crypto.randomUUID();
       await owner`
-        insert into bakery.workflow_definitions (id, organization_id, slug, name, description, enabled)
-        values (${presetId}, ${organizationAId}, 'preset:locked-probe', 'Locked probe', '', true)`;
+        insert into bakery.workflow_definitions (
+          id, organization_id, slug, name, description, enabled,
+          origin_kind, origin_catalog_key, origin_catalog_version
+        ) values (
+          ${presetId}, ${organizationAId}, 'preset:locked-probe', 'Locked probe', '', true,
+          'catalog', 'locked-probe', 1
+        )`;
       await owner.unsafe(
         `insert into bakery.workflow_versions (
            id, organization_id, workflow_id, revision, source_yaml,
