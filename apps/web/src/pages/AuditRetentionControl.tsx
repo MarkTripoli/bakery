@@ -59,22 +59,40 @@ export function AuditRetentionControl({ organizationId }: {
     setRetentionNotice("settings.audit.retention.saved");
   });
 
+  const changed = choice !== null && choice !== (
+        current === null || current === undefined ? "forever" : String(current)
+      );
   return (
-    <div>
+    <UI.Stack gap="compact" data-testid="audit-retention">
+      <UI.Heading level="section">
+        {translate("settings.audit.retention.title")}
+      </UI.Heading>
+      <UI.Inline gap="compact">
+        <UI.Combobox
+          appearance="filter"
+          label={translate("settings.audit.retention.label")}
+          value={selected}
+          onChange={(event) => setChoice(event.target.value)}
+          options={RETENTION_CHOICES.map((value) => ({
+            value: String(value),
+            label: value === "forever"
+              ? translate("settings.audit.retention.forever")
+              : translate("settings.audit.retention.days", { count: value }),
+          }))}
+        />
+        <UI.Button
+          disabled={!changed}
+          loading={saving}
+          onClick={() => void saveRetention()}
+          type="button"
+          variant="outline"
+        >
+          {translate("settings.audit.retention.save")}
+        </UI.Button>
+      </UI.Inline>
       <UI.Text variant="muted">
         {translate("settings.audit.retention.description")}
       </UI.Text>
-      <UI.Combobox
-        label={translate("settings.audit.retention.label")}
-        value={selected}
-        onChange={(event) => setChoice(event.target.value)}
-        options={RETENTION_CHOICES.map((value) => ({
-          value: String(value),
-          label: value === "forever"
-            ? translate("settings.audit.retention.forever")
-            : translate("settings.audit.retention.days", { count: value }),
-        }))}
-      />
       {retentionNotice
         ? (
           <UI.AlertBanner
@@ -86,13 +104,6 @@ export function AuditRetentionControl({ organizationId }: {
           </UI.AlertBanner>
         )
         : null}
-      <UI.Button
-        type="button"
-        loading={saving}
-        onClick={() => void saveRetention()}
-      >
-        {translate("settings.audit.retention.save")}
-      </UI.Button>
-    </div>
+    </UI.Stack>
   );
 }
