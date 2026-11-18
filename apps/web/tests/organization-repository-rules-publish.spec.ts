@@ -9,6 +9,7 @@ import {
   type RuleEntry,
   ruleRow,
 } from "./helpers/repository-rules-fixtures.ts";
+import { laneBudgetMs } from "./helpers/lane-budget.ts";
 
 const LIST_PATH = "/settings/organization/repository-rules";
 const AUTHOR_ID = "00000000-0000-4000-8000-0000000000a1";
@@ -490,7 +491,7 @@ test.describe("organization repository rules: a newer revision was published", (
   // Each of these edits a rule or two, opens the review and then reconciles: a
   // longer path than the default 15 s allows on a busy host. Every assertion stays.
   test.beforeEach(() => {
-    test.setTimeout(45_000);
+    test.setTimeout(laneBudgetMs(45_000));
   });
 
   test("a stale preview keeps the draft and asks only about the rules changed in both", async ({ page }) => {
@@ -693,7 +694,7 @@ const THEIRS_BOTH: RuleEntry[] = THEIRS.map((entry) =>
 
 test.describe("organization repository rules: focus follows an action that replaces its control", () => {
   test.beforeEach(() => {
-    test.setTimeout(45_000);
+    test.setTimeout(laneBudgetMs(45_000));
   });
 
   test("confirming Discard, which removes the draft bar, moves focus to the page heading", async ({ page }) => {

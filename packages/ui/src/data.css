@@ -1728,6 +1728,7 @@
 .ui-data-table__select > * {
   display: block;
 }
+
 @media (max-width: 743px) {
   .ui-data-table--ruled[data-inset="edge"] td {
     block-size: auto;
@@ -1813,6 +1814,7 @@
    wraps and the menu never moves. */
 .ui-notification-row {
   align-items: center;
+  container-type: inline-size;
   display: flex;
   gap: var(--space-2);
   list-style: none;
@@ -1832,7 +1834,7 @@
     var(--space-2)
     var(--size-avatar-small)
     minmax(0, 1fr)
-    max-content;
+    minmax(0, max-content);
   min-inline-size: 0;
   padding-block: var(--space-2);
   padding-inline: var(--space-2);
@@ -1885,6 +1887,7 @@
   -webkit-line-clamp: 2;
   line-clamp: 2;
   overflow: hidden;
+  overflow-wrap: anywhere;
 }
 .ui-notification-row[data-unread="true"] .ui-notification-row__headline {
   font-weight: var(--weight-medium);
@@ -1898,11 +1901,31 @@
 .ui-notification-row__time {
   color: var(--color-fg-muted);
   font: var(--type-caption);
-  white-space: nowrap;
+  min-inline-size: 0;
+  /* One line while the lane has room (its column is max-content); only when
+     the pane is too narrow for the lane does it break between words, rather
+     than push the row past its container. */
+  overflow-wrap: break-word;
 }
 .ui-notification-row__menu {
   display: inline-flex;
   flex: none;
+}
+
+/* A row narrower than 240px (a 200% zoom pane) gives the text the width left
+   after the dot and avatar; the time moves onto its own muted line under the
+   text, start-aligned. Wider rows are unchanged. */
+@container (max-width: 240px) {
+  .ui-notification-row__link {
+    grid-template-columns:
+      var(--space-2)
+      var(--size-avatar-small)
+      minmax(0, 1fr);
+  }
+  .ui-notification-row__time {
+    grid-column: 3;
+    justify-self: start;
+  }
 }
 
 /* The 360px panel under the bell: capped to the viewport so the list scrolls
@@ -1912,10 +1935,14 @@
   flex-direction: column;
   inline-size: min(var(--layout-menu), calc(100dvi - var(--space-4)));
   max-block-size: min(70dvb, var(--layout-menu-blocks));
+  /* Never wider than what holds it: a pane narrower than the menu keeps the panel inside. */
+  max-inline-size: 100%;
+  min-inline-size: 0;
 }
 .ui-notification-popover__header {
   align-items: center;
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-2);
   /* The action keeps its whole label; the heading gives up its width first,
      so "Mark all read" never clips against the panel edge. */
@@ -1925,15 +1952,15 @@
 .ui-notification-popover__header > .ui-notification-popover__title {
   min-inline-size: 0;
 }
-.ui-notification-popover__header > .ui-notification-popover__action {
-  white-space: nowrap;
-}
 .ui-notification-popover__title {
   font: var(--type-heading-subsection);
   margin: 0;
 }
+/* The action keeps its whole label on one line while the panel has room; in a
+   pane narrower than the label it breaks between words instead of overflowing. */
 .ui-notification-popover__action {
-  flex: none;
+  flex: 0 1 auto;
+  min-inline-size: 0;
 }
 .ui-notification-popover__body {
   display: flex;
@@ -1959,6 +1986,7 @@
 .ui-notification-page-header {
   align-items: center;
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-2);
   justify-content: space-between;
 }

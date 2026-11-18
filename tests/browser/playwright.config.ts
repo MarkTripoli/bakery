@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { defineConfig, devices } from "@playwright/test";
+import { laneBudgetMs } from "../../apps/web/tests/helpers/lane-budget.ts";
 
 const port = process.env.BAKERY_BROWSER_PORT ?? "18788";
 if (!/^\d+$/.test(port) || Number(port) < 1 || Number(port) > 65535) {
@@ -18,7 +19,7 @@ export default defineConfig({
   outputDir: "../../artifacts/auth-browser/test-results",
   testDir: ".",
   testMatch: "*.spec.ts",
-  timeout: 20_000,
+  timeout: laneBudgetMs(20_000),
   fullyParallel: false,
   workers: 1,
   reporter: process.env.CI
@@ -39,7 +40,7 @@ export default defineConfig({
     url: `${baseURL}/__test__/auth`,
     cwd: process.cwd(),
     reuseExistingServer: false,
-    timeout: 30_000,
+    timeout: laneBudgetMs(30_000),
     gracefulShutdown: { signal: "SIGTERM", timeout: 5_000 },
   },
   projects: [{ name: "desktop", use: { ...devices["Desktop Chrome"] } }],

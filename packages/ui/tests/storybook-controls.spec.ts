@@ -4,12 +4,13 @@ import {
   canonicalStories,
   openByTitle,
   storyPath,
+  sweepTimeoutMs,
   waitForSpecimen,
 } from "./storybook-harness.ts";
 
 test.describe("Storybook coarse controls", () => {
   test("keeps every canonical coarse interaction at least 44px", async ({ browser }) => {
-    test.setTimeout(240_000);
+    test.setTimeout(sweepTimeoutMs());
     const context = await browser.newContext({
       baseURL,
       hasTouch: true,

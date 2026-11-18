@@ -1,14 +1,24 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
+    "28ee02548fddfc0972bfc3c4621949b8d9c4535b",
     "84b2d7667a897c1a66ce57a39de9d4311117c268",
     "9fcf4e1adcc02ae09065355a20314fb476f45220"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:7d5c92d9eb319e9179f08de17ad6f46cbed9d9ecb03c9383d981b13a7744ffee",
-  "reason": "#35 slice 2b contract re-bind by dev-workflows on 2026-11-18 under the owner's standing breaking-change authorization (2026-10-09), main 9fcf4e1adcc02ae09065355a20314fb476f45220: workflows.copy is added (WorkflowCopy input, POST /v1/workflows/{id}/copy) and the WorkflowOrigin entity gains three required nullable fields (sourceWorkflowId, sourceVersionId, sourceDigest) naming a copy's source, so Page<Workflow> items gain required properties inside origin, which is what moves the digest. The action is additive; the drift is the origin object growing, not an existing field changing.",
+  "targetCompatibilityDigest": "sha256:a6d37979ea284d4b214795712d8c0045c09b766e9020398bcdd5de1d367cc061",
+  "reason": "Re-bind by dev-server on 2026-11-18 for PR #608 (#408 slice 4) under the owner's standing breaking-change authorization (2026-10-09), main 28ee02548fddfc0972bfc3c4621949b8d9c4535b: integrationConnections.invoke becomes a real route, so the catalogue entry gains organizationContext required_authenticated_context plus the SCOPE_REQUIRED and MALFORMED_REQUEST faults, and IntegrationAction.action stops being rewritten to the six-value worker enum, gaining maxLength and losing its enum. Additive for every other action; the drift is this one action becoming invocable.",
   "priorApprovals": [
+    {
+      "fromBaseRefs": [
+        "84b2d7667a897c1a66ce57a39de9d4311117c268",
+        "9fcf4e1adcc02ae09065355a20314fb476f45220"
+      ],
+      "status": "displaced",
+      "targetCompatibilityDigest": "sha256:7d5c92d9eb319e9179f08de17ad6f46cbed9d9ecb03c9383d981b13a7744ffee",
+      "reason": "Displaced by the re-bind to main 28ee02548fddfc0972bfc3c4621949b8d9c4535b on 2026-11-18 (dev-server, PR #608). The delta is unchanged: integrationConnections.invoke becomes a real route with organizationContext required_authenticated_context and the SCOPE_REQUIRED/MALFORMED_REQUEST faults, so IntegrationAction.action stops being rewritten to the six-value worker enum and gains maxLength. Only the base moved; the content of this branch did not."
+    },
     {
       "fromBaseRefs": [
         "84b2d7667a897c1a66ce57a39de9d4311117c268",

@@ -82,6 +82,16 @@ export function createNotificationActionRegistry(
     policy: write,
     handler: handlers.markAllRead,
   }).register({
+    name: NotificationImplementedAction.NotificationsUndoMarkAllRead,
+    method: HttpMethod.Post,
+    path: "/v1/notifications/read-all/undo",
+    input: contractSchemas.NotificationUndoMarkAllRead,
+    output: contractSchemas.NotificationUndoMarkAllReadResult,
+    explicitIdempotency: "key",
+    successStatus: 200,
+    policy: write,
+    handler: handlers.undoMarkAllRead,
+  }).register({
     name: NotificationImplementedAction.NotificationsGet,
     method: HttpMethod.Get,
     path: "/v1/notifications/:id",

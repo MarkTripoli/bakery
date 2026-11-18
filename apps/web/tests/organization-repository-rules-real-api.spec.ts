@@ -16,6 +16,7 @@ import {
   ruleRow,
   rulesRegion,
 } from "./helpers/repository-rules-fixtures.ts";
+import { laneBudgetMs } from "./helpers/lane-budget.ts";
 
 /**
  * Browser proof of the organization repository rules page against the real
@@ -56,7 +57,7 @@ test.describe("organization repository rules against the real API", () => {
   let server: ChildServer;
 
   test.beforeAll(async () => {
-    test.setTimeout(180_000);
+    test.setTimeout(laneBudgetMs(180_000));
     ({ child, server } = await startChild<ChildServer>(
       "tests/helpers/repository-rules-server.child.ts",
     ));
@@ -68,7 +69,7 @@ test.describe("organization repository rules against the real API", () => {
     await stopChild(child);
   });
   test.beforeEach(() => {
-    test.setTimeout(90_000);
+    test.setTimeout(laneBudgetMs(90_000));
   });
 
   const state = () => control<State>(server, "/state");

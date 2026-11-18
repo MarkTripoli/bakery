@@ -14,6 +14,11 @@ export type EventScope = {
   conversationId?: string | null;
   workerHostId?: string | null;
   workerEnrollmentId?: string | null;
+  /**
+   * The one principal a per-person signal is for (an inbox change). Such an
+   * event is delivered only to that principal's own inbox subscription.
+   */
+  recipientId?: string | null;
   eventType: string;
   aggregateId: string;
   aggregateVersion: number;
@@ -94,8 +99,8 @@ export async function appendDomainEvent(
        organization_id, organization_sequence, event_type, schema_version,
        application_id, repository_id, task_id, conversation_id,
        worker_host_id, worker_enrollment_id, aggregate_id,
-       aggregate_version, payload, trace_id, traceparent
-     ) values ($1, $2, $3, 1, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13, $14)
+       aggregate_version, payload, trace_id, traceparent, recipient_id
+     ) values ($1, $2, $3, 1, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13, $14, $15)
      returning id`,
     [
       options.organizationId,
@@ -112,6 +117,7 @@ export async function appendDomainEvent(
       JSON.stringify(options.payload),
       options.traceId,
       formatTraceparent(operationTraceContext(options)),
+      options.recipientId ?? null,
     ],
   );
   const eventId = event.rows[0]?.id;

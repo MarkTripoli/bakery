@@ -25,6 +25,7 @@ import { repositoryRulesBakeryMigrationSource } from "../../apps/server/src/modu
 import { artifactKindsBakeryMigrationSource } from "../../apps/server/src/modules/artifact-kinds/migrations.ts";
 import { integrationsBakeryMigrationSource } from "../../apps/server/src/modules/integrations/migrations.ts";
 import { deliveryBakeryMigrationSource } from "../../apps/server/src/modules/delivery/migrations.ts";
+import { mcpBakeryMigrationSource } from "../../apps/server/src/modules/mcp/migrations.ts";
 import {
   readTestDatabaseConfig,
   readTestDatabaseResetOptions,
@@ -57,6 +58,7 @@ Deno.test("legacy default organization locales are cleared once by a versioned d
       ...await loadMigrations(artifactKindsBakeryMigrationSource),
       ...await loadMigrations(integrationsBakeryMigrationSource),
       ...await loadMigrations(deliveryBakeryMigrationSource),
+      ...await loadMigrations(mcpBakeryMigrationSource),
     ];
     await migrate(
       owner,
