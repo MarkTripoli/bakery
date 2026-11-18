@@ -25,6 +25,17 @@ import {
   unprocessable,
 } from "@bakery/contracts/http";
 import { PostgresAuthorityRunner } from "../auth/adapters/authority-postgres.ts";
+import type {
+  ActiveIntegrationRegistry,
+  ProviderRequestPort,
+} from "../catalog/integration-gate.ts";
+import { denyAllProviderRequests } from "../catalog/integration-gate.ts";
+import {
+  authorizeActionGrant,
+  connectionInvokeDeps,
+  invokeConnectionAction,
+  toConnectionInvokeResponse,
+} from "./invoke.ts";
 import {
   createPostgresCommandRunner,
   readCompletedCommandReplay,
@@ -111,6 +122,14 @@ export type IntegrationsRegistryDependencies = IntegrationsDependencies & {
    * reconciliation; a registry without one creates its own.
    */
   broker?: InstallationTokenBroker;
+  /**
+   * The process's activated integration registry. Required for the invoke door:
+   * its absence is what left `invokeIntegration` with no production caller, so
+   * the dependency is explicit here rather than defaulted.
+   */
+  integrationRegistry: ActiveIntegrationRegistry;
+  /** The provider request port the invoke door sends through. */
+  providerRequests?: ProviderRequestPort;
 };
 
 const preparationSlot = Symbol("private GitHub App registration preparation");
@@ -600,6 +619,10 @@ export function createIntegrationsActionRegistry(
     createPostgresCommandRunner(),
     "natural-idempotency",
   );
+  const invokeDeps = connectionInvokeDeps(
+    dependencies.integrationRegistry,
+    dependencies.providerRequests ?? denyAllProviderRequests,
+  );
   const policy = {
     access: ActionAccess.InstallationAdministrator,
     organizationContext:
@@ -867,6 +890,41 @@ export function createIntegrationsActionRegistry(
     explicitIdempotency: "key",
     successStatus: 202,
     handler: createDiscovery,
+  }).register({
+    name: IntegrationsImplementedAction.IntegrationConnectionsInvoke,
+    method: HttpMethod.Post,
+    path: "/v1/integration-connections/:id/actions",
+    input: contractSchemas.IntegrationAction,
+    output: contractSchemas.ActionResult,
+    // The catalog declares `Developer+action grant`: a Developer may invoke, but
+    // only for an action the caller holds an exact grant for, which the gate
+    // checks. Not `adminEdit` - invoking an action is not editing the connection.
+    policy: {
+      access: ActionAccess.DeveloperAndActionGrant,
+      // The tier's `+action grant` half: a Developer holds the role but also has
+      // to hold a live grant for this exact action and resource. The gate below
+      // re-reads the whole snapshot for binding, health and availability.
+      authorize: authorizeActionGrant,
+      // A connection belongs to an organization, so this is a real organization
+      // context: `None` is refused outright by PostgresAuthorityRunner, which
+      // would have made the route 403 for everyone including the connection's own
+      // Admin. The gate still re-reads authority per invocation; this says which
+      // context the request is authorized in, not what it is allowed to do.
+      organizationContext:
+        OrganizationContextPolicy.RequiredAuthenticatedContext,
+      type: ActionKind.Command,
+    },
+    // The ledger derives the effect key from the invocation facts, so a retried
+    // send with the same facts replays one effect instead of mutating twice.
+    explicitIdempotency: "key",
+    // The catalog declares one output shape for this route (`ActionResult`) and
+    // the framework enforces one success status, so the read and write arms are
+    // projected onto it: a write reports its effect id in `externalEffectId`.
+    successStatus: 200,
+    handler: async (context, input) =>
+      toConnectionInvokeResponse(
+        await invokeConnectionAction(context, invokeDeps, input),
+      ),
   });
   // Host-owned installations: the installation administrators' policy the
   // App registration routes use, never an organization role.
