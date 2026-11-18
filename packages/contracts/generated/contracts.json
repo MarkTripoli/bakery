@@ -143809,6 +143809,7 @@
               "description": "WorkflowDefinitionProposal.decidedAt may be null in this transport value."
             },
             "supersededByVersionId": {
+              "description": "WorkflowDefinitionProposal.supersededByVersionId may be null in this transport value.",
               "anyOf": [
                 {
                   "type": "string",
@@ -143820,8 +143821,7 @@
                   "type": "null",
                   "description": "Null indicates that the value is unavailable."
                 }
-              ],
-              "description": "WorkflowDefinitionProposal.supersededByVersionId may be null in this transport value."
+              ]
             },
             "createdAt": {
               "type": "string",
@@ -143854,7 +143854,6 @@
             "state",
             "decidedBy",
             "decidedAt",
-            "supersededByVersionId",
             "createdAt",
             "updatedAt",
             "version"
@@ -216287,7 +216286,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:f612889930ec152dcc861958ee3546d40e29b951457ed2d21c66ae614742904b",
+  "compatibilityDigest": "sha256:5f9479a15d2a61be642e5e58214a334b60d3d06a8b1ab5308ec92068014b9ff9",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -325692,6 +325691,7 @@
           "description": "WorkflowDefinitionProposal.decidedAt may be null in this transport value."
         },
         "supersededByVersionId": {
+          "description": "WorkflowDefinitionProposal.supersededByVersionId may be null in this transport value.",
           "anyOf": [
             {
               "type": "string",
@@ -325703,8 +325703,7 @@
               "type": "null",
               "description": "Null indicates that the value is unavailable."
             }
-          ],
-          "description": "WorkflowDefinitionProposal.supersededByVersionId may be null in this transport value."
+          ]
         },
         "createdAt": {
           "type": "string",
@@ -325737,7 +325736,6 @@
         "state",
         "decidedBy",
         "decidedAt",
-        "supersededByVersionId",
         "createdAt",
         "updatedAt",
         "version"

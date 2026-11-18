@@ -18696,6 +18696,9 @@ const transportSchemas = {
         "updatedAt",
         "version"
       ],
+      "optionalFields": [
+        "supersededByVersionId"
+      ],
       "fieldTypes": {
         "id": "uuid",
         "conversationId": "uuid",

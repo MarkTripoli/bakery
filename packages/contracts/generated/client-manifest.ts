@@ -41703,6 +41703,7 @@ export const clientManifest = {
           "description": "WorkflowDefinitionProposal.decidedAt may be null in this transport value."
         },
         "supersededByVersionId": {
+          "description": "WorkflowDefinitionProposal.supersededByVersionId may be null in this transport value.",
           "anyOf": [
             {
               "type": "string",
@@ -41714,8 +41715,7 @@ export const clientManifest = {
               "type": "null",
               "description": "Null indicates that the value is unavailable."
             }
-          ],
-          "description": "WorkflowDefinitionProposal.supersededByVersionId may be null in this transport value."
+          ]
         },
         "createdAt": {
           "type": "string",
@@ -41748,7 +41748,6 @@ export const clientManifest = {
         "state",
         "decidedBy",
         "decidedAt",
-        "supersededByVersionId",
         "createdAt",
         "updatedAt",
         "version"
