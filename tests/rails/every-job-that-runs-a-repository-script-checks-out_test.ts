@@ -42,7 +42,11 @@ Deno.test("every job that runs a repository script checks the repository out", a
 
   const offenders: string[] = [];
   const misordered: string[] = [];
-  let checked = 0;
+  // Accumulate the names, not just a count: a bare `checked > 0` guard cannot
+  // notice the job this rail exists for falling out of scope, so renaming
+  // `scripts/ci/nightly-signal.ts` would leave this rail green while the
+  // nightly signal silently stopped being covered.
+  const checked: string[] = [];
   for (const [name, job] of Object.entries(jobs)) {
     if (!Array.isArray(job?.steps)) continue;
     const steps = job.steps.filter(isStep);
@@ -50,7 +54,7 @@ Deno.test("every job that runs a repository script checks the repository out", a
       typeof step.run === "string" && REPOSITORY_SCRIPT.test(step.run)
     );
     if (scriptIndex < 0) continue;
-    checked += 1;
+    checked.push(name);
     const checkoutIndex = steps.findIndex((step) =>
       typeof step.uses === "string" &&
       step.uses.startsWith("actions/checkout@")
@@ -62,8 +66,14 @@ Deno.test("every job that runs a repository script checks the repository out", a
   }
 
   assert(
-    checked > 0,
+    checked.length > 0,
     "no job was found running a repository script, so this rail proved nothing; the workflow's shape changed",
+  );
+  assert(
+    checked.includes("nightly_signal"),
+    `the nightly_signal job is no longer among the jobs running a repository script, so nothing checks the job this rail exists for: checked ${
+      checked.join(", ")
+    }`,
   );
   assert(
     offenders.length === 0,
