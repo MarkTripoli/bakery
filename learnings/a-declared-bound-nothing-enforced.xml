@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="a-declared-bound-nothing-enforced" project="bakery">
+  <title>A constraint a contract declares is documentation until the validator applies it</title>
+  <trigger>Reading a schema descriptor's bounds and concluding the runtime enforces them; or migrating a closed enum to a pattern, a range, or a format.</trigger>
+  <rule>`bounded()` in `packages/contracts/src/contracts.ts` applied `minLength`, `maxLength` and the byte bounds, and never applied `pattern`. Three descriptors declared one: `TaskCreate.taskType`, `TaskBrief.taskType` and `RepositoryProfileObservation.baseSha`. A brief with `taskType: "Not A Label"` parsed, so 0172's decision to move work type off a closed kernel set onto a kebab-case token — "validation moves to the described contract" — moved the promise and left the enforcement behind. Read the builder, not the descriptor, before believing a bound.</rule>
+  <rule>The defect surfaced only because a test asserted a rejection and the rejection did not happen. A test that asserts only acceptance is satisfied by a validator that checks nothing, so every bound needs one input it must refuse.</rule>
+  <rule>A descriptor is a source for two audiences — the generated client manifest and the server validator — and they can disagree. Regenerating after the fix showed the pattern reaching `client-manifest.ts` for the first time, which means a client could have been enforcing a rule the server did not. Diff the two after any bound change.</rule>
+  <verification>
+    <requirement>For every bound a descriptor declares, name the code that applies it and the test input that violates it. For a migration from an enum to a looser bound, the red-proof is an input that the enum refused and the new bound must still refuse.</requirement>
+  </verification>
+</learning>
