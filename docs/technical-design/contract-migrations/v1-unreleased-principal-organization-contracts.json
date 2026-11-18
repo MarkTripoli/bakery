@@ -3,12 +3,13 @@
   "fromBaseRefs": [
     "9fcf4e1adcc02ae09065355a20314fb476f45220",
     "28ee02548fddfc0972bfc3c4621949b8d9c4535b",
-    "de35c4bfe46a0d04c85d6a3fce9be94bd120070c"
+    "de35c4bfe46a0d04c85d6a3fce9be94bd120070c",
+    "72117bc7ac4109209a9de72398079d5d9e0a53b3"
   ],
   "status": "approved",
   "allowBreaking": true,
   "targetCompatibilityDigest": "sha256:622f0d8afe0eec3d53230a4b5ffe7b365ef882e20baf3832dc82ba93e1921077",
-  "reason": "#22 sourced memory contract re-bind by dev-agx2 on 2026-11-18 under the owner's standing breaking-change authorization (2026-10-09), main 28ee02548fddfc0972bfc3c4621949b8d9c4535b: MemoryRevisionCreate gains a required sourceArtifactVersionId, because a promoted memory that does not name the artifact version it came from is not sourced memory at all. The field is required rather than optional so a caller cannot create an unsourced revision by omission; the drift is that one field becoming required, not an existing field changing. The memory actions also declare SCOPE_REQUIRED and MALFORMED_REQUEST, because a required_authenticated_context action refuses an absent organization header and a body it cannot parse, and the catalog has to say so. That declaration adds error names to six actions and nothing else. This entry re-binds the digest once more for exactly that delta; the approval it displaced at sha256:4ebf063b41c7e0de7863086c2e9105541c97b4d6c7a2c26f57bbd1c192de4e14 is preserved unchanged first below.",
+  "reason": "#22 sourced memory contract re-bind by dev-agx2 on 2026-11-18 under the owner's standing breaking-change authorization (2026-10-09), main 28ee02548fddfc0972bfc3c4621949b8d9c4535b: MemoryRevisionCreate gains a required sourceArtifactVersionId, because a promoted memory that does not name the artifact version it came from is not sourced memory at all. The field is required rather than optional so a caller cannot create an unsourced revision by omission; the drift is that one field becoming required, not an existing field changing. The memory actions also declare SCOPE_REQUIRED and MALFORMED_REQUEST, because a required_authenticated_context action refuses an absent organization header and a body it cannot parse, and the catalog has to say so. That declaration adds error names to six actions and nothing else. This entry re-binds the digest once more for exactly that delta; the approval it displaced at sha256:4ebf063b41c7e0de7863086c2e9105541c97b4d6c7a2c26f57bbd1c192de4e14 is preserved unchanged first below. Re-bound by dev-agx2 on 2026-11-18: the exact main base 72117bc7ac4109209a9de72398079d5d9e0a53b3 is added alongside the earlier bases because its generated contracts are byte-identical to the ones this entry already authorizes, so the approval covers a new base without covering a new delta.",
   "priorApprovals": [
     {
       "fromBaseRefs": [
