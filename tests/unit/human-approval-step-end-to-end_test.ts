@@ -63,6 +63,54 @@ Deno.test("an empty audience falls back to the owner rather than refusing", () =
   });
 });
 
+Deno.test("an owner who is not an active member here is refused, not accepted", () => {
+  // The owner id came from the run, not from a membership check. Accepting it
+  // because it was supplied would address the approval to someone who cannot
+  // answer, and the wait would expire instead of the step refusing.
+  const resolution = resolveApprover({
+    audience: undefined,
+    ownerPrincipalId: "owner-inactive",
+    principals: new Set(["someone-else"]),
+  });
+  assert(!resolution.resolved);
+  assertEquals(resolution.refusal, NO_RESOLVABLE_APPROVER);
+
+  // The same owner is accepted when they are active: the refusal is about
+  // membership, not about owners being distrusted.
+  const active = resolveApprover({
+    audience: undefined,
+    ownerPrincipalId: "owner-active",
+    principals: new Set(["owner-active"]),
+  });
+  assertEquals(active, {
+    resolved: true,
+    approverPrincipalIds: ["owner-active"],
+  });
+});
+
+Deno.test("an audience entry that is not an active member is dropped, and can leave nobody", () => {
+  // A removed member is still a row, so the id resolves to a principal while
+  // the person cannot act. Every inactive entry must be filtered, or the
+  // approval names a quorum that can never convene.
+  const partly = resolveApprover({
+    audience: ["member-inactive", "member-active"],
+    ownerPrincipalId: null,
+    principals: new Set(["member-active"]),
+  });
+  assertEquals(partly, {
+    resolved: true,
+    approverPrincipalIds: ["member-active"],
+  });
+
+  const nobody = resolveApprover({
+    audience: ["member-inactive"],
+    ownerPrincipalId: null,
+    principals: new Set(),
+  });
+  assert(!nobody.resolved);
+  assertEquals(nobody.refusal, NO_RESOLVABLE_APPROVER);
+});
+
 Deno.test("reject and request changes end with different names", () => {
   assertEquals(outcomeForDecision("reject"), REJECTED_OUTCOME);
   assertEquals(
@@ -114,18 +162,21 @@ Deno.test("waits are additive and never produce negative active time", () => {
   const now = new Date("2026-01-01T03:00:00.000Z");
   const active = activeElapsedMs({
     wallElapsedMs: 60 * 60 * 1000,
+    // Both waits sit inside the measured span, so both are excluded.
+    spanStartedAt: new Date("2026-01-01T02:00:00.000Z"),
     waits: [
       {
-        startedAt: new Date("2026-01-01T00:00:00.000Z"),
-        endedAt: new Date("2026-01-01T00:10:00.000Z"),
+        startedAt: new Date("2026-01-01T02:00:00.000Z"),
+        endedAt: new Date("2026-01-01T02:10:00.000Z"),
       },
       {
-        startedAt: new Date("2026-01-01T00:20:00.000Z"),
-        endedAt: new Date("2026-01-01T00:25:00.000Z"),
+        startedAt: new Date("2026-01-01T02:20:00.000Z"),
+        endedAt: new Date("2026-01-01T02:25:00.000Z"),
       },
     ],
     now,
   });
+  // One hour of wall time, fifteen minutes of it spent waiting.
   assertEquals(active, 45 * 60 * 1000);
 
   // A row that claims more waiting than the run has existed is clamped, so
@@ -136,6 +187,77 @@ Deno.test("waits are additive and never produce negative active time", () => {
     now,
   });
   assertEquals(clamped, 0);
+});
+
+Deno.test("a wait from outside the measured span is clipped, not charged to it", () => {
+  // The run is measured over the hour after 02:00, but the wait began at 00:00
+  // and is still open. Counting the wait whole would subtract two hours from a
+  // one-hour span and drive the result to zero, hiding real work.
+  const now = new Date("2026-01-01T03:00:00.000Z");
+  const active = activeElapsedMs({
+    wallElapsedMs: 60 * 60 * 1000,
+    spanStartedAt: new Date("2026-01-01T02:00:00.000Z"),
+    waits: [{ startedAt: new Date("2026-01-01T00:00:00.000Z"), endedAt: null }],
+    now,
+  });
+  // The wait covers the whole span, so all of it was waiting.
+  assertEquals(active, 0);
+
+  // The same wait, clipped to a span it only partly covers: the first ten
+  // minutes are waiting, the rest is work.
+  const partial = activeElapsedMs({
+    wallElapsedMs: 60 * 60 * 1000,
+    spanStartedAt: new Date("2026-01-01T02:00:00.000Z"),
+    waits: [{
+      startedAt: new Date("2026-01-01T01:55:00.000Z"),
+      endedAt: new Date("2026-01-01T02:10:00.000Z"),
+    }],
+    now,
+  });
+  assertEquals(partial, 50 * 60 * 1000);
+});
+
+Deno.test("overlapping waits are subtracted once, not twice", () => {
+  // Two open approvals on the same run can overlap. Summing the intervals would
+  // subtract the overlap twice and make the run look shorter than the time it
+  // actually worked.
+  const now = new Date("2026-01-01T02:00:00.000Z");
+  const active = activeElapsedMs({
+    wallElapsedMs: 60 * 60 * 1000,
+    spanStartedAt: new Date("2026-01-01T01:00:00.000Z"),
+    waits: [
+      {
+        startedAt: new Date("2026-01-01T01:00:00.000Z"),
+        endedAt: new Date("2026-01-01T01:30:00.000Z"),
+      },
+      {
+        // Entirely inside the first: contributes nothing additional.
+        startedAt: new Date("2026-01-01T01:10:00.000Z"),
+        endedAt: new Date("2026-01-01T01:20:00.000Z"),
+      },
+    ],
+    now,
+  });
+  assertEquals(active, 30 * 60 * 1000);
+
+  // Partial overlap merges to the union: 01:00-01:30 and 01:20-01:45 is one
+  // 45-minute wait, not 55 minutes of waiting.
+  const partial = activeElapsedMs({
+    wallElapsedMs: 60 * 60 * 1000,
+    spanStartedAt: new Date("2026-01-01T01:00:00.000Z"),
+    waits: [
+      {
+        startedAt: new Date("2026-01-01T01:00:00.000Z"),
+        endedAt: new Date("2026-01-01T01:30:00.000Z"),
+      },
+      {
+        startedAt: new Date("2026-01-01T01:20:00.000Z"),
+        endedAt: new Date("2026-01-01T01:45:00.000Z"),
+      },
+    ],
+    now,
+  });
+  assertEquals(partial, 15 * 60 * 1000);
 });
 
 Deno.test("a wait expires into its own named outcome, not a failure", () => {

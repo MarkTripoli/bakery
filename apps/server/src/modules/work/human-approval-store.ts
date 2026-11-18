@@ -12,7 +12,10 @@ import {
   activeElapsedMs,
   APPROVAL_EXPIRED_OUTCOME,
   approvalExpired,
+  CHANGES_REQUESTED_OUTCOME,
+  HUMAN_APPROVAL_STEP_KEY,
   outcomeForDecision,
+  REJECTED_OUTCOME,
   resolveApprover,
   type RunWait,
 } from "./human-approval.ts";
@@ -50,6 +53,11 @@ type ApprovalRow = {
   decided_at: Date | null;
   expires_at: Date | null;
   audience: { type: string; principalIds?: string[] };
+  /**
+   * The step key this approval opened its wait under. Null only for rows
+   * written before the column existed.
+   */
+  step_key?: string | null;
   version: number;
 };
 
@@ -202,9 +210,9 @@ export async function requestHumanApproval(
     `insert into bakery.questions
        (id, organization_id, kind, conversation_id, task_id, run_id, generation,
         prompt, allow_free_text, audience, expires_at, status, subject_type,
-        subject_id, subject_digest, policy_digest)
+        subject_id, subject_digest, policy_digest, step_key)
      values ($1, $2, 'approval', $3, $4, $5, 1, $6, true, $7::jsonb, $8,
-             'open', 'run_step', $9, $10, $11)`,
+             'open', 'run_step', $9, $10, $11, $12)`,
     [
       approvalId,
       input.organizationId,
@@ -220,6 +228,7 @@ export async function requestHumanApproval(
       input.runId,
       subjectDigest,
       policyDigest,
+      input.stepKey,
     ],
   );
 
@@ -284,16 +293,26 @@ async function recordOutcome(
   },
 ): Promise<void> {
   if (input.outcome === null) return;
+  // The run's status says how it stopped running; the outcome says what it
+  // ended as. A rejection or an expiry finished the run, but neither succeeded,
+  // and recording them as `succeeded` would make a failed approval look like a
+  // completed one to every reader that filters on status.
+  const status = input.outcome === REJECTED_OUTCOME ||
+      input.outcome === APPROVAL_EXPIRED_OUTCOME ||
+      input.outcome === CHANGES_REQUESTED_OUTCOME
+    ? "canceled"
+    : "succeeded";
   await transaction.query(
     `update bakery.workflow_runs
         set outcome = $3, outcome_reason = $4, finished_at = now(),
-            status = 'succeeded', updated_at = now(), version = version + 1
+            status = $5, updated_at = now(), version = version + 1
       where organization_id = $1 and id = $2`,
     [
       input.organizationId,
       input.runId,
       input.outcome,
       input.reason ?? null,
+      status,
     ],
   );
 }
@@ -327,7 +346,7 @@ export async function decideHumanApproval(
   const loaded = await transaction.query<ApprovalRow>(
     `select id, organization_id, task_id, conversation_id, run_id, prompt,
             status, decision, decided_by, decided_at, expires_at, audience,
-            version
+            step_key, version
        from bakery.questions
       where organization_id = $1 and id = $2 and subject_type = 'run_step'
       for update`,
@@ -413,7 +432,10 @@ export async function decideHumanApproval(
     await closeWait(transaction, {
       organizationId: input.organizationId,
       runId: row.run_id,
-      stepKey: "human.approval",
+      // The key this approval opened its wait under, not a literal. A step
+      // using any other key would otherwise leave its wait open, and an open
+      // wait is excluded from the active clock forever.
+      stepKey: row.step_key ?? HUMAN_APPROVAL_STEP_KEY,
     });
     await recordOutcome(transaction, {
       organizationId: input.organizationId,
@@ -466,6 +488,10 @@ export async function expireHumanApprovals(
        from bakery.questions q
        left join bakery.run_waits w
          on w.organization_id = q.organization_id and w.run_id = q.run_id
+        -- The step key is part of the wait's identity. Joining only on the run
+        -- would match another step's open wait, and the close would then end
+        -- the wrong row (or none) while reporting success.
+        and w.step_key = coalesce(q.step_key, 'human.approval')
         and w.ended_at is null
       where q.organization_id = $1 and q.subject_type = 'run_step'
         and q.status = 'open' and q.expires_at is not null
@@ -498,7 +524,10 @@ export async function expireHumanApprovals(
       organizationId: input.organizationId,
       taskId: row.task_id,
       runId: row.run_id,
-      kind: "approval",
+      // "stop", not "approval": nothing was approved. The entry records that
+      // the system ended the wait, and `stop` is the kind that says a run
+      // finished on purpose and must carry a reason.
+      kind: "stop",
       subjectKind: "approval",
       subjectId: row.id,
       // Nobody decided: the system ended the wait. Attributing that to the

@@ -333,17 +333,28 @@ Deno.test("AC3: an expiry ends the run as approval_expired and records it", asyn
       now: eightDays,
     });
     assert(expired.some((row) => row.approvalId === asked.approvalId));
-    const stored = await run.client.query<{ outcome: string }>(
-      `select outcome from bakery.workflow_runs where id = $1`,
+    const stored = await run.client.query<
+      { outcome: string; status: string }
+    >(
+      `select outcome, status from bakery.workflow_runs where id = $1`,
       [run.job.runId],
     );
     assertEquals(stored.rows[0]!.outcome, APPROVAL_EXPIRED_OUTCOME);
-    const ledger = await run.client.query<{ n: string }>(
-      `select count(*)::text as n from bakery.decisions_ledger
+    // Expiry finished the run but did not succeed. Recording it as `succeeded`
+    // would make an unanswered approval look like a completed one to every
+    // reader that filters on status rather than outcome.
+    assertEquals(stored.rows[0]!.status, "canceled");
+
+    const ledger = await run.client.query<{ n: string; kind: string }>(
+      `select count(*)::text as n, max(kind) as kind
+         from bakery.decisions_ledger
         where organization_id = $1 and subject_id = $2`,
       [fixture.organizationId, asked.approvalId],
     );
     assertEquals(Number(ledger.rows[0]!.n), 1);
+    // "stop", not "approval": nobody approved anything. The kind is what a
+    // reader filters on, so it has to say what actually happened.
+    assertEquals(ledger.rows[0]!.kind, "stop");
     const open = await run.client.query<{ n: string }>(
       `select count(*)::text as n from bakery.run_waits
         where run_id = $1 and ended_at is null`,

@@ -25,6 +25,7 @@ import { openApprovalFixture } from "../helpers/scoped-approvals.ts";
 async function seedStepApproval(
   fixture: Awaited<ReturnType<typeof openApprovalFixture>>,
   approverPrincipalId: string,
+  stepKey = "human.approval",
 ) {
   const task = await fixture.newTask();
   // A real run through the real route, so the seed is not a hand-built row that
@@ -42,7 +43,7 @@ async function seedStepApproval(
       runId: run.id,
       taskId: task.taskId,
       conversationId: task.conversationId,
-      stepKey: "human.approval",
+      stepKey,
       prompt: "Ship it?",
       ownerPrincipalId: approverPrincipalId,
       traceId: crypto.randomUUID(),
@@ -269,6 +270,46 @@ Deno.test("AC6: the digests name this step, this prompt and these approvers", as
         approverPrincipalIds: [fixture.fx.admin.principalId],
       })),
     );
+  } finally {
+    await fixture.close();
+  }
+});
+
+Deno.test("AC6: a step approval under a non-default step key closes its own wait", async () => {
+  const fixture = await openApprovalFixture();
+  try {
+    // A definition that names its own step key. The default is a convenience,
+    // not the only key a workflow may use, and a wait opened under another key
+    // must still be closed by the decision that answers it.
+    const stepKey = "release.signoff";
+    const asked = await seedStepApproval(
+      fixture,
+      fixture.fx.admin.principalId,
+      stepKey,
+    );
+
+    const open = await fixture.fx.owner<{ step_key: string }[]>`
+      select step_key from bakery.run_waits
+       where organization_id = ${fixture.fx.organizationId}
+         and run_id = ${asked.runId} and ended_at is null`;
+    assertEquals(open.map((row) => row.step_key), [stepKey]);
+
+    const decided = await fixture.decide(
+      { id: asked.approvalId, version: 1 },
+      "approve",
+      { identity: await fixture.as(fixture.fx.admin) },
+    );
+    assertEquals(decided.status, 200);
+
+    // The wait under this key is closed. Before the fix the close used the
+    // literal default key, so this row stayed open and the active clock
+    // excluded time forever.
+    const stillOpen = await fixture.fx.owner<{ count: string }[]>`
+      select count(*)::text as count from bakery.run_waits
+       where organization_id = ${fixture.fx.organizationId}
+         and run_id = ${asked.runId} and step_key = ${stepKey}
+         and ended_at is null`;
+    assertEquals(stillOpen[0].count, "0");
   } finally {
     await fixture.close();
   }

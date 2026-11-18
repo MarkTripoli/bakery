@@ -108,3 +108,18 @@ create unique index decisions_ledger_approval_once_idx
 -- write fails with "permission denied for table", which no structural check
 -- catches; the integration path is the only thing that finds it.
 grant select, insert, update on bakery.run_waits to bakery_app;
+
+-- The step key an approval opened its wait under.
+--
+-- The wait row is keyed by (run, step_key), but the approval record was not, so
+-- deciding it had no way to name the wait it should close and hardcoded the
+-- default step key. Any step using another key then left its wait open forever,
+-- and an open wait is excluded from the active clock for as long as it lives -
+-- so the run's clock silently stopped. Storing the key here makes the close a
+-- lookup of the approval's own value rather than a guess at it.
+--
+-- Nullable because rows written before this column existed have no recorded
+-- key; a null means "unknown", and the close path falls back to the default
+-- key only for those, which is exactly the behaviour they had before.
+alter table bakery.questions
+  add column step_key text;

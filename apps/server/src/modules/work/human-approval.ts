@@ -21,6 +21,14 @@ import type { HumanApprovalDecision } from "@bakery/contracts/human-approval";
  */
 
 /**
+ * The step key a `human.approval` step uses when its definition names none.
+ *
+ * Kept here rather than inline at each call site so the writer that opens the
+ * wait and any reader that must resolve it agree on one value.
+ */
+export const HUMAN_APPROVAL_STEP_KEY = "human.approval";
+
+/**
  * Refusal raised when a human.approval step has no one to ask. The name is the
  * contract: it says which check failed, so an operator reads the cause instead
  * of guessing at a generic permission error.
@@ -75,6 +83,15 @@ export function resolveApprover(input: {
     return { resolved: true, approverPrincipalIds: resolvable };
   }
   if (input.ownerPrincipalId !== null) {
+    // The owner is a candidate like any other, so the same membership check
+    // applies. Accepting the id because it was supplied would let a run that
+    // has an owner who cannot answer here sit until its wait expired, and a
+    // reader could not tell that apart from one waiting on a real person.
+    const ownerResolvable = input.principals === undefined ||
+      input.principals.has(input.ownerPrincipalId);
+    if (!ownerResolvable) {
+      return { resolved: false, refusal: NO_RESOLVABLE_APPROVER };
+    }
     return {
       resolved: true,
       approverPrincipalIds: [input.ownerPrincipalId],
@@ -137,13 +154,48 @@ export function activeElapsedMs(input: {
   readonly wallElapsedMs: number;
   readonly waits: readonly RunWait[];
   readonly now: Date;
+  /**
+   * When the measured span began. Waits that started before it are clipped to
+   * it rather than counted whole, so a wait from an earlier span cannot be
+   * charged against this one.
+   */
+  readonly spanStartedAt?: Date;
 }): number {
-  let waitedMs = 0;
+  // The span the wall clock measures: [spanStart, now]. Anything outside it is
+  // not time this run spent, either waiting or working.
+  const spanEndMs = input.now.getTime();
+  const spanStartMs = input.spanStartedAt?.getTime() ??
+    (spanEndMs - input.wallElapsedMs);
+
+  // Clip each wait to the span and drop the empty ones, then merge the result
+  // so overlapping waits are subtracted once. Summing raw intervals would
+  // double-subtract two waits that overlapped, making the run look shorter than
+  // the time it actually worked.
+  const clipped: { start: number; end: number }[] = [];
   for (const wait of input.waits) {
-    const end = wait.endedAt ?? input.now;
-    const duration = end.getTime() - wait.startedAt.getTime();
-    if (duration > 0) waitedMs += duration;
+    const start = Math.max(wait.startedAt.getTime(), spanStartMs);
+    const end = Math.min((wait.endedAt ?? input.now).getTime(), spanEndMs);
+    if (end > start) clipped.push({ start, end });
   }
+  clipped.sort((a, b) => a.start - b.start);
+
+  let waitedMs = 0;
+  let current: { start: number; end: number } | null = null;
+  for (const interval of clipped) {
+    if (current === null) {
+      current = { ...interval };
+      continue;
+    }
+    if (interval.start <= current.end) {
+      // Overlapping or touching: extend rather than add a second time.
+      current.end = Math.max(current.end, interval.end);
+      continue;
+    }
+    waitedMs += current.end - current.start;
+    current = { ...interval };
+  }
+  if (current !== null) waitedMs += current.end - current.start;
+
   const active = input.wallElapsedMs - waitedMs;
   return active > 0 ? active : 0;
 }
