@@ -376,6 +376,56 @@
     },
     {
       "group": "Projects",
+      "method": "GET",
+      "path": "/v1/applications/{applicationId}/scope-profile",
+      "action": "scopeProfiles.get",
+      "access": "Developer",
+      "permission": "scopeProfile:read",
+      "input": "Empty",
+      "output": "ProjectScopeProfile",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Projects",
+      "method": "PUT",
+      "path": "/v1/applications/{applicationId}/scope-profile",
+      "action": "scopeProfiles.put",
+      "access": "Admin",
+      "permission": "scopeProfile:write",
+      "input": "ProjectScopeProfilePut",
+      "output": "ProjectScopeProfile",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required; If-Match with the current revision once a profile exists",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Projects",
       "method": "POST",
       "path": "/v1/applications/{applicationId}/roles/resolve",
       "action": "projects.roles.resolve",
@@ -9899,6 +9949,8 @@
     "projects.roles.list",
     "projects.roles.resolve",
     "projects.roles.update",
+    "scopeProfiles.get",
+    "scopeProfiles.put",
     "agents.list",
     "agents.get",
     "agents.create",
@@ -10887,6 +10939,122 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/RoleBindingUpdate"
+                }
+              }
+            }
+          }
+        }
+      },
+      "/v1/applications/{applicationId}/scope-profile": {
+        "get": {
+          "operationId": "scopeProfiles.get",
+          "parameters": [
+            {
+              "name": "applicationId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProjectScopeProfile"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request."
+            },
+            "401": {
+              "description": "Authentication required."
+            },
+            "403": {
+              "description": "Forbidden."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          }
+        },
+        "put": {
+          "operationId": "scopeProfiles.put",
+          "parameters": [
+            {
+              "name": "applicationId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProjectScopeProfile"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request."
+            },
+            "401": {
+              "description": "Authentication required."
+            },
+            "403": {
+              "description": "Forbidden."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          },
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectScopeProfilePut"
                 }
               }
             }
@@ -41799,6 +41967,8 @@
                 "projects.roles.list",
                 "projects.roles.create",
                 "projects.roles.update",
+                "scopeProfiles.get",
+                "scopeProfiles.put",
                 "projects.roles.resolve",
                 "repositoryProfiles.list",
                 "repositoryProfiles.create",
@@ -60204,6 +60374,224 @@
           ],
           "additionalProperties": false,
           "description": "Lists the agent sessions that belong to one run step, so a client can reach a session by run rather than by an id it already knows."
+        },
+        "ScopeProfileCheckCommand": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "ScopeProfileCheckCommand.id must contain at most 40 characters."
+            },
+            "command": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2000,
+              "description": "ScopeProfileCheckCommand.command must contain at most 2000 characters."
+            }
+          },
+          "required": [
+            "id",
+            "command"
+          ],
+          "additionalProperties": false,
+          "description": "One check command a project's scope profile offers to steps as a default; the id is stable so a run's evidence names the command that produced it."
+        },
+        "ProjectScopeProfilePut": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "checkCommands": {
+              "maxItems": 64,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40,
+                    "description": "ScopeProfileCheckCommand.id must contain at most 40 characters."
+                  },
+                  "command": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000,
+                    "description": "ScopeProfileCheckCommand.command must contain at most 2000 characters."
+                  }
+                },
+                "required": [
+                  "id",
+                  "command"
+                ],
+                "additionalProperties": false,
+                "description": "Every check command the profile offers to steps as a default, in profile order; the list replaces the published one, and an empty list publishes no checks. Each array item follows this format."
+              },
+              "description": "ProjectScopeProfilePut.checkCommands must contain at most 64 items."
+            },
+            "rules": {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/ProjectScopeProfilePut____schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/ProjectScopeProfilePut____schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "Every rule entry the profile supplies, replacing the published list; the rule library, not the kernel, gives each entry its meaning. Each array item follows this format."
+              },
+              "description": "Every rule entry the profile supplies, replacing the published list; the rule library, not the kernel, gives each entry its meaning."
+            }
+          },
+          "required": [
+            "checkCommands",
+            "rules"
+          ],
+          "additionalProperties": false,
+          "description": "Publishes the next revision of one project's scope profile: the step defaults every later run of the project inherits and pins at admission."
+        },
+        "ProjectScopeProfilePut____schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/ProjectScopeProfilePut____schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/ProjectScopeProfilePut____schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/ProjectScopeProfilePut____schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/ProjectScopeProfilePut____schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
         },
         "applications": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -85690,6 +86078,8 @@
                 "projects.roles.list",
                 "projects.roles.create",
                 "projects.roles.update",
+                "scopeProfiles.get",
+                "scopeProfiles.put",
                 "projects.roles.resolve",
                 "repositoryProfiles.list",
                 "repositoryProfiles.create",
@@ -86188,6 +86578,8 @@
                 "projects.roles.list",
                 "projects.roles.create",
                 "projects.roles.update",
+                "scopeProfiles.get",
+                "scopeProfiles.put",
                 "projects.roles.resolve",
                 "repositoryProfiles.list",
                 "repositoryProfiles.create",
@@ -86686,6 +87078,8 @@
                 "projects.roles.list",
                 "projects.roles.create",
                 "projects.roles.update",
+                "scopeProfiles.get",
+                "scopeProfiles.put",
                 "projects.roles.resolve",
                 "repositoryProfiles.list",
                 "repositoryProfiles.create",
@@ -131233,6 +131627,8 @@
                       "projects.roles.list",
                       "projects.roles.create",
                       "projects.roles.update",
+                      "scopeProfiles.get",
+                      "scopeProfiles.put",
                       "projects.roles.resolve",
                       "repositoryProfiles.list",
                       "repositoryProfiles.create",
@@ -195032,6 +195428,8 @@
                   "repository:manage",
                   "projectRole:read",
                   "projectRole:manage",
+                  "scopeProfile:read",
+                  "scopeProfile:write",
                   "repositoryProfile:read",
                   "repositoryProfile:manage",
                   "repositoryEffectiveRule:read",
@@ -214415,6 +214813,244 @@
           ],
           "description": "JSON value node."
         },
+        "ProjectScopeProfile": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "applicationId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Project (application) the profile belongs to; a profile never supplies defaults to another project."
+            },
+            "revision": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Published revision, 0 for the empty baseline; submit it as If-Match when saving again."
+            },
+            "digest": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$",
+                  "description": "SHA-256 hex of the canonical profile content, which a run pins at admission; null for the empty baseline."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "ProjectScopeProfile.digest may be null in this transport value."
+            },
+            "checkCommands": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40,
+                    "description": "ScopeProfileCheckCommand.id must contain at most 40 characters."
+                  },
+                  "command": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000,
+                    "description": "ScopeProfileCheckCommand.command must contain at most 2000 characters."
+                  }
+                },
+                "required": [
+                  "id",
+                  "command"
+                ],
+                "additionalProperties": false,
+                "description": "Check commands offered to steps as defaults, in profile order. Each array item follows this format."
+              },
+              "description": "Check commands offered to steps as defaults, in profile order."
+            },
+            "rules": {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/ProjectScopeProfile____schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/ProjectScopeProfile____schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "Rule entries the profile supplies, in profile order. Each array item follows this format."
+              },
+              "description": "Rule entries the profile supplies, in profile order."
+            },
+            "updatedAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "description": "When the profile was last published, or null for the empty baseline."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "ProjectScopeProfile.updatedAt may be null in this transport value."
+            }
+          },
+          "required": [
+            "applicationId",
+            "revision",
+            "digest",
+            "checkCommands",
+            "rules",
+            "updatedAt"
+          ],
+          "additionalProperties": false,
+          "description": "A project's published scope profile (one-engine O23): the step defaults its runs inherit. A project that has published none reads as the empty baseline at revision 0."
+        },
+        "ProjectScopeProfile____schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/ProjectScopeProfile____schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/ProjectScopeProfile____schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/ProjectScopeProfile____schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/ProjectScopeProfile____schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        },
         "ArtifactOutput": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
@@ -215968,7 +216604,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:0f0c8a9ec1f626f8266f764988a16b836028e32e6fb8110a651c857a8109e71d",
+  "compatibilityDigest": "sha256:050babad9983ac6980f0138aadf98e6812c85f567fc7c7652949ce9d7b3c37f6",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -223205,6 +223841,8 @@
             "projects.roles.list",
             "projects.roles.create",
             "projects.roles.update",
+            "scopeProfiles.get",
+            "scopeProfiles.put",
             "projects.roles.resolve",
             "repositoryProfiles.list",
             "repositoryProfiles.create",
@@ -241666,6 +242304,226 @@
       ],
       "additionalProperties": false,
       "description": "Lists the agent sessions that belong to one run step, so a client can reach a session by run rather than by an id it already knows."
+    },
+    "ScopeProfileCheckCommand": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40,
+          "description": "ScopeProfileCheckCommand.id must contain at most 40 characters."
+        },
+        "command": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000,
+          "description": "ScopeProfileCheckCommand.command must contain at most 2000 characters."
+        }
+      },
+      "required": [
+        "id",
+        "command"
+      ],
+      "additionalProperties": false,
+      "description": "One check command a project's scope profile offers to steps as a default; the id is stable so a run's evidence names the command that produced it."
+    },
+    "ProjectScopeProfilePut": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "checkCommands": {
+          "maxItems": 64,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 40,
+                "description": "ScopeProfileCheckCommand.id must contain at most 40 characters."
+              },
+              "command": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000,
+                "description": "ScopeProfileCheckCommand.command must contain at most 2000 characters."
+              }
+            },
+            "required": [
+              "id",
+              "command"
+            ],
+            "additionalProperties": false,
+            "description": "Every check command the profile offers to steps as a default, in profile order; the list replaces the published one, and an empty list publishes no checks. Each array item follows this format."
+          },
+          "description": "ProjectScopeProfilePut.checkCommands must contain at most 64 items."
+        },
+        "rules": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "JSON string value."
+              },
+              {
+                "type": "number",
+                "description": "JSON number value."
+              },
+              {
+                "type": "boolean",
+                "description": "JSON boolean value."
+              },
+              {
+                "type": "null",
+                "description": "JSON null value."
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/__schema0"
+                },
+                "description": "JSON array value."
+              },
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "description": "JSON object key."
+                },
+                "additionalProperties": {
+                  "$ref": "#/$defs/__schema0"
+                },
+                "description": "JSON object value."
+              }
+            ],
+            "description": "Every rule entry the profile supplies, replacing the published list; the rule library, not the kernel, gives each entry its meaning. Each array item follows this format."
+          },
+          "description": "Every rule entry the profile supplies, replacing the published list; the rule library, not the kernel, gives each entry its meaning."
+        }
+      },
+      "required": [
+        "checkCommands",
+        "rules"
+      ],
+      "additionalProperties": false,
+      "description": "Publishes the next revision of one project's scope profile: the step defaults every later run of the project inherits and pins at admission.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
     },
     "applications": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -267246,6 +268104,8 @@
             "projects.roles.list",
             "projects.roles.create",
             "projects.roles.update",
+            "scopeProfiles.get",
+            "scopeProfiles.put",
             "projects.roles.resolve",
             "repositoryProfiles.list",
             "repositoryProfiles.create",
@@ -267744,6 +268604,8 @@
             "projects.roles.list",
             "projects.roles.create",
             "projects.roles.update",
+            "scopeProfiles.get",
+            "scopeProfiles.put",
             "projects.roles.resolve",
             "repositoryProfiles.list",
             "repositoryProfiles.create",
@@ -268242,6 +269104,8 @@
             "projects.roles.list",
             "projects.roles.create",
             "projects.roles.update",
+            "scopeProfiles.get",
+            "scopeProfiles.put",
             "projects.roles.resolve",
             "repositoryProfiles.list",
             "repositoryProfiles.create",
@@ -312937,6 +313801,8 @@
                   "projects.roles.list",
                   "projects.roles.create",
                   "projects.roles.update",
+                  "scopeProfiles.get",
+                  "scopeProfiles.put",
                   "projects.roles.resolve",
                   "repositoryProfiles.list",
                   "repositoryProfiles.create",
@@ -376814,6 +377680,8 @@
               "repository:manage",
               "projectRole:read",
               "projectRole:manage",
+              "scopeProfile:read",
+              "scopeProfile:write",
               "repositoryProfile:read",
               "repositoryProfile:manage",
               "repositoryEffectiveRule:read",
@@ -396220,6 +397088,246 @@
                     },
                     "additionalProperties": {
                       "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
+    },
+    "ProjectScopeProfile": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "applicationId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Project (application) the profile belongs to; a profile never supplies defaults to another project."
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Published revision, 0 for the empty baseline; submit it as If-Match when saving again."
+        },
+        "digest": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$",
+              "description": "SHA-256 hex of the canonical profile content, which a run pins at admission; null for the empty baseline."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "ProjectScopeProfile.digest may be null in this transport value."
+        },
+        "checkCommands": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 40,
+                "description": "ScopeProfileCheckCommand.id must contain at most 40 characters."
+              },
+              "command": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000,
+                "description": "ScopeProfileCheckCommand.command must contain at most 2000 characters."
+              }
+            },
+            "required": [
+              "id",
+              "command"
+            ],
+            "additionalProperties": false,
+            "description": "Check commands offered to steps as defaults, in profile order. Each array item follows this format."
+          },
+          "description": "Check commands offered to steps as defaults, in profile order."
+        },
+        "rules": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "JSON string value."
+              },
+              {
+                "type": "number",
+                "description": "JSON number value."
+              },
+              {
+                "type": "boolean",
+                "description": "JSON boolean value."
+              },
+              {
+                "type": "null",
+                "description": "JSON null value."
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/__schema0"
+                },
+                "description": "JSON array value."
+              },
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "description": "JSON object key."
+                },
+                "additionalProperties": {
+                  "$ref": "#/$defs/__schema0"
+                },
+                "description": "JSON object value."
+              }
+            ],
+            "description": "Rule entries the profile supplies, in profile order. Each array item follows this format."
+          },
+          "description": "Rule entries the profile supplies, in profile order."
+        },
+        "updatedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the profile was last published, or null for the empty baseline."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "ProjectScopeProfile.updatedAt may be null in this transport value."
+        }
+      },
+      "required": [
+        "applicationId",
+        "revision",
+        "digest",
+        "checkCommands",
+        "rules",
+        "updatedAt"
+      ],
+      "additionalProperties": false,
+      "description": "A project's published scope profile (one-engine O23): the step defaults its runs inherit. A project that has published none reads as the empty baseline at revision 0.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
                     },
                     "description": "JSON object value."
                   }

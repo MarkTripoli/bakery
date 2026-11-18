@@ -4261,5 +4261,6 @@
   "core.actions.showAll": "⟪Show all⟫",
   "core.actions.showLess": "⟪Show less⟫",
   "repository.rules.summary.show.named": "⟪Show all of {rule}⟫",
-  "repository.rules.summary.hide.named": "⟪Show less of {rule}⟫"
+  "repository.rules.summary.hide.named": "⟪Show less of {rule}⟫",
+  "settings.roles.thing.scopeProfile": "⟪project step defaults⟫"
 }

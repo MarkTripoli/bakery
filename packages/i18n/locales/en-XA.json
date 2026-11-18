@@ -4261,5 +4261,6 @@
   "core.actions.showAll": "⟦Šĥôŵ àļļ…⟧",
   "core.actions.showLess": "⟦Šĥôŵ ļëšš ŧ⟧",
   "repository.rules.summary.show.named": "⟦Šĥôŵ àļļ ôƒ {rule} ŧëšŧ⟧",
-  "repository.rules.summary.hide.named": "⟦Šĥôŵ ļëšš ôƒ {rule} ŧëšŧ⟧"
+  "repository.rules.summary.hide.named": "⟦Šĥôŵ ļëšš ôƒ {rule} ŧëšŧ⟧",
+  "settings.roles.thing.scopeProfile": "⟦þŕôĵëçŧ šŧëþ ðëƒàûļŧš ŧëšŧŧ⟧"
 }

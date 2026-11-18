@@ -10705,6 +10705,55 @@ const transportSchemas = {
         }
       ],
       "description": "Lists the agent sessions that belong to one run step, so a client can reach a session by run rather than by an id it already knows."
+    },
+    "ScopeProfileCheckCommand": {
+      "description": "One check command a project's scope profile offers to steps as a default; the id is stable so a run's evidence names the command that produced it.",
+      "fields": [
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "description": "Stable lowercase kebab-case identifier of the check, unique within the profile."
+        },
+        {
+          "name": "command",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "description": "Shell command text the check runs. The profile owns the policy; the kernel never interprets the text."
+        }
+      ]
+    },
+    "ProjectScopeProfilePut": {
+      "fields": [
+        {
+          "name": "checkCommands",
+          "type": "ScopeProfileCheckCommand[]",
+          "required": true,
+          "bounds": {
+            "maxItems": 64
+          },
+          "description": "Every check command the profile offers to steps as a default, in profile order; the list replaces the published one, and an empty list publishes no checks."
+        },
+        {
+          "name": "rules",
+          "type": "json[]",
+          "required": true,
+          "description": "Every rule entry the profile supplies, replacing the published list; the rule library, not the kernel, gives each entry its meaning."
+        }
+      ],
+      "rules": [
+        "Organization admin. Idempotency-Key is required. When the project has a published profile a strong If-Match with its revision is required (428 when missing, 412 when stale); before the first save If-Match must be absent.",
+        "A project in another organization, or one that does not exist, answers 404. Check ids must be unique (422 UNPROCESSABLE)."
+      ],
+      "description": "Publishes the next revision of one project's scope profile: the step defaults every later run of the project inherits and pins at admission."
     }
   },
   "projections": {
@@ -27432,6 +27481,37 @@ const transportSchemas = {
         "nextCursor": "Opaque continuation after the last emitted session, or null when traversal is complete."
       },
       "description": "One page of the agent sessions that belong to a run step, newest page last."
+    },
+    "ProjectScopeProfile": {
+      "fields": [
+        "applicationId",
+        "revision",
+        "digest",
+        "checkCommands",
+        "rules",
+        "updatedAt"
+      ],
+      "fieldTypes": {
+        "applicationId": "uuid",
+        "revision": "integer",
+        "digest": "sha256|null",
+        "checkCommands": "ScopeProfileCheckCommand[]",
+        "rules": "json[]",
+        "updatedAt": "timestamp|null"
+      },
+      "nullableFields": [
+        "digest",
+        "updatedAt"
+      ],
+      "description": "A project's published scope profile (one-engine O23): the step defaults its runs inherit. A project that has published none reads as the empty baseline at revision 0.",
+      "fieldDescriptions": {
+        "applicationId": "Project (application) the profile belongs to; a profile never supplies defaults to another project.",
+        "revision": "Published revision, 0 for the empty baseline; submit it as If-Match when saving again.",
+        "digest": "SHA-256 hex of the canonical profile content, which a run pins at admission; null for the empty baseline.",
+        "checkCommands": "Check commands offered to steps as defaults, in profile order.",
+        "rules": "Rule entries the profile supplies, in profile order.",
+        "updatedAt": "When the profile was last published, or null for the empty baseline."
+      }
     }
   },
   "pageEnvelope": {

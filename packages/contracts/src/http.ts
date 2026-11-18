@@ -746,7 +746,11 @@ export function createNormalizedCommandMetadata(
   // PUT that creates when absent and replaces when present: If-Match is
   // parsed when sent and the handler decides whether it was required.
   const conditionalPutActions: ReadonlySet<ActionDefinition["name"]> = new Set(
-    ["integrationAppRegistrations.put", "skillStorageSettings.put"],
+    [
+      "integrationAppRegistrations.put",
+      "scopeProfiles.put",
+      "skillStorageSettings.put",
+    ],
   );
   const patchNeedsIfMatch = (method === "PATCH" &&
     action.explicitIdempotency !== "key") ||

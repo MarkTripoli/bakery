@@ -483,6 +483,7 @@ Deno.test("admit tasks and keep fixed-workflow run snapshots immutable", async (
       prerequisite: crypto.randomUUID(),
       noRepository: crypto.randomUUID(),
       cloudOnlyMaintenance: crypto.randomUUID(),
+      cloudOnlyFeature: crypto.randomUUID(),
       cloudOnlyProfile: crypto.randomUUID(),
       disabledWorkflow: crypto.randomUUID(),
       unsupportedWorkflow: crypto.randomUUID(),
@@ -537,6 +538,12 @@ Deno.test("admit tasks and keep fixed-workflow run snapshots immutable", async (
     await insertTask(taskIds.blocked, "Blocked task");
     await insertTask(taskIds.prerequisite, "Prerequisite task");
     await insertTask(taskIds.noRepository, "No repository task", false);
+    await insertTask(
+      taskIds.cloudOnlyFeature,
+      "Cloud-only feature task",
+      false,
+      "feature",
+    );
     await insertTask(
       taskIds.cloudOnlyMaintenance,
       "Cloud-only maintenance task",
@@ -788,9 +795,169 @@ Deno.test("admit tasks and keep fixed-workflow run snapshots immutable", async (
       baseSha: null,
     });
 
+    // #433: the project scope profile store. Reads need scopeProfile:read
+    // (developer); publishing needs scopeProfile:write (admin) and a strong
+    // If-Match on the current revision once a profile exists.
+    const scopeProfilePath = `/v1/applications/${applicationId}/scope-profile`;
+    const sendScope = async (
+      method: "GET" | "PUT",
+      options: {
+        organizationId: string;
+        body?: unknown;
+        ifMatch?: string;
+        idempotencyKey?: string;
+      },
+    ): Promise<Response> => {
+      const headers = new Headers({
+        cookie: productionCookie,
+        origin: compositionConfig.publicBaseUrl,
+        "Bakery-Organization-Id": options.organizationId,
+      });
+      if (options.body !== undefined) {
+        headers.set("content-type", "application/json");
+      }
+      if (options.idempotencyKey !== undefined) {
+        headers.set("Idempotency-Key", options.idempotencyKey);
+      }
+      if (options.ifMatch !== undefined) {
+        headers.set("If-Match", options.ifMatch);
+      }
+      return await productionApp.fetch(
+        new Request(`http://test${scopeProfilePath}`, {
+          method,
+          headers,
+          body: options.body === undefined
+            ? undefined
+            : JSON.stringify(options.body),
+        }),
+      );
+    };
+    const baseline = await sendScope("GET", { organizationId });
+    assertEquals(baseline.status, 200);
+    assertEquals(baseline.headers.get("etag"), '"0"');
+    assertEquals(await baseline.json(), {
+      applicationId,
+      revision: 0,
+      digest: null,
+      checkCommands: [],
+      rules: [],
+      updatedAt: null,
+    });
+    // Another organization cannot see this project's profile: 404, not 403.
+    const crossOrganizationRead = await sendScope("GET", {
+      organizationId: hostileOrganizationId,
+    });
+    assertEquals(crossOrganizationRead.status, 404);
+    assertEquals(
+      (await crossOrganizationRead.json()).code,
+      "RESOURCE_NOT_FOUND",
+    );
+    const firstProfile = {
+      checkCommands: [{ id: "lint", command: "pnpm lint" }],
+      rules: [],
+    };
+    // A developer may read but not publish.
+    const developerPut = await sendScope("PUT", {
+      organizationId,
+      idempotencyKey: "issue433-scope-profile-developer",
+      body: firstProfile,
+    });
+    assertEquals(developerPut.status, 403);
+    assertEquals((await developerPut.json()).code, "AUTH_FORBIDDEN");
+    const unchangedAfterDenied = await owner`
+      select count(*)::int as count from bakery.project_scope_profiles
+       where organization_id = ${organizationId}`;
+    assertEquals(unchangedAfterDenied[0].count, 0);
+    await owner`
+      update bakery.organization_memberships set role = 'admin'
+       where organization_id = ${organizationId}
+         and principal_id = ${principalId}`;
+    // Before the first save there is nothing to match.
+    const prematureIfMatch = await sendScope("PUT", {
+      organizationId,
+      idempotencyKey: "issue433-scope-profile-premature",
+      ifMatch: '"1"',
+      body: firstProfile,
+    });
+    assertEquals(prematureIfMatch.status, 412);
+    const firstPut = await sendScope("PUT", {
+      organizationId,
+      idempotencyKey: "issue433-scope-profile-first",
+      body: firstProfile,
+    });
+    assertEquals(firstPut.status, 200);
+    const firstSaved = await firstPut.json() as { revision: number };
+    assertEquals(firstSaved.revision, 1);
+    const missingIfMatch = await sendScope("PUT", {
+      organizationId,
+      idempotencyKey: "issue433-scope-profile-missing-if-match",
+      body: firstProfile,
+    });
+    assertEquals(missingIfMatch.status, 428);
+    const secondProfile = {
+      checkCommands: [
+        { id: "lint", command: "pnpm lint" },
+        { id: "unit", command: "pnpm test:unit" },
+      ],
+      rules: [{ id: "no-secrets" }],
+    };
+    const secondPut = await sendScope("PUT", {
+      organizationId,
+      idempotencyKey: "issue433-scope-profile-second",
+      ifMatch: '"1"',
+      body: secondProfile,
+    });
+    assertEquals(secondPut.status, 200);
+    const publishedScopeProfile = await secondPut.json() as {
+      revision: number;
+      digest: string;
+      checkCommands: unknown[];
+      rules: unknown[];
+    };
+    assertEquals(publishedScopeProfile.revision, 2);
+    assertEquals(
+      publishedScopeProfile.digest,
+      await digest({
+        checkCommands: secondProfile.checkCommands,
+        rules: secondProfile.rules,
+      }),
+    );
+    // A writer holding the old revision loses: compare-and-swap, not last
+    // write wins.
+    const stalePut = await sendScope("PUT", {
+      organizationId,
+      idempotencyKey: "issue433-scope-profile-stale",
+      ifMatch: '"1"',
+      body: firstProfile,
+    });
+    assertEquals(stalePut.status, 412);
+    assertEquals((await stalePut.json()).code, "PRECONDITION_FAILED");
+    const duplicateIds = await sendScope("PUT", {
+      organizationId,
+      idempotencyKey: "issue433-scope-profile-duplicate",
+      ifMatch: '"2"',
+      body: {
+        checkCommands: [
+          { id: "lint", command: "a" },
+          { id: "lint", command: "b" },
+        ],
+        rules: [],
+      },
+    });
+    assertEquals(duplicateIds.status, 422);
+    const storedScopeProfile = await owner`
+      select revision from bakery.project_scope_profiles
+       where organization_id = ${organizationId}
+         and application_id = ${applicationId}`;
+    assertEquals(storedScopeProfile[0].revision, 2);
+    await owner`
+      update bakery.organization_memberships set role = 'developer'
+       where organization_id = ${organizationId}
+         and principal_id = ${principalId}`;
+
     const cloudOnlyFeature = await send(
       "POST",
-      `/v1/tasks/${taskIds.noRepository}/runs`,
+      `/v1/tasks/${taskIds.cloudOnlyFeature}/runs`,
       {
         organizationId,
         idempotencyKey: "issue36-cloud-only-feature-run",
@@ -798,12 +965,50 @@ Deno.test("admit tasks and keep fixed-workflow run snapshots immutable", async (
           workflowVersionId: cloudOnlyWorkflowVersionId,
           executionMode: "cloud_only",
           budgetLimitUsd: "0.005000",
-          inputs: { taskId: taskIds.noRepository },
+          inputs: { taskId: taskIds.cloudOnlyFeature },
         },
       },
     );
-    assertEquals(cloudOnlyFeature.status, 409);
-    assertEquals((await cloudOnlyFeature.json()).code, "STATE_CONFLICT");
+    // #433 (O23): the maintenance-only rule is gone. A feature task whose
+    // workflow steps need no repository is admitted without one; the old rule
+    // refused this exact request with 409 cloud_only_requires_maintenance.
+    assertEquals(cloudOnlyFeature.status, 201);
+    const cloudOnlyFeatureBody = await cloudOnlyFeature.json() as {
+      id: string;
+      status: string;
+      repositoryProfileId: string | null;
+    };
+    assertEquals(cloudOnlyFeatureBody.status, "queued");
+    assertEquals(cloudOnlyFeatureBody.repositoryProfileId, null);
+    const cloudOnlyFeatureRun = await owner`
+      select r.repository_id as "repositoryId",
+             r.snapshot->'workspaceRequirement' as "workspaceRequirement",
+             r.snapshot->'scopeProfile' as "scopeProfile",
+             t.task_type as "taskType", t.status as "taskStatus"
+        from bakery.workflow_runs r
+        join bakery.tasks t
+          on t.organization_id = r.organization_id and t.id = r.task_id
+       where r.organization_id = ${organizationId}
+         and r.id = ${cloudOnlyFeatureBody.id}`;
+    assertEquals(cloudOnlyFeatureRun[0], {
+      repositoryId: null,
+      // Derived from the steps at admission: none declares a workspace.
+      workspaceRequirement: {
+        required: false,
+        workspaces: [],
+        reason: "no_step_declares_a_workspace",
+      },
+      // The project's published scope profile, pinned by revision and digest.
+      scopeProfile: {
+        applicationId,
+        revision: 2,
+        digest: publishedScopeProfile.digest,
+        checkCommands: publishedScopeProfile.checkCommands,
+        rules: publishedScopeProfile.rules,
+      },
+      taskType: "feature",
+      taskStatus: "queued",
+    });
     const cloudOnlyWithProfile = await send(
       "POST",
       `/v1/tasks/${taskIds.cloudOnlyProfile}/runs`,
