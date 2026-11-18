@@ -105,6 +105,59 @@ const session = (runStepId: string, status: string) => ({
   adapterCapabilities: {},
 });
 
+const streamId = "00000000-0000-4000-8000-000000000030";
+const jobId = "00000000-0000-4000-8000-000000000031";
+const attemptId = "00000000-0000-4000-8000-000000000032";
+/** The step's raw output stream, so the disclosure under the thread has real lines. */
+const streamFor = (runStepId: string) => ({
+  streamId,
+  organizationId: MOCK_ORGANIZATION_ID,
+  applicationId: task.applicationId,
+  repositoryId: task.repositoryId,
+  jobId,
+  taskId,
+  runStepId,
+  conversationId: task.conversationId,
+  logicalActor: "native:harness.implement",
+  highwater: "1",
+  closed: false,
+  capture: "capturing",
+  reason: null,
+  archive: "pending",
+  archiveFailure: null,
+  archivedAt: null,
+  historyExpiresAt: null,
+  segments: [],
+  producers: [{ writerGeneration: "1", attemptId, attemptNo: 1 }],
+  createdAt: stamp,
+});
+const attemptFor = (runStepId: string) => ({
+  id: attemptId,
+  jobId,
+  taskId,
+  runStepId,
+  workerHostId: "00000000-0000-4000-8000-000000000033",
+  workerName: "atlas-01",
+  attemptNo: 1,
+  status: "running",
+  isCurrent: true,
+  leaseState: "active",
+  leaseExpiresAt: "2026-10-11T18:00:00Z",
+  startedAt: stamp,
+  endedAt: null,
+  createdAt: stamp,
+  updatedAt: stamp,
+  outcome: {
+    resultStatus: null,
+    reasonCode: null,
+    exitCode: null,
+    processExited: null,
+    terminationStatus: null,
+    exitedAt: null,
+    usage: null,
+  },
+});
+
 const minutesAgo = (minutes: number) =>
   new Date(Date.now() - minutes * 60_000).toISOString();
 const base = (sequence: number, kind: string, minutes: number) => ({
@@ -211,11 +264,50 @@ async function prepare(page: Page, options: Options = {}) {
     "**/v1/artifacts?*",
     (route) => route.fulfill({ json: { items: [], nextCursor: null } }),
   );
-  await page.route(
-    "**/v1/output-streams?*",
-    (route) =>
-      route.fulfill({ json: { items: [], nextCursor: null, encodedBytes: 0 } }),
-  );
+  await page.route("**/v1/output-streams?*", (route) => {
+    const runStepId =
+      new URL(route.request().url()).searchParams.get("runStepId") ?? "";
+    return route.fulfill({
+      json: {
+        items: [streamFor(runStepId)],
+        nextCursor: null,
+        encodedBytes: 1000,
+      },
+    });
+  });
+  await page.route("**/v1/jobs/" + jobId + "/attempts?*", (route) => {
+    return route.fulfill({
+      json: {
+        items: [attemptFor(runningStepId), attemptFor(doneStepId)],
+        nextCursor: null,
+      },
+    });
+  });
+  await page.routeWebSocket("**/v1/events?*", (socket) => {
+    socket.onMessage((message) => {
+      const frame = JSON.parse(String(message));
+      if (frame.type !== "output.subscribe") return;
+      socket.send(JSON.stringify({
+        type: "output.batch",
+        requestId: frame.requestId,
+        streamId,
+        batch: {
+          sessionId: streamId,
+          writerGeneration: "1",
+          batchId: crypto.randomUUID(),
+          sequence: "1",
+          parts: [{
+            itemId: crypto.randomUUID(),
+            channel: "stdout",
+            text: "$ pnpm test upload\n 12 passed",
+          }],
+          capture: "capturing",
+          reason: null,
+          digest: "a".repeat(64),
+        },
+      }));
+    });
+  });
   await page.route("**/v1/sync*", (route) =>
     route.fulfill({
       json: {
