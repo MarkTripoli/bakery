@@ -2,7 +2,6 @@ import { assert, assertEquals } from "@std/assert";
 import {
   allowRunFlags,
   allowRunFor,
-  BARE_ALLOW_RUN_LANES,
   REFUSED_BASENAMES,
 } from "../../scripts/ci/lane-allow-run.ts";
 
@@ -14,6 +13,17 @@ import {
 const EXEC = "/opt/deno/bin/deno";
 const launcher = (name: string) => `/repo/infra/server-exec/${name}`;
 const context = { execPath: EXEC, serverLauncher: launcher };
+// Written out, not read from the module: dropping or adding a bare-grant lane
+// there must fail here.
+const BARE_LANES = [
+  "rails",
+  "integration",
+  "recovery",
+  "security",
+  "e2e",
+  "connected",
+  "native",
+];
 const LANES = [
   "rails",
   "unit",
@@ -55,7 +65,7 @@ Deno.test("each lane's --allow-run is pinned exactly", () => {
   });
   assertEquals(grant("contract"), { kind: "list", entries: [EXEC] });
   assertEquals(grant("r2"), { kind: "none" });
-  for (const lane of [...BARE_ALLOW_RUN_LANES, "native"]) {
+  for (const lane of BARE_LANES) {
     assertEquals(grant(lane), { kind: "any" }, lane);
   }
   // The owner's opt-in for a real harness CLI widens the provider lane, and
@@ -69,7 +79,7 @@ Deno.test("every known lane has a decision, and the bare-grant lanes are the one
   for (const lane of LANES) assert(grant(lane) !== undefined, lane);
   assertEquals(
     LANES.filter((lane) => grant(lane).kind === "any").sort(),
-    [...BARE_ALLOW_RUN_LANES, "native"].sort(),
+    [...BARE_LANES].sort(),
   );
 });
 
