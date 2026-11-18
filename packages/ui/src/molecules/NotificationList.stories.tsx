@@ -1,5 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { NotificationList, NotificationRow, Stack, Text } from "@bakery/ui";
+import {
+  Button,
+  NotificationList,
+  NotificationRow,
+  Stack,
+  Text,
+} from "@bakery/ui";
 
 const meta = {
   title: "Bakery/Molecules/NotificationList",
@@ -32,7 +38,24 @@ export const Contract: StoryObj = {
         <Row id="b" />
       </NotificationList>
       <Text>Empty:</Text>
-      <NotificationList>{null}</NotificationList>
+      <NotificationList state="empty">
+        <li>
+          <Text>No notifications yet</Text>
+        </li>
+      </NotificationList>
+      <Text>Loading:</Text>
+      <NotificationList state="loading">
+        <li>
+          <Text>Loading notifications</Text>
+        </li>
+      </NotificationList>
+      <Text>Failed, with a retry:</Text>
+      <NotificationList state="error">
+        <li>
+          <Text>Notifications could not load.</Text>
+          <Button variant="quiet">Try again</Button>
+        </li>
+      </NotificationList>
     </Stack>
   ),
 };

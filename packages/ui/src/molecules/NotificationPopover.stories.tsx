@@ -97,6 +97,7 @@ export const Contract: StoryObj = {
         {...base}
         markAllReadDisabled={false}
         markAllReadDisabledReason="Nothing is unread."
+        state="scrolling"
       >
         <NotificationGroup heading="Today">
           {Array.from(

@@ -17,7 +17,9 @@ export function NotificationGroup(
   return (
     <section
       className="ui-notification-group"
+      data-state="default"
       data-ui-component="notificationGroup"
+      data-variant="default"
     >
       <h3 className="ui-notification-group__title">{heading}</h3>
       <ul className="ui-notification-group__rows">{children}</ul>

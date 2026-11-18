@@ -8,6 +8,7 @@ import {
 import AxeBuilder from "@axe-core/playwright";
 import { mockAuthenticatedSession } from "./helpers/mock-session.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
+import { laneBudgetMs } from "./helpers/lane-budget.ts";
 
 registerPageHealth(test);
 
@@ -1595,7 +1596,7 @@ const AFTER_APPROVAL_STILLS = [
 for (const [name, scenario] of AFTER_APPROVAL_STILLS) {
   test(`still: after approval, ${name}`, async ({ page }) => {
     test.skip(STILLS === undefined, "BAKERY_STILLS_DIR is not set");
-    test.setTimeout(120_000);
+    test.setTimeout(laneBudgetMs(120_000));
     for (const scheme of ["light", "dark"] as const) {
       for (
         const [size, width, height] of [["1440", 1440, 900], [
@@ -1637,7 +1638,7 @@ for (const [name, scenario] of AFTER_APPROVAL_STILLS) {
 
 test("still: the task's other pull requests, closed and opened", async ({ page }) => {
   test.skip(STILLS === undefined, "BAKERY_STILLS_DIR is not set");
-  test.setTimeout(120_000);
+  test.setTimeout(laneBudgetMs(120_000));
   const earlier = [
     pullRequestRow(480, {
       createdAt: "2026-01-01T00:00:01.000Z",

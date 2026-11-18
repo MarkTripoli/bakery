@@ -133,7 +133,8 @@ export function Popover(
     >
       <button
         aria-expanded={isOpen}
-        aria-label={triggerLabel ?? label}
+        aria-label={triggerLabel ??
+          (typeof trigger === "string" ? undefined : label)}
         aria-controls={contentId}
         aria-haspopup="dialog"
         className={`ui-popover__trigger ui-popover__trigger--${triggerAppearance}`}
