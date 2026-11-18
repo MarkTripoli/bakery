@@ -429,18 +429,52 @@ Deno.test("viewer and guest roles cannot read sensitive organization events", as
   const lease = await openTestFixture();
   const { fixture } = lease;
   try {
-    for (const role of ["viewer", "guest"] as const) {
-      await fixture.pgDatabase.query(
-        `update bakery.organization_memberships
-            set role = $1
-          where organization_id = $2 and principal_id = $3`,
-        [role, fixture.organizationId, fixture.principalId],
-      );
-      const denied = requireFailure(
-        await fixture.connect({ cookie: fixture.cookie }),
-      );
-      assertEquals(denied.status, 404, role);
-      assertEquals(bodyCode(denied.body), "RESOURCE_NOT_FOUND", role);
+    // A guest cannot even learn the organization exists.
+    await fixture.pgDatabase.query(
+      `update bakery.organization_memberships
+          set role = 'guest'
+        where organization_id = $1 and principal_id = $2`,
+      [fixture.organizationId, fixture.principalId],
+    );
+    const denied = requireFailure(
+      await fixture.connect({ cookie: fixture.cookie }),
+    );
+    assertEquals(denied.status, 404, "guest");
+    assertEquals(bodyCode(denied.body), "RESOURCE_NOT_FOUND", "guest");
+    // A viewer may connect for their own inbox (#455), but every organization
+    // event scope answers as if it did not exist.
+    await fixture.pgDatabase.query(
+      `update bakery.organization_memberships
+          set role = 'viewer'
+        where organization_id = $1 and principal_id = $2`,
+      [fixture.organizationId, fixture.principalId],
+    );
+    const viewer = requireClient(
+      await fixture.connect({ cookie: fixture.cookie }),
+    );
+    try {
+      assertEquals((await nextFrame(viewer)).type, "hello");
+      for (
+        const scope of [
+          { type: "application", id: fixture.applicationId },
+          { type: "task", id: fixture.taskId },
+          { type: "conversation", id: fixture.conversationId },
+        ]
+      ) {
+        await viewer.send(JSON.stringify({
+          type: "subscribe",
+          requestId: REQUEST_ID(),
+          scopes: [scope],
+          after: null,
+        }));
+        assertEquals(
+          frameCode(await nextFrame(viewer)),
+          "RESOURCE_NOT_FOUND",
+          scope.type,
+        );
+      }
+    } finally {
+      await viewer.close();
     }
   } finally {
     await closeTestFixture(lease);
