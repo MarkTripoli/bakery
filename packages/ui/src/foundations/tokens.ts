@@ -1,4 +1,4 @@
-/* Generated from Paper 01M1X504XVC45FC0VDK857A37D revision paper:49fea8f7; pages:14-0,15-0,16-0,V-0; accessed:2026-09-17; digest 1bb00d7803d589bb98f1002608af4f2f880d948f1bb4cf4f7bb192e19bf7eca7. */
+/* Generated from Paper 01M1X504XVC45FC0VDK857A37D revision paper:49fea8f7; pages:14-0,15-0,16-0,V-0; accessed:2026-09-17; digest 59d36d349376a83b9916102281644bb72e8292ec156c4c492bd11f6780c7c72a. */
 export const semanticTokens = {
   "border.default": "--border-default",
   "border.emphasis": "--border-emphasis",
@@ -146,6 +146,7 @@ export const semanticTokens = {
   "type.avatar": "--type-avatar",
   "type.backup-code": "--type-backup-code",
   "type.backup-code.compact": "--type-backup-code-compact",
+  "type.badge": "--type-badge",
   "type.body": "--type-body",
   "type.brand.rail": "--type-brand-rail",
   "type.brand.small": "--type-brand-small",

@@ -72,25 +72,41 @@ function NotificationBellGlyph(
     : null;
   return (
     <>
-      <IconGlyph name="bell" size="medium" />
-      {drawn === null ? null : (
-        <span
-          aria-hidden="true"
-          className="ui-notification-bell__badge"
-          data-ui-part="notificationBadge"
-        >
-          {drawn}
-        </span>
-      )}
-      {status.state === "unknown"
-        ? (
+      {
+        /* The icon's own box is the badge's positioning cell, so the offset is
+          measured from the glyph on both surfaces rather than from whichever
+          button wraps it. */
+      }
+      <span className="ui-notification-bell__glyph">
+        <IconGlyph name="bell" size="medium" />
+        {drawn === null ? null : (
           <span
             aria-hidden="true"
-            className="ui-notification-bell__badge ui-notification-bell__badge--unknown"
-            data-ui-part="notificationBadgeUnknown"
-          />
-        )
-        : null}
+            className="ui-notification-bell__badge"
+            data-ui-part="notificationBadge"
+          >
+            {
+              /* A count is read left to right in every locale, so the cap gets
+                its own isolating run. Without it a right-to-left page renders
+                "99+" as "+99", which reads as the wrong number. `dir` sits on
+                the text, not on the badge: the badge's own `inset-inline-start`
+                is what mirrors the pill to the icon's top left. */
+            }
+            <span className="ui-notification-bell__badge-count" dir="ltr">
+              {drawn}
+            </span>
+          </span>
+        )}
+        {status.state === "unknown"
+          ? (
+            <span
+              aria-hidden="true"
+              className="ui-notification-bell__badge ui-notification-bell__badge--unknown"
+              data-ui-part="notificationBadgeUnknown"
+            />
+          )
+          : null}
+      </span>
     </>
   );
 }
