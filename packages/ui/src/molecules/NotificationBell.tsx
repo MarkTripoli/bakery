@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes } from "react";
+import type { ButtonHTMLAttributes, ReactNode } from "react";
 import {
   type SemanticNativeProps,
   withoutSemanticOwnerProps,
@@ -41,6 +41,14 @@ export type NotificationBellProps =
      * caller batches it, so three arrivals in a second are one announcement.
      */
     readonly arrivalAnnouncement?: string | null;
+    /**
+     * Lets a caller own the interactive control instead of the bell's own
+     * button. It receives the drawn face and returns the control that wraps
+     * it, so a popover can supply its own trigger button. The bell keeps the
+     * wrapper and the polite live region either way, and the caller is
+     * responsible for giving its control the same accessible name.
+     */
+    readonly control?: (face: ReactNode) => ReactNode;
   };
 
 /**
@@ -51,7 +59,7 @@ export type NotificationBellProps =
  * is a popover trigger. A control cannot nest inside another control, so the
  * face must not be one — each caller supplies the interactive wrapper.
  */
-export function NotificationBellGlyph(
+function NotificationBellGlyph(
   { cap = 99, status = { state: "none" } }: {
     readonly cap?: number;
     readonly status?: NotificationBellStatus;
@@ -91,7 +99,7 @@ export function NotificationBellGlyph(
  * button on a phone, a popover's button from 744px up — and both need the same
  * batched sentence announced once, without moving focus.
  */
-export function NotificationArrival(
+function NotificationArrival(
   { announcement }: { readonly announcement?: string | null },
 ) {
   return (
@@ -121,6 +129,7 @@ export function NotificationBell(
     unknownLabel,
     unreadLabel,
     arrivalAnnouncement = null,
+    control,
     ...unsafeProps
   }: NotificationBellProps,
 ) {
@@ -139,14 +148,18 @@ export function NotificationBell(
       data-state={resolvedState}
       data-variant={variant}
     >
-      <button
-        aria-expanded={open}
-        aria-label={accessibleName}
-        type="button"
-        {...props}
-      >
-        <NotificationBellGlyph cap={cap} status={status} />
-      </button>
+      {control
+        ? control(<NotificationBellGlyph cap={cap} status={status} />)
+        : (
+          <button
+            aria-expanded={open}
+            aria-label={accessibleName}
+            type="button"
+            {...props}
+          >
+            <NotificationBellGlyph cap={cap} status={status} />
+          </button>
+        )}
       <NotificationArrival announcement={arrivalAnnouncement} />
     </span>
   );
