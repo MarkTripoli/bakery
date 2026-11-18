@@ -10,15 +10,6 @@ const pageConsumers = [
     "artifact-retrieval.spec.ts",
     "tasks.spec.ts",
   ]],
-  [
-    /^apps\/web\/src\/pages\/(ProjectsOnboardingPage\.tsx|projects-onboarding\/)/,
-    [
-      "projects-onboarding.spec.ts",
-      "projects-onboarding-recovery.spec.ts",
-      "repository-profile-real-api.spec.ts",
-      "task-composer.spec.ts",
-    ],
-  ],
 ];
 
 // Only known non-runtime inputs can avoid broad consumer coverage.
@@ -64,7 +55,7 @@ export function selectBrowserChecks(entries) {
     }
     if (independentInput.test(path)) continue;
     if (
-      /^apps\/web\/tests\/(auth-journey|settings-journey|account-security-journey|repository-profile-real-api|organization-access-real-api|installation-integrations-real-api|organization-integrations-fake-github|browser-artifact-core)\.spec\.ts$/
+      /^apps\/web\/tests\/(auth-journey|settings-journey|account-security-journey|organization-access-real-api|installation-integrations-real-api|organization-integrations-fake-github|browser-artifact-core)\.spec\.ts$/
         .test(path)
     ) {
       return {

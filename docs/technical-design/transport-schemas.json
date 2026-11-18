@@ -2651,8 +2651,8 @@
         {
           "name": "sourceArtifactVersionId",
           "type": "uuid",
-          "required": false,
-          "description": "Exact artifact version whose evidence justifies this memory revision; promotion requires this to name real evidence and pass a conflict scan before the revision is accepted."
+          "required": true,
+          "description": "Exact artifact version whose evidence justifies this memory revision. Required: a revision with no evidence is an opinion, not a memory, and promotion refuses it before it is stored."
         }
       ],
       "description": "Adds a new revision to an existing memory entry and advances its current-revision pointer through the normal compare-and-swap path."
@@ -2674,10 +2674,9 @@
           "required": false,
           "enum": [
             "active",
-            "superseded",
-            "retracted"
+            "retired"
           ],
-          "description": "Lifecycle state of the memory entry: \"active\" while retrievable, \"superseded\" once replaced by newer learning, or \"retracted\" if withdrawn as incorrect."
+          "description": "Lifecycle state of the memory entry, using the projection's own vocabulary: \"active\" while retrievable, or \"retired\" once withdrawn. Why it was retired - replaced by newer learning or withdrawn as incorrect - belongs in the next revision's required reason, which is where the history keeps it."
         }
       ],
       "description": "Edits a memory entry's subject or lifecycle status without creating a new revision; use MemoryRevisionCreate to change its content."

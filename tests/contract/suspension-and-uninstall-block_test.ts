@@ -13,12 +13,15 @@ import transport from "../../docs/technical-design/transport-schemas.json" with 
 import generated from "../../packages/contracts/generated/contracts.json" with {
   type: "json",
 };
+import { activateDeployedIntegrations } from "../../apps/server/src/modules/catalog/integration-gate.ts";
+import { deployedIntegrations } from "../../apps/server/src/modules/catalog/integration-gate-registry.ts";
 
 function registry() {
   return createIntegrationsActionRegistry({} as PgDatabase, {
     publicBaseUrl: "https://bakery.example.test",
     github: createFakeGitHubApp().client,
     cursorSecret: "contract-test-cursor-secret-0123456789abcdef",
+    integrationRegistry: activateDeployedIntegrations(deployedIntegrations),
   });
 }
 

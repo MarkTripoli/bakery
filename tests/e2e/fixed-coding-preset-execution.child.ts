@@ -7,6 +7,7 @@ import {
   HOSTILE_BRIEF_DESCRIPTION,
   implementJobId,
   launchPresetWorker,
+  presetImplementStepId,
   type PresetRun,
   type PresetWorld,
   provisionDelegatedCgroupV2,
@@ -39,7 +40,8 @@ async function steps(
       where organization_id = $1 and run_id = $2`,
     [world.organizationId, run.runId],
   );
-  return new Map(rows.map((row) => [row.step_key, row]));
+  // The preset is a compiled plan: its steps are keyed under the container.
+  return new Map(rows.map((row) => [row.step_key.replace(/^flow\./, ""), row]));
 }
 
 async function sha256Hex(bytes: Uint8Array): Promise<string> {
@@ -103,7 +105,10 @@ async function artifactVersions(
       where version.organization_id = $1
         and version.run_step_id = any($2::uuid[])
       order by version.created_at, version.id`,
-    [world.organizationId, [run.briefStepId, run.implementStepId]],
+    [
+      world.organizationId,
+      [run.briefStepId, await presetImplementStepId(stack, world, run)],
+    ],
   );
 }
 
@@ -153,7 +158,10 @@ Deno.test({
       const session = await stack.psql<{ id: string; status: string }>(
         `select id, status from bakery.agent_sessions
           where organization_id = $1 and run_step_id = $2`,
-        [world.organizationId, completion.implementStepId],
+        [
+          world.organizationId,
+          await presetImplementStepId(stack, world, completion),
+        ],
       );
       assertEquals(session.length, 1);
       await release(scriptedDir, completionJob);
@@ -183,12 +191,17 @@ Deno.test({
         artifact: { versionId: string; sha256: string };
       };
 
+      const completionImplementStepId = await presetImplementStepId(
+        stack,
+        world,
+        completion,
+      );
       const versions = await artifactVersions(stack, world, completion);
       const briefVersions = versions.filter((row) =>
         row.run_step_id === completion.briefStepId
       );
       const patchVersions = versions.filter((row) =>
-        row.run_step_id === completion.implementStepId
+        row.run_step_id === completionImplementStepId
       );
       assertEquals(briefVersions.length, 1);
       assertEquals(patchVersions.length, 1);
@@ -304,7 +317,10 @@ Deno.test({
               and attempt.job_id = job.id
             where job.organization_id = $1 and job.run_step_id = $2
             group by job.status`,
-          [world.organizationId, run.implementStepId],
+          [
+            world.organizationId,
+            await presetImplementStepId(stack, world, run),
+          ],
         );
         assertEquals(jobs.length, 1, "one implement job per run");
         const implement = rows.get("implement")!;

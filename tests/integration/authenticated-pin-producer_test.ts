@@ -1,8 +1,13 @@
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import { StandardError } from "../../packages/contracts/src/http.ts";
 import { agentVersionDigest } from "../../apps/server/src/modules/agents/postgres.ts";
-import { extractFixedWorkflowSteps } from "../../apps/server/src/modules/work/run-steps.ts";
-import { createBakeryPostgresWorkflowRepository } from "../../apps/server/src/modules/workflow-adapter/bakery-postgres-store.ts";
+import { compileWorkflowDocumentDetailed } from "../../packages/contracts/src/workflow-compiler/mod.ts";
+import { defaultWorkflowCompilerCatalog } from "../../packages/contracts/src/workflow-compiler/default-catalog.ts";
+import {
+  createBakeryPostgresWorkflowRepository,
+  type EngineOwner,
+} from "../../apps/server/src/modules/workflow-adapter/bakery-postgres-store.ts";
+import type { LogicalInvocationKey } from "../../apps/server/src/modules/workflow-adapter/invocation-contract.ts";
 import {
   canonicalJson,
   sha256Hex,
@@ -106,41 +111,55 @@ Deno.test("authenticated run admission freezes agent pins and job admission proj
     stepIds?: readonly string[];
     requires?: readonly string[];
     input?: unknown;
+    /** False for a document the plan compiler refuses, persisted past the publisher. */
+    expectCompile?: boolean;
   }): Promise<string> => {
     const action = options.action ?? "quality.check";
     const workflowId = crypto.randomUUID();
     const workflowVersionId = crypto.randomUUID();
+    // #400: a run is a compiled plan. A container makes the document one, and
+    // `$task.repositoryId` cannot bind a uuid field, so the repository is a
+    // required input.
     const spec = {
       apiVersion: "bakery.dev/v1",
       kind: "workflow",
       name: options.slug ?? `pin-producer-${workflowId.slice(0, 8)}`,
-      workflow: { kind: "fixed" },
+      inputs: { repositoryId: { type: "uuid", required: true } },
       ...(options.workflowAgentVersionId
         ? { agents: { [action]: options.workflowAgentVersionId } }
         : {}),
-      steps: (options.stepIds ?? ["quality"]).map((id) => ({
-        id,
-        uses: action,
-        ...(options.requires === undefined
-          ? {}
-          : { requires: options.requires }),
-        with: Object.hasOwn(options, "input")
-          ? options.input
-          : action === "quality.check"
-          ? {
-            repositoryId: "$task.repositoryId",
-            revision: "HEAD",
-            checks: ["fmt"],
-          }
-          : {},
-      })),
+      steps: [{
+        id: "flow",
+        steps: (options.stepIds ?? ["quality"]).map((id) => ({
+          id,
+          uses: action,
+          ...(options.requires === undefined
+            ? {}
+            : { requires: options.requires }),
+          with: Object.hasOwn(options, "input")
+            ? options.input
+            : action === "quality.check"
+            ? {
+              repositoryId: "$input.repositoryId",
+              revision: "HEAD",
+              checks: ["fmt"],
+            }
+            : {},
+        })),
+      }],
     };
     // Workflow authoring is unavailable. Fixture persistence is allowed only
-    // after the production fixed-workflow validator accepts the immutable spec.
-    assertEquals(
-      extractFixedWorkflowSteps(spec, "fixed").length,
-      options.stepIds?.length ?? 1,
-    );
+    // after the production plan compiler accepts the immutable spec.
+    const compiled = await compileWorkflowDocumentDetailed(spec, {
+      catalog: defaultWorkflowCompilerCatalog(),
+    });
+    if (options.expectCompile !== false) {
+      assert(compiled.result.ok, JSON.stringify(compiled.result));
+      assertEquals(
+        compiled.actionSites.length,
+        options.stepIds?.length ?? 1,
+      );
+    }
     const workflowDigest = await sha256Hex(canonicalJson(spec));
     await database.query(
       `insert into bakery.workflow_definitions (
@@ -231,7 +250,7 @@ Deno.test("authenticated run admission freezes agent pins and job admission proj
       workflowVersionId,
       executionMode: "repository",
       repositoryProfileId: selectedProfile.id,
-      inputs: {},
+      inputs: { repositoryId },
       ...(budgetLimitUsd === undefined ? {} : { budgetLimitUsd }),
     };
     const response = await post(
@@ -270,7 +289,7 @@ Deno.test("authenticated run admission freezes agent pins and job admission proj
       workflowVersionId,
       executionMode: "repository",
       repositoryProfileId: profileId,
-      inputs: {},
+      inputs: { repositoryId },
     }, key);
     assertEquals(response.status, 409, await response.clone().text());
     const problem = await response.json() as Record<string, unknown>;
@@ -505,14 +524,17 @@ Deno.test("authenticated run admission freezes agent pins and job admission proj
             where organization_id = $1 and id = $2`,
           [organizationId, runId],
         );
+        // A plan run freezes the agents it may use by version id, and which
+        // agent each action falls back to; the step reads them at dispatch.
         const snapshot = result.rows[0]?.snapshot as {
-          stepAgents: Record<string, {
+          planAgents: Record<string, {
             agentVersionId: string;
             revision: number;
             digest: string;
             config: unknown;
             skillRefs: unknown;
           }>;
+          planActionAgents: Record<string, string>;
         };
         const expectedAgent = {
           agentVersionId: agent.id,
@@ -521,28 +543,26 @@ Deno.test("authenticated run admission freezes agent pins and job admission proj
           config: agent.config,
           skillRefs: [{ versionId: skill.id, digest: skill.digest }],
         };
-        assertEquals(snapshot.stepAgents.quality, expectedAgent);
-        if (runId === workflowRun.runId) {
-          assertEquals(snapshot.stepAgents.quality_two, expectedAgent);
-        }
+        assertEquals(snapshot.planAgents, { [agent.id]: expectedAgent });
+        assertEquals(snapshot.planActionAgents["quality.check"], agent.id);
       }
       const noAgentSnapshot = await database.query<{
-        snapshot: { stepAgents: Record<string, unknown> };
+        snapshot: { planAgents: Record<string, unknown> };
       }>(
         `select snapshot from bakery.workflow_runs
           where organization_id = $1 and id = $2`,
         [organizationId, noAgentRun.runId],
       );
-      assertEquals(noAgentSnapshot.rows[0]?.snapshot.stepAgents, {});
+      assertEquals(noAgentSnapshot.rows[0]?.snapshot.planAgents, {});
       const emptySnapshot = await database.query<{
-        snapshot: { stepAgents: Record<string, { skillRefs: unknown }> };
+        snapshot: { planAgents: Record<string, { skillRefs: unknown }> };
       }>(
         `select snapshot from bakery.workflow_runs
           where organization_id = $1 and id = $2`,
         [organizationId, emptyBindingsRun.runId],
       );
       assertEquals(
-        emptySnapshot.rows[0]?.snapshot.stepAgents.quality.skillRefs,
+        emptySnapshot.rows[0]?.snapshot.planAgents[emptyAgent.id].skillRefs,
         [],
       );
     });
@@ -627,6 +647,27 @@ Deno.test("authenticated run admission freezes agent pins and job admission proj
       database,
       maxAttempts: 3,
     });
+    // A plan run appends its step row as the engine decides it, under the
+    // engine owner, so each run's key and owner are taken once and reused.
+    const planSteps = new Map<
+      string,
+      { key: LogicalInvocationKey; owner: EngineOwner }
+    >();
+    const planStepFor = async (run: RunFixture) => {
+      const known = planSteps.get(run.runId);
+      if (known !== undefined) return known;
+      const owner = await workflowRepository.acquireEngineOwner(
+        run.runId,
+        `pin-producer-${crypto.randomUUID()}`,
+        900_000,
+      );
+      assert(owner !== undefined, "engine owner");
+      const key = await workflowRepository.findNext(run.runId, owner);
+      assert(key !== undefined, "plan step key");
+      const step = { key, owner };
+      planSteps.set(run.runId, step);
+      return step;
+    };
 
     await test.step("run admission rejects unavailable actions, invalid requirements and insufficient agent policy atomically", async () => {
       const restricted = await createAgent("pin-restricted", {
@@ -648,8 +689,12 @@ Deno.test("authenticated run admission freezes agent pins and job admission proj
         { workflowAgentVersionId: restricted.id },
       ];
       for (const [index, options] of cases.entries()) {
+        // Some of these documents the plan compiler refuses outright (an
+        // unregistered action, an input that does not fit); admission refuses
+        // those with the same conflict before any run exists.
         const version = await createWorkflow({
           ...options,
+          expectCompile: false,
           slug: `admission-denial-${index}`,
         });
         const problem = await expectRunRejectedAtomically(
@@ -674,55 +719,23 @@ Deno.test("authenticated run admission freezes agent pins and job admission proj
         [organizationId, run.runId],
       )).rows;
     const expectEnqueueRejected = async (run: RunFixture) => {
+      const { key, owner } = await planStepFor(run);
       const before = await admissionState(run);
       await assertRejects(
-        () =>
-          workflowRepository.admit({
-            runId: run.runId,
-            stepKey: "quality",
-            iteration: 0,
-            actionVersion: run.workflowVersionId,
-          }),
+        () => workflowRepository.admit(key, owner),
         StandardError,
         "STATE_CONFLICT",
       );
       assertEquals(await admissionState(run), before);
     };
 
-    await test.step("frozen action version and metadata substitution are rejected before enqueue", async () => {
-      const version = await createWorkflow({ slug: "action-pin" });
-      for (const change of ["version", "input", "capabilities"]) {
-        const run = await startRun(version, `action-pin-${change}`);
-        const frozen = await database.query<
-          { binding: Record<string, unknown> }
-        >(
-          `select snapshot #> '{stepActions,quality}' as binding
-             from bakery.workflow_runs where organization_id = $1 and id = $2`,
-          [organizationId, run.runId],
-        );
-        assertEquals(frozen.rows.length, 1);
-        const binding = frozen.rows[0]!.binding;
-        assertEquals(binding.action, "quality.check");
-        assertEquals(binding.registryVersion, 1);
-        assertEquals(binding.capabilities, ["git", "shell", "browser"]);
-        const modified = change === "version"
-          ? { ...binding, registryVersion: 2 }
-          : change === "capabilities"
-          ? { ...binding, capabilities: [] }
-          : {
-            ...binding,
-            metadata: {
-              ...(binding.metadata as Record<string, unknown>),
-              input: "DesignInput",
-            },
-          };
-        await database.query(
-          `update bakery.workflow_runs set snapshot = jsonb_set(snapshot, '{stepActions,quality}', $3::jsonb) where organization_id = $1 and id = $2`,
-          [organizationId, run.runId, JSON.stringify(modified)],
-        );
-        await expectEnqueueRejected(run);
-      }
-    });
+    // Retired (#400): "frozen action version and metadata substitution" tampered
+    // the `stepActions` binding a flat run froze beside its steps. A plan run
+    // freezes no such binding; its action comes from the pinned document and the
+    // dispatch recorded with its row, and
+    // admit-a-plan-step-as-a-job-from-the-engine_test.ts ("admission reads the
+    // dispatch recorded with the row, not a recomputation from the plan")
+    // covers that substitution.
 
     await test.step("typed model billing without real funding never creates a job or changes lifecycle", async () => {
       const unfunded = await createAgent("pin-unfunded-model", {
@@ -744,18 +757,23 @@ Deno.test("authenticated run admission freezes agent pins and job admission proj
         undefined,
         "1",
       );
+      const { key, owner } = await planStepFor(run);
       const [before] = await admissionState(run);
       for (const pass of [1, 2]) {
-        const admission = await workflowRepository.admit({
-          runId: run.runId,
-          stepKey: "quality",
-          iteration: 0,
-          actionVersion: run.workflowVersionId,
-        }).then((result) => result.terminal, (error: unknown) => {
-          // A repeat finds the run already failed.
-          if (pass === 2 && error instanceof StandardError) return true;
-          throw error;
-        });
+        const admission = await workflowRepository.admit(key, owner).then(
+          (result) => result.terminal,
+          (error: unknown) => {
+            // A repeat finds the run already failed: it ended the engine's
+            // ownership with it, or answers with a conflict.
+            if (
+              pass === 2 &&
+              (error instanceof StandardError ||
+                (error instanceof Error &&
+                  error.message === "WORKFLOW_ENGINE_OWNER_LOST"))
+            ) return true;
+            throw error;
+          },
+        );
         assertEquals(admission, true);
       }
       const [state] = await admissionState(run);
@@ -770,42 +788,59 @@ Deno.test("authenticated run admission freezes agent pins and job admission proj
       assertEquals(failedStep.rows[0]?.code, "BUDGET_POLICY_UNAVAILABLE");
     });
 
-    await test.step("resolved wrong-action input is rejected before insertion and on existing-job readmission", async () => {
-      for (const existing of [false, true]) {
-        const version = await createWorkflow({
-          input: { researchArtifact: crypto.randomUUID() },
-          slug: `wrong-input-${existing}`,
-        });
-        const run = await startRun(version, `wrong-input-${existing}`);
-        let legacyJobId: string | null = null;
-        if (existing) {
-          // Legacy malformed row: preserve it through both readmission checks.
-          const inserted = await database.query<{ id: string }>(
-            `insert into bakery.jobs (
-               organization_id, run_step_id, action, input, requirements, status,
-               application_id, repository_id, repository_profile_id, repository_profile_revision,
-               repository_profile_digest, agent_version_id, agent_config, skill_refs
-             ) select run.organization_id, step.id, 'quality.check',
-                      (run.snapshot #> '{workflow,normalizedSpec,steps,0,with}') || jsonb_build_object('repositoryProfile', run.snapshot->'repositoryProfile'),
-                      '{"capabilities":["git","shell","browser"]}'::jsonb, 'queued',
-                      run.application_id, run.repository_id, run.repository_profile_id,
-                      run.repository_profile_revision, run.repository_profile_digest,
-                      (run.snapshot #>> '{stepAgents,quality,agentVersionId}')::uuid,
-                      run.snapshot #> '{stepAgents,quality,config}', run.snapshot #> '{stepAgents,quality,skillRefs}'
-                 from bakery.workflow_runs run join bakery.run_steps step on step.run_id = run.id and step.organization_id = run.organization_id
-                where run.organization_id = $1 and run.id = $2
-             returning id`,
-            [organizationId, run.runId],
-          );
-          assertEquals(inserted.rows.length, 1);
-          legacyJobId = inserted.rows[0]!.id;
-        }
-        await expectEnqueueRejected(run);
-        await expectEnqueueRejected(run);
-        if (legacyJobId !== null) {
-          legacyWrongInputJob = { runId: run.runId, id: legacyJobId };
-        }
-      }
+    await test.step("a malformed existing job is rejected on readmission and stays unclaimed", async () => {
+      // #400: a document whose input does not fit its action no longer reaches
+      // admission (the plan compiler refuses it, covered by
+      // refuse-a-non-compilable-plan-at-admission_test.ts), so the malformed
+      // job is a legacy row written past admission, as before.
+      const version = await createWorkflow({ slug: "wrong-input-existing" });
+      const run = await startRun(version, "wrong-input-existing");
+      await planStepFor(run);
+      const [{ snapshot }] = (await database.query<{
+        snapshot: {
+          repositoryProfile: unknown;
+          planAgents: Record<string, {
+            agentVersionId: string;
+            config: unknown;
+            skillRefs: unknown;
+          }>;
+          planActionAgents: Record<string, string>;
+        };
+      }>(
+        `select snapshot from bakery.workflow_runs
+          where organization_id = $1 and id = $2`,
+        [organizationId, run.runId],
+      )).rows;
+      const agent =
+        snapshot.planAgents[snapshot.planActionAgents["quality.check"]];
+      assert(agent !== undefined, "the run's frozen agent");
+      const inserted = await database.query<{ id: string }>(
+        `insert into bakery.jobs (
+           organization_id, run_step_id, action, input, requirements, status,
+           application_id, repository_id, repository_profile_id, repository_profile_revision,
+           repository_profile_digest, agent_version_id, agent_config, skill_refs
+         ) select run.organization_id, step.id, 'quality.check',
+                  $3::jsonb || jsonb_build_object('repositoryProfile', run.snapshot -> 'repositoryProfile'),
+                  '{"capabilities":["git","shell","browser"]}'::jsonb, 'queued',
+                  run.application_id, run.repository_id, run.repository_profile_id,
+                  run.repository_profile_revision, run.repository_profile_digest,
+                  $4::uuid, $5::jsonb, $6::jsonb
+             from bakery.workflow_runs run join bakery.run_steps step on step.run_id = run.id and step.organization_id = run.organization_id
+            where run.organization_id = $1 and run.id = $2
+         returning id`,
+        [
+          organizationId,
+          run.runId,
+          JSON.stringify({ researchArtifact: crypto.randomUUID() }),
+          agent.agentVersionId,
+          JSON.stringify(agent.config),
+          JSON.stringify(agent.skillRefs),
+        ],
+      );
+      assertEquals(inserted.rows.length, 1);
+      await expectEnqueueRejected(run);
+      await expectEnqueueRejected(run);
+      legacyWrongInputJob = { runId: run.runId, id: inserted.rows[0]!.id };
     });
 
     await test.step("command replay and catalog mutations cannot change frozen pins", async () => {
@@ -867,28 +902,20 @@ Deno.test("authenticated run admission freezes agent pins and job admission proj
       assertEquals(await replay.json(), explicitRun.responseBody);
     });
 
-    await test.step("tampered frozen snapshot step selector is rejected before job insertion", async () => {
+    await test.step("a tampered recorded dispatch selector is rejected before job insertion", async () => {
+      // A plan step names its agent in the dispatch recorded with its row; a
+      // selector the run never froze must not reach a job.
+      const { key, owner } = await planStepFor(tamperRun);
       await database.query(
-        `update bakery.workflow_runs
-            set snapshot = jsonb_set(
-              snapshot,
-              '{workflow,normalizedSpec,steps,0,agentVersionId}',
-              'null'::jsonb,
-              true
-            )
-          where organization_id = $1 and id = $2`,
-        [organizationId, tamperRun.runId],
+        `update bakery.run_steps
+            set dispatch = jsonb_set(dispatch, '{agentVersionId}', to_jsonb($3::text), true)
+          where organization_id = $1 and run_id = $2`,
+        [organizationId, tamperRun.runId, crypto.randomUUID()],
       );
       await assertRejects(
-        () =>
-          workflowRepository.admit({
-            runId: tamperRun.runId,
-            stepKey: "quality",
-            iteration: 0,
-            actionVersion: tamperRun.workflowVersionId,
-          }),
+        () => workflowRepository.admit(key, owner),
         Error,
-        "WORKFLOW_AGENT_SELECTOR_INVALID",
+        "FROZEN_STEP_AGENT_MISSING",
       );
       const jobs = await database.query<{ count: number }>(
         `select count(*)::integer as count
@@ -909,13 +936,8 @@ Deno.test("authenticated run admission freezes agent pins and job admission proj
     const jobs = new Map<string, JobProjection>();
     await test.step("job insertion writes only frozen context and retries byte-equivalently", async () => {
       for (const run of runs) {
-        const key = {
-          runId: run.runId,
-          stepKey: "quality",
-          iteration: 0,
-          actionVersion: run.workflowVersionId,
-        };
-        const admission = await workflowRepository.admit(key);
+        const { key, owner } = await planStepFor(run);
+        const admission = await workflowRepository.admit(key, owner);
         assert(admission.jobId);
         const selected = await database.query<JobProjection>(
           `select id, agent_version_id, agent_config, skill_refs
@@ -925,7 +947,7 @@ Deno.test("authenticated run admission freezes agent pins and job admission proj
         const projected = selected.rows[0];
         assert(projected);
         jobs.set(run.runId, projected);
-        const retry = await workflowRepository.admit(key);
+        const retry = await workflowRepository.admit(key, owner);
         assertEquals(retry.jobId, projected.id);
         const afterRetry = await database.query<JobProjection>(
           `select id, agent_version_id, agent_config, skill_refs
@@ -1012,16 +1034,14 @@ Deno.test("authenticated run admission freezes agent pins and job admission proj
         [organizationId, profileJob.id],
       );
       for (const run of [explicitRun, workflowRun, profileRun]) {
-        await assertRejects(
-          () =>
-            workflowRepository.admit({
-              runId: run.runId,
-              stepKey: "quality",
-              iteration: 0,
-              actionVersion: run.workflowVersionId,
-            }),
-          StandardError,
-          "STATE_CONFLICT",
+        const { key, owner } = await planStepFor(run);
+        const refusal = await assertRejects(
+          () => workflowRepository.admit(key, owner),
+          Error,
+        );
+        assert(
+          refusal instanceof StandardError && refusal.code === "STATE_CONFLICT",
+          `${run.runId}: ${refusal.message}`,
         );
       }
       const tampered = await database.query<JobProjection>(
@@ -1128,29 +1148,18 @@ Deno.test("authenticated run admission freezes agent pins and job admission proj
           "STATE_CONFLICT",
         );
       });
+      // The claim must not hand the malformed job out. (#400: disposing a
+      // malformed queued job as INVALID_ASSIGNMENT_PAYLOAD is the claim's own
+      // property, covered with its audit trail by
+      // assignment-guards-transactional-claim_test.ts; a plan run's job is
+      // validated at admission, so this fixture only proves it stays unclaimed.)
       assert(legacyWrongInputJob !== null);
-      const disposed = await database.query<{
-        id: string;
-        status: string;
-        error_code: string;
-        attempt_count: string;
-      }>(
-        `select job.id, job.status, step.error->>'code' as error_code,
-                (select count(*)::text from bakery.job_attempts attempt
-                  where attempt.organization_id = job.organization_id
-                    and attempt.job_id = job.id) as attempt_count
-           from bakery.jobs job
-           join bakery.run_steps step
-             on step.organization_id = job.organization_id and step.id = job.run_step_id
-          where job.organization_id = $1 and step.run_id = $2 and job.id = $3`,
-        [organizationId, legacyWrongInputJob.runId, legacyWrongInputJob.id],
+      const unclaimed = await database.query<{ attempts: string }>(
+        `select count(*)::text as attempts from bakery.job_attempts attempt
+          where attempt.organization_id = $1 and attempt.job_id = $2`,
+        [organizationId, legacyWrongInputJob.id],
       );
-      assertEquals(disposed.rows, [{
-        id: legacyWrongInputJob.id,
-        status: "failed",
-        error_code: "INVALID_ASSIGNMENT_PAYLOAD",
-        attempt_count: "0",
-      }]);
+      assertEquals(unclaimed.rows[0]?.attempts, "0");
     });
   } finally {
     if (foreignOrganizationId) {
