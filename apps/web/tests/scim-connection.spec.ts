@@ -15,11 +15,12 @@ const credential = (
   id: string,
   status: "active" | "revoked" | "expired" = "active",
   lastUsedAt: string | null = null,
+  expiresAt = "2026-12-31T12:00:00.000Z",
 ) => ({
   id,
   prefix: "bsc_play",
   status,
-  expiresAt: "2026-12-31T12:00:00.000Z",
+  expiresAt,
   lastUsedAt,
   createdAt: "2026-10-13T00:00:00.000Z",
   revokedAt: status === "revoked" ? "2026-10-14T00:00:00.000Z" : null,
@@ -111,7 +112,7 @@ for (
         page.getByRole("heading", { name: "User provisioning", exact: true })
           .first(),
       ).toBeVisible();
-      await page.getByRole("button", { name: "Create connection" }).click();
+      await page.getByRole("button", { name: "Set up provisioning" }).click();
       const once = page.getByTestId("scim-token-once");
       await expect(once).toContainText(SECRET);
       await expect(once).toContainText("not shown again");
@@ -139,7 +140,7 @@ for (
       await page.getByRole("button", { name: "Rotate token", exact: true })
         .click();
       const dialog = page.getByRole("alertdialog", {
-        name: "Rotate the SCIM token?",
+        name: "Rotate the token?",
       });
       await expect(dialog).toBeVisible();
       await dialog.getByRole("button", { name: "Cancel" }).click();
@@ -154,7 +155,7 @@ for (
       await page.getByRole("button", { name: "Revoke token", exact: true })
         .click();
       await page.getByRole("alertdialog", {
-        name: "Revoke the SCIM token?",
+        name: "Revoke the token?",
       })
         .getByRole("button", { name: "Revoke token", exact: true }).click();
       await expect(page.getByText("Revoked").first()).toBeVisible();
@@ -175,7 +176,7 @@ for (
             ),
           ).toBeVisible({ timeout }),
       );
-      await expect(page.getByRole("button", { name: "Create connection" }))
+      await expect(page.getByRole("button", { name: "Set up provisioning" }))
         .toHaveCount(0);
     });
 
@@ -241,11 +242,11 @@ for (
       const list = page.getByTestId("scim-credentials-list");
       if (viewport.name === "desktop") {
         await expect(list).toHaveCount(0);
-        await expect(page.getByRole("table", { name: "SCIM credentials" }))
+        await expect(page.getByRole("table", { name: "SCIM tokens" }))
           .toBeVisible();
         return;
       }
-      await expect(page.getByRole("table", { name: "SCIM credentials" }))
+      await expect(page.getByRole("table", { name: "SCIM tokens" }))
         .toHaveCount(0);
       const rows = list.getByRole("listitem");
       await expect(rows).toHaveCount(4);
@@ -273,19 +274,156 @@ for (
       expect((await revoke.boundingBox())!.y).toBeGreaterThan(last.y);
     });
 
-    test("the lifetime select and Create connection have a gap between them", async ({ page }) => {
+    test("the lifetime select and Set up provisioning have a gap between them", async ({ page }) => {
       await scimFixture(page, { initial: "none" });
       await page.goto("/settings/scim");
       // The create form's own select; the rotate dialog holds another one.
-      const select = page.getByRole("combobox", { name: "Credential lifetime" })
+      const select = page.getByRole("combobox", { name: "Token lifetime" })
         .first();
-      const create = page.getByRole("button", { name: "Create connection" });
+      const create = page.getByRole("button", { name: "Set up provisioning" });
       await expect(create).toBeVisible();
       const selectBox = (await select.boundingBox())!;
       const createBox = (await create.boundingBox())!;
       const gap = createBox.y - (selectBox.y + selectBox.height);
       // The standard field gap, not touching.
       expect(gap).toBeGreaterThanOrEqual(8);
+    });
+
+    test("a connection that is not set up explains provisioning and offers one action", async ({ page }) => {
+      await scimFixture(page, { initial: "none" });
+      await page.goto("/settings/scim");
+      await expect(page.getByText("Provisioning is not set up")).toBeVisible();
+      await expect(
+        page.getByText(
+          "When it is on, people you add or remove in your identity provider are added or removed here.",
+        ),
+      ).toBeVisible();
+      await expect(page.getByTestId("scim-status")).toHaveText("Not set up");
+      await expect(page.getByRole("button", { name: "Set up provisioning" }))
+        .toHaveCount(1);
+      await shot(page, "scim-not-set-up");
+    });
+
+    test("a connection shows the setup guide, a copyable address and the roles table", async ({ page }) => {
+      await scimFixture(page, { initial: "active" });
+      await page.goto("/settings/scim");
+      await expect(page.getByTestId("scim-status")).toHaveText("Connected");
+      const guide = page.getByTestId("scim-setup-guide");
+      await expect(guide.getByRole("listitem")).toHaveCount(3);
+      await expect(guide).toContainText("Copy the address");
+      await expect(guide).toContainText("Create a token");
+      await expect(guide).toContainText(
+        "Paste both into your identity provider",
+      );
+      await expect(page.getByText("SCIM address")).toBeVisible();
+      await expect(page.getByText("Access token")).toBeVisible();
+      await shot(page, "scim-connected");
+      // One press on Copy either copies or says the browser refused.
+      await page.getByRole("button", { name: "Copy address" }).click();
+      await expect(
+        page.getByText(/^Copied$|did not allow copying/).first(),
+      ).toBeVisible();
+      const roles = page.getByRole("table", { name: "Roles from groups" });
+      await expect(roles.getByRole("columnheader")).toHaveText([
+        "Group name in your provider",
+        "Role in Bakery",
+      ]);
+      await expect(roles.getByRole("row")).toHaveCount(5);
+      await expect(roles.getByRole("row").nth(1)).toContainText(
+        "bakery-adminAdmin",
+      );
+      await expect(
+        page.getByText(
+          "Anyone who is in none of these groups joins as a Viewer. Other groups are ignored.",
+        ),
+      ).toBeVisible();
+    });
+
+    test("the setup guide goes away once the identity provider has used a token", async ({ page }) => {
+      await scimFixture(page, { initial: "active" });
+      await page.route(
+        "**/v1/scim-connection",
+        (route) =>
+          route.request().method() === "GET"
+            ? route.fulfill(
+              json(
+                200,
+                connection("active", [
+                  credential(
+                    CREDENTIAL_ID,
+                    "active",
+                    "2026-11-11T12:00:00.000Z",
+                  ),
+                ]),
+              ),
+            )
+            : route.fallback(),
+      );
+      await page.goto("/settings/scim");
+      await expect(page.getByTestId("scim-status")).toHaveText("Connected");
+      await expect(page.getByTestId("scim-setup-guide")).toHaveCount(0);
+    });
+
+    test("a token that expires within 14 days warns and offers Rotate; an expired one says provisioning stopped", async ({ page }) => {
+      await scimFixture(page, { initial: "active" });
+      const soon = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString();
+      await page.route(
+        "**/v1/scim-connection",
+        (route) =>
+          route.request().method() === "GET"
+            ? route.fulfill(
+              json(
+                200,
+                connection("active", [
+                  credential(CREDENTIAL_ID, "active", null, soon),
+                ]),
+              ),
+            )
+            : route.fallback(),
+      );
+      await page.goto("/settings/scim");
+      const warning = page.getByTestId("scim-token-expiring");
+      await expect(warning).toContainText("This token expires on");
+      await expect(warning).toContainText(
+        "Rotate it before then or provisioning stops.",
+      );
+      await shot(page, "scim-token-expiring");
+      await warning.getByRole("button", { name: "Rotate token" }).click();
+      await expect(
+        page.getByRole("alertdialog", { name: "Rotate the token?" }),
+      ).toBeVisible();
+
+      await page.unroute("**/v1/scim-connection");
+      await page.route(
+        "**/v1/scim-connection",
+        (route) =>
+          route.request().method() === "GET"
+            ? route.fulfill(
+              json(
+                200,
+                connection("active", [
+                  credential(
+                    CREDENTIAL_ID,
+                    "expired",
+                    null,
+                    "2026-10-01T12:00:00.000Z",
+                  ),
+                ]),
+              ),
+            )
+            : route.fallback(),
+      );
+      await page.reload();
+      await expect(page.getByTestId("scim-status")).toHaveText("Token expired");
+      await expect(page.getByTestId("scim-token-expired")).toContainText(
+        "provisioning has stopped",
+      );
+      await expect(
+        page.getByTestId("scim-token-expired").getByRole("button", {
+          name: "Rotate token",
+        }),
+      ).toBeVisible();
+      await shot(page, "scim-token-expired");
     });
 
     test("a refused read is an information notice, not an error alert", async ({ page }) => {
@@ -311,7 +449,7 @@ for (
       ).toBeVisible();
       await expect(page.getByText("could not be loaded", { exact: false }))
         .toHaveCount(0);
-      await expect(page.getByRole("button", { name: "Create connection" }))
+      await expect(page.getByRole("button", { name: "Set up provisioning" }))
         .toHaveCount(0);
     });
   });
