@@ -1095,6 +1095,14 @@ export function validateVisualClosure(
     // render is never taller or wider than the artboard it derives from.
     const derived = baselines.reference?.capabilities === "core" &&
       (baselines.reference.derived ?? []).includes(designCase.design.screen);
+    // A case compared on a content box crops the surrounding shell away, so
+    // its image is the box, not the whole artboard, and the README states the
+    // two frames may differ in overall size. That is the same licence the
+    // `derived` flag carries: the image may be smaller than the frame it came
+    // from, but never larger, because a crop that outgrows its artboard is a
+    // defect this check exists to catch.
+    const cropped = designCase.comparisonRegion !== undefined;
+    const smaller = derived || cropped;
     if (
       !designCase.image ||
       !Number.isInteger(designCase.image.width) ||
@@ -1102,19 +1110,25 @@ export function validateVisualClosure(
     ) {
       errors.push(`${designCase.id} lacks recorded image dimensions`);
     } else if (designCase.artboard) {
-      if (designCase.image.width !== designCase.artboard.width) {
+      if (
+        smaller
+          ? designCase.image.width > designCase.artboard.width
+          : designCase.image.width !== designCase.artboard.width
+      ) {
         errors.push(
-          `${designCase.id} image width ${designCase.image.width} differs from artboard width ${designCase.artboard.width}`,
+          `${designCase.id} image width ${designCase.image.width} ${
+            smaller ? "exceeds" : "differs from"
+          } artboard width ${designCase.artboard.width}`,
         );
       }
       if (
-        derived
+        smaller
           ? designCase.image.height > designCase.artboard.height
           : designCase.image.height !== designCase.artboard.height
       ) {
         errors.push(
           `${designCase.id} image height ${designCase.image.height} ${
-            derived ? "exceeds" : "differs from"
+            smaller ? "exceeds" : "differs from"
           } artboard height ${designCase.artboard.height}`,
         );
       }

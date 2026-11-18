@@ -42,6 +42,7 @@ Deno.test("module migration sources include every server module", async () => {
     const expected of [
       "agentsBakeryMigrationSource",
       "repositoryRulesBakeryMigrationSource",
+      "artifactKindsBakeryMigrationSource",
       "integrationsBakeryMigrationSource",
       "deliveryBakeryMigrationSource",
     ]

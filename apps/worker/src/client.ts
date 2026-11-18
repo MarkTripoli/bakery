@@ -3,7 +3,7 @@ import {
   type RepositoryInspectionSourceChunk,
   RepositoryInspectionSourceChunkSchema,
 } from "../../../packages/contracts/src/repository-inspection.ts";
-import type { z } from "zod";
+import { z } from "zod";
 import {
   WORKER_SKILL_READ_HEADERS,
   WORKER_SKILL_RESPONSE_HEADERS,
@@ -94,6 +94,51 @@ type RequestOptions = {
   headers?: Record<string, string>;
   requireNoStore?: boolean;
 };
+/**
+ * One pinned input as the attempt-context route serves it.
+ *
+ * `digest` is computed by the server from `contentBase64` in the same response,
+ * so a worker comparing it against its own hash of the decoded bytes has two
+ * independent origins. The id is an immutable artifact VERSION, never a moving
+ * reference, so the bytes behind it cannot change between two reads.
+ */
+export type WorkerContextInput = {
+  readonly artifactVersionId: string;
+  readonly artifactId: string;
+  readonly digest: string;
+  readonly sizeBytes: number;
+  readonly mediaType: string;
+  readonly contentBase64: string;
+};
+
+/** Parses the route's list, refusing anything shaped differently. */
+const WorkerContextInputList = z.array(
+  z.object({
+    artifactVersionId: z.string().uuid().describe(
+      "The immutable artifact version the bytes came from, never a moving reference.",
+    ),
+    artifactId: z.string().uuid().describe(
+      "The artifact this version belongs to.",
+    ),
+    digest: z.string().describe(
+      "SHA-256 the server computed from the bytes in this same response; the worker compares it against its own hash so the two sides have independent origins.",
+    ),
+    sizeBytes: z.number().int().nonnegative().describe(
+      "Size of the bytes in the response.",
+    ),
+    mediaType: z.string().describe(
+      "Media type recorded for this version at admission.",
+    ),
+    contentBase64: z.string().describe(
+      "The pinned bytes, base64-encoded.",
+    ),
+  }).describe(
+    "One pinned input as the attempt-context route serves it: the immutable artifact version, its metadata, and the bytes in the same response with the server's own digest of them.",
+  ),
+).describe(
+  "Every pinned input of one attempt, each carrying its own bytes and the server's digest of them.",
+);
+
 export type WorkerResponse<T> = {
   readonly value: T;
   readonly replayed: boolean;
@@ -1282,6 +1327,32 @@ export class WorkerApiClient {
       SecretIdentityToolResultSchema,
       response,
       "WORKER_RESPONSE_SECRET_IDENTITY_INVALID",
+    );
+  }
+
+  /**
+   * The pinned inputs of the attempt this worker holds, with their bytes.
+   *
+   * The route derives the run from the attempt, so nothing here names an
+   * artifact: a worker cannot choose what it is given, only which attempt it is
+   * asking about. Each item carries the digest the SERVER computed from the
+   * bytes in the same response, which is what makes the worker's own check mean
+   * something - comparing a digest it asked for against bytes it received would
+   * be checking its own request.
+   */
+  async attemptContext(
+    attemptId: string,
+    signal?: AbortSignal,
+  ): Promise<WorkerResponse<readonly WorkerContextInput[]>> {
+    const response = await this.request<unknown>(
+      "GET",
+      `/v1/worker/attempts/${encodeURIComponent(attemptId)}/context`,
+      { authenticated: true, signal, successStatuses: [200] },
+    );
+    return parseResponseEnvelope(
+      WorkerContextInputList,
+      response,
+      "WORKER_RESPONSE_CONTEXT_INVALID",
     );
   }
 
