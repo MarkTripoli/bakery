@@ -13,6 +13,7 @@ import type {
   ExportDestination,
   ExportSubscription,
 } from "../../apps/server/src/modules/integrations/event-export-authorization.ts";
+import { exportSourceEvent } from "../../apps/server/src/modules/integrations/event-export-worker.ts";
 
 /**
  * Slice 3 of issue #21, AC2, proved at the seam that matters.
@@ -635,13 +636,15 @@ Deno.test("a destination resolving to a private address sends nothing", async ()
     await seed(admin);
 
     // The rebinding shape: the registered URL is fine, the answer is not.
-    for (const addresses of [
-      ["127.0.0.1"],
-      ["169.254.169.254"],
-      ["10.0.0.1"],
-      ["93.184.216.34", "127.0.0.1"],
-      [],
-    ]) {
+    for (
+      const addresses of [
+        ["127.0.0.1"],
+        ["169.254.169.254"],
+        ["10.0.0.1"],
+        ["93.184.216.34", "127.0.0.1"],
+        [],
+      ]
+    ) {
       const { result, ledger, transport } = await dispatch(app, { addresses });
       assertEquals(result, {
         ok: false,
@@ -700,6 +703,191 @@ Deno.test("a non-https destination sends nothing", async () => {
     assertEquals(ledger.records, 0);
     assertEquals(transport.sent, 0);
     assertEquals(await deliveryRows(app), 0);
+  } finally {
+    await cleanup(admin);
+    await admin.end();
+    await app.end();
+  }
+});
+
+Deno.test("the worker dispatches a recorded event to its subscriber", async () => {
+  const admin = openPgDatabase(adminUrl);
+  const app = openPgDatabase(appUrl);
+  await ensureMigrated();
+  try {
+    await seed(admin);
+
+    // This is the production caller: a recorded source event, subscriptions
+    // found from the database, and one dispatch per subscription. Everything
+    // below it had no caller before, so its refusals and checks were unreachable
+    // in production.
+    const transport = recordingTransport();
+    const result = await exportSourceEvent(
+      {
+        database: app,
+        authority: {
+          load: () => Promise.resolve(snapshot()),
+        },
+        registry: {} as never,
+        transport,
+        resolve: () => Promise.resolve(["93.184.216.34"]),
+        secretFor: () => Promise.resolve("a".repeat(32)),
+      },
+      {
+        organizationId,
+        sourceEventId: "evt-worker-1",
+        eventKind: "issue.opened",
+        sourceResourceId: resourceId,
+        payload: '{"event":"issue.opened"}',
+      },
+    );
+
+    assertEquals(result.offered, 1);
+    assertEquals(result.dispatched, 1);
+    assertEquals(result.refused, 0);
+
+    // It actually sent, to the address that was checked, with a signed request.
+    assertEquals(transport.sent, 1);
+    assertEquals(transport.addresses, ["93.184.216.34"]);
+
+    const rows = await q<{ attempt: number; status: string }>(
+      app,
+      `select attempt, status from bakery.integration_deliveries
+        where organization_id = $1 and source_event_id = 'evt-worker-1'`,
+      [organizationId],
+    );
+    assertEquals(rows.length, 1);
+    assertEquals(rows[0]!.attempt, 1);
+  } finally {
+    await cleanup(admin);
+    await admin.end();
+    await app.end();
+  }
+});
+
+Deno.test("a second run of the same event is a new attempt, not a new delivery", async () => {
+  const admin = openPgDatabase(adminUrl);
+  const app = openPgDatabase(appUrl);
+  await ensureMigrated();
+  try {
+    await seed(admin);
+    const run = () =>
+      exportSourceEvent(
+        {
+          database: app,
+          authority: { load: () => Promise.resolve(snapshot()) },
+          registry: {} as never,
+          transport: recordingTransport(),
+          resolve: () => Promise.resolve(["93.184.216.34"]),
+          secretFor: () => Promise.resolve("a".repeat(32)),
+        },
+        {
+          organizationId,
+          sourceEventId: "evt-worker-2",
+          eventKind: "issue.opened",
+          sourceResourceId: resourceId,
+          payload: '{"event":"issue.opened"}',
+        },
+      );
+
+    await run();
+    await run();
+
+    // Retrying is possible at all only because 0191 keys the unique index on
+    // (identity, attempt): the delivery identity is stable across attempts, so a
+    // unique on the identity alone made the second attempt impossible.
+    const rows = await q<{ attempt: number; delivery_identity: string }>(
+      app,
+      `select attempt, delivery_identity from bakery.integration_deliveries
+        where organization_id = $1 and source_event_id = 'evt-worker-2'
+        order by attempt`,
+      [organizationId],
+    );
+    assertEquals(rows.length, 2);
+    assertEquals(rows[0]!.attempt, 1);
+    assertEquals(rows[1]!.attempt, 2);
+    // One delivery to the receiver, attempted twice.
+    assertEquals(rows[0]!.delivery_identity, rows[1]!.delivery_identity);
+  } finally {
+    await cleanup(admin);
+    await admin.end();
+    await app.end();
+  }
+});
+
+Deno.test("the worker refuses a subscription whose authority lapsed", async () => {
+  const admin = openPgDatabase(adminUrl);
+  const app = openPgDatabase(appUrl);
+  await ensureMigrated();
+  try {
+    await seed(admin);
+    const transport = recordingTransport();
+    const result = await exportSourceEvent(
+      {
+        database: app,
+        // The subscription row is still active; the authority behind it is not.
+        // The query found it, and the predicate is what refuses it - which is
+        // why AC2 is about the predicate and not about the query.
+        authority: {
+          load: () =>
+            Promise.resolve(snapshot({ connectionState: "disabled" })),
+        },
+        registry: {} as never,
+        transport,
+        resolve: () => Promise.resolve(["93.184.216.34"]),
+        secretFor: () => Promise.resolve("a".repeat(32)),
+      },
+      {
+        organizationId,
+        sourceEventId: "evt-worker-3",
+        eventKind: "issue.opened",
+        sourceResourceId: resourceId,
+        payload: '{"event":"issue.opened"}',
+      },
+    );
+
+    assertEquals(result.offered, 1);
+    assertEquals(result.refused, 1);
+    assertEquals(result.dispatched, 0);
+    assertEquals(transport.sent, 0);
+    assertEquals(await deliveryRows(app), 0);
+    assertEquals(Object.keys(result.reasons), ["connection_not_active"]);
+  } finally {
+    await cleanup(admin);
+    await admin.end();
+    await app.end();
+  }
+});
+
+Deno.test("the worker does not send to a private address either", async () => {
+  const admin = openPgDatabase(adminUrl);
+  const app = openPgDatabase(appUrl);
+  await ensureMigrated();
+  try {
+    await seed(admin);
+    const transport = recordingTransport();
+    const result = await exportSourceEvent(
+      {
+        database: app,
+        authority: { load: () => Promise.resolve(snapshot()) },
+        registry: {} as never,
+        transport,
+        resolve: () => Promise.resolve(["169.254.169.254"]),
+        secretFor: () => Promise.resolve("a".repeat(32)),
+      },
+      {
+        organizationId,
+        sourceEventId: "evt-worker-4",
+        eventKind: "issue.opened",
+        sourceResourceId: resourceId,
+        payload: '{"event":"issue.opened"}',
+      },
+    );
+
+    assertEquals(result.refused, 1);
+    assertEquals(transport.sent, 0);
+    assertEquals(await deliveryRows(app), 0);
+    assertEquals(Object.keys(result.reasons), ["resolves_to_private_address"]);
   } finally {
     await cleanup(admin);
     await admin.end();

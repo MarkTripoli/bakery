@@ -105,6 +105,7 @@ Deno.test("a signing failure is terminal, not an uncertain delivery", async () =
     raw,
     payloadDigest: "digest-1",
     sign: () => Promise.reject(new Error("key unavailable")),
+    resolve: () => Promise.resolve(["93.184.216.34"]),
     reloadAuthority: () => Promise.resolve(snapshot()),
     ledger,
     transport,
@@ -131,6 +132,7 @@ Deno.test("a signing failure sends nothing and records nothing", async () => {
     sign: () => {
       throw new Error("key unavailable");
     },
+    resolve: () => Promise.resolve(["93.184.216.34"]),
     reloadAuthority: () => Promise.resolve(snapshot()),
     ledger: {
       record: () => {
@@ -169,6 +171,7 @@ Deno.test("authority revoked between the snapshot and the send is not sent", asy
     sign: () => Promise.resolve({ "x-bakery-delivery": "d" }),
     // The subscription was revoked in the window between authorizing and sending;
     // a snapshot is a value, not a lock.
+    resolve: () => Promise.resolve(["93.184.216.34"]),
     reloadAuthority: () => Promise.resolve(snapshot({ revoked: true })),
     ledger,
     transport,
@@ -191,6 +194,7 @@ Deno.test("the abandoned attempt is settled rather than left due", async () => {
     raw,
     payloadDigest: "digest-1",
     sign: () => Promise.resolve({ "x-bakery-delivery": "d" }),
+    resolve: () => Promise.resolve(["93.184.216.34"]),
     reloadAuthority: () => Promise.resolve(snapshot({ revoked: true })),
     ledger: {
       record: () => Promise.resolve({ deliveryId: "delivery-1" }),
