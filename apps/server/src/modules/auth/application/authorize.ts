@@ -95,6 +95,17 @@ export function authorize(
   });
 }
 
+/**
+ * A current human member with a system role, or a guest holding a custom role.
+ * This is the floor for the own-inbox rules: a bare guest or a service account
+ * is not a member here.
+ */
+export function isOrganizationMember(actor: PermissionPrincipal): boolean {
+  return actor.subject.principalType === PrincipalType.Human &&
+    actor.role !== undefined &&
+    (actor.role !== OrganizationRole.Guest || actor.customRole !== undefined);
+}
+
 export function authorizeOrganizationAction(
   action: ActionDefinition,
   actor: OrganizationActor,

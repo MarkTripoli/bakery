@@ -6,9 +6,11 @@ import {
 } from "@bakery/contracts/contracts";
 import { StandardError } from "@bakery/contracts/http";
 import type { PgTransactionClient } from "../../platform/database.ts";
-import { OrganizationRole, PrincipalType } from "@bakery/contracts/contracts";
 import type { OrganizationActor } from "../auth/application/authority.ts";
-import { authorize } from "../auth/application/authorize.ts";
+import {
+  authorize,
+  isOrganizationMember,
+} from "../auth/application/authorize.ts";
 
 export type SyncScopeType = z.output<
   typeof contractSchemas.SyncQuery
@@ -97,11 +99,7 @@ export function assertEventAccess(
     authorize(actor, "event:read", { action: "events.connect" });
     return true;
   } catch (denied) {
-    const member = actor.subject.principalType === PrincipalType.Human &&
-      actor.role !== undefined &&
-      (actor.role !== OrganizationRole.Guest ||
-        actor.customRole !== undefined);
-    if (!member) throw denied;
+    if (!isOrganizationMember(actor)) throw denied;
     return false;
   }
 }

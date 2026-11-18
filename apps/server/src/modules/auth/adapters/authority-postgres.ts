@@ -48,6 +48,7 @@ import {
 } from "../application/bindings.ts";
 import {
   authorizeOrganizationAction,
+  isOrganizationMember,
   permissionForAction,
 } from "../application/authorize.ts";
 import { minimalScopes, scopeAllows } from "../application/scopes.ts";
@@ -420,9 +421,7 @@ export function authorizeOwnInboxWrite(
   if (
     !isPermissionMiss(denied) ||
     !OWN_INBOX_WRITE_ACTIONS.has(action.name) ||
-    actor.subject.principalType !== PrincipalType.Human ||
-    actor.role === undefined ||
-    (actor.role === OrganizationRole.Guest && actor.customRole === undefined)
+    !isOrganizationMember(actor)
   ) throw denied;
   const permission = permissionForAction(action.name as CatalogActionName);
   if (
