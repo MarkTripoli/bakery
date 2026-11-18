@@ -2,24 +2,24 @@ name: Debug association
 on:
   pull_request:
     branches: [main]
-permissions: {}
+permissions:
+  contents: read
+  pull-requests: read
 jobs:
   echo:
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:
-      - name: Print the event identity fields
+      - name: Print the identity and API views
         env:
+          GH_TOKEN: ${{ github.token }}
           PR_ASSOC: ${{ github.event.pull_request.author_association }}
-          PR_USER: ${{ github.event.pull_request.user.login }}
-          PR_USER_TYPE: ${{ github.event.pull_request.user.type }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
           ACTOR: ${{ github.actor }}
-          SENDER: ${{ github.event.sender.login }}
-          SENDER_TYPE: ${{ github.event.sender.type }}
-          REPO_OWNER_TYPE: ${{ github.event.repository.owner.type }}
-          REPO_OWNER: ${{ github.event.repository.owner.login }}
+          PR: ${{ github.event.pull_request.number }}
         run: |
-          echo "pr.author_association=$PR_ASSOC"
-          echo "pr.user=$PR_USER type=$PR_USER_TYPE"
-          echo "actor=$ACTOR sender=$SENDER type=$SENDER_TYPE"
-          echo "repo owner=$REPO_OWNER type=$REPO_OWNER_TYPE"
+          echo "payload assoc=$PR_ASSOC head_repo=$HEAD_REPO repo=$GITHUB_REPOSITORY"
+          echo "rest pr assoc: $(gh api repos/$GITHUB_REPOSITORY/pulls/$PR --jq .author_association 2>&1)"
+          echo "collab permission: $(gh api repos/$GITHUB_REPOSITORY/collaborators/$ACTOR/permission --jq .permission 2>&1)"
+          echo "collab check: $(gh api -i repos/$GITHUB_REPOSITORY/collaborators/$ACTOR 2>&1 | head -1)"
+          echo "org member: $(gh api -i orgs/MarkTripoli/members/$ACTOR 2>&1 | head -1)"
