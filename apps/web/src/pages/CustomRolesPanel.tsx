@@ -545,7 +545,10 @@ export function CustomRolesPanel({ organizationId }: {
                   onChange={setDescription}
                 />
               </UI.Field>
-              <fieldset data-testid="custom-role-permissions">
+              <fieldset
+                data-group="plain"
+                data-testid="custom-role-permissions"
+              >
                 <legend>
                   {translate("settings.roles.field.permissions")}
                 </legend>
@@ -576,6 +579,7 @@ export function CustomRolesPanel({ organizationId }: {
                     >
                       <fieldset
                         aria-label={translate(`settings.roles.area.${area}`)}
+                        data-group="plain"
                       >
                         <UI.Stack gap="compact">
                           <UI.Inline gap="compact">
@@ -617,10 +621,12 @@ export function CustomRolesPanel({ organizationId }: {
                                   return next;
                                 })}
                             >
-                              {sentence(permission)}{" "}
-                              <UI.DataText translate="no" variant="code">
-                                {permission}
-                              </UI.DataText>
+                              <span>
+                                {sentence(permission)}{" "}
+                                <UI.DataText translate="no" variant="code">
+                                  {permission}
+                                </UI.DataText>
+                              </span>
                             </UI.Checkbox>
                           ))}
                         </UI.Stack>
@@ -629,7 +635,7 @@ export function CustomRolesPanel({ organizationId }: {
                   );
                 })}
               </fieldset>
-              <UI.Inline gap="compact">
+              <UI.Inline variant="actions">
                 <UI.Button type="submit" loading={busy}>
                   {translate("settings.roles.save")}
                 </UI.Button>
