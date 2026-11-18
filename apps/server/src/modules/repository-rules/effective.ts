@@ -231,5 +231,7 @@ export async function getEffectiveRepositoryRules(
     supersededOverrides: resolved.supersededOverrides,
     // The run's own policyDigest over the same pins, never a second formula.
     digest: await rulesPolicyDigest(fixedPolicy, resolved.entries),
+    // Same input as the digest: only a fixed policy makes runs record a check.
+    hasFixedPolicy: fixedPolicy !== undefined,
   };
 }

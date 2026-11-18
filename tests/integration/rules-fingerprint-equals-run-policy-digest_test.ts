@@ -115,20 +115,23 @@ Deno.test("#65 AC1: the rules fingerprint equals the policyDigest a run records,
         checks: ["unit"],
       })).policyDigest;
     };
-    const readDigest = async () =>
-      (await expectJson<{ digest: string }>(
-        await apiCall(
-          fixture,
-          fixture,
-          "GET",
-          `/v1/repositories/${repository.repositoryId}/rules`,
-        ),
-        200,
-      )).digest;
+    const readRules = async () => (await expectJson<
+      { digest: string; hasFixedPolicy?: boolean }
+    >(
+      await apiCall(
+        fixture,
+        fixture,
+        "GET",
+        `/v1/repositories/${repository.repositoryId}/rules`,
+      ),
+      200,
+    ));
 
     await publishOrganizationRules(fixture, fixture, 0, [commitsEntry(true)]);
     const before = await recordedDigest();
-    assertEquals(await readDigest(), before);
+    const rulesBefore = await readRules();
+    assertEquals(rulesBefore.digest, before);
+    assertEquals(rulesBefore.hasFixedPolicy, true);
 
     // A rules edit moves both the read and a newly admitted run, together.
     await publishOrganizationRules(fixture, fixture, 1, [
@@ -137,5 +140,20 @@ Deno.test("#65 AC1: the rules fingerprint equals the policyDigest a run records,
     ]);
     const after = await recordedDigest();
     assertNotEquals(after, before);
-    assertEquals(await readDigest(), after);
+    const rulesAfter = await readRules();
+    assertEquals(rulesAfter.digest, after);
+    assertEquals(rulesAfter.hasFixedPolicy, true);
+
+    // A profile without a fixed policy admits runs that record no check.
+    const plain = await seedPresetRepository(fixture.pgDatabase, fixture, {});
+    const plainRules = await expectJson<{ hasFixedPolicy?: boolean }>(
+      await apiCall(
+        fixture,
+        fixture,
+        "GET",
+        `/v1/repositories/${plain.repositoryId}/rules`,
+      ),
+      200,
+    );
+    assertEquals(plainRules.hasFixedPolicy, false);
   }, { env: presetBudgetEnv }));

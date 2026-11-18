@@ -19246,7 +19246,8 @@
         "digest",
         "repositoryVersion",
         "checkers",
-        "providerProtection"
+        "providerProtection",
+        "hasFixedPolicy"
       ],
       "fieldTypes": {
         "repositoryId": "uuid",
@@ -19258,11 +19259,15 @@
         "digest": "sha256",
         "repositoryVersion": "positiveInteger",
         "checkers": "RepositoryRuleCheckers",
-        "providerProtection": "RepositoryProviderProtection"
+        "providerProtection": "RepositoryProviderProtection",
+        "hasFixedPolicy": "boolean"
       },
       "nullableFields": [
         "profileId",
         "profileRevision"
+      ],
+      "optionalFields": [
+        "hasFixedPolicy"
       ],
       "description": "The rules in force for one repository: the organization's latest published baseline layered with the overrides of the repository's active profile, one entry per applicable rule with its provenance, plus overrides inactive under an organization lock. Resolved in one snapshot, so every entry's organization revision equals the response's organizationRevision. A repository with no active profile resolves with no overrides.",
       "fieldDescriptions": {
@@ -19275,7 +19280,8 @@
         "digest": "Rules fingerprint: equals the policyDigest a check of a run admitted under these rules records (effective policy digest over the active profile's fixed policy, its trusted checker and the effective entries; organization revision and superseded overrides are excluded). Without a fixed policy no check records one and the value matches no run.",
         "repositoryVersion": "Current repository version; the response ETag is \"v<version>\", the If-Match value profile activation requires.",
         "checkers": "Bakery checker availability for the effective rules.",
-        "providerProtection": "Git provider branch protection state, separate from Bakery enforcement."
+        "providerProtection": "Git provider branch protection state, separate from Bakery enforcement.",
+        "hasFixedPolicy": "True when the active profile has a fixed policy, so runs admitted under these rules record a check policyDigest equal to digest. When false, runs admitted under these rules record no check, so no run will match digest."
       }
     },
     "RepositoryRuleCheckers": {
