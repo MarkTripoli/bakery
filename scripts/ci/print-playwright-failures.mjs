@@ -31,10 +31,21 @@ export const TOTAL_BYTES = 192 * 1024;
 /** The most failed tests whose snapshot is printed. */
 export const MAX_FAILED_TESTS = 25;
 
+/** The most file names listed in one failed test's group header. */
+export const MAX_LISTED_FILES = 20;
+/** The longest a group header may be, in characters. */
+export const MAX_HEADER_CHARS = 512;
+
 const CONTEXT_FILE = "error-context.md";
-/** Whether a character code is a control character other than tab and newline. */
+/**
+ * Whether a character code is a control character other than tab and newline:
+ * C0, DEL, the C1 range (U+0080 to U+009F, which holds U+009B, a one-character
+ * CSI, and U+0085, NEL) and the Unicode line and paragraph separators, which
+ * some viewers break a line on.
+ */
 const isControl = (code) =>
-  code < 9 || (code > 10 && code < 32) || code === 127;
+  code < 9 || (code > 10 && code < 32) || (code >= 127 && code <= 159) ||
+  code === 0x2028 || code === 0x2029;
 
 /** A name or path that is safe to put on a log line of its own. */
 const label = (name) => name.replace(/[^A-Za-z0-9._ /-]/g, "?");
@@ -113,20 +124,30 @@ export function render(root) {
   for (const name of failed) {
     if (shown >= MAX_FAILED_TESTS || printed >= TOTAL_BYTES) break;
     const directory = join(root, name);
-    const files = readdirSync(directory, { withFileTypes: true })
+    const regular = readdirSync(directory, { withFileTypes: true })
       .filter((entry) => entry.isFile())
-      .sort((a, b) => a.name.localeCompare(b.name))
-      .map((entry) =>
-        `${label(entry.name)} ${
-          kib(regularFileSize(join(directory, entry.name)) ?? 0)
-        }`
-      );
+      .sort((a, b) => a.name.localeCompare(b.name));
+    // A directory can hold any number of files: list a few, say how many more.
+    const files = regular.slice(0, MAX_LISTED_FILES).map((entry) =>
+      `${label(entry.name)} ${
+        kib(regularFileSize(join(directory, entry.name)) ?? 0)
+      }`
+    );
+    if (regular.length > MAX_LISTED_FILES) {
+      files.push(`and ${regular.length - MAX_LISTED_FILES} more`);
+    }
     const head = readHead(
       join(directory, CONTEXT_FILE),
       PER_FILE_BYTES,
     );
     if (head === null) continue;
-    out.push(`::group::${label(name)} (${files.join(", ")})`);
+    // The header is part of what is printed: bounded in length, and counted
+    // toward the total below.
+    const header = `::group::${label(name)} (${files.join(", ")})`.slice(
+      0,
+      MAX_HEADER_CHARS,
+    );
+    out.push(header);
     out.push(neutralize(head.text));
     if (head.size > Buffer.byteLength(head.text)) {
       out.push(
@@ -136,7 +157,7 @@ export function render(root) {
       );
     }
     out.push("::endgroup::");
-    printed += Buffer.byteLength(head.text);
+    printed += Buffer.byteLength(head.text) + header.length;
     shown += 1;
   }
   if (shown < failed.length) {
