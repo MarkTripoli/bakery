@@ -39,6 +39,10 @@ import type {
   IntegrationConnection,
   IntegrationResource,
   MessageListResponse,
+  NotificationCountResponse,
+  NotificationCursorQuery,
+  NotificationListResponse,
+  NotificationTargetResponse,
   OrganizationAccessPage,
   OrganizationInvitationPreview,
   OrganizationInvitationRecipient,
@@ -536,6 +540,89 @@ export function tasksListQueryOptions(
       );
     },
     retry: retryNetworkOnce,
+  });
+}
+
+export function notificationsListQueryOptions(
+  client: Pick<BakeryApiClient, "listNotifications">,
+  scope: ApiScope,
+  input: Readonly<NotificationCursorQuery>,
+) {
+  const normalizedInput = {
+    filter: input.filter,
+    cursor: input.cursor ?? null,
+    limit: input.limit ?? null,
+  };
+  return queryOptions<NotificationListResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "notifications.list", normalizedInput),
+    queryFn: async ({ signal }) => {
+      if (!scope.organizationId) {
+        throw { kind: "invalid-response", status: 0 } satisfies ApiFailure;
+      }
+      return unwrap(
+        await client.listNotifications({
+          organizationId: scope.organizationId,
+          ...input,
+          signal,
+        }),
+      );
+    },
+    retry: retryNetworkOnce,
+  });
+}
+
+/**
+ * The unread count. Deliberately has no placeholder count: an unknown count is
+ * `null` and the bell draws its hollow ring for it, so the badge can never
+ * show a confident zero before the server has answered.
+ */
+export function notificationCountQueryOptions(
+  client: Pick<BakeryApiClient, "notificationCount">,
+  scope: ApiScope,
+) {
+  return queryOptions<NotificationCountResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "notifications.count", {}),
+    queryFn: async ({ signal }) => {
+      if (!scope.organizationId) {
+        throw { kind: "invalid-response", status: 0 } satisfies ApiFailure;
+      }
+      return unwrap(
+        await client.notificationCount({
+          organizationId: scope.organizationId,
+          signal,
+        }),
+      );
+    },
+    retry: retryNetworkOnce,
+    // A new arrival should reach the badge without focus moving.
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
+  });
+}
+
+/** Reauthorized every time a row is opened; never cached beyond its own read. */
+export function notificationTargetQueryOptions(
+  client: Pick<BakeryApiClient, "resolveNotificationTarget">,
+  scope: ApiScope,
+  id: string,
+) {
+  return queryOptions<NotificationTargetResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "notifications.resolveTarget", { id }),
+    queryFn: async ({ signal }) => {
+      if (!scope.organizationId) {
+        throw { kind: "invalid-response", status: 0 } satisfies ApiFailure;
+      }
+      return unwrap(
+        await client.resolveNotificationTarget({
+          organizationId: scope.organizationId,
+          id,
+          signal,
+        }),
+      );
+    },
+    retry: retryNetworkOnce,
+    staleTime: 0,
+    gcTime: 0,
   });
 }
 

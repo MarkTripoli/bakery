@@ -52,6 +52,9 @@ function valuesFrom(submission: ComposerSubmission): Values {
     repositoryId: submission.task.repositoryId ?? "",
     presetId: submission.run?.presetId ?? "",
     title: submission.task.title,
+    // Passed through unchanged. Work type is an organization label since O23, so
+    // a resumed task may carry a label this picker does not offer; the form
+    // shows it as itself rather than silently calling it something else.
     taskType: submission.task.taskType,
     description: submission.task.description ?? "",
     budget: submission.run?.budgetLimitUsd ?? "",

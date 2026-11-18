@@ -27,6 +27,6 @@ test-results/
 # Deployment-specific Railway config stays local.
 .railway/
 graphify-out/
-
+# Per-worktree scratch: captures, logs and hand-made backups stay local.
 # Local scratch space for browser evidence (never committed).
 .scratch/

@@ -98,6 +98,8 @@ import { AddPasskeyPage } from "./pages/AddPasskeyPage.tsx";
 import { ReauthPage } from "./pages/ReauthPage.tsx";
 import { ConnectedClientsPage } from "./pages/ConnectedClientsPage.tsx";
 import { RevokeClientPage } from "./pages/RevokeClientPage.tsx";
+import { NotificationsPage } from "./notifications/NotificationsPage.tsx";
+import { isNotificationView } from "./notifications/presentation.ts";
 import { OAuthConsentPage } from "./pages/OAuthConsentPage.tsx";
 import { createConsentGateway } from "./app/consent-gateway.ts";
 import { ProjectsOnboardingPage } from "./pages/ProjectsOnboardingPage.tsx";
@@ -365,6 +367,19 @@ export const routeCoverage = [
       "offline",
       "long-copy",
       "detail",
+    ],
+  },
+  {
+    id: "notifications",
+    path: "/notifications",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "empty",
+      "error",
+      "offline",
+      "long-copy",
     ],
   },
   {
@@ -1875,6 +1890,40 @@ const clientsRedirectRoute = createRoute({
   errorComponent: ProtectedRouteError,
 });
 
+const NOTIFICATIONS_PATH = "/notifications";
+
+const notificationsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/notifications",
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { view?: "all" | "unread" | "mentions"; item?: string } => ({
+    view: isNotificationView(search.view) ? search.view : undefined,
+    item: typeof search.item === "string" && isUuid(search.item)
+      ? search.item
+      : undefined,
+  }),
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => {
+    const { view, item } = notificationsRoute.useSearch();
+    const navigate = notificationsRoute.useNavigate();
+    return (
+      <NotificationsPage
+        item={item ?? null}
+        view={view ?? "all"}
+        onViewChange={(next) =>
+          void navigate({
+            to: NOTIFICATIONS_PATH,
+            search: { view: next === "all" ? undefined : next },
+            replace: true,
+          })}
+      />
+    );
+  },
+  errorComponent: ProtectedRouteError,
+});
+
 const clientsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/settings/organization/integrations/clients",
@@ -2203,6 +2252,7 @@ const routeTree = rootRoute.addChildren([
   passkeyAddRoute,
   reauthRoute,
   clientsRedirectRoute,
+  notificationsRoute,
   clientsRoute,
   revokeClientRoute,
   oauthConsentRoute,
