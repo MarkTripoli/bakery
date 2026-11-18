@@ -13,10 +13,10 @@ import {
 
 const meta = {
   title: "Bakery/Molecules/NotificationSurfaces",
-  parameters: {
-    catalogId: "ui.notificationPopover",
-    requiredCases: ["contract"],
-  },
+  // The popover surfaces ride the catalogued ui.notificationBell contract; a
+  // separate catalog entry needs a Paper frame, and the design has none for a
+  // popover, so these stories are visual coverage rather than catalog bindings.
+  parameters: { layout: "padded" },
 } satisfies Meta;
 export default meta;
 

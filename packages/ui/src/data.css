@@ -137,7 +137,7 @@
   inset-block-start: calc(var(--space-1) * -1);
   inset-inline-end: calc(var(--space-1) * -1);
   justify-content: center;
-  line-height: 1;
+  line-height: var(--space-3);
   min-inline-size: var(--space-3);
   padding-block: 0;
   padding-inline: var(--space-1);
@@ -148,7 +148,7 @@
    yet", which is true, where a 0 would be a confident lie. */
 .ui-notification-bell__badge--unknown {
   background: transparent;
-  border: 2px solid var(--color-fg-muted);
+  border: var(--border-emphasis) solid var(--color-fg-muted);
   block-size: var(--space-3);
   box-sizing: border-box;
   inline-size: var(--space-3);
@@ -158,10 +158,14 @@
 /* A new arrival updates the badge without moving focus. The design allows a
    single opacity fade of 150ms or less, and nothing else; reduced motion drops
    even that and keeps the update. */
-@media (prefers-reduced-motion: no-preference) {
+.ui-notification-bell__badge,
+.ui-notification-bell__badge--unknown {
+  transition: opacity var(--duration-feedback) ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
   .ui-notification-bell__badge,
   .ui-notification-bell__badge--unknown {
-    transition: opacity 150ms ease-out;
+    transition: none;
   }
 }
 .ui-cursor-controls {
@@ -1783,7 +1787,7 @@
 }
 .ui-notification-row[data-highlighted="true"] {
   outline: var(--border-default) solid var(--color-selection);
-  outline-offset: calc(var(--space-1) * -1);
+  outline-offset: var(--focus-offset-inset);
 }
 .ui-notification-row__link {
   align-items: center;
@@ -1873,8 +1877,8 @@
 .ui-notification-popover {
   display: flex;
   flex-direction: column;
-  inline-size: min(360px, calc(100vw - var(--space-4)));
-  max-block-size: min(70vh, 560px);
+  inline-size: min(var(--layout-menu), calc(100dvi - var(--space-4)));
+  max-block-size: min(70dvb, var(--layout-menu-blocks));
 }
 .ui-notification-popover__header {
   align-items: center;

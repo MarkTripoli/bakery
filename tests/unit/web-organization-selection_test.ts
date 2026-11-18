@@ -265,6 +265,11 @@ function fakeApi(
     updateWorkflowVersion: rejecting,
     publishWorkflowVersion: rejecting,
     validateWorkflow: rejecting,
+    listNotifications: rejecting,
+    notificationCount: rejecting,
+    resolveNotificationTarget: rejecting,
+    setNotificationRead: rejecting,
+    markAllNotificationsRead: rejecting,
   };
 }
 
