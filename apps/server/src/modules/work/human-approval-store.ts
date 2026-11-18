@@ -51,12 +51,19 @@ type ApprovalRow = {
   version: number;
 };
 
-function conflict(reason: string): StandardError {
-  return new StandardError({ code: "STATE_CONFLICT", params: { reason } });
+/**
+ * Refuse with a named conflict.
+ *
+ * `never`, throwing internally, so a guard written as a bare call cannot compile
+ * and then silently do nothing - which is exactly how four of these guards once
+ * fell through to the next statement.
+ */
+function conflict(reason: string): never {
+  throw new StandardError({ code: "STATE_CONFLICT", params: { reason } });
 }
 
-function notFound(): StandardError {
-  return new StandardError({ code: "RESOURCE_NOT_FOUND" });
+function notFound(): never {
+  throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
 }
 
 /**
@@ -288,14 +295,14 @@ export async function decideHumanApproval(
   );
   const row = loaded.rows[0];
   // A foreign or invented id answers identically: no oracle for existence.
-  if (!row) throw notFound();
-  if (row.status === "answered") throw conflict("approval_decided");
-  if (row.status !== "open") throw conflict(`approval_${row.status}`);
-  if (row.version !== input.expectedVersion) throw conflict("approval_stale");
+  if (!row) notFound();
+  if (row.status === "answered") conflict("approval_decided");
+  if (row.status !== "open") conflict(`approval_${row.status}`);
+  if (row.version !== input.expectedVersion) conflict("approval_stale");
   if (
     row.expires_at !== null && row.expires_at.getTime() <= Date.now()
   ) {
-    throw conflict("approval_unavailable");
+    conflict("approval_unavailable");
   }
 
   const swapped = await transaction.query<{ version: number }>(
@@ -315,7 +322,7 @@ export async function decideHumanApproval(
       input.expectedVersion,
     ],
   );
-  if (swapped.rows.length !== 1) throw conflict("approval_unavailable");
+  if (swapped.rows.length !== 1) conflict("approval_unavailable");
 
   const outcome = outcomeForDecision(input.decision);
   // The ledger kind is the decision's own word, so a reader filters on the same
