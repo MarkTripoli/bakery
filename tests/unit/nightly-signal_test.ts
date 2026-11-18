@@ -20,6 +20,7 @@ import {
   jobsFromPages,
   redBody,
   runNightlySignal,
+  SIGNAL_JOB_NAME,
   SIGNAL_TITLE,
 } from "../../scripts/ci/nightly-signal.ts";
 
@@ -369,4 +370,34 @@ fi
     Deno.env.set("PATH", path);
     await Deno.remove(dir, { recursive: true });
   }
+});
+
+Deno.test("the signal's own job is never one of the run's failures, so a green run can close the issue", async () => {
+  // While the signal runs its own conclusion has not arrived; read as "never
+  // arrived counts as failing" it would be listed, and no run could ever be green.
+  const own = job(SIGNAL_JOB_NAME, null);
+  assertEquals(failingJobs([own, job("a / x", "success")]), []);
+  assertEquals(failingJobs([own, job("a / y", "failure")]), ["a / y"]);
+  const { gh, calls } = recordingGh({
+    jobs: [own, job("a / x", "success")],
+    openIssues: [42],
+  });
+  const outcome = await runNightlySignal(gh, {
+    runId: "1",
+    runUrl: "https://github.com/o/r/actions/runs/1",
+    trigger: "scheduled",
+    now: new Date("2026-11-18T05:23:00Z"),
+  });
+  assertEquals(outcome.kind, "closed");
+  assert(calls.some((call) => call.op === "close"));
+});
+
+Deno.test("the signal job is named in the workflow exactly as the script excludes it", async () => {
+  const workflow = await Deno.readTextFile(".github/workflows/ci.yml");
+  assert(
+    workflow.split("\n").some((line) =>
+      line.trim() === `name: ${SIGNAL_JOB_NAME}`
+    ),
+    "ci.yml must declare the signal job under the name the script excludes",
+  );
 });
