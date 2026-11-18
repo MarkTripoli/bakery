@@ -73,6 +73,24 @@ function offsetFromEdge(
 }
 
 /**
+ * Resolves a length to px the way the token sheet would: a bare number, or a
+ * `var(--token)` this rail can look up. Null is "cannot re-derive", which the
+ * caller reports rather than guessing.
+ */
+function resolveLength(value: string, tokensCss: string): number | null {
+  const literal = value.match(/^(\d+(?:\.\d+)?)px$/);
+  if (literal) return Number(literal[1]);
+  const byToken = value.match(/^var\((--[a-z0-9-]+)\)$/);
+  if (byToken) {
+    const declared = tokensCss.match(
+      new RegExp(`${byToken[1]}:\\s*(\\d+(?:\\.\\d+)?)px`),
+    );
+    return declared ? Number(declared[1]) : null;
+  }
+  return null;
+}
+
+/**
  * Every `@media` block that re-*places* the badge. A block that only changes
  * how the badge fades is welcome; a block that moves it by width is the thing
  * that made the desktop and the phone disagree.
@@ -143,6 +161,50 @@ export function badgeGeometryViolations(
   } else if (Number(typeBadge[1]) !== 16) {
     violations.push(
       `--type-badge carries a ${typeBadge[1]}px line; the design pins 16px`,
+    );
+  }
+
+  // 2. The pill is drawn 16px tall by the declaration that WINS.
+  //
+  // The token above is the line the text is drawn on, not the height the pill
+  // takes: `min-block-size` sets a floor, so it beats the line box, and any
+  // other rule that sets a block size beats both. Checking only the token let a
+  // 20px pill ship green, which is the defect this closes. So the winning
+  // height is re-derived from whatever the rule actually declares.
+  const declaredHeights: number[] = [];
+  for (
+    const [property, source] of [
+      ["min-block-size", badgeBody],
+      ["block-size", badgeBody],
+      ["height", badgeBody],
+    ] as const
+  ) {
+    const declaration = source.match(
+      new RegExp(`(?:^|\\n)\\s*${property}:\\s*([^;]+);`),
+    );
+    if (declaration === null) continue;
+    const value = declaration[1].trim();
+    // `auto` and `0` defer to the line box rather than pinning a height, so
+    // only a real length participates in the floor.
+    if (/^(?:auto|0)$/.test(value)) continue;
+    const resolved = resolveLength(value, tokensCss);
+    if (resolved === null) {
+      violations.push(
+        `badge ${property} is ${value}, which this rail cannot re-derive`,
+      );
+      continue;
+    }
+    declaredHeights.push(resolved);
+  }
+  if (declaredHeights.length === 0) {
+    violations.push(
+      "badge declares no block size, so its height is the line box; the design pins a 16px pill",
+    );
+  } else if (Math.max(...declaredHeights) !== 16) {
+    violations.push(
+      `badge is at least ${Math.max(...declaredHeights)}px tall from ${
+        declaredHeights.length > 1 ? "its declarations" : "its declaration"
+      }; the design pins 16px`,
     );
   }
 
@@ -298,5 +360,35 @@ Deno.test("a cap without its left-to-right isolate is reported", () => {
     badgeGeometryViolations(unisolated, tokensCss, component).some((
       violation,
     ) => violation.includes("isolate its count's direction")),
+  );
+});
+
+Deno.test("a pill taller than the design's 16px is reported even when the token still says 16px", () => {
+  // The exact hole this check closes: `min-block-size` sets a floor and so beats
+  // the line box, meaning a taller declaration wins while --type-badge stays
+  // correct. Checking only the token reported nothing here.
+  const taller = css.replace(
+    "min-block-size: var(--space-4);",
+    "min-block-size: 20px;",
+  );
+  assert(taller !== css, "the fixture did not change the rule it targets");
+  assert(
+    badgeGeometryViolations(taller, tokensCss, component).some((violation) =>
+      violation.includes("the design pins 16px")
+    ),
+    "a 20px pill must be reported where a 16px token is also present",
+  );
+});
+
+Deno.test("a pill sized only by its line box is reported as not pinned", () => {
+  // Dropping the floor entirely leaves the height to the line box: 16px today,
+  // but nothing in the rule states it, which is a different defect from tall.
+  const unpinned = css.replace("min-block-size: var(--space-4);", "");
+  assert(unpinned !== css, "the fixture did not change the rule it targets");
+  assert(
+    badgeGeometryViolations(unpinned, tokensCss, component).some((violation) =>
+      violation.includes("the design pins a 16px pill")
+    ),
+    "a pill with no declared block size must be reported",
   );
 });
