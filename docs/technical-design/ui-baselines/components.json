@@ -1,5 +1,5 @@
 {
-  "revision": "168a3ba4d52fc7ac98ebd2c1da28b132d73eb38249700ba01a6a9369f3f721c8",
+  "revision": "7344c49a2abb5a9b928c46e578532a6bfadeb7f08ed6d1f329f9eb201c78393e",
   "schemaVersion": 1,
   "owner": "Mark Tripoli",
   "rules": [
@@ -305,7 +305,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "14-0",
           "frameId": "27QE-0",
-          "name": "A exact · ui.text · 1440×960"
+          "name": "A exact \u00b7 ui.text \u00b7 1440\u00d7960"
         }
       ],
       "a11y": {
@@ -452,7 +452,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "14-0",
           "frameId": "27RA-0",
-          "name": "A exact · ui.heading · 1440×960"
+          "name": "A exact \u00b7 ui.heading \u00b7 1440\u00d7960"
         }
       ],
       "a11y": {
@@ -596,7 +596,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "14-0",
           "frameId": "27S6-0",
-          "name": "A exact · ui.label · 1440×960"
+          "name": "A exact \u00b7 ui.label \u00b7 1440\u00d7960"
         }
       ],
       "a11y": {
@@ -730,7 +730,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "14-0",
           "frameId": "27T0-0",
-          "name": "A exact · ui.dataText · 1440×960"
+          "name": "A exact \u00b7 ui.dataText \u00b7 1440\u00d7960"
         }
       ],
       "a11y": {
@@ -861,7 +861,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "14-0",
           "frameId": "27U5-0",
-          "name": "A exact · ui.stack · 1440×960"
+          "name": "A exact \u00b7 ui.stack \u00b7 1440\u00d7960"
         }
       ],
       "a11y": {
@@ -989,7 +989,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "14-0",
           "frameId": "27US-0",
-          "name": "A exact · ui.inline · 1440×960"
+          "name": "A exact \u00b7 ui.inline \u00b7 1440\u00d7960"
         }
       ],
       "a11y": {
@@ -1130,7 +1130,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "14-0",
           "frameId": "27VO-0",
-          "name": "A exact · ui.divider · 1440×960"
+          "name": "A exact \u00b7 ui.divider \u00b7 1440\u00d7960"
         }
       ],
       "a11y": {
@@ -1250,7 +1250,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "14-0",
           "frameId": "27W6-0",
-          "name": "A exact · ui.spacer · 1440×960"
+          "name": "A exact \u00b7 ui.spacer \u00b7 1440\u00d7960"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
@@ -1373,7 +1373,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "14-0",
           "frameId": "27WO-0",
-          "name": "A exact · ui.icon · 390×844"
+          "name": "A exact \u00b7 ui.icon \u00b7 390\u00d7844"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
@@ -1679,7 +1679,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "14-0",
           "frameId": "27XK-0",
-          "name": "A exact · ui.logoMark · 1440×960"
+          "name": "A exact \u00b7 ui.logoMark \u00b7 1440\u00d7960"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
@@ -1813,7 +1813,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "14-0",
           "frameId": "27Y8-0",
-          "name": "A exact · ui.themeProvider · 1440×960"
+          "name": "A exact \u00b7 ui.themeProvider \u00b7 1440\u00d7960"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
@@ -1946,7 +1946,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "14-0",
           "frameId": "27Z4-0",
-          "name": "A exact · ui.button · 1440×960"
+          "name": "A exact \u00b7 ui.button \u00b7 1440\u00d7960"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
@@ -2121,7 +2121,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "14-0",
           "frameId": "281K-0",
-          "name": "A exact · ui.iconButton · 1440×960"
+          "name": "A exact \u00b7 ui.iconButton \u00b7 1440\u00d7960"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
@@ -2406,7 +2406,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "14-0",
           "frameId": "283G-0",
-          "name": "A exact · ui.link · 1440×960"
+          "name": "A exact \u00b7 ui.link \u00b7 1440\u00d7960"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
@@ -2547,7 +2547,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "14-0",
           "frameId": "284U-0",
-          "name": "A exact · ui.menu · 1440×960"
+          "name": "A exact \u00b7 ui.menu \u00b7 1440\u00d7960"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
@@ -2693,7 +2693,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "14-0",
           "frameId": "285U-0",
-          "name": "A exact · ui.command · 1440×960"
+          "name": "A exact \u00b7 ui.command \u00b7 1440\u00d7960"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
@@ -2841,7 +2841,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "14-0",
           "frameId": "2870-0",
-          "name": "A exact · ui.field · 1440×960"
+          "name": "A exact \u00b7 ui.field \u00b7 1440\u00d7960"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
@@ -2853,7 +2853,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "O-0",
           "frameId": "HJE-0",
-          "name": "Profile · inline field rows · 1440×900"
+          "name": "Profile \u00b7 inline field rows \u00b7 1440\u00d7900"
         }
       ],
       "a11y": {
@@ -2990,7 +2990,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "14-0",
           "frameId": "288N-0",
-          "name": "A exact · ui.searchField · 1440×960"
+          "name": "A exact \u00b7 ui.searchField \u00b7 1440\u00d7960"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
@@ -3139,7 +3139,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "14-0",
           "frameId": "289T-0",
-          "name": "A exact · ui.combobox · 1440×960"
+          "name": "A exact \u00b7 ui.combobox \u00b7 1440\u00d7960"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
@@ -3293,7 +3293,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "15-0",
           "frameId": "28DN-0",
-          "name": "B exact · ui.checkbox · 1440×960"
+          "name": "B exact \u00b7 ui.checkbox \u00b7 1440\u00d7960"
         }
       ],
       "a11y": {
@@ -3430,7 +3430,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "15-0",
           "frameId": "28DO-0",
-          "name": "B exact · ui.radio · 1440×960"
+          "name": "B exact \u00b7 ui.radio \u00b7 1440\u00d7960"
         }
       ],
       "a11y": {
@@ -3570,7 +3570,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "15-0",
           "frameId": "28DP-0",
-          "name": "B exact · ui.switch · 1440×960"
+          "name": "B exact \u00b7 ui.switch \u00b7 1440\u00d7960"
         }
       ],
       "a11y": {
@@ -3705,7 +3705,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "15-0",
           "frameId": "28DQ-0",
-          "name": "B exact · ui.resourcePicker · 1440×960"
+          "name": "B exact \u00b7 ui.resourcePicker \u00b7 1440\u00d7960"
         }
       ],
       "a11y": {
@@ -3849,7 +3849,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "15-0",
           "frameId": "28DR-0",
-          "name": "B exact · ui.applicationRail · 1440×960"
+          "name": "B exact \u00b7 ui.applicationRail \u00b7 1440\u00d7960"
         }
       ],
       "a11y": {
@@ -3993,13 +3993,13 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "15-0",
           "frameId": "28DS-0",
-          "name": "B exact · ui.sectionNavigation · 390×844"
+          "name": "B exact \u00b7 ui.sectionNavigation \u00b7 390\u00d7844"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "15-0",
           "frameId": "2C15-0",
-          "name": "B exact · ui.sectionNavigationWide · 1440×960",
+          "name": "B exact \u00b7 ui.sectionNavigationWide \u00b7 1440\u00d7960",
           "variant": "wide"
         }
       ],
@@ -4151,7 +4151,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "15-0",
           "frameId": "28DT-0",
-          "name": "B exact · ui.breadcrumbs · 1440×960"
+          "name": "B exact \u00b7 ui.breadcrumbs \u00b7 1440\u00d7960"
         }
       ],
       "a11y": {
@@ -4275,7 +4275,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "15-0",
           "frameId": "28DU-0",
-          "name": "B exact · ui.notificationBell · 1440×960"
+          "name": "B exact \u00b7 ui.notificationBell \u00b7 1440\u00d7960"
         }
       ],
       "a11y": {
@@ -4417,7 +4417,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "15-0",
           "frameId": "28DV-0",
-          "name": "B exact · ui.tabs · 1440×960"
+          "name": "B exact \u00b7 ui.tabs \u00b7 1440\u00d7960"
         }
       ],
       "a11y": {
@@ -4555,7 +4555,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "15-0",
           "frameId": "28DW-0",
-          "name": "B exact · ui.segmentedControl · 1440×960"
+          "name": "B exact \u00b7 ui.segmentedControl \u00b7 1440\u00d7960"
         }
       ],
       "a11y": {
@@ -4690,7 +4690,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "15-0",
           "frameId": "28DX-0",
-          "name": "B exact · ui.cursorControls · 1440×960"
+          "name": "B exact \u00b7 ui.cursorControls \u00b7 1440\u00d7960"
         }
       ],
       "a11y": {
@@ -4823,7 +4823,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "15-0",
           "frameId": "28DY-0",
-          "name": "B exact · ui.objectRow · 1440×960"
+          "name": "B exact \u00b7 ui.objectRow \u00b7 1440\u00d7960"
         }
       ],
       "a11y": {
@@ -4957,7 +4957,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "15-0",
           "frameId": "28DZ-0",
-          "name": "B exact · ui.dataTable · 1440×960"
+          "name": "B exact \u00b7 ui.dataTable \u00b7 1440\u00d7960"
         }
       ],
       "a11y": {
@@ -5102,7 +5102,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "15-0",
           "frameId": "28E0-0",
-          "name": "B exact · ui.statusBadge · 1440×960"
+          "name": "B exact \u00b7 ui.statusBadge \u00b7 1440\u00d7960"
         }
       ],
       "a11y": {
@@ -5249,7 +5249,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "15-0",
           "frameId": "28E1-0",
-          "name": "B exact · ui.statusLabel · 1440×960"
+          "name": "B exact \u00b7 ui.statusLabel \u00b7 1440\u00d7960"
         }
       ],
       "a11y": {
@@ -5526,7 +5526,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "15-0",
           "frameId": "28E2-0",
-          "name": "B exact · ui.codeBlock · 1440×960"
+          "name": "B exact \u00b7 ui.codeBlock \u00b7 1440\u00d7960"
         }
       ],
       "a11y": {
@@ -5666,7 +5666,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "15-0",
           "frameId": "28E3-0",
-          "name": "B exact · ui.logViewer · 1440×960"
+          "name": "B exact \u00b7 ui.logViewer \u00b7 1440\u00d7960"
         }
       ],
       "a11y": {
@@ -5803,7 +5803,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "15-0",
           "frameId": "28E4-0",
-          "name": "B exact · ui.avatar · 390×844"
+          "name": "B exact \u00b7 ui.avatar \u00b7 390\u00d7844"
         }
       ],
       "a11y": {
@@ -5929,7 +5929,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "15-0",
           "frameId": "28E5-0",
-          "name": "B exact · ui.identity · 1440×960"
+          "name": "B exact \u00b7 ui.identity \u00b7 1440\u00d7960"
         }
       ],
       "a11y": {
@@ -6066,7 +6066,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "16-0",
           "frameId": "26PO-0",
-          "name": "ui.inlineNotice · rail fine · 1440×960",
+          "name": "ui.inlineNotice \u00b7 rail fine \u00b7 1440\u00d7960",
           "variant": "rail fine"
         }
       ],
@@ -6216,7 +6216,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "16-0",
           "frameId": "26QE-0",
-          "name": "ui.alertBanner · rail fine · 1440×960",
+          "name": "ui.alertBanner \u00b7 rail fine \u00b7 1440\u00d7960",
           "variant": "rail fine"
         }
       ],
@@ -6497,7 +6497,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "16-0",
           "frameId": "26RD-0",
-          "name": "ui.toast · rail fine · 1440×960",
+          "name": "ui.toast \u00b7 rail fine \u00b7 1440\u00d7960",
           "variant": "rail fine"
         }
       ],
@@ -6649,7 +6649,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "16-0",
           "frameId": "26SL-0",
-          "name": "ui.skeleton · rail fine · 1440×960",
+          "name": "ui.skeleton \u00b7 rail fine \u00b7 1440\u00d7960",
           "variant": "rail fine"
         }
       ],
@@ -6779,7 +6779,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "16-0",
           "frameId": "26T5-0",
-          "name": "ui.emptyState · rail fine · 1440×960",
+          "name": "ui.emptyState \u00b7 rail fine \u00b7 1440\u00d7960",
           "variant": "rail fine"
         }
       ],
@@ -6909,7 +6909,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "16-0",
           "frameId": "26TM-0",
-          "name": "ui.errorState · rail fine · 1440×960",
+          "name": "ui.errorState \u00b7 rail fine \u00b7 1440\u00d7960",
           "variant": "rail fine"
         }
       ],
@@ -7042,7 +7042,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "16-0",
           "frameId": "26U6-0",
-          "name": "ui.tooltip · rail fine · 1440×960",
+          "name": "ui.tooltip \u00b7 rail fine \u00b7 1440\u00d7960",
           "variant": "rail fine"
         }
       ],
@@ -7457,7 +7457,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "16-0",
           "frameId": "26UW-0",
-          "name": "ui.popover · rail fine · 1440×960",
+          "name": "ui.popover \u00b7 rail fine \u00b7 1440\u00d7960",
           "variant": "rail fine"
         }
       ],
@@ -7604,7 +7604,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "16-0",
           "frameId": "26VM-0",
-          "name": "ui.dialog · rail fine · 1440×960",
+          "name": "ui.dialog \u00b7 rail fine \u00b7 1440\u00d7960",
           "variant": "rail fine"
         }
       ],
@@ -7751,7 +7751,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "16-0",
           "frameId": "26WI-0",
-          "name": "ui.alertDialog · rail fine · 1440×960",
+          "name": "ui.alertDialog \u00b7 rail fine \u00b7 1440\u00d7960",
           "variant": "rail fine"
         }
       ],
@@ -7892,7 +7892,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "16-0",
           "frameId": "26XE-0",
-          "name": "ui.sheet · sheet coarse · 390×844",
+          "name": "ui.sheet \u00b7 sheet coarse \u00b7 390\u00d7844",
           "variant": "sheet coarse"
         }
       ],
@@ -8040,7 +8040,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "16-0",
           "frameId": "26YD-0",
-          "name": "ui.conversationMessage · rail fine · 1440×960",
+          "name": "ui.conversationMessage \u00b7 rail fine \u00b7 1440\u00d7960",
           "variant": "rail fine"
         }
       ],
@@ -8177,7 +8177,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "16-0",
           "frameId": "26ZL-0",
-          "name": "ui.questionCard · sheet coarse · 390×844",
+          "name": "ui.questionCard \u00b7 sheet coarse \u00b7 390\u00d7844",
           "variant": "sheet coarse"
         }
       ],
@@ -8315,7 +8315,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "16-0",
           "frameId": "270T-0",
-          "name": "ui.artifactComment · rail fine · 1440×960",
+          "name": "ui.artifactComment \u00b7 rail fine \u00b7 1440\u00d7960",
           "variant": "rail fine"
         }
       ],
@@ -8450,7 +8450,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "16-0",
           "frameId": "271J-0",
-          "name": "ui.runTimeline · rail fine · 1440×960",
+          "name": "ui.runTimeline \u00b7 rail fine \u00b7 1440\u00d7960",
           "variant": "rail fine"
         }
       ],
@@ -8610,7 +8610,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "16-0",
           "frameId": "272R-0",
-          "name": "ui.modelResolution · rail fine · 1440×960",
+          "name": "ui.modelResolution \u00b7 rail fine \u00b7 1440\u00d7960",
           "variant": "rail fine"
         }
       ],
@@ -8761,7 +8761,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "V-0",
           "frameId": "HJD-0",
-          "name": "001 · Sign in · Default · Desktop · Light",
+          "name": "001 \u00b7 Sign in \u00b7 Default \u00b7 Desktop \u00b7 Light",
           "variant": "desktop light"
         }
       ],
@@ -8914,7 +8914,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "V-0",
           "frameId": "HJD-0",
-          "name": "001 · Sign in · Default · Desktop · Light",
+          "name": "001 \u00b7 Sign in \u00b7 Default \u00b7 Desktop \u00b7 Light",
           "variant": "desktop light"
         }
       ],
@@ -9069,7 +9069,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "V-0",
           "frameId": "1AQA-0",
-          "name": "119 · Enter an authentication code · Default · Desktop · Light",
+          "name": "119 \u00b7 Enter an authentication code \u00b7 Default \u00b7 Desktop \u00b7 Light",
           "variant": "desktop light"
         }
       ],
@@ -9344,7 +9344,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "V-0",
           "frameId": "HJD-0",
-          "name": "001 · Sign in · Default · Desktop · Light",
+          "name": "001 \u00b7 Sign in \u00b7 Default \u00b7 Desktop \u00b7 Light",
           "variant": "desktop light"
         }
       ],
@@ -9474,7 +9474,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "V-0",
           "frameId": "JZ9-0",
-          "name": "010 · Accept an invitation · Default · Desktop · Light",
+          "name": "010 \u00b7 Accept an invitation \u00b7 Default \u00b7 Desktop \u00b7 Light",
           "variant": "desktop light"
         }
       ],
@@ -9619,7 +9619,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "V-0",
           "frameId": "JZ9-0",
-          "name": "010 · Accept an invitation · Default · Desktop · Light",
+          "name": "010 \u00b7 Accept an invitation \u00b7 Default \u00b7 Desktop \u00b7 Light",
           "variant": "desktop light"
         }
       ],
@@ -9738,7 +9738,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "V-0",
           "frameId": "19AU-0",
-          "name": "107 · Set up an authenticator · Scan · Desktop · Light",
+          "name": "107 \u00b7 Set up an authenticator \u00b7 Scan \u00b7 Desktop \u00b7 Light",
           "variant": "desktop light"
         }
       ],
@@ -9865,7 +9865,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "V-0",
           "frameId": "19AU-0",
-          "name": "107 · Set up an authenticator · Scan · Desktop · Light",
+          "name": "107 \u00b7 Set up an authenticator \u00b7 Scan \u00b7 Desktop \u00b7 Light",
           "variant": "desktop light"
         }
       ],
@@ -9991,7 +9991,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "V-0",
           "frameId": "19AU-0",
-          "name": "107 · Set up an authenticator · Scan · Desktop · Light",
+          "name": "107 \u00b7 Set up an authenticator \u00b7 Scan \u00b7 Desktop \u00b7 Light",
           "variant": "desktop light"
         }
       ],
@@ -10117,7 +10117,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "V-0",
           "frameId": "19R8-0",
-          "name": "111 · Save backup codes · Default · Desktop · Light",
+          "name": "111 \u00b7 Save backup codes \u00b7 Default \u00b7 Desktop \u00b7 Light",
           "variant": "desktop light"
         }
       ],
@@ -10627,7 +10627,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "16-0",
           "frameId": "273N-0",
-          "name": "template.appShell · rail fine · 1440×960",
+          "name": "template.appShell \u00b7 rail fine \u00b7 1440\u00d7960",
           "variant": "rail fine"
         }
       ],
@@ -10775,7 +10775,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "16-0",
           "frameId": "274M-0",
-          "name": "template.taskDetail · rail fine · 1440×960",
+          "name": "template.taskDetail \u00b7 rail fine \u00b7 1440\u00d7960",
           "variant": "rail fine"
         }
       ],
@@ -10918,14 +10918,14 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "V-0",
           "frameId": "HJD-0",
-          "name": "001 · Sign in · Default · Desktop · Light",
+          "name": "001 \u00b7 Sign in \u00b7 Default \u00b7 Desktop \u00b7 Light",
           "variant": "desktop light"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "V-0",
           "frameId": "JZ9-0",
-          "name": "010 · Accept an invitation · Default · Desktop · Light",
+          "name": "010 \u00b7 Accept an invitation \u00b7 Default \u00b7 Desktop \u00b7 Light",
           "variant": "desktop light"
         }
       ],
@@ -11442,28 +11442,28 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "V-0",
           "frameId": "HJD-0",
-          "name": "001 · Sign in · Default · Desktop · Light",
+          "name": "001 \u00b7 Sign in \u00b7 Default \u00b7 Desktop \u00b7 Light",
           "variant": "desktop light"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "V-0",
           "frameId": "JHK-0",
-          "name": "001 · Sign in · Default · Phone · Light",
+          "name": "001 \u00b7 Sign in \u00b7 Default \u00b7 Phone \u00b7 Light",
           "variant": "phone light"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "V-0",
           "frameId": "KEN-0",
-          "name": "001 · Sign in · Default · Desktop · Dark",
+          "name": "001 \u00b7 Sign in \u00b7 Default \u00b7 Desktop \u00b7 Dark",
           "variant": "desktop dark"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "V-0",
           "frameId": "X1V-0",
-          "name": "001 · Sign in · Default · Phone · Dark",
+          "name": "001 \u00b7 Sign in \u00b7 Default \u00b7 Phone \u00b7 Dark",
           "variant": "phone dark"
         }
       ],
@@ -11579,28 +11579,28 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "V-0",
           "frameId": "JZ9-0",
-          "name": "010 · Accept an invitation · Default · Desktop · Light",
+          "name": "010 \u00b7 Accept an invitation \u00b7 Default \u00b7 Desktop \u00b7 Light",
           "variant": "desktop light"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "V-0",
           "frameId": "K1D-0",
-          "name": "010 · Accept an invitation · Default · Phone · Light",
+          "name": "010 \u00b7 Accept an invitation \u00b7 Default \u00b7 Phone \u00b7 Light",
           "variant": "phone light"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "V-0",
           "frameId": "XUN-0",
-          "name": "010 · Accept an invitation · Default · Desktop · Dark",
+          "name": "010 \u00b7 Accept an invitation \u00b7 Default \u00b7 Desktop \u00b7 Dark",
           "variant": "desktop dark"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "V-0",
           "frameId": "Y8I-0",
-          "name": "010 · Accept an invitation · Default · Phone · Dark",
+          "name": "010 \u00b7 Accept an invitation \u00b7 Default \u00b7 Phone \u00b7 Dark",
           "variant": "phone dark"
         }
       ],
@@ -11716,8 +11716,8 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "16-0",
           "frameId": "27I7-0",
-          "name": "page.workQueue · reviewedDesktop · rail fine · 1440×960",
-          "variant": "reviewedDesktop · rail fine"
+          "name": "page.workQueue \u00b7 reviewedDesktop \u00b7 rail fine \u00b7 1440\u00d7960",
+          "variant": "reviewedDesktop \u00b7 rail fine"
         }
       ],
       "a11y": {
@@ -11834,42 +11834,42 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "K-0",
           "frameId": "9VJ-0",
-          "name": "02b · Onboarding · Start listening · Desktop",
+          "name": "02b \u00b7 Onboarding \u00b7 Start listening \u00b7 Desktop",
           "variant": "start desktop"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "K-0",
           "frameId": "9ZB-0",
-          "name": "02b · Onboarding · Start listening · Mobile",
+          "name": "02b \u00b7 Onboarding \u00b7 Start listening \u00b7 Mobile",
           "variant": "start phone"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "K-0",
           "frameId": "AMY-0",
-          "name": "02c · Onboarding · Listening · Desktop",
+          "name": "02c \u00b7 Onboarding \u00b7 Listening \u00b7 Desktop",
           "variant": "listening desktop"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "K-0",
           "frameId": "AR1-0",
-          "name": "02c · Onboarding · Listening · Mobile",
+          "name": "02c \u00b7 Onboarding \u00b7 Listening \u00b7 Mobile",
           "variant": "listening phone"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "K-0",
           "frameId": "ATN-0",
-          "name": "02d · Onboarding · Connected · Desktop",
+          "name": "02d \u00b7 Onboarding \u00b7 Connected \u00b7 Desktop",
           "variant": "connected desktop"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "K-0",
           "frameId": "AXQ-0",
-          "name": "02d · Onboarding · Connected · Mobile",
+          "name": "02d \u00b7 Onboarding \u00b7 Connected \u00b7 Mobile",
           "variant": "connected phone"
         }
       ],
@@ -12526,28 +12526,28 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "K-0",
           "frameId": "8SD-0",
-          "name": "01 · Machines · Desktop · Light",
+          "name": "01 \u00b7 Machines \u00b7 Desktop \u00b7 Light",
           "variant": "desktop light"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "K-0",
           "frameId": "8SE-0",
-          "name": "01 · Machines · Mobile · Light",
+          "name": "01 \u00b7 Machines \u00b7 Mobile \u00b7 Light",
           "variant": "phone light"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "K-0",
           "frameId": "A8Y-0",
-          "name": "01 · Machines · Desktop · Dark",
+          "name": "01 \u00b7 Machines \u00b7 Desktop \u00b7 Dark",
           "variant": "desktop dark"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "K-0",
           "frameId": "AD7-0",
-          "name": "01 · Machines · Mobile · Dark",
+          "name": "01 \u00b7 Machines \u00b7 Mobile \u00b7 Dark",
           "variant": "phone dark"
         }
       ],
@@ -13173,14 +13173,14 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "K-0",
           "frameId": "8Y2-0",
-          "name": "03 · Harnesses · Desktop · Light",
+          "name": "03 \u00b7 Harnesses \u00b7 Desktop \u00b7 Light",
           "variant": "desktop light"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "K-0",
           "frameId": "90D-0",
-          "name": "03 · Harnesses · Mobile · Light",
+          "name": "03 \u00b7 Harnesses \u00b7 Mobile \u00b7 Light",
           "variant": "phone light"
         }
       ],
@@ -13805,7 +13805,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E-0",
           "frameId": "5J-0",
-          "name": "Work queue · Desktop 1440",
+          "name": "Work queue \u00b7 Desktop 1440",
           "variant": "rail fine"
         }
       ],
@@ -13949,14 +13949,14 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E-0",
           "frameId": "5J-0",
-          "name": "Work queue · Desktop 1440",
+          "name": "Work queue \u00b7 Desktop 1440",
           "variant": "rail fine"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E-0",
           "frameId": "E8-0",
-          "name": "Work queue · Phone 390",
+          "name": "Work queue \u00b7 Phone 390",
           "variant": "sheet coarse"
         }
       ],
@@ -14078,7 +14078,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E-0",
           "frameId": "5J-0",
-          "name": "Work queue · Desktop 1440",
+          "name": "Work queue \u00b7 Desktop 1440",
           "variant": "rail fine"
         }
       ],
@@ -14201,7 +14201,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E-0",
           "frameId": "5J-0",
-          "name": "Work queue · Desktop 1440",
+          "name": "Work queue \u00b7 Desktop 1440",
           "variant": "rail fine"
         }
       ],
@@ -14328,7 +14328,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E-0",
           "frameId": "E8-0",
-          "name": "Work queue · Phone 390",
+          "name": "Work queue \u00b7 Phone 390",
           "variant": "sheet coarse"
         }
       ],
@@ -14468,7 +14468,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E-0",
           "frameId": "5J-0",
-          "name": "Work queue · Desktop 1440",
+          "name": "Work queue \u00b7 Desktop 1440",
           "variant": "rail fine"
         }
       ],
@@ -14596,7 +14596,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E-0",
           "frameId": "5J-0",
-          "name": "Work queue · Desktop 1440",
+          "name": "Work queue \u00b7 Desktop 1440",
           "variant": "rail fine"
         }
       ],
@@ -14727,7 +14727,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E-0",
           "frameId": "5J-0",
-          "name": "Work queue · Desktop 1440",
+          "name": "Work queue \u00b7 Desktop 1440",
           "variant": "rail fine"
         }
       ],
@@ -15053,14 +15053,14 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E-0",
           "frameId": "5J-0",
-          "name": "Work queue desktop · 1440×900",
+          "name": "Work queue desktop \u00b7 1440\u00d7900",
           "variant": "rail"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E-0",
           "frameId": "E8-0",
-          "name": "Work queue phone · 390×844",
+          "name": "Work queue phone \u00b7 390\u00d7844",
           "variant": "sheet"
         }
       ],
@@ -15201,7 +15201,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E-0",
           "frameId": "HU-0",
-          "name": "Shared session and plan desktop · 1440×900",
+          "name": "Shared session and plan desktop \u00b7 1440\u00d7900",
           "variant": "rail"
         }
       ],
@@ -15338,21 +15338,21 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E-0",
           "frameId": "5J-0",
-          "name": "Work queue desktop · 1440×900",
+          "name": "Work queue desktop \u00b7 1440\u00d7900",
           "variant": "rail"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E-0",
           "frameId": "E8-0",
-          "name": "Work queue phone · 390×844",
+          "name": "Work queue phone \u00b7 390\u00d7844",
           "variant": "sheet"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E-0",
           "frameId": "HU-0",
-          "name": "Shared session and plan desktop · 1440×900",
+          "name": "Shared session and plan desktop \u00b7 1440\u00d7900",
           "variant": "rail"
         }
       ],
@@ -15488,14 +15488,14 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E-0",
           "frameId": "HU-0",
-          "name": "Shared session and plan desktop · 1440×900",
+          "name": "Shared session and plan desktop \u00b7 1440\u00d7900",
           "variant": "rail"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E-0",
           "frameId": "P6-0",
-          "name": "Shared session and plan phone · 390×844",
+          "name": "Shared session and plan phone \u00b7 390\u00d7844",
           "variant": "sheet"
         }
       ],
@@ -15637,14 +15637,14 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E-0",
           "frameId": "5J-0",
-          "name": "Work queue desktop · 1440×900",
+          "name": "Work queue desktop \u00b7 1440\u00d7900",
           "variant": "rail"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E-0",
           "frameId": "E8-0",
-          "name": "Work queue phone · 390×844",
+          "name": "Work queue phone \u00b7 390\u00d7844",
           "variant": "sheet"
         }
       ],
@@ -15797,7 +15797,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E-0",
           "frameId": "5J-0",
-          "name": "Work queue desktop · 1440×900",
+          "name": "Work queue desktop \u00b7 1440\u00d7900",
           "variant": "rail"
         }
       ],
@@ -15939,14 +15939,14 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E-0",
           "frameId": "HU-0",
-          "name": "Shared session and plan desktop · 1440×900",
+          "name": "Shared session and plan desktop \u00b7 1440\u00d7900",
           "variant": "rail"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E-0",
           "frameId": "P6-0",
-          "name": "Shared session and plan phone · 390×844",
+          "name": "Shared session and plan phone \u00b7 390\u00d7844",
           "variant": "sheet"
         }
       ],
@@ -16095,28 +16095,28 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "O-0",
           "frameId": "N1T-0",
-          "name": "05 · Appearance · Desktop · Light",
+          "name": "05 \u00b7 Appearance \u00b7 Desktop \u00b7 Light",
           "variant": "rail"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "O-0",
           "frameId": "N6E-0",
-          "name": "05 · Appearance · Phone · Light",
+          "name": "05 \u00b7 Appearance \u00b7 Phone \u00b7 Light",
           "variant": "sheet"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "O-0",
           "frameId": "SGB-0",
-          "name": "05 · Appearance · Desktop · Dark",
+          "name": "05 \u00b7 Appearance \u00b7 Desktop \u00b7 Dark",
           "variant": "rail"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "O-0",
           "frameId": "SLW-0",
-          "name": "05 · Appearance · Phone · Dark",
+          "name": "05 \u00b7 Appearance \u00b7 Phone \u00b7 Dark",
           "variant": "sheet"
         }
       ],
@@ -16259,13 +16259,13 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "O-0",
           "frameId": "N1T-0",
-          "name": "05 · Appearance · Desktop · Light"
+          "name": "05 \u00b7 Appearance \u00b7 Desktop \u00b7 Light"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "O-0",
           "frameId": "SGB-0",
-          "name": "05 · Appearance · Desktop · Dark"
+          "name": "05 \u00b7 Appearance \u00b7 Desktop \u00b7 Dark"
         }
       ],
       "a11y": {
@@ -16399,13 +16399,13 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "O-0",
           "frameId": "KHJ-0",
-          "name": "Your access · Developer · Desktop · Dark"
+          "name": "Your access \u00b7 Developer \u00b7 Desktop \u00b7 Dark"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "O-0",
           "frameId": "MZJ-0",
-          "name": "Your access · Developer · Phone · Dark"
+          "name": "Your access \u00b7 Developer \u00b7 Phone \u00b7 Dark"
         }
       ],
       "a11y": {
@@ -16541,28 +16541,28 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "V-0",
           "frameId": "TWJ-0",
-          "name": "Authorize an MCP client · Default · Desktop · Light",
+          "name": "Authorize an MCP client \u00b7 Default \u00b7 Desktop \u00b7 Light",
           "variant": "rail"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "V-0",
           "frameId": "TYY-0",
-          "name": "Authorize an MCP client · Default · Phone · Light",
+          "name": "Authorize an MCP client \u00b7 Default \u00b7 Phone \u00b7 Light",
           "variant": "sheet"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "O-0",
           "frameId": "KHJ-0",
-          "name": "06 · Your access · Developer · Desktop",
+          "name": "06 \u00b7 Your access \u00b7 Developer \u00b7 Desktop",
           "variant": "rail"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "O-0",
           "frameId": "MZJ-0",
-          "name": "06 · Your access · Developer · Phone",
+          "name": "06 \u00b7 Your access \u00b7 Developer \u00b7 Phone",
           "variant": "sheet"
         }
       ],
@@ -16697,7 +16697,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "O-0",
           "frameId": "QM9-0",
-          "name": "09 · Settings · Section index · Phone",
+          "name": "09 \u00b7 Settings \u00b7 Section index \u00b7 Phone",
           "variant": "sheet"
         }
       ],
@@ -16762,14 +16762,14 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E-0",
           "frameId": "5J-0",
-          "name": "Work queue desktop · 1440×900",
+          "name": "Work queue desktop \u00b7 1440\u00d7900",
           "variant": "rail"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E-0",
           "frameId": "E8-0",
-          "name": "Work queue phone · 390×844",
+          "name": "Work queue phone \u00b7 390\u00d7844",
           "variant": "sheet"
         }
       ],
@@ -17128,14 +17128,14 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E-0",
           "frameId": "HU-0",
-          "name": "Shared session and plan desktop · 1440×900",
+          "name": "Shared session and plan desktop \u00b7 1440\u00d7900",
           "variant": "rail"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E-0",
           "frameId": "P6-0",
-          "name": "Shared session and plan phone · 390×844",
+          "name": "Shared session and plan phone \u00b7 390\u00d7844",
           "variant": "sheet"
         }
       ],
@@ -17301,7 +17301,7 @@
           "fileId": "bakery-repo-e05",
           "pageId": "E05-artifacts",
           "frameId": "E05-task-run--default--light--desktop",
-          "name": "Task run default · RunIdentity"
+          "name": "Task run default \u00b7 RunIdentity"
         }
       ],
       "a11y": {
@@ -17441,7 +17441,7 @@
           "fileId": "bakery-repo-e05",
           "pageId": "E05-artifacts",
           "frameId": "E05-task-run--default--light--desktop",
-          "name": "Task run default · RevisionSummary"
+          "name": "Task run default \u00b7 RevisionSummary"
         }
       ],
       "a11y": {
@@ -17581,7 +17581,7 @@
           "fileId": "bakery-repo-e05",
           "pageId": "E05-artifacts",
           "frameId": "E05-task-run--default--light--desktop",
-          "name": "Task run default · RunOutputPanel"
+          "name": "Task run default \u00b7 RunOutputPanel"
         }
       ],
       "a11y": {
@@ -17734,7 +17734,7 @@
           "fileId": "bakery-repo-e05",
           "pageId": "E05-artifacts",
           "frameId": "E05-task-run--default--light--desktop",
-          "name": "Task run default · RunOutputView"
+          "name": "Task run default \u00b7 RunOutputView"
         }
       ],
       "a11y": {
@@ -18016,7 +18016,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E05-artifacts",
           "frameId": "E05-artifact--default--light--desktop",
-          "name": "Artifact default · light · desktop"
+          "name": "Artifact default \u00b7 light \u00b7 desktop"
         }
       ],
       "a11y": {
@@ -18141,7 +18141,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E05-artifacts",
           "frameId": "E05-artifact--default--light--desktop",
-          "name": "Artifact default · light · desktop"
+          "name": "Artifact default \u00b7 light \u00b7 desktop"
         }
       ],
       "a11y": {
@@ -18278,7 +18278,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E05-artifacts",
           "frameId": "E05-artifact--comments--light--desktop",
-          "name": "Artifact comments · light · desktop"
+          "name": "Artifact comments \u00b7 light \u00b7 desktop"
         }
       ],
       "a11y": {
@@ -18407,7 +18407,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E05-artifacts",
           "frameId": "E05-artifact--reply--light--desktop",
-          "name": "Artifact reply · light · desktop"
+          "name": "Artifact reply \u00b7 light \u00b7 desktop"
         }
       ],
       "a11y": {
@@ -18536,7 +18536,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E05-artifacts",
           "frameId": "E05-artifact--comments--light--phone",
-          "name": "Artifact comments · light · phone"
+          "name": "Artifact comments \u00b7 light \u00b7 phone"
         }
       ],
       "a11y": {
@@ -18664,7 +18664,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E05-artifacts",
           "frameId": "E05-artifact--expired--light--desktop",
-          "name": "Artifact expired · light · desktop"
+          "name": "Artifact expired \u00b7 light \u00b7 desktop"
         }
       ],
       "a11y": {
@@ -18791,7 +18791,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E05-artifacts",
           "frameId": "E05-artifact--capacity-paused--light--desktop",
-          "name": "Artifact capacity-paused · light · desktop"
+          "name": "Artifact capacity-paused \u00b7 light \u00b7 desktop"
         }
       ],
       "a11y": {
@@ -18916,7 +18916,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E05-artifacts",
           "frameId": "E05-artifact--send-to-agent--light--desktop",
-          "name": "Artifact send-to-agent · light · desktop"
+          "name": "Artifact send-to-agent \u00b7 light \u00b7 desktop"
         }
       ],
       "a11y": {
@@ -19046,7 +19046,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "E05-artifacts",
           "frameId": "E05-artifact--default--light--desktop",
-          "name": "Artifact default · light · desktop"
+          "name": "Artifact default \u00b7 light \u00b7 desktop"
         }
       ],
       "a11y": {
@@ -19172,7 +19172,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "p-18-0",
           "frameId": "2IBL-0-0",
-          "name": "Task conversation default · stage strip"
+          "name": "Task conversation default \u00b7 stage strip"
         }
       ],
       "a11y": {
@@ -19343,7 +19343,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "p-18-0",
           "frameId": "2IBL-0-0",
-          "name": "Task conversation default · composer"
+          "name": "Task conversation default \u00b7 composer"
         }
       ],
       "a11y": {
@@ -19517,7 +19517,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "p-18-0",
           "frameId": "2IBL-0-0",
-          "name": "Task conversation default · inspector"
+          "name": "Task conversation default \u00b7 inspector"
         }
       ],
       "a11y": {
@@ -20246,7 +20246,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "p-18-0",
           "frameId": "2IK1-0-0",
-          "name": "Task conversation plan review · plan revision"
+          "name": "Task conversation plan review \u00b7 plan revision"
         }
       ],
       "a11y": {
@@ -20418,7 +20418,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "p-18-0",
           "frameId": "2J3V-0-0",
-          "name": "Task conversation phone · plan card"
+          "name": "Task conversation phone \u00b7 plan card"
         }
       ],
       "a11y": {
@@ -20590,7 +20590,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "p-18-0",
           "frameId": "2JQJ-0-0",
-          "name": "Task coordination phone · lane row"
+          "name": "Task coordination phone \u00b7 lane row"
         }
       ],
       "a11y": {
@@ -20760,13 +20760,13 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "p-18-0",
           "frameId": "2JSH-0",
-          "name": "Projects onboarding desktop · list section"
+          "name": "Projects onboarding desktop \u00b7 list section"
         },
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "p-18-0",
           "frameId": "2K4U-0",
-          "name": "Projects onboarding phone · list section"
+          "name": "Projects onboarding phone \u00b7 list section"
         }
       ],
       "a11y": {
@@ -20902,7 +20902,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "p-18-0",
           "frameId": "2K4U-0",
-          "name": "Projects onboarding phone · list row"
+          "name": "Projects onboarding phone \u00b7 list row"
         }
       ],
       "a11y": {
@@ -21041,7 +21041,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "p-18-0",
           "frameId": "2JSH-0",
-          "name": "Projects onboarding desktop · detail row"
+          "name": "Projects onboarding desktop \u00b7 detail row"
         }
       ],
       "a11y": {
@@ -21172,7 +21172,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "p-18-0",
           "frameId": "2JSH-0",
-          "name": "Projects onboarding desktop · revision row"
+          "name": "Projects onboarding desktop \u00b7 revision row"
         }
       ],
       "a11y": {
@@ -21307,7 +21307,7 @@
           "fileId": "01M1X504XVC45FC0VDK857A37D",
           "pageId": "p-18-0",
           "frameId": "2JSH-0",
-          "name": "Projects onboarding desktop · table cell"
+          "name": "Projects onboarding desktop \u00b7 table cell"
         }
       ],
       "a11y": {
@@ -21751,6 +21751,754 @@
         ]
       },
       "paperAbsentReason": "No Paper frame exists for the installation Integrations screen; the route reference is no-mock until the owner approves one."
+    },
+    {
+      "id": "ui.notificationRow",
+      "name": "NotificationRow",
+      "description": "One notification in the list: who or what it was, what happened, where it happened, and when, with an optional row menu.",
+      "level": "molecule",
+      "owner": "Mark Tripoli",
+      "storyTitle": "Bakery/Molecules/NotificationRow",
+      "usage": {
+        "whenToUse": "Show one notification a person can open, or one whose destination is gone and must read as unavailable.",
+        "whenNotToUse": "Use NotificationGroup for the day heading above rows, and AlertBanner for a page-level condition that is not a notification.",
+        "ruleIds": [
+          "ui.semantic-import",
+          "ui.layout-containment",
+          "ui.accessible-control",
+          "ui.translated-copy"
+        ],
+        "alternatives": [
+          {
+            "when": "The rows need a day heading",
+            "use": "ui.notificationGroup"
+          },
+          {
+            "when": "The message is a page condition",
+            "use": "ui.alertBanner"
+          }
+        ],
+        "replacesElements": [],
+        "allowedLevels": [
+          "molecule",
+          "organism",
+          "template",
+          "page",
+          "app"
+        ]
+      },
+      "paper": [],
+      "paperAbsentReason": "Designed in the #455 UX design comment for the notification surfaces; no Paper frame names it.",
+      "a11y": {
+        "accessibleName": "content",
+        "keyboard": [
+          "Tab reaches the row link and its menu button; Enter opens the notification"
+        ],
+        "notes": "Highlighting is a visual outline only; the unread state also carries a hidden word so it is never colour alone."
+      },
+      "tokens": [
+        "--border-default",
+        "--color-destructive",
+        "--color-destructive-surface",
+        "--color-fg-muted",
+        "--color-selection",
+        "--color-surface-raised",
+        "--focus-offset-inset",
+        "--radius-circle",
+        "--size-avatar-small",
+        "--space-1",
+        "--space-2",
+        "--type-caption",
+        "--weight-medium"
+      ],
+      "variants": [
+        "person",
+        "event"
+      ],
+      "states": [
+        "read",
+        "unread",
+        "highlighted",
+        "long-text",
+        "unavailable-destination"
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "layoutProfiles": [
+        "sheet",
+        "pane",
+        "rail"
+      ],
+      "pointerProfiles": [
+        "coarse",
+        "fine"
+      ],
+      "requirementIds": [
+        "theme.paired",
+        "layout.reflow",
+        "pointer.independent",
+        "a11y.semantic-focus",
+        "i18n.translated-logical"
+      ],
+      "requiredCases": [
+        {
+          "id": "contract",
+          "description": "Exercises the documented NotificationRow variants and states: a person row and an event row, read and unread, one highlighted after arriving from a link, one with worst-case long text, and one whose destination is unavailable.",
+          "variants": [
+            "person",
+            "event"
+          ],
+          "states": [
+            "read",
+            "unread",
+            "highlighted",
+            "long-text",
+            "unavailable-destination"
+          ],
+          "baselineIds": []
+        }
+      ],
+      "evidenceRefs": [
+        "design.components"
+      ],
+      "status": "implemented",
+      "coverage": {
+        "automated": {
+          "theme:light": [
+            "runtime:ui.notificationRow.contract.desktop-light-fine"
+          ],
+          "theme:dark": [
+            "suite:storybook.canonical-dark-axe"
+          ],
+          "layout:sheet": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:pane": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:rail": [
+            "runtime:ui.notificationRow.contract.desktop-light-fine"
+          ],
+          "pointer:fine": [
+            "runtime:ui.notificationRow.contract.desktop-light-fine"
+          ],
+          "pointer:coarse": [
+            "suite:storybook.coarse-targets"
+          ]
+        },
+        "notApplicable": {},
+        "visualContexts": [
+          "desktop-light-fine"
+        ]
+      }
+    },
+    {
+      "id": "ui.notificationGroup",
+      "name": "NotificationGroup",
+      "description": "A day's notifications under a real h3 heading, so a screen reader can move between days the way the eye does.",
+      "level": "molecule",
+      "owner": "Mark Tripoli",
+      "storyTitle": "Bakery/Molecules/NotificationGroup",
+      "usage": {
+        "whenToUse": "Group a page's notifications by day with a heading a reader can jump to.",
+        "whenNotToUse": "Use NotificationList for the popover's flat list, which has no day headings.",
+        "ruleIds": [
+          "ui.semantic-import",
+          "ui.layout-containment",
+          "ui.accessible-control",
+          "ui.translated-copy"
+        ],
+        "alternatives": [
+          {
+            "when": "The list is flat with no day headings",
+            "use": "ui.notificationList"
+          }
+        ],
+        "replacesElements": [],
+        "allowedLevels": [
+          "molecule",
+          "organism",
+          "template",
+          "page",
+          "app"
+        ]
+      },
+      "paper": [],
+      "paperAbsentReason": "Designed in the #455 UX design comment for the notification surfaces; no Paper frame names it.",
+      "a11y": {
+        "role": "group",
+        "accessibleName": "aria-labelledby",
+        "keyboard": [
+          "The heading is an h3 under the page h1 so headings navigation reaches each day"
+        ]
+      },
+      "tokens": [
+        "--color-fg-muted",
+        "--space-2",
+        "--space-4",
+        "--type-caption"
+      ],
+      "variants": [
+        "default"
+      ],
+      "states": [
+        "default"
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "layoutProfiles": [
+        "sheet",
+        "pane",
+        "rail"
+      ],
+      "pointerProfiles": [
+        "coarse",
+        "fine"
+      ],
+      "requirementIds": [
+        "theme.paired",
+        "layout.reflow",
+        "pointer.independent",
+        "a11y.semantic-focus",
+        "i18n.translated-logical"
+      ],
+      "requiredCases": [
+        {
+          "id": "contract",
+          "description": "Exercises the documented NotificationGroup states: one day with rows, and a day whose rows are all read.",
+          "variants": [
+            "default"
+          ],
+          "states": [
+            "default"
+          ],
+          "baselineIds": []
+        }
+      ],
+      "evidenceRefs": [
+        "design.components"
+      ],
+      "status": "implemented",
+      "coverage": {
+        "automated": {
+          "theme:light": [
+            "runtime:ui.notificationGroup.contract.desktop-light-fine"
+          ],
+          "theme:dark": [
+            "suite:storybook.canonical-dark-axe"
+          ],
+          "layout:sheet": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:pane": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:rail": [
+            "runtime:ui.notificationGroup.contract.desktop-light-fine"
+          ],
+          "pointer:fine": [
+            "runtime:ui.notificationGroup.contract.desktop-light-fine"
+          ],
+          "pointer:coarse": [
+            "suite:storybook.coarse-targets"
+          ]
+        },
+        "notApplicable": {},
+        "visualContexts": [
+          "desktop-light-fine"
+        ]
+      }
+    },
+    {
+      "id": "ui.notificationList",
+      "name": "NotificationList",
+      "description": "The notification rows themselves without day headings, the shape the popover's flat list uses.",
+      "level": "molecule",
+      "owner": "Mark Tripoli",
+      "storyTitle": "Bakery/Molecules/NotificationList",
+      "usage": {
+        "whenToUse": "Render rows in a flat list where day headings would add noise, such as inside the popover.",
+        "whenNotToUse": "Use NotificationGroup when the rows sit on the page and need day headings.",
+        "ruleIds": [
+          "ui.semantic-import",
+          "ui.layout-containment",
+          "ui.accessible-control",
+          "ui.translated-copy"
+        ],
+        "alternatives": [
+          {
+            "when": "The rows need a day heading",
+            "use": "ui.notificationGroup"
+          }
+        ],
+        "replacesElements": [],
+        "allowedLevels": [
+          "molecule",
+          "organism",
+          "template",
+          "page",
+          "app"
+        ]
+      },
+      "paper": [],
+      "paperAbsentReason": "Designed in the #455 UX design comment for the notification surfaces; no Paper frame names it.",
+      "a11y": {
+        "accessibleName": "content",
+        "keyboard": []
+      },
+      "tokens": [],
+      "variants": [
+        "default"
+      ],
+      "states": [
+        "empty",
+        "loading",
+        "error",
+        "ready"
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "layoutProfiles": [
+        "sheet",
+        "pane",
+        "rail"
+      ],
+      "pointerProfiles": [
+        "coarse",
+        "fine"
+      ],
+      "requirementIds": [
+        "theme.paired",
+        "layout.reflow",
+        "pointer.independent",
+        "a11y.semantic-focus",
+        "i18n.translated-logical"
+      ],
+      "requiredCases": [
+        {
+          "id": "contract",
+          "description": "Exercises the documented NotificationList states: a populated list, an empty list, a loading list, and a failed list with a retry.",
+          "variants": [
+            "default"
+          ],
+          "states": [
+            "empty",
+            "loading",
+            "error",
+            "ready"
+          ],
+          "baselineIds": []
+        }
+      ],
+      "evidenceRefs": [
+        "design.components"
+      ],
+      "status": "implemented",
+      "coverage": {
+        "automated": {
+          "theme:light": [
+            "runtime:ui.notificationList.contract.desktop-light-fine"
+          ],
+          "theme:dark": [
+            "suite:storybook.canonical-dark-axe"
+          ],
+          "layout:sheet": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:pane": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:rail": [
+            "runtime:ui.notificationList.contract.desktop-light-fine"
+          ],
+          "pointer:fine": [
+            "runtime:ui.notificationList.contract.desktop-light-fine"
+          ],
+          "pointer:coarse": [
+            "suite:storybook.coarse-targets"
+          ]
+        },
+        "notApplicable": {},
+        "visualContexts": [
+          "desktop-light-fine"
+        ]
+      }
+    },
+    {
+      "id": "ui.notificationGroups",
+      "name": "NotificationGroups",
+      "description": "The column that stacks the page's day groups in order.",
+      "level": "molecule",
+      "owner": "Mark Tripoli",
+      "storyTitle": "Bakery/Molecules/NotificationGroups",
+      "usage": {
+        "whenToUse": "Stack several day groups as the body of the notifications page.",
+        "whenNotToUse": "Use NotificationList inside the popover, which stacks nothing.",
+        "ruleIds": [
+          "ui.semantic-import",
+          "ui.layout-containment",
+          "ui.accessible-control",
+          "ui.translated-copy"
+        ],
+        "alternatives": [
+          {
+            "when": "The list is flat inside the popover",
+            "use": "ui.notificationList"
+          }
+        ],
+        "replacesElements": [],
+        "allowedLevels": [
+          "molecule",
+          "organism",
+          "template",
+          "page",
+          "app"
+        ]
+      },
+      "paper": [],
+      "paperAbsentReason": "Designed in the #455 UX design comment for the notification surfaces; no Paper frame names it.",
+      "a11y": {
+        "accessibleName": "content",
+        "keyboard": []
+      },
+      "tokens": [
+        "--space-4"
+      ],
+      "variants": [
+        "default"
+      ],
+      "states": [
+        "empty",
+        "loading",
+        "error",
+        "ready"
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "layoutProfiles": [
+        "sheet",
+        "pane",
+        "rail"
+      ],
+      "pointerProfiles": [
+        "coarse",
+        "fine"
+      ],
+      "requirementIds": [
+        "theme.paired",
+        "layout.reflow",
+        "pointer.independent",
+        "a11y.semantic-focus",
+        "i18n.translated-logical"
+      ],
+      "requiredCases": [
+        {
+          "id": "contract",
+          "description": "Exercises the documented NotificationGroups states: several stacked days, none at all, a loading column, and a failed column with a retry.",
+          "variants": [
+            "default"
+          ],
+          "states": [
+            "empty",
+            "loading",
+            "error",
+            "ready"
+          ],
+          "baselineIds": []
+        }
+      ],
+      "evidenceRefs": [
+        "design.components"
+      ],
+      "status": "implemented",
+      "coverage": {
+        "automated": {
+          "theme:light": [
+            "runtime:ui.notificationGroups.contract.desktop-light-fine"
+          ],
+          "theme:dark": [
+            "suite:storybook.canonical-dark-axe"
+          ],
+          "layout:sheet": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:pane": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:rail": [
+            "runtime:ui.notificationGroups.contract.desktop-light-fine"
+          ],
+          "pointer:fine": [
+            "runtime:ui.notificationGroups.contract.desktop-light-fine"
+          ],
+          "pointer:coarse": [
+            "suite:storybook.coarse-targets"
+          ]
+        },
+        "notApplicable": {},
+        "visualContexts": [
+          "desktop-light-fine"
+        ]
+      }
+    },
+    {
+      "id": "ui.notificationPageHeader",
+      "name": "NotificationPageHeader",
+      "description": "The notifications page's title row: the page heading with the one page-level action beside it.",
+      "level": "molecule",
+      "owner": "Mark Tripoli",
+      "storyTitle": "Bakery/Molecules/NotificationPageHeader",
+      "usage": {
+        "whenToUse": "Put the page heading and its single page-level action on one row.",
+        "whenNotToUse": "Use Heading alone when the page has no page-level action.",
+        "ruleIds": [
+          "ui.semantic-import",
+          "ui.layout-containment",
+          "ui.accessible-control",
+          "ui.translated-copy"
+        ],
+        "alternatives": [
+          {
+            "when": "The page has no page-level action",
+            "use": "ui.heading"
+          }
+        ],
+        "replacesElements": [],
+        "allowedLevels": [
+          "molecule",
+          "organism",
+          "template",
+          "page",
+          "app"
+        ]
+      },
+      "paper": [],
+      "paperAbsentReason": "Designed in the #455 UX design comment for the notification surfaces; no Paper frame names it.",
+      "a11y": {
+        "accessibleName": "content",
+        "keyboard": []
+      },
+      "tokens": [
+        "--space-2"
+      ],
+      "variants": [
+        "default"
+      ],
+      "states": [
+        "default",
+        "mark-all-read-running"
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "layoutProfiles": [
+        "sheet",
+        "pane",
+        "rail"
+      ],
+      "pointerProfiles": [
+        "coarse",
+        "fine"
+      ],
+      "requirementIds": [
+        "theme.paired",
+        "layout.reflow",
+        "pointer.independent",
+        "a11y.semantic-focus",
+        "i18n.translated-logical"
+      ],
+      "requiredCases": [
+        {
+          "id": "contract",
+          "description": "Exercises the documented NotificationPageHeader states: the idle header, and the header while Mark all read is running and disabled.",
+          "variants": [
+            "default"
+          ],
+          "states": [
+            "default",
+            "mark-all-read-running"
+          ],
+          "baselineIds": []
+        }
+      ],
+      "evidenceRefs": [
+        "design.components"
+      ],
+      "status": "implemented",
+      "coverage": {
+        "automated": {
+          "theme:light": [
+            "runtime:ui.notificationPageHeader.contract.desktop-light-fine"
+          ],
+          "theme:dark": [
+            "suite:storybook.canonical-dark-axe"
+          ],
+          "layout:sheet": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:pane": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:rail": [
+            "runtime:ui.notificationPageHeader.contract.desktop-light-fine"
+          ],
+          "pointer:fine": [
+            "runtime:ui.notificationPageHeader.contract.desktop-light-fine"
+          ],
+          "pointer:coarse": [
+            "suite:storybook.coarse-targets"
+          ]
+        },
+        "notApplicable": {},
+        "visualContexts": [
+          "desktop-light-fine"
+        ]
+      }
+    },
+    {
+      "id": "ui.notificationPopover",
+      "name": "NotificationPopover",
+      "description": "The panel under the bell: a title, the rows, Mark all read, and the way through to the page, capped so the footer stays reachable while the list scrolls.",
+      "level": "molecule",
+      "owner": "Mark Tripoli",
+      "storyTitle": "Bakery/Molecules/NotificationPopover",
+      "usage": {
+        "whenToUse": "Peek at recent notifications from the bell without leaving the page.",
+        "whenNotToUse": "Use the notifications page for the full list with day headings and per-row menus.",
+        "ruleIds": [
+          "ui.semantic-import",
+          "ui.layout-containment",
+          "ui.accessible-control",
+          "ui.translated-copy"
+        ],
+        "alternatives": [
+          {
+            "when": "The person wants the full list with day headings",
+            "use": "ui.notificationGroup"
+          }
+        ],
+        "replacesElements": [],
+        "allowedLevels": [
+          "molecule",
+          "organism",
+          "template",
+          "page",
+          "app"
+        ]
+      },
+      "paper": [],
+      "paperAbsentReason": "Designed in the #455 UX design comment for the notification surfaces; no Paper frame names it.",
+      "a11y": {
+        "role": "dialog",
+        "accessibleName": "aria-label",
+        "keyboard": [
+          "Escape closes the panel and returns focus to the trigger",
+          "Tab reaches the rows, Mark all read and the view-all link"
+        ],
+        "notes": "Mark all read is disabled when nothing is unread, and its reason is carried as the button's tooltip and accessible description."
+      },
+      "tokens": [
+        "--border-default",
+        "--color-border",
+        "--color-fg-muted",
+        "--layout-menu",
+        "--layout-menu-blocks",
+        "--space-2",
+        "--space-3",
+        "--space-4",
+        "--type-heading-subsection"
+      ],
+      "variants": [
+        "default"
+      ],
+      "states": [
+        "ready",
+        "empty",
+        "loading",
+        "failed",
+        "nothing-unread",
+        "scrolling"
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "layoutProfiles": [
+        "sheet",
+        "pane",
+        "rail"
+      ],
+      "pointerProfiles": [
+        "coarse",
+        "fine"
+      ],
+      "requirementIds": [
+        "theme.paired",
+        "layout.reflow",
+        "pointer.independent",
+        "a11y.semantic-focus",
+        "i18n.translated-logical"
+      ],
+      "requiredCases": [
+        {
+          "id": "contract",
+          "description": "Exercises the documented NotificationPopover states: rows ready, no notifications yet, loading, a failed load with retry, nothing unread so Mark all read is disabled with its reason shown, and a list long enough to scroll under the block cap.",
+          "variants": [
+            "default"
+          ],
+          "states": [
+            "ready",
+            "empty",
+            "loading",
+            "failed",
+            "nothing-unread",
+            "scrolling"
+          ],
+          "baselineIds": []
+        }
+      ],
+      "evidenceRefs": [
+        "design.components"
+      ],
+      "status": "implemented",
+      "coverage": {
+        "automated": {
+          "theme:light": [
+            "runtime:ui.notificationPopover.contract.desktop-light-fine"
+          ],
+          "theme:dark": [
+            "suite:storybook.canonical-dark-axe"
+          ],
+          "layout:sheet": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:pane": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:rail": [
+            "runtime:ui.notificationPopover.contract.desktop-light-fine"
+          ],
+          "pointer:fine": [
+            "runtime:ui.notificationPopover.contract.desktop-light-fine"
+          ],
+          "pointer:coarse": [
+            "suite:storybook.coarse-targets"
+          ]
+        },
+        "notApplicable": {},
+        "visualContexts": [
+          "desktop-light-fine"
+        ]
+      }
     }
   ],
   "compositions": [

@@ -1,4 +1,4 @@
-/* Generated from Paper 01M1X504XVC45FC0VDK857A37D revision paper:49fea8f7; pages:14-0,15-0,16-0,V-0; accessed:2026-09-17; digest 8402dd6f0dddfcf6605f92aa32948675924812baf5574ab861b65f4157f13aa4. */
+/* Generated from Paper 01M1X504XVC45FC0VDK857A37D revision paper:49fea8f7; pages:14-0,15-0,16-0,V-0; accessed:2026-09-17; digest 1bb00d7803d589bb98f1002608af4f2f880d948f1bb4cf4f7bb192e19bf7eca7. */
 export const semanticTokens = {
   "border.default": "--border-default",
   "border.emphasis": "--border-emphasis",
@@ -58,6 +58,7 @@ export const semanticTokens = {
   "motion.transition": "--duration-transition",
   "motion.standard": "--ease-standard",
   "focus.offset": "--focus-offset",
+  "focus.offset.inset": "--focus-offset-inset",
   "focus.width": "--focus-width",
   "font.mono": "--font-mono",
   "font.sans": "--font-sans",
@@ -75,6 +76,8 @@ export const semanticTokens = {
   "layout.inspector": "--layout-inspector",
   "layout.item.action": "--layout-item-action",
   "layout.measure.prose": "--layout-measure-prose",
+  "layout.menu": "--layout-menu",
+  "layout.menu.blocks": "--layout-menu-blocks",
   "layout.message": "--layout-message",
   "layout.section.rail": "--layout-section-rail",
   "layout.session-pane": "--layout-session-pane",
