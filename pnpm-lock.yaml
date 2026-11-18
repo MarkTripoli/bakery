@@ -288,6 +288,8 @@ importers:
 
   packages/worker-bootstrap: {}
 
+  packages/workflow-sdk: {}
+
 packages:
 
   '@adobe/css-tools@4.5.0':

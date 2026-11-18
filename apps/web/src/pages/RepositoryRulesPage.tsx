@@ -382,9 +382,24 @@ export function RepositoryRulesPage(
                             }
                             title={translate(RULE_NAME[row.entry.ruleKey])}
                           >
-                            <UI.Text lines={2} variant="muted">
+                            <UI.ExpandableText
+                              hideControlLabel={translate(
+                                "repository.rules.summary.hide.named",
+                                {
+                                  rule: translate(RULE_NAME[row.entry.ruleKey]),
+                                },
+                              )}
+                              hideLabel={translate("core.actions.showLess")}
+                              showControlLabel={translate(
+                                "repository.rules.summary.show.named",
+                                {
+                                  rule: translate(RULE_NAME[row.entry.ruleKey]),
+                                },
+                              )}
+                              showLabel={translate("core.actions.showAll")}
+                            >
                               {summarize(row.entry, translate)}
-                            </UI.Text>
+                            </UI.ExpandableText>
                             <UI.Text>
                               {translate(enforcementOf(row.entry))}
                             </UI.Text>
@@ -416,13 +431,24 @@ export function RepositoryRulesPage(
                             <UI.Text>
                               {translate(RULE_NAME[row.entry.ruleKey])}
                             </UI.Text>
-                            <UI.Text
-                              lines={2}
-                              title={summarize(row.entry, translate)}
-                              variant="muted"
+                            <UI.ExpandableText
+                              hideControlLabel={translate(
+                                "repository.rules.summary.hide.named",
+                                {
+                                  rule: translate(RULE_NAME[row.entry.ruleKey]),
+                                },
+                              )}
+                              hideLabel={translate("core.actions.showLess")}
+                              showControlLabel={translate(
+                                "repository.rules.summary.show.named",
+                                {
+                                  rule: translate(RULE_NAME[row.entry.ruleKey]),
+                                },
+                              )}
+                              showLabel={translate("core.actions.showAll")}
                             >
                               {summarize(row.entry, translate)}
-                            </UI.Text>
+                            </UI.ExpandableText>
                           </UI.Stack>
                         ),
                       },
