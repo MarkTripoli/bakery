@@ -351,6 +351,7 @@ export const NotificationImplementedAction = Object.freeze(
     NotificationsResolveTarget: "notifications.resolveTarget",
     NotificationsSetRead: "notifications.setRead",
     NotificationsMarkAllRead: "notifications.markAllRead",
+    NotificationsUndoMarkAllRead: "notifications.undoMarkAllRead",
   } as const satisfies Record<string, CatalogActionName>,
 );
 export const notificationImplementedActions = Object.freeze(
@@ -375,6 +376,8 @@ export const WorkflowImplementedAction = Object.freeze(
     WorkflowDefinitionProposalsGet: "workflowDefinitionProposals.get",
     WorkflowDefinitionProposalDecisionsCreate:
       "workflowDefinitionProposalDecisions.create",
+    DefinitionPublishGrantsCreate: "definitionPublishGrants.create",
+    DefinitionPublishGrantsDelete: "definitionPublishGrants.delete",
   } as const satisfies Record<string, CatalogActionName>,
 );
 export const workflowImplementedActions = Object.freeze(

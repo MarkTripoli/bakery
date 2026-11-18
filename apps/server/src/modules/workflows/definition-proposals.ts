@@ -7,6 +7,7 @@ import type { PgTransactionClient } from "../../platform/database.ts";
 import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import { MAX_WORKFLOW_DEFINITION_BYTES } from "./validation.ts";
+import { DefinitionProposalState } from "./proposal-supersession.ts";
 import {
   assertPersonActs,
   COORDINATOR_ORIGIN_KIND,
@@ -32,9 +33,7 @@ type DefinitionProposalEffect = Extract<
   { type: "definitionProposal" }
 >;
 
-export const DefinitionProposalState = Object.freeze(
-  { Waiting: "waiting", Accepted: "accepted", Rejected: "rejected" } as const,
-);
+export { DefinitionProposalState };
 
 type ProposalRow = {
   id: string;
@@ -48,6 +47,7 @@ type ProposalRow = {
   state: string;
   decided_by: string | null;
   decided_at: Date | string | null;
+  superseded_by_version_id: string | null;
   created_at: Date | string;
   updated_at: Date | string;
   version: number;
@@ -55,8 +55,8 @@ type ProposalRow = {
 
 const PROPOSAL_COLUMNS =
   `id, conversation_id, turn_id, workflow_id, base_draft_version, name,
-   definition, digest, state, decided_by, decided_at, created_at, updated_at,
-   version`;
+   definition, digest, state, decided_by, decided_at, superseded_by_version_id,
+   created_at, updated_at, version`;
 
 function iso(value: Date | string): string {
   return (value instanceof Date ? value : new Date(value)).toISOString();
@@ -72,9 +72,14 @@ function toProposal(row: ProposalRow) {
     name: row.name,
     definition: row.definition,
     digest: row.digest,
-    state: row.state as "waiting" | "accepted" | "rejected",
+    state: row.state as
+      | "waiting"
+      | "accepted"
+      | "rejected"
+      | "superseded",
     decidedBy: row.decided_by,
     decidedAt: row.decided_at === null ? null : iso(row.decided_at),
+    supersededByVersionId: row.superseded_by_version_id,
     createdAt: iso(row.created_at),
     updatedAt: iso(row.updated_at),
     version: row.version,
@@ -252,23 +257,50 @@ export async function decideWorkflowDefinitionProposal(
   if (expectedVersion === undefined) {
     throw new StandardError({ code: "PRECONDITION_REQUIRED" });
   }
+  // Lock order is definition, then proposal: the order publish takes when it
+  // settles waiting proposals, so a decision racing a publish waits instead
+  // of deadlocking. workflow_id only ever moves from null to a definition, by
+  // an accept, which the state check below then refuses.
+  const target = (await readProposal(
+    transaction,
+    organizationId,
+    proposalId,
+    false,
+  )).workflow_id;
+  if (target !== null) {
+    await transaction.query(
+      `select 1 from bakery.workflow_definitions
+        where organization_id = $1 and id = $2 for update`,
+      [organizationId, target],
+    );
+  }
   // The row is locked for update, so this one check is the proposal's
   // compare-and-set: nothing below can race it.
   const row = await readProposal(transaction, organizationId, proposalId, true);
-  if (row.version !== expectedVersion) {
-    throw new StandardError({ code: "PRECONDITION_FAILED" });
-  }
+  // A settled proposal is a conflict whatever version the caller named: a
+  // decision that lost a race to another decision or to a publish learns
+  // that it lost (409), not merely that its version is old (412).
   if (row.state !== DefinitionProposalState.Waiting) {
     throw new StandardError({
       code: "STATE_CONFLICT",
-      params: { reason: "definition_proposal_decided" },
+      params: {
+        reason: row.state === DefinitionProposalState.Superseded
+          ? "definition_proposal_superseded"
+          : "definition_proposal_decided",
+      },
     });
   }
+  if (row.version !== expectedVersion) {
+    throw new StandardError({ code: "PRECONDITION_FAILED" });
+  }
+  // Only a person reaches here, so the applied change is the person's (O50).
   const facts: WorkflowWriteFacts = {
     organizationId,
     principalId,
     requestId: context.requestId,
     traceId: context.traceId,
+    actorKind: "person",
+    accessTokenId: null,
   };
   let workflowId = row.workflow_id;
   if (decision === "accept") {
