@@ -467,13 +467,28 @@ export function OrganizationRepositoryRulesPage() {
                                     </UI.Text>
                                     {editedBadge(row)}
                                   </UI.Inline>
-                                  <UI.Text
-                                    lines={2}
-                                    title={summarize(row, translate)}
-                                    variant="muted"
+                                  <UI.ExpandableText
+                                    hideControlLabel={translate(
+                                      "repository.rules.summary.hide.named",
+                                      {
+                                        rule: translate(RULE_NAME[row.ruleKey]),
+                                      },
+                                    )}
+                                    hideLabel={translate(
+                                      "core.actions.showLess",
+                                    )}
+                                    showControlLabel={translate(
+                                      "repository.rules.summary.show.named",
+                                      {
+                                        rule: translate(RULE_NAME[row.ruleKey]),
+                                      },
+                                    )}
+                                    showLabel={translate(
+                                      "core.actions.showAll",
+                                    )}
                                   >
                                     {summarize(row, translate)}
-                                  </UI.Text>
+                                  </UI.ExpandableText>
                                 </UI.Stack>
                               ),
                             },

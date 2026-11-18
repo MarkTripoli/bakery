@@ -3,6 +3,7 @@ import {
   type ActionDispatch,
   cloneJson,
   nextStep,
+  nextStepWithGroups,
   pinWorkflowRuntime,
   resolveWorkflowRuntime,
   WORKFLOW_INTERPRETER_ERRORS,
@@ -164,6 +165,49 @@ Deno.test("objects keep their prototype: an object the interpreter built stays n
   };
   // `nested` is an object value node, which evaluateValue builds without a
   // prototype so a key named toString or constructor is only data.
+  assertEquals(Object.getPrototypeOf(input.nested), null);
+  assertEquals(Object.getPrototypeOf(input.whole), Object.prototype);
+  assertEquals("toString" in input.nested, false);
+});
+
+Deno.test("revision 2 keeps the same choice for the steps of a parallel group (#210)", async () => {
+  // The prototype choice is part of the frozen answer shape, so a set of steps
+  // follows the same rule as a single one: an object value the interpreter
+  // builds is null-prototype, a recorded value it copies stays ordinary.
+  const document = await compiled([
+    noop("xx"),
+    {
+      id: "fan",
+      needs: ["xx"],
+      parallel: {
+        maxConcurrency: 2,
+        join: "all-required",
+        failurePolicy: "stop-dependent",
+        branches: [
+          {
+            id: "la",
+            repository: "repo_a",
+            steps: [noop("ua", {
+              with: {
+                whole: "$step.xx.payload",
+                nested: { picked: "$step.xx.n" },
+              },
+            })],
+          },
+          { id: "lb", repository: "repo_b", steps: [noop("ub")] },
+        ],
+      },
+    },
+  ]);
+  const next = nextStepWithGroups(
+    document,
+    stateWith({ payload: { a: 1 }, n: 1 }),
+  );
+  assert(next.kind === "dispatch_many");
+  const input = (next.steps[0] as ActionDispatch).input as {
+    whole: object;
+    nested: object;
+  };
   assertEquals(Object.getPrototypeOf(input.nested), null);
   assertEquals(Object.getPrototypeOf(input.whole), Object.prototype);
   assertEquals("toString" in input.nested, false);
