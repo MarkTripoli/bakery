@@ -2,112 +2,112 @@
   "schemaVersion": 1,
   "records": [
     {
-      "baseSha": "f98ed72e4bff96ee2d66d8dd2c104416d93f3377",
+      "baseSha": "28ee02548fddfc0972bfc3c4621949b8d9c4535b",
       "kind": "app-route",
       "identity": "apps/web/src/router.tsx|production|projects-onboarding|/projects/onboarding",
       "replacement": "apps/web/src/router.tsx|production|repository|/projects/repositories/$repositoryId",
       "rationale": "Projects slice 3 (#65, design-ux ruling 6896683659): the Projects onboarding page is removed. The Projects list and the repository page replace it; its draft-task composer is not carried over."
     },
     {
-      "baseSha": "f98ed72e4bff96ee2d66d8dd2c104416d93f3377",
+      "baseSha": "28ee02548fddfc0972bfc3c4621949b8d9c4535b",
       "kind": "route-state",
       "identity": "apps/web/src/router.tsx|projects-onboarding|loading",
       "retired": true,
       "rationale": "Projects slice 3 (#65, design-ux ruling 6896683659): the Projects onboarding page is removed. The Projects list and the repository page replace it; its draft-task composer is not carried over."
     },
     {
-      "baseSha": "f98ed72e4bff96ee2d66d8dd2c104416d93f3377",
+      "baseSha": "28ee02548fddfc0972bfc3c4621949b8d9c4535b",
       "kind": "route-state",
       "identity": "apps/web/src/router.tsx|projects-onboarding|ready",
       "retired": true,
       "rationale": "Projects slice 3 (#65, design-ux ruling 6896683659): the Projects onboarding page is removed. The Projects list and the repository page replace it; its draft-task composer is not carried over."
     },
     {
-      "baseSha": "f98ed72e4bff96ee2d66d8dd2c104416d93f3377",
+      "baseSha": "28ee02548fddfc0972bfc3c4621949b8d9c4535b",
       "kind": "route-state",
       "identity": "apps/web/src/router.tsx|projects-onboarding|empty",
       "retired": true,
       "rationale": "Projects slice 3 (#65, design-ux ruling 6896683659): the Projects onboarding page is removed. The Projects list and the repository page replace it; its draft-task composer is not carried over."
     },
     {
-      "baseSha": "f98ed72e4bff96ee2d66d8dd2c104416d93f3377",
+      "baseSha": "28ee02548fddfc0972bfc3c4621949b8d9c4535b",
       "kind": "route-state",
       "identity": "apps/web/src/router.tsx|projects-onboarding|error",
       "retired": true,
       "rationale": "Projects slice 3 (#65, design-ux ruling 6896683659): the Projects onboarding page is removed. The Projects list and the repository page replace it; its draft-task composer is not carried over."
     },
     {
-      "baseSha": "f98ed72e4bff96ee2d66d8dd2c104416d93f3377",
+      "baseSha": "28ee02548fddfc0972bfc3c4621949b8d9c4535b",
       "kind": "route-state",
       "identity": "apps/web/src/router.tsx|projects-onboarding|forbidden",
       "retired": true,
       "rationale": "Projects slice 3 (#65, design-ux ruling 6896683659): the Projects onboarding page is removed. The Projects list and the repository page replace it; its draft-task composer is not carried over."
     },
     {
-      "baseSha": "f98ed72e4bff96ee2d66d8dd2c104416d93f3377",
+      "baseSha": "28ee02548fddfc0972bfc3c4621949b8d9c4535b",
       "kind": "route-state",
       "identity": "apps/web/src/router.tsx|projects-onboarding|conflict",
       "retired": true,
       "rationale": "Projects slice 3 (#65, design-ux ruling 6896683659): the Projects onboarding page is removed. The Projects list and the repository page replace it; its draft-task composer is not carried over."
     },
     {
-      "baseSha": "f98ed72e4bff96ee2d66d8dd2c104416d93f3377",
+      "baseSha": "28ee02548fddfc0972bfc3c4621949b8d9c4535b",
       "kind": "route-state",
       "identity": "apps/web/src/router.tsx|projects-onboarding|disabled",
       "retired": true,
       "rationale": "Projects slice 3 (#65, design-ux ruling 6896683659): the Projects onboarding page is removed. The Projects list and the repository page replace it; its draft-task composer is not carried over."
     },
     {
-      "baseSha": "f98ed72e4bff96ee2d66d8dd2c104416d93f3377",
+      "baseSha": "28ee02548fddfc0972bfc3c4621949b8d9c4535b",
       "kind": "route-state",
       "identity": "apps/web/src/router.tsx|projects-onboarding|stale",
       "retired": true,
       "rationale": "Projects slice 3 (#65, design-ux ruling 6896683659): the Projects onboarding page is removed. The Projects list and the repository page replace it; its draft-task composer is not carried over."
     },
     {
-      "baseSha": "f98ed72e4bff96ee2d66d8dd2c104416d93f3377",
+      "baseSha": "28ee02548fddfc0972bfc3c4621949b8d9c4535b",
       "kind": "route-state",
       "identity": "apps/web/src/router.tsx|projects-onboarding|offline",
       "retired": true,
       "rationale": "Projects slice 3 (#65, design-ux ruling 6896683659): the Projects onboarding page is removed. The Projects list and the repository page replace it; its draft-task composer is not carried over."
     },
     {
-      "baseSha": "f98ed72e4bff96ee2d66d8dd2c104416d93f3377",
+      "baseSha": "28ee02548fddfc0972bfc3c4621949b8d9c4535b",
       "kind": "route-state",
       "identity": "apps/web/src/router.tsx|projects-onboarding|reconnecting",
       "retired": true,
       "rationale": "Projects slice 3 (#65, design-ux ruling 6896683659): the Projects onboarding page is removed. The Projects list and the repository page replace it; its draft-task composer is not carried over."
     },
     {
-      "baseSha": "f98ed72e4bff96ee2d66d8dd2c104416d93f3377",
+      "baseSha": "28ee02548fddfc0972bfc3c4621949b8d9c4535b",
       "kind": "route-state",
       "identity": "apps/web/src/router.tsx|projects-onboarding|long-copy",
       "retired": true,
       "rationale": "Projects slice 3 (#65, design-ux ruling 6896683659): the Projects onboarding page is removed. The Projects list and the repository page replace it; its draft-task composer is not carried over."
     },
     {
-      "baseSha": "f98ed72e4bff96ee2d66d8dd2c104416d93f3377",
+      "baseSha": "28ee02548fddfc0972bfc3c4621949b8d9c4535b",
       "kind": "route-state",
       "identity": "apps/web/src/router.tsx|projects-onboarding|unavailable",
       "retired": true,
       "rationale": "Projects slice 3 (#65, design-ux ruling 6896683659): the Projects onboarding page is removed. The Projects list and the repository page replace it; its draft-task composer is not carried over."
     },
     {
-      "baseSha": "f98ed72e4bff96ee2d66d8dd2c104416d93f3377",
+      "baseSha": "28ee02548fddfc0972bfc3c4621949b8d9c4535b",
       "kind": "route-reference",
       "identity": "projects-onboarding",
       "replacement": "repository",
       "rationale": "Projects slice 3 (#65, design-ux ruling 6896683659): the Projects onboarding page is removed. The Projects list and the repository page replace it; its draft-task composer is not carried over."
     },
     {
-      "baseSha": "f98ed72e4bff96ee2d66d8dd2c104416d93f3377",
+      "baseSha": "28ee02548fddfc0972bfc3c4621949b8d9c4535b",
       "kind": "app-route",
       "identity": "apps/web/src/router.tsx|fixture|fixture-work-onboarding|/__fixtures__/work/onboarding/$state",
       "retired": true,
       "rationale": "Projects slice 3 (#65, design-ux ruling 6896683659): the Projects onboarding page is removed, and with it the design fixture that rendered it for Paper scoring."
     },
     {
-      "baseSha": "f98ed72e4bff96ee2d66d8dd2c104416d93f3377",
+      "baseSha": "28ee02548fddfc0972bfc3c4621949b8d9c4535b",
       "kind": "route-state",
       "identity": "apps/web/src/router.tsx|fixture-work-onboarding|default",
       "retired": true,
