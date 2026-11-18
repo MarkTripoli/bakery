@@ -509,9 +509,9 @@ test(
       ),
     ).toHaveCount(0);
     await still(page, "run-section-raw-output-open", undefined, {
-      scrollTo: thread(page).or(
-        page.getByText("This step has no agent session."),
-      ).first(),
+      scrollTo: page.locator("details", { hasText: "Raw output" }).locator(
+        "summary",
+      ),
     });
   },
 );

@@ -67,6 +67,12 @@ for (const theme of ["light", "dark"] as const) {
           ).first(),
         ).toBeVisible({ timeout: 15_000 });
 
+        // The route chunk, not just a skeleton, is on screen: a lazy-route fallback
+        // is a skeleton too, and is how the dark loading still once showed the wrong page.
+        await expect(page.getByRole("heading", { name: "Task detail" }))
+          .toBeVisible({
+            timeout: 15_000,
+          });
         const marker = page.locator(state.marker).first();
         await expect(marker, `${state.name} never showed its own marker`)
           .toBeVisible({ timeout: 15_000 });
