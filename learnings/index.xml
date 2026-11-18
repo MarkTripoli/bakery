@@ -142,6 +142,9 @@
   <entry file="now-is-the-transaction-start.xml" scope="project" />
   <entry file="route-paths-are-invisible-to-the-type-checker.xml" scope="project" />
   <entry file="assert-the-row-by-id-not-by-position.xml" scope="project" />
+  <entry file="a-derived-expectation-needs-a-swap-test.xml" scope="project" />
+  <entry file="read-the-isolation-default-of-the-writer.xml" scope="project" />
+  <entry file="an-observation-is-not-an-invariant.xml" scope="project" />
   <entry file="database-name-is-not-database-identity.xml" scope="project" />
   <entry file="nullable-dedupe-key-nulls-distinct.xml" scope="project" />
   <entry file="generated-file-without-its-source.xml" scope="project" />
