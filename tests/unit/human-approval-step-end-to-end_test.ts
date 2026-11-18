@@ -21,7 +21,10 @@ Deno.test("the workflow owner is the default approver", () => {
     audience: undefined,
     ownerPrincipalId: "owner-1",
   });
-  assertEquals(resolution, { resolved: true, approverPrincipalId: "owner-1" });
+  assertEquals(resolution, {
+    resolved: true,
+    approverPrincipalIds: ["owner-1"],
+  });
 });
 
 Deno.test("an explicit audience outranks the owner", () => {
@@ -33,7 +36,7 @@ Deno.test("an explicit audience outranks the owner", () => {
   });
   assertEquals(resolution, {
     resolved: true,
-    approverPrincipalId: "reviewer-1",
+    approverPrincipalIds: ["reviewer-1"],
   });
 });
 
@@ -54,7 +57,10 @@ Deno.test("an empty audience falls back to the owner rather than refusing", () =
     audience: [],
     ownerPrincipalId: "owner-2",
   });
-  assertEquals(resolution, { resolved: true, approverPrincipalId: "owner-2" });
+  assertEquals(resolution, {
+    resolved: true,
+    approverPrincipalIds: ["owner-2"],
+  });
 });
 
 Deno.test("reject and request changes end with different names", () => {

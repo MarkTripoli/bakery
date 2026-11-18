@@ -6,6 +6,7 @@ import {
 } from "@bakery/contracts/human-approval";
 import { StandardError } from "@bakery/contracts/http";
 import { appendDomainEvent } from "@bakery/persistence/event-audit";
+import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
 import type { PgTransactionClient } from "../../platform/database.ts";
 import {
   activeElapsedMs,
@@ -48,6 +49,7 @@ type ApprovalRow = {
   decided_by: string | null;
   decided_at: Date | null;
   expires_at: Date | null;
+  audience: { type: string; principalIds?: string[] };
   version: number;
 };
 
@@ -145,10 +147,31 @@ export async function requestHumanApproval(
     applicationId: string;
     repositoryId: string | null;
   },
-): Promise<{ approvalId: string; approverPrincipalId: string }> {
+): Promise<{ approvalId: string; approverPrincipalIds: readonly string[] }> {
+  // Resolve the audience against real principal rows before deciding whether
+  // anyone can answer. Trusting the strings would let an approval be addressed
+  // to nobody and then sit until it expired.
+  const candidates = [...(input.audience ?? [])];
+  if (input.ownerPrincipalId !== null) candidates.push(input.ownerPrincipalId);
+  const found = candidates.length === 0 ? new Set<string>() : new Set(
+    (await transaction.query<{ id: string }>(
+      // A principal is global; membership is what makes them somebody this
+      // organization may ask. Checking both is the difference between "this id
+      // exists somewhere" and "this person can answer here".
+      `select principal.id
+         from bakery.principals principal
+         join bakery.organization_memberships membership
+           on membership.principal_id = principal.id
+        where membership.organization_id = $1
+          and membership.status = 'active'
+          and principal.id = any($2::uuid[])`,
+      [input.organizationId, candidates],
+    )).rows.map((row) => row.id),
+  );
   const resolution = resolveApprover({
     audience: input.audience,
     ownerPrincipalId: input.ownerPrincipalId,
+    principals: found,
   });
   if (!resolution.resolved) {
     throw new StandardError({
@@ -161,13 +184,27 @@ export async function requestHumanApproval(
 
   const approvalId = crypto.randomUUID();
   const expiresAt = new Date(Date.now() + HUMAN_APPROVAL_WAIT_LIMIT_MS);
+  // The approval is bound to an exact subject and an exact policy, and both are
+  // digests rather than prose so a reader can recompute them. The subject is
+  // this step, its prompt and its run: approving it says nothing about another
+  // step, another prompt or a later run. The policy is who was asked, because
+  // that is the rule in force that lets this approval be answered at all.
+  const subjectDigest = await sha256Hex(canonicalJson({
+    runId: input.runId,
+    stepKey: input.stepKey,
+    prompt: input.prompt,
+  }));
+  const policyDigest = await sha256Hex(canonicalJson({
+    stepKey: input.stepKey,
+    approverPrincipalIds: [...resolution.approverPrincipalIds].sort(),
+  }));
   await transaction.query(
     `insert into bakery.questions
        (id, organization_id, kind, conversation_id, task_id, run_id, generation,
         prompt, allow_free_text, audience, expires_at, status, subject_type,
-        subject_id)
+        subject_id, subject_digest, policy_digest)
      values ($1, $2, 'approval', $3, $4, $5, 1, $6, true, $7::jsonb, $8,
-             'open', 'run_step', $9)`,
+             'open', 'run_step', $9, $10, $11)`,
     [
       approvalId,
       input.organizationId,
@@ -177,10 +214,12 @@ export async function requestHumanApproval(
       input.prompt,
       JSON.stringify({
         type: "principals",
-        principalIds: [resolution.approverPrincipalId],
+        principalIds: resolution.approverPrincipalIds,
       }),
       expiresAt,
       input.runId,
+      subjectDigest,
+      policyDigest,
     ],
   );
 
@@ -208,7 +247,7 @@ export async function requestHumanApproval(
 
   return {
     approvalId,
-    approverPrincipalId: resolution.approverPrincipalId,
+    approverPrincipalIds: resolution.approverPrincipalIds,
   };
 }
 
@@ -287,7 +326,8 @@ export async function decideHumanApproval(
 ): Promise<{ outcome: string | null; version: number }> {
   const loaded = await transaction.query<ApprovalRow>(
     `select id, organization_id, task_id, conversation_id, run_id, prompt,
-            status, decision, decided_by, decided_at, expires_at, version
+            status, decision, decided_by, decided_at, expires_at, audience,
+            version
        from bakery.questions
       where organization_id = $1 and id = $2 and subject_type = 'run_step'
       for update`,
@@ -296,6 +336,13 @@ export async function decideHumanApproval(
   const row = loaded.rows[0];
   // A foreign or invented id answers identically: no oracle for existence.
   if (!row) notFound();
+  // The store is the writer, so it enforces who may answer rather than trusting
+  // every caller to check first. An approval addressed to named people does not
+  // exist for anybody else, which is the same refusal the route gives.
+  if (
+    row.audience.type === "principals" &&
+    !(row.audience.principalIds ?? []).includes(input.principalId)
+  ) notFound();
   if (row.status === "answered") conflict("approval_decided");
   if (row.status !== "open") conflict(`approval_${row.status}`);
   if (row.version !== input.expectedVersion) conflict("approval_stale");

@@ -106,7 +106,7 @@ Deno.test("AC1: an approval step records its wait and asks the workflow owner", 
       traceId: crypto.randomUUID(),
     });
     // The owner is the approver, not the version's editor.
-    assertEquals(asked.approverPrincipalId, fixture.principalId);
+    assertEquals(asked.approverPrincipalIds, [fixture.principalId]);
     const wait = await run.client.query<{ n: string }>(
       `select count(*)::text as n from bakery.run_waits
         where organization_id = $1 and run_id = $2 and ended_at is null`,
@@ -436,7 +436,7 @@ Deno.test("AC3: the active clock excludes the wait while wall time includes it",
       `loopElapsedMs should report the active clock, got ${reported}ms vs ${active}ms`,
     );
     assert(reported < Number(wall.rows[0]!.ms));
-    assertEquals(asked.approverPrincipalId, fixture.principalId);
+    assertEquals(asked.approverPrincipalIds, [fixture.principalId]);
   });
 });
 

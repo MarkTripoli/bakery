@@ -29,7 +29,7 @@ export const NO_RESOLVABLE_APPROVER = "no-resolvable-approver";
 
 /** What resolves as the approver of one approval step. */
 export type ApprovalResolution =
-  | Readonly<{ resolved: true; approverPrincipalId: string }>
+  | Readonly<{ resolved: true; approverPrincipalIds: readonly string[] }>
   | Readonly<{ resolved: false; refusal: typeof NO_RESOLVABLE_APPROVER }>;
 
 /**
@@ -48,16 +48,37 @@ export type ApprovalResolution =
 export function resolveApprover(input: {
   readonly audience: readonly string[] | undefined;
   readonly ownerPrincipalId: string | null;
+  /**
+   * Audience entries that are real principals in this organization.
+   *
+   * An audience is text the caller supplied, so an entry may name a group, a
+   * role or a typo. Only an entry that resolves to an actual principal can
+   * answer, and the check happens against the database rather than by trusting
+   * the shape of the string.
+   */
+  readonly principals?: ReadonlySet<string>;
 }): ApprovalResolution {
   const audience = input.audience ?? [];
   if (audience.length > 0) {
-    // The audience is a list of member, group or role references rather than a
-    // single principal, so the first entry is the approver to name. A group or
-    // role still resolves to one person who answers on its behalf.
-    return { resolved: true, approverPrincipalId: audience[0] };
+    // Every audience entry that names a real principal may answer. Keeping the
+    // whole list matters: naming only the first would silently drop everyone
+    // else the workflow asked, and those people would find they cannot answer
+    // an approval that was addressed to them.
+    const resolvable = audience.filter((entry) =>
+      input.principals === undefined || input.principals.has(entry)
+    );
+    if (resolvable.length === 0) {
+      // A named audience nobody belongs to is not an approval waiting to be
+      // answered; it is one that can only expire. Refuse it now and say so.
+      return { resolved: false, refusal: NO_RESOLVABLE_APPROVER };
+    }
+    return { resolved: true, approverPrincipalIds: resolvable };
   }
   if (input.ownerPrincipalId !== null) {
-    return { resolved: true, approverPrincipalId: input.ownerPrincipalId };
+    return {
+      resolved: true,
+      approverPrincipalIds: [input.ownerPrincipalId],
+    };
   }
   return { resolved: false, refusal: NO_RESOLVABLE_APPROVER };
 }

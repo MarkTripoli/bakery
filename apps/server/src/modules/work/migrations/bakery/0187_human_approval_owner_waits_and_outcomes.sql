@@ -46,6 +46,14 @@ create index workflow_definitions_owner_idx
   on bakery.workflow_definitions (organization_id, owner_principal_id)
   where owner_principal_id is not null;
 
+-- The run's named ending. Nothing writes these yet: a stop outcome needs a
+-- workflow.stop step producer, and no step executor exists in the tree, so the
+-- columns land ahead of their writer rather than behind a half-wired one. No
+-- grant is issued for them either, because bakery_app deliberately has only
+-- INSERT and SELECT on workflow_runs; wiring a writer that assumes UPDATE would
+-- fail at runtime with "permission denied for table workflow_runs", which is
+-- exactly how the first attempt at this failed. The expiry writer that does run
+-- today touches run_waits and the ledger, both granted below.
 alter table bakery.workflow_runs
   add column outcome text,
   add column outcome_reason text;
