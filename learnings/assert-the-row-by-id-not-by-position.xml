@@ -55,7 +55,7 @@
   </detection>
   <evidence2>
     PR 540, `tests/integration/read-the-tickets-linked-to-one-task_test.ts`,
-    third and fourth instances. `const linksOfSecond = otherLinkId < secondLinkId
+    third and fourth instances. `const linksOfSecond = otherLinkId &lt; secondLinkId
     ? [otherTask, taskId] : [taskId, otherTask]` returned the tasks backwards in
     BOTH branches - the read is newest first, tie-broken `id desc`, so the larger
     id leads - and was therefore red for 200,000 of 200,000 modelled pairs. It

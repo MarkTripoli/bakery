@@ -1,7 +1,7 @@
 <learning scope="project">
   <title>A derived expectation needs a swap test; repetition only proves stability</title>
   <trigger>
-    A test computes its expected value from the data it just wrote - `a.id < b.id ? [x, y]
+    A test computes its expected value from the data it just wrote - `a.id &lt; b.id ? [x, y]
     : [y, x]`, an index arithmetic, a hand-rolled tie-break - instead of naming a literal.
   </trigger>
   <symptom>
