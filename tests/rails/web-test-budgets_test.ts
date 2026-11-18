@@ -4,7 +4,11 @@ import { assertEquals } from "@std/assert";
 // scaled for the slow CI hosts in one place. A bare number is right for one
 // host and short for another (learnings/heavy-lane-label-is-pool-not-cpu.xml).
 
-const TESTS = new URL("../../apps/web/tests/", import.meta.url);
+const DIRECTORIES = [
+  new URL("../../apps/web/tests/", import.meta.url),
+  new URL("../../tests/browser/", import.meta.url),
+];
+const TESTS = DIRECTORIES[0];
 
 /**
  * Specs whose budgets are the product's own deadlines, not a guess about host
@@ -37,18 +41,20 @@ export function unscaledBudgets(source: string): number[] {
 
 Deno.test("no browser spec holds a bare whole-test budget", () => {
   const found: string[] = [];
-  for (const entry of Deno.readDirSync(TESTS)) {
-    if (!entry.isFile || !entry.name.endsWith(".spec.ts")) continue;
-    if (PRODUCT_DEADLINE_SPECS.includes(entry.name)) continue;
-    const source = Deno.readTextFileSync(new URL(entry.name, TESTS));
-    for (const line of unscaledBudgets(source)) {
-      found.push(`${entry.name}:${line}`);
+  for (const directory of DIRECTORIES) {
+    for (const entry of Deno.readDirSync(directory)) {
+      if (!entry.isFile || !entry.name.endsWith(".spec.ts")) continue;
+      if (PRODUCT_DEADLINE_SPECS.includes(entry.name)) continue;
+      const source = Deno.readTextFileSync(new URL(entry.name, directory));
+      for (const line of unscaledBudgets(source)) {
+        found.push(`${entry.name}:${line}`);
+      }
     }
   }
   assertEquals(
     found,
     [],
-    "use test.setTimeout(laneBudgetMs(<fast-host ms>)) from ./helpers/lane-budget.ts",
+    "use test.setTimeout(laneBudgetMs(<fast-host ms>)) from lane-budget.ts",
   );
 });
 
