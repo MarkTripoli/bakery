@@ -129,6 +129,14 @@ export type ProjectsActionHandlers = {
     context: ActionContext,
     input: z.output<typeof contractSchemas.IdPath>,
   ) => Promise<z.output<typeof contractSchemas.RepositoryProfileObservation>>;
+  getScopeProfile: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.Empty>,
+  ) => Promise<z.output<typeof contractSchemas.ProjectScopeProfile>>;
+  putScopeProfile: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.ProjectScopeProfilePut>,
+  ) => Promise<z.output<typeof contractSchemas.ProjectScopeProfile>>;
 };
 
 /** The projects routes are registered individually; there is no generic execute route. */
@@ -330,6 +338,32 @@ export function createProjectsActionRegistry(
     output: contractSchemas.RepositoryBindingResolution,
     policy: queryPolicy,
     handler: handlers.resolveRole,
+  });
+  // The revision is the If-Match a later save names.
+  const scopeProfileEtag = (output: unknown) =>
+    `"${(output as { revision: number }).revision}"`;
+  registry.register({
+    name: ProjectsImplementedAction.ScopeProfilesGet,
+    method: HttpMethod.Get,
+    path: "/v1/applications/:applicationId/scope-profile",
+    input: contractSchemas.Empty,
+    output: contractSchemas.ProjectScopeProfile,
+    policy: queryPolicy,
+    responseEtag: scopeProfileEtag,
+    handler: handlers.getScopeProfile,
+  });
+  registry.register({
+    name: ProjectsImplementedAction.ScopeProfilesPut,
+    method: HttpMethod.Put,
+    path: "/v1/applications/:applicationId/scope-profile",
+    input: contractSchemas.ProjectScopeProfilePut,
+    output: contractSchemas.ProjectScopeProfile,
+    policy: commandPolicy,
+    // Idempotency-Key is required; If-Match is parsed when sent and the
+    // handler requires it once a profile exists.
+    explicitIdempotency: "key",
+    successStatus: 200,
+    handler: handlers.putScopeProfile,
   });
   assertRegisteredActions(registry);
   assertImplementedActionRegistry(registry, projectsImplementedActions);

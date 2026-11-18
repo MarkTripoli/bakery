@@ -74,6 +74,19 @@ export type WorkspaceRequirement = {
   reason: WorkspaceRequirementReason;
 };
 
+/**
+ * What a pack knows about one step that the kernel does not. The software
+ * delivery pack answers true for a step whose action or inputs touch a
+ * repository; the kernel never learns why. It is called once per step the
+ * traversal visits, nested ones included, and may throw to refuse a step whose
+ * shape it cannot read.
+ */
+export type StepWorkspacePredicate = (step: Record<string, unknown>) => boolean;
+
+export type WorkspaceRequirementOptions = {
+  readonly stepRequiresWorkspace?: StepWorkspacePredicate;
+};
+
 /** Thrown when a step's workspace declaration cannot be read. */
 export class WorkspaceDeclarationError extends Error {
   constructor(message: string) {
@@ -95,12 +108,41 @@ const NESTED_STEP_KEYS = [
   "parallel",
 ] as const;
 
+const asSequence = (value: unknown): readonly unknown[] =>
+  Array.isArray(value) ? value : record(value) ? [value] : [];
+
+/**
+ * Child step sequences of the container shapes the compiler grammar uses:
+ * `branch: {then, else}`, `repeat: {steps, seed: {steps}}` and
+ * `parallel: {branches: [{steps}]}`.
+ */
+function containerSequences(step: Record<string, unknown>): unknown[][] {
+  const sequences: unknown[][] = [];
+  const branch = step.branch;
+  if (record(branch)) {
+    sequences.push([...asSequence(branch.then)], [...asSequence(branch.else)]);
+  }
+  const repeat = step.repeat;
+  if (record(repeat)) {
+    sequences.push([...asSequence(repeat.steps)]);
+    if (record(repeat.seed)) sequences.push([...asSequence(repeat.seed.steps)]);
+  }
+  const parallel = step.parallel;
+  if (record(parallel) && Array.isArray(parallel.branches)) {
+    for (const lane of parallel.branches) {
+      if (record(lane)) sequences.push([...asSequence(lane.steps)]);
+    }
+  }
+  return sequences;
+}
+
 function collectWorkspaceDeclarations(
   step: unknown,
   into: Map<string, WorkspaceAccess>,
+  options: WorkspaceRequirementOptions,
 ): boolean {
   if (!record(step)) return false;
-  let required = false;
+  let required = options.stepRequiresWorkspace?.(step) ?? false;
 
   const requires = step.requires;
   if (requires !== undefined) {
@@ -144,6 +186,9 @@ function collectWorkspaceDeclarations(
   for (const key of NESTED_STEP_KEYS) {
     const nested = step[key];
     if (nested === undefined) continue;
+    // A `parallel` object is a container with lanes, not a step: its lanes
+    // are walked below with the other container shapes.
+    if (key === "parallel" && !Array.isArray(nested)) continue;
     const sequence = Array.isArray(nested)
       ? nested
       : record(nested)
@@ -151,7 +196,12 @@ function collectWorkspaceDeclarations(
       : undefined;
     if (sequence === undefined) continue;
     for (const child of sequence) {
-      if (collectWorkspaceDeclarations(child, into)) required = true;
+      if (collectWorkspaceDeclarations(child, into, options)) required = true;
+    }
+  }
+  for (const sequence of containerSequences(step)) {
+    for (const child of sequence) {
+      if (collectWorkspaceDeclarations(child, into, options)) required = true;
     }
   }
 
@@ -167,14 +217,19 @@ function collectWorkspaceDeclarations(
  * is not missed. A declaration that cannot be read is refused rather than
  * skipped, because silently dropping it would admit a run with a mount a step
  * expects.
+ *
+ * A pack adds what it knows through `stepRequiresWorkspace`; the software
+ * delivery pack's repository rules reach admission that way, so there is one
+ * derivation rather than a kernel answer and a pack answer to reconcile.
  */
 export function deriveWorkspaceRequirement(
   steps: readonly unknown[],
+  options: WorkspaceRequirementOptions = {},
 ): WorkspaceRequirement {
   const declared = new Map<string, WorkspaceAccess>();
   let required = false;
   for (const step of steps) {
-    if (collectWorkspaceDeclarations(step, declared)) required = true;
+    if (collectWorkspaceDeclarations(step, declared, options)) required = true;
   }
   const workspaces = [...declared.entries()]
     .map(([name, access]) => ({ name, access }))
@@ -268,7 +323,10 @@ export function resolveScopeProfileDefaults(
   if (input.profile === null) {
     return { revision: 0, digest: "", checkCommands: [], rules: [] };
   }
-  const parsed = ScopeProfileSchema.safeParse(input.profile);
+  // The owner is checked below, not by the content schema: a stored profile
+  // names its project, and that key is not part of the published content.
+  const { applicationId: owner, ...content } = input.profile;
+  const parsed = ScopeProfileSchema.safeParse(content);
   if (!parsed.success) {
     throw new ScopeProfileError(
       `The project's scope profile is invalid: ${
@@ -276,7 +334,6 @@ export function resolveScopeProfileDefaults(
       }`,
     );
   }
-  const owner = input.profile.applicationId;
   if (owner !== undefined && owner !== input.applicationId) {
     throw new ScopeProfileError(
       "A scope profile may only supply defaults to the project that published it.",

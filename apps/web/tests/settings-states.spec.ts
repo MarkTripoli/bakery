@@ -8,6 +8,7 @@ import {
 } from "./helpers/mock-session.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
 import { firstRender } from "./helpers/first-render.ts";
+import { laneBudgetMs } from "./helpers/lane-budget.ts";
 
 registerPageHealth(test);
 
@@ -316,7 +317,7 @@ test.beforeEach(async ({ page }) => {
   await mockAuthenticatedSession(page);
 });
 
-const MATRIX_CASE_TIMEOUT_MS = 60_000;
+const MATRIX_CASE_TIMEOUT_MS = laneBudgetMs(60_000);
 
 /** Page heading a screen renders in a state, as the old matrix computed it. */
 function expectedHeading(screen: Screen, state: string): string {

@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
+import { laneBudgetMs } from "../../apps/web/tests/helpers/lane-budget.ts";
 import {
   createTotpOffsets,
   parseTotpSecret,
@@ -59,7 +60,7 @@ function storedPasskeys(page: Page): Promise<unknown[]> {
 }
 
 test("adding a passkey, signing in with it and removing it keeps the two-factor rules", async ({ page }) => {
-  test.setTimeout(60_000);
+  test.setTimeout(laneBudgetMs(60_000));
   await page.goto("/__test__/passkeys");
   await attachAuthenticator(page, { automaticPresenceSimulation: true });
   const credentials = await (

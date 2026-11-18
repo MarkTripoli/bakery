@@ -14,6 +14,7 @@ import {
   requestUntilAccepted,
   submitUntilAccepted,
 } from "./helpers/api-retry.ts";
+import { laneBudgetMs } from "./helpers/lane-budget.ts";
 
 /**
  * Real-API browser proof of Organization -> Access (#359, feeding #316).
@@ -298,7 +299,7 @@ test.describe("organization access against the real API", () => {
   test(
     "an admin binds, observes and revokes scoped roles; a guest and a foreign org stay isolated",
     async ({ browser, baseURL }, testInfo) => {
-      test.setTimeout(300_000);
+      test.setTimeout(laneBudgetMs(300_000));
       mkdirSync(captureDirectory, { recursive: true });
       const origin = new URL(baseURL!).origin;
       const tag = crypto.randomUUID().replace(/-/g, "").slice(0, 8);
