@@ -2,6 +2,7 @@ import {
   isNonterminalTicketDisposition,
   isTicketAutoResumableReason,
   isTicketExplicitResumeReason,
+  isTicketNonSuspendingReason,
   type TicketReadinessReport,
   type TicketReasonCode,
   type TicketRequestDisposition,
@@ -130,11 +131,10 @@ export function suspensionReason(
   for (const check of report.checks) {
     if (check.status === "pass") continue;
     if (check.reason === "acceptance_missing") return "acceptance_changed";
-    if (
-      check.reason === "active_request" || check.reason === "adoption_required"
-    ) {
-      continue;
-    }
+    // Reasons that exist only before a request does never suspend one,
+    // including the label routing blocks (#31): an admitted request keeps the
+    // targets it was admitted with.
+    if (isTicketNonSuspendingReason(check.reason)) continue;
     return check.reason;
   }
   return null;

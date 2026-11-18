@@ -263,6 +263,11 @@ export function isTicketAutoResumableReason(
 ): value is TicketAutoResumableReason {
   return memberOf(TICKET_AUTO_RESUMABLE_REASONS, value);
 }
+export function isTicketNonSuspendingReason(
+  value: unknown,
+): value is TicketNonSuspendingReason {
+  return memberOf(TICKET_NON_SUSPENDING_REASONS, value);
+}
 export function isTicketExplicitResumeReason(
   value: unknown,
 ): value is TicketExplicitResumeReason {
