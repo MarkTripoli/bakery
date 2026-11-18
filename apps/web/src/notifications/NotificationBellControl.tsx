@@ -66,7 +66,8 @@ export function NotificationBellControl() {
       arrivalAnnouncement={arrival}
       // The popover supplies the control, so its trigger is the bell's drawn
       // face alone: a button here would nest one control inside another. The
-      // bell still owns the wrapper and the one polite live region.
+      // bell adds no wrapper of its own around the control, and keeps the one
+      // polite live region.
       control={(face) => (
         <UI.Popover
           align="end"
