@@ -13,6 +13,12 @@ export type PopoverProps =
     defaultOpen?: boolean;
     /** `toolbar` frames the trigger as a compact secondary button. */
     triggerAppearance?: "plain" | "toolbar";
+    /**
+     * Which edge of the trigger the content lines up with. `start` is right for
+     * a trigger at the reading start; a trigger at the top bar's far end needs
+     * `end`, or a 360px panel hangs past the viewport edge.
+     */
+    align?: "start" | "end";
     label: string;
     onOpenChange?: (open: boolean) => void;
     open?: boolean;
@@ -31,6 +37,7 @@ export type PopoverProps =
 /** Shows compact secondary content from an explicit trigger. */
 export function Popover(
   {
+    align = "start",
     children,
     defaultOpen = false,
     label,
@@ -119,6 +126,7 @@ export function Popover(
   return (
     <span
       className="ui-popover"
+      data-align={align}
       data-state={resolvedState}
       data-variant={variant}
       data-ui-component="popover"
