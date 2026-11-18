@@ -1,6 +1,6 @@
 import type { ActionContext } from "@bakery/contracts/action-registry";
-import type { JsonValue } from "@bakery/contracts/contracts";
-import { StandardError } from "@bakery/contracts/http";
+import { isUuid, type JsonValue } from "@bakery/contracts/contracts";
+import { parseIdempotencyKey, StandardError } from "@bakery/contracts/http";
 import type {
   PgDatabase,
   PgTransactionClient,
@@ -98,6 +98,22 @@ export async function invokeConnectionAction(
     // so a missing id is an internal wiring fault, not caller input.
     throw new StandardError({ code: "INTERNAL" });
   }
+  // A connection id is a uuid. Anything else cannot name a connection, so it is
+  // answered as absent rather than handed to a query that would fail its cast
+  // and surface as a 500 for what is really a bad path.
+  if (!isUuid(connectionId)) {
+    throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  }
+
+  // A caller that names an idempotency key is asking for a deliberate repeat to
+  // be distinguishable from a retry: the ledger collapses an equal resend under
+  // the same key and treats a different key as a new intent. Dropping the header
+  // here would make every repeat look like a retry of the first one.
+  const suppliedKey = context.request?.headers.get("idempotency-key") ??
+    null;
+  const idempotencyKey = suppliedKey === null
+    ? undefined
+    : parseIdempotencyKey(suppliedKey);
 
   // The REST door names an action, not a version: the catalog says the host
   // resolves the action's current registered version and the target resource
@@ -132,6 +148,7 @@ export async function invokeConnectionAction(
       resourceId,
       arguments: actionArguments,
     },
+    ...(idempotencyKey === undefined ? {} : { idempotencyKey }),
   });
 }
 

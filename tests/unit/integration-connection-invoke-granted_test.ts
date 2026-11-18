@@ -308,6 +308,9 @@ Deno.test("a REVOKED grant is refused, so revocation is live rather than stored"
     }
   })();
   assert(failure !== null, "a revoked grant must not admit the invocation");
+  // The code, not just the refusal: a route that failed for an unrelated reason
+  // would satisfy "it threw" while proving nothing about revocation.
+  assertEquals(failure.code, "AUTH_FORBIDDEN");
 });
 
 Deno.test("an EXPIRED grant is refused", async () => {
@@ -335,6 +338,7 @@ Deno.test("an EXPIRED grant is refused", async () => {
     }
   })();
   assert(failure !== null, "an expired grant must not admit the invocation");
+  assertEquals(failure.code, "AUTH_FORBIDDEN");
 });
 
 Deno.test("a grant for a DIFFERENT action version is refused", async () => {
@@ -366,4 +370,142 @@ Deno.test("a grant for a DIFFERENT action version is refused", async () => {
     failure !== null,
     "a grant pinned to another version must not admit this one",
   );
+  // A precondition rather than a forbidden: the grant exists and names this
+  // action, but not this version, so the caller's request is stale rather than
+  // unauthorized. Pinned so the distinction cannot drift silently.
+  assertEquals(failure.code, "PRECONDITION_FAILED");
+});
+
+/** A database stub that records every statement instead of running it. */
+function recordingDatabase(): {
+  database: unknown;
+  statements: { sql: string; values: readonly unknown[] }[];
+} {
+  const statements: { sql: string; values: readonly unknown[] }[] = [];
+  const run = (sql: string, values: readonly unknown[] = []) => {
+    statements.push({ sql, values });
+    return Promise.resolve({ rows: [], rowCount: 0 });
+  };
+  return {
+    statements,
+    database: {
+      query: run,
+      connect: () => Promise.resolve({ query: run, release: () => {} }),
+    },
+  };
+}
+
+function contextWith(
+  overrides: Readonly<{
+    id?: string;
+    idempotencyKey?: string;
+    database?: unknown;
+  }> = {},
+): ActionContext {
+  const base = context() as unknown as Record<string, unknown>;
+  const headers = new Headers();
+  if (overrides.idempotencyKey !== undefined) {
+    headers.set("idempotency-key", overrides.idempotencyKey);
+  }
+  return {
+    ...base,
+    params: { id: overrides.id ?? CONNECTION },
+    request: new Request(
+      "http://bakery.test/v1/integration-connections/x/actions",
+      {
+        method: "POST",
+        headers,
+      },
+    ),
+    ...(overrides.database === undefined
+      ? {}
+      : { database: overrides.database }),
+  } as unknown as ActionContext;
+}
+
+async function refusalOf(
+  context: ActionContext,
+  snapshot: AuthoritySnapshot | null,
+): Promise<StandardError | null> {
+  try {
+    await invokeConnectionAction(context, deps(snapshot) as never, {
+      action: ACTION_ID,
+      arguments: { issueNumber: 1, body: "a comment", resourceId: RESOURCE },
+    });
+    return null;
+  } catch (error) {
+    return error instanceof StandardError ? error : null;
+  }
+}
+
+Deno.test("a non-uuid connection id is answered 404, not a cast failure that reads as 500", async () => {
+  // The router's own path schema would refuse this, but the door is also reached
+  // through the action runner, so it validates rather than trusting the caller.
+  const failure = await refusalOf(
+    contextWith({ id: "not-a-uuid" }),
+    snapshotWith(),
+  );
+  assert(failure !== null, "a malformed connection id must be refused");
+  assertEquals(failure.code, "RESOURCE_NOT_FOUND");
+});
+
+Deno.test("the caller's Idempotency-Key reaches the ledger, so a repeat is not a retry", async () => {
+  // Without forwarding, every repeat looks like a retry of the first write: the
+  // ledger would collapse two deliberate calls into one effect.
+  const withKey = recordingDatabase();
+  await invokeConnectionAction(
+    contextWith({ idempotencyKey: "client-key-1", database: withKey.database }),
+    deps(snapshotWith()) as never,
+    {
+      action: ACTION_ID,
+      arguments: { issueNumber: 1, body: "a comment", resourceId: RESOURCE },
+    },
+  ).catch(() => {});
+  assert(
+    withKey.statements.some((statement) =>
+      statement.values.includes("client-key-1")
+    ),
+    "the supplied key must appear in a ledger statement",
+  );
+
+  // The control: with no header the ledger still receives a key, the derived
+  // one, so the assertion above is about forwarding and not about any key.
+  const withoutKey = recordingDatabase();
+  await invokeConnectionAction(
+    contextWith({ database: withoutKey.database }),
+    deps(snapshotWith()) as never,
+    {
+      action: ACTION_ID,
+      arguments: { issueNumber: 1, body: "a comment", resourceId: RESOURCE },
+    },
+  ).catch(() => {});
+  assert(
+    withoutKey.statements.every((statement) =>
+      !statement.values.includes("client-key-1")
+    ),
+    "an absent header must not invent the caller's key",
+  );
+  assert(
+    withoutKey.statements.some((statement) =>
+      statement.values.some((value) =>
+        typeof value === "string" && value.length > 0
+      )
+    ),
+    "the ledger still receives a derived key",
+  );
+});
+
+Deno.test("a grant for ANOTHER resource is refused, so a grant is not a capability", async () => {
+  // The grant names the resource it was issued for. A caller holding a grant on
+  // one repository must not reach another by naming its id, which is the whole
+  // difference between a grant and a permission.
+  const snapshot = snapshotWith();
+  (snapshot.grants as unknown as { resourceId: string }[])[0]!.resourceId =
+    "00000000-0000-4000-8000-000000004199";
+  const failure = await refusalOf(context(), snapshot);
+  assert(
+    failure !== null,
+    "a grant for another resource must not admit this one",
+  );
+  assertEquals(failure.code, "AUTH_FORBIDDEN");
 });
