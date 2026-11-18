@@ -252,6 +252,18 @@ export const repositoryRulesImplementedActions = Object.freeze(
   Object.values(RepositoryRulesImplementedAction),
 );
 
+export const ArtifactKindImplementedAction = Object.freeze(
+  {
+    ArtifactKindsList: "artifactKinds.list",
+    ArtifactKindsGet: "artifactKinds.get",
+    ArtifactKindVersionsCreate: "artifactKindVersions.create",
+    ArtifactKindVersionsList: "artifactKindVersions.list",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const artifactKindImplementedActions = Object.freeze(
+  Object.values(ArtifactKindImplementedAction),
+);
+
 export const IntegrationsImplementedAction = Object.freeze(
   {
     IntegrationAppRegistrationsGet: "integrationAppRegistrations.get",
@@ -511,6 +523,7 @@ export const implementedActions = Object.freeze(
     ...projectsImplementedActions,
     ...agentImplementedActions,
     ...repositoryRulesImplementedActions,
+    ...artifactKindImplementedActions,
     ...integrationsImplementedActions,
     ...deliveryImplementedActions,
     ...ticketImplementedActions,

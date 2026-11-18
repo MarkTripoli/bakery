@@ -30,6 +30,7 @@ import { workBakeryMigrationSource } from "../../apps/server/src/modules/work/mi
 import { projectsBakeryMigrationSource } from "../../apps/server/src/modules/projects/migrations.ts";
 import { agentsBakeryMigrationSource } from "../../apps/server/src/modules/agents/migrations.ts";
 import { repositoryRulesBakeryMigrationSource } from "../../apps/server/src/modules/repository-rules/migrations.ts";
+import { artifactKindsBakeryMigrationSource } from "../../apps/server/src/modules/artifact-kinds/migrations.ts";
 import { integrationsBakeryMigrationSource } from "../../apps/server/src/modules/integrations/migrations.ts";
 import { deliveryBakeryMigrationSource } from "../../apps/server/src/modules/delivery/migrations.ts";
 import { migrateData } from "../../apps/server/src/platform/data-migrate.ts";
@@ -193,14 +194,25 @@ async function seedCoordinationState(
 
   const workflowId = crypto.randomUUID();
   const workflowVersionId = crypto.randomUUID();
+  // The lane instructions below (`:600`-`:630`) and every lane step (`:652`) say
+  // `workflow.noop`; this spec said `mcp.discover`, a leftover from before the
+  // compiler gate refused unregistered actions. It could never have discovered
+  // anything: the connectionId was a random UUID inserted nowhere. No consuming
+  // test asserts on discovery, so the step is honestly a no-op lane step.
+  //
+  // `taskId` is declared because every caller starts a run with `inputs:
+  // { taskId }`, and a repository run is admitted as a compiled plan that
+  // refuses an undeclared input (`plan-admission.ts:57`, `input_unknown`) rather
+  // than ignoring it.
   const workflowSpec = {
     apiVersion: "bakery.dev/v1",
     kind: "workflow",
     name: "coordination-fixed",
+    inputs: { taskId: { type: "uuid", required: true } },
     steps: [{
       id: "review",
-      uses: "mcp.discover",
-      with: { connectionId: crypto.randomUUID() },
+      uses: "workflow.noop",
+      with: {},
     }],
   };
   await owner`
@@ -261,6 +273,7 @@ export async function openCoordinationFixture(
     ...await loadMigrations(projectsBakeryMigrationSource),
     ...await loadMigrations(agentsBakeryMigrationSource),
     ...await loadMigrations(repositoryRulesBakeryMigrationSource),
+    ...await loadMigrations(artifactKindsBakeryMigrationSource),
     ...await loadMigrations(integrationsBakeryMigrationSource),
     ...await loadMigrations(deliveryBakeryMigrationSource),
   ]);

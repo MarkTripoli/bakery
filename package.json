@@ -36,6 +36,8 @@
     "ui:architecture:test": "node --test tests/rails/ui-architecture.node.mjs tests/rails/ui-catalog.node.mjs tests/rails/ui-guardrails.node.mjs tests/rails/ui-catalog-mcp.node.mjs tests/rails/ui-design-cases.node.mjs tests/rails/ui-paper-frames.node.mjs tests/rails/ui-specimen-wait.node.mjs packages/ui/tests/paper-source-profiles.node.mjs packages/ui/tests/paper-ruling-digest.node.mjs packages/ui/tests/entitlements-source-bytes.node.mjs packages/ui/tests/contracts-module-format.node.mjs",
     "test:runner-label-policy": "node --test tests/rails/runner-label-policy.node.mjs",
     "lint:suppressions": "deno run --allow-read --allow-run scripts/ci/check-suppressions.ts",
+    "rails:integration-boundaries": "deno run --allow-read --allow-env --allow-write scripts/check-integration-boundaries.ts",
+    "rails:provider-literals": "deno run --allow-read --allow-write scripts/check-provider-literals.ts",
     "lint": "deno fmt --check apps/server apps/worker apps/web packages/config packages/contracts packages/i18n packages/integration-sdk packages/persistence packages/ui packages/worker-bootstrap scripts tests && deno lint apps/server apps/worker apps/web packages/config packages/contracts packages/i18n packages/integration-sdk packages/persistence packages/ui packages/worker-bootstrap scripts tests && pnpm lint:suppressions",
     "clean": "turbo run clean",
     "test:e2e": "deno run --allow-env --allow-read --allow-run scripts/run-tests.ts e2e",

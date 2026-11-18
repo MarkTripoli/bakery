@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <learnings version="1">
   <entry file="contract-migration-check-flag.xml" scope="project" />
+  <entry file="cited-artifact-downstream-of-the-claim.xml" scope="project" />
   <entry file="deno-fixed-read-capability.xml" scope="project" />
   <entry file="ephemeral-worktree-stack.xml" scope="project" />
   <entry file="local-services-before-test-blocker.xml" scope="project" />
@@ -110,6 +111,9 @@
   <entry file="ci-rerun-reuses-the-event-payload.xml" scope="project" />
   <entry file="pr-ci-runs-the-gate-route-only.xml" scope="project" />
   <entry file="catalog-change-runs-both-generators.xml" scope="project" />
+  <entry file="admission-knows-every-execution-table.xml" scope="project" />
+  <entry file="reason-changed-not-just-name-changed.xml" scope="project" />
+  <entry file="wide-change-falsifies-untouched-tests.xml" scope="project" />
   <entry file="playwright-port-collision-between-seats.xml" scope="project" />
   <entry file="graft-hooks-git-stash-unmerged-index.xml" scope="project" />
   <entry file="ci-retitle-never-reruns.xml" scope="project" />
@@ -140,4 +144,9 @@
   <entry file="assert-the-row-by-id-not-by-position.xml" scope="project" />
   <entry file="database-name-is-not-database-identity.xml" scope="project" />
   <entry file="nullable-dedupe-key-nulls-distinct.xml" scope="project" />
+  <entry file="generated-file-without-its-source.xml" scope="project" />
+  <entry file="a-rail-that-only-passed-is-untested.xml" scope="process" />
+  <entry file="name-the-writer-when-declaring-the-field.xml" scope="project" />
+  <entry file="a-flag-accepted-is-not-a-state-stored.xml" scope="process" />
+  <entry file="three-checks-that-answer-a-different-question.xml" scope="process" />
 </learnings>

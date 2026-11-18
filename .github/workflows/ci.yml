@@ -126,6 +126,12 @@ jobs:
       - run: pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile
       - run: pnpm --dir packages/ui build-storybook
       - run: pnpm test:rails
+      # The ledgers prove their comparison in `test:rails`, but only these
+      # commands turn a regression into a red job. Without them a stale ledger
+      # row - the direction that re-admits coupling a slice removed - would sit
+      # in the tree while every check stayed green.
+      - run: pnpm rails:integration-boundaries
+      - run: pnpm rails:provider-literals
       - name: Write rails evidence
         if: always()
         env:
@@ -133,7 +139,7 @@ jobs:
           CANDIDATE_SHA: ${{ env.CANDIDATE_SHA }}
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.sha }}
           WORKFLOW_SHA: ${{ github.workflow_sha }}
-        run: deno run --allow-env --allow-read --allow-write scripts/ci/write-evidence.ts rails "pnpm test:rails" "backend rails"
+        run: deno run --allow-env --allow-read --allow-write scripts/ci/write-evidence.ts rails "pnpm test:rails && pnpm rails:integration-boundaries && pnpm rails:provider-literals" "backend rails"
       - name: Emit rails evidence handoff to job log
         if: always()
         env:
@@ -2842,58 +2848,7 @@ jobs:
           REPO: ${{ github.repository }}
           RUN_ID: ${{ github.run_id }}
           SERVER_URL: ${{ github.server_url }}
-        run: |
-          set -uo pipefail
-
-          # The job list is the truth, read from the API rather than a `needs`
-          # list that can drift away from the jobs that actually ran.
-          jobs_json="$(gh api "repos/$REPO/actions/runs/$RUN_ID/jobs?per_page=100" --paginate)" || {
-            echo "nightly signal: could not read the run's jobs; leaving the issue untouched" >&2
-            exit 0
-          }
-
-          failing="$(jq -r '
-            [.jobs[]
-              | select(.conclusion != "success" and .conclusion != "skipped")
-              | .name]
-            | unique | .[]' <<<"$jobs_json")"
-
-          run_url="$SERVER_URL/$REPO/actions/runs/$RUN_ID"
-          title="nightly red: scheduled CI"
-
-          # Idempotency: one open issue, found by its stable title. A second red
-          # run updates it; it never creates a duplicate.
-          existing="$(gh issue list --repo "$REPO" --state open \
-            --search "in:title \"$title\"" --json number,title \
-            --jq "[.[] | select(.title == \"$title\") | .number] | first // empty")" || {
-            echo "nightly signal: could not list issues; leaving the issue untouched" >&2
-            exit 0
-          }
-
-          if [[ -n "$failing" ]]; then
-            body="$(
-              echo "The scheduled run on $(date -u +%Y-%m-%dT%H:%MZ) failed."
-              echo
-              echo "Failing jobs:"
-              while IFS= read -r job; do
-                echo "- \`$job\`"
-              done <<<"$failing"
-              echo
-              echo "Run: $run_url"
-            )"
-            if [[ -n "$existing" ]]; then
-              gh issue edit "$existing" --repo "$REPO" --body "$body" >/dev/null
-              gh issue comment "$existing" --repo "$REPO" \
-                --body "Still red on $run_url" >/dev/null
-              echo "nightly signal: updated issue #$existing"
-            else
-              gh issue create --repo "$REPO" --title "$title" --body "$body" >/dev/null
-              echo "nightly signal: created the tracking issue"
-            fi
-          elif [[ -n "$existing" ]]; then
-            gh issue close "$existing" --repo "$REPO" \
-              --comment "The scheduled run went green: $run_url" >/dev/null
-            echo "nightly signal: closed issue #$existing"
-          else
-            echo "nightly signal: green, nothing to close"
-          fi
+        # The decision is a tested script, not inline shell: `pnpm test:unit`
+        # proves the failing set, the idempotency and the close path, so a live
+        # run only has to show the wiring.
+        run: deno run --allow-env --allow-read --allow-run=gh scripts/ci/nightly-signal.ts

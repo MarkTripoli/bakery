@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="a-rail-that-only-passed-is-untested" project="bakery">
+  <title>A rail that has only ever passed has not been tested, and a passing one can be blind</title>
+  <trigger>Writing a check whose purpose is to catch a defect elsewhere: a parity test, a catalogue diff, a coverage rail, a lint rule.</trigger>
+  <rule>Red-prove every rail before believing it: remove one member it claims to cover and confirm it fails, naming that member. A green run proves the rail does not object to the current tree, not that it would object to a bad one.</rule>
+  <rule>A rail can also pass while proving nothing, which a red-proof of the FINAL version will not reveal if the blindness is in what it considers a match. Check the rail's verdict against ground truth computed independently of the rail: enumerate the population by hand or by a second method and compare counts. Here two successive versions passed while checking nothing - the first counted directories, the second grepped for a schema name, and a dangling reference contains the name too.</rule>
+  <rule>When the ground truth and the rail disagree, suspect the rail first and the world second, in that order, every time. This is the third instance in one night of an instrument reporting confidently and wrongly.</rule>
+  <rule>A red-proof must be able to fail FOR THE REASON THE CHECK EXISTS. An invented name fails trivially - nothing mentions it - so it passes every matcher, including one that accepts a bare mention. Only a real datum that violates the rule separates a working check from a blind one. Ship a red-proof built from invented values and you have tested that the rail is not empty, which is not the property you claimed.</rule>
+  <rule>Reproduce the reporter's reading before fixing it. Two defects can look identical in a diff: fixing the escape I first assumed was the whole story would have left a second narrowing (quoted-only keys) in place, and the rail would have gone green on a source it could not parse. The second defect was reachable only because the reporter's exact case was run first and observed still failing after the first fix.</rule>
+  <rule>Correcting one narrowing can reveal another directly behind it, so expect a series rather than a single repair when a matcher was wrong about the same thing twice. Pin the BEHAVIOUR in the test and let the implementation move: a case asserting that a mentioned-but-undefined name fails survives any rewrite, while a test pinning the matcher's internals freezes the detail the case exists to outlive.</rule>
+  <verification>
+    <requirement>Record for each rail: the exact mutation applied, the observed failure message, and the independently computed ground truth for the population it covers. A rail whose red-proof is not recorded is treated as absent, not as passing.</requirement>
+  </verification>
+</learning>

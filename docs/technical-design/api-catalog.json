@@ -1954,6 +1954,101 @@
       ]
     },
     {
+      "group": "Extensions",
+      "method": "GET",
+      "path": "/v1/organizations/{id}/artifact-kinds",
+      "action": "artifactKinds.list",
+      "access": "Developer",
+      "permission": "artifactKind:read",
+      "organizationContext": "required_authenticated_context",
+      "organizationIdParam": "id",
+      "input": "CursorQuery",
+      "output": "Page<ArtifactKind>",
+      "event": "",
+      "mcp": "bakery_artifactKinds_list",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "INVALID_CURSOR"
+      ]
+    },
+    {
+      "group": "Extensions",
+      "method": "GET",
+      "path": "/v1/organizations/{id}/artifact-kinds/{key}",
+      "action": "artifactKinds.get",
+      "access": "Developer",
+      "permission": "artifactKind:read",
+      "organizationContext": "required_authenticated_context",
+      "organizationIdParam": "id",
+      "input": "ArtifactKindKeyPath",
+      "output": "ArtifactKind",
+      "event": "",
+      "mcp": "bakery_artifactKinds_get",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
+      ]
+    },
+    {
+      "group": "Extensions",
+      "method": "POST",
+      "path": "/v1/organizations/{id}/artifact-kinds/{key}/versions",
+      "action": "artifactKindVersions.create",
+      "access": "Admin",
+      "permission": "artifactKind:manage",
+      "organizationContext": "required_authenticated_context",
+      "organizationIdParam": "id",
+      "input": "ArtifactKindVersionCreate",
+      "output": "ArtifactKindVersion",
+      "event": "artifactKinds.published",
+      "mcp": "bakery_artifactKindVersions_create",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "PRECONDITION_REQUIRED",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "UNPROCESSABLE"
+      ]
+    },
+    {
+      "group": "Extensions",
+      "method": "GET",
+      "path": "/v1/organizations/{id}/artifact-kinds/{key}/versions",
+      "action": "artifactKindVersions.list",
+      "access": "Developer",
+      "permission": "artifactKind:read",
+      "organizationContext": "required_authenticated_context",
+      "organizationIdParam": "id",
+      "input": "CursorQuery",
+      "output": "Page<ArtifactKindVersion>",
+      "event": "",
+      "mcp": "bakery_artifactKindVersions_list",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "INVALID_CURSOR"
+      ]
+    },
+    {
       "group": "Automation",
       "method": "GET",
       "path": "/v1/automations",
@@ -4792,6 +4887,75 @@
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH"
+      ]
+    },
+    {
+      "group": "Worker protocol",
+      "method": "GET",
+      "path": "/v1/job-attempts/{id}/repository-source",
+      "action": "worker.repositorySource",
+      "access": "Worker+lease",
+      "permission": null,
+      "input": "IdPath",
+      "output": "RepositoryInspectionSourceChunk",
+      "event": "",
+      "mcp": null,
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "PRECONDITION_FAILED",
+        "LEASE_EXPIRED",
+        "LEASE_FENCED"
+      ]
+    },
+    {
+      "group": "Worker protocol",
+      "method": "POST",
+      "path": "/v1/worker/attempts/{id}/tools/secrets",
+      "action": "worker.tools.secrets",
+      "access": "Worker+lease",
+      "permission": null,
+      "input": "SecretIdentityToolRequest",
+      "output": "SecretIdentityToolResult",
+      "event": "",
+      "mcp": null,
+      "idempotency": "Idempotency-Key must equal the prepared operation id",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "BODY_TOO_LARGE",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "LEASE_EXPIRED",
+        "LEASE_FENCED"
+      ]
+    },
+    {
+      "group": "Worker protocol",
+      "method": "GET",
+      "path": "/v1/worker/attempts/{id}/context",
+      "action": "worker.context",
+      "access": "Worker+lease",
+      "permission": null,
+      "input": "IdPath",
+      "output": "PinnedContextRead",
+      "event": "",
+      "mcp": null,
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "PRECONDITION_FAILED",
+        "LEASE_EXPIRED",
+        "LEASE_FENCED",
+        "ARTIFACT_CONTENT_EXPIRED"
       ]
     },
     {

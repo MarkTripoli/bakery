@@ -31,6 +31,7 @@ import {
 import { projectsBakeryMigrationSource } from "../../apps/server/src/modules/projects/migrations.ts";
 import { agentsBakeryMigrationSource } from "../../apps/server/src/modules/agents/migrations.ts";
 import { repositoryRulesBakeryMigrationSource } from "../../apps/server/src/modules/repository-rules/migrations.ts";
+import { artifactKindsBakeryMigrationSource } from "../../apps/server/src/modules/artifact-kinds/migrations.ts";
 import { integrationsBakeryMigrationSource } from "../../apps/server/src/modules/integrations/migrations.ts";
 import { deliveryBakeryMigrationSource } from "../../apps/server/src/modules/delivery/migrations.ts";
 import { migrateData } from "../../apps/server/src/platform/data-migrate.ts";
@@ -148,6 +149,7 @@ async function migrateTestDatabase(): Promise<SecurityDatabaseFixture> {
       ...await loadMigrations(projectsBakeryMigrationSource),
       ...await loadMigrations(agentsBakeryMigrationSource),
       ...await loadMigrations(repositoryRulesBakeryMigrationSource),
+      ...await loadMigrations(artifactKindsBakeryMigrationSource),
       ...await loadMigrations(integrationsBakeryMigrationSource),
       ...await loadMigrations(deliveryBakeryMigrationSource),
     ]);

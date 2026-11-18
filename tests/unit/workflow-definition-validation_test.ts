@@ -246,14 +246,15 @@ Deno.test("non-array requires on executable action yields exactly one issue", as
   );
 });
 
-Deno.test("workflow.noop warns action_not_executable but stays valid", async () => {
+Deno.test("workflow.noop is executable, so it draws no action_not_executable warning", async () => {
   const report = await validateWorkflowDefinitionStatic(
     withSteps([{ id: "ab", uses: "workflow.noop" }]),
   );
   assert(report.valid);
-  assertEquals(report.warnings.map((w) => [w.path, w.code]), [
-    ["/steps/0/uses", "action_not_executable"],
-  ]);
+  // This test used to expect `action_not_executable` here. The admission fix
+  // made `workflow.noop` runtime-implemented, and `isExecutableAction` asks
+  // admission, so the warning that said "nothing can run this" is now wrong.
+  assertEquals(report.warnings.map((w) => [w.path, w.code]), []);
 });
 
 Deno.test("model action without a binding warns model_agent_unbound", async () => {
@@ -686,13 +687,13 @@ Deno.test("nested steps warn at their own authored paths", async () => {
     },
   }]));
   assert(report.valid, JSON.stringify(report.errors));
-  // The model step has no bound agent; workflow.noop is registered but not
-  // executable, as for a top-level step.
+  // The model step has no bound agent; workflow.noop is runtime-implemented, so
+  // it draws no `action_not_executable` warning (it used to, before admission
+  // learned about the third execution table).
   assertEquals(
     report.warnings.map((w) => [w.path, w.code]),
     [
       ["/steps/0/branch/then/0/uses", "model_agent_unbound"],
-      ["/steps/0/branch/else/0/uses", "action_not_executable"],
     ],
   );
 });

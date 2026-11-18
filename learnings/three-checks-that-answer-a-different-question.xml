@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="three-checks-that-answer-a-different-question" project="bakery">
+  <title>Verifying three ways is not verification when all three answer a different question</title>
+  <trigger>About to report a claim as verified, and the supporting checks can be counted: "I checked this three ways", "confirmed from two sources".</trigger>
+  <rule>Count checks that could DISPROVE the claim, not checks that were merely performed. Three true observations of the same adjacent fact are one observation repeated. Here, `git ls-remote`, the contents API at the ref, and a fetch all agreed the branch pointed at the commit - and none of them could distinguish "merged before the amend" from "merged without it", because both look identical from the branch.</rule>
+  <rule>Ask of each check what result would have made it fail. If nothing could have made it fail, it is a confirmation, not a test. The distinguishing fact here was commit timestamps - merge at 23:19:45Z, commit dated 23:20:00Z - which is a check no amount of re-reading the ref could substitute for.</rule>
+  <rule>Match the instrument to the claim. For a claim about what a MERGED system contains, read the merged content; PR metadata is a claim about that content and the merge target is the fact. Watching the PR API and concluding is not the same as watching main and knowing, and the difference only shows up when the two disagree.</rule>
+  <verification>
+    <requirement>For each verification reported, state the observation and the specific alternative it ruled out. A check whose ruled-out alternative cannot be named is recorded as a confirmation of a neighbouring fact, not as evidence for the claim.</requirement>
+  </verification>
+</learning>
