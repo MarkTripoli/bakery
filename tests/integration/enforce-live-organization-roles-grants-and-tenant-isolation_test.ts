@@ -26,6 +26,7 @@ import { artifactKindsBakeryMigrationSource } from "../../apps/server/src/module
 import { integrationsBakeryMigrationSource } from "../../apps/server/src/modules/integrations/migrations.ts";
 import { deliveryBakeryMigrationSource } from "../../apps/server/src/modules/delivery/migrations.ts";
 import { mcpBakeryMigrationSource } from "../../apps/server/src/modules/mcp/migrations.ts";
+import { knowledgeBakeryMigrationSource } from "../../apps/server/src/modules/knowledge/migrations.ts";
 import { PostgresAuthorityRunner } from "../../apps/server/src/modules/auth/adapters/authority-postgres.ts";
 import { PostgresOrganizationStore } from "../../apps/server/src/modules/auth/adapters/organization-postgres.ts";
 import { createPostgresAuthPersistence } from "../../apps/server/src/modules/auth/adapters/postgres.ts";
@@ -1232,6 +1233,7 @@ Deno.test("authorized lifecycle mutations remain Better Auth compatible", async 
       ...await loadMigrations(integrationsBakeryMigrationSource),
       ...await loadMigrations(deliveryBakeryMigrationSource),
       ...await loadMigrations(mcpBakeryMigrationSource),
+      ...await loadMigrations(knowledgeBakeryMigrationSource),
     ]);
     assertEquals(
       (await fixture.pgDatabase.query<{ count: number }>(

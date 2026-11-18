@@ -36,7 +36,7 @@ export default defineConfig({
   },
   webServer: {
     command:
-      "deno run --allow-env --allow-net --allow-read=tests/browser/fixtures,docs/technical-design/auth-mocks,docs/technical-design/enterprise-mocks/fonts,apps/server/src/platform/migrations,apps/server/src/modules/auth/migrations,apps/server/src/modules/work/migrations,apps/server/src/modules/projects/migrations,apps/server/src/modules/agents/migrations,apps/server/src/modules/repository-rules/migrations,apps/server/src/modules/artifact-kinds/migrations,apps/server/src/modules/integrations/migrations,apps/server/src/modules/delivery/migrations,apps/server/src/modules/mcp/migrations tests/browser/server.ts",
+      "deno run --allow-env --allow-net --allow-read=tests/browser/fixtures,docs/technical-design/auth-mocks,docs/technical-design/enterprise-mocks/fonts,apps/server/src/platform/migrations,apps/server/src/modules/auth/migrations,apps/server/src/modules/work/migrations,apps/server/src/modules/projects/migrations,apps/server/src/modules/agents/migrations,apps/server/src/modules/repository-rules/migrations,apps/server/src/modules/artifact-kinds/migrations,apps/server/src/modules/integrations/migrations,apps/server/src/modules/delivery/migrations,apps/server/src/modules/mcp/migrations,apps/server/src/modules/knowledge/migrations tests/browser/server.ts",
     url: `${baseURL}/__test__/auth`,
     cwd: process.cwd(),
     reuseExistingServer: false,

@@ -9,6 +9,7 @@ import { artifactKindsBakeryMigrationSource } from "./modules/artifact-kinds/mig
 import { integrationsBakeryMigrationSource } from "./modules/integrations/migrations.ts";
 import { deliveryBakeryMigrationSource } from "./modules/delivery/migrations.ts";
 import { mcpBakeryMigrationSource } from "./modules/mcp/migrations.ts";
+import { knowledgeBakeryMigrationSource } from "./modules/knowledge/migrations.ts";
 
 /**
  * Every bakery-owned migration directory, in one place
@@ -38,6 +39,7 @@ export const BAKERY_MIGRATION_SOURCES: readonly MigrationSource[] = Object
     integrationsBakeryMigrationSource,
     deliveryBakeryMigrationSource,
     mcpBakeryMigrationSource,
+    knowledgeBakeryMigrationSource,
   ]);
 
 /**
