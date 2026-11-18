@@ -317,6 +317,17 @@ Deno.test("the feed window keeps order, replaces a repeat and says when it cut",
   ]);
   assertEquals(late.newest(), "9007199254740993");
   assertEquals(createFeedWindow(3).newest(), undefined);
+  // An event the window already dropped does not come back and push out a newer one.
+  const replay = createFeedWindow(2);
+  for (const sequence of [1, 2, 3]) replay.take(at(sequence));
+  replay.take(at(1));
+  assertEquals(replay.items().map((item) => item.sequence), ["2", "3"]);
+  // A history cut short by the pages read marks the window partial by itself.
+  const cut = createFeedWindow(5);
+  cut.take(at(1));
+  assertEquals(cut.truncated(), false);
+  cut.markTruncated();
+  assertEquals(cut.truncated(), true);
 });
 
 Deno.test("the reconnect wait doubles from one second and stops at fifteen", () => {

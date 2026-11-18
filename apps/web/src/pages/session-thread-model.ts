@@ -411,6 +411,8 @@ export function createFeedWindow(max: number) {
   let newest: bigint | null = null;
   let unsorted = false;
   let truncated = false;
+  /** The newest sequence that fell off the front: nothing at or below it comes back. */
+  let dropped: bigint | null = null;
   const bySequence = (a: SessionFeedItem, b: SessionFeedItem) => {
     const left = BigInt(a.sequence);
     const right = BigInt(b.sequence);
@@ -429,13 +431,17 @@ export function createFeedWindow(max: number) {
         return;
       }
       const key = BigInt(item.sequence);
+      // A replay of an event the window already let go would displace a newer one.
+      if (dropped !== null && key <= dropped) return;
       seen.add(item.sequence);
       ordered.push(item);
       if (newest === null || key > newest) newest = key;
       else unsorted = true;
       if (ordered.length > max) {
-        for (const dropped of ordered.splice(0, ordered.length - max)) {
-          seen.delete(dropped.sequence);
+        for (const gone of ordered.splice(0, ordered.length - max)) {
+          seen.delete(gone.sequence);
+          const goneKey = BigInt(gone.sequence);
+          if (dropped === null || goneKey > dropped) dropped = goneKey;
         }
         truncated = true;
       }
