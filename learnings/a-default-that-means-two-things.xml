@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="a-default-that-means-two-things" project="bakery">
+  <title>A column default and a real value sharing one name makes them indistinguishable forever</title>
+  <trigger>Adding a discriminator column with a default; writing a conflict clause that decides something from that value; or repairing rows that predate a column.</trigger>
+  <rule>`origin_kind` was added with `default 'authored'`, so after 0175 the value meant both "this row predates the column" and "a person wrote this". The install upsert then repaired legacy rows with `where origin_kind = 'authored' and slug like 'preset:%'`, which is a predicate that cannot distinguish the two cases: a workflow a person authored under a `preset:` slug was silently rewritten to `catalog` with the catalog's key and revision, and the only record of its real origin was gone.</rule>
+  <rule>The blast radius is worth naming precisely, because it decides how loudly to object. No authorization was bypassed and no row was deleted — the damage was false provenance in the column that IS the deliverable, which is exactly the failure the column was added to prevent.</rule>
+  <rule>A one-time repair and a per-write repair are different mechanisms with different justifications. `DO NOTHING` plus a data migration keyed to the schema migration says "rows from before the column get fixed once, and the write path never guesses"; an upsert that repairs says "the write path guesses every time". Where the repo already has a data-migration mechanism, using it is not extra ceremony, it is the thing that lets the write path stay honest.</rule>
+  <verification>
+    <requirement>When a discriminator has a default, state whether that default is also a legitimate value, and if it is, the repair must key on something other than the default — a data migration, a nullable-free backfill, or an explicit marker. Prove the write path cannot rewrite a legitimate value with a test that sets the ambiguous value and performs the real write.</requirement>
+  </verification>
+</learning>
