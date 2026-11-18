@@ -100,6 +100,7 @@ export const RESOURCE_AREAS = {
   repositoryOnboarding: "repositories",
   repositoryProfile: "repositories",
   repositoryRule: "repositories",
+  scopeProfile: "repositories",
   integrationAuthAttempt: "integrations",
   integrationCapability: "integrations",
   integrationConnection: "integrations",
