@@ -100,7 +100,7 @@ export function createConversationAccessListHandler(secret: string) {
       action: "conversationAccess.list",
       principalId,
       organizationId,
-      ordering: "grantedAt:asc,id:asc",
+      ordering: "createdAt:asc,id:asc",
       filters: JSON.stringify({ conversationId }),
       schemaVersion: 1,
     };

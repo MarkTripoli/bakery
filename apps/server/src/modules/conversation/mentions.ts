@@ -188,7 +188,14 @@ function likePattern(query: string): string {
   return `%${query.replace(/[\\%_]/g, (char) => `\\${char}`)}%`;
 }
 
-const CANDIDATE_ORDERING = "displayName:asc,id:asc";
+/**
+ * The shared cursor primitive carries an ordinal or a timestamp position. The
+ * candidate order is by name, so its cursor carries only the last principal
+ * id (position and iteration fixed at 0) and the next page restarts after
+ * that person's current sort key; the binding still ties it to this action,
+ * scope and query.
+ */
+const CANDIDATE_ORDERING = "position:asc,iteration:asc,id:asc";
 
 /**
  * One bounded page of people the writer may mention here. The query matches
@@ -248,7 +255,11 @@ export async function searchMentionCandidates(
   return {
     items: page.map((row) => accessFor(row, input.scope, mayShare)),
     nextCursor: result.rows.length > limit && last
-      ? await encodeCursor(input.secret, binding, { id: last.principalId })
+      ? await encodeCursor(input.secret, binding, {
+        position: 0,
+        iteration: 0,
+        id: last.principalId,
+      })
       : null,
   };
 }

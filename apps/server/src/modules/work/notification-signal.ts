@@ -25,8 +25,10 @@ export async function signalInboxChanged(
     organizationId: input.organizationId,
     recipientId: input.recipientId,
     eventType: "notifications.inbox_changed",
-    aggregateId: input.recipientId,
-    aggregateVersion: version,
+    // Each signal is its own fact; the recipient travels in recipient_id and
+    // the payload, so repeated signals at one revision never collide.
+    aggregateId: crypto.randomUUID(),
+    aggregateVersion: 1,
     payload: { resourceId: input.recipientId, resourceVersion: version },
     traceId: input.traceId,
   });
