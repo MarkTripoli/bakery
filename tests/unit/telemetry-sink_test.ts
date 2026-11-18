@@ -54,7 +54,13 @@ function memoryFileSystem(): RotatingLogFileSystem & {
     },
     rename(from, to) {
       const existing = files.get(from);
-      if (existing === undefined) return Promise.reject(new Error("ENOENT"));
+      if (existing === undefined) {
+        // Faithful to `fs.rename`: a missing source is ENOENT, and the error
+        // carries the code the sink inspects.
+        const missing = new Error("ENOENT");
+        (missing as { code?: string }).code = "ENOENT";
+        return Promise.reject(missing);
+      }
       files.set(to, existing);
       files.delete(from);
       renames.push([from, to]);
@@ -149,31 +155,83 @@ Deno.test("rotation keeps the directory bounded and never exceeds a file's cap",
   assert(current !== undefined && current.byteLength > 0);
 });
 
-Deno.test("a rotation that cannot rename stops the batch instead of growing past the cap", async () => {
-  // Keeping the disk bounded is the whole point of rotating. Appending past the
-  // cap because a rename failed trades that bound for logs nobody can find, so
-  // the batch stops, the exporter counts it failed, and the cap holds.
+Deno.test("a rotation that cannot rename fails the batch rather than reporting it sent", async () => {
+  // QA found this: the batch wrote nothing, returned normally, and the fan-out
+  // counted it as sent. A batch the operator believes exists and does not is the
+  // one outcome nothing later can detect.
   const fileSystem = memoryFileSystem();
   fileSystem.rename = () => Promise.reject(new Error("EBUSY"));
   const sink = createRotatingLogSink({
     directory: "/var/log/bakery",
-    maxBytes: 400,
+    maxBytes: 200,
     maxFiles: 2,
     fileSystem,
   });
-  await sink(Array.from({ length: 40 }, () => eventRecord()), signal());
+  let threw = false;
+  try {
+    await sink(Array.from({ length: 6 }, () => eventRecord()), signal());
+  } catch {
+    threw = true;
+  }
+  assertEquals(threw, true);
+  // And the cap still holds: a batch reported failed must not also have broken
+  // the disk bound on its way out.
   for (const [path, bytes] of fileSystem.files) {
     assert(
-      bytes.byteLength <= 400,
-      `${path} is ${bytes.byteLength} bytes, over the 400-byte cap`,
+      bytes.byteLength <= 200,
+      `${path} is ${bytes.byteLength} bytes, over the 200-byte cap`,
     );
   }
 });
 
+Deno.test("a rotation that cannot remove the oldest file fails the batch too", async () => {
+  const fileSystem = memoryFileSystem();
+  fileSystem.remove = () => Promise.reject(new Error("EACCES"));
+  const sink = createRotatingLogSink({
+    directory: "/var/log/bakery",
+    maxBytes: 200,
+    maxFiles: 2,
+    fileSystem,
+  });
+  let threw = false;
+  try {
+    await sink(Array.from({ length: 6 }, () => eventRecord()), signal());
+  } catch {
+    threw = true;
+  }
+  assertEquals(threw, true);
+});
+
+Deno.test("a partial write fails the batch, so the dropped records are visible", async () => {
+  // Record 1 succeeds and record 2 fails. Returning normally would report the
+  // whole batch as sent while most of it was dropped.
+  const fileSystem = memoryFileSystem();
+  let appends = 0;
+  const original = fileSystem.append;
+  fileSystem.append = (path, bytes) => {
+    appends += 1;
+    if (appends > 1) return Promise.reject(new Error("ENOSPC"));
+    return original(path, bytes);
+  };
+  const sink = createRotatingLogSink({
+    directory: "/var/log/bakery",
+    maxBytes: 4_000,
+    maxFiles: 2,
+    fileSystem,
+  });
+  let threw = false;
+  try {
+    await sink(Array.from({ length: 3 }, () => eventRecord()), signal());
+  } catch {
+    threw = true;
+  }
+  assertEquals(threw, true);
+});
+
 Deno.test("a collector base resolves to one URL per signal, and a signal URL is refused", () => {
   // OTLP/HTTP has one path per signal. A single URL cannot serve both, so an
-  // endpoint that already names a signal is refused rather than quietly
-  // dropping the other half of the telemetry.
+  // endpoint that already names a signal is refused rather than quietly dropping
+  // the other half of the telemetry.
   assertEquals(
     otlpSignalUrl("https://collector.test", "traces"),
     "https://collector.test/v1/traces",

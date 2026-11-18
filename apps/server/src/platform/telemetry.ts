@@ -101,6 +101,10 @@ export function createServerTelemetryFromConfig(
     endpoint: config.otlpEndpoint,
     fetch: options.fetch ?? fetch,
   });
+  // The sink carries per-destination counters, and slice 2 publishes them from
+  // the metric sampler. They cannot be recorded here: a metric write from inside
+  // the sink's own call tree is refused as reentrant, so the honest place to
+  // export them is outside it.
   const send = createTelemetrySink({ log, otlp });
   return createServerTelemetry({ send });
 }

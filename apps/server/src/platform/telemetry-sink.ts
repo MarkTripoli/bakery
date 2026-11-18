@@ -110,26 +110,28 @@ export function createRotatingLogSink(
     index === 0 ? current : `${current}.${index}`;
 
   /**
-   * Shifts the files down one, oldest out. Returns false when the shift could not
-   * complete, which the caller treats as a failed batch rather than appending
-   * past the cap.
+   * Shifts the files down one, oldest out.
+   *
+   * Throws when the shift cannot complete. The caller must not treat that as a
+   * quiet success: nothing was written, so a batch reported as sent would be a
+   * batch the operator believes exists and does not.
    */
-  const rotate = async (): Promise<boolean> => {
+  const rotate = async (): Promise<void> => {
     // The oldest kept file goes first: removing it before the shift means the
     // shift never needs to overwrite a file it is about to create.
-    try {
-      await options.fileSystem.remove(pathFor(options.maxFiles));
-    } catch {
-      return false;
-    }
+    await options.fileSystem.remove(pathFor(options.maxFiles));
     for (let index = options.maxFiles - 1; index >= 1; index -= 1) {
+      // A file that does not exist yet is not a failure: the first rotation has
+      // nothing to shift at the higher indexes, and `rename` reports that as
+      // ENOENT. Any other error means the shift is genuinely broken, which the
+      // caller must see.
       try {
         await options.fileSystem.rename(pathFor(index - 1), pathFor(index));
-      } catch {
-        return false;
+      } catch (error) {
+        if ((error as { code?: unknown }).code === "ENOENT") continue;
+        throw error;
       }
     }
-    return true;
   };
 
   return async (batch, signal) => {
@@ -139,31 +141,31 @@ export function createRotatingLogSink(
     await ready;
 
     let written = 0;
+    let failure: unknown;
     for (const record of batch) {
       if (signal.aborted) break;
       const bytes = concat(encodeLogLine(record), NEWLINE);
       const size = await options.fileSystem.size(current);
       // Rotate before writing so a file never exceeds maxBytes: the check is
-      // against what is about to be appended, not what is already there.
+      // against what is about to be appended, not what is already there. A
+      // rotation that cannot complete throws, because the alternative - keep
+      // appending past the cap - trades the disk bound, which is the whole point
+      // of rotating, for logs nobody can find.
       if (size > 0 && size + bytes.byteLength > options.maxBytes) {
-        const rotated = await rotate();
-        // A rename that fails must not become an unbounded file. The alternative
-        // - keep appending past the cap - trades the disk bound, which is the
-        // whole point of rotating, for logs nobody can find. So the batch stops
-        // here and is reported failed, and the cap holds.
-        if (!rotated) break;
+        await rotate();
       }
       try {
         await options.fileSystem.append(current, bytes);
         written += 1;
       } catch (error) {
-        // Stop at the first failure and report it once, so the exporter counts a
-        // failed batch and retries. Swallowing it would make a permanently full
-        // disk indistinguishable from an idle server.
-        if (written === 0) throw error;
+        failure = error;
         break;
       }
     }
+    // A partial batch is a failed batch. Returning normally after writing some
+    // records would report the whole batch as sent while the rest of it was
+    // dropped, which is the one outcome an operator cannot detect.
+    if (failure !== undefined) throw failure;
   };
 }
 
