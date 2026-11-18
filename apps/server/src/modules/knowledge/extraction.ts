@@ -17,6 +17,16 @@ const MEDIA_PROBE_BYTES = 4_096;
 export type ArtifactExtractQuery = ContractInput<"ArtifactExtractQuery">;
 export type ArtifactExtraction = ContractOutput<"ArtifactExtraction">;
 
+/** Authorized metadata of one version, read before any content is touched. */
+export type ArtifactVersionIdentity = {
+  id: string;
+  purged_at: Date | null;
+  artifact_id: string;
+  media_type: string;
+  size_bytes: number | string;
+  sha256: string;
+};
+
 type ArtifactExtractionRow = {
   id: string;
   purged_at: Date | null;
@@ -155,6 +165,49 @@ function extractWindow(
     text,
     hasMore: endByteExclusive < size,
   };
+}
+
+/**
+ * Proves the caller may read the version and returns its metadata, without
+ * reading the content column. The joins are the same ones the content read uses,
+ * so a caller that reaches the cache hit has already been authorized by exactly
+ * the query that would have refused it.
+ */
+export async function readArtifactVersionIdentity(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  versionId: string,
+): Promise<ArtifactVersionIdentity> {
+  const result = await transaction.query<ArtifactVersionIdentity>(
+    `select v.id,v.purged_at,v.artifact_id,v.media_type,v.size_bytes,v.sha256
+       from bakery.artifact_versions v
+       join bakery.artifacts a
+         on a.organization_id=v.organization_id
+        and a.id=v.artifact_id
+        and a.task_id=v.task_id
+       join bakery.tasks t
+         on t.organization_id=v.organization_id and t.id=v.task_id
+      where v.organization_id=$1
+        and v.id=$2
+        and (
+          v.run_step_id is null or exists (
+            select 1
+              from bakery.run_steps rs
+              join bakery.workflow_runs wr
+                on wr.organization_id=rs.organization_id and wr.id=rs.run_id
+             where rs.organization_id=v.organization_id
+               and rs.id=v.run_step_id
+               and wr.task_id=v.task_id
+          )
+        )`,
+    [organizationId, versionId],
+  );
+  const row = result.rows[0];
+  if (!row) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  if (row.purged_at !== null) {
+    throw new StandardError({ code: "ARTIFACT_CONTENT_EXPIRED" });
+  }
+  return row;
 }
 
 async function loadArtifactExtractionRow(
