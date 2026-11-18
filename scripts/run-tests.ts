@@ -338,13 +338,33 @@ if (isolatedRoot !== undefined) {
   await removeLaneStacks(laneEnvPaths(isolatedRoot).stacks);
   const swept = await rootTool("sweep", temporaryDirectory, isolatedRoot);
   try {
-    const { homeEntries, homeNames, homeNamesTruncated } = JSON.parse(
-      swept.text,
-    ) as {
+    const {
+      anomaly,
+      anomalyTarget,
+      homeEntries,
+      homeNames,
+      homeNamesTruncated,
+      removeError,
+    } = JSON.parse(swept.text) as {
+      anomaly?: string;
+      anomalyTarget?: string;
       homeEntries?: number;
       homeNames?: string[];
       homeNamesTruncated?: boolean;
+      removeError?: string;
     };
+    if (anomaly !== undefined) {
+      console.error(
+        `lane HOME: the isolated root was changed under the run (${anomaly}${
+          anomalyTarget === undefined ? "" : `, pointing at ${anomalyTarget}`
+        }); it was not followed`,
+      );
+    }
+    if (removeError !== undefined) {
+      console.error(
+        `lane HOME: the isolated root could not be removed (${removeError})`,
+      );
+    }
     // What a lane writes into its isolated HOME is what depended on a real one.
     if (homeEntries !== undefined && homeEntries > 0) {
       const names = (homeNames ?? []).join(", ");
@@ -363,19 +383,37 @@ if (isolatedRoot !== undefined) {
 if (laneRoot !== undefined) {
   const swept = await rootTool("sweep", temporaryDirectory, laneRoot);
   try {
-    const { leaked, prefixes } = JSON.parse(swept.text) as {
-      leaked: number;
-      prefixes: Record<string, number>;
-    };
-    if (leaked > 0) {
+    const { anomaly, anomalyTarget, leaked, prefixes, removeError } = JSON
+      .parse(swept.text) as {
+        anomaly?: string;
+        anomalyTarget?: string;
+        leaked: number;
+        prefixes: Record<string, number>;
+        removeError?: string;
+      };
+    const strict = Deno.env.get("BAKERY_TEST_TMP_STRICT") === "1";
+    if (anomaly !== undefined) {
+      // A lane root swapped for a link or a file: what a link points at is
+      // neither swept nor listed, and the swap is never a clean run.
+      console.error(
+        `test temp root: the lane root was changed under the run (${anomaly}${
+          anomalyTarget === undefined ? "" : `, pointing at ${anomalyTarget}`
+        }); it was not followed`,
+      );
+      if (strict && code === 0) code = 3;
+    } else if (leaked > 0) {
       console.error(
         `test temp root: ${leaked} entries were still there after the run and were removed; by prefix ${
           JSON.stringify(prefixes)
         }`,
       );
-      if (Deno.env.get("BAKERY_TEST_TMP_STRICT") === "1" && code === 0) {
-        code = 3;
-      }
+      if (strict && code === 0) code = 3;
+    }
+    if (removeError !== undefined) {
+      console.error(
+        `test temp root: the root could not be removed (${removeError}); it may remain`,
+      );
+      if (strict && code === 0) code = 3;
     }
   } catch {
     console.error(
