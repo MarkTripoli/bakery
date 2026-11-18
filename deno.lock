@@ -3689,6 +3689,7 @@
             "npm:@types/react-dom@19.3.0",
             "npm:@types/react@19.3.0",
             "npm:@vitejs/plugin-react@6.1.1",
+            "npm:loro-crdt@1.16.0",
             "npm:qrcode@1.5.4",
             "npm:react-dom@19.3.0",
             "npm:react@19.3.0",
