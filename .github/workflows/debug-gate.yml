@@ -35,12 +35,12 @@ jobs:
           case "$level" in
             admin|maintain|write) echo "allowed=true" >> "$GITHUB_OUTPUT" ;;
             *)
-        echo "allowed=false" >> "$GITHUB_OUTPUT"
-        # A required check must never read green unvalidated: an outside
-        # contributor's PR fails here until a maintainer takes it over.
-        echo "::error::outside contributor ($AUTHOR has $level access): a maintainer must take this PR over"
-        exit 1
-        ;;
+              echo "allowed=false" >> "$GITHUB_OUTPUT"
+              # A required check must never read green unvalidated: an outside
+              # contributor's PR fails here until a maintainer takes it over.
+              echo "::error::outside contributor ($AUTHOR has $level access): a maintainer must take this PR over"
+              exit 1
+              ;;
           esac
       - name: Show the gate output
         run: echo "author=${{ matrix.author }} allowed=${{ steps.maintainer.outputs.allowed }}"
