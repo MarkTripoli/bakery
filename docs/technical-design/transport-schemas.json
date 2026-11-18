@@ -10205,6 +10205,160 @@
       ],
       "description": "Edits, resolves, reopens, deletes or restores one draft comment under its current If-Match, with the same moderation rules as artifact comments."
     },
+    "DraftReferenceCreate": {
+      "fields": [
+        {
+          "name": "expectedEpoch",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1
+          },
+          "description": "Draft epoch the caller read; a draft or checkpoint in another epoch fails with PRECONDITION_FAILED reason draft_moved_on and nothing is recorded."
+        },
+        {
+          "name": "checkpointId",
+          "type": "uuid",
+          "required": true,
+          "description": "Committed checkpoint of this draft to freeze as the referenced revision, read from drafts.get when Send to agent was pressed; edits committed after it are not in the reference."
+        },
+        {
+          "name": "textDigest",
+          "type": "sha256",
+          "required": true,
+          "description": "Lowercase SHA-256 of the checkpoint's UTF-8 body text as the sender previewed it; a different digest fails with PRECONDITION_FAILED and nothing is recorded."
+        },
+        {
+          "name": "threads",
+          "type": "CommentReference[]",
+          "required": true,
+          "bounds": {
+            "maxItems": 100
+          },
+          "description": "Root draft comments sent with the revision, each with the version the caller last observed. Every root and its retained replies are captured exactly; a changed root version fails the whole send with PRECONDITION_FAILED reason thread_version_changed, and an empty list sends the revision alone."
+        },
+        {
+          "name": "mutationId",
+          "type": "uuid",
+          "required": true,
+          "description": "Caller-generated idempotency identifier; an exact retry answers with the same reference and a changed payload fails."
+        }
+      ],
+      "rules": [
+        "The checkpoint is frozen as a publication freezes it: it must be a committed checkpoint of this draft whose stored text has textDigest. Threads must be distinct, retained roots of the same draft; each is locked and compared with expectedVersion, and all pass or nothing is written. A root's version also moves when a reply is added, edited or deleted.",
+        "Bounded like a comment send to an agent: at most 100 roots, at most 200 retained replies per root and 32 KiB of captured comment text; over a bound fails with BODY_TOO_LARGE and is never truncated. Creator, actor kind and request come from the authenticated call."
+      ],
+      "description": "Freezes one exact committed draft revision and the chosen discussion threads into an immutable reference an agent turn or workflow can later name. Sending a draft to an agent records the reference only; it does not admit or start any work."
+    },
+    "DraftReferenceComment": {
+      "fields": [
+        {
+          "name": "commentId",
+          "type": "uuid",
+          "required": true,
+          "description": "Draft comment captured into the reference."
+        },
+        {
+          "name": "parentId",
+          "type": "uuid",
+          "required": false,
+          "description": "Captured root this reply belongs to; absent for a root."
+        },
+        {
+          "name": "version",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1
+          },
+          "description": "The comment's optimistic-concurrency version at capture."
+        },
+        {
+          "name": "authorId",
+          "type": "uuid",
+          "required": true,
+          "description": "Principal the comment was attributed to at capture."
+        },
+        {
+          "name": "actorKind",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "person",
+            "agent"
+          ],
+          "description": "Whether a person or an agent wrote the captured comment."
+        },
+        {
+          "name": "body",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxBytes": 10240
+          },
+          "description": "Comment text exactly as it was at capture; later edits of the live comment do not change it."
+        },
+        {
+          "name": "bodyDigest",
+          "type": "sha256",
+          "required": true,
+          "description": "SHA-256 of the captured body's UTF-8 bytes."
+        },
+        {
+          "name": "startCursor",
+          "type": "base64",
+          "required": false,
+          "bounds": {
+            "maxBytes": 1024
+          },
+          "description": "Encoded Loro cursor of the root's range start at capture; absent for a reply."
+        },
+        {
+          "name": "endCursor",
+          "type": "base64",
+          "required": false,
+          "bounds": {
+            "maxBytes": 1024
+          },
+          "description": "Encoded Loro cursor of the root's range end at capture; absent for a reply."
+        },
+        {
+          "name": "coordinateEncoding",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 64
+          },
+          "description": "Cursor encoding and offset unit of the root's anchor, such as loro-1.16-cursor-utf16; absent for a reply."
+        },
+        {
+          "name": "quote",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 65536
+          },
+          "description": "Text the commenter selected for the root; absent for a reply."
+        },
+        {
+          "name": "status",
+          "type": "enum",
+          "required": false,
+          "enum": [
+            "open",
+            "resolved"
+          ],
+          "description": "Resolution state of the root at capture; absent for a reply. Resolving the live thread later does not change it."
+        },
+        {
+          "name": "createdAt",
+          "type": "timestamp",
+          "required": true,
+          "description": "UTC time the live comment was originally recorded."
+        }
+      ],
+      "description": "One draft comment frozen into a send-to-agent reference: a chosen root or one of its retained replies, exactly as it was at capture."
+    },
     "PullRequestMerge": {
       "fields": [
         {
@@ -26421,6 +26575,45 @@
       "pageOf": "DraftComment",
       "description": "Cursor page of a collaborative draft's root threads, or of one root's flat replies, oldest first, each root with its anchor resolved against the current draft. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers or offsets."
     },
+    "DraftReference": {
+      "fields": [
+        "id",
+        "draftId",
+        "epoch",
+        "checkpointId",
+        "serverSequence",
+        "textDigest",
+        "createdById",
+        "actorKind",
+        "createdAt",
+        "comments"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "draftId": "uuid",
+        "epoch": "integer",
+        "checkpointId": "uuid",
+        "serverSequence": "decimalString",
+        "textDigest": "sha256",
+        "createdById": "uuid",
+        "actorKind": "enum(person|agent)",
+        "createdAt": "timestamp",
+        "comments": "DraftReferenceComment[]"
+      },
+      "description": "Immutable reference a draft was sent to an agent with: one frozen committed revision and the exact discussion threads captured with it. Editing the draft, editing or resolving a comment, or publishing never changes it.",
+      "fieldDescriptions": {
+        "id": "Server-assigned reference identifier; read it back with draftReferences.get.",
+        "draftId": "Draft the reference was taken from.",
+        "epoch": "Draft epoch of the frozen checkpoint.",
+        "checkpointId": "Exact committed draft checkpoint frozen as the referenced revision.",
+        "serverSequence": "Committed draft sequence of the frozen checkpoint; edits with a higher sequence are not in the reference.",
+        "textDigest": "Canonical SHA-256 of the frozen checkpoint's UTF-8 body text.",
+        "createdById": "Principal the send is attributed to: the person, or the principal an agent acted for (O50).",
+        "actorKind": "agent when an agent sent it through an access token or under a service or worker identity; person when a person sent it through a signed-in session.",
+        "createdAt": "UTC time the reference committed.",
+        "comments": "Captured comments in send order: each requested root followed by its retained replies, oldest first."
+      }
+    },
     "MergeAttempt": {
       "projection": "pull_request_merge_attempts",
       "fields": [
@@ -28556,7 +28749,9 @@
       "bakery_draftSuggestions_reject",
       "bakery_draftComments_create",
       "bakery_draftComments_list",
-      "bakery_draftComments_update"
+      "bakery_draftComments_update",
+      "bakery_draftReferences_create",
+      "bakery_draftReferences_get"
     ],
     "discovery": "server/discover is optional. tools/list accepts standard cursor, filters current principal and enabled groups, and sorts deterministically. Initial cache TTL is zero; never share an authorization-filtered catalog between principals. No subscription capability is advertised.",
     "methods": [

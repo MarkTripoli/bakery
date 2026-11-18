@@ -77,6 +77,18 @@ const expected = [
     "/v1/drafts/{id}/comments/{commentId}",
     "bakery_draftComments_update",
   ],
+  [
+    "draftReferences.create",
+    "POST",
+    "/v1/drafts/{id}/references",
+    "bakery_draftReferences_create",
+  ],
+  [
+    "draftReferences.get",
+    "GET",
+    "/v1/draft-references/{id}",
+    "bakery_draftReferences_get",
+  ],
 ] as const;
 
 Deno.test("generated REST and scoped MCP catalogs own the guarded draft actions", () => {

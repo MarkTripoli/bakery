@@ -6998,6 +6998,56 @@ export const clientManifest = {
       "implemented": true
     },
     {
+      "group": "Drafts",
+      "method": "POST",
+      "path": "/v1/drafts/{id}/references",
+      "action": "draftReferences.create",
+      "access": "Developer",
+      "permission": "artifactComment:write",
+      "input": "DraftReferenceCreate",
+      "output": "DraftReference",
+      "event": "",
+      "mcp": "bakery_draftReferences_create",
+      "idempotency": "Natural idempotency by mutationId: an exact retry answers with the same reference and a changed payload fails",
+      "idempotencyKeyOptional": true,
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "BODY_TOO_LARGE",
+        "UNPROCESSABLE",
+        "PRECONDITION_FAILED",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Drafts",
+      "method": "GET",
+      "path": "/v1/draft-references/{id}",
+      "action": "draftReferences.get",
+      "access": "Developer",
+      "permission": "draft:read",
+      "input": "IdPath",
+      "output": "DraftReference",
+      "event": "",
+      "mcp": "bakery_draftReferences_get",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
       "group": "Artifacts",
       "method": "GET",
       "path": "/v1/artifact-storage",
@@ -12137,6 +12187,8 @@ export const clientManifest = {
             "draftComments.create",
             "draftComments.list",
             "draftComments.update",
+            "draftReferences.create",
+            "draftReferences.get",
             "artifactStorage.get",
             "coordinationPlans.create",
             "coordinationPlans.createFromWorkflow",
@@ -18909,6 +18961,72 @@ export const clientManifest = {
       },
       "additionalProperties": false,
       "description": "Edits, resolves, reopens, deletes or restores one draft comment under its current If-Match, with the same moderation rules as artifact comments."
+    },
+    "DraftReferenceCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "expectedEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "description": "DraftReferenceCreate.expectedEpoch must be at least 1."
+        },
+        "checkpointId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Committed checkpoint of this draft to freeze as the referenced revision, read from drafts.get when Send to agent was pressed; edits committed after it are not in the reference."
+        },
+        "textDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "Lowercase SHA-256 of the checkpoint's UTF-8 body text as the sender previewed it; a different digest fails with PRECONDITION_FAILED and nothing is recorded."
+        },
+        "threads": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "commentId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Identifier of the root comment being referenced."
+              },
+              "expectedVersion": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991,
+                "description": "CommentReference.expectedVersion must be at least 1."
+              }
+            },
+            "required": [
+              "commentId",
+              "expectedVersion"
+            ],
+            "additionalProperties": false,
+            "description": "Root draft comments sent with the revision, each with the version the caller last observed. Every root and its retained replies are captured exactly; a changed root version fails the whole send with PRECONDITION_FAILED reason thread_version_changed, and an empty list sends the revision alone. Each array item follows this format."
+          },
+          "description": "DraftReferenceCreate.threads must contain at most 100 items."
+        },
+        "mutationId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Caller-generated idempotency identifier; an exact retry answers with the same reference and a changed payload fails."
+        }
+      },
+      "required": [
+        "expectedEpoch",
+        "checkpointId",
+        "textDigest",
+        "threads",
+        "mutationId"
+      ],
+      "additionalProperties": false,
+      "description": "Freezes one exact committed draft revision and the chosen discussion threads into an immutable reference an agent turn or workflow can later name. Sending a draft to an agent records the reference only; it does not admit or start any work."
     },
     "PullRequestMerge": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -31380,6 +31498,8 @@ export const clientManifest = {
                   "draftComments.create",
                   "draftComments.list",
                   "draftComments.update",
+                  "draftReferences.create",
+                  "draftReferences.get",
                   "artifactStorage.get",
                   "coordinationPlans.create",
                   "coordinationPlans.createFromWorkflow",
@@ -47434,6 +47554,8 @@ export const clientManifest = {
             "draftComments.create",
             "draftComments.list",
             "draftComments.update",
+            "draftReferences.create",
+            "draftReferences.get",
             "artifactStorage.get",
             "coordinationPlans.create",
             "coordinationPlans.createFromWorkflow",
@@ -66589,6 +66711,179 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Cursor page of DraftComment."
+    },
+    "DraftReference": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Server-assigned reference identifier; read it back with draftReferences.get."
+        },
+        "draftId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Draft the reference was taken from."
+        },
+        "epoch": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Draft epoch of the frozen checkpoint."
+        },
+        "checkpointId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Exact committed draft checkpoint frozen as the referenced revision."
+        },
+        "serverSequence": {
+          "type": "string",
+          "pattern": "^(?:0|[1-9][0-9]*)$",
+          "description": "Committed draft sequence of the frozen checkpoint; edits with a higher sequence are not in the reference."
+        },
+        "textDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "Canonical SHA-256 of the frozen checkpoint's UTF-8 body text."
+        },
+        "createdById": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Principal the send is attributed to: the person, or the principal an agent acted for (O50)."
+        },
+        "actorKind": {
+          "type": "string",
+          "enum": [
+            "person",
+            "agent"
+          ],
+          "description": "agent when an agent sent it through an access token or under a service or worker identity; person when a person sent it through a signed-in session."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC time the reference committed."
+        },
+        "comments": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "commentId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Draft comment captured into the reference."
+              },
+              "parentId": {
+                "description": "Captured root this reply belongs to; absent for a root.",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "version": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991,
+                "description": "DraftReferenceComment.version must be at least 1."
+              },
+              "authorId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Principal the comment was attributed to at capture."
+              },
+              "actorKind": {
+                "type": "string",
+                "enum": [
+                  "person",
+                  "agent"
+                ],
+                "description": "Whether a person or an agent wrote the captured comment."
+              },
+              "body": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "DraftReferenceComment.body must contain at most 10240 UTF-8 bytes.",
+                "x-utf8-max-bytes": 10240
+              },
+              "bodyDigest": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$",
+                "description": "SHA-256 of the captured body's UTF-8 bytes."
+              },
+              "startCursor": {
+                "description": "DraftReferenceComment.startCursor must contain at most 1024 UTF-8 bytes.",
+                "type": "string",
+                "x-utf8-max-bytes": 1024
+              },
+              "endCursor": {
+                "description": "DraftReferenceComment.endCursor must contain at most 1024 UTF-8 bytes.",
+                "type": "string",
+                "x-utf8-max-bytes": 1024
+              },
+              "coordinateEncoding": {
+                "description": "DraftReferenceComment.coordinateEncoding must contain at most 64 UTF-8 bytes.",
+                "type": "string",
+                "maxLength": 65536,
+                "x-utf8-max-bytes": 64
+              },
+              "quote": {
+                "description": "DraftReferenceComment.quote must contain at most 65536 UTF-8 bytes.",
+                "type": "string",
+                "maxLength": 65536,
+                "x-utf8-max-bytes": 65536
+              },
+              "status": {
+                "description": "Resolution state of the root at capture; absent for a reply. Resolving the live thread later does not change it.",
+                "type": "string",
+                "enum": [
+                  "open",
+                  "resolved"
+                ]
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC time the live comment was originally recorded."
+              }
+            },
+            "required": [
+              "commentId",
+              "version",
+              "authorId",
+              "actorKind",
+              "body",
+              "bodyDigest",
+              "createdAt"
+            ],
+            "additionalProperties": false,
+            "description": "Captured comments in send order: each requested root followed by its retained replies, oldest first. Each array item follows this format."
+          },
+          "description": "Captured comments in send order: each requested root followed by its retained replies, oldest first."
+        }
+      },
+      "required": [
+        "id",
+        "draftId",
+        "epoch",
+        "checkpointId",
+        "serverSequence",
+        "textDigest",
+        "createdById",
+        "actorKind",
+        "createdAt",
+        "comments"
+      ],
+      "additionalProperties": false,
+      "description": "Immutable reference a draft was sent to an agent with: one frozen committed revision and the exact discussion threads captured with it. Editing the draft, editing or resolving a comment, or publishing never changes it."
     },
     "MergeAttempt": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

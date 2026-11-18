@@ -8798,6 +8798,54 @@
       "organizationContext": "required_authenticated_context"
     },
     {
+      "group": "Drafts",
+      "method": "POST",
+      "path": "/v1/drafts/{id}/references",
+      "action": "draftReferences.create",
+      "access": "Developer",
+      "permission": "artifactComment:write",
+      "input": "DraftReferenceCreate",
+      "output": "DraftReference",
+      "event": "",
+      "mcp": "bakery_draftReferences_create",
+      "idempotency": "Natural idempotency by mutationId: an exact retry answers with the same reference and a changed payload fails",
+      "idempotencyKeyOptional": true,
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "BODY_TOO_LARGE",
+        "UNPROCESSABLE",
+        "PRECONDITION_FAILED",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Drafts",
+      "method": "GET",
+      "path": "/v1/draft-references/{id}",
+      "action": "draftReferences.get",
+      "access": "Developer",
+      "permission": "draft:read",
+      "input": "IdPath",
+      "output": "DraftReference",
+      "event": "",
+      "mcp": "bakery_draftReferences_get",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
       "group": "Artifacts",
       "method": "GET",
       "path": "/v1/artifact-storage",

@@ -437,6 +437,8 @@ export const DraftImplementedAction = Object.freeze(
     CommentCreate: "draftComments.create",
     CommentList: "draftComments.list",
     CommentUpdate: "draftComments.update",
+    ReferenceCreate: "draftReferences.create",
+    ReferenceGet: "draftReferences.get",
   } as const satisfies Record<string, CatalogActionName>,
 );
 

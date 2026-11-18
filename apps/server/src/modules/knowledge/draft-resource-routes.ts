@@ -63,6 +63,10 @@ import {
   type ResolvedThreadProjection,
 } from "./draft-comment-projection.ts";
 import {
+  createDraftReference,
+  readDraftReference,
+} from "./draft-references.ts";
+import {
   draftCheckpointPublished,
   type DraftPublicationRecord,
   freezeTextDraftCheckpoint,
@@ -1202,6 +1206,45 @@ export function createDraftResourceRoutes(
           }),
         );
       },
+    })
+    .register({
+      name: DraftImplementedAction.ReferenceCreate,
+      method: HttpMethod.Post,
+      path: "/v1/drafts/:id/references",
+      input: contractSchemas.DraftReferenceCreate,
+      output: contractSchemas.DraftReference,
+      policy: commandPolicy,
+      naturalIdempotency: true,
+      naturalIdempotencyInputField: "mutationId",
+      handler: async (context, input) => {
+        const { transaction, organizationId, principalId } =
+          requireWorkTransaction(context);
+        // Send to agent (#28): records the frozen reference only; turn and
+        // workflow admission are not touched here.
+        return contractSchemas.DraftReference.parse(
+          await createDraftReference(transaction, organizationId, {
+            draftId: draftId(context),
+            attribution: attributeAction(context, principalId),
+            requestId: context.requestId,
+            traceId: context.traceId,
+            create: input,
+          }),
+        );
+      },
+    })
+    .register({
+      name: DraftImplementedAction.ReferenceGet,
+      method: HttpMethod.Get,
+      path: "/v1/draft-references/:id",
+      input: contractSchemas.IdPath,
+      output: contractSchemas.DraftReference,
+      policy: readPolicy,
+      handler: async (context, input) => {
+        const { transaction, organizationId } = requireWorkTransaction(context);
+        return contractSchemas.DraftReference.parse(
+          await readDraftReference(transaction, organizationId, input.id),
+        );
+      },
     });
   assertRegisteredActions(registry);
   assertImplementedActionRegistry(registry, draftImplementedActions);
@@ -1210,6 +1253,7 @@ export function createDraftResourceRoutes(
   app.use("/v1/artifacts/*", options.browserSession);
   app.use("/v1/drafts", options.browserSession);
   app.use("/v1/drafts/*", options.browserSession);
+  app.use("/v1/draft-references/*", options.browserSession);
   app.route(
     "/",
     createApiRouter({

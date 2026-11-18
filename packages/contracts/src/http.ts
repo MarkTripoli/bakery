@@ -312,6 +312,8 @@ export const DRAFT_EDIT_REFUSAL_REASONS = Object.freeze(
       "projected_thread_outdated",
       // A guarded edit whose cursors were relocated (#28).
       "target_ambiguous",
+      // A send-to-agent thread whose root changed since it was read (#28).
+      "thread_version_changed",
     ]),
     AUTH_FORBIDDEN: new Set([
       "agent_edit_requires_suggestion",
