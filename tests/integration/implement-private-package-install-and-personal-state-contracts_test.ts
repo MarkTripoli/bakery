@@ -894,3 +894,464 @@ Deno.test("a malformed cursor is a client error, not a server error", () =>
       );
     }
   }));
+
+/**
+ * Installs, grants and state (#15, B14.01, slice 2, AC1 and AC3).
+ *
+ * The install path is where a private package becomes authority, so these assert
+ * the authority rather than the rows: who may install, whose state a caller can
+ * read, and whether disabling really takes the grants away.
+ */
+
+const VALID_MANIFEST = {
+  name: "demo-plugin",
+  requestedCapabilities: ["state.read", "state.write"],
+  locales: ["demo-plugin.en"],
+  stateSchemaVersion: 1,
+  stateNamespaces: ["settings"],
+};
+
+/** Publish one package and one version with a manifest that can be installed. */
+async function publishInstallable(
+  fixture: Fixture,
+  store: ReturnType<typeof memoryStore>,
+  manifest: Record<string, unknown> = VALID_MANIFEST,
+): Promise<{ packageId: string; versionId: string }> {
+  const pkg = await (await call(fixture, "/v1/plugin-packages", {
+    method: "POST",
+    body: packageBody(),
+  })).json();
+  const bytes = new TextEncoder().encode(`bundle ${crypto.randomUUID()}`);
+  const bundle = await uploadBundle(fixture, store, bytes);
+  const published = await call(
+    fixture,
+    `/v1/plugin-packages/${pkg.id}/versions`,
+    { method: "POST", body: versionBody(bundle, { manifest }) },
+  );
+  assertEquals(published.status, 201, await published.clone().text());
+  const version = await published.json();
+  return { packageId: pkg.id, versionId: version.id };
+}
+
+/** A second member of the same organization with their own session cookie. */
+async function inviteColleague(
+  fixture: Fixture,
+  role: "developer" | "admin",
+): Promise<string> {
+  const suffix = crypto.randomUUID();
+  const email = `plugin-colleague-${suffix}@example.test`;
+  const password = `Plugin-${suffix}`;
+  const invitation = await fixture.app.fetch(authRequest(
+    `/v1/organizations/${fixture.organizationId}/invitations`,
+    { email, role },
+    {
+      cookie: fixture.adminCookie,
+      headers: { "Bakery-Organization-Id": fixture.organizationId },
+    },
+  ));
+  assertEquals(invitation.status, 201, await invitation.clone().text());
+  const signUp = await fixture.app.fetch(
+    authRequest("/api/auth/sign-up/email", {
+      email,
+      password,
+      name: "Colleague",
+    }),
+  );
+  assertEquals(signUp.status, 200, await signUp.clone().text());
+  const cookie = sessionCookie(
+    await fixture.app.fetch(
+      authRequest("/api/auth/sign-in/email", { email, password }),
+    ),
+  );
+  const pending = await fixture.pgDatabase.query<{ id: string }>(
+    `select id from bakery.organization_invitations
+      where organization_id = $1 and email = $2 and status = 'pending'`,
+    [fixture.organizationId, email],
+  );
+  const accepted = await fixture.app.fetch(authRequest(
+    "/api/auth/organization/accept-invitation",
+    { invitationId: pending.rows[0].id },
+    { cookie },
+  ));
+  assertEquals(accepted.status, 200, await accepted.clone().text());
+  return cookie;
+}
+
+function asCookie(fixture: Fixture, cookie: string) {
+  return (
+    path: string,
+    init: { method: string; body?: unknown },
+  ): Promise<Response> =>
+    Promise.resolve(fixture.app.fetch(
+      new Request(`${fixture.config.publicBaseUrl}${path}`, {
+        method: init.method,
+        headers: {
+          "Content-Type": "application/json",
+          Origin: fixture.config.publicBaseUrl,
+          "Bakery-Organization-Id": fixture.organizationId,
+          Cookie: cookie,
+          "Idempotency-Key": crypto.randomUUID(),
+        },
+        ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
+      }),
+    ));
+}
+
+Deno.test("an organization install needs Admin, and a Developer is refused", () =>
+  withPluginFixture(async (fixture, store) => {
+    const published = await publishInstallable(fixture, store);
+
+    // A Developer may publish a package and install one privately, but an
+    // organization install changes what everybody can use.
+    const developerCookie = await inviteColleague(fixture, "developer");
+    const developer = asCookie(fixture, developerCookie);
+    const refused = await developer("/v1/plugin-installs", {
+      method: "POST",
+      body: {
+        packageId: published.packageId,
+        versionId: published.versionId,
+        scope: "organization",
+      },
+    });
+    assertEquals(refused.status, 403, await refused.clone().text());
+
+    // The same person may install it for themselves.
+    const personal = await developer("/v1/plugin-installs", {
+      method: "POST",
+      body: {
+        packageId: published.packageId,
+        versionId: published.versionId,
+        scope: "personal",
+      },
+    });
+    assertEquals(personal.status, 201, await personal.clone().text());
+    const installed = await personal.json();
+    assertEquals(installed.scope, "personal");
+    assertEquals(
+      installed.ownerPrincipalId,
+      (
+        await fixture.pgDatabase.query<{ principal_id: string }>(
+          `select membership.principal_id from bakery.organization_memberships as membership
+             join bakery.principals as principal on principal.id = membership.principal_id
+             join public."user" as provider_user on provider_user.id = principal.provider_user_id
+            where membership.organization_id = $1 and provider_user.email like 'plugin-colleague-%'`,
+          [fixture.organizationId],
+        )
+      ).rows[0].principal_id,
+      "a personal install is owned by the caller, not by the installer of a share",
+    );
+
+    // An Admin may install for the organization, and that install has no owner.
+    const shared = await call(fixture, "/v1/plugin-installs", {
+      method: "POST",
+      body: {
+        packageId: published.packageId,
+        versionId: published.versionId,
+        scope: "organization",
+      },
+    });
+    assertEquals(shared.status, 201, await shared.clone().text());
+    assertEquals((await shared.json()).ownerPrincipalId, null);
+  }));
+
+Deno.test("a personal install names its owner from the session, never the body", () =>
+  withPluginFixture(async (fixture, store) => {
+    const published = await publishInstallable(fixture, store);
+    const someoneElse = crypto.randomUUID();
+
+    const refused = await call(fixture, "/v1/plugin-installs", {
+      method: "POST",
+      body: {
+        packageId: published.packageId,
+        versionId: published.versionId,
+        scope: "personal",
+        ownerPrincipalId: someoneElse,
+      },
+    });
+    assertEquals(refused.status, 422, await refused.clone().text());
+
+    // An organization install carries no owner at all: a shared install owned by
+    // one person would make that person's authority the organization's.
+    const withOwner = await call(fixture, "/v1/plugin-installs", {
+      method: "POST",
+      body: {
+        packageId: published.packageId,
+        versionId: published.versionId,
+        scope: "organization",
+        ownerPrincipalId: someoneElse,
+      },
+    });
+    assertEquals(withOwner.status, 422, await withOwner.clone().text());
+  }));
+
+Deno.test("installing a version of another package is refused", () =>
+  withPluginFixture(async (fixture, store) => {
+    const first = await publishInstallable(fixture, store);
+    const second = await publishInstallable(fixture, store);
+
+    // The version belongs to `second`, so pairing it with `first` is refused
+    // rather than silently installing a package the caller did not name.
+    const refused = await call(fixture, "/v1/plugin-installs", {
+      method: "POST",
+      body: {
+        packageId: first.packageId,
+        versionId: second.versionId,
+        scope: "organization",
+      },
+    });
+    assertEquals(refused.status, 404, await refused.clone().text());
+  }));
+
+Deno.test("an incompatible SDK fails activation, and no install row is written", () =>
+  withPluginFixture(async (fixture, store) => {
+    const pkg = await (await call(fixture, "/v1/plugin-packages", {
+      method: "POST",
+      body: packageBody(),
+    })).json();
+    const bytes = new TextEncoder().encode("future bundle");
+    const bundle = await uploadBundle(fixture, store, bytes);
+    const published = await call(
+      fixture,
+      `/v1/plugin-packages/${pkg.id}/versions`,
+      {
+        method: "POST",
+        body: versionBody(bundle, {
+          sdkRange: "^99.0.0",
+          manifest: VALID_MANIFEST,
+        }),
+      },
+    );
+    assertEquals(published.status, 201, await published.clone().text());
+    const version = await published.json();
+
+    const refused = await call(fixture, "/v1/plugin-installs", {
+      method: "POST",
+      body: {
+        packageId: pkg.id,
+        versionId: version.id,
+        scope: "organization",
+      },
+    });
+    assertEquals(refused.status, 409, await refused.clone().text());
+
+    // Activation failed safely: there is nothing to disable afterwards.
+    const rows = await fixture.pgDatabase.query<{ count: string }>(
+      `select count(*)::text as count from bakery.plugin_installs
+        where organization_id = $1`,
+      [fixture.organizationId],
+    );
+    assertEquals(rows.rows[0].count, "0");
+  }));
+
+Deno.test("a manifest asking for a capability the host does not grant fails activation", () =>
+  withPluginFixture(async (fixture, store) => {
+    // Published, because publishing stores the manifest; refused at activation,
+    // because that is when it would become authority.
+    const published = await publishInstallable(fixture, store, {
+      ...VALID_MANIFEST,
+      requestedCapabilities: ["secrets.read"],
+    });
+    const refused = await call(fixture, "/v1/plugin-installs", {
+      method: "POST",
+      body: {
+        packageId: published.packageId,
+        versionId: published.versionId,
+        scope: "organization",
+      },
+    });
+    assertEquals(refused.status, 409, await refused.clone().text());
+    assertEquals(
+      (await refused.json()).code,
+      "STATE_CONFLICT",
+    );
+  }));
+
+Deno.test("shared state is written once by CAS and a stale write is refused", () =>
+  withPluginFixture(async (fixture, store) => {
+    const published = await publishInstallable(fixture, store);
+    const install = await (await call(fixture, "/v1/plugin-installs", {
+      method: "POST",
+      body: {
+        packageId: published.packageId,
+        versionId: published.versionId,
+        scope: "organization",
+      },
+    })).json();
+
+    const first = await call(
+      fixture,
+      `/v1/plugin-installs/${install.id}/state/settings/theme`,
+      {
+        method: "PUT",
+        body: {
+          namespace: "settings",
+          key: "theme",
+          schemaVersion: 1,
+          value: { theme: "dark" },
+          expectedCasVersion: 0,
+        },
+      },
+    );
+    assertEquals(first.status, 200, await first.clone().text());
+    const written = await first.json();
+    assertEquals(written.casVersion, 1);
+
+    // A second writer that still believes version 0 must not overwrite the
+    // first writer's value: that is the lost update the CAS exists to stop.
+    const stale = await call(
+      fixture,
+      `/v1/plugin-installs/${install.id}/state/settings/theme`,
+      {
+        method: "PUT",
+        body: {
+          namespace: "settings",
+          key: "theme",
+          schemaVersion: 1,
+          value: { theme: "light" },
+          expectedCasVersion: 0,
+        },
+      },
+    );
+    assertEquals(stale.status, 409, await stale.clone().text());
+
+    const stored = await fixture.pgDatabase.query<
+      { value: { theme: string }; cas_version: number }
+    >(
+      `select value, cas_version from bakery.plugin_state
+        where organization_id = $1 and plugin_install_id = $2`,
+      [fixture.organizationId, install.id],
+    );
+    assertEquals(stored.rows.length, 1);
+    assertEquals(stored.rows[0].value.theme, "dark");
+    assertEquals(stored.rows[0].cas_version, 1);
+  }));
+
+Deno.test("state under a namespace the manifest did not declare is refused", () =>
+  withPluginFixture(async (fixture, store) => {
+    const published = await publishInstallable(fixture, store);
+    const install = await (await call(fixture, "/v1/plugin-installs", {
+      method: "POST",
+      body: {
+        packageId: published.packageId,
+        versionId: published.versionId,
+        scope: "organization",
+      },
+    })).json();
+
+    // Without this refusal the state table is an unbounded key-value store under
+    // names nobody reviewed.
+    const refused = await call(
+      fixture,
+      `/v1/plugin-installs/${install.id}/state/undeclared/theme`,
+      {
+        method: "PUT",
+        body: {
+          namespace: "undeclared",
+          key: "theme",
+          schemaVersion: 1,
+          value: { theme: "dark" },
+          expectedCasVersion: 0,
+        },
+      },
+    );
+    assertEquals(refused.status, 422, await refused.clone().text());
+  }));
+
+Deno.test("disabling revokes the grants in the same write and refuses later state", () =>
+  withPluginFixture(async (fixture, store) => {
+    const published = await publishInstallable(fixture, store);
+    const install = await (await call(fixture, "/v1/plugin-installs", {
+      method: "POST",
+      body: {
+        packageId: published.packageId,
+        versionId: published.versionId,
+        scope: "organization",
+      },
+    })).json();
+
+    const grants = () =>
+      fixture.pgDatabase.query<{ count: string }>(
+        `select count(*)::text as count from bakery.plugin_install_grants
+          where organization_id = $1 and plugin_install_id = $2`,
+        [fixture.organizationId, install.id],
+      );
+    // The install's authority is the manifest's, written at install time.
+    assertEquals((await grants()).rows[0].count, "2");
+
+    const disabled = await call(fixture, `/v1/plugin-installs/${install.id}`, {
+      method: "PATCH",
+      body: { status: "disabled" },
+    });
+    assertEquals(disabled.status, 200, await disabled.clone().text());
+    assertEquals((await disabled.json()).status, "disabled");
+    // AC3: authority stops with the lifecycle change, not at the next sweep.
+    assertEquals((await grants()).rows[0].count, "0");
+
+    const write = await call(
+      fixture,
+      `/v1/plugin-installs/${install.id}/state/settings/theme`,
+      {
+        method: "PUT",
+        body: {
+          namespace: "settings",
+          key: "theme",
+          schemaVersion: 1,
+          value: { theme: "dark" },
+          expectedCasVersion: 0,
+        },
+      },
+    );
+    assertEquals(write.status, 409, await write.clone().text());
+  }));
+
+Deno.test("a personal install's state is invisible to a colleague", () =>
+  withPluginFixture(async (fixture, store) => {
+    const published = await publishInstallable(fixture, store);
+    const colleagueCookie = await inviteColleague(fixture, "developer");
+    const colleague = asCookie(fixture, colleagueCookie);
+
+    const mine = await (await call(fixture, "/v1/plugin-installs", {
+      method: "POST",
+      body: {
+        packageId: published.packageId,
+        versionId: published.versionId,
+        scope: "personal",
+      },
+    })).json();
+    const wrote = await call(
+      fixture,
+      `/v1/plugin-installs/${mine.id}/state/settings/theme`,
+      {
+        method: "PUT",
+        body: {
+          namespace: "settings",
+          key: "theme",
+          schemaVersion: 1,
+          value: { theme: "dark" },
+          expectedCasVersion: 0,
+        },
+      },
+    );
+    assertEquals(wrote.status, 200, await wrote.clone().text());
+
+    // The colleague cannot see the install, so they learn nothing about the
+    // state either: not-found rather than forbidden, so the answer carries no
+    // information about whether the row exists.
+    const peek = await colleague(`/v1/plugin-installs/${mine.id}/state`, {
+      method: "GET",
+    });
+    assertEquals(peek.status, 404, await peek.clone().text());
+    const peekInstall = await colleague(`/v1/plugin-installs/${mine.id}`, {
+      method: "GET",
+    });
+    assertEquals(peekInstall.status, 404, await peekInstall.clone().text());
+
+    // My own read still works, and it is my row.
+    const own = await call(fixture, `/v1/plugin-installs/${mine.id}/state`, {
+      method: "GET",
+    });
+    assertEquals(own.status, 200, await own.clone().text());
+    const page = await own.json();
+    assertEquals(page.items.length, 1);
+    assertEquals(page.items[0].value.theme, "dark");
+  }));
