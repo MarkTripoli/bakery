@@ -4,12 +4,15 @@ import type { AgentSessionPageResponse } from "../api/client.ts";
 import { useBakeryApi } from "../api/context.tsx";
 import { createSseParser } from "../api/session-feed-sse.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
-import type { SessionFeedItem } from "./session-thread-model.ts";
+import {
+  LIVE_SESSION_STATUSES as LIVE,
+  pickSession,
+  type SessionFeedItem,
+} from "./session-thread-model.ts";
 
 export type AgentSession = AgentSessionPageResponse["items"][number];
 
 /** Statuses of a session that is still doing something. */
-const LIVE = new Set(["starting", "active", "waiting"]);
 /** The reader asks again for a session's status this often while it runs. */
 const STATUS_POLL_MS = 10_000;
 /** History is read in pages of this size, at most this many pages. */
@@ -48,16 +51,6 @@ const bySequence = (a: SessionFeedItem, b: SessionFeedItem) => {
   const right = BigInt(b.sequence);
   return left < right ? -1 : left > right ? 1 : a.id.localeCompare(b.id);
 };
-
-/** The session a step's thread shows: the newest one still running, else the newest. */
-export function pickSession(
-  sessions: readonly AgentSession[],
-): AgentSession | null {
-  const newest = (list: readonly AgentSession[]) =>
-    [...list].sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0] ?? null;
-  return newest(sessions.filter((session) => LIVE.has(session.status))) ??
-    newest(sessions);
-}
 
 /**
  * Everything the thread needs for one run step: which session it was, the

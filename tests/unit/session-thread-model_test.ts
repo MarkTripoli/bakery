@@ -4,8 +4,11 @@ import {
   formatUsage,
   MAX_STEP_LINES,
   opensByDefault,
+  pickSession,
+  relativeTime,
   type SessionFeedItem,
   splitPath,
+  summarizeNow,
 } from "../../apps/web/src/pages/session-thread-model.ts";
 
 // #405: the grouping rules of the agent thread, as plain functions.
@@ -220,4 +223,62 @@ Deno.test("usage is formatted with the reader's number and currency rules", () =
   });
   assertEquals(formatUsage("de-DE", usage).inputTokens, "1.240");
   assertEquals(MAX_STEP_LINES, 30);
+});
+
+Deno.test("a step's thread shows the newest live session, else the newest", () => {
+  const old = {
+    id: "a",
+    status: "finished",
+    createdAt: "2026-01-01T00:00:00.000Z",
+  };
+  const newer = {
+    id: "b",
+    status: "finished",
+    createdAt: "2026-01-02T00:00:00.000Z",
+  };
+  const live = {
+    id: "c",
+    status: "active",
+    createdAt: "2026-01-01T12:00:00.000Z",
+  };
+  assertEquals(pickSession([old, newer])?.id, "b");
+  assertEquals(pickSession([old, live, newer])?.id, "c");
+  assertEquals(pickSession([]), null);
+});
+
+Deno.test("the now line follows the status, naming the running tool and the reason", () => {
+  const running = buildSessionThread([
+    said(1, "agent"),
+    tool(2, "c1", "completed"),
+    tool(3, "c2", "started"),
+  ]);
+  assertEquals(summarizeNow("starting", running), { kind: "waiting" });
+  assertEquals(summarizeNow("active", running), {
+    kind: "working",
+    toolName: "run_tests",
+    since: "2026-11-18T10:03:00.000Z",
+  });
+  assertEquals(summarizeNow("active", buildSessionThread([said(1, "agent")])), {
+    kind: "working",
+  });
+  const failed = buildSessionThread([
+    said(1, "agent"),
+    status(2, "failed", "key expired"),
+  ]);
+  assertEquals(summarizeNow("failed", failed), {
+    kind: "failed",
+    reason: "key expired",
+  });
+  // Finished, interrupted and a status the client does not know say nothing.
+  for (const unknown of ["finished", "interrupted", "waiting", "invented"]) {
+    assertEquals(summarizeNow(unknown, running), { kind: "idle" });
+  }
+});
+
+Deno.test("times are short, relative and carry the exact instant", () => {
+  const now = new Date("2026-11-18T12:00:00.000Z");
+  const fifteen = relativeTime("2026-11-18T11:45:00.000Z", "en-US", now);
+  assertEquals(fifteen.exact, "2026-11-18T11:45:00.000Z");
+  assertEquals(fifteen.label.includes("15"), true);
+  assertEquals(relativeTime("not a time", "en-US", now).label, "not a time");
 });

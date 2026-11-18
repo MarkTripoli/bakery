@@ -6,12 +6,11 @@ import { SessionNow, type SessionNowState } from "./session-now.tsx";
 import { SessionThread } from "./session-thread.tsx";
 import {
   buildSessionThread,
+  LIVE_SESSION_STATUSES as LIVE,
   relativeTime,
   summarizeNow,
 } from "./session-thread-model.ts";
 import type { SessionThreadSource } from "./useSessionThread.ts";
-
-const LIVE = new Set(["starting", "active", "waiting"]);
 
 /**
  * One run step's agent session: the thread when the step has one, with the

@@ -379,3 +379,22 @@ export function summarizeNow(
       return { kind: "idle" };
   }
 }
+
+/** Statuses of a session that is still doing something. */
+export const LIVE_SESSION_STATUSES: ReadonlySet<string> = new Set([
+  "starting",
+  "active",
+  "waiting",
+]);
+
+/** The session a step's thread shows: the newest one still running, else the newest. */
+export function pickSession<
+  Session extends { status: string; createdAt: string },
+>(sessions: readonly Session[]): Session | null {
+  const newest = (list: readonly Session[]) =>
+    [...list].sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0] ?? null;
+  return newest(
+    sessions.filter((session) => LIVE_SESSION_STATUSES.has(session.status)),
+  ) ??
+    newest(sessions);
+}
