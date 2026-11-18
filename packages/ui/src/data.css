@@ -342,6 +342,9 @@
   border-collapse: collapse;
   inline-size: 100%;
 }
+.ui-data-table td time {
+  font-variant-numeric: tabular-nums;
+}
 .ui-data-table caption {
   text-align: start;
 }

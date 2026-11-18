@@ -114,6 +114,7 @@ for (
         .toBeVisible();
       await expect(eventText(page, "Password changed"))
         .toBeVisible();
+      await shot(page, "installation-audit");
       await page.getByRole("button", { name: "Load older events" }).click();
       await expect(
         eventText(page, "Installation administrator added"),
@@ -356,6 +357,16 @@ test.describe("organization audit log", () => {
       "button",
     ).first().click();
     const detail = page.getByTestId("audit-event-detail");
+    // The sheet is titled by the action, shows the outcome as the row's badge
+    // and keeps identifiers in a muted code line.
+    await expect(page.getByRole("dialog", { name: "Member changed" }))
+      .toBeVisible();
+    await expect(detail.locator('[data-ui-component="badge"]')).toHaveAttribute(
+      "data-variant",
+      "danger",
+    );
+    await expect(detail.locator('[data-ui-component="dataText"]').first())
+      .toContainText("00000000-0000-4000-8000-0000000000a1");
     await expect(detail).toContainText("Ada Rivera");
     await expect(detail).toContainText("Member · Release bot");
     await expect(detail).toContainText("Failed");
@@ -405,6 +416,44 @@ test.describe("organization audit log", () => {
       .toBeFocused();
   });
 
+  test("Export is the page action and retention is a quiet section below the log", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await organizationAuditFixture(page, { items: [orgRow(3)] });
+    await page.goto("/settings/audit");
+    await expect(
+      page.locator(".ui-access-settings__header").getByRole("button", {
+        name: "Export",
+      }),
+    ).toBeVisible();
+    const retention = page.getByTestId("audit-retention");
+    await expect(retention.getByRole("heading", { name: "Retention" }))
+      .toBeVisible();
+    await expect(
+      retention.getByText(
+        "Older events are deleted automatically. Events still needed as release evidence are kept.",
+      ),
+    ).toBeVisible();
+    // The log comes first, retention after it.
+    const log = await page.locator('[data-paged-list="audit"]').boundingBox();
+    const section = await retention.boundingBox();
+    expect(section!.y).toBeGreaterThan(log!.y);
+    await expect(page.locator(".ui-button--primary:visible")).toHaveCount(1);
+    await expect(eventRow(page, "Ada Rivera").first()).toContainText(
+      "Member · Release bot",
+    );
+    await shot(page, "audit-retention");
+  });
+
+  test("the audit action filter says token", async ({ page }) => {
+    await organizationAuditFixture(page, { items: [orgRow(3)] });
+    await page.goto("/settings/audit");
+    await expect(
+      page.getByLabel("Action").locator("option", {
+        hasText: "SCIM token rotated",
+      }),
+    ).toHaveCount(1);
+  });
+
   test("the retention period is explained beside the Period filter", async ({ page }) => {
     await organizationAuditFixture(page, {
       items: [orgRow(3)],
@@ -413,6 +462,7 @@ test.describe("organization audit log", () => {
     await page.goto("/settings/audit");
     await page.getByRole("button", { name: "About the period" }).focus();
     await expect(page.getByText("Events are kept for 90 days.")).toBeVisible();
+    await shot(page, "audit-retention-help");
   });
 });
 
@@ -425,8 +475,12 @@ test.describe("organization audit export and retention", () => {
     await page.getByRole("button", { name: "Download JSON Lines" }).click();
     expect((await download).suggestedFilename()).toBe("audit-events.jsonl");
     expect(state.exportQuery).toContain("since=");
-    await page.getByLabel("Keep audit events for").selectOption("90");
-    await page.getByRole("button", { name: "Save retention" }).click();
+    // Save waits for a change; the page has one primary action, Export.
+    const save = page.getByRole("button", { name: "Save", exact: true });
+    await expect(save).toBeDisabled();
+    await page.getByLabel("Keep events for").selectOption("90");
+    await expect(save).toBeEnabled();
+    await save.click();
     await expect(page.getByText("Retention saved.")).toBeVisible();
     expect(state.retentionDays).toBe(90);
   });
