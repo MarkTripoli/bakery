@@ -56,15 +56,27 @@ export type Job = {
 };
 
 /**
+ * The signal's own job, as `ci.yml` names it. It is reading the run while it is
+ * itself running, so its conclusion has not arrived, and "a conclusion that
+ * never arrived counts as failing" would list it. That put the signal in its own
+ * tracking issue and, worse, left every green run with one job that can never
+ * succeed, so the issue could never close. A rail test pins the name to the
+ * workflow.
+ */
+export const SIGNAL_JOB_NAME = "nightly / red signal";
+
+/**
  * A job counts as failing when it neither succeeded nor was skipped. Anything
  * else - failure, cancelled, timed out, action_required, a conclusion that never
- * arrived - is a red the tracking issue must carry. Sorted and unique so two
- * runs that fail the same way produce a byte-identical body.
+ * arrived - is a red the tracking issue must carry. The signal's own job is not
+ * a red of the run it reports on. Sorted and unique so two runs that fail the
+ * same way produce a byte-identical body.
  */
 export function failingJobs(jobs: readonly Job[]): readonly string[] {
   const failing = jobs
     .filter((job) =>
-      job.conclusion !== "success" && job.conclusion !== "skipped"
+      job.name !== SIGNAL_JOB_NAME && job.conclusion !== "success" &&
+      job.conclusion !== "skipped"
     )
     .map((job) => job.name);
   return [...new Set(failing)].sort();
@@ -73,6 +85,11 @@ export function failingJobs(jobs: readonly Job[]): readonly string[] {
 /**
  * The issue body: when, which jobs, and the run that said so. Short on purpose -
  * the run link is the evidence, the body points at it.
+ *
+ * It is a work item, not a note: the description check validates the issue a
+ * pull request links, so a body without the work-item sections made every PR
+ * that fixed a red lane fail that check. The sections are the template's, in its
+ * order, and the checklist is what a fixer actually has to do.
  */
 export function redBody(
   failing: readonly string[],
@@ -82,12 +99,45 @@ export function redBody(
 ): string {
   const stamp = now.toISOString().replace(/\.\d{3}Z$/, "Z");
   return [
-    `The ${trigger} run on ${stamp} failed.`,
+    "### Description",
     "",
-    "Failing jobs:",
-    ...failing.map((job) => `- \`${job}\``),
+    `The ${trigger} CI run on ${stamp} failed (run ${runUrl}). Outcome: the failing lanes are green again, or each red lane is fixed by a PR that links this issue. Out of scope: lanes that are green.`,
     "",
-    `Run: ${runUrl}`,
+    `Failing jobs: ${failing.map((job) => `\`${job}\``).join(", ")}.`,
+    "",
+    "### Execution classification",
+    "",
+    "AFK",
+    "",
+    "### Dependencies",
+    "",
+    "None",
+    "",
+    "### Checklist",
+    "",
+    "- [ ] Each failing lane is attributed to a cause (test, product or environment).",
+    "- [ ] Each product or test cause is fixed in a PR that links this issue.",
+    "- [ ] A later run is green on those lanes.",
+    "",
+    "### Technical details",
+    "",
+    "Lanes are defined in .github/workflows/ci.yml; the nightly signal (scripts/ci/nightly-signal.ts) opens this issue on a red run and closes it on a green one.",
+    "",
+    "### Acceptance criteria",
+    "",
+    "1. Given the next run after the fixes, when it completes, then every job listed above concludes success.",
+    "",
+    "### Design and UX",
+    "",
+    "Not applicable: CI only, no visible UI.",
+    "",
+    "### Verification and closure",
+    "",
+    "Closes when a run is green on the listed lanes; the signal closes it with a link to that run.",
+    "",
+    "### Sources",
+    "",
+    "The failing run linked above.",
   ].join("\n");
 }
 
@@ -188,22 +238,53 @@ export function jobsFromPages(pages: unknown): readonly Job[] {
   );
 }
 
+/** What running `gh` once returns; the part of a process result the runner reads. */
+export type GhResult = {
+  readonly success: boolean;
+  readonly stdout: Uint8Array;
+  readonly stderr: Uint8Array;
+};
+
+/**
+ * Runs `gh` with these arguments and this token. A seam, not a convenience: the
+ * unit lane grants no `--allow-run=gh`, so a test that spawned `gh` could not
+ * run where the signal is tested. The lane's permission is not widened to fit a
+ * test; the runner takes the spawn as a parameter and a test hands it a stand-in.
+ */
+export type GhSpawn = (
+  args: readonly string[],
+  token: string,
+) => Promise<GhResult>;
+
+const spawnGh: GhSpawn = async (args, token) => {
+  const result = await new Deno.Command("gh", {
+    args: [...args],
+    env: { ...Deno.env.toObject(), GH_TOKEN: token },
+    stdout: "piped",
+    stderr: "piped",
+  }).output();
+  return {
+    success: result.success,
+    stdout: result.stdout,
+    stderr: result.stderr,
+  };
+};
+
 /**
  * The real `gh`, over the API. Kept in this file so it is easy to see the whole
  * surface the signal touches: two reads and four writes, nothing else.
  */
-export function ghRunner(repo: string, token: string): GhRunner {
+export function ghRunner(
+  repo: string,
+  token: string,
+  spawn: GhSpawn = spawnGh,
+): GhRunner {
   const api = async (args: readonly string[]): Promise<unknown> => {
     // `gh api` takes the repository in its path and has no `--repo` flag, so
     // appending one made every job read fail on the flag rather than on the
     // token. The `issue` subcommands are the ones that take `--repo`.
     const scoped = args[0] === "api" ? args : [...args, "--repo", repo];
-    const result = await new Deno.Command("gh", {
-      args: [...scoped],
-      env: { ...Deno.env.toObject(), GH_TOKEN: token },
-      stdout: "piped",
-      stderr: "piped",
-    }).output();
+    const result = await spawn(scoped, token);
     if (!result.success) {
       throw new Error(
         `gh ${args.join(" ")}: ${
