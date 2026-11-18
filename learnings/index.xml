@@ -155,4 +155,6 @@
   <entry file="three-checks-that-answer-a-different-question.xml" scope="process" />
   <entry file="count-against-both-parents-before-unioning-a-conflict.xml" scope="process" />
   <entry file="a-pr-reference-is-not-a-work-item.xml" scope="process" />
+  <entry file="the-thing-exists-and-nothing-calls-it.xml" scope="project" />
+  <entry file="wiring-needs-a-request.xml" scope="project" />
 </learnings>
