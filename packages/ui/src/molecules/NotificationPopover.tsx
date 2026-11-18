@@ -16,7 +16,13 @@ export type NotificationPopoverProps = {
   readonly viewAllLabel: string;
   /** Said in the body when there is nothing to list. */
   readonly footerNote?: string;
-  readonly state?: "ready" | "loading" | "empty" | "failed";
+  /**
+   * What the panel shows. "scrolling" is a ready list long enough to scroll
+   * under the block cap; the caller names it because the panel cannot tell
+   * from its children alone. A ready panel whose action is disabled reports
+   * itself as "nothing-unread".
+   */
+  readonly state?: "ready" | "loading" | "empty" | "failed" | "scrolling";
   readonly onRetry?: () => void;
   readonly retryLabel?: string;
   readonly failedLabel?: string;
@@ -55,7 +61,9 @@ export function NotificationPopover(
   return (
     <div
       className="ui-notification-popover"
-      data-state={state}
+      data-state={state === "ready" && markAllReadDisabled
+        ? "nothing-unread"
+        : state}
       data-ui-component="notificationPopover"
       data-variant="default"
     >
