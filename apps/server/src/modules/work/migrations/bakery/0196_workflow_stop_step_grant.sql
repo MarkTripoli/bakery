@@ -15,8 +15,13 @@
 --
 -- Column-level, matching the existing grant: a stop sets the outcome, the
 -- reason it ended, and the fact that it finished. It does not get to rewrite a
--- run's other columns, and it must not touch status on its own, because status
--- is decided by the outcome it produced.
+-- run's other columns.
+--
+-- `status` is not granted here and does not need to be: 0024 already grants
+-- `bakery_app` update on that column, and the outcome writer uses that existing
+-- grant. A stop ends a run as `canceled` rather than `succeeded`, so the status
+-- comes from the same statement that records the named ending, never from a
+-- separate write that could disagree with it.
 grant update (outcome, outcome_reason, finished_at, updated_at, version)
   on bakery.workflow_runs
   to bakery_app;
