@@ -114,6 +114,72 @@ Deno.test("a reader without artifact version read sees no_access and no source i
   }
 });
 
+/** The invariant, both directions: null id exactly when no_access. */
+function assertIdInvariant(
+  items: { sourceState: string; sourceArtifactVersionId: string | null }[],
+) {
+  assert(items.length > 0);
+  for (const item of items) {
+    if (item.sourceState === "no_access") {
+      assertEquals(item.sourceArtifactVersionId, null, JSON.stringify(item));
+    } else {
+      assert(item.sourceArtifactVersionId !== null, JSON.stringify(item));
+    }
+  }
+}
+
+Deno.test("a revision list with mixed states names the id exactly when the state is not no_access", async () => {
+  const seeded = await seed();
+  try {
+    const created = await promote(seeded, "mixed states");
+    // A second version of the same artifact, cited by a correction, then the
+    // first version purged: one page now holds a deleted and an available row.
+    const second = crypto.randomUUID();
+    const [author] = await seeded.fixture.owner<{ author_id: string }[]>`
+      select author_id from bakery.artifact_versions where id = ${seeded.artifactVersionId}`;
+    await seeded.fixture
+      .owner`insert into bakery.artifact_versions (id, organization_id, artifact_id, task_id, author_id, revision, metadata, content, sha256, size_bytes, media_type)
+      values (${second}, ${seeded.organizationId}, ${seeded.artifactId}, ${seeded.taskId}, ${author.author_id}, 2, '{}'::jsonb, ${new Uint8Array(
+      [2],
+    )}, ${"b".repeat(64)}, 1, 'text/plain')`;
+    const corrected = await as(
+      seeded,
+      admin(seeded),
+      "POST",
+      `/v1/memories/${created.id}/revisions`,
+      {
+        content: "Corrected from the second version.",
+        reason: "newer evidence",
+        sourceArtifactVersionId: second,
+      },
+    );
+    assertEquals(corrected.status, 201, await corrected.clone().text());
+    await seeded.fixture.owner`update bakery.artifact_versions
+      set content = null, blob_id = null, purged_at = now(), purge_policy = 'test'
+      where id = ${seeded.artifactVersionId}`;
+
+    const owner = await readBoth(seeded, admin(seeded), created.id);
+    assertEquals(
+      owner.revisions.items.map((item: { sourceState: string }) =>
+        item.sourceState
+      ).sort(),
+      ["available", "deleted"],
+    );
+    assertIdInvariant(owner.revisions.items);
+
+    const reader = await readBoth(seeded, memoryOnlyReader(seeded), created.id);
+    assertEquals(
+      reader.revisions.items.map((item: { sourceState: string }) =>
+        item.sourceState
+      ),
+      ["no_access", "no_access"],
+    );
+    assertIdInvariant(reader.revisions.items);
+  } finally {
+    await close(seeded);
+  }
+});
+
 Deno.test("a source that is neither purged nor holding bytes reads as unknown", async () => {
   const seeded = await seed();
   try {
@@ -128,6 +194,7 @@ Deno.test("a source that is neither purged nor holding bytes reads as unknown", 
     );
     assertEquals(entry.sourceState, "unknown");
     assertEquals(revisions.items[0].sourceState, "unknown");
+    assertIdInvariant(revisions.items);
   } finally {
     await close(seeded);
   }

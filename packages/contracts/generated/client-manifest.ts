@@ -33488,7 +33488,7 @@ export const clientManifest = {
                     "type": "string",
                     "format": "uuid",
                     "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                    "description": "Artifact version whose evidence justifies this revision; null exactly when sourceState is no_access, so a reader who cannot read artifact versions is never shown the id."
+                    "description": "Artifact version whose evidence justifies this revision. Invariant: sourceArtifactVersionId is null if and only if sourceState is no_access, so a reader who cannot read artifact versions is never shown the id and every other state names it."
                   },
                   {
                     "type": "null",
@@ -33505,7 +33505,7 @@ export const clientManifest = {
                   "no_access",
                   "unknown"
                 ],
-                "description": "Whether the cited artifact version is available, deleted (its content was purged), not readable by this reader (no_access) or unknown, judged against the reader's live access at read time rather than at write time."
+                "description": "Whether the cited artifact version is available, deleted (its content was purged), not readable by this reader (no_access) or unknown, judged against the reader's live access at read time rather than at write time. sourceArtifactVersionId is null if and only if sourceState is no_access."
               },
               "supersedesId": {
                 "anyOf": [
@@ -33583,7 +33583,7 @@ export const clientManifest = {
               "version"
             ],
             "additionalProperties": false,
-            "description": "One versioned, confidence-scored statement belonging to a memory entry, created by memoryRevisions.create; confidence reflects model judgment rather than verified fact, and a revision can supersede an earlier one or carry its own expiry after which it stops being offered as active context."
+            "description": "One versioned, confidence-scored statement belonging to a memory entry, created by memoryRevisions.create; confidence reflects model judgment rather than verified fact, and a revision can supersede an earlier one or carry its own expiry after which it stops being offered as active context. sourceArtifactVersionId is null if and only if sourceState is no_access."
           },
           "description": "Page<MemoryRevision>.items must contain at most 100 items."
         },
@@ -50263,7 +50263,7 @@ export const clientManifest = {
               "type": "string",
               "format": "uuid",
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "Artifact version whose evidence justifies this revision; null exactly when sourceState is no_access, so a reader who cannot read artifact versions is never shown the id."
+              "description": "Artifact version whose evidence justifies this revision. Invariant: sourceArtifactVersionId is null if and only if sourceState is no_access, so a reader who cannot read artifact versions is never shown the id and every other state names it."
             },
             {
               "type": "null",
@@ -50280,7 +50280,7 @@ export const clientManifest = {
             "no_access",
             "unknown"
           ],
-          "description": "Whether the cited artifact version is available, deleted (its content was purged), not readable by this reader (no_access) or unknown, judged against the reader's live access at read time rather than at write time."
+          "description": "Whether the cited artifact version is available, deleted (its content was purged), not readable by this reader (no_access) or unknown, judged against the reader's live access at read time rather than at write time. sourceArtifactVersionId is null if and only if sourceState is no_access."
         },
         "supersedesId": {
           "anyOf": [
@@ -50358,7 +50358,7 @@ export const clientManifest = {
         "version"
       ],
       "additionalProperties": false,
-      "description": "One versioned, confidence-scored statement belonging to a memory entry, created by memoryRevisions.create; confidence reflects model judgment rather than verified fact, and a revision can supersede an earlier one or carry its own expiry after which it stops being offered as active context."
+      "description": "One versioned, confidence-scored statement belonging to a memory entry, created by memoryRevisions.create; confidence reflects model judgment rather than verified fact, and a revision can supersede an earlier one or carry its own expiry after which it stops being offered as active context. sourceArtifactVersionId is null if and only if sourceState is no_access."
     },
     "WorkerHost": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

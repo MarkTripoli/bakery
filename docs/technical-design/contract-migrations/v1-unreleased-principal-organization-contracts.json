@@ -5,7 +5,7 @@
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:cc86ce9eb162c161bd3fc919977ba8c13e8b802af41c9ee12f6ead21b77d435a",
+  "targetCompatibilityDigest": "sha256:a5c48e7e223f483cd1ad690ffccf77d1ae9b97ac4ae58d3f2c91e09b11a71e08",
   "reason": "#72 reader-relative memory source state re-bind by dev-server on 2026-11-18 under the owner's standing breaking-change authorization (2026-10-09), main 8dfd1ab55b5830c801d07ec7cda914c3f9c756b2: MemoryEntry and MemoryRevision gain a required sourceState (available|deleted|no_access|unknown) judged against the reader at read time, and MemoryRevision.sourceArtifactVersionId becomes uuid|null because it is withheld exactly when the reader cannot read artifact versions (no_access), matching the artifact reads, which answer a denied read as not found. The event catalog gains memory.source_changed, a content-free invalidation emitted when a cited artifact version's content is purged. The drift is that one field becoming nullable; the approval it displaced at sha256:622f0d8afe0eec3d53230a4b5ffe7b365ef882e20baf3832dc82ba93e1921077 is preserved unchanged first below.",
   "priorApprovals": [
     {

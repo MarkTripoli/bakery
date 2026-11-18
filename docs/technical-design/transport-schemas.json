@@ -20179,14 +20179,14 @@
         "reason",
         "sourceArtifactVersionId"
       ],
-      "description": "One versioned, confidence-scored statement belonging to a memory entry, created by memoryRevisions.create; confidence reflects model judgment rather than verified fact, and a revision can supersede an earlier one or carry its own expiry after which it stops being offered as active context.",
+      "description": "One versioned, confidence-scored statement belonging to a memory entry, created by memoryRevisions.create; confidence reflects model judgment rather than verified fact, and a revision can supersede an earlier one or carry its own expiry after which it stops being offered as active context. sourceArtifactVersionId is null if and only if sourceState is no_access.",
       "fieldDescriptions": {
         "id": "Stable UUID identifying the memory revision record.",
         "memoryId": "Stable UUID linking this record to the related memory entity.",
         "revision": "Monotonic revision number used to order updates to the record.",
         "body": "User-visible body content carried by the record.",
-        "sourceArtifactVersionId": "Artifact version whose evidence justifies this revision; null exactly when sourceState is no_access, so a reader who cannot read artifact versions is never shown the id.",
-        "sourceState": "Whether the cited artifact version is available, deleted (its content was purged), not readable by this reader (no_access) or unknown, judged against the reader's live access at read time rather than at write time.",
+        "sourceArtifactVersionId": "Artifact version whose evidence justifies this revision. Invariant: sourceArtifactVersionId is null if and only if sourceState is no_access, so a reader who cannot read artifact versions is never shown the id and every other state names it.",
+        "sourceState": "Whether the cited artifact version is available, deleted (its content was purged), not readable by this reader (no_access) or unknown, judged against the reader's live access at read time rather than at write time. sourceArtifactVersionId is null if and only if sourceState is no_access.",
         "supersedesId": "Stable UUID linking this record to the related supersedes entity.",
         "confidence": "Confidence assigned to the revision.",
         "expiresAt": "UTC timestamp when the record expires.",
