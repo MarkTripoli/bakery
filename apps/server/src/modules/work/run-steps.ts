@@ -11,6 +11,11 @@ import {
 import { DELIVERY_STEP_OUTPUT_REFERENCES } from "@bakery/contracts/workflow-presets";
 import { isAgentVersionSelector } from "@bakery/persistence";
 import type { ReviewLoopLimits } from "@bakery/persistence/repository-admission";
+import {
+  deriveWorkspaceRequirement,
+  WorkspaceDeclarationError,
+  type WorkspaceRequirement,
+} from "@bakery/contracts/scope-profiles";
 
 export type FixedWorkflowStep = {
   key: string;
@@ -99,56 +104,11 @@ function inputReferencesRepository(
   );
 }
 
-function inspectParallel(
-  parallel: RecordValue,
-  path: readonly (string | number)[],
-): boolean {
-  const branches = parallel.branches;
-  if (!Array.isArray(branches) || branches.length === 0) {
-    throw invalidWorkflowVersion();
+function assertStepSequence(value: unknown): void {
+  if (!Array.isArray(value)) throw invalidWorkflowVersion();
+  for (const step of value) {
+    if (!isRecord(step)) throw invalidWorkflowVersion();
   }
-  let repositoryRequired = Object.hasOwn(parallel, "repository") ||
-    Object.hasOwn(parallel, "repositoryId") ||
-    inputReferencesRepository(parallel.with) ||
-    inputReferencesRepository(parallel.input);
-  for (const [index, lane] of branches.entries()) {
-    const lanePath = [...path, "branches", index];
-    if (!isRecord(lane)) {
-      throw invalidWorkflowVersion();
-    }
-    if (
-      Object.hasOwn(lane, "repository") ||
-      Object.hasOwn(lane, "repositoryId") ||
-      inputReferencesRepository(lane.with) ||
-      inputReferencesRepository(lane.input)
-    ) {
-      repositoryRequired = true;
-    }
-    if (inspectNodeSequence(lane.steps, [...lanePath, "steps"])) {
-      repositoryRequired = true;
-    }
-  }
-  return repositoryRequired;
-}
-
-function inspectNodeSequence(
-  value: unknown,
-  path: readonly (string | number)[],
-): boolean {
-  if (!Array.isArray(value)) {
-    throw invalidWorkflowVersion();
-  }
-  let repositoryRequired = false;
-  for (const [index, step] of value.entries()) {
-    const stepPath = [...path, index];
-    if (!isRecord(step)) {
-      throw invalidWorkflowVersion();
-    }
-    if (stepRequiresRepository(step, stepPath)) {
-      repositoryRequired = true;
-    }
-  }
-  return repositoryRequired;
 }
 
 /**
@@ -167,10 +127,7 @@ function typedSeedReferencesRepository(value: unknown): boolean {
   );
 }
 
-function repeatSeedRequiresRepository(
-  repeat: RecordValue,
-  path: readonly (string | number)[],
-): boolean {
+function repeatSeedNeedsRepository(repeat: RecordValue): boolean {
   if (!Object.hasOwn(repeat, "seed")) return false;
   if (!isRecord(repeat.seed)) {
     throw invalidWorkflowVersion();
@@ -182,26 +139,46 @@ function repeatSeedRequiresRepository(
   if (!Array.isArray(seed.steps) || seed.steps.length === 0) {
     throw invalidWorkflowVersion();
   }
+  assertStepSequence(seed.steps);
   if (!Object.hasOwn(seed, "outputs") || !isRecord(seed.outputs)) {
     throw invalidWorkflowVersion();
   }
-  let repositoryRequired = typedSeedReferencesRepository(seed);
-  if (
-    inspectNodeSequence(seed.steps, [...path, "repeat", "seed", "steps"])
-  ) {
-    repositoryRequired = true;
+  return typedSeedReferencesRepository(seed) ||
+    typedSeedReferencesRepository(seed.outputs);
+}
+
+function containerNamesRepository(value: RecordValue): boolean {
+  return Object.hasOwn(value, "repository") ||
+    Object.hasOwn(value, "repositoryId") ||
+    inputReferencesRepository(value.with) ||
+    inputReferencesRepository(value.input);
+}
+
+function parallelNeedsRepository(parallel: RecordValue): boolean {
+  const branches = parallel.branches;
+  if (!Array.isArray(branches) || branches.length === 0) {
+    throw invalidWorkflowVersion();
   }
-  if (typedSeedReferencesRepository(seed.outputs)) {
-    repositoryRequired = true;
+  let repositoryRequired = containerNamesRepository(parallel);
+  for (const lane of branches) {
+    if (!isRecord(lane)) {
+      throw invalidWorkflowVersion();
+    }
+    if (containerNamesRepository(lane)) repositoryRequired = true;
+    assertStepSequence(lane.steps);
   }
   return repositoryRequired;
 }
 
-function stepRequiresRepository(
-  value: unknown,
-  path: readonly (string | number)[],
-): boolean {
-  if (!isRecord(value)) return false;
+/**
+ * The software-delivery pack's answer for one step: true when its action
+ * declares the `git` capability, it requires `git`, names a repository, or
+ * reads a repository id from its inputs, a repeat seed or a parallel lane. It
+ * also refuses container shapes the producer would never emit. The kernel's
+ * `deriveWorkspaceRequirement` walks the nesting and calls this once per step,
+ * so admission has one derivation of what a run needs.
+ */
+function stepNeedsRepository(value: RecordValue): boolean {
   const registration = Object.entries(WORKFLOW_ACTION_METADATA).find(([name]) =>
     name === value.uses
   )?.[1];
@@ -225,89 +202,59 @@ function stepRequiresRepository(
   ) {
     repositoryRequired = true;
   }
-
   if (Object.hasOwn(value, "repeat")) {
     const repeat = value.repeat;
     if (!isRecord(repeat)) {
       throw invalidWorkflowVersion();
     }
-    if (repeatSeedRequiresRepository(repeat, path)) {
-      repositoryRequired = true;
-    }
-    if (
-      inspectNodeSequence(
-        repeat.steps,
-        [...path, "repeat", "steps"],
-      )
-    ) {
-      repositoryRequired = true;
-    }
+    if (repeatSeedNeedsRepository(repeat)) repositoryRequired = true;
+    assertStepSequence(repeat.steps);
   }
-
   if (Object.hasOwn(value, "parallel")) {
     const parallel = value.parallel;
     if (!isRecord(parallel)) {
       throw invalidWorkflowVersion();
     }
-    if (
-      inspectParallel(
-        parallel,
-        [...path, "parallel"],
-      )
-    ) {
-      repositoryRequired = true;
-    }
+    if (parallelNeedsRepository(parallel)) repositoryRequired = true;
   }
-
   if (Object.hasOwn(value, "branch")) {
     const branch = value.branch;
     if (!isRecord(branch)) {
       throw invalidWorkflowVersion();
     }
-    if (
-      inspectNodeSequence(
-        branch.then,
-        [...path, "branch", "then"],
-      )
-    ) {
-      repositoryRequired = true;
-    }
-    if (Object.hasOwn(branch, "else")) {
-      if (
-        inspectNodeSequence(
-          branch.else,
-          [...path, "branch", "else"],
-        )
-      ) {
-        repositoryRequired = true;
-      }
-    }
+    assertStepSequence(branch.then);
+    if (Object.hasOwn(branch, "else")) assertStepSequence(branch.else);
   }
-
-  if (Object.hasOwn(value, "steps")) {
-    if (inspectNodeSequence(value.steps, [...path, "steps"])) {
-      repositoryRequired = true;
-    }
-  }
+  if (Object.hasOwn(value, "steps")) assertStepSequence(value.steps);
   return repositoryRequired;
 }
 
-function inspectWorkflowRequirements(normalizedSpec: unknown): boolean {
+/**
+ * The workspaces a workflow version's steps need (O23), derived once for
+ * admission, automations and validation alike. A run whose steps need no
+ * repository runs without one.
+ */
+export function deriveRunWorkspaceRequirement(
+  normalizedSpec: unknown,
+): WorkspaceRequirement {
   if (!isRecord(normalizedSpec)) {
     throw invalidWorkflowVersion();
   }
-  if (!Array.isArray(normalizedSpec.steps)) return false;
-  let repositoryRequired = false;
-  for (const [index, step] of normalizedSpec.steps.entries()) {
-    if (stepRequiresRepository(step, ["steps", index])) {
-      repositoryRequired = true;
+  const steps = Array.isArray(normalizedSpec.steps) ? normalizedSpec.steps : [];
+  try {
+    return deriveWorkspaceRequirement(steps, {
+      stepRequiresWorkspace: stepNeedsRepository,
+    });
+  } catch (error) {
+    if (error instanceof WorkspaceDeclarationError) {
+      throw invalidWorkflowVersion(error);
     }
+    throw error;
   }
-  return repositoryRequired;
 }
 
 export function workflowRequiresRepository(normalizedSpec: unknown): boolean {
-  return inspectWorkflowRequirements(normalizedSpec);
+  return deriveRunWorkspaceRequirement(normalizedSpec).required;
 }
 
 /**
@@ -327,7 +274,7 @@ export function extractFixedWorkflowSteps(
   if (!isRecord(normalizedSpec)) {
     throw invalidWorkflowVersion();
   }
-  inspectWorkflowRequirements(normalizedSpec);
+  deriveRunWorkspaceRequirement(normalizedSpec);
   const workflow = normalizedSpec.workflow;
   if (workflow !== undefined && !isRecord(workflow)) {
     throw invalidWorkflowVersion();
