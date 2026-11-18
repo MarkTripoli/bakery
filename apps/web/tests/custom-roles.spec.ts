@@ -385,8 +385,10 @@ for (
       for (let index = 0; index < (await areas.count()); index += 1) {
         await expect(areas.nth(index)).toHaveAttribute("data-state", "closed");
       }
+      await shot(page, "custom-roles-form-closed");
       await access.locator("summary").click();
       await expect(access.getByLabel("principal:read")).toBeVisible();
+      await shot(page, "custom-roles-form-area-open");
       // The sentence and the key share one line.
       const label = access.locator("label").filter({
         hasText: "principal:read",
@@ -414,9 +416,6 @@ for (
         .click();
       await expect(panel.getByTestId("permission-area-automation"))
         .toContainText("what agents are allowed to use");
-      await shot(page, "custom-roles-form-closed");
-      await access.locator("summary").click();
-      await shot(page, "custom-roles-form-area-open");
     });
 
     test("saving with nothing chosen opens the areas; editing opens the ones with a choice", async ({ page }) => {
