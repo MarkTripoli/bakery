@@ -4029,6 +4029,8 @@
   "settings.roles.thing.integrationInstallation": "⟦ïñŧëĝŕàŧïôñ ïñšŧàļļàŧïôñš ŧëšŧ ç⟧",
   "settings.roles.thing.integrationProvider": "⟦ïñŧëĝŕàŧïôñ þŕôṽïðëŕš ŧëšŧŧ⟧",
   "settings.roles.thing.integrationResource": "⟦ïñŧëĝŕàŧïôñ ŕëšôûŕçëš ŧëšŧŧ⟧",
+  "settings.roles.thing.providerIncident": "⟦þŕôvïðëŕ ïñçïðëñŧš ŧëšŧŧ⟧",
+  "settings.roles.thing.providerRoute": "⟦þŕôvïðëŕ ŕôûŧëš ŧëšŧŧ⟧",
   "settings.roles.thing.integrationSubscription": "⟦ïñŧëĝŕàŧïôñ šûƀšçŕïþŧïôñš ŧëšŧ ç⟧",
   "settings.roles.thing.channelLink": "⟦çĥàññëļ ļïñķš ŧë⟧",
   "settings.roles.thing.externalIdentityLink": "⟦ļïñķëð ôûŧšïðë àççôûñŧš ŧëšŧ ç⟧",
