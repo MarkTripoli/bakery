@@ -1,8 +1,10 @@
 import { StandardError } from "@bakery/contracts/http";
 import {
+  mcpHostEligible,
   type McpInvocationDenial,
   type McpInvocationInput,
   McpInvocationInputSchema,
+  type McpTransport,
 } from "@bakery/contracts/mcp-capabilities";
 import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
 
@@ -49,6 +51,12 @@ export type McpPinnedState = Readonly<{
   grantLive: boolean;
   /** Names in `enabled_capabilities`: what an operator actually permitted. */
   enabledCapabilities: readonly string[];
+  /** The connection's transport: `stdio` is not portable across hosts. */
+  transport: McpTransport;
+  /** The worker host a `stdio` connection is bound to, if any. */
+  workerHostId: string | null;
+  /** Operations the caller's binding admits; empty admits nothing. */
+  allowedOperations: readonly string[];
 }>;
 
 /** Reads the pinned state for one invocation. Server-side; never caller-supplied. */
@@ -79,6 +87,13 @@ export type McpInvokeInput =
   & Readonly<{
     organizationId: string;
     actorRef: string;
+    /**
+     * The worker host dispatching this call, and whether it can run MCP work.
+     * Supplied by the caller because only the dispatch path knows which host it
+     * is; the connection's bound host comes from its row, so the two are
+     * compared rather than trusted to agree.
+     */
+    host: Readonly<{ hostId: string; eligible: boolean }>;
   }>;
 
 export type McpInvokeResult = Readonly<{
@@ -105,6 +120,21 @@ export function mcpInvocationRefusal(
 }
 
 /**
+ * Whether a binding's operation list admits this tool.
+ *
+ * The list holds tool names and the wildcard `*`. Matching is exact rather than
+ * prefix-based: a tool called `search_admin` must not be admitted by a grant for
+ * `search`, because that is how a narrow grant silently widens.
+ */
+export function operationAllowed(
+  toolName: string,
+  allowedOperations: readonly string[],
+): boolean {
+  if (allowedOperations.includes("*")) return true;
+  return allowedOperations.includes(toolName);
+}
+
+/**
  * Decide, from state read at invoke time, whether this call may proceed.
  *
  * Pure and total: every branch that is not an explicit pass becomes a named
@@ -112,7 +142,7 @@ export function mcpInvocationRefusal(
  * rather than a set of early returns scattered through the transport.
  */
 export function mcpInvocationDenial(
-  input: Pick<McpInvokeInput, "toolName" | "pinnedDigest">,
+  input: Pick<McpInvokeInput, "toolName" | "pinnedDigest" | "host">,
   state: McpPinnedState,
 ): { denial: McpInvocationDenial; detail: string } | null {
   // A revoked or disabled connection is refused before anything else: the
@@ -136,6 +166,30 @@ export function mcpInvocationDenial(
     return {
       denial: "grant_revoked",
       detail: "The grant covering this connection is no longer live.",
+    };
+  }
+  // A binding admits a named set of operations. An empty or non-matching list
+  // admits nothing: "the grant exists" is not "this tool is granted".
+  if (!operationAllowed(input.toolName, state.allowedOperations)) {
+    return {
+      denial: "grant_revoked",
+      detail: "The caller's grant does not admit this operation.",
+    };
+  }
+  // A `stdio` server runs in a process on one worker host. Dispatching it from
+  // any other host - or from a host that cannot run MCP work - would reach
+  // nothing, so it is refused rather than attempted.
+  if (
+    !mcpHostEligible(
+      { transport: state.transport, boundHostId: state.workerHostId },
+      { hostId: input.host.hostId, eligible: input.host.eligible },
+    )
+  ) {
+    return {
+      denial: "host_ineligible",
+      detail: state.transport === "stdio" && state.workerHostId === null
+        ? "This stdio connection names no host, so it cannot be dispatched anywhere."
+        : "This connection cannot run on the host dispatching the call.",
     };
   }
   if (state.pinnedSnapshot === null) {
@@ -202,7 +256,9 @@ export async function invokeMcpTool(
       params: { reason: "invalid_mcp_invocation_input" },
     });
   }
-  const input = parsed.data;
+  // The contract schema covers only what travels on the wire, so the caller
+  // context parsed alongside it is merged back here rather than being dropped.
+  const input = { ...parsed.data, host: rawInput.host };
 
   const state = await deps.pinnedState.load({
     organizationId: rawInput.organizationId,

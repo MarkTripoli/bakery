@@ -1,17 +1,28 @@
 import type { Database } from "../../platform/database.ts";
+import {
+  mcpHostEligible,
+  type McpTransport,
+} from "@bakery/contracts/mcp-capabilities";
 import type { McpPinnedState, McpPinnedStatePort } from "./invoke.ts";
 
 /**
  * The Postgres read behind an MCP invocation (issue #20, criterion 1).
  *
  * One query answers every question the invoke path asks, so the checks cannot
- * see a half-updated world: the connection's status, the snapshot the binding
- * pinned, the snapshot the connection currently points at, whether a grant is
- * live, and which capabilities an operator enabled. Reading these in separate
- * statements would let a revocation land between two of them.
+ * see a half-updated world: the connection's status and transport, the host it
+ * is bound to, the snapshot the binding pinned, the snapshot the connection
+ * currently points at, whether a grant for this actor is live, and which
+ * capabilities an operator enabled. Reading these in separate statements would
+ * let a revocation land between two of them.
  *
- * Everything comes from rows. Nothing here trusts the caller for anything but
- * which connection it means; the actor ref only narrows the grant.
+ * Two things this deliberately does not do:
+ *
+ * - It does not treat "a binding row exists" as a live grant. A binding is a
+ *   grant to a named actor with a named operation list; both are part of the
+ *   check, and an earlier version omitted them.
+ * - It does not read the pin from `connection.current_snapshot_id`. That
+ *   pointer moves when discovery runs again, so reading it would make a
+ *   re-discovery a silent re-pin. The pin comes from the binding.
  */
 export function createPostgresMcpPinnedStatePort(
   db: Database,
@@ -20,6 +31,8 @@ export function createPostgresMcpPinnedStatePort(
     async load(input) {
       const rows = await db<{
         connection_status: string;
+        transport: string;
+        worker_host_id: string | null;
         enabled_capabilities: unknown;
         pinned_id: string | null;
         pinned_digest: string | null;
@@ -27,55 +40,89 @@ export function createPostgresMcpPinnedStatePort(
         current_id: string | null;
         current_digest: string | null;
         grant_live: boolean;
-      }[]>`
+        allowed_operations: unknown;
+      }[]>` 
           select
             connection.status as connection_status,
+            server.transport as transport,
+            connection.worker_host_id,
             connection.enabled_capabilities,
             pinned.id as pinned_id,
-            pinned.digest as pinned_digest,
+            binding.mcp_snapshot_digest as pinned_digest,
             pinned.manifest as pinned_manifest,
             latest.id as current_id,
             latest.digest as current_digest,
+            -- A live grant is a binding that names this actor, or names nobody
+            -- (an organization-wide grant). A binding made for someone else is
+            -- not this caller's grant, and existing is not the same as granted.
             exists (
               select 1
-                from bakery.capability_bindings binding
-               where binding.organization_id = connection.organization_id
-                 and binding.mcp_connection_id = connection.id
-            ) as grant_live
+                from bakery.capability_bindings binding_any
+               where binding_any.organization_id = connection.organization_id
+                 and binding_any.mcp_connection_id = connection.id
+                 and (binding_any.actor_ref is null
+                      or binding_any.actor_ref = ${input.actorRef})
+            ) as grant_live,
+            binding.allowed_operations
           from bakery.mcp_connections connection
+          join bakery.mcp_servers server
+            on server.organization_id = connection.organization_id
+           and server.id = connection.server_id
+          -- The binding this invocation is checked against: the caller's own
+          -- grant if one names it, else an organization-wide grant, else any
+          -- (which the actor check below then refuses).
+          left join lateral (
+            select b.id, b.mcp_snapshot_id, b.mcp_snapshot_digest,
+                   b.allowed_operations
+              from bakery.capability_bindings b
+             where b.organization_id = connection.organization_id
+               and b.mcp_connection_id = connection.id
+               -- The caller's own grant outranks an organization-wide one, and
+               -- another actor's binding is not a candidate at all: selecting it
+               -- would let a stranger's operation list stand in for this one.
+               and (b.actor_ref = ${input.actorRef} or b.actor_ref is null)
+             order by (b.actor_ref = ${input.actorRef}) desc nulls last,
+                      b.created_at desc
+             limit 1
+          ) binding on true
           left join bakery.mcp_capability_snapshots pinned
             on pinned.organization_id = connection.organization_id
-           and pinned.id = connection.current_snapshot_id
-          left join bakery.mcp_capability_snapshots latest
-            on latest.organization_id = connection.organization_id
-           and latest.connection_id = connection.id
-           and latest.observed_at = (
-             select max(inner_snapshot.observed_at)
-               from bakery.mcp_capability_snapshots inner_snapshot
-              where inner_snapshot.connection_id = connection.id
-           )
+           and pinned.id = binding.mcp_snapshot_id
+          left join lateral (
+            select s.id, s.digest
+              from bakery.mcp_capability_snapshots s
+             where s.organization_id = connection.organization_id
+               and s.connection_id = connection.id
+             order by s.observed_at desc, s.id desc
+             limit 1
+          ) latest on true
           where connection.organization_id = ${input.organizationId}
             and connection.id = ${input.connectionId}
         `;
       const row = rows[0];
       if (!row) return null;
 
-      const toolNames = pinnedToolNames(row.pinned_manifest);
       return {
         connectionStatus: row
           .connection_status as McpPinnedState["connectionStatus"],
+        transport: row.transport as McpTransport,
+        workerHostId: row.worker_host_id,
         enabledCapabilities: stringArray(row.enabled_capabilities),
+        allowedOperations: stringArray(row.allowed_operations),
+        // The grant is live only when a binding exists AND it names this actor
+        // or names nobody. A binding for someone else is not this caller's.
+        grantLive: row.grant_live === true &&
+          (row.allowed_operations !== null),
         pinnedSnapshot: row.pinned_id && row.pinned_digest
           ? {
             id: row.pinned_id,
             digest: row.pinned_digest,
-            toolNames,
+            toolNames: pinnedToolNames(row.pinned_manifest),
           }
           : null,
         currentSnapshot: row.current_id && row.current_digest
           ? { id: row.current_id, digest: row.current_digest }
           : null,
-        grantLive: row.grant_live === true,
       } satisfies McpPinnedState;
     },
   };
@@ -101,3 +148,5 @@ function stringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value.filter((entry): entry is string => typeof entry === "string");
 }
+
+export { mcpHostEligible };

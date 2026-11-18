@@ -54,6 +54,17 @@ create table bakery.capability_bindings (
   mcp_connection_id uuid,
   integration_connection_id uuid,
   skill_version_id uuid,
+  -- The snapshot this binding pinned, and its digest copied alongside so an
+  -- invoke check can compare without following a pointer that move re-discovery
+  -- can change. Without these "pinned" meant connection.current_snapshot_id,
+  -- which a later discovery silently overwrites - the exact silent re-pin the
+  -- fixed grant exists to prevent.
+  mcp_snapshot_id uuid,
+  mcp_snapshot_digest text,
+  -- Who the grant is for. Null means anyone in the organization with the
+  -- capability; a non-null value narrows it to that actor, and an invoke by a
+  -- different actor is refused.
+  actor_ref text,
   allowed_operations jsonb not null default '[]'::jsonb,
   -- Distinguishes a binding the owner requires from one it merely permits.
   required boolean not null default false,
@@ -87,6 +98,13 @@ create table bakery.capability_bindings (
     foreign key (organization_id, mcp_connection_id)
     references bakery.mcp_connections (organization_id, id)
     on delete cascade,
+  -- The pinned snapshot must belong to this organization. It is not tied to the
+  -- connection, because a binding may pin a snapshot older than the connection's
+  -- current one - that difference is what a drift check reads.
+  constraint capability_bindings_mcp_snapshot_fk
+    foreign key (organization_id, mcp_snapshot_id)
+    references bakery.mcp_capability_snapshots (organization_id, id)
+    on delete restrict,
   constraint capability_bindings_integration_connection_fk
     foreign key (organization_id, integration_connection_id)
     references bakery.integration_connections (organization_id, id)
