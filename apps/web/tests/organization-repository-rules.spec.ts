@@ -538,6 +538,7 @@ test.describe("organization repository rules", () => {
       name: "Show all of Merge descriptions",
     });
     await shot(page, "203-org-rules-summary-cut", [], { only: "desktop" });
+    // A full-page capture can take focus away; focus the control afterwards.
     await show.focus();
     await page.keyboard.press("Enter");
     await expect(

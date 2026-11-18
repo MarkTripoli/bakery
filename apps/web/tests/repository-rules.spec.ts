@@ -908,6 +908,8 @@ test.describe("repository rules: the effective rules of one repository", () => {
     await show.focus();
     await expect(show).toBeFocused();
     await shot(page, "203-rules-summary-focused", [], { only });
+    // A full-page capture can take focus away; put it back before the key.
+    await show.focus();
     await page.keyboard.press("Enter");
     await expect(
       rule(page, "Merge descriptions").getByRole("button", {
