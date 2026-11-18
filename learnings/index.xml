@@ -155,4 +155,6 @@
   <entry file="three-checks-that-answer-a-different-question.xml" scope="process" />
   <entry file="count-against-both-parents-before-unioning-a-conflict.xml" scope="process" />
   <entry file="a-pr-reference-is-not-a-work-item.xml" scope="process" />
+  <entry file="a-declared-bound-nothing-enforced.xml" scope="project" />
+  <entry file="a-default-that-means-two-things.xml" scope="project" />
 </learnings>
