@@ -141,6 +141,15 @@ export async function mockUserPreferences(
  * (written against the no-backend fixtures lane) don't expect.
  */
 export async function mockAuthenticatedSession(page: Page): Promise<void> {
+  // A run step's sessions: none by default, so the run section shows the step's
+  // raw output open with its one muted line. A spec about the thread registers
+  // its own route, which wins because the latest route matches first.
+  await page.route("**/v1/sessions?*", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ items: [], nextCursor: null }),
+    }));
   await mockBootstrappedInstallation(page);
   await mockUserPreferences(page);
   await page.route("**/v1/me", (route) =>

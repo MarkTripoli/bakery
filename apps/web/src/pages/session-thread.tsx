@@ -14,6 +14,7 @@ import {
   formatUsage,
   MAX_STEP_LINES,
   opensByDefault,
+  relativeTime,
   type SessionFeedItem,
   type SessionStep,
   type SessionTurn,
@@ -38,27 +39,6 @@ function embed(sentence: string, node: ReactNode): ReactNode {
       {after}
     </>
   );
-}
-
-/**
- * A quiet relative time, in the locale's own short form: "15m", "2h", "3d".
- * The exact instant travels beside it as the element's `datetime` and title, so
- * a shortened label never hides when something happened.
- */
-function relativeTime(iso: string, locale: string | undefined, now: Date) {
-  const then = new Date(iso).getTime();
-  if (Number.isNaN(then)) return { exact: iso, label: iso };
-  const minutes = Math.round((now.getTime() - then) / 60_000);
-  const format = new Intl.RelativeTimeFormat(locale, {
-    numeric: "auto",
-    style: "narrow",
-  });
-  const label = Math.abs(minutes) < 60
-    ? format.format(-minutes, "minute")
-    : Math.abs(minutes) < 60 * 24
-    ? format.format(-Math.round(minutes / 60), "hour")
-    : format.format(-Math.round(minutes / (60 * 24)), "day");
-  return { exact: iso, label };
 }
 
 export type SessionThreadProps = {

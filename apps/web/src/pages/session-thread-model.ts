@@ -315,3 +315,67 @@ export function opensByDefault(
   return (isNewest && running) || turn.counts.failed > 0 ||
     turn.steps.some((step) => step.kind === "output" && step.errors);
 }
+
+/**
+ * A quiet relative time, in the locale's own short form: "15m", "2h", "3d".
+ * The exact instant travels beside it as the element's datetime and title, so a
+ * shortened label never hides when something happened.
+ */
+export function relativeTime(
+  iso: string,
+  locale: string | undefined,
+  now: Date,
+): { exact: string; label: string } {
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return { exact: iso, label: iso };
+  const minutes = Math.round((now.getTime() - then) / 60_000);
+  const format = new Intl.RelativeTimeFormat(locale, {
+    numeric: "auto",
+    style: "narrow",
+  });
+  const label = Math.abs(minutes) < 60
+    ? format.format(-minutes, "minute")
+    : Math.abs(minutes) < 60 * 24
+    ? format.format(-Math.round(minutes / 60), "hour")
+    : format.format(-Math.round(minutes / (60 * 24)), "day");
+  return { exact: iso, label };
+}
+
+/** What the line above the composer says about a session, from its status and thread. */
+export type SessionNowSummary =
+  | Readonly<{ kind: "working"; toolName?: string; since?: string }>
+  | Readonly<{ kind: "waiting" }>
+  | Readonly<{ kind: "failed"; reason?: string }>
+  | Readonly<{ kind: "idle" }>;
+
+/**
+ * The status decides the line, and the thread adds detail to it: a session that
+ * is starting is waiting to start; an active one is working, naming the tool
+ * that is still running when there is one; a failed one says why when the feed
+ * does. Finished, interrupted and any status the client does not know say
+ * nothing, because guessing would tell the reader something untrue.
+ */
+export function summarizeNow(
+  status: string,
+  model: SessionThreadModel,
+): SessionNowSummary {
+  switch (status) {
+    case "starting":
+      return { kind: "waiting" };
+    case "active": {
+      const steps = model.turns.flatMap((turn) => turn.steps);
+      const running = [...steps].reverse().find((step) =>
+        step.kind === "tool" && step.phase === "started"
+      );
+      return running && running.kind === "tool"
+        ? { kind: "working", toolName: running.name, since: running.occurredAt }
+        : { kind: "working" };
+    }
+    case "failed":
+      return model.end?.reason
+        ? { kind: "failed", reason: model.end.reason }
+        : { kind: "failed" };
+    default:
+      return { kind: "idle" };
+  }
+}
