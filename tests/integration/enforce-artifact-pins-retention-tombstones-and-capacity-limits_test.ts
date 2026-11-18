@@ -1,4 +1,4 @@
-import { assertEquals, assertRejects } from "@std/assert";
+import { assert, assertEquals, assertRejects } from "@std/assert";
 import {
   assertRetained,
   retentionFixture,
@@ -485,3 +485,61 @@ for (const text of ["published content", ""]) {
     }
   });
 }
+
+Deno.test("a memory revision citing a version keeps its bytes", async () => {
+  const fixture = await retentionFixture();
+  try {
+    const repositoryId = (
+      await fixture.pgDatabase.query<{ id: string }>(
+        `select id from bakery.repositories
+          where organization_id=$1 limit 1`,
+        [fixture.organizationId],
+      )
+    ).rows[0]?.id;
+    assert(
+      repositoryId,
+      "the retention fixture must seed a repository to hang a memory on",
+    );
+
+    const memoryId = crypto.randomUUID();
+    await fixture.pgDatabase.query(
+      `insert into bakery.memory_entries
+         (id, organization_id, repository_id, topic, status)
+       values ($1,$2,$3,'retention test','proposed')`,
+      [memoryId, fixture.organizationId, repositoryId],
+    );
+    await fixture.pgDatabase.query(
+      `insert into bakery.memory_revisions
+         (organization_id, memory_id, revision, body,
+          source_artifact_version_id, confidence, created_by)
+       values ($1,$2,1,'Cited by a memory',$3,0.9,$4)`,
+      [
+        fixture.organizationId,
+        memoryId,
+        fixture.versionId,
+        fixture.principalId,
+      ],
+    );
+
+    // Sourced memory is only worth having if the source is still there to read,
+    // so the citation holds the bytes for as long as the revision exists.
+    assertEquals(
+      await collectArtifactVersion(fixture.pgDatabase, fixture.versionId),
+      false,
+    );
+    await assertRetained(fixture);
+
+    // Once nothing cites it, the version is collectable again: the check is a
+    // citation test, not a blanket refusal to ever collect this table's rows.
+    await fixture.pgDatabase.query(
+      "delete from bakery.memory_revisions where memory_id=$1",
+      [memoryId],
+    );
+    assertEquals(
+      await collectArtifactVersion(fixture.pgDatabase, fixture.versionId),
+      true,
+    );
+  } finally {
+    await fixture.closeRetention();
+  }
+});
