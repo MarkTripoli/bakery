@@ -92,6 +92,17 @@ const RUNNING: Seed = {
   links: { parent: null, subIssuesTotal: 0, blockedBy: [], blockingTotal: 0 },
 };
 const SEEDS = [READY, WAITING, REJECTED, RUNNING];
+const NO_PROFILE: Seed = {
+  number: 206,
+  title: "Move the export to a job",
+  verdict: "rejected",
+  checks: [
+    ...ready,
+    { id: "repository_ready", status: "reject", reason: "no_active_profile" },
+  ],
+  body: "Run the export as a background job.",
+  links: { parent: null, subIssuesTotal: 0, blockedBy: [], blockingTotal: 0 },
+};
 
 for (
   const viewport of [
@@ -230,6 +241,59 @@ for (
         .toHaveCount(0);
       await page.mouse.move(700, 700);
       await shot(page, "issue-cannot-start");
+    });
+
+    test("a repository with no working settings opens its own setup when the source names it", async ({ page }) => {
+      await page.route(
+        (url) => url.pathname === `/v1/repositories/${uuid(903)}`,
+        (route) =>
+          route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({
+              id: uuid(903),
+              applicationId: uuid(904),
+              slug: "web",
+              integrationConnectionId: uuid(901),
+              providerRepoId: "5001",
+              owner: "acme",
+              name: "web",
+              defaultBranch: "main",
+              activeProfileId: null,
+              nextProfileRevision: 1,
+              archivedAt: null,
+              createdAt: "2026-01-01T00:00:00.000Z",
+              updatedAt: "2026-01-01T00:00:00.000Z",
+              version: 1,
+            }),
+          }),
+      );
+      await open(page, NO_PROFILE, { open: [...SEEDS, NO_PROFILE] });
+      const button = card(page).first().getByRole("button", {
+        name: "Open acme/web's setup",
+      });
+      await expect(button).toBeVisible();
+      await page.mouse.move(700, 700);
+      await shot(page, "issue-cannot-start-known-repository");
+      await button.click();
+      await expect(page).toHaveURL(
+        new RegExp(`/projects/repositories/${uuid(903)}`),
+      );
+    });
+
+    test("when no source names the repository the link opens Projects", async ({ page }) => {
+      await open(page, NO_PROFILE, {
+        open: [...SEEDS, NO_PROFILE],
+        sources: "none",
+      });
+      const button = card(page).first().getByRole("button", {
+        name: "Open Projects",
+      });
+      await expect(button).toBeVisible();
+      await page.mouse.move(700, 700);
+      await shot(page, "issue-cannot-start-unknown-repository");
+      await button.click();
+      await expect(page).toHaveURL(/\/projects$/);
     });
 
     test("work that is already under way shows In progress and no Start work", async ({ page }) => {

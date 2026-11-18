@@ -17,6 +17,8 @@ import { mountIntakeRoute } from "../../../apps/server/src/modules/integrations/
 import type { PgDatabase } from "../../../apps/server/src/platform/database.ts";
 import type { AuthVariables } from "../../../apps/server/src/modules/auth/middleware.ts";
 import { deliveryRequest } from "./signed-delivery.ts";
+import { activateDeployedIntegrations } from "../../../apps/server/src/modules/catalog/integration-gate.ts";
+import { deployedIntegrations } from "../../../apps/server/src/modules/catalog/integration-gate-registry.ts";
 
 export const webhookUrl = `${authTestOrigin}/v1/webhooks/github`;
 export const SHA_A = "a".repeat(40);
@@ -360,6 +362,7 @@ export function receiverApp(
       secretsKey,
       github: f.github.client,
       cursorSecret: "intake-receipts-test-cursor-secret-0123456789",
+      integrationRegistry: activateDeployedIntegrations(deployedIntegrations),
     }),
     database,
     secretsKey,

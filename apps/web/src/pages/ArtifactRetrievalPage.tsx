@@ -37,7 +37,7 @@ import {
   ArtifactRetrievalView,
   ArtifactUnavailableView,
 } from "./ArtifactRetrievalView.tsx";
-import { useCursorPages } from "./projects-onboarding/useCursorPages.ts";
+import { useCursorPages } from "../app/cursor-pages/useCursorPages.ts";
 import { ArtifactStorageStatus } from "./ArtifactStorageStatus.tsx";
 import { ArtifactPinControl } from "./ArtifactPinControl.tsx";
 import { ArtifactPreviewHandoff } from "./ArtifactPreviewHandoff.tsx";

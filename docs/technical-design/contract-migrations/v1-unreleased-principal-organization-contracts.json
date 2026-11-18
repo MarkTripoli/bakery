@@ -1,13 +1,22 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "8dfd1ab55b5830c801d07ec7cda914c3f9c756b2"
+    "b2eb5fcf7b9743a64c9dd8eeea42bda2916fc07a"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:a5c48e7e223f483cd1ad690ffccf77d1ae9b97ac4ae58d3f2c91e09b11a71e08",
-  "reason": "#72 reader-relative memory source state re-bind by dev-server on 2026-11-18 under the owner's standing breaking-change authorization (2026-10-09), main 8dfd1ab55b5830c801d07ec7cda914c3f9c756b2: MemoryEntry and MemoryRevision gain a required sourceState (available|deleted|no_access|unknown) judged against the reader at read time, and MemoryRevision.sourceArtifactVersionId becomes uuid|null because it is withheld exactly when the reader cannot read artifact versions (no_access), matching the artifact reads, which answer a denied read as not found. The event catalog gains memory.source_changed, a content-free invalidation emitted when a cited artifact version's content is purged. The drift is that one field becoming nullable; the approval it displaced at sha256:622f0d8afe0eec3d53230a4b5ffe7b365ef882e20baf3832dc82ba93e1921077 is preserved unchanged first below.",
+  "targetCompatibilityDigest": "sha256:fbb225f73e8e89cf90d64e4220035fd0dafb1128b879f9c93043e9235022f905",
+  "reason": "#72 reader-relative memory source state re-bind by dev-server on 2026-11-18 under the owner's standing breaking-change authorization (2026-10-09), main b2eb5fcf7b9743a64c9dd8eeea42bda2916fc07a: MemoryEntry and MemoryRevision gain a required sourceState (available|deleted|no_access|unknown) judged against the reader at read time, and MemoryRevision.sourceArtifactVersionId becomes uuid|null because it is withheld exactly when the reader cannot read artifact versions (no_access), matching the artifact reads, which answer a denied read as not found. The event catalog gains memory.source_changed, a content-free invalidation emitted when a cited artifact version's content is purged. The descriptions state the invariant that sourceArtifactVersionId is null if and only if sourceState is no_access. The drift is that one field becoming nullable; the approval it displaced at sha256:09b09f0f1fac1d0159314e792984f878628b3d34d48218f5793892e72943c4c1 is preserved unchanged first below.",
   "priorApprovals": [
+    {
+      "fromBaseRefs": [
+        "d51a725b005a7261b1b5b9f6a70b322256485a51"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:09b09f0f1fac1d0159314e792984f878628b3d34d48218f5793892e72943c4c1",
+      "reason": "Re-bind by dev-agx4 on 2026-11-18 for PR #608 (#408 slice 4) after folding main, under the owner's standing breaking-change authorization (2026-10-09): the merged tree carries both main's #22 sourced-memory delta and this branch's integrationConnections.invoke delta, so the digest covers both. This branch's part is unchanged: invoke becomes a real route, so the catalogue entry gains organizationContext required_authenticated_context plus the SCOPE_REQUIRED and MALFORMED_REQUEST faults, and IntegrationAction.action stops being rewritten to the six-value worker enum, gaining maxLength and losing its enum. Additive for every other action."
+    },
     {
       "fromBaseRefs": [
         "9fcf4e1adcc02ae09065355a20314fb476f45220",
@@ -15,7 +24,7 @@
         "de35c4bfe46a0d04c85d6a3fce9be94bd120070c",
         "72117bc7ac4109209a9de72398079d5d9e0a53b3"
       ],
-      "status": "approved",
+      "status": "displaced",
       "allowBreaking": true,
       "targetCompatibilityDigest": "sha256:622f0d8afe0eec3d53230a4b5ffe7b365ef882e20baf3832dc82ba93e1921077",
       "reason": "#22 sourced memory contract re-bind by dev-agx2 on 2026-11-18 under the owner's standing breaking-change authorization (2026-10-09), main 28ee02548fddfc0972bfc3c4621949b8d9c4535b: MemoryRevisionCreate gains a required sourceArtifactVersionId, because a promoted memory that does not name the artifact version it came from is not sourced memory at all. The field is required rather than optional so a caller cannot create an unsourced revision by omission; the drift is that one field becoming required, not an existing field changing. The memory actions also declare SCOPE_REQUIRED and MALFORMED_REQUEST, because a required_authenticated_context action refuses an absent organization header and a body it cannot parse, and the catalog has to say so. That declaration adds error names to six actions and nothing else. This entry re-binds the digest once more for exactly that delta; the approval it displaced at sha256:4ebf063b41c7e0de7863086c2e9105541c97b4d6c7a2c26f57bbd1c192de4e14 is preserved unchanged first below. Re-bound by dev-agx2 on 2026-11-18: the exact main base 72117bc7ac4109209a9de72398079d5d9e0a53b3 is added alongside the earlier bases because its generated contracts are byte-identical to the ones this entry already authorizes, so the approval covers a new base without covering a new delta."
