@@ -648,3 +648,10 @@ records, stale base SHAs, records for identities still present in the candidate,
 and records for identities absent from the merge base are rejected. The file is
 optional and must not be created empty: when it is absent, no contractions are
 authorized.
+
+Because each record names one exact merge-base SHA, the file is a per-pull-request
+authorization, not a permanent register. Delete it once its contraction has
+landed: after that the merge base already holds the replacement, so the record
+cannot authorize anything and its SHA reads as stale against every later base.
+Deleting is the fail-closed direction, not a weakening — an absent file permits
+no contractions at all.
