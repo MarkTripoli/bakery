@@ -1495,6 +1495,31 @@ export const clientManifest = {
     },
     {
       "group": "Definitions",
+      "method": "POST",
+      "path": "/v1/workflows/{id}/copy",
+      "action": "workflows.copy",
+      "access": "Admin",
+      "permission": "workflow:manage",
+      "input": "WorkflowCopy",
+      "output": "Workflow",
+      "event": "workflows.created",
+      "mcp": "bakery_workflows_copy",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Definitions",
       "method": "GET",
       "path": "/v1/workflows/{id}/versions",
       "action": "workflowVersions.list",
@@ -11879,6 +11904,46 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "Creates a new named definition (workflow, agent, or automation) with a unique slug, display name, and description; it starts with no active version until one is published and assigned."
     },
+    "WorkflowCopy": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "slug": {
+          "type": "string",
+          "maxLength": 100,
+          "pattern": "^[a-z0-9]+(?:[-_][a-z0-9]+)*$",
+          "description": "WorkflowCopy.slug must contain at most 100 characters."
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "WorkflowCopy.name must contain at most 200 characters."
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 2000,
+          "description": "WorkflowCopy.description must contain at most 2000 characters."
+        },
+        "sourceVersionId": {
+          "description": "The version of the source workflow to copy: a published version or a draft of that workflow. Defaults to the source's active version; a source with no active version and no version named is refused.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "expectedDigest": {
+          "description": "WorkflowCopy.expectedDigest must contain at most 128 characters.",
+          "type": "string",
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "slug",
+        "name",
+        "description"
+      ],
+      "additionalProperties": false,
+      "description": "Copies a workflow into a new organization-owned definition with one inactive draft, atomically. Only the semantic definition is carried over: no activation, run, effect, trigger, grant or credential. The copy's origin records the source definition, version and digest; a later change to the source never reaches the copy."
+    },
     "PermissionGrantCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -11955,6 +12020,7 @@ export const clientManifest = {
             "workflows.get",
             "workflows.create",
             "workflows.update",
+            "workflows.copy",
             "workflowVersions.list",
             "workflowVersions.create",
             "workflowVersions.get",
@@ -16166,7 +16232,7 @@ export const clientManifest = {
         "versionId"
       ],
       "additionalProperties": false,
-      "description": "Save as workflow: copies one published version of an unlisted definition into a new listed definition with its own draft, whose origin is copy naming the source definition and version. The unlisted source and its runs are unchanged. If-Match is the source definition's version (stale: PRECONDITION_FAILED). Only a person may save; an agent is refused with AUTH_FORBIDDEN, and a listed source is STATE_CONFLICT workflow_already_listed."
+      "description": "Save as workflow: copies one published version of an unlisted definition into a new listed definition with its own draft, through the same copy writer as Make a copy, whose origin is copy naming the source definition, version and digest. The unlisted source and its runs are unchanged. If-Match is the source definition's version (stale: PRECONDITION_FAILED). Only a person may save; an agent is refused with AUTH_FORBIDDEN, a listed source is STATE_CONFLICT workflow_already_listed, and a source version already copied is STATE_CONFLICT workflow_copy_exists with existingResourceId naming that copy. An Idempotency-Key replay returns the original 201."
     },
     "WorkflowDefinitionProposalDecision": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -27397,7 +27463,7 @@ export const clientManifest = {
                       "copy",
                       "coordinator"
                     ],
-                    "description": "Origin kind: authored, catalog, copy or coordinator."
+                    "description": "Origin kind: authored, catalog or copy. coordinator: a coordinator proposal a person accepted in a conversation, which also names conversationId and turnId."
                   },
                   "catalogKey": {
                     "anyOf": [
@@ -27428,6 +27494,50 @@ export const clientManifest = {
                     ],
                     "description": "WorkflowOrigin.catalogVersion may be null in this transport value."
                   },
+                  "sourceWorkflowId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "Stable UUID of the workflow definition a copy was taken from; null unless the kind is copy."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "WorkflowOrigin.sourceWorkflowId may be null in this transport value."
+                  },
+                  "sourceVersionId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "Stable UUID of the version (published, or a draft) the copy was taken from; null unless the kind is copy."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "WorkflowOrigin.sourceVersionId may be null in this transport value."
+                  },
+                  "sourceDigest": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "Digest of the source version at the moment of the copy, so a later source update can be compared with the fork; null unless the kind is copy."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "WorkflowOrigin.sourceDigest may be null in this transport value."
+                  },
                   "conversationId": {
                     "description": "WorkflowOrigin.conversationId may be null in this transport value.",
                     "anyOf": [
@@ -27457,45 +27567,18 @@ export const clientManifest = {
                         "description": "Null indicates that the value is unavailable."
                       }
                     ]
-                  },
-                  "sourceWorkflowId": {
-                    "description": "WorkflowOrigin.sourceWorkflowId may be null in this transport value.",
-                    "anyOf": [
-                      {
-                        "type": "string",
-                        "format": "uuid",
-                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                        "description": "Definition a copy was made from (save as workflow copies an unlisted definition); null unless kind is copy. Omitted by servers that predate it."
-                      },
-                      {
-                        "type": "null",
-                        "description": "Null indicates that the value is unavailable."
-                      }
-                    ]
-                  },
-                  "sourceVersionId": {
-                    "description": "WorkflowOrigin.sourceVersionId may be null in this transport value.",
-                    "anyOf": [
-                      {
-                        "type": "string",
-                        "format": "uuid",
-                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                        "description": "Published version of the source definition a copy was made from; null unless kind is copy. Omitted by servers that predate it."
-                      },
-                      {
-                        "type": "null",
-                        "description": "Null indicates that the value is unavailable."
-                      }
-                    ]
                   }
                 },
                 "required": [
                   "kind",
                   "catalogKey",
-                  "catalogVersion"
+                  "catalogVersion",
+                  "sourceWorkflowId",
+                  "sourceVersionId",
+                  "sourceDigest"
                 ],
                 "additionalProperties": false,
-                "description": "Where this definition came from, as {kind, catalogKey, catalogVersion}: kind is authored (written in this organization), catalog (installed from the code-owned catalog; system managed and locked against organization edits) copy, or coordinator (a coordinator proposal a person accepted in a conversation, which also names that conversationId and turnId); catalogKey and catalogVersion name the catalog item and release revision for a catalog origin and are null otherwise. Set when the definition is created and never changed."
+                "description": "Where this definition came from, as {kind, catalogKey, catalogVersion}: kind is authored (written in this organization), catalog (installed from the code-owned catalog; system managed and locked against organization edits) or copy; catalogKey and catalogVersion name the catalog item and release revision for a catalog origin and are null otherwise. Set when the definition is created and never changed."
               },
               "visibility": {
                 "description": "listed definitions appear in the library list and can be made the active version; unlisted ones (coordinator proposals a person accepted) are readable by id and runnable only at an exact published version. Save as workflow copies one into a new listed definition and leaves the unlisted source unchanged. Outside every digest. Omitted by servers that predate it.",
@@ -31437,6 +31520,7 @@ export const clientManifest = {
                   "workflows.get",
                   "workflows.create",
                   "workflows.update",
+                  "workflows.copy",
                   "workflowVersions.list",
                   "workflowVersions.create",
                   "workflowVersions.get",
@@ -41230,7 +41314,7 @@ export const clientManifest = {
                 "copy",
                 "coordinator"
               ],
-              "description": "Origin kind: authored, catalog, copy or coordinator."
+              "description": "Origin kind: authored, catalog or copy. coordinator: a coordinator proposal a person accepted in a conversation, which also names conversationId and turnId."
             },
             "catalogKey": {
               "anyOf": [
@@ -41261,6 +41345,50 @@ export const clientManifest = {
               ],
               "description": "WorkflowOrigin.catalogVersion may be null in this transport value."
             },
+            "sourceWorkflowId": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Stable UUID of the workflow definition a copy was taken from; null unless the kind is copy."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "WorkflowOrigin.sourceWorkflowId may be null in this transport value."
+            },
+            "sourceVersionId": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Stable UUID of the version (published, or a draft) the copy was taken from; null unless the kind is copy."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "WorkflowOrigin.sourceVersionId may be null in this transport value."
+            },
+            "sourceDigest": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Digest of the source version at the moment of the copy, so a later source update can be compared with the fork; null unless the kind is copy."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "WorkflowOrigin.sourceDigest may be null in this transport value."
+            },
             "conversationId": {
               "description": "WorkflowOrigin.conversationId may be null in this transport value.",
               "anyOf": [
@@ -41290,45 +41418,18 @@ export const clientManifest = {
                   "description": "Null indicates that the value is unavailable."
                 }
               ]
-            },
-            "sourceWorkflowId": {
-              "description": "WorkflowOrigin.sourceWorkflowId may be null in this transport value.",
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "uuid",
-                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                  "description": "Definition a copy was made from (save as workflow copies an unlisted definition); null unless kind is copy. Omitted by servers that predate it."
-                },
-                {
-                  "type": "null",
-                  "description": "Null indicates that the value is unavailable."
-                }
-              ]
-            },
-            "sourceVersionId": {
-              "description": "WorkflowOrigin.sourceVersionId may be null in this transport value.",
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "uuid",
-                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                  "description": "Published version of the source definition a copy was made from; null unless kind is copy. Omitted by servers that predate it."
-                },
-                {
-                  "type": "null",
-                  "description": "Null indicates that the value is unavailable."
-                }
-              ]
             }
           },
           "required": [
             "kind",
             "catalogKey",
-            "catalogVersion"
+            "catalogVersion",
+            "sourceWorkflowId",
+            "sourceVersionId",
+            "sourceDigest"
           ],
           "additionalProperties": false,
-          "description": "Where this definition came from, as {kind, catalogKey, catalogVersion}: kind is authored (written in this organization), catalog (installed from the code-owned catalog; system managed and locked against organization edits) copy, or coordinator (a coordinator proposal a person accepted in a conversation, which also names that conversationId and turnId); catalogKey and catalogVersion name the catalog item and release revision for a catalog origin and are null otherwise. Set when the definition is created and never changed."
+          "description": "Where this definition came from, as {kind, catalogKey, catalogVersion}: kind is authored (written in this organization), catalog (installed from the code-owned catalog; system managed and locked against organization edits) or copy; catalogKey and catalogVersion name the catalog item and release revision for a catalog origin and are null otherwise. Set when the definition is created and never changed."
         },
         "visibility": {
           "description": "listed definitions appear in the library list and can be made the active version; unlisted ones (coordinator proposals a person accepted) are readable by id and runnable only at an exact published version. Save as workflow copies one into a new listed definition and leaves the unlisted source unchanged. Outside every digest. Omitted by servers that predate it.",
@@ -47908,6 +48009,7 @@ export const clientManifest = {
             "workflows.get",
             "workflows.create",
             "workflows.update",
+            "workflows.copy",
             "workflowVersions.list",
             "workflowVersions.create",
             "workflowVersions.get",
@@ -50743,9 +50845,15 @@ export const clientManifest = {
                   "type": "boolean"
                 },
                 "reason": {
-                  "description": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; for a refused draft edit, why: text_changed or draft_moved_on on a 412, or for a refused draft comment anchor comment_quote_mismatch, comment_anchor_stale or comment_anchor_splits_character on a 412; agent_edit_requires_suggestion or suggestion_decision_requires_person on a 403. Absent when the problem has no named rule.",
+                  "description": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; for a refused draft edit, why: text_changed or draft_moved_on on a 412, or for a refused draft comment anchor comment_quote_mismatch, comment_anchor_stale or comment_anchor_splits_character on a 412; agent_edit_requires_suggestion, suggestion_decision_requires_person, definition_proposal_decision_requires_person or workflow_listing_requires_person on a 403. Absent when the problem has no named rule.",
                   "type": "string",
                   "maxLength": 65536
+                },
+                "existingResourceId": {
+                  "description": "Identifier of the existing resource a 409 STATE_CONFLICT points the caller to instead of creating another: for reason workflow_copy_exists, the listed definition already copied from that source version. Absent for every other problem.",
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
                 }
               },
               "required": [
@@ -53764,9 +53872,15 @@ export const clientManifest = {
           "type": "boolean"
         },
         "reason": {
-          "description": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; for a refused draft edit, why: text_changed or draft_moved_on on a 412, or for a refused draft comment anchor comment_quote_mismatch, comment_anchor_stale or comment_anchor_splits_character on a 412; agent_edit_requires_suggestion or suggestion_decision_requires_person on a 403. Absent when the problem has no named rule.",
+          "description": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; for a refused draft edit, why: text_changed or draft_moved_on on a 412, or for a refused draft comment anchor comment_quote_mismatch, comment_anchor_stale or comment_anchor_splits_character on a 412; agent_edit_requires_suggestion, suggestion_decision_requires_person, definition_proposal_decision_requires_person or workflow_listing_requires_person on a 403. Absent when the problem has no named rule.",
           "type": "string",
           "maxLength": 65536
+        },
+        "existingResourceId": {
+          "description": "Identifier of the existing resource a 409 STATE_CONFLICT points the caller to instead of creating another: for reason workflow_copy_exists, the listed definition already copied from that source version. Absent for every other problem.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
         }
       },
       "required": [
@@ -54120,9 +54234,15 @@ export const clientManifest = {
                   "type": "boolean"
                 },
                 "reason": {
-                  "description": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; for a refused draft edit, why: text_changed or draft_moved_on on a 412, or for a refused draft comment anchor comment_quote_mismatch, comment_anchor_stale or comment_anchor_splits_character on a 412; agent_edit_requires_suggestion or suggestion_decision_requires_person on a 403. Absent when the problem has no named rule.",
+                  "description": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; for a refused draft edit, why: text_changed or draft_moved_on on a 412, or for a refused draft comment anchor comment_quote_mismatch, comment_anchor_stale or comment_anchor_splits_character on a 412; agent_edit_requires_suggestion, suggestion_decision_requires_person, definition_proposal_decision_requires_person or workflow_listing_requires_person on a 403. Absent when the problem has no named rule.",
                   "type": "string",
                   "maxLength": 65536
+                },
+                "existingResourceId": {
+                  "description": "Identifier of the existing resource a 409 STATE_CONFLICT points the caller to instead of creating another: for reason workflow_copy_exists, the listed definition already copied from that source version. Absent for every other problem.",
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
                 }
               },
               "required": [
@@ -54524,9 +54644,15 @@ export const clientManifest = {
                         "type": "boolean"
                       },
                       "reason": {
-                        "description": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; for a refused draft edit, why: text_changed or draft_moved_on on a 412, or for a refused draft comment anchor comment_quote_mismatch, comment_anchor_stale or comment_anchor_splits_character on a 412; agent_edit_requires_suggestion or suggestion_decision_requires_person on a 403. Absent when the problem has no named rule.",
+                        "description": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; for a refused draft edit, why: text_changed or draft_moved_on on a 412, or for a refused draft comment anchor comment_quote_mismatch, comment_anchor_stale or comment_anchor_splits_character on a 412; agent_edit_requires_suggestion, suggestion_decision_requires_person, definition_proposal_decision_requires_person or workflow_listing_requires_person on a 403. Absent when the problem has no named rule.",
                         "type": "string",
                         "maxLength": 65536
+                      },
+                      "existingResourceId": {
+                        "description": "Identifier of the existing resource a 409 STATE_CONFLICT points the caller to instead of creating another: for reason workflow_copy_exists, the listed definition already copied from that source version. Absent for every other problem.",
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
                       }
                     },
                     "required": [

@@ -2880,6 +2880,53 @@ const transportSchemas = {
       ],
       "description": "Creates a new named definition (workflow, agent, or automation) with a unique slug, display name, and description; it starts with no active version until one is published and assigned."
     },
+    "WorkflowCopy": {
+      "fields": [
+        {
+          "name": "slug",
+          "type": "slug",
+          "required": true,
+          "bounds": {
+            "maxLength": 100
+          },
+          "description": "URL-safe unique identifier for the copy within the organization; the copy is a new definition, so it cannot reuse the source's slug."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 200
+          },
+          "description": "Display name shown for the copy wherever workflows are listed for selection."
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 2000
+          },
+          "description": "Free-text summary of the copy's purpose, shown in pickers and the catalog."
+        },
+        {
+          "name": "sourceVersionId",
+          "type": "uuid",
+          "required": false,
+          "description": "The version of the source workflow to copy: a published version or a draft of that workflow. Defaults to the source's active version; a source with no active version and no version named is refused."
+        },
+        {
+          "name": "expectedDigest",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 128
+          },
+          "description": "Digest of the source version the caller read; the copy is refused with STATE_CONFLICT digest_mismatch if the version's digest differs, so a changed draft is never copied as something else."
+        }
+      ],
+      "description": "Copies a workflow into a new organization-owned definition with one inactive draft, atomically. Only the semantic definition is carried over: no activation, run, effect, trigger, grant or credential. The copy's origin records the source definition, version and digest; a later change to the source never reaches the copy."
+    },
     "PermissionGrantCreate": {
       "fields": [
         {
@@ -5680,7 +5727,7 @@ const transportSchemas = {
           "description": "Library name for the new definition; omitted keeps the source definition's name."
         }
       ],
-      "description": "Save as workflow: copies one published version of an unlisted definition into a new listed definition with its own draft, whose origin is copy naming the source definition and version. The unlisted source and its runs are unchanged. If-Match is the source definition's version (stale: PRECONDITION_FAILED). Only a person may save; an agent is refused with AUTH_FORBIDDEN, and a listed source is STATE_CONFLICT workflow_already_listed."
+      "description": "Save as workflow: copies one published version of an unlisted definition into a new listed definition with its own draft, through the same copy writer as Make a copy, whose origin is copy naming the source definition, version and digest. The unlisted source and its runs are unchanged. If-Match is the source definition's version (stale: PRECONDITION_FAILED). Only a person may save; an agent is refused with AUTH_FORBIDDEN, a listed source is STATE_CONFLICT workflow_already_listed, and a source version already copied is STATE_CONFLICT workflow_copy_exists with existingResourceId naming that copy. An Idempotency-Key replay returns the original 201."
     },
     "WorkflowDefinitionProposalDecision": {
       "fields": [
@@ -18549,7 +18596,7 @@ const transportSchemas = {
         "updatedAt": "UTC timestamp when the record was last updated.",
         "version": "Optimistic-concurrency version used when updating the record.",
         "description": "Free-text summary of what the workflow does, shown in pickers and the catalog; null when the author left it blank. Set on create and replaced wholesale on update.",
-        "origin": "Where this definition came from, as {kind, catalogKey, catalogVersion}: kind is authored (written in this organization), catalog (installed from the code-owned catalog; system managed and locked against organization edits) copy, or coordinator (a coordinator proposal a person accepted in a conversation, which also names that conversationId and turnId); catalogKey and catalogVersion name the catalog item and release revision for a catalog origin and are null otherwise. Set when the definition is created and never changed.",
+        "origin": "Where this definition came from, as {kind, catalogKey, catalogVersion}: kind is authored (written in this organization), catalog (installed from the code-owned catalog; system managed and locked against organization edits) or copy; catalogKey and catalogVersion name the catalog item and release revision for a catalog origin and are null otherwise. Set when the definition is created and never changed.",
         "visibility": "listed definitions appear in the library list and can be made the active version; unlisted ones (coordinator proposals a person accepted) are readable by id and runnable only at an exact published version. Save as workflow copies one into a new listed definition and leaves the unlisted source unchanged. Outside every digest. Omitted by servers that predate it."
       },
       "optionalFields": [
@@ -18562,43 +18609,45 @@ const transportSchemas = {
         "kind",
         "catalogKey",
         "catalogVersion",
-        "conversationId",
-        "turnId",
         "sourceWorkflowId",
-        "sourceVersionId"
+        "sourceVersionId",
+        "sourceDigest",
+        "conversationId",
+        "turnId"
       ],
       "fieldTypes": {
         "kind": "authored|catalog|copy|coordinator",
         "catalogKey": "string|null",
         "catalogVersion": "integer|null",
-        "conversationId": "uuid|null",
-        "turnId": "uuid|null",
         "sourceWorkflowId": "uuid|null",
-        "sourceVersionId": "uuid|null"
+        "sourceVersionId": "uuid|null",
+        "sourceDigest": "string|null",
+        "conversationId": "uuid|null",
+        "turnId": "uuid|null"
       },
       "nullableFields": [
         "catalogKey",
         "catalogVersion",
-        "conversationId",
-        "turnId",
         "sourceWorkflowId",
-        "sourceVersionId"
+        "sourceVersionId",
+        "sourceDigest",
+        "conversationId",
+        "turnId"
       ],
-      "description": "Where a workflow definition came from: written in the organization (authored), installed from the code-owned catalog (catalog, system managed and locked against organization edits), copied from another definition (copy), or accepted from a coordinator proposal in a conversation (coordinator). A catalog origin names the catalog item and release revision it was installed from; the other kinds carry nulls. Set when the definition is created and never changed.",
+      "description": "Where a workflow definition came from: written in the organization (authored), installed from the code-owned catalog (catalog, system managed and locked against organization edits) or copied from another definition (copy). A catalog origin names the catalog item and release revision it was installed from; the other kinds carry nulls. Set when the definition is created and never changed.",
       "fieldDescriptions": {
-        "kind": "Origin kind: authored, catalog, copy or coordinator.",
+        "kind": "Origin kind: authored, catalog or copy. coordinator: a coordinator proposal a person accepted in a conversation, which also names conversationId and turnId.",
         "catalogKey": "Stable key of the catalog item a catalog definition was installed from; null for authored and copied definitions.",
         "catalogVersion": "Release revision of the catalog item the definition was installed from; null for authored and copied definitions.",
+        "sourceWorkflowId": "Stable UUID of the workflow definition a copy was taken from; null unless the kind is copy.",
+        "sourceVersionId": "Stable UUID of the version (published, or a draft) the copy was taken from; null unless the kind is copy.",
+        "sourceDigest": "Digest of the source version at the moment of the copy, so a later source update can be compared with the fork; null unless the kind is copy.",
         "conversationId": "Conversation whose coordinator proposed this definition; null unless kind is coordinator. Omitted by servers that predate it.",
-        "turnId": "Coordinator turn that proposed this definition; null unless kind is coordinator. Omitted by servers that predate it.",
-        "sourceWorkflowId": "Definition a copy was made from (save as workflow copies an unlisted definition); null unless kind is copy. Omitted by servers that predate it.",
-        "sourceVersionId": "Published version of the source definition a copy was made from; null unless kind is copy. Omitted by servers that predate it."
+        "turnId": "Coordinator turn that proposed this definition; null unless kind is coordinator. Omitted by servers that predate it."
       },
       "optionalFields": [
         "conversationId",
-        "turnId",
-        "sourceWorkflowId",
-        "sourceVersionId"
+        "turnId"
       ]
     },
     "WorkflowDefinitionProposal": {
@@ -22679,7 +22728,8 @@ const transportSchemas = {
         "resetRequired",
         "retainedFrom",
         "retryWithoutAfter",
-        "reason"
+        "reason",
+        "existingResourceId"
       ],
       "fieldTypes": {
         "type": "uri",
@@ -22698,7 +22748,8 @@ const transportSchemas = {
         "resetRequired": "boolean",
         "retainedFrom": "decimalString",
         "retryWithoutAfter": "boolean",
-        "reason": "string"
+        "reason": "string",
+        "existingResourceId": "uuid"
       },
       "bounds": {
         "additionalMembersMaxBytes": 8000,
@@ -22716,7 +22767,8 @@ const transportSchemas = {
         "resetRequired",
         "retainedFrom",
         "retryWithoutAfter",
-        "reason"
+        "reason",
+        "existingResourceId"
       ],
       "additionalProperties": "bounded JSON extension members; server allowlists by problem type, client ignores unknown members",
       "rules": [
@@ -22745,7 +22797,8 @@ const transportSchemas = {
         "resetRequired": "Whether the client must discard its local state and request a fresh snapshot.",
         "retainedFrom": "Earliest retained event sequence that can be used to establish a fresh sync position.",
         "retryWithoutAfter": "Whether the client should retry the sync request without its after cursor.",
-        "reason": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; for a refused draft edit, why: text_changed or draft_moved_on on a 412, or for a refused draft comment anchor comment_quote_mismatch, comment_anchor_stale or comment_anchor_splits_character on a 412; agent_edit_requires_suggestion or suggestion_decision_requires_person on a 403. Absent when the problem has no named rule."
+        "reason": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; for a refused draft edit, why: text_changed or draft_moved_on on a 412, or for a refused draft comment anchor comment_quote_mismatch, comment_anchor_stale or comment_anchor_splits_character on a 412; agent_edit_requires_suggestion, suggestion_decision_requires_person, definition_proposal_decision_requires_person or workflow_listing_requires_person on a 403. Absent when the problem has no named rule.",
+        "existingResourceId": "Identifier of the existing resource a 409 STATE_CONFLICT points the caller to instead of creating another: for reason workflow_copy_exists, the listed definition already copied from that source version. Absent for every other problem."
       }
     },
     "ProviderUsageSummary": {

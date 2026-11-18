@@ -6,25 +6,33 @@
 -- a person accepted in a conversation: readable by id, runnable at an exact
 -- published version, absent from the library). Visibility and origin are
 -- outside every digest, the same rule coordination plans follow for their
--- origin (0141). Save as workflow flips unlisted to listed and keeps the
--- origin. The vocabularies (listed | unlisted; origin_kind gains coordinator)
--- live in TypeScript, not in a CHECK constraint: the PostgreSQL boundary rail
--- forbids them.
+-- origin (0141). The vocabularies (listed | unlisted; origin_kind gains
+-- coordinator) live in TypeScript, not in a CHECK constraint: the PostgreSQL
+-- boundary rail forbids them.
 --
 -- origin_conversation_id and origin_turn_id say which conversation and which
--- coordinator turn proposed an unlisted definition. Both are null for every
--- other origin. Provenance foreign keys null only their own column when the
--- referenced row goes (an organization delete cascades in any order). Save as workflow copies an unlisted definition's published
--- version into a new listed definition (factory-modes.md section 4.2 step 5):
--- the copy's origin_source_workflow_id and origin_source_version_id name that
--- source, and the source itself is never changed. Existing rows default to listed with null provenance, which is
--- what they already are, so no data repair is needed.
+-- coordinator turn proposed an unlisted definition; both are null for every
+-- other origin. Their foreign keys null only their own column when the
+-- referenced row goes, so an organization delete cascades in any order.
+--
+-- Save as workflow (factory-modes.md section 4.2 step 5) copies one published
+-- version of an unlisted definition into a NEW listed definition with its own
+-- draft, through #598's one copy writer. The source stays unlisted and
+-- unchanged. The copy has origin_kind copy, and 0179's
+-- origin_source_workflow_id, origin_source_version_id and origin_source_digest
+-- name the source definition, version and digest (sourceWorkflowId,
+-- sourceVersionId and sourceDigest in the read shape). One source version has
+-- at most one save-as-workflow copy: the writer refuses a second one with
+-- workflow_copy_exists under the source row lock. There is no unique index for
+-- it, because the same columns also record ordinary "Make a copy" forks, which
+-- may copy one version more than once.
+--
+-- Existing rows default to listed with null provenance, which is what they
+-- already are, so no data repair is needed.
 alter table bakery.workflow_definitions
   add column visibility text not null default 'listed',
   add column origin_conversation_id uuid,
   add column origin_turn_id uuid,
-  add column origin_source_workflow_id uuid,
-  add column origin_source_version_id uuid,
   add constraint workflow_definitions_origin_conversation_fk
     foreign key (organization_id, origin_conversation_id)
     references bakery.conversations (organization_id, id)
@@ -32,15 +40,7 @@ alter table bakery.workflow_definitions
   add constraint workflow_definitions_origin_turn_fk
     foreign key (organization_id, origin_turn_id)
     references bakery.conversation_turns (organization_id, id)
-    on delete set null (origin_turn_id),
-  add constraint workflow_definitions_origin_source_workflow_fk
-    foreign key (organization_id, origin_source_workflow_id)
-    references bakery.workflow_definitions (organization_id, id)
-    on delete set null (origin_source_workflow_id),
-  add constraint workflow_definitions_origin_source_version_fk
-    foreign key (organization_id, origin_source_version_id)
-    references bakery.workflow_versions (organization_id, id)
-    on delete set null (origin_source_version_id);
+    on delete set null (origin_turn_id);
 
 -- One proposal is one coherent change a coordinator turn asked for, decided
 -- whole by a person: the full definition document it wants the conversation's

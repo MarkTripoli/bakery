@@ -527,6 +527,12 @@ Deno.test("an unlisted definition runs at its exact published version through no
       await apiCall(fixture, scope, "GET", `/v1/workflows/${workflow.id}`),
       200,
     );
+    const saveKey = crypto.randomUUID();
+    const saveRequest = {
+      body: { versionId: published.id, name: "Saved flow" },
+      headers: { "If-Match": `"${sourceBefore.version}"` },
+      idempotencyKey: saveKey,
+    };
     const copy = await expectJson<
       Workflow & {
         origin: { sourceWorkflowId: string; sourceVersionId: string };
@@ -537,10 +543,7 @@ Deno.test("an unlisted definition runs at its exact published version through no
         scope,
         "POST",
         `/v1/workflows/${workflow.id}/listings`,
-        {
-          body: { versionId: published.id, name: "Saved flow" },
-          headers: { "If-Match": `"${sourceBefore.version}"` },
-        },
+        saveRequest,
       ),
       201,
     );
@@ -571,6 +574,33 @@ Deno.test("an unlisted definition runs at its exact published version through no
     )).items.map((item) => item.id);
     assert(listed.includes(copy.id));
     assert(!listed.includes(workflow.id));
+    // A replay of the same save (same Idempotency-Key) returns the original 201.
+    const replay = await expectJson<{ id: string }>(
+      await apiCall(
+        fixture,
+        scope,
+        "POST",
+        `/v1/workflows/${workflow.id}/listings`,
+        saveRequest,
+      ),
+      201,
+    );
+    assertEquals(replay.id, copy.id);
+    // A second save of the same source version is refused and names the copy.
+    const second = await apiCall(
+      fixture,
+      scope,
+      "POST",
+      `/v1/workflows/${workflow.id}/listings`,
+      {
+        body: { versionId: published.id },
+        headers: { "If-Match": `"${sourceBefore.version}"` },
+      },
+    );
+    const secondBody = await second.text();
+    assertEquals(second.status, 409, secondBody);
+    assertEquals(JSON.parse(secondBody).reason, "workflow_copy_exists");
+    assertEquals(JSON.parse(secondBody).existingResourceId, copy.id);
     // A listed source (here the copy itself) cannot be saved again: 409.
     const listedAgain = await apiCall(
       fixture,

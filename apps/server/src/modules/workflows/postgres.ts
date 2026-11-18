@@ -42,7 +42,7 @@ import {
 const DEFINITIONS_ORDERING = "createdAt:desc,id:desc";
 const VERSIONS_ORDERING = "revision:desc,id:desc";
 const DEFINITION_COLUMNS =
-  "id, slug, name, description, active_version_id, enabled, created_at, updated_at, version, origin_kind, origin_catalog_key, origin_catalog_version, visibility, origin_conversation_id, origin_turn_id, origin_source_workflow_id, origin_source_version_id";
+  "id, slug, name, description, active_version_id, enabled, created_at, updated_at, version, origin_kind, origin_catalog_key, origin_catalog_version, origin_source_workflow_id, origin_source_version_id, origin_source_digest, visibility, origin_conversation_id, origin_turn_id";
 
 export type WorkflowDefinitionRow = {
   id: string;
@@ -57,11 +57,12 @@ export type WorkflowDefinitionRow = {
   origin_kind: string;
   origin_catalog_key: string | null;
   origin_catalog_version: number | null;
+  origin_source_workflow_id: string | null;
+  origin_source_version_id: string | null;
+  origin_source_digest: string | null;
   visibility: string;
   origin_conversation_id: string | null;
   origin_turn_id: string | null;
-  origin_source_workflow_id: string | null;
-  origin_source_version_id: string | null;
 };
 
 /** Library visibility of a definition (chapter 25 primitive 2). */
@@ -169,10 +170,19 @@ function originOf(row: WorkflowDefinitionRow) {
     kind: originKindOf(row.origin_kind),
     catalogKey: row.origin_catalog_key,
     catalogVersion: row.origin_catalog_version,
-    conversationId: row.origin_conversation_id,
-    turnId: row.origin_turn_id,
+    // A copy names the definition, version and digest it was taken from; the
+    // other kinds carry nulls.
     sourceWorkflowId: row.origin_source_workflow_id,
     sourceVersionId: row.origin_source_version_id,
+    sourceDigest: row.origin_source_digest,
+    // A coordinator definition names the conversation and turn that proposed
+    // it; other kinds omit both (optional in WorkflowOrigin).
+    ...(row.origin_kind === COORDINATOR_ORIGIN_KIND
+      ? {
+        conversationId: row.origin_conversation_id,
+        turnId: row.origin_turn_id,
+      }
+      : {}),
   };
 }
 
@@ -339,8 +349,6 @@ export type WorkflowDefinitionProvenance = Readonly<{
   originKind: string;
   originConversationId?: string;
   originTurnId?: string;
-  originSourceWorkflowId?: string;
-  originSourceVersionId?: string;
 }>;
 
 /**
@@ -360,9 +368,8 @@ export async function insertWorkflowDefinition(
       provenance
         ? `insert into bakery.workflow_definitions (
              id, organization_id, slug, name, description, visibility,
-             origin_kind, origin_conversation_id, origin_turn_id,
-             origin_source_workflow_id, origin_source_version_id
-           ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+             origin_kind, origin_conversation_id, origin_turn_id
+           ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
            returning ${DEFINITION_COLUMNS}`
         : `insert into bakery.workflow_definitions (
              id, organization_id, slug, name, description
@@ -379,8 +386,6 @@ export async function insertWorkflowDefinition(
           provenance.originKind,
           provenance.originConversationId ?? null,
           provenance.originTurnId ?? null,
-          provenance.originSourceWorkflowId ?? null,
-          provenance.originSourceVersionId ?? null,
         ]
         : [
           id,
@@ -399,6 +404,174 @@ export async function insertWorkflowDefinition(
     operation: "workflows.create",
     resourceType: "workflow_definition",
     resourceId: id,
+    eventType: "workflows.created",
+    resourceVersion: row.version,
+    requestId: facts.requestId,
+    traceId: facts.traceId,
+  });
+  return row;
+}
+
+type WorkflowCopyInput = {
+  slug: string;
+  name: string;
+  description: string;
+  sourceVersionId?: string;
+  expectedDigest?: string;
+};
+
+/**
+ * Copies a workflow into a new, organization-owned definition with an inactive
+ * draft, in one transaction. The source is the published version the caller
+ * names (the active one by default) or a draft of the source workflow, and its
+ * definition is all that is carried over: no activation, run, effect, trigger,
+ * grant or credential belongs to a copy. The copy's origin is `copy`, with the
+ * source definition, version and digest recorded, so a later change to the
+ * source never reaches it and a run started from it pins its own version.
+ *
+ * A catalog definition is a legitimate source: copying is how an organization
+ * gets an editable one, and the source row is read, never written.
+ */
+export async function copyWorkflowDefinition(
+  context: ActionContext,
+  input: unknown,
+) {
+  const { transaction, organizationId } = requireWorkTransaction(
+    context,
+  );
+  const value = input as WorkflowCopyInput;
+  const sourceWorkflowId = context.params.id;
+  if (!sourceWorkflowId) {
+    throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  }
+  const source = await transaction.query<{ active_version_id: string | null }>(
+    `select active_version_id from bakery.workflow_definitions
+      where organization_id = $1 and id = $2
+      for share`,
+    [organizationId, sourceWorkflowId],
+  );
+  if (source.rows.length !== 1) {
+    throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  }
+  const sourceVersionId = value.sourceVersionId ??
+    source.rows[0]!.active_version_id;
+  if (sourceVersionId === null) {
+    throw new StandardError({
+      code: "STATE_CONFLICT",
+      params: { reason: "workflow_copy_source_unavailable" },
+    });
+  }
+  return toWorkflowDefinition(
+    await insertWorkflowCopy(transaction, writeFactsOf(context), {
+      sourceWorkflowId,
+      sourceVersionId,
+      expectedDigest: value.expectedDigest,
+      slug: value.slug,
+      name: value.name,
+      description: value.description,
+    }),
+  );
+}
+
+/** What one copy is taken from and named; the copy writer's input. */
+export type WorkflowCopySpec = Readonly<{
+  sourceWorkflowId: string;
+  sourceVersionId: string;
+  expectedDigest?: string;
+  slug: string;
+  name: string;
+  description: string;
+}>;
+
+/**
+ * The one copy writer (#598), shared by "Make a copy" and save as workflow
+ * (#420): a new definition with origin copy naming the source definition,
+ * version and digest, plus its first draft. The copy takes the column
+ * defaults, so it is listed. The caller has authorized and locked the source.
+ */
+export async function insertWorkflowCopy(
+  transaction: PgTransactionClient,
+  facts: WorkflowWriteFacts,
+  copy: WorkflowCopySpec,
+): Promise<WorkflowDefinitionRow> {
+  type SourceContent = {
+    source_yaml: string;
+    definition: JsonValue;
+    digest: string;
+  };
+  const published = await transaction.query<SourceContent>(
+    `select source_yaml, normalized_spec as definition, digest
+       from bakery.workflow_versions
+      where organization_id = $1 and workflow_id = $2 and id = $3`,
+    [facts.organizationId, copy.sourceWorkflowId, copy.sourceVersionId],
+  );
+  const content = published.rows[0] ?? (await transaction.query<SourceContent>(
+    `select source_yaml, definition, digest
+       from bakery.workflow_drafts
+      where organization_id = $1 and workflow_id = $2 and id = $3`,
+    [facts.organizationId, copy.sourceWorkflowId, copy.sourceVersionId],
+  )).rows[0];
+  if (!content) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  // A caller that read a source and copies it expects those bytes: a source
+  // that changed since is refused rather than copied as something else.
+  if (
+    copy.expectedDigest !== undefined &&
+    copy.expectedDigest !== content.digest
+  ) {
+    throw new StandardError({
+      code: "STATE_CONFLICT",
+      params: { reason: "digest_mismatch" },
+    });
+  }
+  const canonical = requireDraftDefinition(content.definition);
+  const draftDigest = await sha256Hex(canonical);
+  const workflowId = crypto.randomUUID();
+  const inserted = await boundedMutation(() =>
+    transaction.query<WorkflowDefinitionRow>(
+      `insert into bakery.workflow_definitions (
+         id, organization_id, slug, name, description, origin_kind,
+         origin_source_workflow_id, origin_source_version_id,
+         origin_source_digest
+       ) values ($1, $2, $3, $4, $5, 'copy', $6, $7, $8)
+       returning ${DEFINITION_COLUMNS}`,
+      [
+        workflowId,
+        facts.organizationId,
+        copy.slug,
+        copy.name,
+        copy.description,
+        copy.sourceWorkflowId,
+        copy.sourceVersionId,
+        content.digest,
+      ],
+    )
+  );
+  const row = inserted.rows[0];
+  if (!row) throw new Error("WORKFLOW_DEFINITION_INSERT_FAILED");
+  const draftId = crypto.randomUUID();
+  await boundedMutation(() =>
+    transaction.query(
+      `insert into bakery.workflow_drafts (
+         id, organization_id, workflow_id, revision, source_yaml, definition,
+         digest, created_by, updated_by
+       ) values ($1, $2, $3, 1, $4, $5::jsonb, $6, $7, $7)`,
+      [
+        draftId,
+        facts.organizationId,
+        workflowId,
+        content.source_yaml,
+        canonical,
+        draftDigest,
+        facts.principalId,
+      ],
+    )
+  );
+  await appendWorkflowFacts(transaction, {
+    organizationId: facts.organizationId,
+    principalId: facts.principalId,
+    operation: "workflows.copy",
+    resourceType: "workflow_definition",
+    resourceId: workflowId,
     eventType: "workflows.created",
     resourceVersion: row.version,
     requestId: facts.requestId,
@@ -1153,20 +1326,36 @@ export async function createWorkflowListing(
       params: { reason: "workflow_version_not_published" },
     });
   }
+  // The source never changes, so its If-Match alone would let every save make
+  // another copy. One source version has one library copy: under the source
+  // lock above, a second save names the existing copy so the UI can open it.
+  // An Idempotency-Key replay is answered by the command runner before this
+  // handler runs, so it still returns the original 201.
+  const existing = (await transaction.query<{ id: string }>(
+    `select id from bakery.workflow_definitions
+      where organization_id = $1 and origin_source_workflow_id = $2
+        and origin_source_version_id = $3
+      limit 1`,
+    [organizationId, workflowId, value.versionId],
+  )).rows[0];
+  if (existing) {
+    throw new StandardError({
+      code: "STATE_CONFLICT",
+      params: {
+        reason: "workflow_copy_exists",
+        existingResourceId: existing.id,
+      },
+    });
+  }
   const facts = writeFactsOf(context);
-  const copy = await insertWorkflowDefinition(transaction, facts, {
+  // The one copy writer: origin copy naming source definition, version and
+  // digest, a first draft, and the copy's own (listed) visibility default.
+  const copy = await insertWorkflowCopy(transaction, facts, {
+    sourceWorkflowId: workflowId,
+    sourceVersionId: value.versionId,
     slug: value.slug ?? `copy-${crypto.randomUUID()}`,
     name: value.name ?? source.name,
     description: source.description ?? "",
-  }, {
-    visibility: WorkflowVisibility.Listed,
-    originKind: COPY_ORIGIN_KIND,
-    originSourceWorkflowId: workflowId,
-    originSourceVersionId: value.versionId,
-  });
-  await createWorkflowDraft(transaction, facts, copy.id, {
-    definition: version.normalized_spec,
-    sourceYaml: version.source_yaml,
   });
   await appendAudit(transaction, {
     organizationId,
@@ -1237,6 +1426,7 @@ export function createWorkflowsHandlers(
     getWorkflow: getWorkflowDefinition,
     createWorkflow: createWorkflowDefinition,
     updateWorkflow: updateWorkflowDefinition,
+    copyWorkflow: copyWorkflowDefinition,
     listVersions: createWorkflowVersionsListHandler(secret),
     getVersion: getWorkflowVersion,
     createVersion: createWorkflowVersion,

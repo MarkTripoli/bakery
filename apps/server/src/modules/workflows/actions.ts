@@ -37,6 +37,10 @@ export type WorkflowsActionHandlers = {
     context: ActionContext,
     input: z.output<typeof contractSchemas.DefinitionUpdate>,
   ) => Promise<z.output<typeof contractSchemas.Workflow>>;
+  copyWorkflow: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.WorkflowCopy>,
+  ) => Promise<z.output<typeof contractSchemas.Workflow>>;
   listVersions: (
     context: ActionContext,
     input: z.output<typeof contractSchemas.CursorQuery>,
@@ -139,6 +143,17 @@ export function createWorkflowsActionRegistry(
     output: contractSchemas.Workflow,
     policy: commandPolicy,
     handler: handlers.updateWorkflow,
+  });
+  registry.register({
+    name: WorkflowImplementedAction.WorkflowsCopy,
+    method: HttpMethod.Post,
+    path: "/v1/workflows/:id/copy",
+    input: contractSchemas.WorkflowCopy,
+    output: contractSchemas.Workflow,
+    policy: commandPolicy,
+    // The copy is a new resource, like `workflows.create`.
+    successStatus: 201,
+    handler: handlers.copyWorkflow,
   });
   registry.register({
     name: WorkflowImplementedAction.WorkflowVersionsList,
