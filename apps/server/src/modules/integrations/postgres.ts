@@ -24,15 +24,18 @@ type ManifestStart = z.output<
 >;
 type AuthRedirect = z.output<typeof contractSchemas.AuthRedirect>;
 
-/** The only provider this module registers today. */
-export const GITHUB_PROVIDER = "github";
 /**
- * Provider id of the bundled native GitHub entry: UUIDv5 of
- * `urn:bakery:integration-provider:github` in the URL namespace. Fixed so
- * integrationConnections.create can name GitHub before the
- * integration_providers registry exists; that registry seeds this id.
+ * The provider identities this module writes, re-exported from the one registry that
+ * owns them. They were literals here; a second copy is a second thing that can
+ * disagree, and the disagreement is silent - a connection written under one identity
+ * is invisible to the gate reading another (chapter 09 section 12.4).
  */
-export const GITHUB_PROVIDER_ID = "a1fbffc0-eeec-541c-b2a1-93179931917e";
+// The provider identity lives in the registry and is re-exported here for the call
+// sites that already import from this module. Imported as well, because this module
+// uses it. `export *` rather than named re-exports so the identity is not spelled
+// twice more in a file the B2 ratchet counts.
+export * from "./registry.ts";
+import { GITHUB_PROVIDER } from "./registry.ts";
 const UNIQUE_VIOLATION = "23505";
 const SELECTED_UNIQUE = "integration_resources_selected_unique";
 

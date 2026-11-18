@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes } from "react";
+import type { ButtonHTMLAttributes, ReactNode } from "react";
 import {
   type SemanticNativeProps,
   withoutSemanticOwnerProps,
@@ -41,6 +41,15 @@ export type NotificationBellProps =
      * caller batches it, so three arrivals in a second are one announcement.
      */
     readonly arrivalAnnouncement?: string | null;
+    /**
+     * Lets a caller own the interactive control instead of the bell's own
+     * button. It receives the drawn face and returns the control that wraps
+     * it, so a popover can supply its own trigger button. The caller owns the
+     * layout, so the bell does not add its own wrapper around the control; the
+     * bell keeps the polite live region, and the caller is responsible for
+     * giving its control the same accessible name.
+     */
+    readonly control?: (face: ReactNode) => ReactNode;
   };
 
 /**
@@ -49,9 +58,10 @@ export type NotificationBellProps =
  * It exists as a separate piece because the two places a bell appears own
  * opposite controls: on a phone it is a link to the page, and from 744px up it
  * is a popover trigger. A control cannot nest inside another control, so the
- * face must not be one — each caller supplies the interactive wrapper.
+ * face must not be one. The bell draws its own button unless a caller passes
+ * `control`, and then the caller supplies the interactive control instead.
  */
-export function NotificationBellGlyph(
+function NotificationBellGlyph(
   { cap = 99, status = { state: "none" } }: {
     readonly cap?: number;
     readonly status?: NotificationBellStatus;
@@ -107,7 +117,7 @@ export function NotificationBellGlyph(
  * button on a phone, a popover's button from 744px up — and both need the same
  * batched sentence announced once, without moving focus.
  */
-export function NotificationArrival(
+function NotificationArrival(
   { announcement }: { readonly announcement?: string | null },
 ) {
   return (
@@ -137,6 +147,7 @@ export function NotificationBell(
     unknownLabel,
     unreadLabel,
     arrivalAnnouncement = null,
+    control,
     ...unsafeProps
   }: NotificationBellProps,
 ) {
@@ -148,6 +159,20 @@ export function NotificationBell(
     : status.state === "unknown"
     ? unknownLabel
     : label;
+  const face = <NotificationBellGlyph cap={cap} status={status} />;
+  // A caller that supplies the control owns its own layout, so the bell does
+  // not wrap it: the bell's wrapper is what positions the badge beside its own
+  // button, and `.ui-notification-bell button` would otherwise restyle every
+  // button inside a popover panel. The live region stays with the bell either
+  // way, outside the control, so an arrival is announced once.
+  if (control) {
+    return (
+      <>
+        {control(face)}
+        <NotificationArrival announcement={arrivalAnnouncement} />
+      </>
+    );
+  }
   return (
     <span
       className={`ui-notification-bell ui-notification-bell--${variant}`}
@@ -161,7 +186,7 @@ export function NotificationBell(
         type="button"
         {...props}
       >
-        <NotificationBellGlyph cap={cap} status={status} />
+        {face}
       </button>
       <NotificationArrival announcement={arrivalAnnouncement} />
     </span>

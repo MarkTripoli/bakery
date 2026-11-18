@@ -137,10 +137,6 @@
 }
 .ui-notification-bell__badge {
   align-items: center;
-  /* The count inside the pill is a number, and numbers read left to right in
-     every locale; isolating the run stops a right-to-left page from drawing
-     "99+" as "+99". */
-  unicode-bidi: isolate;
   background: var(--color-selection);
   block-size: auto;
   border-radius: var(--radius-pill);
@@ -157,6 +153,10 @@
   padding-inline: var(--space-1);
   position: absolute;
   text-align: center;
+  /* The count inside the pill is a number, and numbers read left to right in
+     every locale; isolating the run stops a right-to-left page from drawing
+     "99+" as "+99". */
+  unicode-bidi: isolate;
   white-space: nowrap;
 }
 /* An unknown count is a hollow ring, never a zero: the ring says "not known
@@ -1820,7 +1820,7 @@
 }
 .ui-notification-row[data-highlighted="true"] {
   outline: var(--border-default) solid var(--color-selection);
-  outline-offset: calc(var(--space-1) * -1);
+  outline-offset: var(--focus-offset-inset);
 }
 .ui-notification-row__link {
   align-items: center;
@@ -1910,8 +1910,8 @@
 .ui-notification-popover {
   display: flex;
   flex-direction: column;
-  inline-size: min(360px, calc(100vw - var(--space-4)));
-  max-block-size: min(70vh, 560px);
+  inline-size: min(var(--layout-menu), calc(100dvi - var(--space-4)));
+  max-block-size: min(70dvb, var(--layout-menu-blocks));
 }
 .ui-notification-popover__header {
   align-items: center;

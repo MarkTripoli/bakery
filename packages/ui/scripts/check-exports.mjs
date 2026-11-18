@@ -332,17 +332,22 @@ function resolveFactory(project, packageDir) {
         !ts.isStringLiteral(statement.moduleSpecifier)
       ) continue;
       const clause = statement.importClause;
-      const target = resolveModule(
-        file,
-        statement.moduleSpecifier.text,
-        source,
-        packageDir,
-        statement,
-      );
+      // The module is resolved only for a runtime re-export that needs it. A
+      // type-only import has no target to resolve, and a package specifier is
+      // not an export target at all, so resolving eagerly rejected a
+      // legitimate `import type { X } from "@bakery/contracts/client"`.
+      const target = () =>
+        resolveModule(
+          file,
+          statement.moduleSpecifier.text,
+          source,
+          packageDir,
+          statement,
+        );
       if (clause.name?.text === name) {
         return clause.isTypeOnly
           ? [outcome(file, clause.name, true, ts)]
-          : resolveExport(target, "default", stack);
+          : resolveExport(target(), "default", stack);
       }
       if (!clause.namedBindings) continue;
       if (
@@ -351,7 +356,7 @@ function resolveFactory(project, packageDir) {
       ) {
         return clause.isTypeOnly
           ? [outcome(file, clause.namedBindings, true, ts)]
-          : [outcome(target, clause.namedBindings, false, ts)];
+          : [outcome(target(), clause.namedBindings, false, ts)];
       }
       if (!ts.isNamedImports(clause.namedBindings)) continue;
       for (const item of clause.namedBindings.elements) {
@@ -360,7 +365,7 @@ function resolveFactory(project, packageDir) {
           return [outcome(file, item, true, ts)];
         }
         return resolveExport(
-          target,
+          target(),
           item.propertyName?.text ?? item.name.text,
           stack,
         );
