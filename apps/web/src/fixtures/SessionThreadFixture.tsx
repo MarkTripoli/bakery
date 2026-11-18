@@ -260,6 +260,8 @@ const STATE: Record<string, {
   now: SessionNowState;
   empty?: boolean;
   running?: boolean;
+  /** The run heading's status word; Running unless the session ended. */
+  status?: string;
   loading?: boolean;
   error?: boolean;
 }> = {
@@ -288,6 +290,7 @@ const STATE: Record<string, {
       ended(6, "failed", "The signing key expired on 2026-11-02."),
     ],
     now: { kind: "failed", reason: "The signing key expired on 2026-11-02." },
+    status: "Failed",
   },
   lost: {
     items: sessionThreadRunning,
@@ -302,6 +305,7 @@ const STATE: Record<string, {
       ended(15, "finished"),
     ],
     now: { kind: "idle" },
+    status: "Completed",
   },
   empty: {
     items: [],
@@ -339,7 +343,7 @@ export function SessionThreadFixture() {
       title={translate("tasks.live.detail")}
       runHeading={{
         description: "Add a retry to the upload step",
-        status: "Running",
+        status: fixture.status ?? "Running",
       }}
       state="ready"
       messages={[]}

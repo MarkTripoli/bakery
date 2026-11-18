@@ -2096,7 +2096,9 @@ button.ui-activity-line__row:hover {
 
 /* Names, paths and terminal text are data: the platform's mono face. */
 .ui-activity-line .ui-data-text {
+  display: inline;
   font: var(--type-data);
+  inline-size: auto;
 }
 
 /* A path always fits one line: the folder truncates, the file name never. */
@@ -2121,8 +2123,8 @@ button.ui-activity-line__row:hover {
 }
 
 .ui-activity-line:has(.ui-session-path) .ui-activity-line__text {
+  display: flex;
   min-inline-size: 0;
-  overflow: hidden;
   white-space: nowrap;
 }
 
@@ -2273,4 +2275,10 @@ button.ui-activity-line__row:hover {
 .ui-session-now__select:focus-visible {
   outline: var(--focus-width) solid var(--color-focus);
   outline-offset: var(--focus-offset-inset);
+}
+
+/* A control after the sentence never wraps its own label. */
+.ui-session-now .ui-button {
+  flex: none;
+  white-space: nowrap;
 }
