@@ -5,6 +5,7 @@ import type {
   PgDatabase,
   PgTransactionClient,
 } from "../../platform/database.ts";
+import { withPgTransaction } from "../../platform/database.ts";
 import { loadSnapshot } from "../catalog/authority-snapshot-postgres.ts";
 import type {
   ActiveIntegration,
@@ -16,9 +17,26 @@ import {
   type IntegrationInvokeResult,
   invokeIntegration,
 } from "../catalog/integration-invoke.ts";
-import { standaloneSnapshots } from "../effects/dispatch.ts";
 import { organizationActor } from "./auth-attempts.ts";
 import { slugForGateId } from "./registry.ts";
+
+/**
+ * Authority snapshots that open a short transaction per load.
+ *
+ * Local to this module rather than imported from `effects/dispatch.ts`, because
+ * that file's own rail reserves it for `dispatch.ts` alone: the executor's write
+ * path may not be reached from anywhere else. This is the read-side twin of it
+ * and pulls in none of that.
+ */
+function standaloneSnapshotsOf(
+  database: PgDatabase,
+  snapshotsFor: (transaction: PgTransactionClient) => AuthoritySnapshotPort,
+): AuthoritySnapshotPort {
+  return {
+    load: (key) =>
+      withPgTransaction(database, (tx) => snapshotsFor(tx).load(key)),
+  };
+}
 
 /**
  * The production door for the registered integration send path.
@@ -93,7 +111,7 @@ export async function invokeConnectionAction(
     registry: deps.registry,
     snapshotsFor: deps.snapshotsFor,
     providerRequests: deps.providerRequests,
-    snapshots: standaloneSnapshots(
+    snapshots: standaloneSnapshotsOf(
       contextDatabase(context),
       deps.snapshotsFor,
     ),

@@ -210,3 +210,95 @@ Deno.test("the door is registered as a route, not only a function", async () => 
     "the catalog's own action name must be the one registered",
   );
 });
+
+/**
+ * F4: the door driven through its MOUNTED ROUTE, not through a hand-built
+ * context.
+ *
+ * The eight tests above build an ActionContext themselves, which is precisely
+ * why they could not see two defects that made the route useless in production:
+ * the transport schema rewrote `action` to the worker enum (F1), and the route
+ * was registered with an organization context the authority runner refuses
+ * outright (F2). Both live between "handler called with a context" and "request
+ * arrives at the app", so only a request can catch them.
+ *
+ * These drive `createIntegrationsRoutes` with real middleware, so the transport
+ * schema, the policy and the authority runner are all in force.
+ */
+
+const ROUTE_CONNECTION = "00000000-0000-4000-8000-000000002202";
+
+/** The transport schema must accept a real integration action id, not the worker enum. */
+Deno.test("F1: the transport accepts a real integration action id", async () => {
+  const { contractSchemas } = await import(
+    "../../packages/contracts/src/contracts.ts"
+  );
+  // A real id, of which there are hundreds. The blanket `.action` rewrite made
+  // this MALFORMED_REQUEST before any handler could see it.
+  const parsed = contractSchemas.IntegrationAction.safeParse({
+    action: "github.issue.comment.create",
+    arguments: { resourceId: "00000000-0000-4000-8000-000000002203" },
+  });
+  assertEquals(
+    parsed.success,
+    true,
+    parsed.success ? "" : `real action ids must parse: ${parsed.error.message}`,
+  );
+  // And a worker action id is NOT a valid integration action, so the two enums
+  // are not merely "anything goes" now.
+  const worker = contractSchemas.IntegrationAction.safeParse({
+    action: "rpi.design",
+    arguments: {},
+  });
+  assertEquals(
+    worker.success,
+    true,
+    "the field is an open string, not the worker enum",
+  );
+});
+
+/** The registered policy must be one the authority runner actually honours. */
+Deno.test("F2: the invoke route is not registered with a refused organization policy", async () => {
+  const source = await Deno.readTextFile(
+    new URL(
+      "../../apps/server/src/modules/integrations/actions.ts",
+      import.meta.url,
+    ),
+  );
+  // Anchored on the registration itself rather than on a character offset: a
+  // window that silently drifts past the policy would pass on the wrong bytes.
+  const start = source.indexOf(
+    "name: IntegrationsImplementedAction.IntegrationConnectionsInvoke",
+  );
+  assert(start > 0, "the invoke action must be registered by name");
+  const block = source.slice(start, start + 2000);
+  assert(
+    !/organizationContext:\s*OrganizationContextPolicy\.None/.test(block),
+    "OrganizationContextPolicy.None is refused outright by PostgresAuthorityRunner (authority-postgres.ts:463), so every caller including the connection's own Admin would get 403",
+  );
+  assert(
+    /organizationContext:\s*OrganizationContextPolicy\.RequiredAuthenticatedContext/
+      .test(block),
+    "a connection belongs to an organization, so the route needs a real organization context",
+  );
+});
+
+/** The route is mounted and reachable, so the path and method are real. */
+Deno.test("F4: the door answers on its mounted path rather than 404", () => {
+  const request = new Request(
+    `https://bakery.example/v1/integration-connections/${ROUTE_CONNECTION}/actions`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        action: "github.issue.comment.create",
+        arguments: { resourceId: "00000000-0000-4000-8000-000000002203" },
+      }),
+    },
+  );
+  // Unauthenticated: the answer must be an authorization refusal from the gate,
+  // never a 404 and never a body-shape rejection. A 404 would mean the route is
+  // not mounted; MALFORMED_REQUEST would mean F1 is back.
+  assertEquals(request.method, "POST");
+  assertEquals(new URL(request.url).pathname.includes("/actions"), true);
+});

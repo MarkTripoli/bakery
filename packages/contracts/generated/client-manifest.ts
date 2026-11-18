@@ -1495,6 +1495,31 @@ export const clientManifest = {
     },
     {
       "group": "Definitions",
+      "method": "POST",
+      "path": "/v1/workflows/{id}/copy",
+      "action": "workflows.copy",
+      "access": "Admin",
+      "permission": "workflow:manage",
+      "input": "WorkflowCopy",
+      "output": "Workflow",
+      "event": "workflows.created",
+      "mcp": "bakery_workflows_copy",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Definitions",
       "method": "GET",
       "path": "/v1/workflows/{id}/versions",
       "action": "workflowVersions.list",
@@ -6939,6 +6964,139 @@ export const clientManifest = {
       "implemented": true
     },
     {
+      "group": "Drafts",
+      "method": "POST",
+      "path": "/v1/drafts/{id}/comments",
+      "action": "draftComments.create",
+      "access": "Developer",
+      "permission": "artifactComment:write",
+      "input": "DraftCommentCreate",
+      "output": "DraftComment",
+      "event": "draft.comment_created",
+      "mcp": "bakery_draftComments_create",
+      "idempotency": "Natural idempotency by mutationId: an exact retry answers with the same comment and a changed payload fails",
+      "idempotencyKeyOptional": true,
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "BODY_TOO_LARGE",
+        "UNPROCESSABLE",
+        "PRECONDITION_FAILED",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "DEPENDENCY_UNAVAILABLE",
+        "DEPENDENCY_TIMEOUT"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Drafts",
+      "method": "GET",
+      "path": "/v1/drafts/{id}/comments",
+      "action": "draftComments.list",
+      "access": "Developer",
+      "permission": "draft:read",
+      "input": "DraftCommentQuery",
+      "output": "Page<DraftComment>",
+      "event": "",
+      "mcp": "bakery_draftComments_list",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
+        "PRECONDITION_FAILED",
+        "DEPENDENCY_UNAVAILABLE",
+        "DEPENDENCY_TIMEOUT"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Drafts",
+      "method": "PATCH",
+      "path": "/v1/drafts/{id}/comments/{commentId}",
+      "action": "draftComments.update",
+      "access": "Developer",
+      "permission": "artifactComment:write",
+      "input": "DraftCommentUpdate",
+      "output": "DraftComment",
+      "event": "draft.comment_updated",
+      "mcp": "bakery_draftComments_update",
+      "idempotency": "Idempotency-Key required; PATCH also If-Match",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Drafts",
+      "method": "POST",
+      "path": "/v1/drafts/{id}/references",
+      "action": "draftReferences.create",
+      "access": "Developer",
+      "permission": "artifactComment:write",
+      "input": "DraftReferenceCreate",
+      "output": "DraftReference",
+      "event": "",
+      "mcp": "bakery_draftReferences_create",
+      "idempotency": "Natural idempotency by mutationId: an exact retry answers with the same reference and a changed payload fails",
+      "idempotencyKeyOptional": true,
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "BODY_TOO_LARGE",
+        "UNPROCESSABLE",
+        "PRECONDITION_FAILED",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Drafts",
+      "method": "GET",
+      "path": "/v1/draft-references/{id}",
+      "action": "draftReferences.get",
+      "access": "Developer",
+      "permission": "draft:read",
+      "input": "IdPath",
+      "output": "DraftReference",
+      "event": "",
+      "mcp": "bakery_draftReferences_get",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
       "group": "Artifacts",
       "method": "GET",
       "path": "/v1/artifact-storage",
@@ -11694,6 +11852,46 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "Creates a new named definition (workflow, agent, or automation) with a unique slug, display name, and description; it starts with no active version until one is published and assigned."
     },
+    "WorkflowCopy": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "slug": {
+          "type": "string",
+          "maxLength": 100,
+          "pattern": "^[a-z0-9]+(?:[-_][a-z0-9]+)*$",
+          "description": "WorkflowCopy.slug must contain at most 100 characters."
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "WorkflowCopy.name must contain at most 200 characters."
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 2000,
+          "description": "WorkflowCopy.description must contain at most 2000 characters."
+        },
+        "sourceVersionId": {
+          "description": "The version of the source workflow to copy: a published version or a draft of that workflow. Defaults to the source's active version; a source with no active version and no version named is refused.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "expectedDigest": {
+          "description": "WorkflowCopy.expectedDigest must contain at most 128 characters.",
+          "type": "string",
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "slug",
+        "name",
+        "description"
+      ],
+      "additionalProperties": false,
+      "description": "Copies a workflow into a new organization-owned definition with one inactive draft, atomically. Only the semantic definition is carried over: no activation, run, effect, trigger, grant or credential. The copy's origin records the source definition, version and digest; a later change to the source never reaches the copy."
+    },
     "PermissionGrantCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -11770,6 +11968,7 @@ export const clientManifest = {
             "workflows.get",
             "workflows.create",
             "workflows.update",
+            "workflows.copy",
             "workflowVersions.list",
             "workflowVersions.create",
             "workflowVersions.get",
@@ -12075,6 +12274,11 @@ export const clientManifest = {
             "draftSuggestions.list",
             "draftSuggestions.accept",
             "draftSuggestions.reject",
+            "draftComments.create",
+            "draftComments.list",
+            "draftComments.update",
+            "draftReferences.create",
+            "draftReferences.get",
             "artifactStorage.get",
             "coordinationPlans.create",
             "coordinationPlans.createFromWorkflow",
@@ -17614,15 +17818,8 @@ export const clientManifest = {
       "properties": {
         "action": {
           "type": "string",
-          "enum": [
-            "rpi.design",
-            "harness.implement",
-            "harness.repair",
-            "quality.check",
-            "quality.review",
-            "delivery.commit"
-          ],
-          "description": "Identifier of the registered integration action to invoke, for example github.issue.comment.create; the host looks up its exact schema and required grant before validating arguments."
+          "maxLength": 200,
+          "description": "IntegrationAction.action must contain at most 200 characters."
         },
         "arguments": {
           "description": "IntegrationAction.arguments must contain at most 65536 UTF-8 bytes.",
@@ -18778,6 +18975,17 @@ export const clientManifest = {
           "type": "string",
           "pattern": "^[a-f0-9]{64}$",
           "description": "Lowercase SHA-256 of the checkpoint's UTF-8 body text as the publisher previewed it; a different digest fails without publishing."
+        },
+        "projectThreads": {
+          "description": "DraftPublicationCreate.projectThreads must contain at most 50 items.",
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "Open root draft comments of this draft to copy, with their retained replies, onto the new version as version-pinned comments. Each anchor is resolved against the published checkpoint, not the live draft; a thread that is not open, unknown or outdated at that cutoff fails the whole publish with nothing written. Omit or send an empty list to project nothing. A replay of the same publication never copies a thread twice. Each array item follows this format."
+          }
         }
       },
       "required": [
@@ -18903,6 +19111,183 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Route identifiers naming one suggestion of an authorized active draft."
+    },
+    "DraftCommentCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "body": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536,
+          "description": "DraftCommentCreate.body must contain at most 10240 UTF-8 bytes.",
+          "x-utf8-max-bytes": 10240
+        },
+        "rootId": {
+          "description": "Root comment of the same draft this submission replies to. Omit to start a new anchored thread; when present the reply is flat, cannot carry anchor fields, and a reply to a reply or to a deleted root is refused.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "epoch": {
+          "description": "DraftCommentCreate.epoch must be at most 2147483647.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "startCursor": {
+          "description": "DraftCommentCreate.startCursor must contain at most 1024 UTF-8 bytes.",
+          "type": "string",
+          "x-utf8-max-bytes": 1024
+        },
+        "endCursor": {
+          "description": "DraftCommentCreate.endCursor must contain at most 1024 UTF-8 bytes.",
+          "type": "string",
+          "x-utf8-max-bytes": 1024
+        },
+        "quote": {
+          "description": "DraftCommentCreate.quote must contain at most 65536 UTF-8 bytes.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 65536
+        },
+        "mutationId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Caller-generated idempotency identifier; an exact retry answers with the same comment and a changed payload fails."
+        }
+      },
+      "required": [
+        "body",
+        "mutationId"
+      ],
+      "additionalProperties": false,
+      "description": "Starts an anchored discussion thread on a collaborative draft or, when rootId is present, adds a flat reply to one. The anchor is a pair of relative Loro cursors plus the quoted text, verified against the current draft before anything is recorded."
+    },
+    "DraftCommentQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "cursor": {
+          "description": "DraftCommentQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "limit": {
+          "description": "DraftCommentQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "rootId": {
+          "description": "Root comment whose flat replies to list instead of the default page of roots; status filters do not apply with it.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "status": {
+          "description": "Lists only root threads in this resolution state; omitted lists every root. Invalid together with rootId, since replies carry no resolution state.",
+          "type": "string",
+          "enum": [
+            "open",
+            "resolved"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "description": "Lists the discussion threads of one collaborative draft, oldest first, with each root's anchor resolved against the current draft so a moved range shows its new offsets and a lost one shows as outdated."
+    },
+    "DraftCommentUpdate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "body": {
+          "description": "DraftCommentUpdate.body must contain at most 10240 UTF-8 bytes.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 10240
+        },
+        "resolved": {
+          "description": "Resolves (true) or reopens (false) a root thread; replies carry no resolution state and a deleted comment cannot change it. Moving or deleting text never changes it.",
+          "type": "boolean"
+        },
+        "deleted": {
+          "description": "Soft-deletes (true) or restores (false) the comment. Authors or Admins may delete; only an Admin or the recorded deleting principal may restore. Deletion hides the body and quote from reads.",
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Edits, resolves, reopens, deletes or restores one draft comment under its current If-Match, with the same moderation rules as artifact comments."
+    },
+    "DraftReferenceCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "expectedEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "description": "DraftReferenceCreate.expectedEpoch must be at least 1."
+        },
+        "checkpointId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Committed checkpoint of this draft to freeze as the referenced revision, read from drafts.get when Send to agent was pressed; edits committed after it are not in the reference."
+        },
+        "textDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "Lowercase SHA-256 of the checkpoint's UTF-8 body text as the sender previewed it; a different digest fails with PRECONDITION_FAILED and nothing is recorded."
+        },
+        "threads": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "commentId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Identifier of the root comment being referenced."
+              },
+              "expectedVersion": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991,
+                "description": "CommentReference.expectedVersion must be at least 1."
+              }
+            },
+            "required": [
+              "commentId",
+              "expectedVersion"
+            ],
+            "additionalProperties": false,
+            "description": "Root draft comments sent with the revision, each with the version the caller last observed. Every root and its retained replies are captured exactly; a changed root version fails the whole send with PRECONDITION_FAILED reason thread_version_changed, and an empty list sends the revision alone. Each array item follows this format."
+          },
+          "description": "DraftReferenceCreate.threads must contain at most 100 items."
+        },
+        "mutationId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Caller-generated idempotency identifier; an exact retry answers with the same reference and a changed payload fails."
+        }
+      },
+      "required": [
+        "expectedEpoch",
+        "checkpointId",
+        "textDigest",
+        "threads",
+        "mutationId"
+      ],
+      "additionalProperties": false,
+      "description": "Freezes one exact committed draft revision and the chosen discussion threads into an immutable reference an agent turn or workflow can later name. Sending a draft to an agent records the reference only; it does not admit or start any work."
     },
     "PullRequestMerge": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -27175,12 +27560,59 @@ export const clientManifest = {
                       }
                     ],
                     "description": "WorkflowOrigin.catalogVersion may be null in this transport value."
+                  },
+                  "sourceWorkflowId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "Stable UUID of the workflow definition a copy was taken from; null unless the kind is copy."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "WorkflowOrigin.sourceWorkflowId may be null in this transport value."
+                  },
+                  "sourceVersionId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "Stable UUID of the version (published, or a draft) the copy was taken from; null unless the kind is copy."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "WorkflowOrigin.sourceVersionId may be null in this transport value."
+                  },
+                  "sourceDigest": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "Digest of the source version at the moment of the copy, so a later source update can be compared with the fork; null unless the kind is copy."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "WorkflowOrigin.sourceDigest may be null in this transport value."
                   }
                 },
                 "required": [
                   "kind",
                   "catalogKey",
-                  "catalogVersion"
+                  "catalogVersion",
+                  "sourceWorkflowId",
+                  "sourceVersionId",
+                  "sourceDigest"
                 ],
                 "additionalProperties": false,
                 "description": "Where this definition came from, as {kind, catalogKey, catalogVersion}: kind is authored (written in this organization), catalog (installed from the code-owned catalog; system managed and locked against organization edits) or copy; catalogKey and catalogVersion name the catalog item and release revision for a catalog origin and are null otherwise. Set when the definition is created and never changed."
@@ -31117,6 +31549,7 @@ export const clientManifest = {
                   "workflows.get",
                   "workflows.create",
                   "workflows.update",
+                  "workflows.copy",
                   "workflowVersions.list",
                   "workflowVersions.create",
                   "workflowVersions.get",
@@ -31422,6 +31855,11 @@ export const clientManifest = {
                   "draftSuggestions.list",
                   "draftSuggestions.accept",
                   "draftSuggestions.reject",
+                  "draftComments.create",
+                  "draftComments.list",
+                  "draftComments.update",
+                  "draftReferences.create",
+                  "draftReferences.get",
                   "artifactStorage.get",
                   "coordinationPlans.create",
                   "coordinationPlans.createFromWorkflow",
@@ -40931,12 +41369,59 @@ export const clientManifest = {
                 }
               ],
               "description": "WorkflowOrigin.catalogVersion may be null in this transport value."
+            },
+            "sourceWorkflowId": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Stable UUID of the workflow definition a copy was taken from; null unless the kind is copy."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "WorkflowOrigin.sourceWorkflowId may be null in this transport value."
+            },
+            "sourceVersionId": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Stable UUID of the version (published, or a draft) the copy was taken from; null unless the kind is copy."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "WorkflowOrigin.sourceVersionId may be null in this transport value."
+            },
+            "sourceDigest": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Digest of the source version at the moment of the copy, so a later source update can be compared with the fork; null unless the kind is copy."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "WorkflowOrigin.sourceDigest may be null in this transport value."
             }
           },
           "required": [
             "kind",
             "catalogKey",
-            "catalogVersion"
+            "catalogVersion",
+            "sourceWorkflowId",
+            "sourceVersionId",
+            "sourceDigest"
           ],
           "additionalProperties": false,
           "description": "Where this definition came from, as {kind, catalogKey, catalogVersion}: kind is authored (written in this organization), catalog (installed from the code-owned catalog; system managed and locked against organization edits) or copy; catalogKey and catalogVersion name the catalog item and release revision for a catalog origin and are null otherwise. Set when the definition is created and never changed."
@@ -47220,6 +47705,7 @@ export const clientManifest = {
             "workflows.get",
             "workflows.create",
             "workflows.update",
+            "workflows.copy",
             "workflowVersions.list",
             "workflowVersions.create",
             "workflowVersions.get",
@@ -47525,6 +48011,11 @@ export const clientManifest = {
             "draftSuggestions.list",
             "draftSuggestions.accept",
             "draftSuggestions.reject",
+            "draftComments.create",
+            "draftComments.list",
+            "draftComments.update",
+            "draftReferences.create",
+            "draftReferences.get",
             "artifactStorage.get",
             "coordinationPlans.create",
             "coordinationPlans.createFromWorkflow",
@@ -50247,7 +50738,7 @@ export const clientManifest = {
                   "type": "boolean"
                 },
                 "reason": {
-                  "description": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; for a refused draft edit, why: text_changed or draft_moved_on on a 412, agent_edit_requires_suggestion or suggestion_decision_requires_person on a 403. Absent when the problem has no named rule.",
+                  "description": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; for a refused draft edit, why: text_changed or draft_moved_on on a 412, or for a refused draft comment anchor comment_quote_mismatch, comment_anchor_stale or comment_anchor_splits_character on a 412; agent_edit_requires_suggestion or suggestion_decision_requires_person on a 403. Absent when the problem has no named rule.",
                   "type": "string",
                   "maxLength": 65536
                 }
@@ -53268,7 +53759,7 @@ export const clientManifest = {
           "type": "boolean"
         },
         "reason": {
-          "description": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; for a refused draft edit, why: text_changed or draft_moved_on on a 412, agent_edit_requires_suggestion or suggestion_decision_requires_person on a 403. Absent when the problem has no named rule.",
+          "description": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; for a refused draft edit, why: text_changed or draft_moved_on on a 412, or for a refused draft comment anchor comment_quote_mismatch, comment_anchor_stale or comment_anchor_splits_character on a 412; agent_edit_requires_suggestion or suggestion_decision_requires_person on a 403. Absent when the problem has no named rule.",
           "type": "string",
           "maxLength": 65536
         }
@@ -53624,7 +54115,7 @@ export const clientManifest = {
                   "type": "boolean"
                 },
                 "reason": {
-                  "description": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; for a refused draft edit, why: text_changed or draft_moved_on on a 412, agent_edit_requires_suggestion or suggestion_decision_requires_person on a 403. Absent when the problem has no named rule.",
+                  "description": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; for a refused draft edit, why: text_changed or draft_moved_on on a 412, or for a refused draft comment anchor comment_quote_mismatch, comment_anchor_stale or comment_anchor_splits_character on a 412; agent_edit_requires_suggestion or suggestion_decision_requires_person on a 403. Absent when the problem has no named rule.",
                   "type": "string",
                   "maxLength": 65536
                 }
@@ -54028,7 +54519,7 @@ export const clientManifest = {
                         "type": "boolean"
                       },
                       "reason": {
-                        "description": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; for a refused draft edit, why: text_changed or draft_moved_on on a 412, agent_edit_requires_suggestion or suggestion_decision_requires_person on a 403. Absent when the problem has no named rule.",
+                        "description": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; for a refused draft edit, why: text_changed or draft_moved_on on a 412, or for a refused draft comment anchor comment_quote_mismatch, comment_anchor_stale or comment_anchor_splits_character on a 412; agent_edit_requires_suggestion or suggestion_decision_requires_person on a 403. Absent when the problem has no named rule.",
                         "type": "string",
                         "maxLength": 65536
                       }
@@ -66140,6 +66631,919 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Cursor page of DraftSuggestion."
+    },
+    "DraftComment": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Server-assigned comment identifier."
+        },
+        "draftId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Draft the comment discusses."
+        },
+        "rootId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Root comment a reply belongs to; null for a root."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "DraftComment.rootId may be null in this transport value."
+        },
+        "epoch": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Draft epoch the comment was created in."
+        },
+        "authorId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Principal the comment is attributed to: the person, or the principal an agent acted for (O50)."
+        },
+        "authorName": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "DraftComment.authorName must contain at most 1024 UTF-8 bytes.",
+          "x-utf8-max-bytes": 1024
+        },
+        "actorKind": {
+          "type": "string",
+          "enum": [
+            "person",
+            "agent"
+          ],
+          "description": "agent when an agent wrote it through an access token or under a service or worker identity; person when a person wrote it through a signed-in session."
+        },
+        "agentName": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "DraftComment.agentName must contain at most 1024 UTF-8 bytes.",
+              "x-utf8-max-bytes": 1024
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "DraftComment.agentName may be null in this transport value."
+        },
+        "body": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "DraftComment.body must contain at most 10240 UTF-8 bytes.",
+              "x-utf8-max-bytes": 10240
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "DraftComment.body may be null in this transport value."
+        },
+        "startCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "Opaque Loro cursor for the inclusive start of a root's commented range; null for a reply."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "DraftComment.startCursor may be null in this transport value."
+        },
+        "endCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "Opaque Loro cursor for the exclusive end of a root's commented range; null for a reply."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "DraftComment.endCursor may be null in this transport value."
+        },
+        "coordinateEncoding": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "DraftComment.coordinateEncoding must contain at most 64 UTF-8 bytes.",
+              "x-utf8-max-bytes": 64
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "DraftComment.coordinateEncoding may be null in this transport value."
+        },
+        "quote": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "DraftComment.quote must contain at most 65536 UTF-8 bytes.",
+              "x-utf8-max-bytes": 65536
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "DraftComment.quote may be null in this transport value."
+        },
+        "creationCheckpointId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Draft checkpoint the comment was created against."
+        },
+        "anchorState": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "current",
+                "outdated"
+              ],
+              "description": "current when both cursors still resolve to a non-empty range whose text equals the quote, with startUtf16 and endUtf16 giving its place in the current draft; outdated when a cursor is missing, the range collapsed or its text no longer equals the quote. Outdated threads are still listed. Null for a reply, and on a create or update answer for anything but a new root, since only draftComments.list resolves stored anchors."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "DraftComment.anchorState may be null in this transport value."
+        },
+        "startUtf16": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Current UTF-16 offset of the range start when anchorState is current; null otherwise."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "DraftComment.startUtf16 may be null in this transport value."
+        },
+        "endUtf16": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Current UTF-16 offset of the range end when anchorState is current; null otherwise."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "DraftComment.endUtf16 may be null in this transport value."
+        },
+        "status": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "open",
+                "resolved"
+              ],
+              "description": "open or resolved for a root thread; null for a reply. Moving or deleting the anchored text never changes it."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "DraftComment.status may be null in this transport value."
+        },
+        "resolvedBy": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Principal who resolved the thread; null while open."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "DraftComment.resolvedBy may be null in this transport value."
+        },
+        "resolvedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC time the thread was resolved; null while open."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "DraftComment.resolvedAt may be null in this transport value."
+        },
+        "deletedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC time the comment was deleted; null while retained."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "DraftComment.deletedAt may be null in this transport value."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Optimistic-concurrency version; send it as If-Match to update the comment. A reply change also increments its root's version."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC time the comment was recorded."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC time the comment last changed."
+        },
+        "publishedAs": {
+          "description": "Version-pinned copies of this comment made when a publication projected its thread, oldest first; empty when the thread was never projected. The draft comment itself is never changed or resolved by a projection.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "artifactVersionId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Immutable artifact version the comment was copied onto by a draft publication."
+              },
+              "artifactCommentId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Version-pinned artifact comment created from this draft comment; read it through artifactComments.list on that version."
+              },
+              "sourceCheckpointId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Published draft checkpoint whose frozen text the copied anchor was resolved against."
+              }
+            },
+            "required": [
+              "artifactVersionId",
+              "artifactCommentId",
+              "sourceCheckpointId"
+            ],
+            "additionalProperties": false,
+            "description": "Version-pinned copies of this comment made when a publication projected its thread, oldest first; empty when the thread was never projected. The draft comment itself is never changed or resolved by a projection. Each array item follows this format."
+          }
+        }
+      },
+      "required": [
+        "id",
+        "draftId",
+        "rootId",
+        "epoch",
+        "authorId",
+        "authorName",
+        "actorKind",
+        "agentName",
+        "body",
+        "startCursor",
+        "endCursor",
+        "coordinateEncoding",
+        "quote",
+        "creationCheckpointId",
+        "anchorState",
+        "startUtf16",
+        "endUtf16",
+        "status",
+        "resolvedBy",
+        "resolvedAt",
+        "deletedAt",
+        "version",
+        "createdAt",
+        "updatedAt"
+      ],
+      "additionalProperties": false,
+      "description": "One comment on a collaborative draft: an anchored root thread or a flat reply. A root carries its relative Loro cursors, quote and creation checkpoint, and reads resolve them against the current draft. Body and resolution are stored apart from the document text."
+    },
+    "Page<DraftComment>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Server-assigned comment identifier."
+              },
+              "draftId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Draft the comment discusses."
+              },
+              "rootId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Root comment a reply belongs to; null for a root."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "DraftComment.rootId may be null in this transport value."
+              },
+              "epoch": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Draft epoch the comment was created in."
+              },
+              "authorId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Principal the comment is attributed to: the person, or the principal an agent acted for (O50)."
+              },
+              "authorName": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "DraftComment.authorName must contain at most 1024 UTF-8 bytes.",
+                "x-utf8-max-bytes": 1024
+              },
+              "actorKind": {
+                "type": "string",
+                "enum": [
+                  "person",
+                  "agent"
+                ],
+                "description": "agent when an agent wrote it through an access token or under a service or worker identity; person when a person wrote it through a signed-in session."
+              },
+              "agentName": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "DraftComment.agentName must contain at most 1024 UTF-8 bytes.",
+                    "x-utf8-max-bytes": 1024
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "DraftComment.agentName may be null in this transport value."
+              },
+              "body": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "DraftComment.body must contain at most 10240 UTF-8 bytes.",
+                    "x-utf8-max-bytes": 10240
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "DraftComment.body may be null in this transport value."
+              },
+              "startCursor": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "Opaque Loro cursor for the inclusive start of a root's commented range; null for a reply."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "DraftComment.startCursor may be null in this transport value."
+              },
+              "endCursor": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "Opaque Loro cursor for the exclusive end of a root's commented range; null for a reply."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "DraftComment.endCursor may be null in this transport value."
+              },
+              "coordinateEncoding": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "DraftComment.coordinateEncoding must contain at most 64 UTF-8 bytes.",
+                    "x-utf8-max-bytes": 64
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "DraftComment.coordinateEncoding may be null in this transport value."
+              },
+              "quote": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "DraftComment.quote must contain at most 65536 UTF-8 bytes.",
+                    "x-utf8-max-bytes": 65536
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "DraftComment.quote may be null in this transport value."
+              },
+              "creationCheckpointId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Draft checkpoint the comment was created against."
+              },
+              "anchorState": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "current",
+                      "outdated"
+                    ],
+                    "description": "current when both cursors still resolve to a non-empty range whose text equals the quote, with startUtf16 and endUtf16 giving its place in the current draft; outdated when a cursor is missing, the range collapsed or its text no longer equals the quote. Outdated threads are still listed. Null for a reply, and on a create or update answer for anything but a new root, since only draftComments.list resolves stored anchors."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "DraftComment.anchorState may be null in this transport value."
+              },
+              "startUtf16": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Current UTF-16 offset of the range start when anchorState is current; null otherwise."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "DraftComment.startUtf16 may be null in this transport value."
+              },
+              "endUtf16": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Current UTF-16 offset of the range end when anchorState is current; null otherwise."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "DraftComment.endUtf16 may be null in this transport value."
+              },
+              "status": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "open",
+                      "resolved"
+                    ],
+                    "description": "open or resolved for a root thread; null for a reply. Moving or deleting the anchored text never changes it."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "DraftComment.status may be null in this transport value."
+              },
+              "resolvedBy": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Principal who resolved the thread; null while open."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "DraftComment.resolvedBy may be null in this transport value."
+              },
+              "resolvedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "UTC time the thread was resolved; null while open."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "DraftComment.resolvedAt may be null in this transport value."
+              },
+              "deletedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "UTC time the comment was deleted; null while retained."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "DraftComment.deletedAt may be null in this transport value."
+              },
+              "version": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Optimistic-concurrency version; send it as If-Match to update the comment. A reply change also increments its root's version."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC time the comment was recorded."
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC time the comment last changed."
+              },
+              "publishedAs": {
+                "description": "Version-pinned copies of this comment made when a publication projected its thread, oldest first; empty when the thread was never projected. The draft comment itself is never changed or resolved by a projection.",
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "artifactVersionId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "Immutable artifact version the comment was copied onto by a draft publication."
+                    },
+                    "artifactCommentId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "Version-pinned artifact comment created from this draft comment; read it through artifactComments.list on that version."
+                    },
+                    "sourceCheckpointId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "Published draft checkpoint whose frozen text the copied anchor was resolved against."
+                    }
+                  },
+                  "required": [
+                    "artifactVersionId",
+                    "artifactCommentId",
+                    "sourceCheckpointId"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Version-pinned copies of this comment made when a publication projected its thread, oldest first; empty when the thread was never projected. The draft comment itself is never changed or resolved by a projection. Each array item follows this format."
+                }
+              }
+            },
+            "required": [
+              "id",
+              "draftId",
+              "rootId",
+              "epoch",
+              "authorId",
+              "authorName",
+              "actorKind",
+              "agentName",
+              "body",
+              "startCursor",
+              "endCursor",
+              "coordinateEncoding",
+              "quote",
+              "creationCheckpointId",
+              "anchorState",
+              "startUtf16",
+              "endUtf16",
+              "status",
+              "resolvedBy",
+              "resolvedAt",
+              "deletedAt",
+              "version",
+              "createdAt",
+              "updatedAt"
+            ],
+            "additionalProperties": false,
+            "description": "One comment on a collaborative draft: an anchored root thread or a flat reply. A root carries its relative Loro cursors, quote and creation checkpoint, and reads resolve them against the current draft. Body and resolution are stored apart from the document text."
+          },
+          "description": "Page<DraftComment>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<DraftComment>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Page<DraftComment>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<DraftComment>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<DraftComment>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of DraftComment."
+    },
+    "DraftReference": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Server-assigned reference identifier; read it back with draftReferences.get."
+        },
+        "draftId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Draft the reference was taken from."
+        },
+        "epoch": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Draft epoch of the frozen checkpoint."
+        },
+        "checkpointId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Exact committed draft checkpoint frozen as the referenced revision."
+        },
+        "serverSequence": {
+          "type": "string",
+          "pattern": "^(?:0|[1-9][0-9]*)$",
+          "description": "Committed draft sequence of the frozen checkpoint; edits with a higher sequence are not in the reference."
+        },
+        "textDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "Canonical SHA-256 of the frozen checkpoint's UTF-8 body text."
+        },
+        "createdById": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Principal the send is attributed to: the person, or the principal an agent acted for (O50)."
+        },
+        "actorKind": {
+          "type": "string",
+          "enum": [
+            "person",
+            "agent"
+          ],
+          "description": "agent when an agent sent it through an access token or under a service or worker identity; person when a person sent it through a signed-in session."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC time the reference committed."
+        },
+        "comments": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "commentId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Draft comment captured into the reference."
+              },
+              "parentId": {
+                "description": "Captured root this reply belongs to; absent for a root.",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "version": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991,
+                "description": "DraftReferenceComment.version must be at least 1."
+              },
+              "authorId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Principal the comment was attributed to at capture."
+              },
+              "actorKind": {
+                "type": "string",
+                "enum": [
+                  "person",
+                  "agent"
+                ],
+                "description": "Whether a person or an agent wrote the captured comment."
+              },
+              "body": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "DraftReferenceComment.body must contain at most 10240 UTF-8 bytes.",
+                "x-utf8-max-bytes": 10240
+              },
+              "bodyDigest": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$",
+                "description": "SHA-256 of the captured body's UTF-8 bytes."
+              },
+              "startCursor": {
+                "description": "DraftReferenceComment.startCursor must contain at most 1024 UTF-8 bytes.",
+                "type": "string",
+                "x-utf8-max-bytes": 1024
+              },
+              "endCursor": {
+                "description": "DraftReferenceComment.endCursor must contain at most 1024 UTF-8 bytes.",
+                "type": "string",
+                "x-utf8-max-bytes": 1024
+              },
+              "coordinateEncoding": {
+                "description": "DraftReferenceComment.coordinateEncoding must contain at most 64 UTF-8 bytes.",
+                "type": "string",
+                "maxLength": 65536,
+                "x-utf8-max-bytes": 64
+              },
+              "quote": {
+                "description": "DraftReferenceComment.quote must contain at most 65536 UTF-8 bytes.",
+                "type": "string",
+                "maxLength": 65536,
+                "x-utf8-max-bytes": 65536
+              },
+              "status": {
+                "description": "Resolution state of the root at capture; absent for a reply. Resolving the live thread later does not change it.",
+                "type": "string",
+                "enum": [
+                  "open",
+                  "resolved"
+                ]
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC time the live comment was originally recorded."
+              }
+            },
+            "required": [
+              "commentId",
+              "version",
+              "authorId",
+              "actorKind",
+              "body",
+              "bodyDigest",
+              "createdAt"
+            ],
+            "additionalProperties": false,
+            "description": "Captured comments in send order: each requested root followed by its retained replies, oldest first. Each array item follows this format."
+          },
+          "description": "Captured comments in send order: each requested root followed by its retained replies, oldest first."
+        }
+      },
+      "required": [
+        "id",
+        "draftId",
+        "epoch",
+        "checkpointId",
+        "serverSequence",
+        "textDigest",
+        "createdById",
+        "actorKind",
+        "createdAt",
+        "comments"
+      ],
+      "additionalProperties": false,
+      "description": "Immutable reference a draft was sent to an agent with: one frozen committed revision and the exact discussion threads captured with it. Editing the draft, editing or resolving a comment, or publishing never changes it."
     },
     "MergeAttempt": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

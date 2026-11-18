@@ -5,6 +5,7 @@ import {
   DRAFT_LIMITS,
   DraftCandidateError,
   importDraftUpdateCandidate,
+  resolveDraftAnchorsCandidate,
   verifyDraftEditTarget,
 } from "./drafts.ts";
 
@@ -181,6 +182,32 @@ async function execute(frames: readonly Frame[]): Promise<Uint8Array[]> {
       return [encoder.encode(JSON.stringify({
         ok: true,
         operation: "verify",
+      }))];
+    }
+    case "anchors": {
+      const count = numberField(meta, "count");
+      if (
+        count < 1 || count > DRAFT_LIMITS.anchorsPerResolution ||
+        frames.length !== 2 + count * 3
+      ) throw new Error("PROTOCOL_FRAME_COUNT_INVALID");
+      const anchors = [];
+      for (let index = 0; index < count; index += 1) {
+        const at = 2 + index * 3;
+        anchors.push({
+          startCursor: text(frames[at], DRAFT_LIMITS.cursorBytes, "CURSOR"),
+          endCursor: text(frames[at + 1], DRAFT_LIMITS.cursorBytes, "CURSOR"),
+          quote: text(frames[at + 2], DRAFT_LIMITS.replacementBytes, "QUOTE"),
+        });
+      }
+      const positions = resolveDraftAnchorsCandidate(
+        frames[1],
+        anchors,
+        meta.strict === true,
+      );
+      return [encoder.encode(JSON.stringify({
+        ok: true,
+        operation: "anchors",
+        positions,
       }))];
     }
     case "import": {

@@ -70,6 +70,35 @@ type Report = {
   stepBindings?: Json[];
 };
 
+// The preset nests its steps in a `flow` container (#477), so the implement
+// step is found by walking the step tree, and its JSON pointer is derived
+// from the same walk instead of being pinned to a flat index.
+function implementStep(spec: Json): { step: Json; pointer: string } {
+  const walk = (
+    steps: Json[],
+    prefix: string,
+  ): { step: Json; pointer: string } | undefined => {
+    for (const [index, step] of steps.entries()) {
+      const pointer = `${prefix}/steps/${index}`;
+      if (step.id === "implement") return { step, pointer };
+      const nested = Array.isArray(step.steps)
+        ? walk(step.steps as Json[], pointer)
+        : undefined;
+      if (nested !== undefined) return nested;
+    }
+    return undefined;
+  };
+  const found = walk(spec.steps as Json[], "");
+  if (found === undefined) throw new Error("preset has no implement step");
+  return found;
+}
+// Plan keys of the compiled preset's steps carry the container's prefix.
+const BRIEF_KEY = "flow.brief";
+const IMPLEMENT_KEY = "flow.implement";
+const IMPLEMENT_POINTER = implementStep(
+  FIXED_CODING_PRESET.spec as Json,
+).pointer;
+
 function definitionWith(
   bindings: {
     stepAgentVersionId?: string;
@@ -79,9 +108,7 @@ function definitionWith(
   } = {},
 ): Json {
   const spec = JSON.parse(JSON.stringify(FIXED_CODING_PRESET.spec)) as Json;
-  const implement = (spec.steps as Json[]).find((step) =>
-    step.id === "implement"
-  )!;
+  const implement = implementStep(spec).step;
   if (bindings.stepAgentVersionId !== undefined) {
     implement.agentVersionId = bindings.stepAgentVersionId;
   }
@@ -165,7 +192,7 @@ Deno.test("step and workflow agent bindings never leak or cross tenants, and ove
           [
             "step",
             definitionWith({ stepAgentVersionId: foreign }),
-            "/steps/1/agentVersionId",
+            `${IMPLEMENT_POINTER}/agentVersionId`,
           ],
           [
             "workflow",
@@ -220,7 +247,7 @@ Deno.test("step and workflow agent bindings never leak or cross tenants, and ove
               OVERRIDE_KEYS.map((key) => [key, PLANTED]),
             ),
           }),
-          "/steps/1/",
+          IMPLEMENT_POINTER,
         ],
         [
           "root",
@@ -229,19 +256,28 @@ Deno.test("step and workflow agent bindings never leak or cross tenants, and ove
               OVERRIDE_KEYS.map((key) => [key, PLANTED]),
             ),
           }),
-          "/",
+          "",
         ],
       ] as const
     ) {
+      // The preset is a compiled definition (#477): its grammar is closed, so
+      // each override key alone is refused as an unknown field on the object
+      // that carries it, never accepted and never echoed.
+      for (const key of OVERRIDE_KEYS) {
+        const single = level === "step"
+          ? definitionWith({ stepExtra: { [key]: PLANTED } })
+          : definitionWith({ root: { [key]: PLANTED } });
+        const { text, report } = await api.validate(single);
+        assertEquals(report.valid, false, `${level} ${key}`);
+        assertEquals(
+          report.errors.map(({ path, code }) => ({ path, code })),
+          [{ path: prefix, code: "field_unknown" }],
+          `${level} ${key}`,
+        );
+        assert(!text.includes(PLANTED), `${level} ${key} validate echoes`);
+      }
       const { text, report } = await api.validate(definition);
       assertEquals(report.valid, false, level);
-      assertEquals(
-        report.errors.filter((error) =>
-          error.code === "step_binding_override_forbidden"
-        ).map((error) => error.path).sort(),
-        OVERRIDE_KEYS.map((key) => `${prefix}${key}`).sort(),
-        level,
-      );
       assert(!text.includes(PLANTED), `${level} validate echoes the value`);
       const { workflowId, draftId } = await api.draft(definition);
       const refused = await api.publish(workflowId, draftId);
@@ -335,6 +371,7 @@ Deno.test("a tampered frozen step agent is refused at engine admission and creat
           repositoryProfileId: repository.profileId,
           budgetLimitUsd: "5.00",
           inputs: {
+            repositoryId: repository.repositoryId,
             brief: {
               title: "Add upload retry",
               description: "Retry failed uploads twice.",
@@ -350,16 +387,6 @@ Deno.test("a tampered frozen step agent is refused at engine admission and creat
       201,
     );
 
-    // Point the frozen snapshot at another valid version of this organization.
-    await database.query(
-      `update bakery.workflow_runs
-          set snapshot = jsonb_set(
-            snapshot, '{stepAgents,implement,agentVersionId}', to_jsonb($3::text)
-          )
-        where organization_id = $1 and id = $2`,
-      [fixture.organizationId, run.id, second.id],
-    );
-
     const engine = createBakeryPostgresWorkflowRepository({
       database,
       maxAttempts: 1,
@@ -372,25 +399,27 @@ Deno.test("a tampered frozen step agent is refused at engine admission and creat
     );
     assert(owner);
     try {
-      const key = (stepKey: string) => ({
-        runId: run.id,
-        stepKey,
-        iteration: 0,
-        actionVersion: run.workflowVersionId,
-      });
-      assert((await engine.admit(key("brief"), owner)).jobId);
-      const steps = await database.query<{ id: string; step_key: string }>(
-        `select id, step_key from bakery.run_steps
-          where organization_id = $1 and run_id = $2`,
-        [fixture.organizationId, run.id],
-      );
+      // A compiled plan run appends each step row when the engine decides it
+      // (findNext), so every key is asked for before it is admitted.
+      const next = async (expected: string) => {
+        const found = await engine.findNext(run.id, owner);
+        assertEquals(found?.stepKey, expected);
+        return found!;
+      };
+      assert((await engine.admit(await next(BRIEF_KEY), owner)).jobId);
+      const stepId = async (stepKey: string) =>
+        (await database.query<{ id: string }>(
+          `select id from bakery.run_steps
+            where organization_id = $1 and run_id = $2 and step_key = $3`,
+          [fixture.organizationId, run.id, stepKey],
+        )).rows[0].id;
       await database.query(
         `update bakery.run_steps
             set status = 'completed', output = $3::jsonb, finished_at = now()
           where organization_id = $1 and id = $2`,
         [
           fixture.organizationId,
-          steps.rows.find((step) => step.step_key === "brief")!.id,
+          await stepId(BRIEF_KEY),
           JSON.stringify({
             artifact: {
               artifactId: crypto.randomUUID(),
@@ -400,21 +429,48 @@ Deno.test("a tampered frozen step agent is refused at engine admission and creat
           }),
         ],
       );
-      const failure = await engine.admit(key("implement"), owner).then(
+      // The engine has decided the implement step (its dispatch is recorded)
+      // before the frozen agent is tampered with, so the refusal below is
+      // admission's own check, not the decision's.
+      const implementKey = await next(IMPLEMENT_KEY);
+      // A compiled plan run freezes each agent it names into `planAgents`,
+      // keyed by version id. Point the frozen record at another valid version
+      // of this organization; the key the step's dispatch reads stays `first`.
+      const frozen = await database.query<{ agent_version_id: string | null }>(
+        `select snapshot #>> $3::text[] as agent_version_id
+             from bakery.workflow_runs
+            where organization_id = $1 and id = $2`,
+        [fixture.organizationId, run.id, [
+          "planAgents",
+          first,
+          "agentVersionId",
+        ]],
+      );
+      assertEquals(frozen.rows[0]?.agent_version_id, first);
+      await database.query(
+        `update bakery.workflow_runs
+              set snapshot = jsonb_set(snapshot, $4::text[], to_jsonb($3::text))
+            where organization_id = $1 and id = $2`,
+        [fixture.organizationId, run.id, second.id, [
+          "planAgents",
+          first,
+          "agentVersionId",
+        ]],
+      );
+
+      const failure = await engine.admit(implementKey, owner).then(
         () => null,
         (error: unknown) => error,
       );
       assert(failure instanceof Error, String(failure));
       assert(
-        failure.message.includes("FROZEN_STEP_AGENT_MISMATCH"),
+        failure.message.includes("FROZEN_STEP_AGENT_INVALID"),
         failure.message,
       );
-      const implementStep = steps.rows.find((step) =>
-        step.step_key === "implement"
-      )!;
+      const implementStepId = await stepId(IMPLEMENT_KEY);
       const jobs = await database.query(
         "select 1 from bakery.jobs where organization_id = $1 and run_step_id = $2",
-        [fixture.organizationId, implementStep.id],
+        [fixture.organizationId, implementStepId],
       );
       assertEquals(jobs.rows.length, 0);
     } finally {

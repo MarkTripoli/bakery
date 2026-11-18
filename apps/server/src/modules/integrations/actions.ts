@@ -900,11 +900,13 @@ export function createIntegrationsActionRegistry(
     // checks. Not `adminEdit` - invoking an action is not editing the connection.
     policy: {
       access: ActionAccess.DeveloperAndActionGrant,
-      // The catalog declares no organization context for this action: the
-      // connection in the path carries its own organization, and the gate
-      // re-reads authority per invocation rather than trusting a scope agreed
-      // when the route was registered.
-      organizationContext: OrganizationContextPolicy.None,
+      // A connection belongs to an organization, so this is a real organization
+      // context: `None` is refused outright by PostgresAuthorityRunner, which
+      // would have made the route 403 for everyone including the connection's own
+      // Admin. The gate still re-reads authority per invocation; this says which
+      // context the request is authorized in, not what it is allowed to do.
+      organizationContext:
+        OrganizationContextPolicy.RequiredAuthenticatedContext,
       type: ActionKind.Command,
     },
     // The ledger derives the effect key from the invocation facts, so a retried
