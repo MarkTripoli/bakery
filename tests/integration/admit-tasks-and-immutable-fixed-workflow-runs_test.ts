@@ -235,9 +235,18 @@ Deno.test("admit tasks and keep fixed-workflow run snapshots immutable", async (
       ],
     };
     const workflowDigest = await digest(workflowSpec);
+    // #400: every run is admitted as a compiled plan, so the cloud-only
+    // maintenance workflow is a plan too: one container with one worker-free
+    // step. A bare step list is the flat grammar, which #400 retires.
     const cloudOnlyWorkflowSpec = {
-      ...workflowSpec,
+      apiVersion: "bakery.dev/v1",
+      kind: "workflow",
       name: "issue-36-cloud-only-workflow",
+      inputs: { taskId: { type: "uuid", required: true } },
+      steps: [{
+        id: "flow",
+        steps: [{ id: "review", uses: "workflow.noop", with: {} }],
+      }],
     };
     // #400: a repository run is admitted as a compiled plan, so the repository
     // half of this test runs a plan document. A branch is what makes a document
@@ -484,8 +493,8 @@ Deno.test("admit tasks and keep fixed-workflow run snapshots immutable", async (
       blocked: crypto.randomUUID(),
       prerequisite: crypto.randomUUID(),
       noRepository: crypto.randomUUID(),
-      cloudOnlyMaintenance: crypto.randomUUID(),
       cloudOnlyFeature: crypto.randomUUID(),
+      cloudOnlyMaintenance: crypto.randomUUID(),
       cloudOnlyProfile: crypto.randomUUID(),
       disabledWorkflow: crypto.randomUUID(),
       unsupportedWorkflow: crypto.randomUUID(),
@@ -544,7 +553,6 @@ Deno.test("admit tasks and keep fixed-workflow run snapshots immutable", async (
       taskIds.cloudOnlyFeature,
       "Cloud-only feature task",
       false,
-      "feature",
     );
     await insertTask(
       taskIds.cloudOnlyMaintenance,

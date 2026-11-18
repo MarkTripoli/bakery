@@ -17,7 +17,7 @@ export const Contract: StoryObj = {
         <Heading level="page">Notifications</Heading>
         <Button variant="secondary">Mark all read</Button>
       </NotificationPageHeader>
-      <NotificationPageHeader>
+      <NotificationPageHeader state="mark-all-read-running">
         <Heading level="page">Notifications</Heading>
         <Button variant="secondary" disabled>
           Marking…
