@@ -41136,15 +41136,16 @@
               "description": "MemoryRevisionCreate.reason must contain at most 2000 characters."
             },
             "sourceArtifactVersionId": {
-              "description": "Exact artifact version whose evidence justifies this memory revision; promotion requires this to name real evidence and pass a conflict scan before the revision is accepted.",
               "type": "string",
               "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Exact artifact version whose evidence justifies this memory revision. Required: a revision with no evidence is an opinion, not a memory, and promotion refuses it before it is stored."
             }
           },
           "required": [
             "content",
-            "reason"
+            "reason",
+            "sourceArtifactVersionId"
           ],
           "additionalProperties": false,
           "description": "Adds a new revision to an existing memory entry and advances its current-revision pointer through the normal compare-and-swap path."
@@ -41159,12 +41160,11 @@
               "maxLength": 500
             },
             "status": {
-              "description": "Lifecycle state of the memory entry: \"active\" while retrievable, \"superseded\" once replaced by newer learning, or \"retracted\" if withdrawn as incorrect.",
+              "description": "Lifecycle state of the memory entry, using the projection's own vocabulary: \"active\" while retrievable, or \"retired\" once withdrawn. Why it was retired - replaced by newer learning or withdrawn as incorrect - belongs in the next revision's required reason, which is where the history keeps it.",
               "type": "string",
               "enum": [
                 "active",
-                "superseded",
-                "retracted"
+                "retired"
               ]
             }
           },
@@ -214813,7 +214813,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:20c402398423ce5d56757b4084b9132c8496717f3457f2e9d3eb47795dc09369",
+  "compatibilityDigest": "sha256:2d685f9bc9bb9d54c7884ab71916ce3c65ed9fc882a0a52d12cb91ce57559b4b",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -221738,15 +221738,16 @@
           "description": "MemoryRevisionCreate.reason must contain at most 2000 characters."
         },
         "sourceArtifactVersionId": {
-          "description": "Exact artifact version whose evidence justifies this memory revision; promotion requires this to name real evidence and pass a conflict scan before the revision is accepted.",
           "type": "string",
           "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Exact artifact version whose evidence justifies this memory revision. Required: a revision with no evidence is an opinion, not a memory, and promotion refuses it before it is stored."
         }
       },
       "required": [
         "content",
-        "reason"
+        "reason",
+        "sourceArtifactVersionId"
       ],
       "additionalProperties": false,
       "description": "Adds a new revision to an existing memory entry and advances its current-revision pointer through the normal compare-and-swap path."
@@ -221761,12 +221762,11 @@
           "maxLength": 500
         },
         "status": {
-          "description": "Lifecycle state of the memory entry: \"active\" while retrievable, \"superseded\" once replaced by newer learning, or \"retracted\" if withdrawn as incorrect.",
+          "description": "Lifecycle state of the memory entry, using the projection's own vocabulary: \"active\" while retrievable, or \"retired\" once withdrawn. Why it was retired - replaced by newer learning or withdrawn as incorrect - belongs in the next revision's required reason, which is where the history keeps it.",
           "type": "string",
           "enum": [
             "active",
-            "superseded",
-            "retracted"
+            "retired"
           ]
         }
       },
