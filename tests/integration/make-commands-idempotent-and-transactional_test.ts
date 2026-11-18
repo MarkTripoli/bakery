@@ -40,6 +40,8 @@ import { repositoryRulesBakeryMigrationSource } from "../../apps/server/src/modu
 import { artifactKindsBakeryMigrationSource } from "../../apps/server/src/modules/artifact-kinds/migrations.ts";
 import { integrationsBakeryMigrationSource } from "../../apps/server/src/modules/integrations/migrations.ts";
 import { deliveryBakeryMigrationSource } from "../../apps/server/src/modules/delivery/migrations.ts";
+import { knowledgeBakeryMigrationSource } from "../../apps/server/src/modules/delivery/migrations.ts";
+import { knowledgeBakeryMigrationSource } from "../../apps/server/src/modules/knowledge/migrations.ts";
 import {
   authTestOrigin,
   openAuthFixture,
@@ -82,6 +84,7 @@ Deno.test("task commands replay exactly once through one tenant transaction", as
       ...await loadMigrations(artifactKindsBakeryMigrationSource),
       ...await loadMigrations(integrationsBakeryMigrationSource),
       ...await loadMigrations(deliveryBakeryMigrationSource),
+      ...await loadMigrations(knowledgeBakeryMigrationSource),
     ]);
     await migrateData(owner, bakeryDataMigrations);
 

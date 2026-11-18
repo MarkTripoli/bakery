@@ -12,6 +12,8 @@ import { repositoryRulesBakeryMigrationSource } from "../../apps/server/src/modu
 import { artifactKindsBakeryMigrationSource } from "../../apps/server/src/modules/artifact-kinds/migrations.ts";
 import { integrationsBakeryMigrationSource } from "../../apps/server/src/modules/integrations/migrations.ts";
 import { deliveryBakeryMigrationSource } from "../../apps/server/src/modules/delivery/migrations.ts";
+import { knowledgeBakeryMigrationSource } from "../../apps/server/src/modules/delivery/migrations.ts";
+import { knowledgeBakeryMigrationSource } from "../../apps/server/src/modules/knowledge/migrations.ts";
 import { OrganizationRole } from "../../apps/server/src/modules/auth/domain/authorization.ts";
 import { createPostgresAuthPersistence } from "../../apps/server/src/modules/auth/adapters/postgres.ts";
 import {
@@ -73,6 +75,7 @@ Deno.test("registration decisions use live invitations and enabled principals", 
       ...await loadMigrations(artifactKindsBakeryMigrationSource),
       ...await loadMigrations(integrationsBakeryMigrationSource),
       ...await loadMigrations(deliveryBakeryMigrationSource),
+      ...await loadMigrations(knowledgeBakeryMigrationSource),
     ]);
     await pgDatabase.query(
       `insert into public."user" (id, name, email, "emailVerified")
@@ -256,6 +259,7 @@ Deno.test("createsuperuser converges a fresh and compatible partial bootstrap", 
       ...await loadMigrations(artifactKindsBakeryMigrationSource),
       ...await loadMigrations(integrationsBakeryMigrationSource),
       ...await loadMigrations(deliveryBakeryMigrationSource),
+      ...await loadMigrations(knowledgeBakeryMigrationSource),
     ]);
     await migrateData(database, bakeryDataMigrations);
     const initial = await persistence.withBootstrapLock((transaction) =>
