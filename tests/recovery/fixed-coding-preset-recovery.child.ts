@@ -6,6 +6,7 @@ import {
   fileExists,
   implementJobId,
   launchPresetWorker,
+  presetImplementStepId,
   provisionDelegatedCgroupV2,
   removePaths,
   seedPresetWorld,
@@ -194,10 +195,11 @@ Deno.test({
         [world.organizationId, jobId],
       );
       assertEquals(completedAttempts[0].count, "1");
+      const implementStepId = await presetImplementStepId(stack, world, run);
       const implement = await stack.psql<{ status: string; output: unknown }>(
         `select status, output from bakery.run_steps
           where organization_id = $1 and id = $2`,
-        [world.organizationId, run.implementStepId],
+        [world.organizationId, implementStepId],
       );
       assertEquals(implement[0].status, "completed");
       const patches = await stack.psql<{ count: string }>(
@@ -208,13 +210,13 @@ Deno.test({
             and artifact.id = version.artifact_id
           where version.organization_id = $1 and version.run_step_id = $2
             and artifact.artifact_type = 'patch'`,
-        [world.organizationId, run.implementStepId],
+        [world.organizationId, implementStepId],
       );
       assertEquals(patches[0].count, "1");
       const sessions = await stack.psql<{ count: string }>(
         `select count(*)::text as count from bakery.agent_sessions
           where organization_id = $1 and run_step_id = $2`,
-        [world.organizationId, run.implementStepId],
+        [world.organizationId, implementStepId],
       );
       assertEquals(sessions[0].count, "1");
 
