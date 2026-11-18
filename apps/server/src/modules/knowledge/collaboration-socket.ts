@@ -851,6 +851,8 @@ export function createCollaborationSocketHandler(
    * A client update: authorize, import outside any transaction in the
    * isolated worker, then commit with a highwater check and receipt before
    * acknowledging and only then relaying the committed bytes to the room.
+   * An update that adds nothing is acknowledged with a null receipt and does
+   * not reserve its mutation id (see `admit`).
    */
   async function onBinary(connection: Connection, bytes: Uint8Array) {
     if (bytes.length > BINARY_HEADER_BYTES + DRAFT_LIMITS.updateBytes) {
@@ -1042,6 +1044,12 @@ export function createCollaborationSocketHandler(
       }
       if (candidate.update.length === 0) {
         // Everything in the update is already committed: nothing new to save.
+        // No receipt is stored, so this mutation id is NOT reserved: a later
+        // frame with the same id and different bytes is a new mutation, not
+        // IDEMPOTENCY_PAYLOAD_MISMATCH. A receipt needs a checkpoint, an update
+        // row and a server sequence, and a no-op commits none of them; faking
+        // them would put a duplicate sequence in the draft's receipt list.
+        // Only a mutation that changed the draft reserves its id.
         send(connection, {
           type: "ack",
           room,
