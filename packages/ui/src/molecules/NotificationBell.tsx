@@ -58,7 +58,8 @@ export type NotificationBellProps =
  * It exists as a separate piece because the two places a bell appears own
  * opposite controls: on a phone it is a link to the page, and from 744px up it
  * is a popover trigger. A control cannot nest inside another control, so the
- * face must not be one — each caller supplies the interactive wrapper.
+ * face must not be one. The bell draws its own button unless a caller passes
+ * `control`, and then the caller supplies the interactive control instead.
  */
 function NotificationBellGlyph(
   { cap = 99, status = { state: "none" } }: {
