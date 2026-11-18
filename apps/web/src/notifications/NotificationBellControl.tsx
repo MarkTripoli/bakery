@@ -10,7 +10,7 @@ import { useShellViewport } from "../app/responsive.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { NotificationsList } from "./NotificationsList.tsx";
-import { bellStatusOf } from "./presentation.ts";
+import { bellAccessibleName, bellStatusOf } from "./presentation.ts";
 
 const NOTIFICATIONS_PATH = "/notifications";
 const POPOVER_ROWS = 6;
@@ -33,7 +33,9 @@ export function NotificationBellControl() {
   );
   const close = useCallback(() => setOpen(false), []);
 
-  const accessibleLabel = translate("notifications.bell.label");
+  // One name for both ways the bell reaches the screen: the badge is a drawn
+  // cap, so the count has to live in the name or a screen reader never hears it.
+  const accessibleLabel = bellAccessibleName(status, translate);
   // One polite announcement per flush: the sentence carries the number that
   // arrived since the last count, and the badge updates in place beside it.
   const arrival = useArrivalAnnouncement(count.data?.unread ?? null);
