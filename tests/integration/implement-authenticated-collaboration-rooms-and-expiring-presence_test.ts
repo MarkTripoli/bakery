@@ -1192,6 +1192,91 @@ Deno.test("a peer revoked right after a relayed update receives no later draft b
   }
 });
 
+/**
+ * Commits one update in a room of `members * tabs` joined peers and reports
+ * how many database transactions began, and how long the last peer waited.
+ */
+async function relayCost(members: number, tabs: number) {
+  const harness = await openHarness({
+    maxConnectionsPerPrincipal: 32,
+    // The sweep also checks every connection; keep it out of the window.
+    sweepMilliseconds: 600_000,
+  });
+  try {
+    const a = await open(harness, harness.owner);
+    const aState = await joinAndSync(a, harness);
+    keepPresent(harness, a);
+    const peers: WsClient[] = [];
+    for (let index = 0; index < members; index += 1) {
+      const member = await addMember(
+        harness.fixture,
+        harness.fixture.ids.organizationId,
+        `Cost Peer ${index}`,
+      );
+      harness.extra.push(member);
+      for (let tab = 0; tab < tabs; tab += 1) {
+        const peer = await open(harness, member);
+        await join(peer, harness);
+        await until(peer, "joined");
+        peers.push(peer);
+      }
+    }
+    const database = harness.fixture.runtimePgDatabase;
+    const connect = database.connect.bind(database);
+    let began = 0;
+    let counting = false;
+    database.connect = ((...args: unknown[]) => {
+      if (counting) began += 1;
+      return Reflect.apply(connect, database, args);
+    }) as typeof database.connect;
+    counting = true;
+    const startedAt = performance.now();
+    await a.sendRaw(
+      0x2,
+      updateFrame(
+        harness,
+        aState.epoch,
+        crypto.randomUUID(),
+        localEdit(aState.doc, 0, "cost "),
+      ),
+    );
+    assertEquals((await until(a, "ack", ACK_WAIT_MS)).type, "ack");
+    const ackedAt = performance.now();
+    let lastPeerAt = ackedAt;
+    for (const peer of peers) {
+      for (;;) {
+        const value = await peer.nextMessage(10_000);
+        if (typeof value === "object" && "binary" in value) break;
+      }
+      lastPeerAt = performance.now();
+    }
+    counting = false;
+    return {
+      peers: peers.length,
+      transactions: began,
+      ackMs: Math.round(ackedAt - startedAt),
+      relayMs: Math.round(lastPeerAt - ackedAt),
+    };
+  } finally {
+    await closeHarness(harness);
+  }
+}
+
+Deno.test("relay access checks do not grow with the number of peers (#160)", async () => {
+  const small = await relayCost(1, 2);
+  // The room holds 64 participants at most: the writer and 63 peers.
+  const large = await relayCost(21, 3);
+  console.log(`#160 relay cost: ${JSON.stringify({ small, large })}`);
+  assertEquals(small.peers, 2);
+  assertEquals(large.peers, 63);
+  // The committing writer's own transactions are the same in both rooms. A
+  // per-peer check would add about two transactions for each of 61 more peers.
+  assert(
+    large.transactions <= small.transactions + 2,
+    `transactions grew with peers: ${JSON.stringify({ small, large })}`,
+  );
+});
+
 Deno.test("frames queued behind a slow join are bounded and the connection is closed (AC3)", async () => {
   // The rate limit is set out of reach so only the pending-frame cap applies.
   const harness = await openHarness({
