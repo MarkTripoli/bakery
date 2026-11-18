@@ -405,7 +405,7 @@ test(
     await prepare(page);
     await page.goto(`/tasks/${taskId}`);
     await expect(thread(page)).toBeVisible({ timeout: 20_000 });
-    await page.getByLabel("Step", { exact: true }).selectOption(doneStepId);
+    await page.getByRole("combobox", { name: "Step" }).selectOption(doneStepId);
     await expect(page.getByText("This step has no agent session."))
       .toBeVisible();
     const line = now(page);
@@ -416,7 +416,7 @@ test(
       ).first(),
     });
     await line.getByRole("button").click();
-    await expect(page.getByLabel("Step", { exact: true })).toHaveValue(
+    await expect(page.getByRole("combobox", { name: "Step" })).toHaveValue(
       runningStepId,
     );
     await expect(thread(page)).toBeVisible();

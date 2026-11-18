@@ -232,26 +232,34 @@ test("a failed session says so once, in the now line, and has no second row", as
   await expect(page.locator(".ui-session-thread__end")).toHaveCount(0);
 });
 
-test("there is no bar above the thread, and the shortcuts button takes no height", async ({ page }) => {
-  await open(page, "running");
-  await expect(page.locator(".ui-session-thread__bar")).toHaveCount(0);
-  const gap = await page.evaluate(() => {
-    const thread = document.querySelector(".ui-session-thread")!
-      .getBoundingClientRect();
-    const first = document.querySelector(".ui-session-thread__turn")!
-      .getBoundingClientRect();
-    const help = document.querySelector(".ui-session-thread__help")!
-      .getBoundingClientRect();
-    return {
-      top: first.top - thread.top,
-      helpRight: help.right,
-      threadRight: thread.right,
-    };
-  });
-  // The first message starts at the thread's own top, and the button sits at its end corner.
-  expect(gap.top).toBeLessThanOrEqual(1);
-  expect(Math.abs(gap.helpRight - gap.threadRight)).toBeLessThanOrEqual(1);
-});
+test(
+  "there is no bar above the thread, and the shortcuts button takes no height",
+  async ({ page }, testInfo) => {
+    await open(page, "running");
+    await expect(page.locator(".ui-session-thread__bar")).toHaveCount(0);
+    const gap = await page.evaluate(() => {
+      const thread = document.querySelector(".ui-session-thread")!
+        .getBoundingClientRect();
+      const first = document.querySelector(".ui-session-thread__turn")!
+        .getBoundingClientRect();
+      const help = document.querySelector(".ui-session-thread__help")!
+        .getBoundingClientRect();
+      return {
+        top: first.top - thread.top,
+        helpRight: help.right,
+        threadRight: thread.right,
+      };
+    });
+    // The first message starts at the thread's own top, and the button sits at its end corner.
+    expect(gap.top).toBeLessThanOrEqual(1);
+    if (testInfo.project.name === "mobile") {
+      // A touch screen has no keys, and a tooltip cannot be opened there.
+      await expect(page.locator(".ui-session-thread__help")).toBeHidden();
+      return;
+    }
+    expect(Math.abs(gap.helpRight - gap.threadRight)).toBeLessThanOrEqual(1);
+  },
+);
 
 test("the message box, the times and the thread share one right-hand edge", async ({ page }) => {
   await open(page, "running");
