@@ -16,6 +16,7 @@ import {
 import {
   createApiRouter,
   parseIdempotencyKey,
+  parseStrongIfMatch,
   StandardError,
 } from "@bakery/contracts/http";
 import {
@@ -47,6 +48,26 @@ import {
   prepareSuggestionDecision,
 } from "./draft-suggestions.ts";
 import {
+  commitDraftCommentRoot,
+  draftEpoch,
+  type PreparedDraftCommentPage,
+  type PreparedDraftCommentRoot,
+  prepareDraftComment,
+  prepareDraftCommentPage,
+  resolvedDraftCommentPage,
+  updateDraftComment,
+} from "./draft-comments.ts";
+import {
+  type PreparedThreadProjection,
+  prepareThreadProjection,
+  type ResolvedThreadProjection,
+} from "./draft-comment-projection.ts";
+import {
+  createDraftReference,
+  readDraftReference,
+} from "./draft-references.ts";
+import {
+  draftCheckpointPublished,
   type DraftPublicationRecord,
   freezeTextDraftCheckpoint,
   publishFrozenDraft,
@@ -80,7 +101,11 @@ import {
   refusedDraftEdit,
   StaleDraftCandidateError,
 } from "./draft-persistence.ts";
-import { DRAFT_LIMITS, type DraftCandidate } from "./drafts.ts";
+import {
+  DRAFT_LIMITS,
+  type DraftAnchorPosition,
+  type DraftCandidate,
+} from "./drafts.ts";
 import type { OrganizationBlobStore } from "../catalog/storage-port.ts";
 
 export type DraftResourceRouteOptions = {
@@ -161,6 +186,15 @@ type DraftExecutionStage = {
    * failing the call: nothing was applied and the list must say so.
    */
   refusal?: DraftEditRefusalReason;
+  /** A new draft comment root whose anchor the worker verifies (#28). */
+  commentRoot?: PreparedDraftCommentRoot;
+  commentPosition?: readonly [number, number];
+  /** A draft comment page whose root anchors the worker resolves (#28). */
+  commentPage?: PreparedDraftCommentPage;
+  commentPositions?: DraftAnchorPosition[];
+  /** Draft threads a publication projects, resolved at its cutoff (#28). */
+  projection?: PreparedThreadProjection;
+  projectionPositions?: DraftAnchorPosition[];
 };
 
 const draftExecutionStage: unique symbol = Symbol("draft-execution-stage");
@@ -242,12 +276,83 @@ function mapIsolationError(error: unknown): never {
   }
 }
 
+/**
+ * The threads a publication projects (#28). The first pass loads the named
+ * roots and stops so the worker can resolve their anchors at the cutoff; the
+ * second pass reloads them (a thread resolved meanwhile is refused) and
+ * carries the resolved positions. A checkpoint already published is a replay
+ * and projects nothing again.
+ */
+async function threadProjection(
+  context: StagedActionContext,
+  organizationId: string,
+  id: string,
+  checkpointId: string,
+  rootIds: readonly string[],
+): Promise<ResolvedThreadProjection | undefined> {
+  if (rootIds.length === 0) return undefined;
+  const { transaction } = requireWorkTransaction(context);
+  if (
+    await draftCheckpointPublished(
+      transaction,
+      organizationId,
+      id,
+      checkpointId,
+    )
+  ) return undefined;
+  const stage = context[draftExecutionStage];
+  if (!stage) throw new Error("DRAFT_STAGE_MISSING");
+  const prepared = await prepareThreadProjection(
+    transaction,
+    organizationId,
+    id,
+    checkpointId,
+    rootIds,
+  );
+  if (!stage.projectionPositions) {
+    stage.projection = prepared;
+    stage.organizationId = organizationId;
+    throw new DraftPreparationComplete();
+  }
+  if (
+    JSON.stringify(stage.projection?.anchors) !==
+      JSON.stringify(prepared.anchors)
+  ) throw new StandardError({ code: "PRECONDITION_FAILED" });
+  return { ...prepared, positions: stage.projectionPositions };
+}
+
 function isStagedAction(name: string): boolean {
   return name === DraftImplementedAction.Open ||
     name === DraftImplementedAction.Edit ||
     name === DraftImplementedAction.Slice ||
     name === DraftImplementedAction.SuggestionCreate ||
-    name === DraftImplementedAction.SuggestionAccept;
+    name === DraftImplementedAction.SuggestionAccept ||
+    name === DraftImplementedAction.CommentCreate ||
+    name === DraftImplementedAction.CommentList;
+}
+
+/**
+ * The named refusal a strict anchor resolution failure means for a new draft
+ * comment (#28): its quote no longer matches the text between the cursors, a
+ * cursor offset would split a UTF-16 surrogate pair, or the cursors no longer
+ * resolve to a non-empty range in the current draft.
+ */
+function refusedCommentAnchor(error: unknown): never {
+  if (
+    !(error instanceof DraftIsolationError) || error.kind !== "precondition"
+  ) {
+    throw error;
+  }
+  const reason = error.message === "COMMENT_QUOTE_MISMATCH"
+    ? "comment_quote_mismatch"
+    : error.message === "UTF16_SURROGATE_SPLIT"
+    ? "comment_anchor_splits_character"
+    : "comment_anchor_stale";
+  throw new StandardError({
+    code: "PRECONDITION_FAILED",
+    params: { reason },
+    cause: error,
+  });
 }
 
 /**
@@ -293,12 +398,41 @@ export function createDraftResourceRoutes(
   ) => {
     if (action.name === DraftImplementedAction.PublicationCreate) {
       const holder: PublicationHolder = {};
-      const result = await postgresAuthority.run(
-        action,
-        Object.assign({}, context, { [committedPublication]: holder }),
-        input,
-        next,
-      );
+      const stage: DraftExecutionStage = {};
+      const publishOnce = () =>
+        postgresAuthority.run(
+          action,
+          Object.assign({}, context, {
+            [committedPublication]: holder,
+            [draftExecutionStage]: stage,
+          }),
+          input,
+          next,
+        );
+      let result;
+      try {
+        result = await publishOnce();
+      } catch (error) {
+        if (!(error instanceof DraftPreparationComplete)) throw error;
+        // Projected threads: their anchors are resolved against the frozen
+        // checkpoint in the isolated worker, then the publish runs again.
+        const projection = stage.projection;
+        if (!projection) {
+          throw new Error("DRAFT_PROJECTION_PREPARATION_MISSING");
+        }
+        try {
+          stage.projectionPositions = await isolation.anchors(
+            projection.state,
+            projection.anchors,
+            false,
+            context.signal,
+            stage.organizationId,
+          );
+        } catch (failure) {
+          mapIsolationError(failure);
+        }
+        result = await publishOnce();
+      }
       // After commit only: a rolled-back publish is never announced.
       if (holder.publication && holder.organizationId && !holder.replayed) {
         options.collaboration?.notifyDraftPublished(
@@ -378,9 +512,47 @@ export function createDraftResourceRoutes(
                   refusal = reason;
                   continue;
                 }
+                if (reason && action.name === DraftImplementedAction.Edit) {
+                  // A guarded edit names why it could not apply (#28).
+                  throw new StandardError({
+                    code: "PRECONDITION_FAILED",
+                    params: {
+                      reason: (error as DraftIsolationError).message ===
+                          "CURRENT_TARGET_AMBIGUOUS"
+                        ? "target_ambiguous"
+                        : "text_changed",
+                    },
+                    cause: error,
+                  });
+                }
                 throw error;
               }
             }
+          } else if (stage.commentRoot) {
+            const root = stage.commentRoot;
+            let positions: DraftAnchorPosition[];
+            try {
+              positions = await isolation.anchors(
+                root.state,
+                [root.anchor],
+                true,
+                context.signal,
+                stage.organizationId,
+              );
+            } catch (error) {
+              refusedCommentAnchor(error);
+            }
+            const position = positions[0];
+            if (!position) throw new Error("DRAFT_COMMENT_ANCHOR_MISSING");
+            stage.commentPosition = position;
+          } else if (stage.commentPage) {
+            stage.commentPositions = await isolation.anchors(
+              stage.commentPage.state,
+              stage.commentPage.anchors,
+              false,
+              context.signal,
+              stage.organizationId,
+            );
           } else if (stage.slice) {
             const sliceInput = input as DraftSliceInput;
             stage.sliceCandidate = await isolation.slice(
@@ -643,6 +815,13 @@ export function createDraftResourceRoutes(
           requireWorkTransaction(context);
         const id = draftId(context);
         const supplied = context.request.headers.get("idempotency-key");
+        const projection = await threadProjection(
+          context as StagedActionContext,
+          organizationId,
+          id,
+          input.checkpointId,
+          input.projectThreads ?? [],
+        );
         const frozen = await freezeTextDraftCheckpoint(
           transaction,
           organizationId,
@@ -663,6 +842,7 @@ export function createDraftResourceRoutes(
             traceId: context.traceId,
             operation: DraftImplementedAction.PublicationCreate,
             blobStore: options.blobStore,
+            ...(projection ? { projection } : {}),
           },
         );
         const holder = (context as PublicationActionContext)[
@@ -916,6 +1096,155 @@ export function createDraftResourceRoutes(
         announceSuggestion(context, organizationId, suggestion);
         return contractSchemas.DraftSuggestion.parse(suggestion);
       },
+    })
+    .register({
+      name: DraftImplementedAction.CommentCreate,
+      method: HttpMethod.Post,
+      path: "/v1/drafts/:id/comments",
+      input: contractSchemas.DraftCommentCreate,
+      output: contractSchemas.DraftComment,
+      policy: commandPolicy,
+      naturalIdempotency: true,
+      naturalIdempotencyInputField: "mutationId",
+      handler: async (context, input) => {
+        const { transaction, organizationId, principalId } =
+          requireWorkTransaction(context);
+        const stage = (context as StagedActionContext)[draftExecutionStage];
+        if (!stage) throw new Error("DRAFT_STAGE_MISSING");
+        const command = {
+          draftId: draftId(context),
+          attribution: attributeAction(context, principalId),
+          requestId: context.requestId,
+          traceId: context.traceId,
+          create: input,
+        };
+        if (stage.commentRoot && stage.commentPosition) {
+          return contractSchemas.DraftComment.parse(
+            await commitDraftCommentRoot(
+              transaction,
+              organizationId,
+              command,
+              stage.commentRoot,
+              stage.commentPosition,
+            ),
+          );
+        }
+        const prepared = await prepareDraftComment(
+          transaction,
+          organizationId,
+          command,
+        );
+        if (!("requestDigest" in prepared)) {
+          return contractSchemas.DraftComment.parse(prepared);
+        }
+        stage.commentRoot = prepared;
+        stage.organizationId = organizationId;
+        throw new DraftPreparationComplete();
+      },
+    })
+    .register({
+      name: DraftImplementedAction.CommentList,
+      method: HttpMethod.Get,
+      path: "/v1/drafts/:id/comments",
+      input: contractSchemas.DraftCommentQuery,
+      output: contractSchemas["Page<DraftComment>"],
+      policy: readPolicy,
+      handler: async (context, input) => {
+        const { transaction, organizationId, principalId } =
+          requireWorkTransaction(context);
+        const stage = (context as StagedActionContext)[draftExecutionStage];
+        if (!stage) throw new Error("DRAFT_STAGE_MISSING");
+        const id = draftId(context);
+        if (stage.commentPage && stage.commentPositions) {
+          return contractSchemas["Page<DraftComment>"].parse(
+            resolvedDraftCommentPage(
+              stage.commentPage,
+              stage.commentPositions,
+              await draftEpoch(transaction, organizationId, id),
+            ),
+          );
+        }
+        const prepared = await prepareDraftCommentPage(
+          transaction,
+          organizationId,
+          principalId,
+          options.cursorSecret,
+          id,
+          input,
+        );
+        if ("items" in prepared) {
+          return contractSchemas["Page<DraftComment>"].parse(prepared);
+        }
+        stage.commentPage = prepared;
+        stage.organizationId = organizationId;
+        throw new DraftPreparationComplete();
+      },
+    })
+    .register({
+      name: DraftImplementedAction.CommentUpdate,
+      method: HttpMethod.Patch,
+      path: "/v1/drafts/:id/comments/:commentId",
+      input: contractSchemas.DraftCommentUpdate,
+      output: contractSchemas.DraftComment,
+      policy: commandPolicy,
+      handler: async (context, input) => {
+        const { transaction, organizationId, principalId } =
+          requireWorkTransaction(context);
+        const commentId = context.params.commentId;
+        if (!commentId) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+        return contractSchemas.DraftComment.parse(
+          await updateDraftComment(transaction, organizationId, {
+            draftId: draftId(context),
+            commentId,
+            principalId,
+            expectedVersion: parseStrongIfMatch(
+              context.request.headers.get("if-match"),
+            ),
+            requestId: context.requestId,
+            traceId: context.traceId,
+            update: input,
+          }),
+        );
+      },
+    })
+    .register({
+      name: DraftImplementedAction.ReferenceCreate,
+      method: HttpMethod.Post,
+      path: "/v1/drafts/:id/references",
+      input: contractSchemas.DraftReferenceCreate,
+      output: contractSchemas.DraftReference,
+      policy: commandPolicy,
+      naturalIdempotency: true,
+      naturalIdempotencyInputField: "mutationId",
+      handler: async (context, input) => {
+        const { transaction, organizationId, principalId } =
+          requireWorkTransaction(context);
+        // Send to agent (#28): records the frozen reference only; turn and
+        // workflow admission are not touched here.
+        return contractSchemas.DraftReference.parse(
+          await createDraftReference(transaction, organizationId, {
+            draftId: draftId(context),
+            attribution: attributeAction(context, principalId),
+            requestId: context.requestId,
+            traceId: context.traceId,
+            create: input,
+          }),
+        );
+      },
+    })
+    .register({
+      name: DraftImplementedAction.ReferenceGet,
+      method: HttpMethod.Get,
+      path: "/v1/draft-references/:id",
+      input: contractSchemas.IdPath,
+      output: contractSchemas.DraftReference,
+      policy: readPolicy,
+      handler: async (context, input) => {
+        const { transaction, organizationId } = requireWorkTransaction(context);
+        return contractSchemas.DraftReference.parse(
+          await readDraftReference(transaction, organizationId, input.id),
+        );
+      },
     });
   assertRegisteredActions(registry);
   assertImplementedActionRegistry(registry, draftImplementedActions);
@@ -924,6 +1253,7 @@ export function createDraftResourceRoutes(
   app.use("/v1/artifacts/*", options.browserSession);
   app.use("/v1/drafts", options.browserSession);
   app.use("/v1/drafts/*", options.browserSession);
+  app.use("/v1/draft-references/*", options.browserSession);
   app.route(
     "/",
     createApiRouter({
