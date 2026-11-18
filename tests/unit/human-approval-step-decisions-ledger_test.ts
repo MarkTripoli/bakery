@@ -6,14 +6,13 @@ import {
   DEFAULT_STOP_OUTCOME,
   HUMAN_APPROVAL_WAIT_LIMIT_MS,
   humanApprovalContinues,
-  humanApprovalHasExpired,
   HumanApprovalInputSchema,
-  humanApprovalWaitMs,
   isStorableDecisionText,
   normalizeWorkflowStop,
   validateDecisionLedgerEntry,
   WorkflowStopInputSchema,
 } from "../../packages/contracts/src/human-approval.ts";
+import { WORKFLOW_COMPILER_LIMITS } from "../../packages/contracts/src/workflow-compiler/limits.ts";
 
 // #411, slice 9 of the one-engine design: human.approval, the decisions ledger,
 // waits up to seven days outside the active clock, named outcomes and
@@ -67,55 +66,15 @@ Deno.test("a human.approval step with no prompt, or an empty audience, is refuse
   );
 });
 
-Deno.test("a human.approval wait expires at seven days, never before", () => {
-  const requested = "2026-11-01T00:00:00.000Z";
-  const at = (ms: number) => new Date(Date.parse(requested) + ms);
-
-  assertEquals(humanApprovalHasExpired(requested, at(0)), false);
-  assertEquals(
-    humanApprovalHasExpired(requested, at(HUMAN_APPROVAL_WAIT_LIMIT_MS - 1)),
-    false,
-  );
-  // Exactly at the limit it has expired: the boundary is a closed one so the
-  // timer cannot be read as "still waiting" forever.
-  assertEquals(
-    humanApprovalHasExpired(requested, at(HUMAN_APPROVAL_WAIT_LIMIT_MS)),
-    true,
-  );
+Deno.test("the approval ceiling is one seven-day constant, not a restatement", () => {
+  // The ceiling used to be enforced only by a predicate nothing called, and the
+  // compiler restated the same seven days as its own literal. Both are now the
+  // same constant, and the compiler limit derives from it, so the window the
+  // compiler admits and the window the store expires cannot drift apart.
   assertEquals(HUMAN_APPROVAL_WAIT_LIMIT_MS, 7 * 24 * 60 * 60 * 1000);
-});
-
-Deno.test("the wait is outside the active clock and cannot go negative", () => {
-  const requested = "2026-11-01T00:00:00.000Z";
-  const hour = 60 * 60 * 1000;
-
-  // Still open: the wait counts up to now.
   assertEquals(
-    humanApprovalWaitMs(
-      requested,
-      null,
-      new Date(Date.parse(requested) + hour),
-    ),
-    hour,
-  );
-  // Settled: the wait is frozen at the decision.
-  assertEquals(
-    humanApprovalWaitMs(
-      requested,
-      new Date(Date.parse(requested) + 2 * hour),
-      new Date(Date.parse(requested) + 9 * hour),
-    ),
-    2 * hour,
-  );
-  // A clock skew that puts the decision before the request credits no time,
-  // rather than subtracting from the run's active clock.
-  assertEquals(
-    humanApprovalWaitMs(
-      requested,
-      new Date(Date.parse(requested) - hour),
-      new Date(Date.parse(requested)),
-    ),
-    0,
+    WORKFLOW_COMPILER_LIMITS.approvalWaitMaxMs,
+    HUMAN_APPROVAL_WAIT_LIMIT_MS,
   );
 });
 

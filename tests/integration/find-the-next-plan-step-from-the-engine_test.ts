@@ -214,6 +214,96 @@ Deno.test("a human.approval wait is admitted and waits instead of failing the ru
     assertEquals(stored.rows[0].dispatch?.wait?.approvalId, approvalId);
   }));
 
+Deno.test("an approval wait that is never answered expires instead of running forever", () =>
+  withWorkerFixture(async (fixture) => {
+    const approvalId = "00000000-0000-4000-8000-0000000000c2";
+    const seeded = await seedPlanRun(
+      fixture,
+      await compiled([
+        noop("first"),
+        {
+          id: "signoff",
+          needs: ["first"],
+          wait: {
+            event: "human.approval.decided",
+            timeout: "7d",
+            approvalId,
+          },
+        },
+      ]),
+    );
+    await setRow(fixture, seeded, seeded.firstKey, "completed", { n: 1 });
+    const key = await seeded.repository.findNext(
+      seeded.job.runId,
+      seeded.owner,
+    );
+    assert(key !== undefined, "the plan reaches the approval wait");
+    assertEquals(key.stepKey, "signoff");
+
+    // The fixture's lease is short; renew it so that what fails, if anything
+    // does, is the ceiling rather than the lease lapsing mid-assertion.
+    const owner = { ...seeded.owner, leaseMs: 600_000 };
+    assert(
+      await seeded.repository.renewEngineOwner(owner),
+      "the engine holds the run",
+    );
+    // Undecided is a normal state, not an error: the engine polls on it. The
+    // old throw here made expiry unreachable, so this assertion is the [High].
+    assertEquals(
+      await seeded.repository.completeApprovalWait(key, owner),
+      false,
+      "an unanswered approval reports not-yet, so the caller can keep polling",
+    );
+    const fresh = await seeded.repository.readWait(key);
+    assertEquals(fresh?.kind, "approval");
+    assertEquals(fresh?.expired, false, "a fresh wait has not expired");
+
+    // Age the wait past its window by moving its start back, which is how time
+    // passing is expressed against a database-clock ceiling without faking the
+    // clock: the row's own start is what the ceiling measures from.
+    await fixture.pgDatabase.query(
+      `update bakery.run_steps
+          set started_at = clock_timestamp() - interval '8 days'
+        where run_id = $1 and step_key = 'signoff'`,
+      [seeded.job.runId],
+    );
+    const aged = await seeded.repository.readWait(key);
+    assertEquals(aged?.expired, true, "past its window the wait has expired");
+
+    // The ceiling FIRES on the production path: the step settles and the run
+    // ends failed. It is never approved by silence (§19.3).
+    assertEquals(
+      await seeded.repository.expireApprovalWait(key, owner),
+      true,
+      "an expired wait settles",
+    );
+    const settled = await fixture.pgDatabase.query<{
+      status: string;
+      error: { code?: string } | null;
+    }>(
+      `select status, error from bakery.run_steps
+        where run_id = $1 and step_key = 'signoff'`,
+      [seeded.job.runId],
+    );
+    assertEquals(settled.rows[0].status, "failed");
+    assertEquals(settled.rows[0].error?.code, "APPROVAL_EXPIRED");
+    const run = await state(fixture, seeded);
+    assertEquals(run.run.status, "failed", "the run does not stay running");
+
+    // Expiring is idempotent at the row level: a settled step is left alone, so
+    // a second activation reading the same wait cannot rewrite the record.
+    const again = await fixture.pgDatabase.query<{ status: string }>(
+      `select status from bakery.run_steps
+        where run_id = $1 and step_key = 'signoff'`,
+      [seeded.job.runId],
+    );
+    assertEquals(
+      again.rows[0].status,
+      "failed",
+      "the settled row is unchanged",
+    );
+  }));
+
 Deno.test("a plan that cannot be read fails the run with the interpreter's code, not a hang", () =>
   withWorkerFixture(async (fixture) => {
     const seeded = await seedPlanRun(fixture, await chain());

@@ -86,6 +86,14 @@ const MAX_RECONCILIATION_WAITS = 8;
  * step responsive; it is not a busy wait because the engine sleeps between reads.
  */
 const APPROVAL_POLL_MS = 15_000;
+
+/**
+ * Stable code an approval wait settles with when its window closes with no
+ * answer. Written as a failure code so the step is recognisably NOT approved,
+ * and worded so a reader understands that silence was not consent.
+ */
+const APPROVAL_EXPIRED_CODE =
+  "APPROVAL_EXPIRED:The approval window closed with no decision.";
 const MAX_RETRY_ATTEMPTS = 8;
 const MAX_PERSISTED_ATTEMPTS = 2_147_483_647;
 const MIN_ENGINE_OWNER_LEASE_MS = 3_000;
@@ -238,6 +246,19 @@ export type WaitBoundary = Readonly<{
   durationMs: number;
   remainingMs: number;
   /**
+   * When the wait started, by the database clock. Kept so an approval wait can
+   * report how long it has stood; the expiry decision itself uses `expired`,
+   * which the database computes, so an app clock that disagrees with the
+   * database cannot expire a wait early or late.
+   */
+  startedAt?: string;
+  /**
+   * Whether the wait's window has closed, decided by the database clock the row
+   * was written with. This is what makes a seven-day window actually fire
+   * instead of living only in a predicate nothing calls.
+   */
+  expired?: boolean;
+  /**
    * "duration" ends when the clock passes the boundary. "approval" ends when a
    * person decides, and its remainingMs is how long until the decision expires;
    * reaching it ends the run with an expired outcome, never an approval.
@@ -308,14 +329,24 @@ export type BakeryPostgresWorkflowRepository = Readonly<{
     owner?: EngineOwner,
   ): Promise<boolean>;
   /**
-   * Records a human.approval wait as decided. The decision is made out of band
-   * (a person answers), so this completes the step from the stored answer rather
-   * than from elapsed time. True when the step is now completed (also when it
-   * already was); false when the run no longer waits on it. Throws
-   * `WORKFLOW_APPROVAL_NOT_DECIDED`, which the engine retries, when the answer
-   * has not arrived.
+   * Completes a human.approval wait from the stored answer. The decision is made
+   * out of band (a person answers), so this settles the step from the answer
+   * rather than from elapsed time. True when the step is now completed (also
+   * when it already was); false when the answer has not arrived yet, which is a
+   * normal state the caller polls on rather than an error.
    */
   completeApprovalWait(
+    key: LogicalInvocationKey,
+    owner?: EngineOwner,
+  ): Promise<boolean>;
+  /**
+   * Settles an approval wait whose window has closed with no answer, and ends
+   * the plan run failed with `approval_expired`. Never approves: §19.3, nothing
+   * is ever approved by silence. True when this call settled it (also when it
+   * already was settled); false when the step was already decided, in which case
+   * the decision stands and there is nothing to expire.
+   */
+  expireApprovalWait(
     key: LogicalInvocationKey,
     owner?: EngineOwner,
   ): Promise<boolean>;
@@ -1595,7 +1626,14 @@ export function createBakeryPostgresWorkflowRepository(options: {
                   )) * 1000))::integer as "remainingMs",
                   case when step.dispatch #>> '{wait,event}'
                           = ${"'" + "human.approval.decided" + "'"}
-                       then 'approval' else 'duration' end as "kind"
+                       then 'approval' else 'duration' end as "kind",
+                  step.started_at as "startedAt",
+                  step.started_at +
+                    coalesce(
+                      (step.dispatch #>> '{wait,durationMs}')::bigint,
+                      (step.dispatch #>> '{wait,timeoutMs}')::bigint
+                    ) * interval '1 millisecond' <= clock_timestamp()
+                    as "expired"
              from bakery.run_steps step
              join bakery.workflow_runs run
                on run.organization_id = step.organization_id
@@ -1697,16 +1735,33 @@ export function createBakeryPostgresWorkflowRepository(options: {
         );
         const status = current.rows[0]?.status;
         if (status === "completed") return true;
-        if (status === "waiting") {
-          const run = await transaction.query<{ status: string }>(
-            `select status from bakery.workflow_runs where id = $1`,
-            [key.runId],
-          );
-          if (["queued", "running"].includes(run.rows[0]?.status ?? "")) {
-            throw new Error("WORKFLOW_APPROVAL_NOT_DECIDED");
-          }
-        }
+        // Still waiting while the run is live is the ordinary case: the person
+        // has not answered yet. Reporting false lets the caller poll, and keeps
+        // the expiry decision reachable instead of behind a throw.
         return false;
+      });
+    },
+    async expireApprovalWait(key, owner) {
+      assertLogicalKey(key);
+      return await withPgTransaction(options.database, async (transaction) => {
+        await requireEngineOwner(transaction, key.runId, owner);
+        const row = await loadLogical(
+          transaction,
+          key,
+          true,
+        ) as AdmissionStepRow;
+        // A decision that arrived first wins: expiring it would throw away a
+        // person's answer, so an already-completed step is left alone.
+        if (isTerminal(row)) return false;
+        // Settle the step through the same failure projection every other
+        // settled step uses, so the row ends in a real status with a stable
+        // code rather than sitting in 'waiting' forever.
+        // projectFailure settles the step AND ends the run failed with the
+        // step's code, which is the same path every other failed step takes.
+        // Expiring is not a special end: it is a failure with a name that says
+        // silence was not consent.
+        await projectFailure(transaction, row, APPROVAL_EXPIRED_CODE, owner);
+        return true;
       });
     },
     async readRunStatus(runId, owner) {
@@ -2394,10 +2449,26 @@ export function createBakeryFixedWorkflow(options: {
             () => repository.readWait(key, owner),
           );
           if (durationWait !== null && durationWait.kind === "approval") {
-            // A human.approval wait ends on a decision, not on the clock. Poll
-            // until the answer arrives or the window closes; the window closing
-            // ends the run expired, never approved (§19.3: nothing is ever
-            // approved by silence).
+            // A human.approval wait ends on a decision or on its window closing,
+            // never on a bare sleep. The window is checked first, by the database
+            // clock, so expiry is reachable: an unanswered approval settles and
+            // the run ends failed rather than waiting forever.
+            if (durationWait.expired === true) {
+              const expired = await step.run(
+                `expire-approval-${checkpoint}-${key.stepKey}-${key.iteration}`,
+                () => repository.expireApprovalWait(key, owner),
+              );
+              if (!expired) {
+                // A decision arrived first: it stands, and this step is done.
+                return undefined;
+              }
+              return {
+                result: {
+                  status: "stalled" as const,
+                  reason: "approval_expired",
+                },
+              };
+            }
             await step.sleep(
               `wait-for-approval-${checkpoint}-${key.stepKey}-${key.iteration}`,
               `${
@@ -2412,21 +2483,8 @@ export function createBakeryFixedWorkflow(options: {
               () => repository.completeApprovalWait(key, owner),
             );
             if (decided) return undefined;
-            if (durationWait.remainingMs > APPROVAL_POLL_MS) {
-              // Still waiting and inside the window: the engine comes back.
-              return { result: { status: "waiting" as const } };
-            }
-            await step.run(
-              `expire-approval-${checkpoint}-${key.stepKey}-${key.iteration}`,
-              () => repository.markStalled(key, "approval_expired", owner),
-            );
-            await releaseOwner();
-            return {
-              result: {
-                status: "stalled" as const,
-                reason: "approval_expired",
-              },
-            };
+            // Not answered and still inside the window: the engine comes back.
+            return { result: { status: "waiting" as const } };
           }
           if (durationWait !== null) {
             if (durationWait.remainingMs > 0) {

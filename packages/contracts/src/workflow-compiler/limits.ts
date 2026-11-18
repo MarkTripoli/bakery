@@ -1,3 +1,5 @@
+import { HUMAN_APPROVAL_WAIT_LIMIT_MS } from "../human-approval.ts";
+
 /**
  * Hard ceilings for the pure workflow compiler. Every pass reads these
  * constants; none is configurable per call, so a hostile definition cannot
@@ -37,7 +39,9 @@ export const WORKFLOW_COMPILER_LIMITS = Object.freeze({
    * (§9) while every other duration stops at a day, so an approval wait is
    * bounded separately instead of raising the ceiling for actions and runs.
    */
-  approvalWaitMaxMs: 7 * 24 * 60 * 60 * 1_000,
+  // Derived, not restated: one seven-day constant, so the compiler ceiling and
+  // the store's expiry cannot drift apart.
+  approvalWaitMaxMs: HUMAN_APPROVAL_WAIT_LIMIT_MS,
   /** Largest accepted retry backoff. */
   backoffMaxMs: 60 * 60 * 1_000,
   /** Largest accepted `maxFindings` limit. */
