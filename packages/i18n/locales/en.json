@@ -2351,6 +2351,7 @@
   "settings.sso.verify.type": "Type",
   "settings.sso.verify.host": "Host",
   "settings.sso.verify.value": "Value",
+  "settings.sso.verify.copyType": "Copy type",
   "settings.sso.verify.copyHost": "Copy host",
   "settings.sso.verify.copyValue": "Copy value",
   "settings.sso.verify.nextStep": "Verify the domain below to turn this on",

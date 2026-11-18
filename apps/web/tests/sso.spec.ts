@@ -195,6 +195,8 @@ test.describe("single sign-on settings", () => {
     await page.goto("/settings/organization/sso");
     const record = page.getByTestId("txt-okta");
     await expect(record.getByText("TXT", { exact: true })).toBeVisible();
+    await expect(record.getByRole("button", { name: "Copy type" }))
+      .toBeVisible();
     await expect(record.getByRole("button", { name: "Copy host" }))
       .toBeVisible();
     await expect(record.getByRole("button", { name: "Copy value" }))

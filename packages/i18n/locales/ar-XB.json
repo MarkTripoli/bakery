@@ -4108,5 +4108,6 @@
   "settings.sso.field.providerId.hint": "⟪Shown to members on the sign-in page, for example \"acme-okta\". Use lowercase letters, digits and dashes.⟫",
   "settings.sso.field.metadata.hint": "⟪Paste the metadata XML from your identity provider, or the URL where it is published.⟫",
   "settings.sso.verify.pending": "⟪We could not find the record yet. DNS changes can take up to an hour.⟫",
-  "settings.sso.verify.checkAgainLabel": "⟪Check again for {name}⟫"
+  "settings.sso.verify.checkAgainLabel": "⟪Check again for {name}⟫",
+  "settings.sso.verify.copyType": "⟪Copy type⟫"
 }

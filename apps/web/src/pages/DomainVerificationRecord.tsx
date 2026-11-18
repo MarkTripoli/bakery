@@ -39,6 +39,13 @@ export function DomainVerificationRecord(
       </UI.Text>
       <UI.DescriptionList>
         <UI.DescriptionItem
+          action={
+            <CopyValueButton
+              label={translate("settings.sso.verify.copyType")}
+              value="TXT"
+            />
+          }
+          actionPlacement="below"
           description={<UI.DataText variant="code">TXT</UI.DataText>}
           title={translate("settings.sso.verify.type")}
         />
