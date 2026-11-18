@@ -1274,10 +1274,11 @@ Deno.test("frames queued behind a slow join are bounded and the connection is cl
   }
 });
 
-// Smoke test for back-to-back updates with many joined peers. It passes with
-// the relay inside or outside the admission section on a fast local database,
-// so it does not by itself prove the ordering fix; see PR #140 round 1 notes.
-Deno.test("back-to-back updates with twenty joined peers are all acknowledged", async () => {
+// Back-to-back updates with many joined peers: every one is acknowledged, and
+// a joined peer receives the committed updates in commit order (#175). Relays
+// run outside admission, so the order rests on each peer's relay checks being
+// chained, not on the relay being serialized.
+Deno.test("back-to-back updates with twenty joined peers are acknowledged and relayed in order", async () => {
   const harness = await openHarness({ maxConnectionsPerPrincipal: 32 });
   try {
     const a = await open(harness, harness.owner);
@@ -1330,6 +1331,25 @@ Deno.test("back-to-back updates with twenty joined peers are all acknowledged", 
     assertEquals(acked.size, ids.length);
     const committed = await committedText(harness);
     assertEquals(committed.serverSequence, "12");
+    // A peer receives all twelve committed updates in commit order.
+    const received: bigint[] = [];
+    const stop = Date.now() + 10_000;
+    while (received.length < ids.length && Date.now() < stop) {
+      const value = await peers[0]!.nextMessage(stop - Date.now()).catch(() =>
+        undefined
+      );
+      if (value === undefined) break;
+      if (typeof value === "object" && "binary" in value) {
+        const frame = decodeBinaryFrame(value.binary);
+        if (frame.kind === BinaryFrameKind.ServerUpdate) {
+          received.push(frame.sequence);
+        }
+      }
+    }
+    assertEquals(
+      received,
+      Array.from({ length: ids.length }, (_, index) => BigInt(index + 1)),
+    );
   } finally {
     await closeHarness(harness);
   }
