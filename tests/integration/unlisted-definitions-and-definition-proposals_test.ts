@@ -413,9 +413,11 @@ Deno.test("a coordinator proposes an unlisted definition, a person decides it an
       unlisted.version,
       listingBody,
     );
-    // Workflow authoring routes take a browser session only, so an agent's
-    // token never reaches save as workflow (and the handler refuses one too).
-    assertEquals(agentSave.status, 401);
+    // Workflow authoring routes accept an agent's token (#421: agents author
+    // drafts), but save as workflow is a person's act: the handler refuses.
+    const agentSaveBody = await agentSave.text();
+    assertEquals(agentSave.status, 403, agentSaveBody);
+    assertEquals(JSON.parse(agentSaveBody).code, "AUTH_FORBIDDEN");
     assertEquals(
       (await call(fixture, seed, listingPath, {
         method: "POST",
