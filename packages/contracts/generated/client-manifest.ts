@@ -26935,42 +26935,53 @@ export const clientManifest = {
                 "description": "Optimistic-concurrency version used when updating the record."
               },
               "origin": {
-                "anyOf": [
-                  {
+                "type": "object",
+                "properties": {
+                  "kind": {
                     "type": "string",
-                    "description": "JSON string value."
+                    "enum": [
+                      "authored",
+                      "catalog",
+                      "copy"
+                    ],
+                    "description": "Origin kind: authored, catalog or copy."
                   },
-                  {
-                    "type": "number",
-                    "description": "JSON number value."
+                  "catalogKey": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "Stable key of the catalog item a catalog definition was installed from; null for authored and copied definitions."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "WorkflowOrigin.catalogKey may be null in this transport value."
                   },
-                  {
-                    "type": "boolean",
-                    "description": "JSON boolean value."
-                  },
-                  {
-                    "type": "null",
-                    "description": "JSON null value."
-                  },
-                  {
-                    "type": "array",
-                    "items": {
-                      "$ref": "#/$defs/__schema0"
-                    },
-                    "description": "JSON array value."
-                  },
-                  {
-                    "type": "object",
-                    "propertyNames": {
-                      "type": "string",
-                      "description": "JSON object key."
-                    },
-                    "additionalProperties": {
-                      "$ref": "#/$defs/__schema0"
-                    },
-                    "description": "JSON object value."
+                  "catalogVersion": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "Release revision of the catalog item the definition was installed from; null for authored and copied definitions."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "WorkflowOrigin.catalogVersion may be null in this transport value."
                   }
+                },
+                "required": [
+                  "kind",
+                  "catalogKey",
+                  "catalogVersion"
                 ],
+                "additionalProperties": false,
                 "description": "Where this definition came from, as {kind, catalogKey, catalogVersion}: kind is authored (written in this organization), catalog (installed from the code-owned catalog; system managed and locked against organization edits) or copy; catalogKey and catalogVersion name the catalog item and release revision for a catalog origin and are null otherwise. Set when the definition is created and never changed."
               }
             },
@@ -27040,120 +27051,7 @@ export const clientManifest = {
         "nextCursor"
       ],
       "additionalProperties": false,
-      "description": "Cursor page of Workflow.",
-      "$defs": {
-        "__schema0": {
-          "anyOf": [
-            {
-              "type": "string",
-              "description": "JSON string value."
-            },
-            {
-              "type": "number",
-              "description": "JSON number value."
-            },
-            {
-              "type": "boolean",
-              "description": "JSON boolean value."
-            },
-            {
-              "type": "null",
-              "description": "JSON null value."
-            },
-            {
-              "type": "array",
-              "items": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "description": "JSON string value."
-                  },
-                  {
-                    "type": "number",
-                    "description": "JSON number value."
-                  },
-                  {
-                    "type": "boolean",
-                    "description": "JSON boolean value."
-                  },
-                  {
-                    "type": "null",
-                    "description": "JSON null value."
-                  },
-                  {
-                    "type": "array",
-                    "items": {
-                      "$ref": "#/$defs/__schema0"
-                    },
-                    "description": "JSON array value."
-                  },
-                  {
-                    "type": "object",
-                    "propertyNames": {
-                      "type": "string",
-                      "description": "JSON object key."
-                    },
-                    "additionalProperties": {
-                      "$ref": "#/$defs/__schema0"
-                    },
-                    "description": "JSON object value."
-                  }
-                ],
-                "description": "JSON value node."
-              },
-              "description": "JSON array value."
-            },
-            {
-              "type": "object",
-              "propertyNames": {
-                "type": "string",
-                "description": "JSON object key."
-              },
-              "additionalProperties": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "description": "JSON string value."
-                  },
-                  {
-                    "type": "number",
-                    "description": "JSON number value."
-                  },
-                  {
-                    "type": "boolean",
-                    "description": "JSON boolean value."
-                  },
-                  {
-                    "type": "null",
-                    "description": "JSON null value."
-                  },
-                  {
-                    "type": "array",
-                    "items": {
-                      "$ref": "#/$defs/__schema0"
-                    },
-                    "description": "JSON array value."
-                  },
-                  {
-                    "type": "object",
-                    "propertyNames": {
-                      "type": "string",
-                      "description": "JSON object key."
-                    },
-                    "additionalProperties": {
-                      "$ref": "#/$defs/__schema0"
-                    },
-                    "description": "JSON object value."
-                  }
-                ],
-                "description": "JSON value node."
-              },
-              "description": "JSON object value."
-            }
-          ],
-          "description": "JSON value node."
-        }
-      }
+      "description": "Cursor page of Workflow."
     },
     "Page<WorkflowVersion>": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -40793,42 +40691,53 @@ export const clientManifest = {
           "description": "Optimistic-concurrency version used when updating the record."
         },
         "origin": {
-          "anyOf": [
-            {
+          "type": "object",
+          "properties": {
+            "kind": {
               "type": "string",
-              "description": "JSON string value."
+              "enum": [
+                "authored",
+                "catalog",
+                "copy"
+              ],
+              "description": "Origin kind: authored, catalog or copy."
             },
-            {
-              "type": "number",
-              "description": "JSON number value."
+            "catalogKey": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Stable key of the catalog item a catalog definition was installed from; null for authored and copied definitions."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "WorkflowOrigin.catalogKey may be null in this transport value."
             },
-            {
-              "type": "boolean",
-              "description": "JSON boolean value."
-            },
-            {
-              "type": "null",
-              "description": "JSON null value."
-            },
-            {
-              "type": "array",
-              "items": {
-                "$ref": "#/$defs/__schema0"
-              },
-              "description": "JSON array value."
-            },
-            {
-              "type": "object",
-              "propertyNames": {
-                "type": "string",
-                "description": "JSON object key."
-              },
-              "additionalProperties": {
-                "$ref": "#/$defs/__schema0"
-              },
-              "description": "JSON object value."
+            "catalogVersion": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "Release revision of the catalog item the definition was installed from; null for authored and copied definitions."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "WorkflowOrigin.catalogVersion may be null in this transport value."
             }
+          },
+          "required": [
+            "kind",
+            "catalogKey",
+            "catalogVersion"
           ],
+          "additionalProperties": false,
           "description": "Where this definition came from, as {kind, catalogKey, catalogVersion}: kind is authored (written in this organization), catalog (installed from the code-owned catalog; system managed and locked against organization edits) or copy; catalogKey and catalogVersion name the catalog item and release revision for a catalog origin and are null otherwise. Set when the definition is created and never changed."
         }
       },
@@ -40844,120 +40753,7 @@ export const clientManifest = {
         "origin"
       ],
       "additionalProperties": false,
-      "description": "A named, organization-owned workflow definition: its stable slug, display name, where it came from, and which published WorkflowVersion, if any, is currently active. Disabling it blocks new kickoffs without canceling an already-running instance, which follows its own separate cancellation policy.",
-      "$defs": {
-        "__schema0": {
-          "anyOf": [
-            {
-              "type": "string",
-              "description": "JSON string value."
-            },
-            {
-              "type": "number",
-              "description": "JSON number value."
-            },
-            {
-              "type": "boolean",
-              "description": "JSON boolean value."
-            },
-            {
-              "type": "null",
-              "description": "JSON null value."
-            },
-            {
-              "type": "array",
-              "items": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "description": "JSON string value."
-                  },
-                  {
-                    "type": "number",
-                    "description": "JSON number value."
-                  },
-                  {
-                    "type": "boolean",
-                    "description": "JSON boolean value."
-                  },
-                  {
-                    "type": "null",
-                    "description": "JSON null value."
-                  },
-                  {
-                    "type": "array",
-                    "items": {
-                      "$ref": "#/$defs/__schema0"
-                    },
-                    "description": "JSON array value."
-                  },
-                  {
-                    "type": "object",
-                    "propertyNames": {
-                      "type": "string",
-                      "description": "JSON object key."
-                    },
-                    "additionalProperties": {
-                      "$ref": "#/$defs/__schema0"
-                    },
-                    "description": "JSON object value."
-                  }
-                ],
-                "description": "JSON value node."
-              },
-              "description": "JSON array value."
-            },
-            {
-              "type": "object",
-              "propertyNames": {
-                "type": "string",
-                "description": "JSON object key."
-              },
-              "additionalProperties": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "description": "JSON string value."
-                  },
-                  {
-                    "type": "number",
-                    "description": "JSON number value."
-                  },
-                  {
-                    "type": "boolean",
-                    "description": "JSON boolean value."
-                  },
-                  {
-                    "type": "null",
-                    "description": "JSON null value."
-                  },
-                  {
-                    "type": "array",
-                    "items": {
-                      "$ref": "#/$defs/__schema0"
-                    },
-                    "description": "JSON array value."
-                  },
-                  {
-                    "type": "object",
-                    "propertyNames": {
-                      "type": "string",
-                      "description": "JSON object key."
-                    },
-                    "additionalProperties": {
-                      "$ref": "#/$defs/__schema0"
-                    },
-                    "description": "JSON object value."
-                  }
-                ],
-                "description": "JSON value node."
-              },
-              "description": "JSON object value."
-            }
-          ],
-          "description": "JSON value node."
-        }
-      }
+      "description": "A named, organization-owned workflow definition: its stable slug, display name, where it came from, and which published WorkflowVersion, if any, is currently active. Disabling it blocks new kickoffs without canceling an already-running instance, which follows its own separate cancellation policy."
     },
     "WorkflowVersion": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
