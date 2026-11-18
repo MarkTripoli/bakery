@@ -167,9 +167,13 @@ export async function findSlackInstallation(
 export type SlackReceiptOutcome = "accepted" | "ignored";
 
 export type CommitSlackReceiptResult =
-  | { readonly kind: "recorded" }
+  | { readonly kind: "recorded"; readonly receiptId: string }
   /** The same event again with the same bytes: answer as before, do nothing. */
-  | { readonly kind: "duplicate"; readonly outcome: SlackReceiptOutcome }
+  | {
+    readonly kind: "duplicate";
+    readonly receiptId: string;
+    readonly outcome: SlackReceiptOutcome;
+  }
   /** The same event id with different bytes: refuse; it is not a retry. */
   | { readonly kind: "conflict" }
   | { readonly kind: "malformed" };
@@ -199,6 +203,7 @@ export async function commitSlackReceipt(
   const expiresAt = new Date(
     input.now.getTime() + SLACK_RECEIPT_RETENTION_DAYS * 86_400_000,
   );
+  const receiptId = crypto.randomUUID();
   const inserted = await transaction.query(
     `insert into bakery.slack_event_receipts (
        id, app_id, event_id, installation_id, payload_digest, outcome,
@@ -206,7 +211,7 @@ export async function commitSlackReceipt(
      values ($1, $2, $3, $4, $5, $6, $7, $8)
      on conflict (app_id, event_id) do nothing`,
     [
-      crypto.randomUUID(),
+      receiptId,
       input.appId,
       input.eventId,
       input.installationId,
@@ -216,19 +221,20 @@ export async function commitSlackReceipt(
       expiresAt,
     ],
   );
-  if (inserted.rowCount === 1) return { kind: "recorded" };
+  if (inserted.rowCount === 1) return { kind: "recorded", receiptId };
   const existing = await transaction.query<{
+    id: string;
     payloadDigest: string;
     outcome: SlackReceiptOutcome;
   }>(
-    `select payload_digest as "payloadDigest", outcome
+    `select id, payload_digest as "payloadDigest", outcome
        from bakery.slack_event_receipts
       where app_id = $1 and event_id = $2`,
     [input.appId, input.eventId],
   );
   const row = existing.rows[0]!;
   return row.payloadDigest === input.payloadDigest
-    ? { kind: "duplicate", outcome: row.outcome }
+    ? { kind: "duplicate", receiptId: row.id, outcome: row.outcome }
     : { kind: "conflict" };
 }
 
