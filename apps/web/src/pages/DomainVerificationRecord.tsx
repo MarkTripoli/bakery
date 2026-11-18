@@ -49,6 +49,7 @@ export function DomainVerificationRecord(
               value={host}
             />
           }
+          actionPlacement="below"
           description={
             <UI.DataText
               data-testid="sso-txt-host"
@@ -69,6 +70,7 @@ export function DomainVerificationRecord(
               />
             )
             : undefined}
+          actionPlacement="below"
           description={
             <UI.DataText
               data-testid="sso-txt-value"

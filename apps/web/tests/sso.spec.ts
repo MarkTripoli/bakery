@@ -142,6 +142,7 @@ test.describe("single sign-on settings", () => {
       .toHaveCount(1);
     await expect(page.getByRole("button", { name: "Add provider" }))
       .toBeEnabled();
+    await shot(page, "sso-empty");
   });
 
   test("the list has exactly one primary button, Add provider", async ({ page }) => {
@@ -156,6 +157,7 @@ test.describe("single sign-on settings", () => {
     await expect(row).toContainText("acme.example");
     await expect(row).toContainText("Verify the domain below to turn this on");
     await expect(row).not.toContainText("https://acme.okta.example");
+    await shot(page, "sso-provider-awaiting-domain");
   });
 
   test("every add-form field has help text tied to its input", async ({ page }) => {
@@ -164,6 +166,7 @@ test.describe("single sign-on settings", () => {
     await page.getByRole("button", { name: "Add provider" }).click();
     await expect(page.getByRole("radio", { name: "OpenID Connect" }))
       .toBeChecked();
+    await shot(page, "sso-add-provider");
     await expect(
       page.getByText(
         "Use whichever your identity provider offers. If it offers both, OpenID Connect is simpler to set up.",
@@ -184,6 +187,7 @@ test.describe("single sign-on settings", () => {
     await page.getByRole("radio", { name: "SAML" }).check();
     await expect(page.getByLabel("Identity provider metadata"))
       .toHaveAccessibleDescription(/Paste the metadata XML from your identity/);
+    await shot(page, "sso-add-saml");
   });
 
   test("a check that finds no record says what happened and offers Check again", async ({ page }) => {
@@ -202,6 +206,7 @@ test.describe("single sign-on settings", () => {
     );
     await expect(failed.getByRole("button", { name: "Check again" }))
       .toBeVisible();
+    await shot(page, "sso-check-failed");
   });
 
   test("sits under the Settings breadcrumb", async ({ page, isMobile }) => {

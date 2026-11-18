@@ -301,6 +301,7 @@ for (
       await expect(page.getByTestId("scim-status")).toHaveText("Not set up");
       await expect(page.getByRole("button", { name: "Set up provisioning" }))
         .toHaveCount(1);
+      await shot(page, "scim-not-set-up");
     });
 
     test("a connection shows the setup guide, a copyable address and the roles table", async ({ page }) => {
@@ -316,6 +317,7 @@ for (
       );
       await expect(page.getByText("SCIM address")).toBeVisible();
       await expect(page.getByText("Access token")).toBeVisible();
+      await shot(page, "scim-connected");
       // One press on Copy either copies or says the browser refused.
       await page.getByRole("button", { name: "Copy address" }).click();
       await expect(
@@ -385,6 +387,7 @@ for (
       await expect(warning).toContainText(
         "Rotate it before then or provisioning stops.",
       );
+      await shot(page, "scim-token-expiring");
       await warning.getByRole("button", { name: "Rotate token" }).click();
       await expect(
         page.getByRole("alertdialog", { name: "Rotate the token?" }),
@@ -420,6 +423,7 @@ for (
           name: "Rotate token",
         }),
       ).toBeVisible();
+      await shot(page, "scim-token-expired");
     });
 
     test("a refused read is an information notice, not an error alert", async ({ page }) => {

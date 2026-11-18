@@ -440,6 +440,7 @@ export function ScimConnectionPage() {
                             value={data.baseUrl}
                           />
                         }
+                        actionPlacement="below"
                         description={
                           <UI.DataText state="wrapped" variant="code">
                             {data.baseUrl}
