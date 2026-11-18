@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="wide-change-falsifies-untouched-tests" project="bakery">
+  <title>A behaviour change falsifies assertions in files you never opened — run the whole lane, not your files</title>
+  <trigger>A fix widens or narrows what a central predicate answers (admissability, executability, classification), and the local verification plan is "the files I changed plus the affected lanes".</trigger>
+  <mistake>#518 made `workflow.noop` and `rpi.plan` admissible. Local runs passed: the changed files, the integration lanes, the new unit test. CI then failed three jobs on FOUR assertions in three files that were never touched — `workflow.noop` in a refusal list, two `action_not_executable` warning expectations, and `rpi.plan` expected to throw. Each assertion was correct before the change and became false after it. A falsified assertion in an untouched file only appears in the full lane.</mistake>
+  <rule>When the change moves a central predicate, run the whole unit lane locally before pushing, not just the files in the diff. And when updating a falsified assertion, move it to the new truth while keeping the property it guarded alive — swap the subject to a name that is still refused rather than deleting the assertion. Deleting it would trade a red for a silent hole.</rule>
+  <verification>
+    <requirement>Every tests updated by such a change carries a comment naming the falsification (old truth, new truth, why), and any "still refuses X" assertion is re-pointed at a subject that is still refused rather than removed.</requirement>
+  </verification>
+</learning>

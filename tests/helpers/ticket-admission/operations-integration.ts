@@ -26,6 +26,7 @@ import {
   sourceFacts,
   type SourceView,
   ticketCall,
+  type TicketView,
   UUID_PATTERN,
 } from "./operations-http.ts";
 
@@ -42,24 +43,6 @@ const SOURCES = "/v1/ticket-sources";
 const TICKETS = "/v1/external-tickets";
 
 type Receipt = { operationId: string; status: string };
-type TicketView = {
-  id: string;
-  number: string | null;
-  requirementsDigest: string;
-  latestReadiness: {
-    verdict: string;
-    version: number;
-    checks: { reason: string }[];
-  } | null;
-  activeRequest: {
-    id: string;
-    intent: string;
-    disposition: string;
-    dispositionReason: string | null;
-  } | null;
-  linkedTaskIds?: string[];
-  linkedTaskCount?: number;
-};
 type RequestView = {
   id: string;
   intent: string;

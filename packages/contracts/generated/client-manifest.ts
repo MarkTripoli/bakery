@@ -1995,6 +1995,105 @@ export const clientManifest = {
       "implemented": true
     },
     {
+      "group": "Extensions",
+      "method": "GET",
+      "path": "/v1/organizations/{id}/artifact-kinds",
+      "action": "artifactKinds.list",
+      "access": "Developer",
+      "permission": "artifactKind:read",
+      "input": "CursorQuery",
+      "output": "Page<ArtifactKind>",
+      "event": "",
+      "mcp": "bakery_artifactKinds_list",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "INVALID_CURSOR"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "organizationIdParam": "id",
+      "implemented": true
+    },
+    {
+      "group": "Extensions",
+      "method": "GET",
+      "path": "/v1/organizations/{id}/artifact-kinds/{key}",
+      "action": "artifactKinds.get",
+      "access": "Developer",
+      "permission": "artifactKind:read",
+      "input": "ArtifactKindKeyPath",
+      "output": "ArtifactKind",
+      "event": "",
+      "mcp": "bakery_artifactKinds_get",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "organizationIdParam": "id",
+      "implemented": true
+    },
+    {
+      "group": "Extensions",
+      "method": "POST",
+      "path": "/v1/organizations/{id}/artifact-kinds/{key}/versions",
+      "action": "artifactKindVersions.create",
+      "access": "Admin",
+      "permission": "artifactKind:manage",
+      "input": "ArtifactKindVersionCreate",
+      "output": "ArtifactKindVersion",
+      "event": "artifactKinds.published",
+      "mcp": "bakery_artifactKindVersions_create",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "PRECONDITION_REQUIRED",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "UNPROCESSABLE"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "organizationIdParam": "id",
+      "implemented": true
+    },
+    {
+      "group": "Extensions",
+      "method": "GET",
+      "path": "/v1/organizations/{id}/artifact-kinds/{key}/versions",
+      "action": "artifactKindVersions.list",
+      "access": "Developer",
+      "permission": "artifactKind:read",
+      "input": "CursorQuery",
+      "output": "Page<ArtifactKindVersion>",
+      "event": "",
+      "mcp": "bakery_artifactKindVersions_list",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "INVALID_CURSOR"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "organizationIdParam": "id",
+      "implemented": true
+    },
+    {
       "group": "Automation",
       "method": "GET",
       "path": "/v1/automations",
@@ -5074,6 +5173,146 @@ export const clientManifest = {
       "implemented": true
     },
     {
+      "group": "Conversation",
+      "method": "GET",
+      "path": "/v1/notifications",
+      "action": "notifications.list",
+      "access": "Current member",
+      "permission": "notification:read",
+      "input": "NotificationCursorQuery",
+      "output": "Page<Notification>",
+      "event": "",
+      "mcp": "bakery_notifications_list",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Conversation",
+      "method": "GET",
+      "path": "/v1/notifications/count",
+      "action": "notifications.count",
+      "access": "Current member",
+      "permission": "notification:read",
+      "input": "Empty",
+      "output": "NotificationCount",
+      "event": "",
+      "mcp": "bakery_notifications_count",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Conversation",
+      "method": "GET",
+      "path": "/v1/notifications/{id}",
+      "action": "notifications.get",
+      "access": "Current member",
+      "permission": "notification:read",
+      "input": "IdPath",
+      "output": "Notification",
+      "event": "",
+      "mcp": "bakery_notifications_get",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Conversation",
+      "method": "GET",
+      "path": "/v1/notifications/{id}/target",
+      "action": "notifications.resolveTarget",
+      "access": "Current member",
+      "permission": "notification:read",
+      "input": "IdPath",
+      "output": "NotificationTarget",
+      "event": "",
+      "mcp": "bakery_notifications_resolveTarget",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Conversation",
+      "method": "PATCH",
+      "path": "/v1/notifications/{id}",
+      "action": "notifications.setRead",
+      "access": "Current member",
+      "permission": "notification:write",
+      "input": "NotificationReadUpdate",
+      "output": "Notification",
+      "event": "notification.read_changed",
+      "mcp": "bakery_notifications_setRead",
+      "idempotency": "Idempotency-Key + expectedCasVersion required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "VERSION_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Conversation",
+      "method": "POST",
+      "path": "/v1/notifications/read-all",
+      "action": "notifications.markAllRead",
+      "access": "Current member",
+      "permission": "notification:write",
+      "input": "NotificationMarkAllRead",
+      "output": "NotificationMarkAllReadResult",
+      "event": "notification.read_changed",
+      "mcp": "bakery_notifications_markAllRead",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "VERSION_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
       "group": "Artifacts",
       "method": "GET",
       "path": "/v1/artifacts/{id}/comments",
@@ -7669,6 +7908,194 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Makes one published version of an agent definition the active version that new conversations, tasks and runs resolve to. Versions stay immutable and earlier versions stay readable; running work keeps the version it was admitted with."
+    },
+    "ArtifactKindKeyPath": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "description": "ArtifactKindKeyPath.key must contain at most 64 characters."
+        }
+      },
+      "required": [
+        "key"
+      ],
+      "additionalProperties": false,
+      "description": "Shared path-parameter body addressing one of the organization's kinds by its stable key rather than its UUID, because the key is what a workflow author writes and what a template names."
+    },
+    "ArtifactKindVersionCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "expectedRevision": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "ArtifactKindVersionCreate.expectedRevision must be at least 0."
+        },
+        "definition": {
+          "description": "ArtifactKindVersionCreate.definition must contain at most 65536 UTF-8 bytes.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "x-utf8-max-bytes": 65536
+        }
+      },
+      "required": [
+        "expectedRevision",
+        "definition"
+      ],
+      "additionalProperties": false,
+      "description": "Publishes a new immutable version of an organization's artifact kind. A version states what a document of that kind must contain and which facts the engine may read from it; history stays immutable, so restoring an earlier definition publishes a new version rather than rewriting an old one.",
+      "$defs": {
+        "__schema0": {
+          "description": "JSON value node.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON object value."
+            }
+          ]
+        }
+      }
     },
     "RepositoryRuleVersionCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -11339,6 +11766,10 @@ export const clientManifest = {
             "repositoryRuleVersions.create",
             "repositoryRuleVersions.list",
             "repositoryRulePreviews.createForOrganization",
+            "artifactKinds.list",
+            "artifactKinds.get",
+            "artifactKindVersions.create",
+            "artifactKindVersions.list",
             "automations.list",
             "automations.get",
             "automations.create",
@@ -11458,6 +11889,9 @@ export const clientManifest = {
             "worker.register",
             "worker.heartbeat",
             "worker.claim",
+            "worker.repositorySource",
+            "worker.tools.secrets",
+            "worker.context",
             "worker.events",
             "worker.renew",
             "worker.result",
@@ -11519,6 +11953,12 @@ export const clientManifest = {
             "conversationParticipants.list",
             "conversationTurns.get",
             "conversationTurns.cancel",
+            "notifications.list",
+            "notifications.count",
+            "notifications.get",
+            "notifications.resolveTarget",
+            "notifications.setRead",
+            "notifications.markAllRead",
             "artifactComments.listAcrossVersions",
             "organizations.list",
             "organizations.create",
@@ -12434,40 +12874,6 @@ export const clientManifest = {
       },
       "additionalProperties": false,
       "description": "Partial update to a repository's display name, default branch, or archived state."
-    },
-    "SessionFeedList": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "Session whose live feed is being read; also the session path parameter."
-        },
-        "cursor": {
-          "description": "SessionFeedList.cursor must contain at most 512 UTF-8 bytes.",
-          "type": "string",
-          "maxLength": 65536,
-          "x-utf8-max-bytes": 512
-        },
-        "sequenceAfter": {
-          "description": "Internal forward marker used by the server's event stream to ask for items after a sequence it already sent; clients use cursor instead and never set this.",
-          "type": "string",
-          "pattern": "^(?:0|[1-9][0-9]*)$"
-        },
-        "limit": {
-          "description": "SessionFeedList.limit must be at most 100.",
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 100
-        }
-      },
-      "required": [
-        "id"
-      ],
-      "additionalProperties": false,
-      "description": "Reads one page of a session's typed, ordered, redacted live feed forward from an optional cursor."
     },
     "RepositoryRoleList": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -16810,6 +17216,12 @@ export const clientManifest = {
           "description": "Filters by whether the external ticket already has a `ticket_task_links` row connecting it to a Bakery task.",
           "type": "boolean"
         },
+        "taskId": {
+          "description": "Restricts results to external tickets linked to this one Bakery task, whatever the link's role; a task with no link answers an empty page, and a task outside the caller's organization matches nothing rather than revealing that it exists.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
         "cursor": {
           "description": "ExternalTicketQuery.cursor must contain at most 512 UTF-8 bytes.",
           "type": "string",
@@ -18401,6 +18813,115 @@ export const clientManifest = {
       "properties": {},
       "additionalProperties": false,
       "description": "Completes a session with no body: the session already carries the declared digest, size and media type. Completing is idempotent, so a client that never saw the first response can retry without storing a second blob."
+    },
+    "NotificationCursorQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "cursor": {
+          "description": "NotificationCursorQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "limit": {
+          "description": "NotificationCursorQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "filter": {
+          "description": "Local view of the one inbox: all notifications, only unread ones, or only items where someone mentioned the recipient. Omitted means all.",
+          "type": "string",
+          "enum": [
+            "all",
+            "unread",
+            "mentions"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "description": "Bounded filters over the authenticated recipient's own notification inbox, with cursor pagination and the three local views (all, unread, mentions)."
+    },
+    "NotificationReadUpdate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "UUID of the notification to change; it must belong to the authenticated recipient in the current organization, else the call is refused as not found."
+        },
+        "read": {
+          "type": "boolean",
+          "description": "True marks the item read, false marks it unread again. Marking read is idempotent; marking unread clears read_at so the row is unread exactly as it was before."
+        },
+        "expectedCasVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "description": "NotificationReadUpdate.expectedCasVersion must be at least 1."
+        }
+      },
+      "required": [
+        "id",
+        "read",
+        "expectedCasVersion"
+      ],
+      "additionalProperties": false,
+      "description": "Explicit read or unread mutation for one notification the recipient owns, guarded by the revision the client last saw."
+    },
+    "NotificationMarkAllRead": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "readBefore": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "The snapshot cutoff the client is marking up to, normally the newest item in the list it showed when the action was pressed. Only rows created at or before this instant are marked read, so anything arriving during the action stays unread."
+        }
+      },
+      "required": [
+        "readBefore"
+      ],
+      "additionalProperties": false,
+      "description": "Snapshot-bounded bulk mark-all-read for the recipient's own inbox: arrivals after the cutoff are deliberately left unread."
+    },
+    "SessionFeedList": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Session whose live feed is being read; also the session path parameter."
+        },
+        "cursor": {
+          "description": "SessionFeedList.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "sequenceAfter": {
+          "description": "Internal forward marker used by the server's event stream to ask for items after a sequence it already sent; clients use cursor instead and never set this.",
+          "type": "string",
+          "pattern": "^(?:0|[1-9][0-9]*)$"
+        },
+        "limit": {
+          "description": "SessionFeedList.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false,
+      "description": "Reads one page of a session's typed, ordered, redacted live feed forward from an optional cursor."
     },
     "SessionList": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -20639,499 +21160,6 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Cursor page of JobAttemptRead."
-    },
-    "SessionFeed": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "items": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "Stable UUID identifying the feed item, used as the keyset tie-breaker when two items share a sequence."
-              },
-              "sessionId": {
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "Stable UUID of the agent session this feed item belongs to; every item is keyed by session."
-              },
-              "sequence": {
-                "type": "string",
-                "pattern": "^(?:0|[1-9][0-9]*)$",
-                "description": "Monotonic per-session sequence number; the feed is ordered by sequence ascending, then id, and a client resumes from the last sequence it saw."
-              },
-              "kind": {
-                "type": "string",
-                "enum": [
-                  "message",
-                  "terminal",
-                  "status",
-                  "tool",
-                  "file_change",
-                  "artifact",
-                  "usage",
-                  "delivered_input"
-                ],
-                "description": "Which typed payload this item carries; exactly the one payload field named by kind is non-null."
-              },
-              "occurredAt": {
-                "type": "string",
-                "format": "date-time",
-                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-                "description": "UTC timestamp when the underlying fact happened, never when it was read."
-              },
-              "redacted": {
-                "type": "boolean",
-                "description": "True when secret or credential material was removed from this item's payload before it reached the feed; the item is still present so the sequence stays gapless."
-              },
-              "message": {
-                "anyOf": [
-                  {
-                    "type": "object",
-                    "properties": {
-                      "messageId": {
-                        "type": "string",
-                        "format": "uuid",
-                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                        "description": "Stable UUID of the conversation message this item mirrors."
-                      },
-                      "authorId": {
-                        "anyOf": [
-                          {
-                            "type": "string",
-                            "format": "uuid",
-                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                            "description": "Stable UUID of the author, null when the author is the system."
-                          },
-                          {
-                            "type": "null",
-                            "description": "Null indicates that the value is unavailable."
-                          }
-                        ],
-                        "description": "SessionFeedMessage.authorId may be null in this transport value."
-                      },
-                      "authorKind": {
-                        "type": "string",
-                        "enum": [
-                          "person",
-                          "agent",
-                          "system"
-                        ],
-                        "description": "Who produced the message, so a client can render attribution without a second lookup."
-                      },
-                      "messageType": {
-                        "type": "string",
-                        "enum": [
-                          "user",
-                          "assistant",
-                          "system",
-                          "tool_summary"
-                        ],
-                        "description": "Stored message classification."
-                      },
-                      "body": {
-                        "type": "string",
-                        "maxLength": 65536,
-                        "description": "Message body after redaction."
-                      }
-                    },
-                    "required": [
-                      "messageId",
-                      "authorId",
-                      "authorKind",
-                      "messageType",
-                      "body"
-                    ],
-                    "additionalProperties": false,
-                    "description": "Present when kind is message."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "SessionFeedItem.message may be null in this transport value."
-              },
-              "terminal": {
-                "anyOf": [
-                  {
-                    "type": "object",
-                    "properties": {
-                      "stream": {
-                        "type": "string",
-                        "enum": [
-                          "stdout",
-                          "stderr"
-                        ],
-                        "description": "Which terminal stream the text came from."
-                      },
-                      "text": {
-                        "type": "string",
-                        "maxLength": 65536,
-                        "description": "Terminal text after redaction, chunked by the producer."
-                      }
-                    },
-                    "required": [
-                      "stream",
-                      "text"
-                    ],
-                    "additionalProperties": false,
-                    "description": "Present when kind is terminal."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "SessionFeedItem.terminal may be null in this transport value."
-              },
-              "status": {
-                "anyOf": [
-                  {
-                    "type": "object",
-                    "properties": {
-                      "fromStatus": {
-                        "anyOf": [
-                          {
-                            "type": "string",
-                            "enum": [
-                              "starting",
-                              "active",
-                              "waiting",
-                              "finished",
-                              "failed",
-                              "interrupted"
-                            ],
-                            "description": "Session status before the transition, null for the first status event."
-                          },
-                          {
-                            "type": "null",
-                            "description": "Null indicates that the value is unavailable."
-                          }
-                        ],
-                        "description": "SessionFeedStatus.fromStatus may be null in this transport value."
-                      },
-                      "toStatus": {
-                        "type": "string",
-                        "enum": [
-                          "starting",
-                          "active",
-                          "waiting",
-                          "finished",
-                          "failed",
-                          "interrupted"
-                        ],
-                        "description": "Session status after the transition."
-                      },
-                      "reason": {
-                        "anyOf": [
-                          {
-                            "type": "string",
-                            "maxLength": 65536,
-                            "description": "Bounded machine reason for the transition when one was recorded."
-                          },
-                          {
-                            "type": "null",
-                            "description": "Null indicates that the value is unavailable."
-                          }
-                        ],
-                        "description": "SessionFeedStatus.reason may be null in this transport value."
-                      }
-                    },
-                    "required": [
-                      "fromStatus",
-                      "toStatus",
-                      "reason"
-                    ],
-                    "additionalProperties": false,
-                    "description": "Present when kind is status."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "SessionFeedItem.status may be null in this transport value."
-              },
-              "tool": {
-                "anyOf": [
-                  {
-                    "type": "object",
-                    "properties": {
-                      "callId": {
-                        "type": "string",
-                        "maxLength": 65536,
-                        "description": "Harness-scoped identifier for one tool invocation."
-                      },
-                      "name": {
-                        "type": "string",
-                        "maxLength": 65536,
-                        "description": "Tool name as the harness reported it."
-                      },
-                      "phase": {
-                        "type": "string",
-                        "enum": [
-                          "started",
-                          "completed",
-                          "failed"
-                        ],
-                        "description": "Which part of the tool's life this item records."
-                      },
-                      "ok": {
-                        "anyOf": [
-                          {
-                            "type": "boolean",
-                            "description": "Outcome once known; null while the call is still open."
-                          },
-                          {
-                            "type": "null",
-                            "description": "Null indicates that the value is unavailable."
-                          }
-                        ],
-                        "description": "SessionFeedTool.ok may be null in this transport value."
-                      }
-                    },
-                    "required": [
-                      "callId",
-                      "name",
-                      "phase",
-                      "ok"
-                    ],
-                    "additionalProperties": false,
-                    "description": "Present when kind is tool."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "SessionFeedItem.tool may be null in this transport value."
-              },
-              "fileChange": {
-                "anyOf": [
-                  {
-                    "type": "object",
-                    "properties": {
-                      "path": {
-                        "type": "string",
-                        "maxLength": 65536,
-                        "description": "Workspace-relative path, bounded by the workspace revision."
-                      },
-                      "change": {
-                        "type": "string",
-                        "enum": [
-                          "created",
-                          "modified",
-                          "deleted",
-                          "renamed"
-                        ],
-                        "description": "What happened to the file."
-                      }
-                    },
-                    "required": [
-                      "path",
-                      "change"
-                    ],
-                    "additionalProperties": false,
-                    "description": "Present when kind is file_change."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "SessionFeedItem.fileChange may be null in this transport value."
-              },
-              "artifact": {
-                "anyOf": [
-                  {
-                    "type": "object",
-                    "properties": {
-                      "artifactId": {
-                        "type": "string",
-                        "format": "uuid",
-                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                        "description": "Stable UUID of the artifact version that was published."
-                      },
-                      "name": {
-                        "type": "string",
-                        "maxLength": 65536,
-                        "description": "Artifact name within the run."
-                      },
-                      "version": {
-                        "anyOf": [
-                          {
-                            "type": "integer",
-                            "minimum": -9007199254740991,
-                            "maximum": 9007199254740991,
-                            "description": "Artifact version number when the artifact is versioned, else null."
-                          },
-                          {
-                            "type": "null",
-                            "description": "Null indicates that the value is unavailable."
-                          }
-                        ],
-                        "description": "SessionFeedArtifact.version may be null in this transport value."
-                      }
-                    },
-                    "required": [
-                      "artifactId",
-                      "name",
-                      "version"
-                    ],
-                    "additionalProperties": false,
-                    "description": "Present when kind is artifact."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "SessionFeedItem.artifact may be null in this transport value."
-              },
-              "usage": {
-                "anyOf": [
-                  {
-                    "type": "object",
-                    "properties": {
-                      "inputTokens": {
-                        "anyOf": [
-                          {
-                            "type": "string",
-                            "pattern": "^(?:0|[1-9][0-9]*)$",
-                            "description": "Provider-reported input tokens when known."
-                          },
-                          {
-                            "type": "null",
-                            "description": "Null indicates that the value is unavailable."
-                          }
-                        ],
-                        "description": "SessionFeedUsage.inputTokens may be null in this transport value."
-                      },
-                      "outputTokens": {
-                        "anyOf": [
-                          {
-                            "type": "string",
-                            "pattern": "^(?:0|[1-9][0-9]*)$",
-                            "description": "Provider-reported output tokens when known."
-                          },
-                          {
-                            "type": "null",
-                            "description": "Null indicates that the value is unavailable."
-                          }
-                        ],
-                        "description": "SessionFeedUsage.outputTokens may be null in this transport value."
-                      },
-                      "costUsd": {
-                        "anyOf": [
-                          {
-                            "type": "string",
-                            "maxLength": 65536,
-                            "description": "Provider-reported USD cost when known."
-                          },
-                          {
-                            "type": "null",
-                            "description": "Null indicates that the value is unavailable."
-                          }
-                        ],
-                        "description": "SessionFeedUsage.costUsd may be null in this transport value."
-                      }
-                    },
-                    "required": [
-                      "inputTokens",
-                      "outputTokens",
-                      "costUsd"
-                    ],
-                    "additionalProperties": false,
-                    "description": "Present when kind is usage."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "SessionFeedItem.usage may be null in this transport value."
-              },
-              "deliveredInput": {
-                "anyOf": [
-                  {
-                    "type": "object",
-                    "properties": {
-                      "messageId": {
-                        "type": "string",
-                        "format": "uuid",
-                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                        "description": "Stable UUID of the steering message that was delivered."
-                      },
-                      "body": {
-                        "type": "string",
-                        "maxLength": 65536,
-                        "description": "Delivered steering text after redaction."
-                      }
-                    },
-                    "required": [
-                      "messageId",
-                      "body"
-                    ],
-                    "additionalProperties": false,
-                    "description": "Present when kind is delivered_input."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "SessionFeedItem.deliveredInput may be null in this transport value."
-              }
-            },
-            "required": [
-              "id",
-              "sessionId",
-              "sequence",
-              "kind",
-              "occurredAt",
-              "redacted",
-              "message",
-              "terminal",
-              "status",
-              "tool",
-              "fileChange",
-              "artifact",
-              "usage",
-              "deliveredInput"
-            ],
-            "additionalProperties": false,
-            "description": "Feed items in ascending sequence order, at most 100 per page. Each array item follows this format."
-          },
-          "description": "Feed items in ascending sequence order, at most 100 per page."
-        },
-        "nextCursor": {
-          "anyOf": [
-            {
-              "type": "string",
-              "maxLength": 65536,
-              "description": "Opaque cursor to pass back to read the next page; null when the feed has no more items."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the value is unavailable."
-            }
-          ],
-          "description": "SessionFeed.nextCursor may be null in this transport value."
-        }
-      },
-      "required": [
-        "items",
-        "nextCursor"
-      ],
-      "additionalProperties": false,
-      "description": "One page of a session's typed, ordered, redacted live feed, keyed by session and read forward from a sequence cursor."
     },
     "NoContent": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -27697,6 +27725,571 @@ export const clientManifest = {
         }
       }
     },
+    "Page<ArtifactKind>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID of the kind; it never changes across versions, renames of the definition or restores of an earlier revision."
+              },
+              "organizationId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Organization that owns the kind; kinds never cross organizations."
+              },
+              "key": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Lowercase kebab-case key of the kind, unique among this organization's kinds."
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Revision number of the latest published version of this kind, which orders its history."
+              },
+              "definition": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "Complete definition of the latest published version, exactly as it was published."
+              },
+              "digest": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "SHA-256 hex of the canonical JSON of {key, revision, definition}; recompute it from the returned fields to verify the content."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the latest published version was created."
+              },
+              "createdBy": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Principal who published the latest version of this kind."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "ArtifactKind.createdBy may be null in this transport value."
+              }
+            },
+            "required": [
+              "id",
+              "organizationId",
+              "key",
+              "revision",
+              "definition",
+              "digest",
+              "createdAt",
+              "createdBy"
+            ],
+            "additionalProperties": false,
+            "description": "One of an organization's artifact kinds, resolved to its latest published version: the stable key, plus the definition, revision and digest of the newest version of that kind. The kind's identity is the UUID; the key is what workflow authors and templates name."
+          },
+          "description": "Page<ArtifactKind>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<ArtifactKind>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Page<ArtifactKind>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<ArtifactKind>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<ArtifactKind>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of ArtifactKind.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
+    },
+    "Page<ArtifactKindVersion>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID identifying this published kind version."
+              },
+              "organizationId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Organization that owns the kind this version belongs to."
+              },
+              "kindId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the kind identity these versions belong to."
+              },
+              "key": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Lowercase kebab-case key of the kind at this revision."
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Positive revision number of this version within the kind; revisions are dense and never reused."
+              },
+              "definition": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "Complete definition published at this revision: name, description, text flag, facts and rules."
+              },
+              "digest": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "SHA-256 hex of the canonical JSON of {key, revision, definition}; recompute it from the returned fields to verify the content."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when this version was published."
+              },
+              "createdBy": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Principal who published this version."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "ArtifactKindVersion.createdBy may be null in this transport value."
+              }
+            },
+            "required": [
+              "id",
+              "organizationId",
+              "kindId",
+              "key",
+              "revision",
+              "definition",
+              "digest",
+              "createdAt",
+              "createdBy"
+            ],
+            "additionalProperties": false,
+            "description": "One immutable published version of an artifact kind: the complete definition, its revision and digest, and the principal who published it. A run or a published document pins a version, so the rules it was validated against keep meaning what they meant."
+          },
+          "description": "Page<ArtifactKindVersion>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<ArtifactKindVersion>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Page<ArtifactKindVersion>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<ArtifactKindVersion>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<ArtifactKindVersion>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of ArtifactKindVersion.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
+    },
     "Page<OrganizationRepositoryRuleVersion>": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -30298,6 +30891,10 @@ export const clientManifest = {
                   "repositoryRuleVersions.create",
                   "repositoryRuleVersions.list",
                   "repositoryRulePreviews.createForOrganization",
+                  "artifactKinds.list",
+                  "artifactKinds.get",
+                  "artifactKindVersions.create",
+                  "artifactKindVersions.list",
                   "automations.list",
                   "automations.get",
                   "automations.create",
@@ -30417,6 +31014,9 @@ export const clientManifest = {
                   "worker.register",
                   "worker.heartbeat",
                   "worker.claim",
+                  "worker.repositorySource",
+                  "worker.tools.secrets",
+                  "worker.context",
                   "worker.events",
                   "worker.renew",
                   "worker.result",
@@ -30478,6 +31078,12 @@ export const clientManifest = {
                   "conversationParticipants.list",
                   "conversationTurns.get",
                   "conversationTurns.cancel",
+                  "notifications.list",
+                  "notifications.count",
+                  "notifications.get",
+                  "notifications.resolveTarget",
+                  "notifications.setRead",
+                  "notifications.markAllRead",
                   "artifactComments.listAcrossVersions",
                   "organizations.list",
                   "organizations.create",
@@ -40578,6 +41184,451 @@ export const clientManifest = {
         }
       }
     },
+    "ArtifactKind": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID of the kind; it never changes across versions, renames of the definition or restores of an earlier revision."
+        },
+        "organizationId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Organization that owns the kind; kinds never cross organizations."
+        },
+        "key": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Lowercase kebab-case key of the kind, unique among this organization's kinds."
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Revision number of the latest published version of this kind, which orders its history."
+        },
+        "definition": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "Complete definition of the latest published version, exactly as it was published."
+        },
+        "digest": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "SHA-256 hex of the canonical JSON of {key, revision, definition}; recompute it from the returned fields to verify the content."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when the latest published version was created."
+        },
+        "createdBy": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Principal who published the latest version of this kind."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "ArtifactKind.createdBy may be null in this transport value."
+        }
+      },
+      "required": [
+        "id",
+        "organizationId",
+        "key",
+        "revision",
+        "definition",
+        "digest",
+        "createdAt",
+        "createdBy"
+      ],
+      "additionalProperties": false,
+      "description": "One of an organization's artifact kinds, resolved to its latest published version: the stable key, plus the definition, revision and digest of the newest version of that kind. The kind's identity is the UUID; the key is what workflow authors and templates name.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
+    },
+    "ArtifactKindVersion": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID identifying this published kind version."
+        },
+        "organizationId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Organization that owns the kind this version belongs to."
+        },
+        "kindId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "UUID of the kind identity these versions belong to."
+        },
+        "key": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Lowercase kebab-case key of the kind at this revision."
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Positive revision number of this version within the kind; revisions are dense and never reused."
+        },
+        "definition": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "Complete definition published at this revision: name, description, text flag, facts and rules."
+        },
+        "digest": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "SHA-256 hex of the canonical JSON of {key, revision, definition}; recompute it from the returned fields to verify the content."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when this version was published."
+        },
+        "createdBy": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Principal who published this version."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "ArtifactKindVersion.createdBy may be null in this transport value."
+        }
+      },
+      "required": [
+        "id",
+        "organizationId",
+        "kindId",
+        "key",
+        "revision",
+        "definition",
+        "digest",
+        "createdAt",
+        "createdBy"
+      ],
+      "additionalProperties": false,
+      "description": "One immutable published version of an artifact kind: the complete definition, its revision and digest, and the principal who published it. A run or a published document pins a version, so the rules it was validated against keep meaning what they meant.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
+    },
     "OrganizationRepositoryRuleVersion": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -45880,6 +46931,10 @@ export const clientManifest = {
             "repositoryRuleVersions.create",
             "repositoryRuleVersions.list",
             "repositoryRulePreviews.createForOrganization",
+            "artifactKinds.list",
+            "artifactKinds.get",
+            "artifactKindVersions.create",
+            "artifactKindVersions.list",
             "automations.list",
             "automations.get",
             "automations.create",
@@ -45999,6 +47054,9 @@ export const clientManifest = {
             "worker.register",
             "worker.heartbeat",
             "worker.claim",
+            "worker.repositorySource",
+            "worker.tools.secrets",
+            "worker.context",
             "worker.events",
             "worker.renew",
             "worker.result",
@@ -46060,6 +47118,12 @@ export const clientManifest = {
             "conversationParticipants.list",
             "conversationTurns.get",
             "conversationTurns.cancel",
+            "notifications.list",
+            "notifications.count",
+            "notifications.get",
+            "notifications.resolveTarget",
+            "notifications.setRead",
+            "notifications.markAllRead",
             "artifactComments.listAcrossVersions",
             "organizations.list",
             "organizations.create",
@@ -53286,6 +54350,8 @@ export const clientManifest = {
               "agentVersion:read",
               "repositoryRule:read",
               "repositoryRule:manage",
+              "artifactKind:read",
+              "artifactKind:manage",
               "automation:read",
               "automation:manage",
               "automationVersion:manage",
@@ -53379,6 +54445,8 @@ export const clientManifest = {
               "externalEffect:read",
               "conversationTurn:read",
               "conversationTurn:write",
+              "notification:read",
+              "notification:write",
               "organization:readSelf",
               "organization:create",
               "organization:read",
@@ -64794,6 +65862,1149 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "A stored file identified by its organization and SHA-256. Two uploads of the same bytes in one organization are the same blob, so a repeated completion returns the existing record rather than storing the content twice."
+    },
+    "Notification": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID identifying this notification; it addresses the item inside the recipient's own inbox and never grants access to the destination."
+        },
+        "organizationId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "UUID of the organization whose inbox holds this item."
+        },
+        "recipientId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "UUID of the one principal whose inbox this item is in; always the authenticated caller on every response."
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "mention",
+            "comment_mention",
+            "comment",
+            "run_completed",
+            "run_failed",
+            "step_failed",
+            "approval_requested",
+            "question_asked",
+            "document_version"
+          ],
+          "description": "Stable event code that selects the wording; never a rendered sentence and never an internal workflow action name."
+        },
+        "targetKind": {
+          "type": "string",
+          "enum": [
+            "conversation_message",
+            "run",
+            "run_step",
+            "approval",
+            "question",
+            "document_version",
+            "comment"
+          ],
+          "description": "The typed kind of destination this row opens: a conversation message, run, run step, approval, question, document version or comment."
+        },
+        "targetId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "UUID of the destination in targetKind; it is reauthorized when the item is opened and never carries access by itself."
+        },
+        "targetAnchor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Optional exact anchor inside the destination, such as a message sequence or step key, so the row opens at the exact place; null means open at the top."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "Notification.targetAnchor may be null in this transport value."
+        },
+        "conversationId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "UUID of the conversation the destination lives in, or null when the destination is not in a conversation."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "Notification.conversationId may be null in this transport value."
+        },
+        "runId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "UUID of the run the destination lives in, or null, so a run guard can reauthorize before anything about the run is shown."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "Notification.runId may be null in this transport value."
+        },
+        "taskId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "UUID of the task the destination lives in, or null."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "Notification.taskId may be null in this transport value."
+        },
+        "actor": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "principalId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "UUID of the person who caused the event; identity stays stable even if their display name changes."
+                },
+                "displayName": {
+                  "type": "string",
+                  "maxLength": 200,
+                  "description": "NotificationActor.displayName must contain at most 200 characters."
+                },
+                "avatarUrl": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 2048,
+                      "description": "NotificationActor.avatarUrl must contain at most 2048 characters."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "NotificationActor.avatarUrl may be null in this transport value."
+                }
+              },
+              "required": [
+                "principalId",
+                "displayName",
+                "avatarUrl"
+              ],
+              "additionalProperties": false,
+              "description": "Who caused the event, for an avatar and a name in the sentence; null when no person caused it, such as a run that failed on its own."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "Notification.actor may be null in this transport value."
+        },
+        "destination": {
+          "type": "object",
+          "properties": {
+            "title": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 500,
+                  "description": "NotificationDestination.title must contain at most 500 characters."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "NotificationDestination.title may be null in this transport value."
+            },
+            "available": {
+              "type": "boolean",
+              "description": "Whether the destination still resolves for this recipient. When false the title is withheld and the client shows the no-longer-available state with the way back."
+            }
+          },
+          "required": [
+            "title",
+            "available"
+          ],
+          "additionalProperties": false,
+          "description": "Safe destination summary: the title for the row's second line and whether it is still reachable, without exposing a protected title for an unavailable target."
+        },
+        "read": {
+          "type": "boolean",
+          "description": "Whether the item has been marked read; opening a row marks it read once its destination opens, and a manual choice always sticks."
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Monotonic revision of this item's read state; clients discard an older response or event than the revision they already hold."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when the item entered the inbox, which is also its place in the newest-first order."
+        }
+      },
+      "required": [
+        "id",
+        "organizationId",
+        "recipientId",
+        "kind",
+        "targetKind",
+        "targetId",
+        "targetAnchor",
+        "conversationId",
+        "runId",
+        "taskId",
+        "actor",
+        "destination",
+        "read",
+        "revision",
+        "createdAt"
+      ],
+      "additionalProperties": false,
+      "description": "One item in a person's notification inbox: a stable kind, a typed destination that is reauthorized on open, a safe destination title, read state and a revision."
+    },
+    "Page<Notification>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID identifying this notification; it addresses the item inside the recipient's own inbox and never grants access to the destination."
+              },
+              "organizationId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the organization whose inbox holds this item."
+              },
+              "recipientId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the one principal whose inbox this item is in; always the authenticated caller on every response."
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "mention",
+                  "comment_mention",
+                  "comment",
+                  "run_completed",
+                  "run_failed",
+                  "step_failed",
+                  "approval_requested",
+                  "question_asked",
+                  "document_version"
+                ],
+                "description": "Stable event code that selects the wording; never a rendered sentence and never an internal workflow action name."
+              },
+              "targetKind": {
+                "type": "string",
+                "enum": [
+                  "conversation_message",
+                  "run",
+                  "run_step",
+                  "approval",
+                  "question",
+                  "document_version",
+                  "comment"
+                ],
+                "description": "The typed kind of destination this row opens: a conversation message, run, run step, approval, question, document version or comment."
+              },
+              "targetId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the destination in targetKind; it is reauthorized when the item is opened and never carries access by itself."
+              },
+              "targetAnchor": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Optional exact anchor inside the destination, such as a message sequence or step key, so the row opens at the exact place; null means open at the top."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "Notification.targetAnchor may be null in this transport value."
+              },
+              "conversationId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "UUID of the conversation the destination lives in, or null when the destination is not in a conversation."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "Notification.conversationId may be null in this transport value."
+              },
+              "runId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "UUID of the run the destination lives in, or null, so a run guard can reauthorize before anything about the run is shown."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "Notification.runId may be null in this transport value."
+              },
+              "taskId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "UUID of the task the destination lives in, or null."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "Notification.taskId may be null in this transport value."
+              },
+              "actor": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "principalId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "UUID of the person who caused the event; identity stays stable even if their display name changes."
+                      },
+                      "displayName": {
+                        "type": "string",
+                        "maxLength": 200,
+                        "description": "NotificationActor.displayName must contain at most 200 characters."
+                      },
+                      "avatarUrl": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 2048,
+                            "description": "NotificationActor.avatarUrl must contain at most 2048 characters."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "NotificationActor.avatarUrl may be null in this transport value."
+                      }
+                    },
+                    "required": [
+                      "principalId",
+                      "displayName",
+                      "avatarUrl"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Who caused the event, for an avatar and a name in the sentence; null when no person caused it, such as a run that failed on its own."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "Notification.actor may be null in this transport value."
+              },
+              "destination": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 500,
+                        "description": "NotificationDestination.title must contain at most 500 characters."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "NotificationDestination.title may be null in this transport value."
+                  },
+                  "available": {
+                    "type": "boolean",
+                    "description": "Whether the destination still resolves for this recipient. When false the title is withheld and the client shows the no-longer-available state with the way back."
+                  }
+                },
+                "required": [
+                  "title",
+                  "available"
+                ],
+                "additionalProperties": false,
+                "description": "Safe destination summary: the title for the row's second line and whether it is still reachable, without exposing a protected title for an unavailable target."
+              },
+              "read": {
+                "type": "boolean",
+                "description": "Whether the item has been marked read; opening a row marks it read once its destination opens, and a manual choice always sticks."
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Monotonic revision of this item's read state; clients discard an older response or event than the revision they already hold."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the item entered the inbox, which is also its place in the newest-first order."
+              }
+            },
+            "required": [
+              "id",
+              "organizationId",
+              "recipientId",
+              "kind",
+              "targetKind",
+              "targetId",
+              "targetAnchor",
+              "conversationId",
+              "runId",
+              "taskId",
+              "actor",
+              "destination",
+              "read",
+              "revision",
+              "createdAt"
+            ],
+            "additionalProperties": false,
+            "description": "One item in a person's notification inbox: a stable kind, a typed destination that is reauthorized on open, a safe destination title, read state and a revision."
+          },
+          "description": "Page<Notification>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<Notification>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Page<Notification>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<Notification>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<Notification>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of Notification."
+    },
+    "NotificationCount": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "unread": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "description": "NotificationCount.unread must be at least 0."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "NotificationCount.unread may be null in this transport value."
+        },
+        "revision": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Revision of the inbox snapshot this count was read at, or null alongside an unavailable count; clients discard an older count than the revision they hold."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "NotificationCount.revision may be null in this transport value."
+        }
+      },
+      "required": [
+        "unread",
+        "revision"
+      ],
+      "additionalProperties": false,
+      "description": "The authenticated recipient's unread total in one organization, with the revision it was read at; unread and revision are null when no authoritative count is available."
+    },
+    "NotificationTarget": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "available",
+            "unavailable"
+          ],
+          "description": "Whether the stored destination still resolves and the recipient is still authorized to open it; unavailable means the client shows the no-longer-available state."
+        },
+        "targetKind": {
+          "type": "string",
+          "enum": [
+            "conversation_message",
+            "run",
+            "run_step",
+            "approval",
+            "question",
+            "document_version",
+            "comment"
+          ],
+          "description": "The typed kind of the resolved destination, echoed so the client can pick the right view."
+        },
+        "path": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 2048,
+              "description": "NotificationTarget.path must contain at most 2048 characters."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "NotificationTarget.path may be null in this transport value."
+        },
+        "anchor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 200,
+              "description": "NotificationTarget.anchor must contain at most 200 characters."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "NotificationTarget.anchor may be null in this transport value."
+        }
+      },
+      "required": [
+        "status",
+        "targetKind",
+        "path",
+        "anchor"
+      ],
+      "additionalProperties": false,
+      "description": "The authoritative answer to \"can I still open this notification's destination\": a validated internal route and anchor when reachable, or an unavailable status."
+    },
+    "NotificationMarkAllReadResult": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "marked": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "NotificationMarkAllReadResult.marked must be at least 0."
+        },
+        "remainingUnread": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "NotificationMarkAllReadResult.remainingUnread must be at least 0."
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "The inbox revision after the change, so the client can order it against other responses."
+        }
+      },
+      "required": [
+        "marked",
+        "remainingUnread",
+        "revision"
+      ],
+      "additionalProperties": false,
+      "description": "Outcome of a snapshot-bounded mark-all-read: how many items were marked, how many are still unread, and the resulting revision."
+    },
+    "SessionFeed": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID identifying the feed item, used as the keyset tie-breaker when two items share a sequence."
+              },
+              "sessionId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID of the agent session this feed item belongs to; every item is keyed by session."
+              },
+              "sequence": {
+                "type": "string",
+                "pattern": "^(?:0|[1-9][0-9]*)$",
+                "description": "Monotonic per-session sequence number; the feed is ordered by sequence ascending, then id, and a client resumes from the last sequence it saw."
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "message",
+                  "terminal",
+                  "status",
+                  "tool",
+                  "file_change",
+                  "artifact",
+                  "usage",
+                  "delivered_input"
+                ],
+                "description": "Which typed payload this item carries; exactly the one payload field named by kind is non-null."
+              },
+              "occurredAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the underlying fact happened, never when it was read."
+              },
+              "redacted": {
+                "type": "boolean",
+                "description": "True when secret or credential material was removed from this item's payload before it reached the feed; the item is still present so the sequence stays gapless."
+              },
+              "message": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "messageId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "Stable UUID of the conversation message this item mirrors."
+                      },
+                      "authorId": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                            "description": "Stable UUID of the author, null when the author is the system."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "SessionFeedMessage.authorId may be null in this transport value."
+                      },
+                      "authorKind": {
+                        "type": "string",
+                        "enum": [
+                          "person",
+                          "agent",
+                          "system"
+                        ],
+                        "description": "Who produced the message, so a client can render attribution without a second lookup."
+                      },
+                      "messageType": {
+                        "type": "string",
+                        "enum": [
+                          "user",
+                          "assistant",
+                          "system",
+                          "tool_summary"
+                        ],
+                        "description": "Stored message classification."
+                      },
+                      "body": {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "Message body after redaction."
+                      }
+                    },
+                    "required": [
+                      "messageId",
+                      "authorId",
+                      "authorKind",
+                      "messageType",
+                      "body"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Present when kind is message."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "SessionFeedItem.message may be null in this transport value."
+              },
+              "terminal": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "stream": {
+                        "type": "string",
+                        "enum": [
+                          "stdout",
+                          "stderr"
+                        ],
+                        "description": "Which terminal stream the text came from."
+                      },
+                      "text": {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "Terminal text after redaction, chunked by the producer."
+                      }
+                    },
+                    "required": [
+                      "stream",
+                      "text"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Present when kind is terminal."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "SessionFeedItem.terminal may be null in this transport value."
+              },
+              "status": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "fromStatus": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "starting",
+                              "active",
+                              "waiting",
+                              "finished",
+                              "failed",
+                              "interrupted"
+                            ],
+                            "description": "Session status before the transition, null for the first status event."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "SessionFeedStatus.fromStatus may be null in this transport value."
+                      },
+                      "toStatus": {
+                        "type": "string",
+                        "enum": [
+                          "starting",
+                          "active",
+                          "waiting",
+                          "finished",
+                          "failed",
+                          "interrupted"
+                        ],
+                        "description": "Session status after the transition."
+                      },
+                      "reason": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 65536,
+                            "description": "Bounded machine reason for the transition when one was recorded."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "SessionFeedStatus.reason may be null in this transport value."
+                      }
+                    },
+                    "required": [
+                      "fromStatus",
+                      "toStatus",
+                      "reason"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Present when kind is status."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "SessionFeedItem.status may be null in this transport value."
+              },
+              "tool": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "callId": {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "Harness-scoped identifier for one tool invocation."
+                      },
+                      "name": {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "Tool name as the harness reported it."
+                      },
+                      "phase": {
+                        "type": "string",
+                        "enum": [
+                          "started",
+                          "completed",
+                          "failed"
+                        ],
+                        "description": "Which part of the tool's life this item records."
+                      },
+                      "ok": {
+                        "anyOf": [
+                          {
+                            "type": "boolean",
+                            "description": "Outcome once known; null while the call is still open."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "SessionFeedTool.ok may be null in this transport value."
+                      }
+                    },
+                    "required": [
+                      "callId",
+                      "name",
+                      "phase",
+                      "ok"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Present when kind is tool."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "SessionFeedItem.tool may be null in this transport value."
+              },
+              "fileChange": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "Workspace-relative path, bounded by the workspace revision."
+                      },
+                      "change": {
+                        "type": "string",
+                        "enum": [
+                          "created",
+                          "modified",
+                          "deleted",
+                          "renamed"
+                        ],
+                        "description": "What happened to the file."
+                      }
+                    },
+                    "required": [
+                      "path",
+                      "change"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Present when kind is file_change."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "SessionFeedItem.fileChange may be null in this transport value."
+              },
+              "artifact": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "artifactId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "Stable UUID of the artifact version that was published."
+                      },
+                      "name": {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "Artifact name within the run."
+                      },
+                      "version": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991,
+                            "description": "Artifact version number when the artifact is versioned, else null."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "SessionFeedArtifact.version may be null in this transport value."
+                      }
+                    },
+                    "required": [
+                      "artifactId",
+                      "name",
+                      "version"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Present when kind is artifact."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "SessionFeedItem.artifact may be null in this transport value."
+              },
+              "usage": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "inputTokens": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "pattern": "^(?:0|[1-9][0-9]*)$",
+                            "description": "Provider-reported input tokens when known."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "SessionFeedUsage.inputTokens may be null in this transport value."
+                      },
+                      "outputTokens": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "pattern": "^(?:0|[1-9][0-9]*)$",
+                            "description": "Provider-reported output tokens when known."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "SessionFeedUsage.outputTokens may be null in this transport value."
+                      },
+                      "costUsd": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 65536,
+                            "description": "Provider-reported USD cost when known."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "SessionFeedUsage.costUsd may be null in this transport value."
+                      }
+                    },
+                    "required": [
+                      "inputTokens",
+                      "outputTokens",
+                      "costUsd"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Present when kind is usage."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "SessionFeedItem.usage may be null in this transport value."
+              },
+              "deliveredInput": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "messageId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "Stable UUID of the steering message that was delivered."
+                      },
+                      "body": {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "Delivered steering text after redaction."
+                      }
+                    },
+                    "required": [
+                      "messageId",
+                      "body"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Present when kind is delivered_input."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "SessionFeedItem.deliveredInput may be null in this transport value."
+              }
+            },
+            "required": [
+              "id",
+              "sessionId",
+              "sequence",
+              "kind",
+              "occurredAt",
+              "redacted",
+              "message",
+              "terminal",
+              "status",
+              "tool",
+              "fileChange",
+              "artifact",
+              "usage",
+              "deliveredInput"
+            ],
+            "additionalProperties": false,
+            "description": "Feed items in ascending sequence order, at most 100 per page. Each array item follows this format."
+          },
+          "description": "Feed items in ascending sequence order, at most 100 per page."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque cursor to pass back to read the next page; null when the feed has no more items."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "SessionFeed.nextCursor may be null in this transport value."
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "One page of a session's typed, ordered, redacted live feed, keyed by session and read forward from a sequence cursor."
     },
     "AgentSessionPage": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

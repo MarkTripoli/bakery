@@ -5,7 +5,6 @@ import {
   updateInstallationSettings,
 } from "./modules/auth/adapters/installation-settings-postgres.ts";
 import {
-  authBakeryMigrationSource,
   betterAuthMigrationSource,
   createSuperuser,
   preserveProviderInvitationState,
@@ -16,13 +15,8 @@ import {
   EVENT_CLOCK_CONTRACT_VERSION,
   EVENT_CLOCK_DATA_BOUNDARY,
   EVENT_CLOCK_SCHEMA_BOUNDARY,
-  workBakeryMigrationSource,
 } from "./modules/work/migrations.ts";
-import { agentsBakeryMigrationSource } from "./modules/agents/migrations.ts";
-import { repositoryRulesBakeryMigrationSource } from "./modules/repository-rules/migrations.ts";
-import { integrationsBakeryMigrationSource } from "./modules/integrations/migrations.ts";
-import { deliveryBakeryMigrationSource } from "./modules/delivery/migrations.ts";
-import { projectsBakeryMigrationSource } from "./modules/projects/migrations.ts";
+import { BAKERY_MIGRATION_SOURCES } from "./migration-sources.ts";
 import { AuthErrorCode } from "./modules/auth/domain/errors.ts";
 import {
   authEnvironmentNames,
@@ -43,7 +37,6 @@ import {
   withPgTransaction,
 } from "./platform/database.ts";
 import {
-  bakeryPlatformMigrationSource,
   loadMigrations,
   migrate,
   migrateProvider,
@@ -207,16 +200,14 @@ try {
     : undefined;
   const dataMigrations = bakeryDataMigrations;
   const providerMigrations = await loadMigrations(betterAuthMigrationSource);
-  const bakeryMigrations = [
-    ...await loadMigrations(bakeryPlatformMigrationSource),
-    ...await loadMigrations(authBakeryMigrationSource),
-    ...await loadMigrations(workBakeryMigrationSource),
-    ...await loadMigrations(projectsBakeryMigrationSource),
-    ...await loadMigrations(agentsBakeryMigrationSource),
-    ...await loadMigrations(repositoryRulesBakeryMigrationSource),
-    ...await loadMigrations(integrationsBakeryMigrationSource),
-    ...await loadMigrations(deliveryBakeryMigrationSource),
-  ];
+  // One list, read from the registry the rails also read, so a new module cannot
+  // be migratable here while invisible to a rail (rail B3). The artifact-kinds
+  // source that landed on main joins the registry rather than this call site.
+  const bakeryMigrations = (
+    await Promise.all(
+      BAKERY_MIGRATION_SOURCES.map((source) => loadMigrations(source)),
+    )
+  ).flat();
   await migrateProvider(pgDatabase, providerMigrations, {
     beforeApply: preserveProviderInvitationState,
   });

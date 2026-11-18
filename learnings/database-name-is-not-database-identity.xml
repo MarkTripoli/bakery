@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="database-name-is-not-database-identity" project="bakery">
+  <title>Prove database identity, not reachability, around a long lane</title>
+  <trigger>A long integration lane fails mid-run with `password authentication failed for user` after its early tests passed, while the same script passed against another head.</trigger>
+  <rule>`select 1` proves you can connect; the database OID proves it is the same database. A recreate keeps the name and changes the OID, so a name check passes while every connection after it fails at authentication - which reads like a code failure and is not one.</rule>
+  <rule>Assert `select oid from pg_database where datname = 'bakery'` immediately before the lane and once more after it, and pin the connection string on the command line instead of sourcing a shared env file that another process can rewrite mid-run. Two stacks sharing one tree can each write their own `.env` file, but nothing stops a second writer from aiming a migration at a database another lane is using.</rule>
+  <verification>
+    <requirement>A mid-run failure is only evidence about the head when the database OID is unchanged across the lane and the connection string is the one the lane started with. Record both. When the offending container is already gone, `docker events` and any lane-stack registry the runner writes are the only attribution left, so record the container name in the evidence before tearing a stack down.</requirement>
+  </verification>
+</learning>

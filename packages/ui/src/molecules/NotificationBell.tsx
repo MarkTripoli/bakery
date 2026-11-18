@@ -1,9 +1,21 @@
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { ButtonHTMLAttributes } from "react";
 import {
   type SemanticNativeProps,
   withoutSemanticOwnerProps,
 } from "../foundations/semantic-native-props.ts";
+import { IconGlyph } from "../atoms/IconGlyph.tsx";
 import "../data.css";
+
+/**
+ * How the badge should read. `unknown` is distinct from `0` on purpose: an
+ * unknown count (offline, or the request failed) draws a hollow ring and says
+ * "count unavailable", because a confident "nothing unread" that later turns
+ * out wrong is worse than admitting the number is not known yet.
+ */
+export type NotificationBellStatus =
+  | { readonly state: "none" }
+  | { readonly state: "unread"; readonly count: number }
+  | { readonly state: "unknown" };
 
 export type NotificationBellProps =
   & Omit<
@@ -11,46 +23,131 @@ export type NotificationBellProps =
     "children" | "type"
   >
   & {
-    count?: number;
-    label?: string;
-    panel?: ReactNode;
-    open?: boolean;
-    state?: "default" | "open" | "focused";
-    variant?: "unread" | "clear";
+    /** The badge state; omit for `none`. */
+    readonly status?: NotificationBellStatus;
+    /** Word for the control, used inside the accessible name. */
+    readonly label: string;
+    /** Accessible name for the unread state, given the true count. */
+    readonly unreadLabel: (count: number) => string;
+    /** Accessible name for the unknown state. */
+    readonly unknownLabel: string;
+    /** The drawn badge cap: 100 or more reads "99+" (the name keeps the truth). */
+    readonly cap?: number;
+    readonly open?: boolean;
+    readonly state?: "default" | "open" | "focused";
+    /**
+     * The batched arrival sentence ("2 new notifications"). It rides a polite
+     * live region so a new arrival is announced without moving focus; the
+     * caller batches it, so three arrivals in a second are one announcement.
+     */
+    readonly arrivalAnnouncement?: string | null;
   };
 
+/**
+ * The bell's drawn face: the glyph and the badge, with no button of its own.
+ *
+ * It exists as a separate piece because the two places a bell appears own
+ * opposite controls: on a phone it is a link to the page, and from 744px up it
+ * is a popover trigger. A control cannot nest inside another control, so the
+ * face must not be one — each caller supplies the interactive wrapper.
+ */
+export function NotificationBellGlyph(
+  { cap = 99, status = { state: "none" } }: {
+    readonly cap?: number;
+    readonly status?: NotificationBellStatus;
+  },
+) {
+  const drawn = status.state === "unread"
+    ? (status.count >= cap ? `${cap}+` : String(status.count))
+    : null;
+  return (
+    <>
+      <IconGlyph name="bell" size="medium" />
+      {drawn === null ? null : (
+        <span
+          aria-hidden="true"
+          className="ui-notification-bell__badge"
+          data-ui-part="notificationBadge"
+        >
+          {drawn}
+        </span>
+      )}
+      {status.state === "unknown"
+        ? (
+          <span
+            aria-hidden="true"
+            className="ui-notification-bell__badge ui-notification-bell__badge--unknown"
+            data-ui-part="notificationBadgeUnknown"
+          />
+        )
+        : null}
+    </>
+  );
+}
+
+/**
+ * The one polite live region a bell announces arrivals through. It is a
+ * component of its own because the bell reaches the screen two ways — its own
+ * button on a phone, a popover's button from 744px up — and both need the same
+ * batched sentence announced once, without moving focus.
+ */
+export function NotificationArrival(
+  { announcement }: { readonly announcement?: string | null },
+) {
+  return (
+    <span
+      aria-atomic="true"
+      aria-live="polite"
+      className="bakery-visually-hidden"
+      data-ui-part="notificationArrival"
+      role="status"
+    >
+      {announcement ?? ""}
+    </span>
+  );
+}
+
+/**
+ * The bell at the right end of the top bar. Always a number in the badge, never
+ * a bare dot, so the badge and the page can never disagree.
+ */
 export function NotificationBell(
   {
-    count = 0,
-    label = "Notifications",
+    cap = 99,
+    label,
     open = false,
-    panel,
     state = "default",
-    variant,
+    status = { state: "none" },
+    unknownLabel,
+    unreadLabel,
+    arrivalAnnouncement = null,
     ...unsafeProps
   }: NotificationBellProps,
 ) {
   const props = withoutSemanticOwnerProps(unsafeProps);
-  const resolvedVariant = variant ?? (count > 0 ? "unread" : "clear");
   const resolvedState = state === "default" && open ? "open" : state;
+  const variant = status.state;
+  const accessibleName = status.state === "unread"
+    ? unreadLabel(status.count)
+    : status.state === "unknown"
+    ? unknownLabel
+    : label;
   return (
     <span
-      className={`ui-notification-bell ui-notification-bell--${resolvedVariant}`}
+      className={`ui-notification-bell ui-notification-bell--${variant}`}
       data-ui-component="notificationBell"
       data-state={resolvedState}
-      data-variant={resolvedVariant}
+      data-variant={variant}
     >
       <button
         aria-expanded={open}
-        aria-label={count ? `${label}, ${count} unread` : label}
+        aria-label={accessibleName}
         type="button"
         {...props}
       >
-        ◉{count ? <span aria-hidden="true">{count}</span> : null}
+        <NotificationBellGlyph cap={cap} status={status} />
       </button>
-      {open && panel
-        ? <span className="ui-notification-bell__panel">{panel}</span>
-        : null}
+      <NotificationArrival announcement={arrivalAnnouncement} />
     </span>
   );
 }

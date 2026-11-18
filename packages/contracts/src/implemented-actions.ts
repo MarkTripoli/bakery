@@ -254,6 +254,18 @@ export const repositoryRulesImplementedActions = Object.freeze(
   Object.values(RepositoryRulesImplementedAction),
 );
 
+export const ArtifactKindImplementedAction = Object.freeze(
+  {
+    ArtifactKindsList: "artifactKinds.list",
+    ArtifactKindsGet: "artifactKinds.get",
+    ArtifactKindVersionsCreate: "artifactKindVersions.create",
+    ArtifactKindVersionsList: "artifactKindVersions.list",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const artifactKindImplementedActions = Object.freeze(
+  Object.values(ArtifactKindImplementedAction),
+);
+
 export const IntegrationsImplementedAction = Object.freeze(
   {
     IntegrationAppRegistrationsGet: "integrationAppRegistrations.get",
@@ -327,6 +339,20 @@ export const TicketImplementedAction = Object.freeze(
 );
 export const ticketImplementedActions = Object.freeze(
   Object.values(TicketImplementedAction),
+);
+
+export const NotificationImplementedAction = Object.freeze(
+  {
+    NotificationsList: "notifications.list",
+    NotificationsCount: "notifications.count",
+    NotificationsGet: "notifications.get",
+    NotificationsResolveTarget: "notifications.resolveTarget",
+    NotificationsSetRead: "notifications.setRead",
+    NotificationsMarkAllRead: "notifications.markAllRead",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const notificationImplementedActions = Object.freeze(
+  Object.values(NotificationImplementedAction),
 );
 
 export const WorkflowImplementedAction = Object.freeze(
@@ -499,9 +525,11 @@ export const implementedActions = Object.freeze(
     ...projectsImplementedActions,
     ...agentImplementedActions,
     ...repositoryRulesImplementedActions,
+    ...artifactKindImplementedActions,
     ...integrationsImplementedActions,
     ...deliveryImplementedActions,
     ...ticketImplementedActions,
+    ...notificationImplementedActions,
     ...workflowImplementedActions,
     ...workflowActionDiscoveryImplementedActions,
     ...automationImplementedActions,

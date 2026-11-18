@@ -5202,6 +5202,13 @@
       "status": "no-mock",
       "rationale": "One agent of the organization (its version in use, its versions) is designed by design-ux on #66; Paper has no frame for it.",
       "frames": []
+    },
+    {
+      "routeId": "notifications",
+      "path": "/notifications",
+      "status": "no-mock",
+      "rationale": "Notification inbox page (NotificationsPage). No Paper artboard depicts a notifications list: the shipped design is design-ux's UX design comment on issue #455 (comment 6961347054), which specifies the bell, the popover and this page, and supersedes Paper as the source of truth for this surface.",
+      "frames": []
     }
   ]
 }

@@ -6,6 +6,7 @@ import {
 import { createSkillStorageRoutes } from "./modules/catalog/skill-storage-actions.ts";
 import { createAgentsRoutes } from "./modules/agents/index.ts";
 import { createRepositoryRulesRoutes } from "./modules/repository-rules/index.ts";
+import { createArtifactKindsRoutes } from "./modules/artifact-kinds/index.ts";
 import { createDeliveryRoutes } from "./modules/delivery/index.ts";
 import {
   createFetchGitHubAppClient,
@@ -87,6 +88,7 @@ import {
   type EventsSocketRegistry,
 } from "./modules/work/events-socket.ts";
 import {
+  createNotificationRoutes,
   createTicketRoutes,
   createWorkTaskHandlers,
 } from "./modules/work/index.ts";
@@ -612,6 +614,15 @@ export function createApp(options: {
   );
   app.route(
     "/",
+    createArtifactKindsRoutes({
+      database: options.pgDatabase,
+      browserSession,
+      publicBaseUrl: options.config.publicBaseUrl,
+      cursorSecret: options.config.auth.secret,
+    }),
+  );
+  app.route(
+    "/",
     createDeliveryRoutes({
       database: options.pgDatabase,
       session: tokenSession,
@@ -633,6 +644,14 @@ export function createApp(options: {
       }),
       factIndex: options.ticketFactIndex ?? createTicketFactIndex(),
       budget: options.config.budget,
+    }),
+  );
+  app.route(
+    "/",
+    createNotificationRoutes({
+      database: options.pgDatabase,
+      session: tokenSession,
+      cursorSecret: options.config.auth.secret,
     }),
   );
   app.route(
