@@ -86,6 +86,12 @@ create unique index run_waits_one_open_per_step_idx
   on bakery.run_waits (organization_id, run_id, step_key)
   where ended_at is null;
 
+-- An expiry has no human decider, so the ledger must be able to say so. A null
+-- decided_by means the system ended the entry, and the reason names why. Writing
+-- the approver's id instead would claim a person made a decision they never
+-- made, which is worse than an explicit null.
+alter table bakery.decisions_ledger alter column decided_by drop not null;
+
 create unique index decisions_ledger_approval_once_idx
   on bakery.decisions_ledger (organization_id, subject_kind, subject_id)
   where subject_kind = 'approval';
