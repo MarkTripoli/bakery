@@ -27046,7 +27046,6 @@ export const clientManifest = {
                 "description": "Optimistic-concurrency version used when updating the record."
               },
               "origin": {
-                "description": "Where the definition came from: authored in the editor, installed from the catalog, copied, or proposed by the coordinator in a conversation. Fixed at creation and kept when an unlisted definition is saved as a workflow. Omitted by servers that predate it.",
                 "type": "object",
                 "properties": {
                   "kind": {
@@ -27057,14 +27056,14 @@ export const clientManifest = {
                       "copy",
                       "coordinator"
                     ],
-                    "description": "authored by a person in the editor, catalog when installed from the code-owned catalog, copy when copied from another definition, or coordinator when a person accepted a coordinator proposal in a conversation."
+                    "description": "Origin kind: authored, catalog, copy or coordinator."
                   },
                   "catalogKey": {
                     "anyOf": [
                       {
                         "type": "string",
                         "maxLength": 65536,
-                        "description": "Catalog item an installed definition came from; null for every other kind."
+                        "description": "Stable key of the catalog item a catalog definition was installed from; null for authored and copied definitions."
                       },
                       {
                         "type": "null",
@@ -27079,7 +27078,7 @@ export const clientManifest = {
                         "type": "integer",
                         "minimum": -9007199254740991,
                         "maximum": 9007199254740991,
-                        "description": "Catalog revision an installed definition came from; null for every other kind."
+                        "description": "Release revision of the catalog item the definition was installed from; null for authored and copied definitions."
                       },
                       {
                         "type": "null",
@@ -27089,44 +27088,43 @@ export const clientManifest = {
                     "description": "WorkflowOrigin.catalogVersion may be null in this transport value."
                   },
                   "conversationId": {
+                    "description": "WorkflowOrigin.conversationId may be null in this transport value.",
                     "anyOf": [
                       {
                         "type": "string",
                         "format": "uuid",
                         "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                        "description": "Conversation whose coordinator proposed this definition; null unless kind is coordinator."
+                        "description": "Conversation whose coordinator proposed this definition; null unless kind is coordinator. Omitted by servers that predate it."
                       },
                       {
                         "type": "null",
                         "description": "Null indicates that the value is unavailable."
                       }
-                    ],
-                    "description": "WorkflowOrigin.conversationId may be null in this transport value."
+                    ]
                   },
                   "turnId": {
+                    "description": "WorkflowOrigin.turnId may be null in this transport value.",
                     "anyOf": [
                       {
                         "type": "string",
                         "format": "uuid",
                         "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                        "description": "Coordinator turn that proposed this definition; null unless kind is coordinator."
+                        "description": "Coordinator turn that proposed this definition; null unless kind is coordinator. Omitted by servers that predate it."
                       },
                       {
                         "type": "null",
                         "description": "Null indicates that the value is unavailable."
                       }
-                    ],
-                    "description": "WorkflowOrigin.turnId may be null in this transport value."
+                    ]
                   }
                 },
                 "required": [
                   "kind",
                   "catalogKey",
-                  "catalogVersion",
-                  "conversationId",
-                  "turnId"
+                  "catalogVersion"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "description": "Where this definition came from, as {kind, catalogKey, catalogVersion}: kind is authored (written in this organization), catalog (installed from the code-owned catalog; system managed and locked against organization edits) copy, or coordinator (a coordinator proposal a person accepted in a conversation, which also names that conversationId and turnId); catalogKey and catalogVersion name the catalog item and release revision for a catalog origin and are null otherwise. Set when the definition is created and never changed."
               },
               "visibility": {
                 "description": "listed definitions appear in the library list and can be made the active version; unlisted ones (coordinator proposals a person accepted) are readable by id and runnable only at an exact published version until a person saves them as a workflow. Outside every digest. Omitted by servers that predate it.",
@@ -27145,10 +27143,11 @@ export const clientManifest = {
               "enabled",
               "createdAt",
               "updatedAt",
-              "version"
+              "version",
+              "origin"
             ],
             "additionalProperties": false,
-            "description": "A named, organization-owned workflow definition: its stable slug, display name, and which published WorkflowVersion, if any, is currently active. Disabling it blocks new kickoffs without canceling an already-running instance, which follows its own separate cancellation policy."
+            "description": "A named, organization-owned workflow definition: its stable slug, display name, where it came from, and which published WorkflowVersion, if any, is currently active. Disabling it blocks new kickoffs without canceling an already-running instance, which follows its own separate cancellation policy."
           },
           "description": "Page<Workflow>.items must contain at most 100 items."
         },
@@ -40845,7 +40844,6 @@ export const clientManifest = {
           "description": "Optimistic-concurrency version used when updating the record."
         },
         "origin": {
-          "description": "Where the definition came from: authored in the editor, installed from the catalog, copied, or proposed by the coordinator in a conversation. Fixed at creation and kept when an unlisted definition is saved as a workflow. Omitted by servers that predate it.",
           "type": "object",
           "properties": {
             "kind": {
@@ -40856,14 +40854,14 @@ export const clientManifest = {
                 "copy",
                 "coordinator"
               ],
-              "description": "authored by a person in the editor, catalog when installed from the code-owned catalog, copy when copied from another definition, or coordinator when a person accepted a coordinator proposal in a conversation."
+              "description": "Origin kind: authored, catalog, copy or coordinator."
             },
             "catalogKey": {
               "anyOf": [
                 {
                   "type": "string",
                   "maxLength": 65536,
-                  "description": "Catalog item an installed definition came from; null for every other kind."
+                  "description": "Stable key of the catalog item a catalog definition was installed from; null for authored and copied definitions."
                 },
                 {
                   "type": "null",
@@ -40878,7 +40876,7 @@ export const clientManifest = {
                   "type": "integer",
                   "minimum": -9007199254740991,
                   "maximum": 9007199254740991,
-                  "description": "Catalog revision an installed definition came from; null for every other kind."
+                  "description": "Release revision of the catalog item the definition was installed from; null for authored and copied definitions."
                 },
                 {
                   "type": "null",
@@ -40888,44 +40886,43 @@ export const clientManifest = {
               "description": "WorkflowOrigin.catalogVersion may be null in this transport value."
             },
             "conversationId": {
+              "description": "WorkflowOrigin.conversationId may be null in this transport value.",
               "anyOf": [
                 {
                   "type": "string",
                   "format": "uuid",
                   "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                  "description": "Conversation whose coordinator proposed this definition; null unless kind is coordinator."
+                  "description": "Conversation whose coordinator proposed this definition; null unless kind is coordinator. Omitted by servers that predate it."
                 },
                 {
                   "type": "null",
                   "description": "Null indicates that the value is unavailable."
                 }
-              ],
-              "description": "WorkflowOrigin.conversationId may be null in this transport value."
+              ]
             },
             "turnId": {
+              "description": "WorkflowOrigin.turnId may be null in this transport value.",
               "anyOf": [
                 {
                   "type": "string",
                   "format": "uuid",
                   "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                  "description": "Coordinator turn that proposed this definition; null unless kind is coordinator."
+                  "description": "Coordinator turn that proposed this definition; null unless kind is coordinator. Omitted by servers that predate it."
                 },
                 {
                   "type": "null",
                   "description": "Null indicates that the value is unavailable."
                 }
-              ],
-              "description": "WorkflowOrigin.turnId may be null in this transport value."
+              ]
             }
           },
           "required": [
             "kind",
             "catalogKey",
-            "catalogVersion",
-            "conversationId",
-            "turnId"
+            "catalogVersion"
           ],
-          "additionalProperties": false
+          "additionalProperties": false,
+          "description": "Where this definition came from, as {kind, catalogKey, catalogVersion}: kind is authored (written in this organization), catalog (installed from the code-owned catalog; system managed and locked against organization edits) copy, or coordinator (a coordinator proposal a person accepted in a conversation, which also names that conversationId and turnId); catalogKey and catalogVersion name the catalog item and release revision for a catalog origin and are null otherwise. Set when the definition is created and never changed."
         },
         "visibility": {
           "description": "listed definitions appear in the library list and can be made the active version; unlisted ones (coordinator proposals a person accepted) are readable by id and runnable only at an exact published version until a person saves them as a workflow. Outside every digest. Omitted by servers that predate it.",
@@ -40944,10 +40941,11 @@ export const clientManifest = {
         "enabled",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "origin"
       ],
       "additionalProperties": false,
-      "description": "A named, organization-owned workflow definition: its stable slug, display name, and which published WorkflowVersion, if any, is currently active. Disabling it blocks new kickoffs without canceling an already-running instance, which follows its own separate cancellation policy."
+      "description": "A named, organization-owned workflow definition: its stable slug, display name, where it came from, and which published WorkflowVersion, if any, is currently active. Disabling it blocks new kickoffs without canceling an already-running instance, which follows its own separate cancellation policy."
     },
     "WorkflowDefinitionProposal": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

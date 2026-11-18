@@ -18194,7 +18194,7 @@ const transportSchemas = {
         "activeVersionId",
         "description"
       ],
-      "description": "A named, organization-owned workflow definition: its stable slug, display name, and which published WorkflowVersion, if any, is currently active. Disabling it blocks new kickoffs without canceling an already-running instance, which follows its own separate cancellation policy.",
+      "description": "A named, organization-owned workflow definition: its stable slug, display name, where it came from, and which published WorkflowVersion, if any, is currently active. Disabling it blocks new kickoffs without canceling an already-running instance, which follows its own separate cancellation policy.",
       "fieldDescriptions": {
         "id": "Stable UUID identifying the workflow record.",
         "slug": "URL-safe stable name used to address the record.",
@@ -18205,12 +18205,11 @@ const transportSchemas = {
         "updatedAt": "UTC timestamp when the record was last updated.",
         "version": "Optimistic-concurrency version used when updating the record.",
         "description": "Free-text summary of what the workflow does, shown in pickers and the catalog; null when the author left it blank. Set on create and replaced wholesale on update.",
-        "origin": "Where the definition came from: authored in the editor, installed from the catalog, copied, or proposed by the coordinator in a conversation. Fixed at creation and kept when an unlisted definition is saved as a workflow. Omitted by servers that predate it.",
+        "origin": "Where this definition came from, as {kind, catalogKey, catalogVersion}: kind is authored (written in this organization), catalog (installed from the code-owned catalog; system managed and locked against organization edits) copy, or coordinator (a coordinator proposal a person accepted in a conversation, which also names that conversationId and turnId); catalogKey and catalogVersion name the catalog item and release revision for a catalog origin and are null otherwise. Set when the definition is created and never changed.",
         "visibility": "listed definitions appear in the library list and can be made the active version; unlisted ones (coordinator proposals a person accepted) are readable by id and runnable only at an exact published version until a person saves them as a workflow. Outside every digest. Omitted by servers that predate it."
       },
       "optionalFields": [
         "description",
-        "origin",
         "visibility"
       ]
     },
@@ -18223,7 +18222,7 @@ const transportSchemas = {
         "turnId"
       ],
       "fieldTypes": {
-        "kind": "enum(authored|catalog|copy|coordinator)",
+        "kind": "authored|catalog|copy|coordinator",
         "catalogKey": "string|null",
         "catalogVersion": "integer|null",
         "conversationId": "uuid|null",
@@ -18235,14 +18234,18 @@ const transportSchemas = {
         "conversationId",
         "turnId"
       ],
-      "description": "Provenance of one workflow definition, fixed when it is created.",
+      "description": "Where a workflow definition came from: written in the organization (authored), installed from the code-owned catalog (catalog, system managed and locked against organization edits), copied from another definition (copy), or accepted from a coordinator proposal in a conversation (coordinator). A catalog origin names the catalog item and release revision it was installed from; the other kinds carry nulls. Set when the definition is created and never changed.",
       "fieldDescriptions": {
-        "kind": "authored by a person in the editor, catalog when installed from the code-owned catalog, copy when copied from another definition, or coordinator when a person accepted a coordinator proposal in a conversation.",
-        "catalogKey": "Catalog item an installed definition came from; null for every other kind.",
-        "catalogVersion": "Catalog revision an installed definition came from; null for every other kind.",
-        "conversationId": "Conversation whose coordinator proposed this definition; null unless kind is coordinator.",
-        "turnId": "Coordinator turn that proposed this definition; null unless kind is coordinator."
-      }
+        "kind": "Origin kind: authored, catalog, copy or coordinator.",
+        "catalogKey": "Stable key of the catalog item a catalog definition was installed from; null for authored and copied definitions.",
+        "catalogVersion": "Release revision of the catalog item the definition was installed from; null for authored and copied definitions.",
+        "conversationId": "Conversation whose coordinator proposed this definition; null unless kind is coordinator. Omitted by servers that predate it.",
+        "turnId": "Coordinator turn that proposed this definition; null unless kind is coordinator. Omitted by servers that predate it."
+      },
+      "optionalFields": [
+        "conversationId",
+        "turnId"
+      ]
     },
     "WorkflowDefinitionProposal": {
       "fields": [
