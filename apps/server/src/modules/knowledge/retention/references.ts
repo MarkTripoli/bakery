@@ -69,6 +69,15 @@ export const artifactVersionReferences = [
     constraint: "run_input_pins_version_fk",
     protection: "run-pin",
   },
+  {
+    // A memory revision cites the version it was promoted from. The citation is
+    // the whole point of sourced memory: a reader has to be able to reach the
+    // evidence, so the bytes stay for as long as the revision that cites them.
+    kind: "memory-source",
+    table: "memory_revisions",
+    constraint: "memory_revisions_source_fk",
+    protection: "retained-evidence",
+  },
 ] as const;
 export const declaredArtifactReferenceKinds = [
   "current-pointer",
@@ -81,6 +90,7 @@ export const declaredArtifactReferenceKinds = [
   "output-transcript",
   "external-effect-arguments",
   "run-input-pin",
+  "memory-source",
 ] as const;
 export type ArtifactReferenceKind =
   typeof declaredArtifactReferenceKinds[number];
@@ -140,6 +150,18 @@ export const additionalArtifactReferenceChecks: readonly ReferenceCheck[] = [
       const result = await transaction.query(
         `select 1 from bakery.check_runs
          where organization_id=$1 and evidence_version_id=$2
+         limit 1`,
+        [organizationId, versionId],
+      );
+      return result.rows.length > 0;
+    },
+  },
+  {
+    kind: "memory-source",
+    async protects(transaction, organizationId, versionId) {
+      const result = await transaction.query(
+        `select 1 from bakery.memory_revisions
+         where organization_id=$1 and source_artifact_version_id=$2
          limit 1`,
         [organizationId, versionId],
       );

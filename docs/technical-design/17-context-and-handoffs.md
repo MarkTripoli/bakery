@@ -407,7 +407,11 @@ promotion must name the source artifact version, repository scope, author or
 run, conflict-scan result, and expiry/review policy. It creates a new
 `memory_revisions` row and advances `memory_entries.current_revision_id` only
 through the normal compare-and-swap path. Confidence is model judgment, not
-proof. Conflicting or weakly sourced material remains proposed or is rejected.
+proof. A promotion whose evidence is weak, conflicting or foreign to the
+repository is refused by name and creates no revision, so the entry stays
+`proposed` with no current revision. There is no separate `rejected` state: an
+entry is `proposed`, `active` or `retired`, and a refusal leaves it where it
+was rather than recording an acceptance decision it did not receive.
 
 Memory may improve future retrieval of summaries, decisions, and recurring
 failure patterns. It does not auto-rewrite tool permissions, workflow policy,
