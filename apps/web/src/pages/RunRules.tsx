@@ -169,11 +169,11 @@ export function RunRulesDetails(
         <UI.Text role="alert" variant="error">
           {t("tasks.run.rules.loadFailed")}
         </UI.Text>
-        <div>
+        <UI.Inline gap="compact">
           <UI.Button onClick={model.retry} type="button" variant="secondary">
             {t("core.actions.retry")}
           </UI.Button>
-        </div>
+        </UI.Inline>
       </UI.Stack>
     );
   }
@@ -181,7 +181,9 @@ export function RunRulesDetails(
     ? null
     : (
       <UI.Text data-testid="run-rules-settings-version">
-        {t("tasks.run.rules.settingsVersion")}: {settingsVersion}
+        {t("tasks.run.rules.settingsVersion", {
+          version: String(settingsVersion),
+        })}
       </UI.Text>
     );
   const open = model.repositoryId === null

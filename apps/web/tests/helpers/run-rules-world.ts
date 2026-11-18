@@ -153,6 +153,11 @@ export type World = {
   /** The rules in force now; `null` makes that read fail. */
   currentDigest?: string | null;
   hasFixedPolicy?: boolean;
+  /**
+   * A draft task with no run: Start run is answered with this refusal, as when
+   * the repository's rules changed after the task was planned.
+   */
+  refusedStart?: { status: number; code: string; title: string };
 };
 
 export async function openRun(page: Page, world: World = {}) {
@@ -160,7 +165,51 @@ export async function openRun(page: Page, world: World = {}) {
   let checksStatus = world.checksStatus ?? 200;
   const handle = (path: string, json: unknown) =>
     page.route(path, (route: Route) => route.fulfill({ json }));
-  await handle(`**/v1/tasks/${TASK_ID}`, task);
+  await handle(
+    `**/v1/tasks/${TASK_ID}`,
+    world.refusedStart
+      ? { ...task, currentRunId: null, repositoryProfileId: uuid(30) }
+      : task,
+  );
+  if (world.refusedStart) {
+    const refusal = world.refusedStart;
+    await handle(
+      "**/v1/workflow-presets*",
+      page_([{
+        id: "fixed-coding",
+        revision: 1,
+        digest: "a".repeat(64),
+        nameKey: "workflowPresets.fixedCoding.name",
+        steps: [{ id: "brief", uses: "task.brief" }],
+        defaultBudgetLimitUsd: "5.00",
+        availability: {
+          minimumBudgetLimitUsd: null,
+          status: "ready",
+          reasons: [],
+        },
+      }]),
+    );
+    await page.route(
+      `**/v1/tasks/${TASK_ID}/runs`,
+      (route: Route) =>
+        route.request().method() === "POST"
+          ? route.fulfill({
+            status: refusal.status,
+            contentType: "application/problem+json",
+            json: {
+              type: "about:blank",
+              title: refusal.title,
+              status: refusal.status,
+              code: refusal.code,
+              detail: "The server refused the request.",
+              requestId: uuid(310),
+              traceId: uuid(311),
+              retryable: false,
+            },
+          })
+          : route.fallback(),
+    );
+  }
   await handle(`**/v1/runs/${RUN_ID}`, run(world.finished ?? false));
   await handle(
     `**/v1/runs/${RUN_ID}/steps*`,
@@ -186,7 +235,8 @@ export async function openRun(page: Page, world: World = {}) {
   await handle("**/v1/coordination-plans*", page_([]));
   await handle("**/v1/plan-revisions*", page_([]));
   await handle("**/v1/questions*", page_([]));
-  await handle("**/v1/workflow-presets*", page_([]));
+  await handle("**/v1/output-streams?*", page_([]));
+  if (!world.refusedStart) await handle("**/v1/workflow-presets*", page_([]));
   await handle("**/v1/sync*", {
     resourceState: {},
     highwater: "0",
@@ -225,8 +275,11 @@ export async function openRun(page: Page, world: World = {}) {
         }),
   );
   await page.goto(`/tasks/${TASK_ID}`);
-  await expect(page.getByRole("heading", { name: "Current run" }))
-    .toBeVisible();
+  await expect(
+    page.getByRole("heading", {
+      name: world.refusedStart ? "Start a run" : "Current run",
+    }),
+  ).toBeVisible();
   return {
     recoverChecks: () => {
       checksStatus = 200;

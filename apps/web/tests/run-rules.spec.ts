@@ -169,6 +169,30 @@ test.describe("Rules this run used", () => {
     await expect(page.getByTestId("run-rules-state")).toBeVisible();
   });
 
+  test("a start the server refuses because the repository's rules changed shows that reason and keeps the task a draft", async ({ page }) => {
+    // #65 AC3: a rule change cannot silently alter a run. A task planned under
+    // other rules is refused at admission, and the person is told why.
+    await openRun(page, {
+      refusedStart: {
+        status: 409,
+        code: "PRECONDITION_FAILED",
+        title: "The repository rules changed since this task was planned",
+      },
+    });
+    const start = page.getByRole("button", { name: "Start run", exact: true });
+    await start.click();
+    const refusal = page.getByRole("status").filter({
+      hasText: "The server did not admit the run.",
+    });
+    await expect(refusal).toContainText(
+      "The repository rules changed since this task was planned",
+    );
+    // No run was made up: still a draft with a Start run to try again.
+    await expect(page.getByRole("heading", { name: "Current run" }))
+      .toHaveCount(0);
+    await expect(start).toBeVisible();
+  });
+
   test("a read the person may not make says they have no access", async ({ page }) => {
     await openRun(page, { checksStatus: 403 });
     await details(page).click();

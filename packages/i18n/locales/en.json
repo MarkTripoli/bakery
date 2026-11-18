@@ -919,7 +919,7 @@
   "tasks.run.rules.checks.help": "Identifies the check commands Bakery trusted for this run.",
   "tasks.run.rules.checks.helpLabel": "About the checks fingerprint",
   "tasks.run.rules.fromStep": "from {step}",
-  "tasks.run.rules.settingsVersion": "Repository settings version",
+  "tasks.run.rules.settingsVersion": "Repository settings version: {version}",
   "tasks.run.rules.noChecks": "No check commands applied to this run.",
   "tasks.run.rules.same": "Same as the rules in force now.",
   "tasks.run.rules.changed.running": "The rules have changed since this run started. This run keeps the rules it started with.",

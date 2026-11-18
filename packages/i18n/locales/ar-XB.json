@@ -4181,7 +4181,6 @@
   "tasks.run.rules.checks.help": "⟪Identifies the check commands Bakery trusted for this run.⟫",
   "tasks.run.rules.checks.helpLabel": "⟪About the checks fingerprint⟫",
   "tasks.run.rules.fromStep": "⟪from {step}⟫",
-  "tasks.run.rules.settingsVersion": "⟪Repository settings version⟫",
   "tasks.run.rules.noChecks": "⟪No check commands applied to this run.⟫",
   "tasks.run.rules.same": "⟪Same as the rules in force now.⟫",
   "tasks.run.rules.changed.running": "⟪The rules have changed since this run started. This run keeps the rules it started with.⟫",
@@ -4197,5 +4196,6 @@
   "tasks.run.rules.forbidden": "⟪You do not have access to see which rules this run used.⟫",
   "repository.rules.details.fingerprint.helpNoChecks": "⟪Identifies the exact rules in force.⟫",
   "repository.rules.details.fingerprint.help": "⟪Identifies the exact rules and checks in force. Each run records the fingerprint it started with, so you can tell whether a run used these rules.⟫",
-  "tasks.run.rules.fixed.finished": "⟪Fixed when the run started.⟫"
+  "tasks.run.rules.fixed.finished": "⟪Fixed when the run started.⟫",
+  "tasks.run.rules.settingsVersion": "⟪Repository settings version: {version}⟫"
 }
