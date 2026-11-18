@@ -429,6 +429,57 @@ async function secondOrganization(
   return { organizationId: organization.id };
 }
 
+/**
+ * Removes a colleague this file signed up, without touching the organization.
+ *
+ * The bootstrap check requires exactly one user and one principal in the
+ * installation, so a colleague left behind fails every test after the one that
+ * created it. `cleanupAuthFixture` cannot be used here because it deletes the
+ * organizations the colleague belongs to, which is the fixture's own.
+ */
+async function removeColleague(
+  pgDatabase: Fixture["pgDatabase"],
+  email: string,
+): Promise<void> {
+  const users = await pgDatabase.query<{ id: string }>(
+    'select id from public."user" where email = $1',
+    [email],
+  );
+  const userIds = users.rows.map(({ id }) => id);
+  if (userIds.length === 0) return;
+  await pgDatabase.query(
+    `delete from bakery.organization_memberships
+      where principal_id in (
+        select id from bakery.principals where provider_user_id = any($1::uuid[])
+      )`,
+    [userIds],
+  );
+  // Rows that name the principal and do not cascade on delete. Idempotency in
+  // particular: every request this suite made as the colleague left one.
+  await pgDatabase.query(
+    `delete from bakery.idempotency_records
+      where principal_id in (
+        select id from bakery.principals where provider_user_id = any($1::uuid[])
+      )`,
+    [userIds],
+  );
+  await pgDatabase.query(
+    `delete from bakery.user_preferences
+      where principal_id in (
+        select id from bakery.principals where provider_user_id = any($1::uuid[])
+      )`,
+    [userIds],
+  );
+  await pgDatabase.query(
+    `delete from bakery.principals where provider_user_id = any($1::uuid[])`,
+    [userIds],
+  );
+  await pgDatabase.query(
+    'delete from public."user" where id = any($1::uuid[])',
+    [userIds],
+  );
+}
+
 Deno.test("another organization's package is not found rather than forbidden", () =>
   withPluginFixture(async (fixture, store) => {
     const pkg = await (await call(fixture, "/v1/plugin-packages", {
@@ -475,6 +526,19 @@ Deno.test("another organization's package is not found rather than forbidden", (
     assertEquals(readForeign.status, 404, await readForeign.clone().text());
     const text = await readForeign.text();
     assert(!text.includes("A private package"));
+
+    // Listing packages as the second organization: the list is the one query a
+    // tenant filter is easiest to forget, because an empty page looks like an
+    // answer rather than a leak.
+    const listForeign = await asTenantB("/v1/plugin-packages", {
+      method: "GET",
+    });
+    assertEquals(listForeign.status, 200, await listForeign.clone().text());
+    const foreignPage = await listForeign.json();
+    assertEquals(foreignPage.items.length, 0);
+    assert(
+      !foreignPage.items.some((item: { id: string }) => item.id === pkg.id),
+    );
 
     // Listing versions of a package the second organization does not own.
     const listVersions = await asTenantB(
@@ -616,4 +680,60 @@ Deno.test("personal state is private to its own principal inside one organizatio
       rows.rows.length,
       "each preference row must belong to a distinct principal",
     );
+
+    // Leave the installation with one user and one principal again: the
+    // bootstrap check counts them, so an extra colleague would fail later tests.
+    await removeColleague(fixture.pgDatabase, colleagueEmail);
+  }));
+
+Deno.test("a package list pages by cursor without repeating or losing a row", () =>
+  withPluginFixture(async (fixture) => {
+    const created: string[] = [];
+    // Three packages is the smallest count that exercises a cursor: with a
+    // page size of one, a wrong comparison either repeats the boundary row or
+    // skips it, and two packages would not tell those apart from an empty page.
+    for (const name of ["alpha", "beta", "gamma"]) {
+      const response = await call(fixture, "/v1/plugin-packages", {
+        method: "POST",
+        body: packageBody({ name }),
+      });
+      assertEquals(response.status, 201, await response.clone().text());
+      created.push((await response.json()).id);
+    }
+
+    const first = await call(fixture, "/v1/plugin-packages?limit=1", {
+      method: "GET",
+    });
+    assertEquals(first.status, 200, await first.clone().text());
+    const firstPage = await first.json();
+    assertEquals(firstPage.items.length, 1);
+    assert(firstPage.nextCursor !== null);
+
+    const seen = new Set<string>([firstPage.items[0].id]);
+    let cursor: string | null = firstPage.nextCursor;
+    for (let page = 0; page < 5 && cursor !== null; page++) {
+      const next = await call(
+        fixture,
+        `/v1/plugin-packages?limit=1&cursor=${encodeURIComponent(cursor)}`,
+        { method: "GET" },
+      );
+      assertEquals(next.status, 200, await next.clone().text());
+      const body = await next.json();
+      for (const item of body.items) {
+        assert(
+          !seen.has(item.id),
+          `cursor repeated ${item.id}, so the boundary comparison is wrong`,
+        );
+        seen.add(item.id);
+      }
+      cursor = body.nextCursor;
+    }
+
+    // Every package this test created is reached, the walk terminates, and no
+    // row appears twice -- the three things a bad boundary comparison breaks.
+    // The total is not asserted: other rows in this database must not be able to
+    // make a correct cursor look wrong.
+    assertEquals(seen.size, created.length);
+    for (const id of created) assert(seen.has(id));
+    assertEquals(cursor, null);
   }));
