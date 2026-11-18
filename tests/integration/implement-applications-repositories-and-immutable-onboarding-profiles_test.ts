@@ -6664,7 +6664,7 @@ Deno.test("Data migration 0049 preserves frozen v1 execution, replay bytes and c
           "run",
           "--allow-env",
           "--allow-net",
-          "--allow-read=src/platform/migrations,src/modules/auth/migrations,src/modules/work/migrations,src/modules/projects/migrations,src/modules/agents/migrations,src/modules/repository-rules/migrations,src/modules/artifact-kinds/migrations,src/modules/integrations/migrations,src/modules/delivery/migrations,src/modules/mcp/migrations",
+          "--allow-read=src/platform/migrations,src/modules/auth/migrations,src/modules/work/migrations,src/modules/projects/migrations,src/modules/agents/migrations,src/modules/repository-rules/migrations,src/modules/artifact-kinds/migrations,src/modules/knowledge/migrations,src/modules/integrations/migrations,src/modules/delivery/migrations,src/modules/mcp/migrations",
           "src/tasks.ts",
           task,
         ],

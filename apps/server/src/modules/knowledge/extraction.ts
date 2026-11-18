@@ -8,6 +8,14 @@ import { StandardError } from "@bakery/contracts/http";
 import type { PgTransactionClient } from "../../platform/database.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import { classifyArtifactMedia } from "./media.ts";
+import { CONTEXT_EXTRACTOR_VERSION } from "./context-projection.ts";
+import { ContextCitationSchema } from "./context-projection.ts";
+import {
+  extractScope,
+  findCachedExtract,
+  reusableCachedExtract,
+  storeCachedExtract,
+} from "./extract-cache.ts";
 
 const MAX_EXTRACTION_BYTES = 65_536;
 const MAX_START_BYTE = 10_485_760;
@@ -16,6 +24,16 @@ const MEDIA_PROBE_BYTES = 4_096;
 
 export type ArtifactExtractQuery = ContractInput<"ArtifactExtractQuery">;
 export type ArtifactExtraction = ContractOutput<"ArtifactExtraction">;
+
+/** Authorized metadata of one version, read before any content is touched. */
+type ArtifactExtractIdentityRow = {
+  id: string;
+  purged_at: Date | null;
+  artifact_id: string;
+  media_type: string;
+  size_bytes: number | string;
+  sha256: string;
+};
 
 type ArtifactExtractionRow = {
   id: string;
@@ -157,6 +175,49 @@ function extractWindow(
   };
 }
 
+/**
+ * Proves the caller may read the version and returns its metadata, without
+ * reading the content column. The joins are the same ones the content read uses,
+ * so a caller that reaches the cache hit has already been authorized by exactly
+ * the query that would have refused it.
+ */
+async function loadArtifactExtractIdentity(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  versionId: string,
+): Promise<ArtifactExtractIdentityRow> {
+  const result = await transaction.query<ArtifactExtractIdentityRow>(
+    `select v.id,v.purged_at,v.artifact_id,v.media_type,v.size_bytes,v.sha256
+       from bakery.artifact_versions v
+       join bakery.artifacts a
+         on a.organization_id=v.organization_id
+        and a.id=v.artifact_id
+        and a.task_id=v.task_id
+       join bakery.tasks t
+         on t.organization_id=v.organization_id and t.id=v.task_id
+      where v.organization_id=$1
+        and v.id=$2
+        and (
+          v.run_step_id is null or exists (
+            select 1
+              from bakery.run_steps rs
+              join bakery.workflow_runs wr
+                on wr.organization_id=rs.organization_id and wr.id=rs.run_id
+             where rs.organization_id=v.organization_id
+               and rs.id=v.run_step_id
+               and wr.task_id=v.task_id
+          )
+        )`,
+    [organizationId, versionId],
+  );
+  const row = result.rows[0];
+  if (!row) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  if (row.purged_at !== null) {
+    throw new StandardError({ code: "ARTIFACT_CONTENT_EXPIRED" });
+  }
+  return row;
+}
+
 async function loadArtifactExtractionRow(
   transaction: PgTransactionClient,
   organizationId: string,
@@ -218,7 +279,8 @@ export async function extractArtifactVersion(
   context: ActionContext,
   input: ArtifactExtractQuery,
 ): Promise<ArtifactExtraction> {
-  const { transaction, organizationId } = requireWorkTransaction(context);
+  const work = requireWorkTransaction(context);
+  const { transaction, organizationId } = work;
   const versionId = context.params.id;
   if (!versionId) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
 
@@ -236,6 +298,53 @@ export async function extractArtifactVersion(
   let mediaProbe: Uint8Array | undefined;
   let window: Uint8Array | undefined;
   try {
+    // Authorize and read the metadata first: this is the query that decides the
+    // caller may see the version, and it is all a cache hit needs.
+    const identity = await loadArtifactExtractIdentity(
+      transaction,
+      organizationId,
+      versionId,
+    );
+    const identitySize = Number(identity.size_bytes);
+    if (
+      !Number.isSafeInteger(identitySize) ||
+      identitySize < 0 ||
+      identitySize > MAX_ARTIFACT_BYTES ||
+      !/^[0-9a-f]{64}$/.test(identity.sha256)
+    ) internalFailure();
+    if (startByte > identitySize) rejectExtraction();
+
+    // A bounded extract is a pure function of version, digest, range and
+    // extractor, so it can be served without re-reading content - but only to
+    // the scope that produced it, and only while the citation still verifies.
+    const scope = extractScope(work);
+    const cached = await findCachedExtract(transaction, {
+      organizationId,
+      versionId,
+      sha256: identity.sha256,
+      startByte,
+      maxBytes,
+      scope,
+    });
+    if (
+      cached !== null &&
+      cached.citation.location !== null &&
+      reusableCachedExtract(cached, {
+        authorized: true,
+        currentSha256: identity.sha256,
+      })
+    ) {
+      return {
+        versionId,
+        sha256: identity.sha256,
+        mediaType: cached.citation.mediaType,
+        startByte,
+        endByteExclusive: cached.citation.location.endByteExclusive,
+        text: cached.text,
+        hasMore: cached.hasMore,
+      };
+    }
+
     let row: ArtifactExtractionRow;
     try {
       row = await loadArtifactExtractionRow(
@@ -289,13 +398,32 @@ export async function extractArtifactVersion(
       size,
       startByte,
     );
-    return {
+    const result: ArtifactExtraction = {
       versionId: row.id,
       sha256: row.sha256,
       mediaType: media.mediaType,
       startByte,
       ...extracted,
     };
+    await storeCachedExtract(transaction, {
+      organizationId,
+      scope,
+      maxBytes,
+      text: extracted.text,
+      hasMore: extracted.hasMore,
+      citation: ContextCitationSchema.parse({
+        artifactId: identity.artifact_id,
+        versionId: row.id,
+        sha256: row.sha256,
+        mediaType: result.mediaType,
+        location: {
+          startByte,
+          endByteExclusive: extracted.endByteExclusive,
+        },
+        extractorVersion: CONTEXT_EXTRACTOR_VERSION,
+      }),
+    });
+    return result;
   } finally {
     mediaProbe = undefined;
     window = undefined;

@@ -11,7 +11,6 @@
     "./check-evidence": "./src/check-evidence.ts",
     "./client": "./src/client.ts",
     "./client-manifest": "./generated/client-manifest.ts",
-    "./context-packs": "./src/context-packs.ts",
     "./contracts": "./src/contracts.ts",
     "./coordinator-turn": "./src/coordinator-turn.ts",
     "./description-quality": "./src/description-quality.ts",
