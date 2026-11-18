@@ -38,6 +38,10 @@ import {
   updateRepository,
 } from "./postgres.ts";
 import type { ProjectsActionHandlers } from "./actions.ts";
+import {
+  getProjectScopeProfile,
+  putProjectScopeProfile,
+} from "./scope-profiles.ts";
 
 function requireScopedApplicationId(context: ActionContext): string {
   const applicationId = context.params.applicationId;
@@ -173,5 +177,7 @@ export function createProjectsHandlers(secret: string): ProjectsActionHandlers {
     createRole,
     updateRole,
     resolveRole,
+    getScopeProfile: getProjectScopeProfile,
+    putScopeProfile: putProjectScopeProfile,
   };
 }

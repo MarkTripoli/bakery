@@ -39,9 +39,15 @@ import {
   toTask,
 } from "./postgres.ts";
 import {
+  deriveRunWorkspaceRequirement,
   type FixedWorkflowStep,
-  workflowRequiresRepository,
 } from "./run-steps.ts";
+import {
+  resolveScopeProfileDefaults,
+  type ScopeProfileDefaults,
+  type WorkspaceRequirement,
+} from "@bakery/contracts/scope-profiles";
+import { readProjectScopeProfile } from "../projects/scope-profiles.ts";
 import {
   isModelAction,
   parseMicroUsd,
@@ -277,6 +283,16 @@ type RunSnapshot = {
   /** Present only for a coordination lane child: plan identity and typed handoffs. */
   coordination?: LaneCoordinationSnapshot;
   /**
+   * The workspaces the run's steps declare, derived once at admission (O23).
+   * `required: false` is a run that mounts no repository.
+   */
+  workspaceRequirement?: WorkspaceRequirement;
+  /**
+   * The project's scope profile defaults the run inherits, pinned by revision
+   * and digest at admission; revision 0 is the empty baseline.
+   */
+  scopeProfile?: ScopeProfileDefaults & { applicationId: string };
+  /**
    * Present only for a compiled-plan run: the frozen document and its pin, the
    * `$task` the plan reads, the agents its steps run as and each action's
    * fallback agent. Written by `writePlanRun`, which reads it back as the
@@ -299,6 +315,8 @@ function buildRunSnapshot(options: {
   stepActions: RunSnapshot["stepActions"];
   dependencies: readonly RunDependencySnapshot[];
   reviewLoop: ReviewLoopLimits | null;
+  workspaceRequirement: WorkspaceRequirement;
+  scopeProfile: NonNullable<RunSnapshot["scopeProfile"]>;
 }): RunSnapshot {
   const admission = resolveDependencyReadiness(options.dependencies);
   return {
@@ -318,6 +336,8 @@ function buildRunSnapshot(options: {
       reason: admission.reason,
     },
     ...(options.reviewLoop === null ? {} : { reviewLoop: options.reviewLoop }),
+    workspaceRequirement: options.workspaceRequirement,
+    scopeProfile: options.scopeProfile,
   };
 }
 
@@ -980,18 +1000,44 @@ export async function createRunCommand(
     );
   }
 
-  let repositoryRequired: boolean;
+  // One derivation of what the run needs (O23): the steps decide, not the
+  // work type. A run whose steps need no repository runs without one.
+  let workspaceRequirement: WorkspaceRequirement;
   try {
-    repositoryRequired = workflowRequiresRepository(workflow.normalized_spec);
+    workspaceRequirement = deriveRunWorkspaceRequirement(
+      workflow.normalized_spec,
+    );
   } catch (error) {
     throw new Error("WORKFLOW_VERSION_INVALID", { cause: error });
   }
-  if (input.executionMode === "cloud_only" && repositoryRequired) {
+  if (input.executionMode === "cloud_only" && workspaceRequirement.required) {
     throw new StandardError({
       code: "STATE_CONFLICT",
       params: { reason: "repository_required" },
     });
   }
+  // Step defaults come from the project's scope profile, not the repository
+  // profile (O23): every run of the project pins the published revision, and a
+  // project that has published none runs on the empty baseline.
+  const storedScopeProfile = await readProjectScopeProfile(
+    transaction,
+    organizationId,
+    task.application_id,
+  );
+  const scopeProfile = {
+    applicationId: task.application_id,
+    ...resolveScopeProfileDefaults({
+      organizationId,
+      applicationId: task.application_id,
+      profile: storedScopeProfile === null ? null : {
+        applicationId: storedScopeProfile.applicationId,
+        revision: storedScopeProfile.revision,
+        digest: storedScopeProfile.digest,
+        checkCommands: storedScopeProfile.checkCommands,
+        rules: storedScopeProfile.rules,
+      },
+    }),
+  };
   // Every run is a compiled plan (#400): the engine decides each step as the
   // run goes. A document the plan compiler refuses, the retired flat grammar
   // (a bare step list with no compiler fields) included, is refused here as
@@ -1153,6 +1199,8 @@ export async function createRunCommand(
     stepActions: {},
     dependencies: dependencySnapshot,
     reviewLoop,
+    workspaceRequirement,
+    scopeProfile,
   });
   const laneSnapshot: RunSnapshot = lane === null ? builtSnapshot : {
     ...builtSnapshot,

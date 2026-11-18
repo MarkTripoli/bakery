@@ -6,6 +6,7 @@ import {
   AUTH_BOOTSTRAP_PROJECT,
   coreGrep,
 } from "../../scripts/ci/browser-core.mjs";
+import { laneBudgetMs } from "./tests/helpers/lane-budget.ts";
 
 const mode = process.env.BAKERY_BROWSER_MODE ?? "full";
 const requireCore = mode === "core" ||
@@ -194,7 +195,7 @@ export default defineConfig({
     command: webServerCommand,
     url: webOrigin,
     // The built-preview command runs a full production build first.
-    timeout: useBuiltPreview ? 240_000 : 60_000,
+    timeout: laneBudgetMs(useBuiltPreview ? 240_000 : 60_000),
     reuseExistingServer: !process.env.CI && !useBuiltPreview,
     // Surface Vite re-optimize and reload lines in the CI log.
     stdout: process.env.CI ? "pipe" : "ignore",
