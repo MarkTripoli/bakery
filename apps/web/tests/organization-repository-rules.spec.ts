@@ -457,7 +457,6 @@ test.describe("organization repository rules", () => {
     });
     await expect(show).toHaveAttribute("aria-expanded", "false");
     await expect(show).toHaveText("Show all");
-    await shot(page, "203-org-rules-summary-cut", [], { only: "desktop" });
     await show.focus();
     await page.keyboard.press("Enter");
     const hide = row.getByRole("button", {
@@ -467,7 +466,6 @@ test.describe("organization repository rules", () => {
     await expect(hide).toHaveText("Show less");
     await expect(hide).toBeFocused();
     await expect(row).toContainText("Required section number 16");
-    await shot(page, "203-org-rules-summary-expanded", [], { only: "desktop" });
     const open = await row.locator(".ui-expandable-text .ui-text").evaluate((
       node,
     ) => node.getBoundingClientRect().height);
@@ -502,7 +500,6 @@ test.describe("organization repository rules", () => {
     await page.goto(PAGE_PATH);
     const row = ruleRow(page, "Merge descriptions");
     await expect(row.locator("[title]")).toHaveCount(0);
-    await shot(page, "203-org-rules-phone-row", [], { only: "mobile" });
     // The row's control is described by the summary, so it is announced whole
     // after "Edit Merge descriptions"; there is no button inside the row button.
     const control = row.getByRole("button");
@@ -510,6 +507,43 @@ test.describe("organization repository rules", () => {
     await expect(control).toHaveAccessibleDescription(
       /Required section number 16/,
     );
+  });
+
+  test("evidence: a long rule summary cut and shown whole, and the phone row", async ({ page, isMobile }) => {
+    test.skip(
+      !process.env.BAKERY_EVIDENCE_DIR,
+      "only captures stills when asked to",
+    );
+    const sections = Array.from(
+      { length: 16 },
+      (_, index) => `Required section number ${index + 1}`,
+    );
+    const entries = RULE_ENTRIES.map((entry) =>
+      entry.ruleKey === "changeRequest.description"
+        ? {
+          ...entry,
+          options: { ...(entry.options as object), requiredSections: sections },
+        }
+        : entry
+    );
+    await rulesFixture(page, { entries });
+    await page.goto(PAGE_PATH);
+    const row = ruleRow(page, "Merge descriptions");
+    await expect(row).toBeVisible();
+    if (isMobile) {
+      await shot(page, "203-org-rules-phone-row", [], { only: "mobile" });
+      return;
+    }
+    const show = row.getByRole("button", {
+      name: "Show all of Merge descriptions",
+    });
+    await shot(page, "203-org-rules-summary-cut", [], { only: "desktop" });
+    await show.focus();
+    await page.keyboard.press("Enter");
+    await expect(
+      row.getByRole("button", { name: "Show less of Merge descriptions" }),
+    ).toHaveAttribute("aria-expanded", "true");
+    await shot(page, "203-org-rules-summary-expanded", [], { only: "desktop" });
   });
 
   test("on a phone the enforcement and access label is shown whole", async ({ page, isMobile }) => {

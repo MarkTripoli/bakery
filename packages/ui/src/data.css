@@ -1686,6 +1686,12 @@
   flex-direction: column;
   gap: var(--space-1);
   min-inline-size: 0;
+  /* The control's hit area grows past its 20px line (see .ui-button--text).
+     The container holds that overhang so nothing escapes it: 1px on a fine
+     pointer, 11px on a coarse one, and only while the control exists. */
+  padding-block-end: calc(
+    (var(--target-min) - var(--space-5) - 2 * var(--border-default)) / 2
+  );
 }
 .ui-expandable-text .ui-text {
   inline-size: 100%;
@@ -1693,6 +1699,14 @@
 }
 .ui-expandable-text .ui-button--text {
   font: var(--type-hint);
+}
+/* The cell rule restyles every button in a table as a plain outlined one; the
+   control stays a text button there too. */
+.ui-data-table .ui-expandable-text .ui-button--text {
+  background: transparent;
+  border-color: transparent;
+  color: var(--color-selection);
+  padding: var(--space-0);
 }
 .ui-list-row__detail[data-tone="warning"] {
   color: var(--color-status-warning);

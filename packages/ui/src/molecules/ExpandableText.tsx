@@ -30,6 +30,8 @@ export type ExpandableTextProps =
     hideControlLabel?: string;
     /** The `Text` variant of the summary. */
     variant?: TextProps["variant"];
+    /** Starts showing the whole text. Closed by default. */
+    defaultExpanded?: boolean;
   };
 
 /** The clamp the text keeps while closed, in lines. */
@@ -44,6 +46,7 @@ const CLAMP_LINES = 2;
 export function ExpandableText(
   {
     children,
+    defaultExpanded = false,
     hideControlLabel,
     hideLabel,
     showControlLabel,
@@ -55,7 +58,7 @@ export function ExpandableText(
   const props = withoutSemanticOwnerProps(unsafeProps);
   const textId = useId();
   const root = useRef<HTMLDivElement>(null);
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const [cut, setCut] = useState(false);
 
   // Whether the text needs more than the clamp, measured again when the text

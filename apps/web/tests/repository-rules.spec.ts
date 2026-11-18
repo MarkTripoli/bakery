@@ -854,13 +854,9 @@ test.describe("repository rules: the effective rules of one repository", () => {
       name: "Show all of Merge descriptions",
     });
     await expect(show).toHaveAttribute("aria-expanded", "false");
-    await shot(page, "203-rules-summary-cut");
     // Keyboard focus on the control, then the whole text.
     await show.focus();
-    await page.keyboard.press("Shift+Tab");
-    await page.keyboard.press("Tab");
     await expect(show).toBeFocused();
-    await shot(page, "203-rules-summary-focused");
     await page.keyboard.press("Enter");
     const hide = row.getByRole("button", {
       name: "Show less of Merge descriptions",
@@ -868,13 +864,57 @@ test.describe("repository rules: the effective rules of one repository", () => {
     await expect(hide).toHaveAttribute("aria-expanded", "true");
     await expect(hide).toBeFocused();
     await expect(row).toContainText("Required section number 16");
-    await shot(page, "203-rules-summary-expanded");
     await hide.click();
     await expect(show).toHaveAttribute("aria-expanded", "false");
     // A summary that fits has no control.
     await expect(
       rule(page, "Semantic commits").getByRole("button", { name: /Show all/ }),
     ).toHaveCount(0);
+  });
+
+  test("evidence: a long rule summary cut, focused and shown whole", async ({ page }) => {
+    test.skip(
+      !process.env.BAKERY_EVIDENCE_DIR,
+      "only captures stills when asked to",
+    );
+    const sections = Array.from(
+      { length: 16 },
+      (_, index) => `Required section number ${index + 1}`,
+    );
+    const base = effective();
+    await rulesFixture(page, {
+      rules: {
+        ...base,
+        entries: base.entries.map((entry) =>
+          entry.ruleKey === "changeRequest.description"
+            ? {
+              ...entry,
+              options: {
+                ...(entry.options as object),
+                requiredSections: sections,
+              },
+            }
+            : entry
+        ),
+      },
+    });
+    await page.goto(RULES_PATH);
+    const only = isPhone(page) ? "mobile" : "desktop";
+    const show = rule(page, "Merge descriptions").getByRole("button", {
+      name: "Show all of Merge descriptions",
+    });
+    await expect(show).toBeVisible();
+    await shot(page, "203-rules-summary-cut", [], { only });
+    await show.focus();
+    await expect(show).toBeFocused();
+    await shot(page, "203-rules-summary-focused", [], { only });
+    await page.keyboard.press("Enter");
+    await expect(
+      rule(page, "Merge descriptions").getByRole("button", {
+        name: "Show less of Merge descriptions",
+      }),
+    ).toHaveAttribute("aria-expanded", "true");
+    await shot(page, "203-rules-summary-expanded", [], { only });
   });
 
   test("the help buttons are plain icons, the warning badge is amber and Version details reads like Checks", async ({ page }) => {

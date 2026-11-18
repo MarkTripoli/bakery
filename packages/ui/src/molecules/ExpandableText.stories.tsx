@@ -12,9 +12,12 @@ const CUT =
   "Purpose, Risk, Special things to note, Change outline, Decisions, Evidence, Verification, Rollback plan, Owner, Reviewer, Release note, Follow-up";
 const UNBROKEN = "x".repeat(220);
 
-function Specimen({ children }: { children: string }) {
+function Specimen(
+  { children, open = false }: { children: string; open?: boolean },
+) {
   return (
     <ExpandableText
+      defaultExpanded={open}
       hideControlLabel="Show less of this summary"
       hideLabel="Show less"
       showControlLabel="Show all of this summary"
@@ -36,6 +39,8 @@ export const Contract: StoryObj = {
       <Specimen>{SHORT}</Specimen>
       <Text>Cut: two lines, then Show all</Text>
       <Specimen>{CUT}</Specimen>
+      <Text>Expanded: the whole text, then Show less</Text>
+      <Specimen open>{CUT}</Specimen>
       <Text>One long unbroken value</Text>
       <Specimen>{UNBROKEN}</Specimen>
     </Stack>
