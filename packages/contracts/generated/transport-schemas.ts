@@ -2879,6 +2879,53 @@ const transportSchemas = {
       ],
       "description": "Creates a new named definition (workflow, agent, or automation) with a unique slug, display name, and description; it starts with no active version until one is published and assigned."
     },
+    "WorkflowCopy": {
+      "fields": [
+        {
+          "name": "slug",
+          "type": "slug",
+          "required": true,
+          "bounds": {
+            "maxLength": 100
+          },
+          "description": "URL-safe unique identifier for the copy within the organization; the copy is a new definition, so it cannot reuse the source's slug."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 200
+          },
+          "description": "Display name shown for the copy wherever workflows are listed for selection."
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 2000
+          },
+          "description": "Free-text summary of the copy's purpose, shown in pickers and the catalog."
+        },
+        {
+          "name": "sourceVersionId",
+          "type": "uuid",
+          "required": false,
+          "description": "The version of the source workflow to copy: a published version or a draft of that workflow. Defaults to the source's active version; a source with no active version and no version named is refused."
+        },
+        {
+          "name": "expectedDigest",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 128
+          },
+          "description": "Digest of the source version the caller read; the copy is refused with STATE_CONFLICT digest_mismatch if the version's digest differs, so a changed draft is never copied as something else."
+        }
+      ],
+      "description": "Copies a workflow into a new organization-owned definition with one inactive draft, atomically. Only the semantic definition is carried over: no activation, run, effect, trigger, grant or credential. The copy's origin records the source definition, version and digest; a later change to the source never reaches the copy."
+    },
     "PermissionGrantCreate": {
       "fields": [
         {
@@ -18516,22 +18563,34 @@ const transportSchemas = {
       "fields": [
         "kind",
         "catalogKey",
-        "catalogVersion"
+        "catalogVersion",
+        "sourceWorkflowId",
+        "sourceVersionId",
+        "sourceDigest"
       ],
       "fieldTypes": {
         "kind": "authored|catalog|copy",
         "catalogKey": "string|null",
-        "catalogVersion": "integer|null"
+        "catalogVersion": "integer|null",
+        "sourceWorkflowId": "uuid|null",
+        "sourceVersionId": "uuid|null",
+        "sourceDigest": "string|null"
       },
       "nullableFields": [
         "catalogKey",
-        "catalogVersion"
+        "catalogVersion",
+        "sourceWorkflowId",
+        "sourceVersionId",
+        "sourceDigest"
       ],
       "description": "Where a workflow definition came from: written in the organization (authored), installed from the code-owned catalog (catalog, system managed and locked against organization edits) or copied from another definition (copy). A catalog origin names the catalog item and release revision it was installed from; the other kinds carry nulls. Set when the definition is created and never changed.",
       "fieldDescriptions": {
         "kind": "Origin kind: authored, catalog or copy.",
         "catalogKey": "Stable key of the catalog item a catalog definition was installed from; null for authored and copied definitions.",
-        "catalogVersion": "Release revision of the catalog item the definition was installed from; null for authored and copied definitions."
+        "catalogVersion": "Release revision of the catalog item the definition was installed from; null for authored and copied definitions.",
+        "sourceWorkflowId": "Stable UUID of the workflow definition a copy was taken from; null unless the kind is copy.",
+        "sourceVersionId": "Stable UUID of the version (published, or a draft) the copy was taken from; null unless the kind is copy.",
+        "sourceDigest": "Digest of the source version at the moment of the copy, so a later source update can be compared with the fork; null unless the kind is copy."
       }
     },
     "WorkflowVersion": {

@@ -1,13 +1,32 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "6a94e6786c2078dd3b2a858688c650529650bd20"
+    "9fcf4e1adcc02ae09065355a20314fb476f45220"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:c4f2e0edb6e258b45e83f975b16500b8d9cc45f69d0879d9fb06f236aecce3be",
-  "reason": "#35 / #592 contract re-bind by dev-workflows on 2026-11-18 under the owner's standing breaking-change authorization (2026-10-09), main 6a94e6786c2078dd3b2a858688c650529650bd20: the Workflow response gains a required `origin` ({kind authored|catalog|copy, catalogKey, catalogVersion}), a new WorkflowOrigin entity. #572 added the field to the read shape without describing it, so every workflow create, get and list failed output validation with a 500; the field is required because it is always present, like its neighbour version. Page<Workflow> items therefore gain a required property, which is what moves the digest.",
+  "targetCompatibilityDigest": "sha256:65049b75d0ce9f83d0abc3d3e42405c13de27df0dccadbc2706a677d7f877f5b",
+  "reason": "#35 slice 2b contract re-bind by dev-workflows on 2026-11-18 under the owner's standing breaking-change authorization (2026-10-09), main 9fcf4e1adcc02ae09065355a20314fb476f45220: workflows.copy is added (WorkflowCopy input, POST /v1/workflows/{id}/copy) and the WorkflowOrigin entity gains three required nullable fields (sourceWorkflowId, sourceVersionId, sourceDigest) naming a copy's source, so Page<Workflow> items gain required properties inside origin, which is what moves the digest. The action is additive; the drift is the origin object growing, not an existing field changing.",
   "priorApprovals": [
+    {
+      "fromBaseRefs": [
+        "07135954e93d7bd9380c3b86086aa788b0ab3749",
+        "c4f389bffd290add6ba7907c42e117f92e1e5165"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:0ef9bcaa65279e2c611ac87438f9ec7e9b8417274528801e50a0ca66885713ef",
+      "reason": "#35 slice 2b contract re-bind by dev-workflows on 2026-11-18 under the owner's standing breaking-change authorization (2026-10-09), main c4f389bffd290add6ba7907c42e117f92e1e5165: workflows.copy is added (WorkflowCopy input, POST /v1/workflows/{id}/copy) and the WorkflowOrigin entity gains three required nullable fields (sourceWorkflowId, sourceVersionId, sourceDigest) naming a copy's source, so Page<Workflow> items gain required properties inside origin, which is what moves the digest. The action is additive; the drift is the origin object growing, not an existing field changing."
+    },
+    {
+      "fromBaseRefs": [
+        "6a94e6786c2078dd3b2a858688c650529650bd20"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:c4f2e0edb6e258b45e83f975b16500b8d9cc45f69d0879d9fb06f236aecce3be",
+      "reason": "#35 / #592 contract re-bind by dev-workflows on 2026-11-18 under the owner's standing breaking-change authorization (2026-10-09), main 6a94e6786c2078dd3b2a858688c650529650bd20: the Workflow response gains a required `origin` ({kind authored|catalog|copy, catalogKey, catalogVersion}), a new WorkflowOrigin entity. #572 added the field to the read shape without describing it, so every workflow create, get and list failed output validation with a 500; the field is required because it is always present, like its neighbour version. Page<Workflow> items therefore gain a required property, which is what moves the digest."
+    },
     {
       "fromBaseRefs": [
         "465e9476c657f880d1b4057040d661a4ade1d10c"
