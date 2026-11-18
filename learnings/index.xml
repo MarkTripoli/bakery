@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <learnings version="1">
   <entry file="contract-migration-check-flag.xml" scope="project" />
+  <entry file="cited-artifact-downstream-of-the-claim.xml" scope="project" />
+  <entry file="css-rail-scans-comments.xml" scope="project" />
   <entry file="deno-fixed-read-capability.xml" scope="project" />
   <entry file="ephemeral-worktree-stack.xml" scope="project" />
   <entry file="edited-run-is-a-metadata-run.xml" scope="project" />
@@ -11,6 +13,7 @@
   <entry file="ui-catalog.xml" scope="project" />
   <entry file="ui-token-manifest-digest.xml" scope="project" />
   <entry file="paper-export-dimensions.xml" scope="project" />
+  <entry file="paper-baseline-torn-by-racing-reanchor.xml" scope="project" />
   <entry file="reference-proof-working-tree.xml" scope="project" />
   <entry file="verification-memory-floor.xml" scope="project" />
   <entry file="github-closing-keywords.xml" scope="project" />
@@ -110,6 +113,9 @@
   <entry file="ci-rerun-reuses-the-event-payload.xml" scope="project" />
   <entry file="pr-ci-runs-the-gate-route-only.xml" scope="project" />
   <entry file="catalog-change-runs-both-generators.xml" scope="project" />
+  <entry file="admission-knows-every-execution-table.xml" scope="project" />
+  <entry file="reason-changed-not-just-name-changed.xml" scope="project" />
+  <entry file="wide-change-falsifies-untouched-tests.xml" scope="project" />
   <entry file="playwright-port-collision-between-seats.xml" scope="project" />
   <entry file="graft-hooks-git-stash-unmerged-index.xml" scope="project" />
   <entry file="ci-retitle-never-reruns.xml" scope="project" />
@@ -131,6 +137,26 @@
   <entry file="capture-mode-must-match-the-property.xml" scope="process" />
   <entry file="check-the-rails-before-ruling-on-db-shape.xml" scope="process" />
   <entry file="compare-the-region-not-the-image.xml" scope="project" />
+  <entry file="first-lawful-path-exercise-updates-its-expected-value.xml" scope="process" />
   <entry file="destructive-red-proof-pollutes-test-db.xml" scope="project" />
+  <entry file="measure-the-right-tree-and-the-mutation.xml" scope="process" />
   <entry file="deno-check-is-the-gate-for-test-files.xml" scope="project" />
+  <entry file="resolved-blocker-resumes-on-owner-action.xml" scope="project" />
+  <entry file="now-is-the-transaction-start.xml" scope="project" />
+  <entry file="route-paths-are-invisible-to-the-type-checker.xml" scope="project" />
+  <entry file="assert-the-row-by-id-not-by-position.xml" scope="project" />
+  <entry file="a-derived-expectation-needs-a-swap-test.xml" scope="project" />
+  <entry file="read-the-isolation-default-of-the-writer.xml" scope="project" />
+  <entry file="an-observation-is-not-an-invariant.xml" scope="project" />
+  <entry file="database-name-is-not-database-identity.xml" scope="project" />
+  <entry file="nullable-dedupe-key-nulls-distinct.xml" scope="project" />
+  <entry file="generated-file-without-its-source.xml" scope="project" />
+  <entry file="a-rail-that-only-passed-is-untested.xml" scope="process" />
+  <entry file="name-the-writer-when-declaring-the-field.xml" scope="project" />
+  <entry file="a-flag-accepted-is-not-a-state-stored.xml" scope="process" />
+  <entry file="three-checks-that-answer-a-different-question.xml" scope="process" />
+  <entry file="count-against-both-parents-before-unioning-a-conflict.xml" scope="process" />
+  <entry file="a-pr-reference-is-not-a-work-item.xml" scope="process" />
+  <entry file="the-thing-exists-and-nothing-calls-it.xml" scope="project" />
+  <entry file="wiring-needs-a-request.xml" scope="project" />
 </learnings>

@@ -43,6 +43,23 @@ import {
 /** A group-kill helper that does not exist: the kill cannot be confirmed. */
 const MISSING_KILL_HELPER = "/nonexistent/bakery-kill";
 
+/**
+ * A signal-a-group call that is refused for a reason other than ESRCH.
+ *
+ * These two cases assert what the runner does when the group CANNOT be
+ * signalled, and until now they relied on the unit lane never granting
+ * Deno.kill: under `deno test -A` the real kill succeeded, the teardown came
+ * back confirmed, and both cases failed with a NOT_FAILED payload describing a
+ * run that had completed normally. A test whose result depends on a permission
+ * grant is not testing the code, and green-by-denial is green for the wrong
+ * reason - it evaporates the moment someone runs the file by hand. Injecting
+ * the refusal makes the dependency explicit and the outcome the same under any
+ * grants.
+ */
+const REFUSED_GROUP_KILL = (): never => {
+  throw new Deno.errors.PermissionDenied("group kill refused by the test");
+};
+
 /** Mode bits of `path`, without the file type. */
 async function modeOf(path: string): Promise<number> {
   return (await Deno.stat(path)).mode! & 0o777;
@@ -258,6 +275,7 @@ export function registerRunnerBoundaryCases(): void {
             scratch,
             state,
             groupKillExecutable: MISSING_KILL_HELPER,
+            killGroup: REFUSED_GROUP_KILL,
             commandTimeLimitMs: breach === "deadline" ? 500 : 20_000,
             limits: breach === "output_limit" ? { outputBytes: 1_024 } : {},
             commands: [{ id: "unit", argv: sh(script) }],
@@ -297,6 +315,7 @@ export function registerRunnerBoundaryCases(): void {
           state,
           signal: controller.signal,
           groupKillExecutable: MISSING_KILL_HELPER,
+          killGroup: REFUSED_GROUP_KILL,
           commands: [{
             id: "unit",
             argv: sh(`echo $$ > '${pidFile}'; exec sleep 60`),
