@@ -4,6 +4,7 @@ import {
   CODEX_TEST_AUTH_DIR_ENV,
   codexTestCredentialGate as gateWithAccount,
   dedicatedCodexTestAuthSource as sourceWithAccount,
+  homeFromPasswd,
 } from "../helpers/codex-harness.ts";
 
 // These cases must never consult the real account: a gate that finds the real
@@ -574,4 +575,46 @@ Deno.test("a file that is the operator's own by identity is refused even when it
     await Deno.remove(operator.home, { recursive: true });
     await Deno.remove(dedicated, { recursive: true });
   }
+});
+
+// #257: the account home decides which `.codex` the gate treats as the
+// operator's own login. A lookup that returned the wrong entry's home would
+// compare the opt-in against the wrong directory, so the value is checked, not
+// only that one came back.
+const PASSWD = [
+  "# a comment line",
+  "root:x:0:0:root:/root:/bin/bash",
+  "daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin",
+  "short:x:2",
+  "nohome:x:3:3:no home::/bin/false",
+  "alice:x:100:100:Alice:/home/alice:/bin/bash",
+  "bob:x:1000:1000:Bob:/home/bob:/bin/bash",
+  "carol:x:10000:10000:Carol:/home/carol:/bin/bash",
+  "dave:x:20000:20000:Dave:/home/dave:/bin/bash",
+  "",
+].join("\n");
+
+Deno.test("the passwd lookup returns the home of the entry for the uid, not another entry's (#257)", () => {
+  assertEquals(homeFromPasswd(PASSWD, 1000), "/home/bob");
+  assertEquals(homeFromPasswd(PASSWD, 100), "/home/alice");
+  assertEquals(homeFromPasswd(PASSWD, 10000), "/home/carol");
+  assertEquals(homeFromPasswd(PASSWD, 20000), "/home/dave");
+  // The first entry's home is the wrong answer for anyone but its own uid.
+  assertEquals(homeFromPasswd(PASSWD, 0), "/root");
+  assert(homeFromPasswd(PASSWD, 1000) !== homeFromPasswd(PASSWD, 0));
+});
+
+Deno.test("the passwd lookup matches the uid field exactly and gives no answer without a home (#257)", () => {
+  // 10 is a prefix of 1000 and 10000, and 1 of daemon's own uid only.
+  assertEquals(homeFromPasswd(PASSWD, 10), undefined);
+  assertEquals(homeFromPasswd(PASSWD, 100000), undefined);
+  // An entry with an empty home, a short line and a comment are not answers.
+  assertEquals(homeFromPasswd(PASSWD, 3), undefined);
+  assertEquals(homeFromPasswd(PASSWD, 2), undefined);
+  assertEquals(homeFromPasswd("", 1000), undefined);
+  // The comment's text is not read as an entry, even when it looks like one.
+  assertEquals(
+    homeFromPasswd("#x:x:1000:1000:x:/home/commented:/bin/sh", 1000),
+    undefined,
+  );
 });
