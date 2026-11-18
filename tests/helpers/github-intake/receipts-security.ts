@@ -20,6 +20,8 @@ import {
   withFixture,
 } from "./receipts-shared.ts";
 import { formEncodedPayload, signDelivery } from "./signed-delivery.ts";
+import { activateDeployedIntegrations } from "../../../apps/server/src/modules/catalog/integration-gate.ts";
+import { deployedIntegrations } from "../../../apps/server/src/modules/catalog/integration-gate-registry.ts";
 
 const SHA256_HEX = "a".repeat(64);
 const CANARY = "canary-body-text-52d1";
@@ -715,6 +717,7 @@ Deno.test("issue 71 receiver security: the registered action refuses any call th
       secretsKey: f.secretsKey,
       github: f.github.client,
       cursorSecret: "intake-receipts-test-cursor-secret-0123456789",
+      integrationRegistry: activateDeployedIntegrations(deployedIntegrations),
     });
     const envelope = {
       deliveryId: crypto.randomUUID(),

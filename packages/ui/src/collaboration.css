@@ -1835,3 +1835,128 @@
   overflow-wrap: anywhere;
   word-break: break-word;
 }
+
+/* Who is editing a shared document, and where this person's changes stand. */
+.ui-presence-row {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  min-inline-size: 0;
+}
+.ui-presence-row__people {
+  align-items: center;
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  max-inline-size: 100%;
+  padding: var(--space-1);
+}
+/* A person's ring: their presence colour, the same as their caret. */
+.ui-presence-row__people [data-presence-color] {
+  outline: var(--focus-width) solid transparent;
+  outline-offset: var(--border-default);
+}
+.ui-presence-row__people [data-presence-color="1"] {
+  outline-color: var(--color-presence-1);
+}
+.ui-presence-row__people [data-presence-color="2"] {
+  outline-color: var(--color-presence-2);
+}
+.ui-presence-row__people [data-presence-color="3"] {
+  outline-color: var(--color-presence-3);
+}
+.ui-presence-row__people [data-presence-color="4"] {
+  outline-color: var(--color-presence-4);
+}
+.ui-presence-row__people [data-presence-color="5"] {
+  outline-color: var(--color-presence-5);
+}
+.ui-presence-row__people [data-presence-color="6"] {
+  outline-color: var(--color-presence-6);
+}
+.ui-presence-row__more {
+  color: var(--color-fg-muted);
+  font: var(--type-hint);
+}
+.ui-presence-row__status {
+  color: var(--color-fg-muted);
+  /* A readable width before it shares the row: on a phone it wraps to its own
+     line instead of being squeezed beside the avatars. */
+  flex: 1 1 14rem;
+  font: var(--type-hint);
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+.ui-presence-row__save {
+  align-items: center;
+  color: var(--color-fg-muted);
+  display: inline-flex;
+  font: var(--type-hint);
+  gap: var(--space-1);
+  margin-inline-start: auto;
+  max-inline-size: 100%;
+  min-inline-size: 0;
+}
+.ui-presence-row__save > span {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+.ui-presence-row__save[data-tone="warning"] {
+  color: var(--color-fg);
+}
+.ui-presence-row__save[data-tone="error"] {
+  color: var(--color-destructive);
+}
+
+/* One suggestion from an agent, beside the text it would change. */
+.ui-suggestion-card {
+  background: var(--color-surface-raised);
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-surface);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-inline-size: 0;
+  padding: var(--space-3);
+}
+.ui-suggestion-card__heading {
+  font: var(--type-label);
+  margin: var(--space-0);
+}
+.ui-suggestion-card__summary {
+  font: var(--type-body);
+  margin: var(--space-0);
+  overflow-wrap: anywhere;
+}
+.ui-suggestion-card__origin {
+  color: var(--color-fg-muted);
+  font: var(--type-hint);
+  margin: var(--space-0);
+  overflow-wrap: anywhere;
+}
+.ui-suggestion-card__message {
+  align-items: flex-start;
+  display: flex;
+  font: var(--type-hint);
+  gap: var(--space-1);
+  margin: var(--space-0);
+}
+.ui-suggestion-card__message > span {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+/* The chosen card: the same outline as keyboard focus, so it reads as "this one". */
+.ui-suggestion-card[data-variant="selected"] {
+  outline: var(--focus-width) solid var(--color-focus);
+  outline-offset: var(--focus-offset);
+}
+.ui-suggestion-card[tabindex]:focus-visible {
+  outline: var(--focus-width) solid var(--color-focus);
+  outline-offset: var(--focus-offset);
+}
+.ui-suggestion-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
