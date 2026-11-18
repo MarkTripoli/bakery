@@ -367,7 +367,7 @@ export class CollaborationSession {
       }
       case "synced":
         if (frame.requestId !== this.#syncRequestId) return;
-        this.#epoch = frame.epoch as number;
+        this.#observeEpoch(frame.epoch as number);
         return; // The snapshot bytes follow; synchronization ends when they land.
       case "presence": {
         const presence = frame.presence as Participant;
@@ -421,7 +421,7 @@ export class CollaborationSession {
       return;
     }
     if (frame.kind === BinaryFrameKind.ServerSnapshot) {
-      this.#epoch = frame.epoch;
+      this.#observeEpoch(frame.epoch);
       this.#importRemote(frame.payload);
       this.#finishSync();
     } else if (frame.kind === BinaryFrameKind.ServerUpdate) {
@@ -589,7 +589,15 @@ export class CollaborationSession {
       }
       return this.#sendSync();
     }
-    // left, closed, expired, revoked about this connection: start from the server's text.
+    // left, closed, expired, revoked about this connection: start from the
+    // server's text. A mutation the server names a second time is not coming
+    // through by being sent again: refuse it rather than loop.
+    const named = this.#pending.find((item) => item.id === mutationId);
+    if (named?.retried) {
+      this.#movePendingToRefused(mutationId, "rejected");
+      return this.#rebuild();
+    }
+    if (named) named.retried = true;
     for (const item of this.#pending) item.sent = false;
     this.#sendSync();
     this.#emit();
@@ -602,8 +610,39 @@ export class CollaborationSession {
       return this.#end({ kind: "revoked" });
     }
     if (problem.status === 404) return this.#end(null);
+    if (
+      problem.status >= 400 && problem.status < 500 &&
+      problem.retryable !== true
+    ) {
+      // A refusal of what we sent (too large, malformed) never gets better by
+      // sending it again: keep the text for the sheet and start from the
+      // server's, or the same piece would be resent on every reconnect.
+      this.#moveAllPendingToRefused("rejected");
+      this.#doc = this.#newDocument();
+      this.#documentVersion += 1;
+      this.#emit();
+    }
     // Anything else is the server's trouble, not a verdict: reconnect after a pause.
     this.#socket?.close(1011, "problem");
+  }
+
+  /**
+   * The server's epoch for this draft. A different one after the first means
+   * the draft was replaced while this tab was away: whatever is unsent was
+   * written against the old draft and must not be stamped with the new epoch,
+   * so it goes to the sheet and the document starts again from the server's.
+   */
+  #observeEpoch(epoch: number): void {
+    if (this.#epoch !== 0 && epoch !== this.#epoch) {
+      this.#banner = this.#lastPublication
+        ? { kind: "published", ...this.#lastPublication }
+        : { kind: "replaced" };
+      this.#lastPublication = null;
+      this.#moveAllPendingToRefused("epoch");
+      this.#doc = this.#newDocument();
+      this.#documentVersion += 1;
+    }
+    this.#epoch = epoch;
   }
 
   #movePendingToRefused(

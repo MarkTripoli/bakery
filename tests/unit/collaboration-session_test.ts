@@ -926,3 +926,148 @@ Deno.test("a hello within the wait cancels the connect timeout", () => {
   assertEquals(h.sockets.length, 1);
   assertEquals(h.session.getSnapshot().connection, "online");
 });
+Deno.test("a draft that was re-epoched while offline sends nothing old: unsent text goes to the sheet and the document starts again", () => {
+  const h = harness();
+  const first = connect(h, "Intro", 1).socket;
+  first.drop();
+  type(h, "offline", 5);
+  const before = h.session.getSnapshot().documentVersion;
+  h.advance(1000);
+  const second = h.sockets[1];
+  second.receive({
+    type: "hello",
+    protocolVersion: 1,
+    connectionId: "99999999-9999-4999-8999-999999999999",
+    heartbeatSeconds: 10,
+    presenceTtlSeconds: 30,
+  });
+  const join = second.json().find((frame) => frame.type === "join")!;
+  second.receive({
+    type: "joined",
+    requestId: join.requestId,
+    room: ROOM,
+    participants: [],
+  });
+  const sync = second.json().find((frame) => frame.type === "sync")!;
+  second.receive({
+    type: "synced",
+    requestId: sync.requestId,
+    room: ROOM,
+    epoch: 2,
+    serverSequence: "1",
+    checkpointId: "88888888-8888-4888-8888-888888888888",
+    byteLength: 1,
+  });
+  second.receiveBinary(serverSnapshot("A new draft", 2).frame);
+  assertEquals(second.binary().length, 0, "nothing stamped with the new epoch");
+  const snapshot = h.session.getSnapshot();
+  assertEquals(snapshot.refused.map((piece) => [piece.text, piece.cause]), [[
+    "offline",
+    "epoch",
+  ]]);
+  assertEquals(snapshot.banner, { kind: "replaced" });
+  assertEquals(snapshot.documentVersion, before + 1);
+  assertEquals(snapshot.pendingCount, 0);
+  assertEquals(h.session.document.getText("body").toString(), "A new draft");
+  assertEquals(snapshot.epoch, 2);
+});
+
+Deno.test("a refusal the server will never accept is kept for the sheet and not resent on every reconnect", () => {
+  const h = harness();
+  const first = connect(h).socket;
+  type(h, "too big");
+  assertEquals(first.binary().length, 1);
+  first.receive({
+    type: "problem",
+    requestId: null,
+    problem: {
+      type: "https://bakery.dev/problems/body_too_large",
+      title: "Too large",
+      status: 413,
+      detail: "d",
+      code: "BODY_TOO_LARGE",
+      requestId: "11111111-1111-4111-8111-111111111111",
+      retryable: false,
+    },
+  });
+  assertEquals(h.session.getSnapshot().pendingCount, 0);
+  assertEquals(
+    h.session.getSnapshot().refused.map((piece) => [piece.text, piece.cause]),
+    [["too big", "rejected"]],
+  );
+  first.drop(1011);
+  h.advance(1000);
+  const second = h.sockets[1];
+  second.receive({
+    type: "hello",
+    protocolVersion: 1,
+    connectionId: "99999999-9999-4999-8999-999999999999",
+    heartbeatSeconds: 10,
+    presenceTtlSeconds: 30,
+  });
+  const join = second.json().find((frame) => frame.type === "join")!;
+  second.receive({
+    type: "joined",
+    requestId: join.requestId,
+    room: ROOM,
+    participants: [],
+  });
+  const sync = second.json().find((frame) => frame.type === "sync")!;
+  second.receive({
+    type: "synced",
+    requestId: sync.requestId,
+    room: ROOM,
+    epoch: 1,
+    serverSequence: "1",
+    checkpointId: "88888888-8888-4888-8888-888888888888",
+    byteLength: 1,
+  });
+  second.receiveBinary(serverSnapshot("").frame);
+  assertEquals(
+    second.binary().length,
+    0,
+    "the refused piece is not sent again",
+  );
+});
+
+Deno.test("a mutation the server names twice in resyncs is refused, not resent forever", () => {
+  const h = harness();
+  const { socket } = connect(h, "Intro");
+  type(h, "x", 5);
+  const [update] = socket.binary();
+  const resync = () =>
+    socket.receive({
+      type: "resync_required",
+      room: ROOM,
+      mutationId: update.mutationId,
+      reason: "expired",
+    });
+  const answerSync = () => {
+    const sync = socket.json().filter((frame) => frame.type === "sync").at(-1)!;
+    socket.receive({
+      type: "synced",
+      requestId: sync.requestId,
+      room: ROOM,
+      epoch: 1,
+      serverSequence: "1",
+      checkpointId: "88888888-8888-4888-8888-888888888888",
+      byteLength: 1,
+    });
+    socket.receiveBinary(serverSnapshot("Intro").frame);
+  };
+  resync();
+  assertEquals(h.session.getSnapshot().refused.length, 0);
+  answerSync();
+  assertEquals(
+    socket.binary().filter((frame) => frame.mutationId === update.mutationId)
+      .length,
+    2,
+    "sent once more",
+  );
+  resync();
+  assertEquals(h.session.getSnapshot().refused.map((piece) => piece.text), [
+    "x",
+  ]);
+  answerSync();
+  assertEquals(socket.binary().length, 2, "not a third time");
+});
