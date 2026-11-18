@@ -78,7 +78,7 @@ Deno.test("an OTLP endpoint alone is enough to enable export", async () => {
   const sent: unknown[] = [];
   const config = readTelemetrySinkConfig(
     withEnv({
-      BAKERY_OTLP_ENDPOINT: "https://collector.example.test/v1/traces",
+      BAKERY_OTLP_ENDPOINT: "https://collector.example.test",
     }),
   );
   assert(config !== undefined);
@@ -102,7 +102,7 @@ Deno.test("a destination that never answers cannot hold the server", async () =>
   // this slice supplies rather than only for a test double.
   const config = readTelemetrySinkConfig(
     withEnv({
-      BAKERY_OTLP_ENDPOINT: "https://collector.example.test/v1/traces",
+      BAKERY_OTLP_ENDPOINT: "https://collector.example.test",
     }),
   );
   assert(config !== undefined);
@@ -136,6 +136,8 @@ Deno.test("a malformed configuration fails at boot instead of silently disabling
       withEnv({ BAKERY_TELEMETRY_LOG_DIR: "relative/path" }),
       withEnv({ BAKERY_OTLP_ENDPOINT: "http://collector.example.test" }),
       withEnv({ BAKERY_OTLP_ENDPOINT: "https://user:pass@collector.test/v1" }),
+      // A signal URL cannot serve both signals, so it is refused.
+      withEnv({ BAKERY_OTLP_ENDPOINT: "https://collector.test/v1/traces" }),
       withEnv({ BAKERY_TELEMETRY_LOG_MAX_BYTES: "1e9" }),
       withEnv({ BAKERY_TELEMETRY_LOG_MAX_FILES: "0" }),
     ]

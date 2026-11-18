@@ -21,6 +21,7 @@
  */
 import type { TelemetryRecord } from "@bakery/config/telemetry";
 import type { ExportSink } from "@bakery/config/telemetry-export";
+import type { MetricKind } from "@bakery/config/telemetry-metrics";
 
 /** One line of a structured log, as bytes. */
 export type LogWrite = (line: Uint8Array) => Promise<void> | void;
@@ -108,17 +109,27 @@ export function createRotatingLogSink(
   const pathFor = (index: number) =>
     index === 0 ? current : `${current}.${index}`;
 
-  const rotate = async () => {
-    for (let index = options.maxFiles - 1; index >= 1; index -= 1) {
-      await options.fileSystem.rename(pathFor(index - 1), pathFor(index)).catch(
-        () => undefined,
-      );
+  /**
+   * Shifts the files down one, oldest out. Returns false when the shift could not
+   * complete, which the caller treats as a failed batch rather than appending
+   * past the cap.
+   */
+  const rotate = async (): Promise<boolean> => {
+    // The oldest kept file goes first: removing it before the shift means the
+    // shift never needs to overwrite a file it is about to create.
+    try {
+      await options.fileSystem.remove(pathFor(options.maxFiles));
+    } catch {
+      return false;
     }
-    // After the shift, `.maxFiles` holds what used to be the oldest kept file.
-    // It is removed so the directory cannot grow past `maxFiles` entries.
-    await options.fileSystem.remove(pathFor(options.maxFiles)).catch(() =>
-      undefined
-    );
+    for (let index = options.maxFiles - 1; index >= 1; index -= 1) {
+      try {
+        await options.fileSystem.rename(pathFor(index - 1), pathFor(index));
+      } catch {
+        return false;
+      }
+    }
+    return true;
   };
 
   return async (batch, signal) => {
@@ -127,20 +138,30 @@ export function createRotatingLogSink(
     );
     await ready;
 
+    let written = 0;
     for (const record of batch) {
-      if (signal.aborted) return;
+      if (signal.aborted) break;
       const bytes = concat(encodeLogLine(record), NEWLINE);
+      const size = await options.fileSystem.size(current);
+      // Rotate before writing so a file never exceeds maxBytes: the check is
+      // against what is about to be appended, not what is already there.
+      if (size > 0 && size + bytes.byteLength > options.maxBytes) {
+        const rotated = await rotate();
+        // A rename that fails must not become an unbounded file. The alternative
+        // - keep appending past the cap - trades the disk bound, which is the
+        // whole point of rotating, for logs nobody can find. So the batch stops
+        // here and is reported failed, and the cap holds.
+        if (!rotated) break;
+      }
       try {
-        const size = await options.fileSystem.size(current);
-        // Rotate before writing, so a file never exceeds maxBytes by a whole
-        // batch: the check is against what is about to be appended.
-        if (size > 0 && size + bytes.byteLength > options.maxBytes) {
-          await rotate();
-        }
         await options.fileSystem.append(current, bytes);
-      } catch {
-        // Counted as a failed batch by the exporter. One record that cannot be
-        // written must not stop the rest of the batch.
+        written += 1;
+      } catch (error) {
+        // Stop at the first failure and report it once, so the exporter counts a
+        // failed batch and retries. Swallowing it would make a permanently full
+        // disk indistinguishable from an idle server.
+        if (written === 0) throw error;
+        break;
       }
     }
   };
@@ -157,73 +178,181 @@ function concat(
 }
 
 /**
- * The OTLP/HTTP JSON body for one batch.
+ * The OTLP signal a record belongs to.
  *
- * Only the fields OTLP defines are emitted, and attributes keep the allowlist's
- * string/number/boolean types. Trace context becomes the span's own parent
- * reference rather than an attribute, because a receiver that understands OTLP
- * will then connect it to the trace instead of displaying an opaque string.
+ * OTLP/HTTP has one path per signal: traces go to `/v1/traces`, metrics to
+ * `/v1/metrics`. Posting one body carrying both is rejected by every real
+ * collector, which is why the two encoders below are separate and the sink
+ * chooses by what the batch actually contains.
  */
-export function encodeOtlpBatch(
+export type OtlpSignal = "traces" | "metrics";
+
+const SIGNAL_PATHS: Readonly<Record<OtlpSignal, string>> = Object.freeze({
+  traces: "/traces",
+  metrics: "/metrics",
+});
+
+/**
+ * Resolves the OTLP/HTTP URL for one signal.
+ *
+ * The configured endpoint is a collector base, not a signal URL: one URL cannot
+ * serve two signals, so an endpoint that already names a signal is refused rather
+ * than silently dropping the other half of the telemetry.
+ */
+export function otlpSignalUrl(
+  endpoint: string,
+  signal: OtlpSignal,
+): string | undefined {
+  const trimmed = endpoint.replace(/\/+$/, "");
+  if (/\/v1\/(?:traces|metrics)$/.test(trimmed)) return undefined;
+  const base = /\/v1$/.test(trimmed) ? trimmed : `${trimmed}/v1`;
+  return `${base}${SIGNAL_PATHS[signal]}`;
+}
+
+/** A span id is 8 bytes; a span without one is invalid, so one is made. */
+function randomSpanId(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(8));
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join(
+    "",
+  );
+}
+
+function randomTraceId(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join(
+    "",
+  );
+}
+
+function otlpAttributes(
+  attributes: Readonly<Record<string, string | number | boolean>>,
+): { key: string; value: Record<string, unknown> }[] {
+  return Object.entries(attributes).map(([key, value]) => ({
+    key,
+    value: typeof value === "number"
+      ? { doubleValue: value }
+      : typeof value === "boolean"
+      ? { boolValue: value }
+      : { stringValue: value },
+  }));
+}
+
+/** The service identity a collector groups telemetry by. */
+function otlpResource(): Record<string, unknown> {
+  return {
+    attributes: [
+      { key: "service.name", value: { stringValue: "bakery-server" } },
+    ],
+  };
+}
+
+/**
+ * The OTLP/HTTP trace body.
+ *
+ * Every span gets a trace and span id: OTLP requires both, so a record without
+ * W3C context is given fresh ids rather than a span a collector cannot key. Such
+ * a span is its own root; the record's real trace, when it has one, becomes the
+ * span's own ids and its links become references to other spans.
+ */
+export function encodeOtlpTraces(
   batch: readonly TelemetryRecord[],
-): unknown {
+): Record<string, unknown> {
   const spans = [];
-  const metrics = [];
   for (const record of batch) {
-    if (record.kind === "event") {
-      const attributes = Object.entries(record.attributes).map((
-        [key, value],
-      ) => ({
-        key,
-        value: typeof value === "number"
-          ? { doubleValue: value }
-          : typeof value === "boolean"
-          ? { boolValue: value }
-          : { stringValue: value },
-      }));
-      spans.push({
-        name: record.name,
-        // OTLP carries nanoseconds; the record holds milliseconds.
-        startTimeUnixNano: String(record.time * 1_000_000),
-        endTimeUnixNano: String(record.time * 1_000_000),
-        attributes,
-        ...(record.trace
-          ? {
-            traceId: record.trace.traceId,
-            spanId: record.trace.spanId,
-          }
-          : {}),
-        ...(record.links && record.links.length > 0
-          ? {
-            links: record.links.map((link) => ({
-              traceId: link.traceId,
-              spanId: link.spanId,
-            })),
-          }
-          : {}),
-      });
-    } else {
-      metrics.push({
-        timeUnixNano: String(record.time * 1_000_000),
-        samples: record.samples.map((sample) => ({
-          name: sample.name,
-          value: sample.value,
-          attributes: Object.entries(sample.labels).map(([key, value]) => ({
-            key,
-            value: { stringValue: value },
+    if (record.kind !== "event") continue;
+    spans.push({
+      traceId: record.trace?.traceId ?? randomTraceId(),
+      spanId: record.trace?.spanId ?? randomSpanId(),
+      name: record.name,
+      // SPAN_KIND_INTERNAL: these are points in our own work, not RPC edges.
+      kind: 1,
+      startTimeUnixNano: `${record.time}000000`,
+      endTimeUnixNano: `${record.time}000000`,
+      attributes: otlpAttributes(record.attributes),
+      status: { code: 0 },
+      ...(record.links && record.links.length > 0
+        ? {
+          links: record.links.map((link) => ({
+            traceId: link.traceId,
+            spanId: link.spanId,
           })),
-        })),
-      });
-    }
+        }
+        : {}),
+    });
   }
   return {
-    resourceSpans: [{ scopeSpans: [{ spans }] }],
-    resourceMetrics: [{ scopeMetrics: [{ metrics }] }],
+    resourceSpans: [{
+      resource: otlpResource(),
+      scopeSpans: [{
+        scope: { name: "bakery.telemetry" },
+        spans,
+      }],
+    }],
+  };
+}
+
+/**
+ * The OTLP/HTTP metrics body.
+ *
+ * Samples are grouped by name and kind because OTLP defines a metric once and
+ * carries the series as its data points; emitting one metric per sample would
+ * describe the same metric many times, and a collector would treat them as
+ * separate instruments. A counter is a monotonic cumulative sum, a gauge is a
+ * gauge - the two are different OTLP types, not a flag.
+ */
+export function encodeOtlpMetrics(
+  batch: readonly TelemetryRecord[],
+): Record<string, unknown> {
+  const grouped = new Map<string, {
+    name: string;
+    kind: MetricKind;
+    points: Record<string, unknown>[];
+  }>();
+  for (const record of batch) {
+    if (record.kind !== "metrics") continue;
+    for (const sample of record.samples) {
+      const key = `${sample.kind}:${sample.name}`;
+      const entry = grouped.get(key) ??
+        { name: sample.name, kind: sample.kind, points: [] };
+      entry.points.push({
+        asDouble: sample.value,
+        timeUnixNano: `${record.time}000000`,
+        attributes: Object.entries(sample.labels).map(([label, value]) => ({
+          key: label,
+          value: { stringValue: value },
+        })),
+      });
+      grouped.set(key, entry);
+    }
+  }
+
+  const metrics = [...grouped.values()].map((entry) =>
+    entry.kind === "counter"
+      ? {
+        name: entry.name,
+        sum: {
+          dataPoints: entry.points,
+          // CUMULATIVE (2) and monotonic: a counter only ever goes up.
+          aggregationTemporality: 2,
+          isMonotonic: true,
+        },
+      }
+      : { name: entry.name, gauge: { dataPoints: entry.points } }
+  );
+
+  return {
+    resourceMetrics: [{
+      resource: otlpResource(),
+      scopeMetrics: [{
+        scope: { name: "bakery.telemetry" },
+        metrics,
+      }],
+    }],
   };
 }
 
 export type OtlpSinkOptions = {
-  /** HTTPS endpoint. The transport is injected so this can be proved offline. */
+  /** Collector base URL; the signal path is appended. */
   readonly endpoint: string;
   readonly fetch: typeof fetch;
   /** Extra headers, such as an authorization token. Never logged. */
@@ -233,65 +362,124 @@ export type OtlpSinkOptions = {
 /**
  * An optional OTLP/HTTP sink.
  *
- * A non-2xx answer is thrown so the exporter counts a failed batch and retries,
- * which is the behaviour an operator wants from a destination that is briefly
- * down. A malformed endpoint is not thrown at construction: the caller cannot do
- * anything useful with that, and the config schema already refuses one.
+ * One POST per signal the batch actually contains, to that signal's path. A batch
+ * with no spans makes no trace request, so an idle server does not post empty
+ * bodies. A refused or failed destination throws, once, so the exporter counts a
+ * failed batch and retries it rather than believing a silent sink.
  */
 export function createOtlpSink(
   options: OtlpSinkOptions,
 ): ExportSink<TelemetryRecord> {
+  const tracesUrl = otlpSignalUrl(options.endpoint, "traces");
+  const metricsUrl = otlpSignalUrl(options.endpoint, "metrics");
   return async (batch, signal) => {
     if (signal.aborted) return;
-    const response = await options.fetch(options.endpoint, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        ...options.headers,
-      },
-      body: JSON.stringify(encodeOtlpBatch(batch)),
-      signal,
-    });
-    if (!response.ok) {
-      throw new Error(`OTLP_DESTINATION_${response.status}`);
+    const posts: { url: string; body: unknown }[] = [];
+    if (batch.some((record) => record.kind === "event")) {
+      // A signal-specific endpoint cannot serve the other signal; a hand-built
+      // sink posting there still reaches the URL the operator gave.
+      posts.push({
+        url: tracesUrl ?? options.endpoint,
+        body: encodeOtlpTraces(batch),
+      });
     }
+    if (batch.some((record) => record.kind === "metrics")) {
+      posts.push({
+        url: metricsUrl ?? options.endpoint,
+        body: encodeOtlpMetrics(batch),
+      });
+    }
+
+    const failures: unknown[] = [];
+    await Promise.all(posts.map(async ({ url, body }) => {
+      try {
+        const response = await options.fetch(url, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            ...options.headers,
+          },
+          body: JSON.stringify(body),
+          signal,
+        });
+        if (!response.ok) {
+          failures.push(new Error(`OTLP_DESTINATION_${response.status}`));
+        }
+      } catch (error) {
+        failures.push(error);
+      }
+    }));
+    if (failures.length > 0) throw failures[0];
   };
 }
+
+/** Per-destination counters, so a broken destination is visible as itself. */
+export type TelemetrySinkStats = {
+  readonly sent: number;
+  readonly failed: number;
+};
 
 export type TelemetrySinkOptions = {
   readonly log?: ExportSink<TelemetryRecord>;
   readonly otlp?: ExportSink<TelemetryRecord>;
+  /** Called once per destination failure, so it can be counted as a metric. */
+  readonly onDestinationFailure?: (
+    destination: "log" | "otlp",
+    error: unknown,
+  ) => void;
+};
+
+export type TelemetrySink = ExportSink<TelemetryRecord> & {
+  /** Counters per destination. One total would hide which one is broken. */
+  stats(): Readonly<Record<"log" | "otlp", TelemetrySinkStats>>;
 };
 
 /**
  * Fans one batch out to every configured destination.
  *
- * The two sinks are isolated on purpose. A log directory that is full must not
- * cost the OTLP destination its batch, so each is attempted and a failure in one
- * is reported only if **every** destination failed - otherwise the exporter
- * would count a batch lost when it reached one of them, and an operator watching
- * the loss counter would chase a problem that is not there.
+ * Each destination is attempted and counted independently, because "telemetry is
+ * failing" and "the log directory is full while OTLP is fine" call for different
+ * responses. A failure in one does not stop the other: a full disk must not cost
+ * the collector its batch.
+ *
+ * The batch is reported lost only if **every** destination failed, which is what
+ * the exporter's counter means, and it is thrown once rather than once per
+ * destination so one batch cannot inflate the loss count.
  */
 export function createTelemetrySink(
   options: TelemetrySinkOptions,
-): ExportSink<TelemetryRecord> {
-  const sinks = [options.log, options.otlp].filter(
-    (sink): sink is ExportSink<TelemetryRecord> => sink !== undefined,
-  );
-  return async (batch, signal) => {
-    if (sinks.length === 0) {
-      // Nothing configured. Throwing here would count every batch as lost; the
-      // caller is expected to disable export instead of building an empty sink.
-      return;
-    }
-    const results = await Promise.allSettled(
-      sinks.map((sink) => Promise.resolve().then(() => sink(batch, signal))),
-    );
-    const failure = results.find((result) => result.status === "rejected");
-    if (
-      failure !== undefined && results.every((r) => r.status === "rejected")
-    ) {
-      throw (failure as PromiseRejectedResult).reason;
-    }
+): TelemetrySink {
+  const destinations: ["log" | "otlp", ExportSink<TelemetryRecord>][] = [];
+  if (options.log !== undefined) destinations.push(["log", options.log]);
+  if (options.otlp !== undefined) destinations.push(["otlp", options.otlp]);
+
+  const counters: Record<"log" | "otlp", { sent: number; failed: number }> = {
+    log: { sent: 0, failed: 0 },
+    otlp: { sent: 0, failed: 0 },
   };
+
+  const send: ExportSink<TelemetryRecord> = async (batch, signal) => {
+    if (destinations.length === 0) return;
+    let failed = 0;
+    let firstError: unknown;
+    for (const [name, sink] of destinations) {
+      try {
+        await sink(batch, signal);
+        counters[name].sent += 1;
+      } catch (error) {
+        counters[name].failed += 1;
+        failed += 1;
+        firstError ??= error;
+        options.onDestinationFailure?.(name, error);
+      }
+    }
+    if (failed === destinations.length) throw firstError;
+  };
+
+  return Object.assign(send, {
+    stats: () => ({
+      log: { ...counters.log },
+      otlp: { ...counters.otlp },
+    }),
+  });
 }

@@ -20,7 +20,6 @@ import {
   createServerTelemetryFromConfig,
   SERVER_TELEMETRY_CLOSE_MS,
 } from "./platform/telemetry.ts";
-import { readTelemetrySinkConfig } from "@bakery/config/telemetry-sink";
 import {
   isPreviewRequestHost,
   previewHostname,
@@ -187,11 +186,9 @@ async function runServer(config: RuntimeConfig): Promise<void> {
   // The sink comes from configuration: rotated structured logs, an optional OTLP
   // destination, or neither. With neither, export stays disabled and an event
   // costs a counter and nothing is queued - the behaviour before this slice.
-  const telemetry = createServerTelemetryFromConfig(
-    // `process.env`, not `Deno.env`: portable to the Node runtime #139 moves to,
-    // and identical under both.
-    readTelemetrySinkConfig(process.env),
-  );
+  // Read with the rest of the runtime configuration, so the app never reads the
+  // environment itself (#306).
+  const telemetry = createServerTelemetryFromConfig(config.telemetry);
   const app = createApp({
     telemetry,
     config,

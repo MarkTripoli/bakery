@@ -5,7 +5,9 @@ import {
   createRotatingLogSink,
   createTelemetrySink,
   encodeLogLine,
-  encodeOtlpBatch,
+  encodeOtlpMetrics,
+  encodeOtlpTraces,
+  otlpSignalUrl,
   type RotatingLogFileSystem,
 } from "../../apps/server/src/platform/telemetry-sink.ts";
 import type { TelemetryRecord } from "@bakery/config/telemetry";
@@ -147,58 +149,93 @@ Deno.test("rotation keeps the directory bounded and never exceeds a file's cap",
   assert(current !== undefined && current.byteLength > 0);
 });
 
-Deno.test("a rotation that cannot rename still writes the current file", async () => {
-  // A telemetry sink that stops writing because a rename failed turns a
-  // filesystem problem into a telemetry outage. The gap is counted; the outage
-  // would not be.
+Deno.test("a rotation that cannot rename stops the batch instead of growing past the cap", async () => {
+  // Keeping the disk bounded is the whole point of rotating. Appending past the
+  // cap because a rename failed trades that bound for logs nobody can find, so
+  // the batch stops, the exporter counts it failed, and the cap holds.
   const fileSystem = memoryFileSystem();
   fileSystem.rename = () => Promise.reject(new Error("EBUSY"));
   const sink = createRotatingLogSink({
     directory: "/var/log/bakery",
-    maxBytes: 100,
+    maxBytes: 400,
     maxFiles: 2,
     fileSystem,
   });
-  await sink(Array.from({ length: 5 }, () => eventRecord()), signal());
-  const current = fileSystem.files.get("/var/log/bakery/telemetry.ndjson");
-  assert(current !== undefined);
-  assert(current.byteLength > 100);
+  await sink(Array.from({ length: 40 }, () => eventRecord()), signal());
+  for (const [path, bytes] of fileSystem.files) {
+    assert(
+      bytes.byteLength <= 400,
+      `${path} is ${bytes.byteLength} bytes, over the 400-byte cap`,
+    );
+  }
 });
 
-Deno.test("a write that throws does not escape the sink", async () => {
-  // The exporter catches, but a sink throwing from inside its own catch is how
-  // telemetry becomes an execution failure. Absorbing here is what makes that
-  // impossible rather than unlikely.
-  const sink = createRotatingLogSink({
-    directory: "/var/log/bakery",
-    maxBytes: 400,
-    maxFiles: 2,
-    fileSystem: {
-      ...memoryFileSystem(),
-      append: () => Promise.reject(new Error("ENOSPC")),
-      size: () => Promise.reject(new Error("EIO")),
-      ensureDirectory: () => Promise.reject(new Error("EACCES")),
-    },
-  });
-  await sink([eventRecord(), eventRecord()], signal());
+Deno.test("a collector base resolves to one URL per signal, and a signal URL is refused", () => {
+  // OTLP/HTTP has one path per signal. A single URL cannot serve both, so an
+  // endpoint that already names a signal is refused rather than quietly
+  // dropping the other half of the telemetry.
+  assertEquals(
+    otlpSignalUrl("https://collector.test", "traces"),
+    "https://collector.test/v1/traces",
+  );
+  assertEquals(
+    otlpSignalUrl("https://collector.test/", "metrics"),
+    "https://collector.test/v1/metrics",
+  );
+  assertEquals(
+    otlpSignalUrl("https://collector.test/v1", "traces"),
+    "https://collector.test/v1/traces",
+  );
+  assertEquals(
+    otlpSignalUrl("https://collector.test/v1/traces", "traces"),
+    undefined,
+  );
 });
 
-Deno.test("the OTLP body carries trace context as a reference, not a string attribute", () => {
-  const body = encodeOtlpBatch([
+Deno.test("every span carries the ids OTLP requires, including one with no trace", () => {
+  // A span without a trace and span id is invalid and a real collector rejects
+  // the batch. A record with no W3C context becomes its own root instead.
+  const body = encodeOtlpTraces([
+    eventRecord(),
     eventRecord({
       trace: {
         traceId: "0af7651916cd43dd8448eb211c80319c",
         spanId: "b7ad6b7169203331",
         sampled: true,
       },
-      links: [{
-        traceId: "11111111111111111111111111111111",
-        spanId: "2222222222222222",
-      }],
     }),
+  ]) as {
+    resourceSpans: { scopeSpans: { spans: Record<string, unknown>[] }[] }[];
+  };
+  const spans = body.resourceSpans[0]!.scopeSpans[0]!.spans;
+  assertEquals(spans.length, 2);
+
+  const [bare, traced] = spans;
+  assertEquals(/^[0-9a-f]{32}$/.test(bare!.traceId as string), true);
+  assertEquals(/^[0-9a-f]{16}$/.test(bare!.spanId as string), true);
+  // The synthesized ids are a real root, not the all-zero id.
+  assertEquals(bare!.traceId === "0".repeat(32), false);
+  assertEquals(bare!.spanId === "0".repeat(16), false);
+
+  // The record's own context is used when it has one.
+  assertEquals(traced!.traceId, "0af7651916cd43dd8448eb211c80319c");
+  assertEquals(traced!.spanId, "b7ad6b7169203331");
+  assertEquals(traced!.kind, 1);
+  // The trace id must not also appear as an attribute: a collector would show it
+  // twice and connect the span to nothing.
+  const keys = (traced!.attributes as { key: string }[]).map((a) => a.key);
+  assertEquals(keys.includes("traceId"), false);
+  assertEquals(keys.includes("trace_id"), false);
+});
+
+Deno.test("metrics are grouped once per instrument, as a gauge or a monotonic sum", () => {
+  // OTLP defines a metric once and carries the series as its data points.
+  // Emitting one metric per sample describes the same instrument many times, and
+  // a counter is a monotonic cumulative sum rather than a flag.
+  const body = encodeOtlpMetrics([
     {
       kind: "metrics",
-      time: 1_700_000_000_001,
+      time: 1_700_000_000_000,
       samples: [
         {
           name: "bakery_queue_age_seconds",
@@ -206,37 +243,75 @@ Deno.test("the OTLP body carries trace context as a reference, not a string attr
           value: 3,
           labels: { state: "queued" },
         },
+        {
+          name: "bakery_queue_age_seconds",
+          kind: "gauge",
+          value: 5,
+          labels: { state: "running" },
+        },
+        { name: "bakery_jobs_total", kind: "counter", value: 7, labels: {} },
       ],
     },
   ]) as {
-    resourceSpans: { scopeSpans: { spans: Record<string, unknown>[] }[] }[];
     resourceMetrics: {
       scopeMetrics: { metrics: Record<string, unknown>[] }[];
     }[];
   };
+  const metrics = body.resourceMetrics[0]!.scopeMetrics[0]!.metrics;
+  assertEquals(metrics.length, 2, "one metric per instrument, not per sample");
 
-  const span = body.resourceSpans[0]!.scopeSpans[0]!.spans[0]!;
-  assertEquals(span.traceId, "0af7651916cd43dd8448eb211c80319c");
-  assertEquals(span.spanId, "b7ad6b7169203331");
-  // The trace id must not ALSO appear as an attribute: a receiver would show it
-  // twice and connect the span to nothing.
-  const attributeKeys = (span.attributes as { key: string }[]).map((a) =>
-    a.key
-  );
-  assertEquals(attributeKeys.includes("traceId"), false);
-  assertEquals(attributeKeys.includes("trace_id"), false);
-  assertEquals((span.links as unknown[]).length, 1);
+  const gauge = metrics.find((m) => m.name === "bakery_queue_age_seconds")!;
+  const gaugePoints = (gauge.gauge as { dataPoints: unknown[] }).dataPoints;
+  assertEquals(gaugePoints.length, 2);
+  assertEquals(gauge.sum, undefined);
 
-  const metric = body.resourceMetrics[0]!.scopeMetrics[0]!.metrics[0]!;
-  assertEquals(
-    (metric.samples as { name: string }[])[0]!.name,
-    "bakery_queue_age_seconds",
-  );
+  const counter = metrics.find((m) => m.name === "bakery_jobs_total")!;
+  const sum = counter.sum as {
+    dataPoints: unknown[];
+    isMonotonic: boolean;
+    aggregationTemporality: number;
+  };
+  assertEquals(sum.isMonotonic, true);
+  assertEquals(sum.aggregationTemporality, 2);
+  assertEquals(counter.gauge, undefined);
+});
+
+Deno.test("the OTLP sink posts each signal to its own path, and only when it has one", async () => {
+  // Posting resourceSpans and resourceMetrics in one body to one URL is rejected
+  // by every real collector - that was the defect this test exists for.
+  const calls: { url: string; body: Record<string, unknown> }[] = [];
+  const sink = createOtlpSink({
+    endpoint: "https://collector.test",
+    fetch: ((url: string, init: { body: string }) => {
+      calls.push({ url, body: JSON.parse(init.body) });
+      return Promise.resolve(new Response("", { status: 200 }));
+    }) as unknown as typeof fetch,
+  });
+
+  await sink([eventRecord()], signal());
+  assertEquals(calls.length, 1, "an event batch makes one trace request");
+  assertEquals(calls[0]!.url, "https://collector.test/v1/traces");
+  assertEquals(calls[0]!.body.resourceMetrics, undefined);
+
+  calls.length = 0;
+  await sink([{
+    kind: "metrics",
+    time: 1_700_000_000_000,
+    samples: [{
+      name: "bakery_jobs_total",
+      kind: "counter",
+      value: 1,
+      labels: {},
+    }],
+  }], signal());
+  assertEquals(calls.length, 1, "a metric batch makes one metric request");
+  assertEquals(calls[0]!.url, "https://collector.test/v1/metrics");
+  assertEquals(calls[0]!.body.resourceSpans, undefined);
 });
 
 Deno.test("an OTLP destination that answers badly fails the batch so it is retried", async () => {
   const sink = createOtlpSink({
-    endpoint: "https://collector.example.test/v1/traces",
+    endpoint: "https://collector.test",
     fetch: (() =>
       Promise.resolve(new Response("nope", { status: 503 }))) as typeof fetch,
   });
@@ -249,63 +324,64 @@ Deno.test("an OTLP destination that answers badly fails the batch so it is retri
   assertEquals(threw, true);
 });
 
-Deno.test("an OTLP destination that is unreachable surfaces the failure, and an abort does not send", async () => {
-  const sink = createOtlpSink({
-    endpoint: "https://collector.example.test/v1/traces",
-    fetch: (() => {
-      throw new Error("ECONNREFUSED");
-    }) as typeof fetch,
-  });
-  let threw = false;
-  try {
-    await sink([eventRecord()], signal());
-  } catch {
-    threw = true;
-  }
-  assertEquals(threw, true);
-
-  // Aborted before the call: nothing is attempted.
+Deno.test("an abort sends nothing", async () => {
   let called = 0;
   const controller = new AbortController();
   controller.abort();
-  const counting = createOtlpSink({
-    endpoint: "https://collector.example.test/v1/traces",
+  const sink = createOtlpSink({
+    endpoint: "https://collector.test",
     fetch: (() => {
       called += 1;
       return Promise.resolve(new Response("", { status: 200 }));
-    }) as typeof fetch,
+    }) as unknown as typeof fetch,
   });
-  await counting([eventRecord()], controller.signal);
+  await sink([eventRecord()], controller.signal);
   assertEquals(called, 0);
 });
 
-Deno.test("one failed destination does not cost the other its batch", async () => {
-  // A full log directory must not lose the OTLP batch. Counting a batch lost when
-  // it reached one destination would send an operator chasing a problem that is
-  // not there.
+Deno.test("one failed destination does not cost the other its batch, and both are counted", async () => {
+  // "telemetry is failing" and "the log directory is full while OTLP is fine"
+  // call for different responses, so the counters are per destination.
   let logged = 0;
+  const failures: string[] = [];
   const sink = createTelemetrySink({
     log: (batch) => {
       logged += batch.length;
     },
     otlp: () => Promise.reject(new Error("503")),
+    onDestinationFailure: (destination) => {
+      failures.push(destination);
+    },
   });
   await sink([eventRecord()], signal());
   assertEquals(logged, 1);
+  assertEquals(sink.stats().log.sent, 1);
+  assertEquals(sink.stats().log.failed, 0);
+  assertEquals(sink.stats().otlp.failed, 1);
+  assertEquals(failures, ["otlp"]);
 });
 
-Deno.test("the batch counts as lost only when every destination failed", async () => {
+Deno.test("the batch counts as lost once, when every destination failed", async () => {
+  const failures: string[] = [];
   const sink = createTelemetrySink({
     log: () => Promise.reject(new Error("ENOSPC")),
     otlp: () => Promise.reject(new Error("503")),
+    onDestinationFailure: (destination) => {
+      failures.push(destination);
+    },
   });
-  let threw = false;
+  let threw = 0;
   try {
     await sink([eventRecord()], signal());
   } catch {
-    threw = true;
+    threw += 1;
   }
-  assertEquals(threw, true);
+  // Thrown once, not once per destination: one batch must not inflate the
+  // exporter's loss count by the number of destinations.
+  assertEquals(threw, 1);
+  assertEquals(failures, ["log", "otlp"]);
+  assertEquals(sink.stats().log.failed, 1);
+  assertEquals(sink.stats().otlp.failed, 1);
 });
 
 Deno.test("a sink with no destinations sends nothing and throws nothing", async () => {
@@ -313,4 +389,26 @@ Deno.test("a sink with no destinations sends nothing and throws nothing", async 
   // on every batch: the exporter's disabled state is the honest representation.
   const sink = createTelemetrySink({});
   await sink([eventRecord()], signal());
+  assertEquals(sink.stats().otlp.sent, 0);
+});
+
+Deno.test("a write failure is reported once, not swallowed", async () => {
+  // Swallowing it would make a permanently full disk indistinguishable from an
+  // idle server, and failedBatches would never see it.
+  const sink = createRotatingLogSink({
+    directory: "/var/log/bakery",
+    maxBytes: 400,
+    maxFiles: 2,
+    fileSystem: {
+      ...memoryFileSystem(),
+      append: () => Promise.reject(new Error("ENOSPC")),
+    },
+  });
+  let threw = false;
+  try {
+    await sink([eventRecord(), eventRecord()], signal());
+  } catch {
+    threw = true;
+  }
+  assertEquals(threw, true);
 });

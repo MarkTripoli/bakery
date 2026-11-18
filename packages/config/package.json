@@ -12,6 +12,7 @@
     "./telemetry": "./src/telemetry.ts",
     "./telemetry-attributes": "./src/telemetry-attributes.ts",
     "./telemetry-export": "./src/telemetry-export.ts",
+    "./telemetry-metrics": "./src/telemetry-metrics.ts",
     "./telemetry-sink": "./src/telemetry-sink.ts",
     "./telemetry-trace": "./src/telemetry-trace.ts"
   },

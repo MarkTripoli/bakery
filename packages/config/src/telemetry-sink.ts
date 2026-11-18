@@ -36,15 +36,19 @@ const OtlpEndpointSchema = z.string().min(1).max(2048).refine(
   (value) => {
     try {
       const url = new URL(value);
-      return url.protocol === "https:" && url.username === "" &&
-        url.password === "";
+      if (url.protocol !== "https:") return false;
+      if (url.username !== "" || url.password !== "") return false;
+      // A collector base, not a signal URL: one URL cannot serve both traces and
+      // metrics, so an endpoint that names a signal is refused instead of
+      // silently dropping the other half of the telemetry.
+      return !/\/v1\/(?:traces|metrics)$/.test(value.replace(/\/+$/, ""));
     } catch {
       return false;
     }
   },
   "Invalid OTLP endpoint.",
 ).describe(
-  "HTTPS OTLP/HTTP endpoint that receives exported telemetry batches; credentials belong in headers, never in the URL.",
+  "HTTPS OTLP/HTTP collector base URL, without a signal path; the server appends /v1/traces and /v1/metrics, and credentials belong in headers.",
 );
 
 export const TelemetrySinkConfigSchema = z.object({
