@@ -554,7 +554,18 @@ export async function createAccessToken(
   if (targetId === callerId) {
     targetPermissions = effectivePermissions(actor);
   } else {
-    await ownedServiceAccount(client, actor.organizationId, targetId);
+    const account = await ownedServiceAccount(
+      client,
+      actor.organizationId,
+      targetId,
+    );
+    // A member mints only for a service account they created; another
+    // member's account is a not-found, so its existence is not disclosed.
+    if (
+      !managesOrganization(actor) && account.createdByPrincipalId !== callerId
+    ) {
+      throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+    }
     const target = await resolveOrganizationActor(
       client,
       targetId as OrganizationActor["subject"]["principalId"],

@@ -46,6 +46,10 @@
   flex-wrap: wrap;
   gap: var(--space-2);
 }
+/* A page action reads as one line; the description beside it yields instead. */
+.ui-access-settings__actions .ui-button {
+  white-space: nowrap;
+}
 .ui-access-settings .ui-button--primary {
   box-sizing: border-box;
   min-block-size: 36px;
@@ -55,6 +59,13 @@
   line-height: var(--space-5);
 }
 
+/* A form's Save and Cancel keep one height and their own width. */
+.ui-access-settings [data-form-actions] .ui-button {
+  box-sizing: border-box;
+  font: var(--type-control);
+  min-block-size: max(var(--size-control), var(--target-min));
+  padding: var(--space-2) var(--space-3);
+}
 .ui-access-settings__section {
   display: flex;
   flex-direction: column;
@@ -230,6 +241,16 @@
     inline-size: 100%;
     min-block-size: var(--target-coarse);
     font: var(--type-control);
+  }
+  /* On a phone they share the line equally. */
+  .ui-access-settings [data-form-actions] {
+    display: flex;
+  }
+  .ui-access-settings [data-form-actions] .ui-button,
+  .ui-access-settings [data-form-actions] .ui-button--primary {
+    flex: 1 1 0;
+    inline-size: auto;
+    min-block-size: var(--target-coarse);
   }
   .ui-access-settings__section {
     gap: var(--space-4);
@@ -637,6 +658,34 @@
   }
 }
 
+/* The custom-roles form: a permission's label wraps beside its checkbox, the key
+   trails the sentence (under it on a phone), and a plain group draws no box.
+   Scoped here, the only page that uses them. */
+.ui-access-settings .ui-checkbox > span {
+  flex: 1 1 0%;
+  min-inline-size: 0;
+}
+.ui-access-settings .ui-checkbox .ui-data-text {
+  color: var(--color-fg-muted);
+  inline-size: auto;
+  margin-inline-start: var(--space-2);
+}
+@media (max-width: 743px) {
+  .ui-access-settings .ui-checkbox .ui-data-text {
+    display: block;
+    margin-inline-start: var(--space-0);
+  }
+}
+.ui-access-settings fieldset[data-group="plain"] {
+  border: var(--border-none);
+  margin: var(--space-0);
+  min-inline-size: 0;
+  padding: var(--space-0);
+}
+.ui-access-settings fieldset[data-group="plain"] > legend {
+  font: var(--type-control);
+  margin-block-end: var(--space-2);
+  padding: var(--space-0);
 /* The audit log's table (the only table on an access-layout page): a time keeps
    one line with tabular figures, and the first cell's text starts where the
    other cells' text does instead of centring in the 44px target. Scoped here so

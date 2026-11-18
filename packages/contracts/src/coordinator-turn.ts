@@ -80,6 +80,28 @@ export const CoordinatorPlanRevisionEffectSchema = z.object({
   "Effect proposing a plan revision; Bakery stores it as the task's next plan revision and requests approval when the stage policy needs a human.",
 );
 
+export const CoordinatorDefinitionProposalEffectSchema = z.object({
+  type: z.literal("definitionProposal").describe(
+    "Discriminator selecting the definition proposal effect.",
+  ),
+  workflowId: z.uuid().describe(
+    "Unlisted definition this conversation's coordinator proposed earlier and a person accepted; the proposal replaces its draft. Omit to propose a new unlisted definition.",
+  ).optional().describe(
+    "Target unlisted definition; omitted when proposing a new one.",
+  ),
+  name: z.string().min(1).max(200).describe(
+    "Plain-language name a person sees for the proposed workflow; becomes the unlisted definition's name when a new one is accepted.",
+  ),
+  definition: z.record(
+    z.string().describe("Workflow definition root key."),
+    z.unknown().describe("Workflow definition root value."),
+  ).describe(
+    "Complete workflow definition document the draft should hold after acceptance. Bakery stores it as a waiting proposal; nothing is written to any draft until a person accepts it through the editor's own draft operations, and publish validates it like any draft.",
+  ),
+}).strict().describe(
+  "Effect proposing an unlisted workflow definition draft; a person accepts or rejects it, an agent never can.",
+);
+
 export const CoordinatorNoopEffectSchema = z.object({
   type: z.literal("noop").describe("Discriminator selecting the noop effect."),
 }).strict().describe("Effect asking Bakery to change nothing.");
@@ -88,6 +110,7 @@ export const CoordinatorEffectSchema = z.discriminatedUnion("type", [
   CoordinatorReplyEffectSchema,
   CoordinatorQuestionEffectSchema,
   CoordinatorPlanRevisionEffectSchema,
+  CoordinatorDefinitionProposalEffectSchema,
   CoordinatorNoopEffectSchema,
 ]).describe("One typed effect a coordinator turn asks Bakery to apply.");
 export type CoordinatorEffect = z.infer<typeof CoordinatorEffectSchema>;
@@ -147,6 +170,7 @@ export const CoordinatorAgentEffectSchema = z.discriminatedUnion("type", [
   CoordinatorReplyEffectSchema,
   CoordinatorAgentQuestionEffectSchema,
   CoordinatorPlanRevisionEffectSchema,
+  CoordinatorDefinitionProposalEffectSchema,
   CoordinatorNoopEffectSchema,
 ]).describe(
   "One typed effect the live coordinator agent may ask Bakery to apply.",

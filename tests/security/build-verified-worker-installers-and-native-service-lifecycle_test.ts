@@ -102,13 +102,23 @@ function serve(handler: Handler) {
   };
 }
 
-/** A body that never ends, counting what the server was asked to produce. */
+/**
+ * A body that never ends, counting what the server was asked to produce.
+ *
+ * `paceMs` makes each chunk wait, so the server cannot run ahead of the reader
+ * by whatever the host's socket buffers hold. Without it the count is the cap
+ * plus those buffers, which loopback autotuning sets per host (4.25 MiB here).
+ */
 function endless(
   counter: { bytes: number },
   chunk = 64 * 1024,
+  paceMs = 0,
 ): ReadableStream<Uint8Array> {
   return new ReadableStream({
-    pull(controller) {
+    async pull(controller) {
+      if (paceMs > 0) {
+        await new Promise((resolve) => setTimeout(resolve, paceMs));
+      }
       counter.bytes += chunk;
       controller.enqueue(new Uint8Array(chunk).fill(97));
     },
@@ -492,7 +502,7 @@ Deno.test(
     const counter = { bytes: 0 };
     const releases = release();
     const bakery = serve(() =>
-      new Response(endless(counter), {
+      new Response(endless(counter, 64 * 1024, 25), {
         headers: { "content-type": "application/json" },
       })
     );
