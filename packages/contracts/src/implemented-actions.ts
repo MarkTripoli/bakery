@@ -243,6 +243,27 @@ export const agentImplementedActions = Object.freeze(
   Object.values(AgentImplementedAction),
 );
 
+/**
+ * The provider route and incident reads (#26 slice 2).
+ *
+ * Slice 1 published the contracts and deliberately left every action out of this
+ * set, so a catalogue entry could not tell a caller a feature existed with no
+ * handler behind it. These five have handlers now, and nothing else about them
+ * moves: they are reads, they take no body and they write no row.
+ */
+export const ProviderReadsImplementedAction = Object.freeze(
+  {
+    ProviderRoutesList: "providerRoutes.list",
+    ProviderRoutesGet: "providerRoutes.get",
+    ProviderRoutesHealth: "providerRoutes.health",
+    ProviderIncidentsList: "providerIncidents.list",
+    ProviderIncidentsGet: "providerIncidents.get",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const providerReadsImplementedActions = Object.freeze(
+  Object.values(ProviderReadsImplementedAction),
+);
+
 export const RepositoryRulesImplementedAction = Object.freeze(
   {
     RepositoryRulesGet: "repositoryRules.get",
@@ -567,6 +588,7 @@ export const implementedActions = Object.freeze(
     ...attemptReadImplementedActions,
     ...projectsImplementedActions,
     ...agentImplementedActions,
+    ...providerReadsImplementedActions,
     ...repositoryRulesImplementedActions,
     ...artifactKindImplementedActions,
     ...integrationsImplementedActions,
