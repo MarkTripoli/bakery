@@ -77,9 +77,13 @@ const permissions = lane === "native" ? ["--allow-all"] : [
       // The server's fixed launchers (infra/server-exec) are how its git and
       // systemd calls run; the unit tests exercise them through the real
       // spawn path, so the lane names them exactly.
+      // `Deno.execPath()` is here for the type-level probes: a few guarantees are
+      // about what the compiler REJECTS, and the only honest way to assert that is to
+      // compile a snippet. Without it those probes cannot run in this lane, and a
+      // type guarantee that is not asserted is a comment.
       `--allow-run=zip,unzip,node,git,/usr/bin/git,/usr/bin/stat,/usr/bin/prlimit,/usr/bin/setsid,/usr/bin/kill,${
         serverLauncher("git.sh")
-      },${serverLauncher("draft-systemd.sh")}`,
+      },${serverLauncher("draft-systemd.sh")},${Deno.execPath()}`,
     ]
     : []),
   // Provider conformance runs fixtures only: no bare --allow-run and no

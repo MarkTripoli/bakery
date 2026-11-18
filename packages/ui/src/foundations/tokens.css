@@ -1,4 +1,4 @@
-/* Generated from Paper 01M1X504XVC45FC0VDK857A37D revision paper:49fea8f7; pages:14-0,15-0,16-0,V-0; accessed:2026-09-17; digest 8402dd6f0dddfcf6605f92aa32948675924812baf5574ab861b65f4157f13aa4. */
+/* Generated from Paper 01M1X504XVC45FC0VDK857A37D revision paper:49fea8f7; pages:14-0,15-0,16-0,V-0; accessed:2026-09-17; digest 59d36d349376a83b9916102281644bb72e8292ec156c4c492bd11f6780c7c72a. */
 :root {
   --border-default: 1px;
   --border-emphasis: 2px;
@@ -21,6 +21,7 @@
   --duration-transition: 240ms;
   --ease-standard: cubic-bezier(0.16, 1, 0.3, 1);
   --focus-offset: 2px;
+  --focus-offset-inset: -2px;
   --focus-width: 2px;
   --font-mono: "Geist Mono", ui-monospace, monospace;
   --font-sans: Geist, system-ui, sans-serif;
@@ -38,6 +39,8 @@
   --layout-inspector: 320px;
   --layout-item-action: 100px;
   --layout-measure-prose: 68ch;
+  --layout-menu: 360px;
+  --layout-menu-blocks: 560px;
   --layout-message: 620px;
   --layout-section-rail: 224px;
   --layout-session-pane: 496px;
@@ -106,6 +109,7 @@
   --type-avatar: 600 12px/1 var(--font-sans);
   --type-backup-code: 400 16px/24px var(--font-mono);
   --type-backup-code-compact: 400 14px/24px var(--font-mono);
+  --type-badge: 400 11px/16px var(--font-sans);
   --type-body: 400 14px/20px var(--font-sans);
   --type-brand-rail: 600 18px/20px var(--font-sans);
   --type-brand-small: 600 18px/27px var(--font-sans);

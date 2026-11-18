@@ -12,6 +12,7 @@ import {
   parseApprovalPolicy,
   type TaskApprovalPolicy,
 } from "./stage-policy.ts";
+import { isWorkTypeLabel } from "@bakery/contracts/scope-profiles";
 
 const taskStatuses: Record<
   | "draft"
@@ -44,8 +45,28 @@ const taskTypes: Record<"feature" | "bug" | "epic" | "maintenance", true> = {
   maintenance: true,
 };
 type TaskType = keyof typeof taskTypes;
+/**
+ * The four software-delivery labels, kept as the defaults a pack creates. The
+ * kernel does not require one of them: work type is an organization label
+ * (O23), so any lowercase kebab-case label is a valid task type.
+ */
+export const SOFTWARE_TASK_TYPES = Object.freeze(
+  Object.keys(taskTypes) as TaskType[],
+);
 function isTaskType(value: string): value is TaskType {
   return Object.hasOwn(taskTypes, value);
+}
+/** True when the label is one the software-delivery pack supplies by default. */
+export function isSoftwareTaskType(value: string): boolean {
+  return isTaskType(value);
+}
+/**
+ * A stored task type is readable when it is a valid organization label. A row
+ * written before O23 holds one of the four software labels, which are labels
+ * too, so no stored row becomes unreadable.
+ */
+function isReadableTaskType(value: string): boolean {
+  return isTaskType(value) || isWorkTypeLabel(value);
 }
 
 export type TaskRow = {
@@ -118,7 +139,7 @@ export function toIso(value: Date | string): string {
 }
 
 export function toTask(row: TaskRow) {
-  if (!isTaskType(row.task_type) || !isTaskStatus(row.status)) {
+  if (!isReadableTaskType(row.task_type) || !isTaskStatus(row.status)) {
     throw new Error("WORK_READ_TASK_INVALID");
   }
   return {

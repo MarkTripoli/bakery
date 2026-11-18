@@ -4095,15 +4095,14 @@ const transportSchemas = {
         },
         {
           "name": "taskType",
-          "type": "enum",
+          "type": "string",
           "required": true,
-          "enum": [
-            "feature",
-            "bug",
-            "epic",
-            "maintenance"
-          ],
-          "description": "Classification of the work: `feature`, `bug`, `maintenance`, or `epic`. An `epic` is a parent task that completes only after its required child tasks complete, not merely when it is decomposed into them."
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 40,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          },
+          "description": "Organization work type label, a lowercase kebab-case token of up to 40 characters. The kernel never branches on it: it names the kind of work for people. `feature`, `bug`, `epic` and `maintenance` are the software-delivery defaults, not a closed set."
         },
         {
           "name": "title",
@@ -8062,6 +8061,80 @@ const transportSchemas = {
         }
       ]
     },
+    "HumanApprovalInput": {
+      "description": "Input to the human.approval workflow action: what the approver is asked, who may answer, and how the choices are labelled. The step waits for one person's decision, at most seven days, and never approves by silence.",
+      "fields": [
+        {
+          "name": "prompt",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "description": "Question put to the approver, shown in the inbox and on the approval page. Plain text: the decision is typed, never inferred from this text."
+        },
+        {
+          "name": "audience",
+          "type": "json",
+          "required": false,
+          "bounds": {
+            "maxBytes": 8192
+          },
+          "description": "Who may decide: a list of one to 50 member, group or role references. Absent means the workflow's owner, which is the default approver; an empty list is refused because a step nobody can answer could only expire."
+        },
+        {
+          "name": "approveLabel",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "description": "Optional label for the approving choice, so a workflow can say Release instead of Approve."
+        },
+        {
+          "name": "rejectLabel",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "description": "Optional label for the rejecting choice, paired with approveLabel."
+        },
+        {
+          "name": "allowRequestChanges",
+          "type": "boolean",
+          "required": false,
+          "description": "Whether the step also offers request changes. Defaults to true, matching the three shipped approval decisions."
+        }
+      ]
+    },
+    "WorkflowStopInput": {
+      "description": "Input to the workflow.stop action: an optional named outcome that ends the run on purpose, as opposed to failing, and an optional reason. A stop that names no outcome still ends the run.",
+      "fields": [
+        {
+          "name": "outcome",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "description": "Name of the outcome this stop produces, for example cancelled_by_customer or nothing_to_do. It becomes the run's named outcome and is what a later step or a caller branches on; omit it to end the run with the neutral outcome stopped, but do not pass an empty name."
+        },
+        {
+          "name": "reason",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 2000
+          },
+          "description": "Optional human explanation recorded with the outcome, for whoever reads the run later."
+        }
+      ]
+    },
     "MemoryPromoteInput": {
       "description": "Input to the memory.promote workflow action: the artifact version to promote into project memory and the repository revision that evidence was drawn from.",
       "fields": [
@@ -8136,7 +8209,7 @@ const transportSchemas = {
       "fields": [
         {
           "name": "actionId",
-          "type": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|integration.action|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|artifact.publish|memory.promote|evaluation.sample|task.brief)",
+          "type": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|integration.action|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|task.brief)",
           "required": true,
           "description": "Registered workflow action name, for example harness.implement or delivery.candidate_evidence; an unknown name answers not found."
         },
@@ -8943,15 +9016,14 @@ const transportSchemas = {
         },
         {
           "name": "taskType",
-          "type": "enum",
+          "type": "string",
           "required": true,
-          "enum": [
-            "feature",
-            "bug",
-            "epic",
-            "maintenance"
-          ],
-          "description": "Task classification copied from the task row."
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 40,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          },
+          "description": "Organization work type label copied from the task row. The kernel never branches on it, so any organization label travels here unchanged."
         },
         {
           "name": "approvedPlan",
@@ -10149,6 +10221,74 @@ const transportSchemas = {
         }
       ],
       "description": "Snapshot-bounded bulk mark-all-read for the recipient's own inbox: arrivals after the cutoff are deliberately left unread."
+    },
+    "SessionFeedList": {
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "Session whose live feed is being read; also the session path parameter."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation cursor from a prior session feed page; omit for the first page and never construct it directly."
+        },
+        {
+          "name": "sequenceAfter",
+          "type": "decimalString",
+          "required": false,
+          "description": "Internal forward marker used by the server's event stream to ask for items after a sequence it already sent; clients use cursor instead and never set this."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum number of feed items returned; defaults to 25 and cannot exceed 100."
+        }
+      ],
+      "description": "Reads one page of a session's typed, ordered, redacted live feed forward from an optional cursor."
+    },
+    "SessionList": {
+      "fields": [
+        {
+          "name": "runStepId",
+          "type": "uuid",
+          "required": true,
+          "description": "Run step whose agent sessions are being listed; every returned session belongs to it."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation cursor from a prior session list page; omit for the first page and never construct it directly."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum number of sessions returned; defaults to 25 and cannot exceed 100."
+        }
+      ],
+      "description": "Lists the agent sessions that belong to one run step, so a client can reach a session by run rather than by an id it already knows."
     }
   },
   "projections": {
@@ -10483,7 +10623,7 @@ const transportSchemas = {
         "parentTaskId": "uuid|null",
         "title": "string",
         "description": "string",
-        "taskType": "enum(feature|bug|epic|maintenance)",
+        "taskType": "string",
         "status": "enum(draft|queued|active|waiting_input|blocked|completed|failed|canceled)",
         "priority": "integer",
         "createdBy": "uuid",
@@ -17502,7 +17642,7 @@ const transportSchemas = {
         "parentTaskId": "uuid|null",
         "title": "string",
         "description": "string",
-        "taskType": "enum(feature|bug|epic|maintenance)",
+        "taskType": "string",
         "status": "enum(draft|queued|active|waiting_input|blocked|completed|failed|canceled)",
         "priority": "integer",
         "createdBy": "uuid",
@@ -19243,6 +19383,7 @@ const transportSchemas = {
         "id",
         "principalType",
         "displayName",
+        "createdByPrincipalId",
         "disabledAt",
         "createdAt",
         "updatedAt",
@@ -19255,10 +19396,12 @@ const transportSchemas = {
         "disabledAt": "timestamp|null",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "createdByPrincipalId": "uuid|null"
       },
       "nullableFields": [
-        "disabledAt"
+        "disabledAt",
+        "createdByPrincipalId"
       ],
       "description": "Safe principal lifecycle projection with no organization role or capability; organization authority is resolved separately from current membership or grants.",
       "fieldDescriptions": {
@@ -19268,7 +19411,8 @@ const transportSchemas = {
         "disabledAt": "UTC disablement instant, or null while the principal is enabled; enabled state is reloaded before protected work.",
         "createdAt": "UTC timestamp when the principal lifecycle record was created.",
         "updatedAt": "UTC timestamp when principal-owned lifecycle data was last changed.",
-        "version": "Optimistic-concurrency version for mutations of principal-owned lifecycle data."
+        "version": "Optimistic-concurrency version for mutations of principal-owned lifecycle data.",
+        "createdByPrincipalId": "Principal that created this service account, or null for a human principal or one created before the column existed; a member sees and manages the service accounts they created."
       }
     },
     "SecretMetadata": {
@@ -20114,7 +20258,7 @@ const transportSchemas = {
         "modelBillingRequired"
       ],
       "fieldTypes": {
-        "actionId": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|integration.action|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|artifact.publish|memory.promote|evaluation.sample|task.brief)",
+        "actionId": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|integration.action|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|task.brief)",
         "version": "integer",
         "input": "string",
         "output": "string",
@@ -20159,7 +20303,7 @@ const transportSchemas = {
       ],
       "fieldTypes": {
         "stepId": "string",
-        "action": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|integration.action|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|artifact.publish|memory.promote|evaluation.sample|task.brief)",
+        "action": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|integration.action|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|task.brief)",
         "source": "enum(step|workflow|profile|none)",
         "agentVersionId": "uuid|null",
         "revision": "integer|null",
@@ -25411,7 +25555,7 @@ const transportSchemas = {
         "runId": "uuid|null",
         "prompt": "string",
         "status": "enum(open|answered|expired|withdrawn|superseded|revoked|consumed)",
-        "subjectType": "enum(plan_revision|run_stage|merge|deploy)",
+        "subjectType": "enum(plan_revision|run_stage|merge|deploy|human_approval)",
         "subjectId": "uuid",
         "subjectDigest": "sha256",
         "scope": "json",
@@ -26347,6 +26491,270 @@ const transportSchemas = {
         "Only rows created at or before readBefore are marked, so arrivals during the action stay unread."
       ],
       "description": "Outcome of a snapshot-bounded mark-all-read: how many items were marked, how many are still unread, and the resulting revision."
+    },
+    "SessionFeedItem": {
+      "fields": [
+        "id",
+        "sessionId",
+        "sequence",
+        "kind",
+        "occurredAt",
+        "redacted",
+        "message",
+        "terminal",
+        "status",
+        "tool",
+        "fileChange",
+        "artifact",
+        "usage",
+        "deliveredInput"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "sessionId": "uuid",
+        "sequence": "decimalString",
+        "kind": "enum(message|terminal|status|tool|file_change|artifact|usage|delivered_input)",
+        "occurredAt": "timestamp",
+        "redacted": "boolean",
+        "message": "SessionFeedMessage|null",
+        "terminal": "SessionFeedTerminal|null",
+        "status": "SessionFeedStatus|null",
+        "tool": "SessionFeedTool|null",
+        "fileChange": "SessionFeedFileChange|null",
+        "artifact": "SessionFeedArtifact|null",
+        "usage": "SessionFeedUsage|null",
+        "deliveredInput": "SessionFeedDeliveredInput|null"
+      },
+      "nullableFields": [
+        "message",
+        "terminal",
+        "status",
+        "tool",
+        "fileChange",
+        "artifact",
+        "usage",
+        "deliveredInput"
+      ],
+      "fieldDescriptions": {
+        "id": "Stable UUID identifying the feed item, used as the keyset tie-breaker when two items share a sequence.",
+        "sessionId": "Stable UUID of the agent session this feed item belongs to; every item is keyed by session.",
+        "sequence": "Monotonic per-session sequence number; the feed is ordered by sequence ascending, then id, and a client resumes from the last sequence it saw.",
+        "kind": "Which typed payload this item carries; exactly the one payload field named by kind is non-null.",
+        "occurredAt": "UTC timestamp when the underlying fact happened, never when it was read.",
+        "redacted": "True when secret or credential material was removed from this item's payload before it reached the feed; the item is still present so the sequence stays gapless.",
+        "message": "Present when kind is message.",
+        "terminal": "Present when kind is terminal.",
+        "status": "Present when kind is status.",
+        "tool": "Present when kind is tool.",
+        "fileChange": "Present when kind is file_change.",
+        "artifact": "Present when kind is artifact.",
+        "usage": "Present when kind is usage.",
+        "deliveredInput": "Present when kind is delivered_input."
+      },
+      "description": "One entry in a session's typed, ordered, redacted live feed. Exactly one payload field matching kind is non-null. The feed never carries secret ciphertext, lease tokens, raw provider payloads or unredacted credential material."
+    },
+    "SessionFeedMessage": {
+      "fields": [
+        "messageId",
+        "authorId",
+        "authorKind",
+        "messageType",
+        "body"
+      ],
+      "fieldTypes": {
+        "messageId": "uuid",
+        "authorId": "uuid|null",
+        "authorKind": "enum(person|agent|system)",
+        "messageType": "enum(user|assistant|system|tool_summary)",
+        "body": "string"
+      },
+      "nullableFields": [
+        "authorId"
+      ],
+      "fieldDescriptions": {
+        "messageId": "Stable UUID of the conversation message this item mirrors.",
+        "authorId": "Stable UUID of the author, null when the author is the system.",
+        "authorKind": "Who produced the message, so a client can render attribution without a second lookup.",
+        "messageType": "Stored message classification.",
+        "body": "Message body after redaction."
+      },
+      "description": "A conversation message as it appears in the live feed."
+    },
+    "SessionFeedTerminal": {
+      "fields": [
+        "stream",
+        "text"
+      ],
+      "fieldTypes": {
+        "stream": "enum(stdout|stderr)",
+        "text": "string"
+      },
+      "fieldDescriptions": {
+        "stream": "Which terminal stream the text came from.",
+        "text": "Terminal text after redaction, chunked by the producer."
+      },
+      "description": "A chunk of terminal output from the session's harness."
+    },
+    "SessionFeedStatus": {
+      "fields": [
+        "fromStatus",
+        "toStatus",
+        "reason"
+      ],
+      "fieldTypes": {
+        "fromStatus": "enum(starting|active|waiting|finished|failed|interrupted)|null",
+        "toStatus": "enum(starting|active|waiting|finished|failed|interrupted)",
+        "reason": "string|null"
+      },
+      "nullableFields": [
+        "fromStatus",
+        "reason"
+      ],
+      "fieldDescriptions": {
+        "fromStatus": "Session status before the transition, null for the first status event.",
+        "toStatus": "Session status after the transition.",
+        "reason": "Bounded machine reason for the transition when one was recorded."
+      },
+      "description": "A session lifecycle status transition."
+    },
+    "SessionFeedTool": {
+      "fields": [
+        "callId",
+        "name",
+        "phase",
+        "ok"
+      ],
+      "fieldTypes": {
+        "callId": "string",
+        "name": "string",
+        "phase": "enum(started|completed|failed)",
+        "ok": "boolean|null"
+      },
+      "nullableFields": [
+        "ok"
+      ],
+      "fieldDescriptions": {
+        "callId": "Harness-scoped identifier for one tool invocation.",
+        "name": "Tool name as the harness reported it.",
+        "phase": "Which part of the tool's life this item records.",
+        "ok": "Outcome once known; null while the call is still open."
+      },
+      "description": "A tool invocation start or finish. Arguments and results are never carried here."
+    },
+    "SessionFeedFileChange": {
+      "fields": [
+        "path",
+        "change"
+      ],
+      "fieldTypes": {
+        "path": "string",
+        "change": "enum(created|modified|deleted|renamed)"
+      },
+      "fieldDescriptions": {
+        "path": "Workspace-relative path, bounded by the workspace revision.",
+        "change": "What happened to the file."
+      },
+      "description": "One file the session created, modified, deleted or renamed."
+    },
+    "SessionFeedArtifact": {
+      "fields": [
+        "artifactId",
+        "name",
+        "version"
+      ],
+      "fieldTypes": {
+        "artifactId": "uuid",
+        "name": "string",
+        "version": "integer|null"
+      },
+      "nullableFields": [
+        "version"
+      ],
+      "fieldDescriptions": {
+        "artifactId": "Stable UUID of the artifact version that was published.",
+        "name": "Artifact name within the run.",
+        "version": "Artifact version number when the artifact is versioned, else null."
+      },
+      "description": "An artifact the session published."
+    },
+    "SessionFeedUsage": {
+      "fields": [
+        "inputTokens",
+        "outputTokens",
+        "costUsd"
+      ],
+      "fieldTypes": {
+        "inputTokens": "decimalString|null",
+        "outputTokens": "decimalString|null",
+        "costUsd": "string|null"
+      },
+      "nullableFields": [
+        "inputTokens",
+        "outputTokens",
+        "costUsd"
+      ],
+      "fieldDescriptions": {
+        "inputTokens": "Provider-reported input tokens when known.",
+        "outputTokens": "Provider-reported output tokens when known.",
+        "costUsd": "Provider-reported USD cost when known."
+      },
+      "description": "A provider usage receipt for the session. Absence of a field means unknown, never zero."
+    },
+    "SessionFeedDeliveredInput": {
+      "fields": [
+        "messageId",
+        "body"
+      ],
+      "fieldTypes": {
+        "messageId": "uuid",
+        "body": "string"
+      },
+      "fieldDescriptions": {
+        "messageId": "Stable UUID of the steering message that was delivered.",
+        "body": "Delivered steering text after redaction."
+      },
+      "description": "A steering input that was delivered into the running session, so a watcher sees steers at the point they took effect."
+    },
+    "SessionFeed": {
+      "fields": [
+        "items",
+        "nextCursor"
+      ],
+      "fieldTypes": {
+        "items": "SessionFeedItem[]",
+        "nextCursor": "string|null"
+      },
+      "nullableFields": [
+        "nextCursor"
+      ],
+      "fieldDescriptions": {
+        "items": "Feed items in ascending sequence order, at most 100 per page.",
+        "nextCursor": "Opaque cursor to pass back to read the next page; null when the feed has no more items."
+      },
+      "description": "One page of a session's typed, ordered, redacted live feed, keyed by session and read forward from a sequence cursor."
+    },
+    "AgentSessionPage": {
+      "fields": [
+        "items",
+        "nextCursor"
+      ],
+      "fieldTypes": {
+        "items": "AgentSession[]",
+        "nextCursor": "string|null"
+      },
+      "fieldBounds": {
+        "items": {
+          "maxItems": 100
+        },
+        "nextCursor": {
+          "maxBytes": 512
+        }
+      },
+      "fieldDescriptions": {
+        "items": "Authorized agent sessions in stable createdAt then id ascending order.",
+        "nextCursor": "Opaque continuation after the last emitted session, or null when traversal is complete."
+      },
+      "description": "One page of the agent sessions that belong to a run step, newest page last."
     }
   },
   "pageEnvelope": {

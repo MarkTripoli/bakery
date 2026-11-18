@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import {
+  type ActionContext,
   ActionKind,
   ActionRegistry,
   assertRegisteredActions,
@@ -10,13 +11,18 @@ import {
   AuthImplementedAction,
   authImplementedActions,
 } from "@bakery/contracts/implemented-actions";
-import { createApiRouter } from "@bakery/contracts/http";
+import { createApiRouter, StandardError } from "@bakery/contracts/http";
 import {
   ActionAccess,
   contractSchemas,
   OrganizationContextPolicy,
 } from "@bakery/contracts/contracts";
 import type { PgDatabase } from "../../../../../platform/database.ts";
+import {
+  type AuthorizedActionContext,
+  type OrganizationActor,
+} from "../../../application/authority.ts";
+import { authorizeInitiatingPrincipal } from "../../../application/authorize.ts";
 import { createPostgresInstallationSettingsReader } from "../../../adapters/installation-settings-postgres.ts";
 import type { InstallationSettingsReader } from "../../../application/installation-settings.ts";
 import {
@@ -119,6 +125,19 @@ export type AuthActionRegistryOptions = {
  * shared by the HTTP routes and the MCP resource, so both transports run the
  * same operations through the same authority runner.
  */
+/**
+ * Registry-facing adapter for the "Initiating principal or Admin" guard. The
+ * runner has already resolved the actor onto the context, so this only hands it
+ * to the shared check (issue 233, owner-directed split).
+ */
+function authorizeInitiatingPrincipalGuard(context: ActionContext): void {
+  const actor = (context as Partial<AuthorizedActionContext>).authority as
+    | Partial<OrganizationActor>
+    | undefined;
+  if (actor === undefined) throw new StandardError({ code: "AUTH_FORBIDDEN" });
+  authorizeInitiatingPrincipal(actor as OrganizationActor);
+}
+
 export function createAuthActionRegistry(
   options: AuthActionRegistryOptions,
 ): ActionRegistry {
@@ -469,7 +488,8 @@ export function createAuthActionRegistry(
     output: contractSchemas["Page<Principal>"],
     policy: {
       type: ActionKind.Query,
-      access: ActionAccess.Admin,
+      access: ActionAccess.InitiatingPrincipalOrAdmin,
+      authorize: authorizeInitiatingPrincipalGuard,
       organizationContext:
         OrganizationContextPolicy.RequiredAuthenticatedContext,
     },
@@ -483,7 +503,8 @@ export function createAuthActionRegistry(
     policy: {
       sessionOnly: true,
       type: ActionKind.Command,
-      access: ActionAccess.Admin,
+      access: ActionAccess.InitiatingPrincipalOrAdmin,
+      authorize: authorizeInitiatingPrincipalGuard,
       organizationContext:
         OrganizationContextPolicy.RequiredAuthenticatedContext,
     },
@@ -638,7 +659,8 @@ export function createAuthActionRegistry(
     output: contractSchemas["Page<AccessToken>"],
     policy: {
       type: ActionKind.Query,
-      access: ActionAccess.Admin,
+      access: ActionAccess.InitiatingPrincipalOrAdmin,
+      authorize: authorizeInitiatingPrincipalGuard,
       organizationContext:
         OrganizationContextPolicy.RequiredAuthenticatedContext,
     },
@@ -653,7 +675,8 @@ export function createAuthActionRegistry(
     policy: {
       sessionOnly: true,
       type: ActionKind.Command,
-      access: ActionAccess.Admin,
+      access: ActionAccess.InitiatingPrincipalOrAdmin,
+      authorize: authorizeInitiatingPrincipalGuard,
       organizationContext:
         OrganizationContextPolicy.RequiredAuthenticatedContext,
     },
@@ -668,7 +691,8 @@ export function createAuthActionRegistry(
     policy: {
       sessionOnly: true,
       type: ActionKind.Command,
-      access: ActionAccess.Admin,
+      access: ActionAccess.InitiatingPrincipalOrAdmin,
+      authorize: authorizeInitiatingPrincipalGuard,
       organizationContext:
         OrganizationContextPolicy.RequiredAuthenticatedContext,
     },

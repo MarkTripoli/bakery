@@ -163,3 +163,20 @@ function allPermissions(actor: OrganizationActor): CatalogPermissionKey[] {
   });
   return [...new Set([...fromRole, ...fromCustom, ...fromGrants])].sort();
 }
+
+/**
+ * Guard for "Initiating principal or Admin" on the service-account and token
+ * actions (issue 233, owner-directed split). The role and permission check has
+ * already run; what is left is scope. A member acts on the records they own and
+ * an Admin acts on the whole organization, so the gate here is only that the
+ * caller is one of the two roles the policy names. The handlers narrow the
+ * reads and refuse a foreign write, which is where ownership is enforced.
+ */
+export function authorizeInitiatingPrincipal(actor: OrganizationActor): void {
+  if (
+    actor.role !== OrganizationRole.Admin &&
+    actor.role !== OrganizationRole.Developer
+  ) {
+    throw new StandardError({ code: "AUTH_FORBIDDEN" });
+  }
+}

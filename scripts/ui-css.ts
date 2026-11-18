@@ -31,6 +31,10 @@ const structuralLines = [
   // HelpTip's tooltip: the inspector width, bounded by the logical viewport.
   /^max-inline-size: min\(var\(--layout-inspector\), calc\(100dvi - var\(--space-8\)\)\)$/,
   /^inline-size: min\(100%, 32ch\)$/,
+  // The notification popover under the bell: a fixed menu width capped to the
+  // logical viewport, and a block cap that keeps the footer reachable.
+  /^inline-size: min\(var\(--layout-menu\), calc\(100dvi - var\(--space-4\)\)\)$/,
+  /^max-block-size: min\(70dvb, var\(--layout-menu-blocks\)\)$/,
   /^inline-size: min\(var\(--layout-content\), 100dvi\)$/,
   // Tokenized E05 dialog width, bounded by the logical viewport with a token gutter.
   /^inline-size: min\(calc\(var\(--layout-dialog\) - var\(--space-10\)\), calc\(100dvi -\s+var\(--space-8\)\)\)$/,

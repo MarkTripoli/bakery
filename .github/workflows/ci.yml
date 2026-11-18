@@ -2839,6 +2839,21 @@ jobs:
       contents: read
       issues: write
     steps:
+      # This job has now shipped with two different "it looks healthy" defects.
+      # The first was the missing Deno install: it exited 127 from the first
+      # live dispatch, and `continue-on-error` reported the job successful. The
+      # second was the missing checkout below: Deno installed fine and then had
+      # no repository, so it exited 1 with "Module not found .../scripts/ci/
+      # nightly-signal.ts" and `continue-on-error` again reported success.
+      #
+      # Both shared a shape worth naming: a step that never ran read exactly
+      # like a step that ran and had nothing to do. So this job checks out the
+      # ref it is signalling about, and `tests/rails/every-job-that-runs-a-
+      # repository-script-checks-out_test.ts` fails if a job that runs a repo
+      # script stops doing so.
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
+        with: { deno-version: v2.9.1 }
       - name: Record the nightly outcome as a tracking issue
         # A signal bug must never turn a green nightly red, so this step cannot
         # fail the workflow. It reports its own failure in the log instead.

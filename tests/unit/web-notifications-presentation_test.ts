@@ -1,5 +1,6 @@
 import { assert, assertEquals } from "@std/assert";
 import {
+  bellAccessibleName,
   bellStatusOf,
   DAY_GROUP_ORDER,
   dayGroupOf,
@@ -129,4 +130,34 @@ Deno.test("grouping keeps newest-first order and drops empty headings", () => {
     "thisWeek",
     "older",
   ]);
+});
+
+Deno.test("the bell's name carries the true count, not the drawn cap", () => {
+  // The badge is a drawn cap ("99+"), so the name is the only place the real
+  // number survives. Both ways the bell reaches the screen take the name from
+  // here, so a screen reader hears the count on a phone and on a desktop
+  // instead of the desktop trigger announcing a bare "Notifications".
+  const translate = (key: string, values?: Record<string, unknown>) =>
+    key === "notifications.bell.unread"
+      ? `Notifications, ${values?.count} unread`
+      : key === "notifications.bell.unknown"
+      ? "Notifications, count unavailable"
+      : "Notifications";
+
+  assertEquals(
+    bellAccessibleName({ state: "unread", count: 6 }, translate),
+    "Notifications, 6 unread",
+  );
+  assertEquals(
+    bellAccessibleName({ state: "unread", count: 120 }, translate),
+    "Notifications, 120 unread",
+  );
+  assertEquals(
+    bellAccessibleName({ state: "unknown" }, translate),
+    "Notifications, count unavailable",
+  );
+  assertEquals(
+    bellAccessibleName({ state: "none" }, translate),
+    "Notifications",
+  );
 });

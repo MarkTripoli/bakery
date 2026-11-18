@@ -18,7 +18,14 @@ export type TaskComposerSetupReason = NonNullable<
   ClientOutputMap["Page<WorkflowPreset>"]["items"][number]["availability"]
 >["reasons"][number];
 
-export type TaskComposerTaskType = "feature" | "bug" | "epic" | "maintenance";
+import {
+  isTaskComposerTaskType,
+  TASK_COMPOSER_TASK_TYPES,
+  type TaskComposerTaskType,
+} from "../atoms/task-composer-task-types.ts";
+
+export { isTaskComposerTaskType, TASK_COMPOSER_TASK_TYPES };
+export type { TaskComposerTaskType };
 
 export type TaskComposerPreset = {
   id: string;
@@ -35,7 +42,12 @@ export type TaskComposerValues = {
   repositoryId: string;
   presetId: string;
   title: string;
-  taskType: TaskComposerTaskType;
+  /**
+   * The task's work type label. Normally one of the four offered below; a task
+   * started elsewhere may carry another organization label, which is shown as
+   * itself so the form never misrepresents the row it was seeded from.
+   */
+  taskType: string;
   description: string;
   budget: string;
 };
@@ -124,12 +136,7 @@ export type TaskComposerFormProps = {
   view?: TaskComposerView;
 };
 
-const TASK_TYPES: readonly TaskComposerTaskType[] = [
-  "feature",
-  "bug",
-  "epic",
-  "maintenance",
-];
+const TASK_TYPES = TASK_COMPOSER_TASK_TYPES;
 
 /**
  * Controlled new-task form: repository, preset, title, type, description and
@@ -328,12 +335,19 @@ export function TaskComposerForm(
         disabled={inert}
         id={`${id}-type`}
         label={labels.taskType}
-        onChange={(event) =>
-          onChange("taskType", event.target.value as TaskComposerTaskType)}
-        options={TASK_TYPES.map((type) => ({
-          label: labels.taskTypes[type],
-          value: type,
-        }))}
+        onChange={(event) => onChange("taskType", event.target.value)}
+        options={[
+          ...TASK_TYPES.map((type) => ({
+            label: labels.taskTypes[type],
+            value: type as string,
+          })),
+          // A label this picker does not offer is shown as itself. The form is
+          // read-only over a frozen submission, so the honest choice is to name
+          // the row's real label rather than present it as one of the four.
+          ...(TASK_TYPES.includes(values.taskType as TaskComposerTaskType)
+            ? []
+            : [{ label: values.taskType, value: values.taskType }]),
+        ]}
         value={values.taskType}
       />
       <Field

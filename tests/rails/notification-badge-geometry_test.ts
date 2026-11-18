@@ -1,0 +1,302 @@
+import { assert, assertEquals } from "@std/assert";
+
+/**
+ * The badge's placement is a design number, not a taste: it sits on the bell
+ * icon's own corner, overlaps at most 8x8px of it, and is one rule for both the
+ * desktop bar and the phone. Stills prove what the pixels did on the day; they
+ * do not run in CI, so they cannot stop the next seat from re-breaking it.
+ *
+ * This rail reads the stylesheet and the component and re-derives the numbers
+ * from the tokens, so it fails for the reasons the design would fail:
+ *
+ *   - the pill's height stops being the 16px line it is drawn from;
+ *   - the overlap stops being 8px, or stops being measured from the glyph;
+ *   - a width-scoped override creeps back in, which is what made the desktop
+ *     and the phone disagree in the first place;
+ *   - the anchor stops being a logical inset, which is what mirrors it in a
+ *     right-to-left page;
+ *   - the cap loses its left-to-right isolation and a right-to-left page draws
+ *     "+99".
+ */
+const SPACE_PREFIX = "--space-";
+
+/** Reads a `--token: <n>px` value out of the generated token stylesheet. */
+function spaceValue(tokensCss: string, name: string): number {
+  const match = tokensCss.match(
+    new RegExp(`${SPACE_PREFIX}${name}:\\s*(\\d+(?:\\.\\d+)?)px`),
+  );
+  assert(match, `tokens.css has no --space-${name} in px`);
+  return Number(match[1]);
+}
+
+/**
+ * The declarations of one rule, without its selector or inner braces. A missing
+ * rule is null rather than a thrown error: the rail exists to say what is
+ * wrong, and "there is no such rule" is one of the things that can be wrong.
+ */
+function ruleBody(css: string, selector: string): string | null {
+  const start = css.indexOf(`${selector} {`);
+  if (start < 0) return null;
+  const open = css.indexOf("{", start);
+  let depth = 0;
+  for (let index = open; index < css.length; index += 1) {
+    if (css[index] === "{") depth += 1;
+    else if (css[index] === "}") {
+      depth -= 1;
+      if (depth === 0) return css.slice(open + 1, index);
+    }
+  }
+  throw new Error(`${selector} is not closed`);
+}
+
+/**
+ * A `calc(var(--space-N) * -M)`, or `calc(100% - var(--space-N) * M)`, in px.
+ * Returns null when the declaration is absent or shaped differently, so a
+ * rewrite that quietly changes the form is reported rather than ignored.
+ */
+function offsetFromEdge(
+  body: string,
+  property: string,
+  tokensCss: string,
+): number | null {
+  const declaration = body.match(
+    new RegExp(`${property}:\\s*calc\\(([^;]+)\\)`),
+  );
+  if (!declaration) return null;
+  const expression = declaration[1];
+  const againstSpace = expression.match(
+    new RegExp(`${SPACE_PREFIX}(\\d+)\\)\\s*\\*\\s*(-?\\d+(?:\\.\\d+)?)`),
+  );
+  if (!againstSpace) return null;
+  const gap = spaceValue(tokensCss, againstSpace[1]);
+  return Math.abs(Number(againstSpace[2])) * gap;
+}
+
+/**
+ * Every `@media` block that re-*places* the badge. A block that only changes
+ * how the badge fades is welcome; a block that moves it by width is the thing
+ * that made the desktop and the phone disagree.
+ */
+function widthScopedBadgeRules(css: string): string[] {
+  const found: string[] = [];
+  for (const match of css.matchAll(/@media\s+([^{]+)\{/g)) {
+    const start = match.index ?? 0;
+    let depth = 0;
+    let end = start;
+    for (let index = css.indexOf("{", start); index < css.length; index += 1) {
+      if (css[index] === "{") depth += 1;
+      else if (css[index] === "}") {
+        depth -= 1;
+        if (depth === 0) {
+          end = index;
+          break;
+        }
+      }
+    }
+    const block = css.slice(start, end);
+    const anchors = block.includes(".ui-notification-bell__badge") ||
+      block.includes(".ui-notification-bell__glyph");
+    if (!anchors) continue;
+    const repositions =
+      /(?:^|[\s{;])(?:inset(?:-[a-z]+)*|top|right|bottom|left|position|margin(?:-[a-z]+)*|padding(?:-[a-z]+)*|translate)\s*:/
+        .test(block);
+    if (repositions) found.push(`@media ${match[1].trim()}`);
+  }
+  return found;
+}
+
+/** Renders an offset for a message: an absent declaration is not "nullpx". */
+function describeOffset(value: number | null): string {
+  return value === null ? "no usable offset" : `${value}px`;
+}
+
+export function badgeGeometryViolations(
+  css: string,
+  tokensCss: string,
+  component: string,
+): string[] {
+  const violations: string[] = [];
+  const badge = ruleBody(css, ".ui-notification-bell__badge");
+  const glyph = ruleBody(css, ".ui-notification-bell__glyph");
+  const ring = ruleBody(css, ".ui-notification-bell__badge--unknown");
+  if (badge === null) {
+    violations.push("data.css has no .ui-notification-bell__badge rule");
+  }
+  const glyphMissing = glyph === null;
+  if (glyphMissing) {
+    violations.push("data.css has no .ui-notification-bell__glyph rule");
+  }
+  if (ring === null) {
+    violations.push("data.css has no rule for the unknown ring");
+  }
+  const badgeBody = badge ?? "";
+  const glyphBody = glyph ?? "";
+  const ringBody = ring ?? "";
+
+  // 1. The pill is 16px tall because it is drawn on --type-badge's line.
+  if (!/(?:^|\n)\s*font:\s*var\(--type-badge\)/.test(badgeBody)) {
+    violations.push("badge does not take its type from --type-badge");
+  }
+  const typeBadge = tokensCss.match(/--type-badge:\s*[^;]*?\/\s*(\d+)px/);
+  if (typeBadge === null) {
+    violations.push("tokens.css does not declare --type-badge with a px line");
+  } else if (Number(typeBadge[1]) !== 16) {
+    violations.push(
+      `--type-badge carries a ${typeBadge[1]}px line; the design pins 16px`,
+    );
+  }
+
+  // 2. The offset is measured from the glyph's own box.
+  if (!glyphMissing && !/position:\s*relative/.test(glyphBody)) {
+    violations.push("the glyph is not the badge's positioning cell");
+  }
+  if (!/position:\s*absolute/.test(badgeBody)) {
+    violations.push("the badge is not positioned against the glyph");
+  }
+
+  // 3. The overlap is 8x8, derived from the tokens rather than trusted.
+  const overlapBlock = offsetFromEdge(
+    badgeBody,
+    "inset-block-start",
+    tokensCss,
+  );
+  const overlapInline = offsetFromEdge(
+    badgeBody,
+    "inset-inline-start",
+    tokensCss,
+  );
+  if (overlapBlock !== 8) {
+    violations.push(
+      `badge overhangs the icon vertically by ${
+        describeOffset(overlapBlock)
+      }; the design pins 8px`,
+    );
+  }
+  if (overlapInline !== 8) {
+    violations.push(
+      `badge overhangs the icon inline by ${
+        describeOffset(overlapInline)
+      }; the design pins 8px`,
+    );
+  }
+
+  // 4. One rule for both surfaces: nothing may re-place the badge by width.
+  for (const query of widthScopedBadgeRules(css)) {
+    violations.push(
+      `${query} re-places the badge; the design pins one offset for both surfaces`,
+    );
+  }
+
+  // 5. Logical insets are what mirror the pill in a right-to-left page.
+  for (const physical of ["left", "right", "top", "bottom"]) {
+    if (new RegExp(`(?:^|\\n)\\s*${physical}:`).test(badgeBody)) {
+      violations.push(
+        `badge uses the physical ${physical}; a logical inset mirrors it in a right-to-left page`,
+      );
+    }
+  }
+
+  // 6. The ring is 12px with a 6px overhang, per the same geometry.
+  const ringSize = ringBody.match(/block-size:\s*var\(--space-(\d+)\)/);
+  if (ringSize === null || spaceValue(tokensCss, ringSize[1]) !== 12) {
+    violations.push("the unknown ring is not 12px");
+  }
+  for (
+    const property of ["inset-block-start", "inset-inline-start"] as const
+  ) {
+    const overhang = offsetFromEdge(ringBody, property, tokensCss);
+    if (overhang !== 6) {
+      violations.push(
+        `the unknown ring's ${property} is ${
+          describeOffset(overhang)
+        }; the design pins 6px`,
+      );
+    }
+  }
+
+  // 7. A count reads left to right in every locale. Without the isolate a
+  // right-to-left page draws "99+" as "+99", which reads as another number.
+  if (!/unicode-bidi:\s*isolate/.test(badgeBody)) {
+    violations.push("the badge does not isolate its count's direction");
+  }
+  if (!/dir="ltr"/.test(component)) {
+    violations.push(
+      "the drawn cap is not marked left-to-right in the component",
+    );
+  }
+
+  return violations;
+}
+
+const root = decodeURIComponent(new URL("../..", import.meta.url).pathname);
+const css = await Deno.readTextFile(`${root}packages/ui/src/data.css`);
+const tokensCss = await Deno.readTextFile(
+  `${root}packages/ui/src/foundations/tokens.css`,
+);
+const component = await Deno.readTextFile(
+  `${root}packages/ui/src/molecules/NotificationBell.tsx`,
+);
+
+Deno.test("the badge's geometry is the design's, derived from the tokens", () => {
+  assertEquals(badgeGeometryViolations(css, tokensCss, component), []);
+});
+
+Deno.test("a width-scoped offset is reported, because it broke both surfaces", () => {
+  const broken = `${css}
+@media (min-width: 744px) {
+  .ui-notification-bell__badge {
+    inset-block-start: calc((var(--space-3) + var(--space-1)) * -1);
+  }
+}`;
+  assert(
+    badgeGeometryViolations(broken, tokensCss, component).some((violation) =>
+      violation.includes("one offset for both surfaces")
+    ),
+  );
+});
+
+Deno.test("a pill that stops being 16px tall is reported", () => {
+  const taller = tokensCss.replace(
+    "--type-badge: 400 11px/16px",
+    "--type-badge: 400 11px/20px",
+  );
+  assert(taller !== tokensCss, "the fixture did not change a token");
+  assert(
+    badgeGeometryViolations(css, taller, component).some((violation) =>
+      violation.includes("the design pins 16px")
+    ),
+  );
+});
+
+Deno.test("an overlap that drifts off 8px is reported", () => {
+  const drifted = css.replace(
+    "inset-block-start: calc(var(--space-1) * -2);",
+    "inset-block-start: calc(var(--space-1) * -3);",
+  );
+  assert(
+    badgeGeometryViolations(drifted, tokensCss, component).some((violation) =>
+      violation.includes("the design pins 8px")
+    ),
+  );
+});
+
+Deno.test("a physical inset is reported, because it kills the mirror", () => {
+  const physical = css.replace(
+    "inset-inline-start: calc(100% - var(--space-1) * 2);",
+    "right: calc(var(--space-1) * -2);",
+  );
+  assert(
+    badgeGeometryViolations(physical, tokensCss, component).some((violation) =>
+      violation.includes("a logical inset mirrors it")
+    ),
+  );
+});
+
+Deno.test("a cap without its left-to-right isolate is reported", () => {
+  const unisolated = css.replace("unicode-bidi: isolate;", "");
+  assert(
+    badgeGeometryViolations(unisolated, tokensCss, component).some((
+      violation,
+    ) => violation.includes("isolate its count's direction")),
+  );
+});

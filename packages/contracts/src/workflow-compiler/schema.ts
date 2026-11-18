@@ -358,7 +358,17 @@ export type WorkflowWaitNode = {
   if?: WorkflowExpressionNode | undefined;
   wait:
     | { kind: "duration"; durationMs: number }
-    | { kind: "event"; event: string; timeoutMs: number };
+    | {
+      kind: "event";
+      event: string;
+      timeoutMs: number;
+      /**
+       * For a human.approval wait, the approval this step waits on. Pinning it
+       * on the step is what stops an answer arriving for one approval from
+       * completing a different step's wait.
+       */
+      approvalId?: string | undefined;
+    };
 };
 export type WorkflowLane = {
   id: string;
@@ -525,7 +535,15 @@ const waitNodeSchema = z.object({
       event: z.string().regex(/^[a-z][A-Za-z0-9_.]{0,63}$/).describe(
         "Named event the wait subscribes to.",
       ),
-      timeoutMs: durationMsSchema.min(1000),
+      // An event wait's timeout may stand for a long time: a human.approval
+      // wait is bounded by its own seven-day ceiling, not the one-day duration
+      // ceiling that bounds actions and runs.
+      timeoutMs: z.number().int().min(1000).max(604_800_000).describe(
+        "Longest the wait may last before it expires, at most seven days. A human.approval wait uses the full window; every other event wait keeps the compiler's duration ceiling.",
+      ),
+      approvalId: z.string().min(1).max(200).optional().describe(
+        "For a human.approval wait, the approval this step waits on. Pinning it on the step is what stops an answer arriving for one approval from completing a different step's wait.",
+      ),
     }).strict().describe("Wait for a named event with a finite timeout."),
   ]).describe("Duration wait or event wait."),
 }).strict().describe("Wait node that never blocks indefinitely.");

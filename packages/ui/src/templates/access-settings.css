@@ -26,14 +26,12 @@
 .ui-access-settings__heading h1 {
   margin: var(--space-0);
   font: var(--type-heading-auth);
-  font-family: system-ui, sans-serif;
   letter-spacing: var(--tracking-heading-page);
 }
 .ui-access-settings__heading p {
   margin: var(--space-0);
   color: var(--color-fg-muted);
   font: var(--type-body);
-  font-family: system-ui, sans-serif;
 }
 .ui-access-settings__summary {
   position: absolute;
@@ -54,7 +52,6 @@
   padding-block: calc(var(--space-2) - var(--border-default));
   padding-inline: calc(var(--space-3-5) - var(--border-default));
   font: var(--type-control-preview-compact);
-  font-family: system-ui, sans-serif;
   line-height: var(--space-5);
 }
 
@@ -73,12 +70,10 @@
 .ui-access-settings__section-head h2 {
   margin: var(--space-0);
   font: var(--type-heading-subsection);
-  font-family: system-ui, sans-serif;
 }
 .ui-access-settings__aside {
   color: var(--color-fg-muted);
   font: var(--type-hint);
-  font-family: system-ui, sans-serif;
 }
 .ui-access-settings__section-actions {
   display: flex;
@@ -87,6 +82,38 @@
   margin-inline-start: auto;
 }
 
+/* Column names sit above the rows and borrow the row's own widths, so
+   "Organization · Admin" and "All applications" stop being unexplained
+   (issue 233, fix 3). A phone shows rows as lines, so its headers are hidden. */
+.ui-access-settings__row--head {
+  border-block-start: var(--border-none);
+  padding-block: var(--space-1);
+  border-block-end: var(--border-default) solid var(--color-border);
+}
+.ui-access-settings__row--head .ui-access-settings__identity,
+.ui-access-settings__row--head .ui-access-settings__cell,
+.ui-access-settings__row--head .ui-access-settings__action {
+  color: var(--color-fg-muted);
+  font: var(--type-hint);
+}
+.ui-access-settings__title-help {
+  flex: none;
+  margin-inline-start: var(--space-1);
+  /* Keep the help beside its heading; the section's actions take the rest. */
+  margin-inline-end: auto;
+}
+/* Help that a wide screen shows beside its column instead. */
+.ui-access-settings__title-help[data-phone-only="true"] {
+  display: none;
+}
+.ui-access-settings__empty-help {
+  display: block;
+  margin-block-start: var(--space-1);
+}
+.ui-access-settings__empty-action {
+  display: flex;
+  padding-block-start: var(--space-3);
+}
 .ui-access-settings__rows {
   display: flex;
   flex-direction: column;
@@ -110,60 +137,56 @@
   flex: 1;
   min-inline-size: 0;
   font: var(--type-body);
-  font-family: system-ui, sans-serif;
 }
 .ui-access-settings__identity[data-emphasis="true"] {
   font: var(--type-control);
-  font-family: system-ui, sans-serif;
 }
 .ui-access-settings__cell {
   flex: none;
   inline-size: 180px;
   color: var(--color-fg-muted);
   font: var(--type-hint);
-  font-family: system-ui, sans-serif;
 }
 .ui-access-settings__cell + .ui-access-settings__cell {
   inline-size: 160px;
 }
-.ui-access-settings__rows[data-columns="detail"] .ui-access-settings__cell {
-  inline-size: 340px;
-}
+/* Every table shares the same two cell widths, so the four tables line up
+   with each other as well as with their own headers (issue 233, round 3). */
+/* The row's one action is a real button (issue 233, fix 5), so the column is
+   wide enough for a whole label and never wraps it (AC 3). */
 .ui-access-settings__action {
+  display: flex;
   flex: none;
-  inline-size: var(--space-12);
-  font: var(--type-control-preview-compact);
-  font-family: system-ui, sans-serif;
-  line-height: var(--space-5);
+  justify-content: flex-end;
+  /* One width for the header and every row, so a cell starts under its header
+     and all four tables share the same column starts (issue 233, round 2). */
+  inline-size: calc(var(--space-16) + var(--space-16) + var(--space-12));
 }
-.ui-access-settings__action[data-tone="destructive"] {
-  color: var(--color-destructive);
-}
+/* A row's action takes Edit's box - same height, radius and border width.
+   Only a destructive one paints the label and the border in the destructive
+   colour; a neutral action keeps the secondary button it is (issue 233,
+   design rounds 3 and 4). */
 .ui-access-settings__action .ui-button {
-  min-block-size: 20px;
-  min-inline-size: 0;
-  padding: var(--space-0);
-  border: var(--border-none);
-  background: transparent;
-  font: inherit;
+  font: var(--type-control-preview-compact);
   line-height: var(--space-5);
-  color: var(--color-selection);
+  white-space: nowrap;
 }
 .ui-access-settings__action[data-tone="destructive"] .ui-button {
+  border-color: var(--color-destructive);
   color: var(--color-destructive);
 }
-.ui-access-settings__action .ui-button::after {
-  position: absolute;
-  inset-block: 0;
-  inset-inline-end: 0;
-  inline-size: 56px;
-  content: "";
+
+/* A phone reads the same lines the wide screen splits into columns. */
+.ui-access-settings__phone-cells {
+  display: none;
+}
+.ui-access-settings__phone-line {
+  font: var(--type-row-title);
 }
 
 .ui-access-settings__empty {
   color: var(--color-fg-muted);
   font: var(--type-body);
-  font-family: system-ui, sans-serif;
 }
 
 @media (max-width: 743px) {
@@ -172,17 +195,20 @@
   }
   .ui-access-settings__heading h1 {
     font: var(--type-heading-page);
-    font-family: system-ui, sans-serif;
   }
-  .ui-access-settings__description,
-  .ui-access-settings__title-detail,
-  .ui-access-settings__aside {
+  .ui-access-settings__title-detail {
     position: absolute;
     visibility: hidden;
     inline-size: 0;
     block-size: 0;
     margin: 0;
     overflow: hidden;
+  }
+  /* A phone keeps the description under the title, and the pending count as
+     the control it is, on its own line (issue 233, round 2). */
+  .ui-access-settings__aside {
+    display: flex;
+    inline-size: 100%;
   }
   .ui-access-settings__summary {
     position: static;
@@ -204,12 +230,24 @@
     inline-size: 100%;
     min-block-size: var(--target-coarse);
     font: var(--type-control);
-    font-family: system-ui, sans-serif;
   }
   .ui-access-settings__section {
     gap: var(--space-4);
   }
+  .ui-access-settings__title-help[data-phone-only="true"] {
+    display: inline-flex;
+  }
+  .ui-access-settings__section-head h2 {
+    flex: 0 1 auto;
+  }
+  .ui-access-settings__section-actions {
+    flex: 1 0 100%;
+    inline-size: 100%;
+    margin-inline-start: var(--space-0);
+  }
   .ui-access-settings__section-head {
+    flex-wrap: wrap;
+    align-items: flex-start;
     padding-block-end: var(--space-0);
   }
   .ui-access-settings__rows {
@@ -224,7 +262,11 @@
     box-sizing: border-box;
     padding-block: var(--space-2);
     font: var(--type-row-title);
-    font-family: system-ui, sans-serif;
+  }
+  /* A phone reads each row as its own labelled block, so a header row above
+     them would name columns that no longer line up (issue 233, fix 3). */
+  .ui-access-settings__row--head {
+    display: none;
   }
   .ui-access-settings__identity {
     display: block;
@@ -239,7 +281,6 @@
   .ui-access-settings__cell {
     display: inline-block;
     font: var(--type-row-title);
-    font-family: system-ui, sans-serif;
   }
   .ui-access-settings__rows[data-columns] .ui-access-settings__cell[data-phone-hidden="true"] {
     position: absolute;
@@ -255,6 +296,25 @@
   .ui-access-settings__cell + .ui-access-settings__cell::before {
     content: " · ";
     white-space: pre;
+  }
+  /* Rows that carry their own phone lines drop the column cells, so a role
+     reads once, with its scope, rather than twice. */
+  .ui-access-settings__phone-cells {
+    display: block;
+  }
+  .ui-access-settings__row[data-has-phone-cells="true"] > .ui-access-settings__cell {
+    display: none;
+  }
+  /* `block` puts the row's one action on its own full-width line under it. */
+  .ui-access-settings__rows[data-phone="block"] .ui-access-settings__action {
+    display: flex;
+    inline-size: 100%;
+    margin-block-start: var(--space-3);
+  }
+  .ui-access-settings__rows[data-phone="block"] .ui-access-settings__action .ui-button {
+    inline-size: 100%;
+    min-block-size: var(--target-coarse);
+    font: var(--type-control);
   }
   .ui-access-settings__rows[data-phone="overlay"] .ui-access-settings__action {
     position: absolute;
@@ -285,7 +345,6 @@
   }
   .ui-access-settings__rows[data-phone="inline"] .ui-access-settings__cell {
     font: var(--type-control);
-    font-family: system-ui, sans-serif;
     color: var(--color-fg);
   }
   .ui-access-settings__rows[data-phone="inline"] .ui-access-settings__cell code {
@@ -302,7 +361,6 @@
     display: inline;
     inline-size: auto;
     font: var(--type-row-title);
-    font-family: system-ui, sans-serif;
   }
   .ui-access-settings__rows[data-phone="stacked"] .ui-access-settings__action::before {
     content: " · ";
@@ -330,7 +388,6 @@
   margin: var(--space-0);
   color: var(--color-fg-muted);
   font: var(--type-hint);
-  font-family: system-ui, sans-serif;
   line-height: var(--space-4);
 }
 .ui-access-settings__skeleton-line {
@@ -369,12 +426,10 @@
 .ui-access-settings__panel h2 {
   margin: var(--space-0);
   font: var(--type-control-preview);
-  font-family: system-ui, sans-serif;
 }
 .ui-access-settings__panel p {
   margin: var(--space-0);
   font: var(--type-hint);
-  font-family: system-ui, sans-serif;
 }
 .ui-access-settings__panel[data-tone="error"] {
   background: var(--color-destructive-surface);
@@ -389,14 +444,12 @@
 }
 .ui-access-settings__panel[data-tone="empty"] h2 {
   font: var(--type-heading-subsection);
-  font-family: system-ui, sans-serif;
   line-height: var(--space-5);
 }
 .ui-access-settings__panel[data-tone="empty"] p {
   max-inline-size: 520px;
   color: var(--color-fg-muted);
   font: var(--type-body);
-  font-family: system-ui, sans-serif;
 }
 .ui-access-settings__panel .ui-button {
   box-sizing: border-box;
@@ -404,7 +457,6 @@
   padding-block: calc(var(--space-2) - var(--border-default));
   padding-inline: calc(var(--space-3-5) - var(--border-default));
   font: var(--type-control-preview-compact);
-  font-family: system-ui, sans-serif;
 }
 .ui-access-settings__panel p[data-short="true"] {
   position: absolute;
@@ -462,7 +514,6 @@
     inline-size: 100%;
     min-block-size: var(--target-coarse);
     font: var(--type-control);
-    font-family: system-ui, sans-serif;
   }
   .ui-access-settings__panel p[data-short="false"] {
     position: absolute;
@@ -491,7 +542,6 @@
   border-radius: var(--radius-overlay);
   background: var(--color-status-success-surface);
   font: var(--type-hint);
-  font-family: system-ui, sans-serif;
 }
 .ui-access-settings code {
   font: var(--type-data);
@@ -510,7 +560,6 @@
   background: var(--color-surface);
   color: inherit;
   font: var(--type-dismiss);
-  font-family: system-ui, sans-serif;
   cursor: pointer;
   opacity: 0;
   transform: translateY(-50%);

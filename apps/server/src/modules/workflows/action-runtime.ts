@@ -3,6 +3,7 @@ import {
   UnknownWorkerActionError,
   workerActionCapabilities,
 } from "@bakery/contracts/contracts";
+import { normalizeWorkflowStop } from "@bakery/contracts/human-approval";
 import { StandardError } from "@bakery/contracts/http";
 import {
   assertDispatchableWorkflowActionsRegistered,
@@ -105,6 +106,30 @@ function handlerFor(
     return (input) => {
       parser(schemas, metadata.input).parse(input);
       return parser(schemas, metadata.output).parse({});
+    };
+  }
+  if (action === WorkflowRuntimeImplementedAction.Stop) {
+    const metadata = WORKFLOW_ACTION_METADATA[action];
+    return (value) => {
+      const input = parser(schemas, metadata.input).parse(value);
+      // A stop names its outcome and does not run code: the run ends on the
+      // named outcome, which is what a caller or a later step branches on.
+      return parser(schemas, metadata.output).parse(normalizeWorkflowStop(
+        input as { outcome: string; reason?: string },
+      ));
+    };
+  }
+  if (action === WorkflowRuntimeImplementedAction.HumanApproval) {
+    // The approval step waits: an answer completes it, so the handler validates
+    // the input and reports the wait rather than producing a decision. Asking
+    // for a decision here would let the step approve itself.
+    const metadata = WORKFLOW_ACTION_METADATA[action];
+    return (value) => {
+      parser(schemas, metadata.input).parse(value);
+      throw new StandardError({
+        code: "STATE_CONFLICT",
+        params: { reason: "workflow_approval_awaits_decision" },
+      });
     };
   }
   if (action === WorkflowRuntimeImplementedAction.Plan) {

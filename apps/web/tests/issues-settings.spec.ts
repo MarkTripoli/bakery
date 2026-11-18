@@ -192,6 +192,7 @@ async function settingsFixture(page: Page, options: SettingsOptions = {}) {
         items: [{
           id: uuid(910),
           principalType: "human",
+          createdByPrincipalId: null,
           displayName: "Ada Lovelace",
           disabledAt: null,
           createdAt: STAMP,

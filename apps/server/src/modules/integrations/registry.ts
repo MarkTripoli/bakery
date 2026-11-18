@@ -1,0 +1,184 @@
+/**
+ * One manifest owns all three provider identifiers (chapter 09 section 12.4).
+ *
+ * A provider is named three ways and they must never disagree:
+ *
+ * - the **gate id** the route and the action namespace use (`bakery.github`),
+ * - the **provider slug** stored on connections and in URLs (`github`),
+ * - the **provider UUID** on the `integration_providers` row.
+ *
+ * Before this module each lived somewhere else: the gate id inside the integration
+ * definition, the slug as a module constant, the UUID as a literal in
+ * `integrations/postgres.ts` with a comment explaining it was fixed so a connection
+ * could name GitHub before the registry existed. Three copies is three chances to
+ * disagree, and the disagreement is silent: a connection written under one slug is
+ * invisible to the gate reading another.
+ *
+ * The registry is static on purpose. No dynamic import and no discovery from disk,
+ * because "which providers does this build have" has to be answerable by reading a
+ * file, and a provider that failed to load would otherwise look like one that was
+ * never deployed.
+ */
+
+/**
+ * The identity of one deployed provider.
+ *
+ * `uuid` is pinned: it is the `integration_providers` primary key, so changing it
+ * orphans every connection that references it.
+ */
+export type ProviderIdentity = {
+  /** Gate identifier, always `bakery.<slug>`; the action namespace prefix. */
+  readonly gateId: `bakery.${string}`;
+  /** Stored provider slug; appears in URLs and on connection rows. */
+  readonly slug: string;
+  /** Provider row id; UUIDv5 of `urn:bakery:integration-provider:<slug>`. */
+  readonly uuid: string;
+};
+
+/** The bundled native GitHub provider. */
+export const GITHUB_PROVIDER_IDENTITY = Object.freeze(
+  {
+    gateId: "bakery.github",
+    slug: "github",
+    uuid: "a1fbffc0-eeec-541c-b2a1-93179931917e",
+  } as const satisfies ProviderIdentity,
+);
+
+/**
+ * Every provider this build deploys, one entry each.
+ *
+ * Adding a provider is one line here plus its package. `deployedIntegrations`, the
+ * slug lookup and the connection writer all derive from this list rather than
+ * repeating it, so a new provider cannot be half-added.
+ */
+export const PROVIDER_IDENTITIES = Object.freeze(
+  [
+    GITHUB_PROVIDER_IDENTITY,
+  ] as const satisfies readonly ProviderIdentity[],
+);
+
+/**
+ * The slug and row id the connection writer stores, named for their callers.
+ *
+ * These were literals in `integrations/postgres.ts`; they live here so the identity
+ * has one home, and `postgres.ts` re-exports them for the call sites that already
+ * import from it.
+ */
+export const GITHUB_PROVIDER = GITHUB_PROVIDER_IDENTITY.slug;
+/** Provider row id; the UUID is a primary key, so it is pinned above. */
+export const GITHUB_PROVIDER_ID = GITHUB_PROVIDER_IDENTITY.uuid;
+
+/** A deployed slug, as a union, so a lookup by slug can be exhaustive. */
+export type DeployedProviderSlug = typeof PROVIDER_IDENTITIES[number]["slug"];
+
+/** A deployed gate id, as a union, for the same reason. */
+export type DeployedGateId = typeof PROVIDER_IDENTITIES[number]["gateId"];
+
+/**
+ * The slug→gate-id and slug→UUID maps, built once at module load.
+ *
+ * Derived from `PROVIDER_IDENTITIES` rather than written out, so there is no second
+ * list to keep in step. A `Map` rather than an object literal because a slug is
+ * caller-supplied in places: an object would answer `toString` and `constructor`
+ * with inherited members, which is a lookup returning a function where a provider
+ * was expected.
+ */
+const BY_SLUG: ReadonlyMap<string, ProviderIdentity> = new Map(
+  PROVIDER_IDENTITIES.map((identity) => [identity.slug, identity]),
+);
+const BY_GATE_ID: ReadonlyMap<string, ProviderIdentity> = new Map(
+  PROVIDER_IDENTITIES.map((identity) => [identity.gateId, identity]),
+);
+
+/** The gate ids this build deploys, in registry order. */
+export function deployedGateIds(): readonly string[] {
+  return PROVIDER_IDENTITIES.map((identity) => identity.gateId);
+}
+
+/** The slugs this build deploys, in registry order. */
+export function deployedProviderSlugs(): readonly string[] {
+  return PROVIDER_IDENTITIES.map((identity) => identity.slug);
+}
+
+/**
+ * The identity for a slug, or `undefined` when the slug is not deployed.
+ *
+ * Returns `undefined` rather than throwing because a slug arriving from a request is
+ * expected hostile input: the caller decides whether that is a 404 or a refusal, and
+ * an exception here would turn a routine "no such provider" into a 500.
+ */
+export function identityForSlug(slug: string): ProviderIdentity | undefined {
+  return BY_SLUG.get(slug);
+}
+
+/** The identity for a gate id, or `undefined` when it is not deployed. */
+export function identityForGateId(
+  gateId: string,
+): ProviderIdentity | undefined {
+  return BY_GATE_ID.get(gateId);
+}
+
+/** The slug a gate id belongs to, or `undefined` when the id is not deployed. */
+export function slugForGateId(gateId: string): string | undefined {
+  return BY_GATE_ID.get(gateId)?.slug;
+}
+
+/** The provider UUID for a slug, or `undefined` when the slug is not deployed. */
+export function providerIdForSlug(slug: string): string | undefined {
+  return BY_SLUG.get(slug)?.uuid;
+}
+
+/**
+ * What the registry cannot check for itself, reported so startup and the rails can
+ * refuse a provider that was added inconsistently.
+ *
+ * These are the mistakes one extra line can make: two providers sharing a slug, a
+ * gate id or a UUID (one would shadow the other), or a gate id whose slug half does
+ * not match its slug field (the route and the stored value would disagree). A
+ * duplicate is worse than a missing entry, because the lookup silently answers with
+ * whichever was defined later.
+ */
+export function providerIdentityDefects(
+  identities: readonly ProviderIdentity[] = PROVIDER_IDENTITIES,
+): string[] {
+  const defects: string[] = [];
+  const seen = {
+    slug: new Map<string, number>(),
+    gateId: new Map<string, number>(),
+    uuid: new Map<string, number>(),
+  } as const;
+
+  for (const identity of identities) {
+    for (const key of ["slug", "gateId", "uuid"] as const) {
+      const value = identity[key];
+      const count = (seen[key].get(value) ?? 0) + 1;
+      seen[key].set(value, count);
+      if (count === 2) {
+        defects.push(
+          `Two deployed providers share the ${key} ${value}; the second would shadow the first.`,
+        );
+      }
+    }
+    // The gate id and the slug are two spellings of one provider, and the route
+    // table trusts the id while connections trust the slug.
+    if (identity.gateId !== `bakery.${identity.slug}`) {
+      defects.push(
+        `Provider ${identity.slug} has gate id ${identity.gateId}; it must be bakery.<slug> so the route and the stored slug agree.`,
+      );
+    }
+    if (!/^[a-z][a-z0-9-]*$/.test(identity.slug)) {
+      defects.push(
+        `Provider slug ${identity.slug} is not a lowercase identifier; it appears in URLs and i18n keys.`,
+      );
+    }
+    if (
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+        .test(identity.uuid)
+    ) {
+      defects.push(
+        `Provider ${identity.slug} has a UUID that is not a lowercase UUID; it is a primary key.`,
+      );
+    }
+  }
+  return defects;
+}

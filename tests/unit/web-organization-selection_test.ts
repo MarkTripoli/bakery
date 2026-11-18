@@ -215,6 +215,14 @@ function fakeApi(
     listTasks: rejecting,
     getTask: rejecting,
     createTask: rejecting,
+    // The notification reads and writes belong to the same client surface as
+    // the other task calls; a fake that omits them stops type-checking the
+    // moment the real client gains them.
+    listNotifications: rejecting,
+    notificationCount: rejecting,
+    resolveNotificationTarget: rejecting,
+    setNotificationRead: rejecting,
+    markAllNotificationsRead: rejecting,
     createRun: rejecting,
     listRuns: rejecting,
     controlRun: rejecting,

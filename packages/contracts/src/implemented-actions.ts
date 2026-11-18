@@ -111,6 +111,8 @@ export const ExecutionImplementedAction = Object.freeze(
     RunsControl: "runs.control",
     RunsControlCapabilities: "runs.controlCapabilities",
     SessionsGet: "sessions.get",
+    SessionsList: "sessions.list",
+    SessionsFeed: "sessions.feed",
     SessionsSteer: "sessions.steer",
     TranscriptStatus: "outputStreams.transcript",
   } as const satisfies Record<string, CatalogActionName>,
@@ -569,6 +571,8 @@ export function assertImplementedActionRegistry(
 export const WorkflowRuntimeImplementedAction = Object.freeze(
   {
     Noop: "workflow.noop",
+    Stop: "workflow.stop",
+    HumanApproval: "human.approval",
     Plan: "rpi.plan",
     Design: "rpi.design",
     Implement: "harness.implement",

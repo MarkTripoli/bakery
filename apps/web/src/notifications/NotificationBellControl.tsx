@@ -10,7 +10,7 @@ import { useShellViewport } from "../app/responsive.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { NotificationsList } from "./NotificationsList.tsx";
-import { bellStatusOf } from "./presentation.ts";
+import { bellAccessibleName, bellStatusOf } from "./presentation.ts";
 
 const NOTIFICATIONS_PATH = "/notifications";
 const POPOVER_ROWS = 6;
@@ -33,7 +33,9 @@ export function NotificationBellControl() {
   );
   const close = useCallback(() => setOpen(false), []);
 
-  const accessibleLabel = translate("notifications.bell.label");
+  // One name for both ways the bell reaches the screen: the badge is a drawn
+  // cap, so the count has to live in the name or a screen reader never hears it.
+  const accessibleLabel = bellAccessibleName(status, translate);
   // One polite announcement per flush: the sentence carries the number that
   // arrived since the last count, and the badge updates in place beside it.
   const arrival = useArrivalAnnouncement(count.data?.unread ?? null);
@@ -55,27 +57,31 @@ export function NotificationBellControl() {
   }
 
   return (
-    <>
-      <UI.Popover
-        align="end"
-        label={accessibleLabel}
-        open={open}
-        onOpenChange={setOpen}
-        trigger={<NotificationBellTriggerFace status={status} />}
-        triggerAppearance="plain"
-        triggerLabel={accessibleLabel}
-      >
-        <NotificationBellPopover
-          status={status}
-          onClose={close}
-        />
-      </UI.Popover>
-      {
-        /* The popover owns the trigger button, so the batched arrival sentence
-          lives beside it: one polite region, announced without moving focus. */
-      }
-      <UI.NotificationArrival announcement={arrival} />
-    </>
+    <UI.NotificationBell
+      label={accessibleLabel}
+      status={status}
+      unreadLabel={(value) =>
+        translate("notifications.bell.unread", { count: value })}
+      unknownLabel={translate("notifications.bell.unknown")}
+      arrivalAnnouncement={arrival}
+      // The popover supplies the control, so its trigger is the bell's drawn
+      // face alone: a button here would nest one control inside another. The
+      // bell adds no wrapper of its own around the control, and keeps the one
+      // polite live region.
+      control={(face) => (
+        <UI.Popover
+          align="end"
+          label={accessibleLabel}
+          open={open}
+          onOpenChange={setOpen}
+          trigger={face}
+          triggerAppearance="plain"
+          triggerLabel={accessibleLabel}
+        >
+          <NotificationBellPopover status={status} onClose={close} />
+        </UI.Popover>
+      )}
+    />
   );
 }
 
@@ -111,17 +117,6 @@ function useArrivalAnnouncement(unread: number | null): string | null {
   }, [translate, unread]);
 
   return announcement;
-}
-
-// The popover supplies the button, its accessible name and its keyboard
-// behaviour, so its trigger is the bell's drawn face alone: a button here would
-// nest one control inside another.
-function NotificationBellTriggerFace({
-  status,
-}: {
-  readonly status: ReturnType<typeof bellStatusOf>;
-}) {
-  return <UI.NotificationBellGlyph status={status} />;
 }
 
 function NotificationBellPopover(

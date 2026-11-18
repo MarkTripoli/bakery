@@ -69,6 +69,27 @@ function close(paths) {
   rmSync(paths.root, { recursive: true, force: true });
 }
 
+test("accepts a re-exported name that is a type-only package import", () => {
+  // A component may re-export a type it imported from a package subpath. The
+  // package specifier is not an export target, so resolving the name must not
+  // try to resolve it as one.
+  const paths = fixture(
+    'export * from "./atoms/Button";',
+    "",
+  );
+  writeFileSync(
+    join(paths.root, "packages/ui/src/atoms/Button.ts"),
+    'import type { ClientOutputMap } from "@bakery/contracts/client";\n' +
+      "export function PrimaryButton() { return null; }\n" +
+      "export { ClientOutputMap };\n",
+  );
+  try {
+    assert.doesNotThrow(() => run(paths));
+  } finally {
+    close(paths);
+  }
+});
+
 test("accepts runtime wildcard exports", () => {
   const paths = fixture('export * from "./atoms/Button";');
   try {

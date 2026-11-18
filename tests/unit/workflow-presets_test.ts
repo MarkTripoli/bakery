@@ -178,7 +178,10 @@ Deno.test("task.brief input rejects unknown fields and out-of-range briefs", () 
   assert(
     !schema.safeParse({
       ...valid,
-      brief: { ...valid.brief, taskType: "other" },
+      // `taskType` is an organization work-type label, not an enum: any label
+      // travels here unchanged. What is still out of range is a label past the
+      // 40-character bound.
+      brief: { ...valid.brief, taskType: "x".repeat(41) },
     }).success,
   );
   assert(
