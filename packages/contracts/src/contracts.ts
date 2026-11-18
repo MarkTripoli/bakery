@@ -591,6 +591,18 @@ function bounded<T extends Schema>(
       `${path} must contain at most ${bounds.maxLength} characters.`,
     );
   }
+  // A declared pattern is a constraint, not a note. Until this applied it, a
+  // descriptor could promise a shape (0172 moved `taskType` from a closed set
+  // to a kebab-case token here) and the only enforcement was min/max length.
+  if (boundedKind === "string" && typeof bounds.pattern === "string") {
+    result = described(
+      (result as z.ZodString).regex(
+        new RegExp(bounds.pattern),
+        `${path} must match the pattern ${bounds.pattern}.`,
+      ),
+      `${path} must match the pattern ${bounds.pattern}.`,
+    );
+  }
   const lowerBytes = typeof bounds.minBytes === "number"
     ? bounds.minBytes
     : undefined;
