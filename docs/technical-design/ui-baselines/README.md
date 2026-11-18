@@ -651,7 +651,9 @@ authorized.
 
 Because each record names one exact merge-base SHA, the file is a per-pull-request
 authorization, not a permanent register. Delete it once its contraction has
-landed: after that the merge base already holds the replacement, so the record
-cannot authorize anything and its SHA reads as stale against every later base.
-Deleting is the fail-closed direction, not a weakening — an absent file permits
-no contractions at all.
+landed: the merge base then already holds the replacement, so the record has
+nothing left to authorize, and its SHA no longer matches, which the check rejects
+as stale. Deleting is a rule to follow, not a safety net that retires records for
+you — a record whose SHA still happened to match a later base would be honoured.
+It is also the fail-closed direction: an absent file permits no contractions at
+all.
