@@ -1857,7 +1857,9 @@
 }
 .ui-presence-row__status {
   color: var(--color-fg-muted);
-  flex: 1 1 0;
+  /* A readable width before it shares the row: on a phone it wraps to its own
+     line instead of being squeezed beside the avatars. */
+  flex: 1 1 14rem;
   font: var(--type-hint);
   min-inline-size: 0;
   overflow-wrap: anywhere;
