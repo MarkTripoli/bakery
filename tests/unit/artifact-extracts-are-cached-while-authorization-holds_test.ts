@@ -1,13 +1,17 @@
-import { assertEquals, assertRejects } from "@std/assert";
+import { assertEquals, assertNotEquals, assertRejects } from "@std/assert";
 import type { PgTransactionClient } from "../../apps/server/src/platform/database.ts";
 import {
+  evictExtractCacheBeyondCap,
   extractScope,
   findCachedExtract,
   reusableCachedExtract,
   storeCachedExtract,
 } from "../../apps/server/src/modules/knowledge/extract-cache.ts";
 import {
+  cachedExtractWindow,
   CONTEXT_EXTRACTOR_VERSION,
+  EXTRACT_CACHE_CHUNK_BYTES,
+  EXTRACT_CACHE_ROWS_PER_VERSION,
   extractCacheKey,
 } from "../../apps/server/src/modules/knowledge/context-projection.ts";
 import { extractArtifactVersion } from "../../apps/server/src/modules/knowledge/extraction.ts";
@@ -177,8 +181,13 @@ Deno.test("storing an extract writes the key verifyCitation recomputes", async (
   assertEquals(values[9], 5, "text bytes are counted, not trusted");
   assertEquals(
     values[12],
-    extractCacheKey(ORG, { ...citation }, "p1|org"),
+    await extractCacheKey(ORG, { ...citation }, "p1|org"),
     "the stored key is the one the projection module computes, scope included",
+  );
+  assertEquals(
+    String(values[12]).includes("p1|org"),
+    false,
+    "the key holds a digest of the scope, not the scope's own text",
   );
 });
 
@@ -200,8 +209,7 @@ Deno.test("two scopes for the same window are two rows, not one lost insert", as
   assertEquals(queries.length, 2);
   const keys = queries.map((query) => String(query.values[12]));
   assertEquals(keys[0] === keys[1], false);
-  assertEquals(keys[0]!.includes("p1|org"), true);
-  assertEquals(keys[1]!.includes("p2|narrower"), true);
+  assertNotEquals(keys[0], keys[1]);
 });
 
 Deno.test("a window carrying a NUL byte is not written to the cache", async () => {
@@ -310,4 +318,56 @@ Deno.test("a digest change on the version refuses the cached row and reads conte
     StandardError,
   );
   assertEquals(contentRead > 0, true, "the stale cache row was not served");
+});
+
+Deno.test("arbitrary offsets cannot mint a row each: windows are keyed by chunk", async () => {
+  // The reviewer's Medium on #634. The extract is a pure function of its window,
+  // so without chunking every distinct startByte a reader names would be a new
+  // row: a read endpoint anyone can call would be an unbounded write. One chunk
+  // of stride means a thousand offsets inside it are one key.
+  const keys = new Set<string>();
+  for (let startByte = 0; startByte < 4096; startByte += 37) {
+    const window = cachedExtractWindow(startByte);
+    assertEquals(window.startByte, 0);
+    assertEquals(window.maxBytes, EXTRACT_CACHE_CHUNK_BYTES);
+    keys.add(
+      await extractCacheKey(ORG, {
+        ...citation,
+        location: {
+          startByte: window.startByte,
+          endByteExclusive: window.maxBytes,
+        },
+      }),
+    );
+  }
+  assertEquals(keys.size, 1, "one chunk, one row");
+
+  // Across the whole range a request may name, the distinct rows are the chunks,
+  // never the offsets.
+  const everywhere = new Set<number>();
+  for (let startByte = 0; startByte <= 10_485_760; startByte += 1013) {
+    everywhere.add(cachedExtractWindow(startByte).startByte);
+  }
+  assertEquals(
+    everywhere.size,
+    Math.ceil(10_485_760 / EXTRACT_CACHE_CHUNK_BYTES),
+    "one row per chunk, whatever offsets the reader names",
+  );
+});
+
+Deno.test("the cache keeps at most the capped number of rows per version", async () => {
+  // Eviction is the second half of the bound: a version read all the way through
+  // would otherwise keep growing. The statement keeps the newest rows and deletes
+  // the rest of that version only, in the transaction that inserted the newest.
+  const { transaction, queries } = stubTransaction(() => []);
+  await evictExtractCacheBeyondCap(transaction, {
+    organizationId: ORG,
+    versionId: VERSION,
+  });
+  const [query] = queries;
+  assertEquals(
+    query!.sql.includes("delete from bakery.artifact_extracts"),
+    true,
+  );
+  assertEquals(query!.values, [ORG, VERSION, EXTRACT_CACHE_ROWS_PER_VERSION]);
 });

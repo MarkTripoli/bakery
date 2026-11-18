@@ -4,6 +4,7 @@ import {
   CONTEXT_EXTRACTOR_VERSION,
   type ContextCitation,
   ContextCitationSchema,
+  EXTRACT_CACHE_ROWS_PER_VERSION,
   extractCacheKey,
   verifyCitation,
 } from "./context-projection.ts";
@@ -177,8 +178,14 @@ export async function storeCachedExtract(
   // Postgres text cannot hold a NUL byte, so a window that carries one is not
   // storable at all. Refusing the write (rather than failing the request) keeps
   // a readable extract readable: the cache is an optimization, and content the
-  // store cannot represent is simply not cached.
+  // store cannot represent is simply not cached. The sniff runs only after the
+  // 4 KB read, so the NUL it can miss is the one this check catches.
   if (stored.text.includes("\u0000")) return;
+  const rowKey = await extractCacheKey(
+    stored.organizationId,
+    stored.citation,
+    stored.scope,
+  );
   await transaction.query(
     `insert into bakery.artifact_extracts
        (organization_id,artifact_version_id,digest,start_byte,end_byte_exclusive,scope,
@@ -198,10 +205,39 @@ export async function storeCachedExtract(
       new TextEncoder().encode(stored.text).byteLength,
       stored.maxBytes,
       stored.hasMore,
-      // The scope is part of the key, not only of a unique constraint: two
-      // scopes asking for the same window are two rows, and the second one
-      // would otherwise be dropped by `on conflict do nothing` and never cached.
-      extractCacheKey(stored.organizationId, stored.citation, stored.scope),
+      // The scope is part of the key, as a digest: two scopes asking for the
+      // same window are two rows, and the second one would otherwise be dropped
+      // by `on conflict do nothing` and never cached. It is a digest because a
+      // caller controls its own scope text and a raw one would let them mint a
+      // row per request.
+      rowKey,
     ],
+  );
+}
+
+/**
+ * Keeps one artifact version's cached windows bounded.
+ *
+ * The chunked key already caps how many distinct rows one version can mint, but
+ * a version is bounded only because its start offsets are: the count is a
+ * function of the stored chunk, not of how many times a reader asks. Eviction
+ * is the second half, for the version that is genuinely read all the way
+ * through: the oldest rows beyond the cap go, in the same transaction that
+ * inserted the newest, so the cache can never grow past it.
+ */
+export async function evictExtractCacheBeyondCap(
+  transaction: PgTransactionClient,
+  stored: Readonly<{ organizationId: string; versionId: string }>,
+): Promise<void> {
+  await transaction.query(
+    `delete from bakery.artifact_extracts
+      where organization_id = $1 and artifact_version_id = $2
+        and cache_key in (
+          select cache_key from bakery.artifact_extracts
+           where organization_id = $1 and artifact_version_id = $2
+           order by created_at desc, cache_key desc
+           offset $3
+        )`,
+    [stored.organizationId, stored.versionId, EXTRACT_CACHE_ROWS_PER_VERSION],
   );
 }
