@@ -686,6 +686,7 @@
   font: var(--type-control);
   margin-block-end: var(--space-2);
   padding: var(--space-0);
+}
 /* The audit log's table (the only table on an access-layout page): a time keeps
    one line with tabular figures, and the first cell's text starts where the
    other cells' text does instead of centring in the 44px target. Scoped here so
