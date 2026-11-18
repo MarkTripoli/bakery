@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import * as UI from "@bakery/ui";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 
@@ -74,7 +74,7 @@ export function SessionNow({ state }: { state: SessionNowState }) {
         ? translate("session.thread.tool.running", { name: state.toolName })
         : translate("session.thread.now.working");
       return (
-        <NowLine
+        <UI.SessionNowLine
           tone="active"
           edge={state.since === undefined
             ? undefined
@@ -87,35 +87,35 @@ export function SessionNow({ state }: { state: SessionNowState }) {
               what,
             })
             : what}
-        </NowLine>
+        </UI.SessionNowLine>
       );
     }
     case "waiting": {
       const what = translate("session.thread.now.waiting");
       return (
-        <NowLine tone="idle" onSelect={state.onSelect}>
+        <UI.SessionNowLine tone="idle" onSelect={state.onSelect}>
           {state.stepName
             ? translate("session.thread.now.step", {
               step: state.stepName,
               what,
             })
             : what}
-        </NowLine>
+        </UI.SessionNowLine>
       );
     }
     case "failed":
       return (
-        <NowLine tone="danger" icon="close">
+        <UI.SessionNowLine tone="danger" icon="close">
           <strong>{translate("session.thread.now.failed")}</strong>
           {state.reason ? ` ${state.reason}` : null}
-        </NowLine>
+        </UI.SessionNowLine>
       );
     case "lost": {
       const canRetry = state.onTryNow !== undefined &&
         (state.since === undefined ||
           now - new Date(state.since).getTime() >= TRY_NOW_AFTER_MS);
       return (
-        <NowLine
+        <UI.SessionNowLine
           tone="warning"
           icon="warning"
           action={canRetry
@@ -129,59 +129,10 @@ export function SessionNow({ state }: { state: SessionNowState }) {
           {state.lastUpdate
             ? translate("session.thread.now.lost", { when: state.lastUpdate })
             : translate("session.feed.disconnected")}
-        </NowLine>
+        </UI.SessionNowLine>
       );
     }
     case "idle":
       return null;
   }
-}
-
-function NowLine(
-  { action, children, edge, icon, onSelect, tone }: {
-    action?: ReactNode;
-    children: ReactNode;
-    /** Fine print at the edge; hidden from assistive technology so it never re-announces. */
-    edge?: string;
-    icon?: UI.IconGlyphName;
-    onSelect?: () => void;
-    tone: "active" | "idle" | "danger" | "warning";
-  },
-) {
-  const text = <span className="ui-session-now__text">{children}</span>;
-  return (
-    <p
-      className="ui-session-now"
-      data-tone={tone}
-      role="status"
-      aria-live="polite"
-      aria-atomic="true"
-      data-ui-component="sessionNow"
-    >
-      <span className="ui-session-now__mark" aria-hidden="true">
-        {icon
-          ? <UI.IconGlyph name={icon} />
-          : <span className="ui-session-now__dot" />}
-      </span>
-      {onSelect
-        ? (
-          <button
-            type="button"
-            className="ui-session-now__select"
-            onClick={onSelect}
-          >
-            {text}
-          </button>
-        )
-        : text}
-      {edge
-        ? (
-          <span className="ui-session-now__elapsed" aria-hidden="true">
-            {edge}
-          </span>
-        )
-        : null}
-      {action}
-    </p>
-  );
 }

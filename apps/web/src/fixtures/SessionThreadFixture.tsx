@@ -262,6 +262,13 @@ const STATE: Record<string, {
   },
 };
 
+/** The route's approved state names, and the fixture each one shows. */
+const ALIASES: Record<string, string> = {
+  default: "running",
+  complete: "finished",
+  reconnecting: "lost",
+};
+
 export function SessionThreadFixture() {
   const state = useRouterState({
     select: (value) => value.location.pathname.split("/").at(-1) ?? "running",
@@ -271,7 +278,7 @@ export function SessionThreadFixture() {
     locale: "en",
     surface: "session-thread",
   });
-  const fixture = STATE[state] ?? STATE.running;
+  const fixture = STATE[ALIASES[state] ?? state] ?? STATE.running;
 
   return (
     <TaskSessionView
@@ -292,15 +299,15 @@ export function SessionThreadFixture() {
       }
       thread={fixture.loading
         ? (
-          <div
+          <UI.Stack
             aria-busy="true"
-            role="status"
             aria-label={translate("session.thread.loading")}
+            gap="standard"
           >
             <UI.Skeleton shape="row" />
             <UI.Skeleton shape="row" />
             <UI.Skeleton shape="row" />
-          </div>
+          </UI.Stack>
         )
         : fixture.error
         ? (

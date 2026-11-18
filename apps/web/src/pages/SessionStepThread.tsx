@@ -40,15 +40,15 @@ export function SessionStepThread(
   );
   if (source.phase === "idle" || source.phase === "loading") {
     return (
-      <div
+      <UI.Stack
         aria-busy="true"
         aria-label={translate("session.thread.loading")}
-        className="ui-session-thread-loading"
+        gap="standard"
       >
         <UI.Skeleton shape="row" />
         <UI.Skeleton shape="row" />
         <UI.Skeleton shape="row" />
-      </div>
+      </UI.Stack>
     );
   }
   if (source.phase === "none") {
@@ -89,7 +89,9 @@ export function SessionStepThread(
             params={{ taskId, artifactId }}
             to="/tasks/$taskId/artifacts/$artifactId"
           >
-            <span dir="ltr" translate="no">{name}</span>
+            <UI.DataText variant="code" dir="ltr" translate="no">
+              {name}
+            </UI.DataText>
           </RouterLink>
         )}
       />

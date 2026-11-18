@@ -189,6 +189,8 @@ export * from "./organisms/ArtifactPane.tsx";
 export * from "./organisms/CodeBlock.tsx";
 export * from "./organisms/ActivityLine.tsx";
 export * from "./organisms/ConversationMessage.tsx";
+export * from "./organisms/SessionNowLine.tsx";
+export * from "./organisms/SessionThread.tsx";
 export * from "./organisms/DataTable.tsx";
 export * from "./organisms/LogViewer.tsx";
 export * from "./organisms/ModelResolution.tsx";
