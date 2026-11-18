@@ -533,12 +533,14 @@ const runtimeSet = [
   "agent.freeform",
   "harness.implement",
   "harness.repair",
+  "human.approval",
   "quality.check",
   "review.independent",
   "rpi.design",
   "rpi.plan",
   "task.brief",
   "workflow.noop",
+  "workflow.stop",
 ];
 const validImplement = {
   repositoryId: "00000000-0000-4000-8000-0000000000a1",
@@ -573,7 +575,10 @@ Deno.test("runtime registers the exact set and the dispatchable assertion reject
 Deno.test("worker-dispatched declarations pin outputSchema to the registry and the worker contract", () => {
   const runtime = createWorkflowActionRuntime();
   for (const name of runtimeSet) {
-    if (name === "workflow.noop" || name === "rpi.plan") continue;
+    if (
+      name === "workflow.noop" || name === "rpi.plan" ||
+      name === "workflow.stop" || name === "human.approval"
+    ) continue;
     const metadata = WORKFLOW_ACTION_METADATA[name as "quality.check"];
     const { handler } = runtime.get(name as "quality.check");
     assertEquals(handler.outputSchema, metadata.output);

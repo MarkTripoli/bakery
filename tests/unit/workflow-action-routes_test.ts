@@ -40,7 +40,7 @@ Deno.test("workflow action routes register the authenticated list and detail end
     list.items.map((item: { actionId: string }) => item.actionId),
     [...WORKFLOW_ACTION_NAMES],
   );
-  assertEquals(list.items.length, 19);
+  assertEquals(list.items.length, WORKFLOW_ACTION_NAMES.length);
   assertEquals(list.items[0], {
     actionId: WORKFLOW_ACTION_NAMES[0],
     version: WORKFLOW_ACTION_REGISTRY_VERSION,
@@ -88,7 +88,7 @@ Deno.test("workflow action list paginates the canonical order without gaps or du
 
   assertEquals(actionIds, [...WORKFLOW_ACTION_NAMES]);
   assertEquals(new Set(actionIds).size, WORKFLOW_ACTION_NAMES.length);
-  assertEquals(cursors.size, 4);
+  assertEquals(cursors.size, Math.ceil(WORKFLOW_ACTION_NAMES.length / 4) - 1);
 });
 
 Deno.test("workflow action list enforces limit boundaries", async () => {
@@ -96,9 +96,17 @@ Deno.test("workflow action list enforces limit boundaries", async () => {
   for (
     const [limit, expectedLength, hasNext] of [
       ["1", 1, true],
-      ["18", 18, true],
-      ["19", 19, false],
-      ["100", 19, false],
+      [
+        String(WORKFLOW_ACTION_NAMES.length - 1),
+        WORKFLOW_ACTION_NAMES.length - 1,
+        true,
+      ],
+      [
+        String(WORKFLOW_ACTION_NAMES.length),
+        WORKFLOW_ACTION_NAMES.length,
+        false,
+      ],
+      ["100", WORKFLOW_ACTION_NAMES.length, false],
     ] as const
   ) {
     const response = await app.request(`/v1/workflow-actions?limit=${limit}`);

@@ -1801,7 +1801,7 @@
 }
 .ui-notification-row[data-highlighted="true"] {
   outline: var(--border-default) solid var(--color-selection);
-  outline-offset: calc(var(--space-1) * -1);
+  outline-offset: var(--focus-offset);
 }
 .ui-notification-row__link {
   align-items: center;
@@ -1891,8 +1891,8 @@
 .ui-notification-popover {
   display: flex;
   flex-direction: column;
-  inline-size: min(360px, calc(100vw - var(--space-4)));
-  max-block-size: min(70vh, 560px);
+  max-inline-size: min(var(--layout-dialog), calc(100dvi - var(--space-8)));
+  max-block-size: calc(100dvb - var(--space-8));
 }
 .ui-notification-popover__header {
   align-items: center;
