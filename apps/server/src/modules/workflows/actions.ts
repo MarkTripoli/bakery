@@ -69,6 +69,18 @@ export type WorkflowsActionHandlers = {
     context: ActionContext,
     input: z.output<typeof contractSchemas.WorkflowValidation>,
   ) => Promise<z.output<typeof contractSchemas.ValidationReport>>;
+  createListing: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.WorkflowListingCreate>,
+  ) => Promise<z.output<typeof contractSchemas.Workflow>>;
+  getProposal: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.IdPath>,
+  ) => Promise<z.output<typeof contractSchemas.WorkflowDefinitionProposal>>;
+  decideProposal: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.WorkflowDefinitionProposalDecision>,
+  ) => Promise<z.output<typeof contractSchemas.WorkflowDefinitionProposal>>;
 };
 
 export function createWorkflowsActionRegistry(
@@ -210,6 +222,38 @@ export function createWorkflowsActionRegistry(
     policy: validatePolicy,
     successStatus: 200,
     handler: handlers.validate,
+  });
+
+  registry.register({
+    name: WorkflowImplementedAction.WorkflowListingsCreate,
+    method: HttpMethod.Post,
+    path: "/v1/workflows/:id/listings",
+    input: contractSchemas.WorkflowListingCreate,
+    output: contractSchemas.Workflow,
+    policy: commandPolicy,
+    explicitIdempotency: "key-and-if-match",
+    successStatus: 201,
+    handler: handlers.createListing,
+  });
+  registry.register({
+    name: WorkflowImplementedAction.WorkflowDefinitionProposalsGet,
+    method: HttpMethod.Get,
+    path: "/v1/workflow-definition-proposals/:id",
+    input: contractSchemas.IdPath,
+    output: contractSchemas.WorkflowDefinitionProposal,
+    policy: queryPolicy,
+    handler: handlers.getProposal,
+  });
+  registry.register({
+    name: WorkflowImplementedAction.WorkflowDefinitionProposalDecisionsCreate,
+    method: HttpMethod.Post,
+    path: "/v1/workflow-definition-proposals/:id/decisions",
+    input: contractSchemas.WorkflowDefinitionProposalDecision,
+    output: contractSchemas.WorkflowDefinitionProposal,
+    policy: commandPolicy,
+    explicitIdempotency: "key-and-if-match",
+    successStatus: 200,
+    handler: handlers.decideProposal,
   });
 
   assertRegisteredActions(registry);

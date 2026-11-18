@@ -13,6 +13,10 @@ import { principalId as toPrincipalId } from "@bakery/contracts/contracts";
 import { resolveOrganizationActor } from "../auth/adapters/authority-postgres.ts";
 import { authorize } from "../auth/application/authorize.ts";
 import { lockConversationScope } from "./postgres.ts";
+import {
+  definitionProposalProblem,
+  proposeWorkflowDefinitions,
+} from "../workflows/definition-proposals.ts";
 import { pushCoordinatorCancelToWorker } from "./coordinator-worker.ts";
 import {
   proposePlanRevisions,
@@ -554,6 +558,22 @@ async function applyOutcome(
       );
       return { kind: "processed", turnId, status: "failed" } as const;
     }
+    const proposalProblem = await definitionProposalProblem(transaction, {
+      organizationId,
+      conversationId,
+      effects: outcome.effects,
+    });
+    if (proposalProblem) {
+      await finishTurn(
+        transaction,
+        turn,
+        organizationId,
+        conversationId,
+        "failed",
+        { failure: problem(proposalProblem.code, proposalProblem.detail, 422) },
+      );
+      return { kind: "processed", turnId, status: "failed" } as const;
+    }
     const replies = outcome.effects.filter((effect) => effect.type === "reply");
     let outputMessageId: string | undefined;
     let sessionId: string | undefined;
@@ -629,6 +649,12 @@ async function applyOutcome(
       effects: outcome.effects,
     });
     await proposePlanRevisions(transaction, {
+      organizationId,
+      conversationId,
+      turnId,
+      effects: outcome.effects,
+    });
+    await proposeWorkflowDefinitions(transaction, {
       organizationId,
       conversationId,
       turnId,
