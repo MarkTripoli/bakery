@@ -594,11 +594,13 @@ Deno.test("workflow draft, validation, publication and activation hold tenant an
 
     await test.step("audit and event rows carry no definition or sourceYaml content", async () => {
       const sentinel = `sentinel-${crypto.randomUUID()}`;
+      // Publication checks the source YAML against the definition, so the
+      // sentinel rides in a comment and a field of a YAML that says the same thing.
       const id = await createWorkflow("sec-audit-flow");
       const draftId = await createDraft(
         id,
         { ...validDefinition, note: sentinel },
-        `# ${sentinel}\nkind: fixed\n`,
+        `# ${sentinel}\nkind: fixed\nnote: ${sentinel}\nsteps:\n  - id: first\n    uses: workflow.noop\n`,
       );
       const saved = await send(
         "PATCH",
@@ -608,7 +610,8 @@ Deno.test("workflow draft, validation, publication and activation hold tenant an
           idempotencyKey: crypto.randomUUID(),
           body: {
             definition: { ...validDefinition, note: sentinel },
-            sourceYaml: `# ${sentinel}\nkind: fixed\n`,
+            sourceYaml:
+              `# ${sentinel}\nkind: fixed\nnote: ${sentinel}\nsteps:\n  - id: first\n    uses: workflow.noop\n`,
           },
           ifMatch: '"1"',
         },

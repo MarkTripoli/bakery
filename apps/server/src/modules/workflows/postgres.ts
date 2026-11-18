@@ -29,6 +29,7 @@ import {
   MAX_WORKFLOW_DEFINITION_BYTES,
   validateWorkflowBindings,
   validateWorkflowDefinitionStatic,
+  validateWorkflowSourceYaml,
   type WorkflowValidationIssue,
 } from "./validation.ts";
 import { assertWorkflowSatisfiesRepositoryRules } from "./rule-guard.ts";
@@ -930,7 +931,13 @@ export async function publishWorkflowVersion(
       draft.definition,
     )).errors
     : [];
-  const issues = [...report.errors, ...bindingErrors];
+  // The source the draft was authored from is stored beside the definition, so
+  // an unsafe one, or one that is not this definition's, blocks publication.
+  const sourceErrors = validateWorkflowSourceYaml(
+    draft.source_yaml,
+    draft.definition,
+  );
+  const issues = [...report.errors, ...bindingErrors, ...sourceErrors];
   if (!report.valid || issues.length > 0 || report.normalizedDigest === null) {
     throw new StandardError({
       code: "UNPROCESSABLE",
