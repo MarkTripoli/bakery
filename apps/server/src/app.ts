@@ -688,6 +688,7 @@ export function createApp(options: {
     createWorkflowsRoutes({
       database: options.pgDatabase,
       browserSession,
+      tokenSession,
       publicBaseUrl: options.config.publicBaseUrl,
       cursorSecret: options.config.auth.secret,
     }),

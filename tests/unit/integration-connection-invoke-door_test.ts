@@ -302,3 +302,83 @@ Deno.test("F4: the door answers on its mounted path rather than 404", () => {
   assertEquals(request.method, "POST");
   assertEquals(new URL(request.url).pathname.includes("/actions"), true);
 });
+
+/**
+ * F6: exempting the integration action id must not unconstrain the worker ones.
+ *
+ * The first fix for F1 deleted the blanket `.action` rule outright, which fixed
+ * the integration id and silently dropped the six-value enum from `Job.action`,
+ * `Jobs`, `Page<Job>` items and `JobAssignment.action`, leaving them as
+ * unconstrained 64 KiB strings. The exemption is one path, not the rule.
+ */
+Deno.test("F6: worker action enums survive the integration action exemption", async () => {
+  const { contractSchemas } = await import(
+    "../../packages/contracts/src/contracts.ts"
+  );
+  const workerActions = ["quality.check", "harness.implement"] as const;
+  for (const action of workerActions) {
+    const parsed = contractSchemas.Job.safeParse({
+      id: "00000000-0000-4000-8000-000000002301",
+      action,
+    });
+    // Either it parses (the enum still contains the value) or it fails on a
+    // field other than `action`. It must NOT accept a value the enum excludes.
+    if (!parsed.success) {
+      assertEquals(
+        parsed.error.issues.some((issue) => issue.path[0] === "action"),
+        false,
+        "Job.action must still accept a real worker action id",
+      );
+    }
+  }
+  // The decisive direction: a value that is NOT a worker action must be refused
+  // by Job.action, which proves it is still an enum rather than a free string.
+  const bogus = contractSchemas.Job.safeParse({
+    id: "00000000-0000-4000-8000-000000002302",
+    action: "github.issue.comment.create",
+  });
+  assertEquals(
+    bogus.success,
+    false,
+    "Job.action must still REFUSE a non-worker action id; a free string would accept it",
+  );
+  // Asserted against the GENERATED artifact too, because `contractSchemas` is
+  // produced by the generator rather than derived from contracts.ts at runtime:
+  // a rule change that is not regenerated is invisible to the parse above.
+  const generated = JSON.parse(
+    await Deno.readTextFile(
+      new URL(
+        "../../packages/contracts/generated/contracts.json",
+        import.meta.url,
+      ),
+    ),
+  ) as {
+    schemas: Record<
+      string,
+      { properties?: Record<string, { enum?: unknown }> }
+    >;
+  };
+  assertEquals(
+    generated.schemas.Job?.properties?.action?.enum,
+    [
+      "rpi.design",
+      "harness.implement",
+      "harness.repair",
+      "quality.check",
+      "quality.review",
+      "delivery.commit",
+    ],
+    "Job.action must keep the worker action enum in the generated contracts",
+  );
+  assertEquals(
+    generated.schemas.IntegrationAction?.properties?.action?.enum,
+    undefined,
+    "IntegrationAction.action must stay a free string; it names hundreds of registered actions",
+  );
+  // And the integration id is the one field that is a free string.
+  const integration = contractSchemas.IntegrationAction.safeParse({
+    action: "github.issue.comment.create",
+    arguments: {},
+  });
+  assertEquals(integration.success, true);
+});

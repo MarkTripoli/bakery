@@ -1054,16 +1054,32 @@ function primitive(
   ) {
     schema = resolveNamed(base, source, stack.concat(base));
   } else schema = namedFormat(base);
-  // The worker action enum applies to the ONE field that names a worker action.
+  // The worker action enum applies to every field named `action` EXCEPT the
+  // integration action id, which names a registered integration action
+  // (`github.issue.comment.create`) of which there are hundreds.
   //
-  // This used to key on `path.endsWith(".action")`, which assumed every field
-  // named `action` was a worker action. `IntegrationAction.action` is not: it
-  // names a registered integration action (`github.issue.comment.create`), of
-  // which there are hundreds. The blanket rule rewrote it to the six-value worker
-  // enum, so every real integration action id was rejected at the transport
-  // boundary before any handler could see it.
+  // The rule used to be `path.endsWith(".action")`, which rewrote the
+  // integration id to the six-value worker enum and made every real id a
+  // MALFORMED_REQUEST at the transport boundary. Deleting the branch outright
+  // fixed that and broke the other direction: `Job.action`, `Jobs`,
+  // `Page<Job>` items and `JobAssignment.action` all lost their enum and became
+  // unconstrained 64 KiB strings. The exemption is one path, not the rule.
+  const workerActionField = path.endsWith(".action") &&
+    !path.endsWith("IntegrationAction.action");
   if (path === "JobAssignment.action" && record(source.workerActions)) {
     schema = z.enum(Object.keys(source.workerActions) as [string, ...string[]]);
+  } else if (
+    workerActionField && !Array.isArray(field.enum) &&
+    base !== "enum" && !base.startsWith("enum(")
+  ) {
+    schema = z.enum([
+      "rpi.design",
+      "harness.implement",
+      "harness.repair",
+      "quality.check",
+      "quality.review",
+      "delivery.commit",
+    ]);
   }
   if (path === "JobAssignment.input" && record(source.workerActions)) {
     const inputs = Object.values(source.workerActions).flatMap((action) => {
