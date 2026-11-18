@@ -141,6 +141,20 @@ export function NotificationBell(
     : status.state === "unknown"
     ? unknownLabel
     : label;
+  const face = <NotificationBellGlyph cap={cap} status={status} />;
+  // A caller that supplies the control owns its own layout, so the bell does
+  // not wrap it: the bell's wrapper is what positions the badge beside its own
+  // button, and `.ui-notification-bell button` would otherwise restyle every
+  // button inside a popover panel. The live region stays with the bell either
+  // way, outside the control, so an arrival is announced once.
+  if (control) {
+    return (
+      <>
+        {control(face)}
+        <NotificationArrival announcement={arrivalAnnouncement} />
+      </>
+    );
+  }
   return (
     <span
       className={`ui-notification-bell ui-notification-bell--${variant}`}
@@ -148,18 +162,14 @@ export function NotificationBell(
       data-state={resolvedState}
       data-variant={variant}
     >
-      {control
-        ? control(<NotificationBellGlyph cap={cap} status={status} />)
-        : (
-          <button
-            aria-expanded={open}
-            aria-label={accessibleName}
-            type="button"
-            {...props}
-          >
-            <NotificationBellGlyph cap={cap} status={status} />
-          </button>
-        )}
+      <button
+        aria-expanded={open}
+        aria-label={accessibleName}
+        type="button"
+        {...props}
+      >
+        {face}
+      </button>
       <NotificationArrival announcement={arrivalAnnouncement} />
     </span>
   );
