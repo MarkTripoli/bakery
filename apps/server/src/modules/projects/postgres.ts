@@ -398,7 +398,7 @@ async function assertApplication(
  * command must always leave exactly one audit row, even `createProfile`'s
  * auto-activation path, which appends two domain events.
  */
-async function recordAudit(
+export async function recordAudit(
   transaction: PgTransactionClient,
   options: {
     organizationId: string;

@@ -223,6 +223,8 @@ export const ProjectsImplementedAction = Object.freeze(
     RolesList: "projects.roles.list",
     RolesResolve: "projects.roles.resolve",
     RolesUpdate: "projects.roles.update",
+    ScopeProfilesGet: "scopeProfiles.get",
+    ScopeProfilesPut: "scopeProfiles.put",
   } as const satisfies Record<string, CatalogActionName>,
 );
 

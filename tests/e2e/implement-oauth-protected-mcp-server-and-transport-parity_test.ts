@@ -64,7 +64,7 @@ async function registerClientWithTask(stack: Stack): Promise<string> {
     "--allow-env",
     "--allow-net",
     "--allow-sys=hostname",
-    "--allow-read=apps/server/src/platform/migrations,apps/server/src/modules/auth/migrations,apps/server/src/modules/work/migrations,apps/server/src/modules/projects/migrations,apps/server/src/modules/agents/migrations,apps/server/src/modules/repository-rules/migrations,apps/server/src/modules/integrations/migrations,apps/server/src/modules/delivery/migrations",
+    "--allow-read=apps/server/src/platform/migrations,apps/server/src/modules/auth/migrations,apps/server/src/modules/work/migrations,apps/server/src/modules/projects/migrations,apps/server/src/modules/agents/migrations,apps/server/src/modules/repository-rules/migrations,apps/server/src/modules/artifact-kinds/migrations,apps/server/src/modules/integrations/migrations,apps/server/src/modules/delivery/migrations,apps/server/src/modules/mcp/migrations",
     "apps/server/src/tasks.ts",
     "register-oauth-client",
     "--name",
