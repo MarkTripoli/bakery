@@ -3,6 +3,7 @@ import {
   deriveWorkspaceRequirement,
   isWorkTypeLabel,
   resolveScopeProfileDefaults,
+  ScopeProfileError,
   WORK_TYPE_LABEL_MAX_LENGTH,
 } from "../../packages/contracts/src/scope-profiles.ts";
 
@@ -69,6 +70,44 @@ Deno.test("nested steps are inspected, not only the top level", () => {
     },
   ]);
   assert(requirement.required);
+});
+
+Deno.test("a pack predicate is asked about every step inside branch, repeat and parallel lanes", () => {
+  const seen: string[] = [];
+  const requirement = deriveWorkspaceRequirement([
+    {
+      id: "outer",
+      branch: { then: [{ id: "then_step" }], else: [{ id: "else_step" }] },
+    },
+    {
+      id: "loop",
+      repeat: {
+        steps: [{ id: "repeat_step" }],
+        seed: { steps: [{ id: "seed_step" }] },
+      },
+    },
+    {
+      id: "fan",
+      parallel: { branches: [{ steps: [{ id: "lane_step" }] }] },
+    },
+  ], {
+    stepRequiresWorkspace: (step) => {
+      seen.push(String(step.id));
+      return step.id === "lane_step";
+    },
+  });
+  assertEquals(seen.sort(), [
+    "else_step",
+    "fan",
+    "lane_step",
+    "loop",
+    "outer",
+    "repeat_step",
+    "seed_step",
+    "then_step",
+  ]);
+  assert(requirement.required);
+  assertEquals(requirement.reason, "a_step_requires_a_workspace");
 });
 
 Deno.test("a malformed workspace declaration is refused, not ignored", () => {
@@ -163,10 +202,28 @@ Deno.test("a scope profile from another project is refused", () => {
       },
     });
   } catch (error) {
-    assert(error instanceof Error);
+    // The ownership rule refuses it, not a content parse of the owner key.
+    assert(error instanceof ScopeProfileError);
+    assert(error.message.includes("only supply defaults to the project"));
     return;
   }
   throw new Error("a scope profile from another project must be refused");
+});
+
+Deno.test("a stored profile naming its own project supplies its defaults", () => {
+  const defaults = resolveScopeProfileDefaults({
+    organizationId: "00000000-0000-4000-8000-0000000000o1",
+    applicationId: "00000000-0000-4000-8000-0000000000p1",
+    profile: {
+      revision: 2,
+      digest: "c".repeat(64),
+      checkCommands: [{ id: "lint", command: "pnpm lint" }],
+      rules: [{ id: "no-secrets" }],
+      applicationId: "00000000-0000-4000-8000-0000000000p1",
+    },
+  });
+  assertEquals(defaults.revision, 2);
+  assertEquals(defaults.rules, [{ id: "no-secrets" }]);
 });
 
 Deno.test("the task picker offers the four labels and keeps a foreign one visible", async () => {

@@ -1459,7 +1459,6 @@ export async function admitRepositoryExecutionJob(
       repositoryProfile?: unknown;
       stepAgents?: unknown;
     };
-    task_type: string;
     step_key: string;
     step_dispatch: unknown;
     step_outputs: unknown;
@@ -1477,7 +1476,7 @@ export async function admitRepositoryExecutionJob(
             job.application_id, job.repository_id, job.repository_profile_id,
             job.repository_profile_revision, job.repository_profile_digest,
             job.observation_id, job.observation_digest, job.base_sha,
-            run.snapshot, task.task_type, task.repository_id as task_repository_id,
+            run.snapshot, task.repository_id as task_repository_id,
             step.step_key, step.dispatch as step_dispatch,
             coalesce(outputs.step_outputs, '{}'::jsonb) as step_outputs,
             job.action, job.input, job.requirements, job.agent_version_id,
@@ -1564,8 +1563,9 @@ export async function admitRepositoryExecutionJob(
       await digest(frozenAgent.config) !== frozenAgent.digest)
   ) unavailable();
   if (row.snapshot.executionMode === "cloud_only") {
+    // Work type is an organization label the kernel never branches on (O23):
+    // any run whose steps need no repository may be claimed without one.
     if (
-      row.task_type !== "maintenance" ||
       row.snapshot.repositoryProfile !== null ||
       row.application_id !== null || row.repository_id !== null ||
       row.repository_profile_id !== null ||

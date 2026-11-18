@@ -4285,5 +4285,6 @@
   "settings.audit.kind.agent_definition": "⟪Agent⟫",
   "settings.audit.kind.agent_version": "⟪Agent version⟫",
   "settings.audit.description.organization": "⟪Changes to members, roles and settings in {organization}, newest first.⟫",
-  "settings.audit.outcome.denied": "⟪Refused⟫"
+  "settings.audit.outcome.denied": "⟪Refused⟫",
+  "settings.roles.thing.scopeProfile": "⟪project step defaults⟫"
 }
