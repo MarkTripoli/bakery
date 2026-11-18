@@ -278,6 +278,7 @@ for (
 
       await row.getByRole("button", { name: "Remove Ada Member" }).click();
       await expect(panel.getByText("Role removed.")).toBeVisible();
+      await panel.getByRole("button", { name: "Dismiss notice" }).click();
       await row.getByRole("button", { name: "Delete" }).click();
       // Delete asks first and says what it does.
       const confirm = page.getByRole("alertdialog", {
@@ -286,6 +287,7 @@ for (
       await expect(confirm).toContainText(
         "No members have this role, so nobody's access changes.",
       );
+      // The stills show the dialog on its own, not behind the last notice.
       await shot(page, "custom-roles-delete-dialog", [], { windowOnly: true });
       const writesBefore = state.writes.length;
       await confirm.getByRole("button", { name: "Cancel" }).click();
@@ -293,6 +295,7 @@ for (
       await row.getByRole("button", { name: "Delete" }).click();
       await confirm.getByRole("button", { name: "Delete role" }).click();
       await expect(panel.getByText("Role deleted.")).toBeVisible();
+      await shot(page, "custom-roles-deleted");
       await expect(panel.getByText("No custom roles yet")).toBeVisible();
       expect(state.writes.map((write) => write.method)).toEqual([
         "POST",
