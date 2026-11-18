@@ -8,6 +8,7 @@ import {
   test,
 } from "@playwright/test";
 import { submitUntilAccepted } from "./helpers/api-retry.ts";
+import { laneBudgetMs } from "./helpers/lane-budget.ts";
 
 /**
  * Live, real-API proof of the account-security screens (#151 AC2): the
@@ -284,7 +285,7 @@ test.describe("account security journey", () => {
   });
 
   test("1. the hub links to every sign-in method and the connected clients", async ({ page }) => {
-    test.setTimeout(90_000);
+    test.setTimeout(laneBudgetMs(90_000));
     await signIn(page);
     await page.goto("/settings/security");
     await expect(page.locator("main h1")).toHaveText("Account and security");
@@ -299,7 +300,7 @@ test.describe("account security journey", () => {
   });
 
   test("2. a wrong current password is refused and the right one changes it back", async ({ page }) => {
-    test.setTimeout(90_000);
+    test.setTimeout(laneBudgetMs(90_000));
     await signIn(page);
     const replacement = `${ADMIN_PASSWORD}-${randomToken()}`;
     await page.goto("/settings/security/password");
@@ -326,7 +327,7 @@ test.describe("account security journey", () => {
   });
 
   test("3. re-authentication is in place: a wrong password is refused, the right one returns to the return path", async ({ page }) => {
-    test.setTimeout(90_000);
+    test.setTimeout(laneBudgetMs(90_000));
     await signIn(page);
     await page.goto(
       "/account/reauthenticate?returnTo=%2Fsettings%2Fsecurity%2Fpasskeys",
@@ -349,7 +350,7 @@ test.describe("account security journey", () => {
   });
 
   test("4. a passkey is added through a virtual authenticator, renamed and removed", async ({ page, context, baseURL }) => {
-    test.setTimeout(120_000);
+    test.setTimeout(laneBudgetMs(120_000));
     // The server's RP ID is the public origin's hostname and WebAuthn refuses
     // an IP address as an RP ID, so this ceremony needs a DNS name or
     // `localhost` (BAKERY_PUBLIC_BASE_URL and BASE_URL both on `localhost`).
@@ -393,7 +394,7 @@ test.describe("account security journey", () => {
   });
 
   test("5. revoking a connected client stops its next /mcp call with 401", async ({ page, baseURL }) => {
-    test.setTimeout(120_000);
+    test.setTimeout(laneBudgetMs(120_000));
     const clientName = `Journey client ${randomToken()}`;
     const clientId = registerClient(clientName);
     const resource = `${baseURL}/mcp`;
@@ -439,7 +440,7 @@ test.describe("account security journey", () => {
   });
 
   test("6. denying consent sends the client back with access_denied and no code", async ({ page, baseURL }) => {
-    test.setTimeout(90_000);
+    test.setTimeout(laneBudgetMs(90_000));
     const clientId = registerClient(`Journey denied ${randomToken()}`);
     await signIn(page);
     const request = await authorizeRequest(clientId);

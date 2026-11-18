@@ -212,6 +212,16 @@ export function sweepTimeoutMs(passes = 1): number {
   return catalog.entries.length * passes * SWEEP_MS_PER_STORY;
 }
 
+/**
+ * Whole-test budget for a test that opens one story in each named runtime
+ * context: a new browser context and one page visit per context, so the same
+ * per-visit allowance as a story sweep, times the contexts (#559). A fixed
+ * 240 s was 7.7 s per context, under the allowance a slow host needs.
+ */
+export function runtimeContextSweepTimeoutMs(): number {
+  return Object.keys(runtime.contexts).length * SWEEP_MS_PER_STORY;
+}
+
 export async function openByTitle(
   page: Page,
   title: string,
