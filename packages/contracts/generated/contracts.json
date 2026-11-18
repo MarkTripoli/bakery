@@ -208549,9 +208549,10 @@
                 "run_stage",
                 "merge",
                 "deploy",
-                "human_approval"
+                "human_approval",
+                "run_step"
               ],
-              "description": "What the approval authorizes: plan_revision today; merge and deploy are unsupported."
+              "description": "What the approval authorizes: a plan revision, a run stage, or a run step (human.approval); merge and deploy are unsupported."
             },
             "subjectId": {
               "type": "string",
@@ -209315,9 +209316,10 @@
                       "run_stage",
                       "merge",
                       "deploy",
-                      "human_approval"
+                      "human_approval",
+                      "run_step"
                     ],
-                    "description": "What the approval authorizes: plan_revision today; merge and deploy are unsupported."
+                    "description": "What the approval authorizes: a plan revision, a run stage, or a run step (human.approval); merge and deploy are unsupported."
                   },
                   "subjectId": {
                     "type": "string",
@@ -217176,7 +217178,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:8d386cd16db8c8d040a1fa84587bb89bde57ada927dd202f4076c42f66da4353",
+  "compatibilityDigest": "sha256:9a39c76d8a5cc76606931f6d73bc5e8ae2134cdb1ef5e8f2d8cfdb890c1d21a2",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -391054,9 +391056,10 @@
             "run_stage",
             "merge",
             "deploy",
-            "human_approval"
+            "human_approval",
+            "run_step"
           ],
-          "description": "What the approval authorizes: plan_revision today; merge and deploy are unsupported."
+          "description": "What the approval authorizes: a plan revision, a run stage, or a run step (human.approval); merge and deploy are unsupported."
         },
         "subjectId": {
           "type": "string",
@@ -391824,9 +391827,10 @@
                   "run_stage",
                   "merge",
                   "deploy",
-                  "human_approval"
+                  "human_approval",
+                  "run_step"
                 ],
-                "description": "What the approval authorizes: plan_revision today; merge and deploy are unsupported."
+                "description": "What the approval authorizes: a plan revision, a run stage, or a run step (human.approval); merge and deploy are unsupported."
               },
               "subjectId": {
                 "type": "string",

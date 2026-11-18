@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <learnings version="1">
+  <entry file="an-export-that-cannot-be-accepted.xml" scope="project" />
   <entry file="contract-migration-check-flag.xml" scope="project" />
   <entry file="cited-artifact-downstream-of-the-claim.xml" scope="project" />
   <entry file="css-rail-scans-comments.xml" scope="project" />
