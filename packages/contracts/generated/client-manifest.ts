@@ -5423,7 +5423,7 @@ export const clientManifest = {
       "permission": "notification:write",
       "input": "NotificationReadUpdate",
       "output": "Notification",
-      "event": "notification.read_changed",
+      "event": "notifications.inbox_changed",
       "mcp": "bakery_notifications_setRead",
       "idempotency": "Idempotency-Key + expectedCasVersion required",
       "errors": [
@@ -5449,7 +5449,7 @@ export const clientManifest = {
       "permission": "notification:write",
       "input": "NotificationMarkAllRead",
       "output": "NotificationMarkAllReadResult",
-      "event": "notification.read_changed",
+      "event": "notifications.inbox_changed",
       "mcp": "bakery_notifications_markAllRead",
       "idempotency": "Idempotency-Key required",
       "errors": [
@@ -5460,6 +5460,30 @@ export const clientManifest = {
         "UNPROCESSABLE",
         "STATE_CONFLICT",
         "VERSION_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Conversation",
+      "method": "POST",
+      "path": "/v1/notifications/read-all/undo",
+      "action": "notifications.undoMarkAllRead",
+      "access": "Current member",
+      "permission": "notification:write",
+      "input": "NotificationUndoMarkAllRead",
+      "output": "NotificationUndoMarkAllReadResult",
+      "event": "notifications.inbox_changed",
+      "mcp": "bakery_notifications_undoMarkAllRead",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
         "MALFORMED_REQUEST"
       ],
@@ -12292,6 +12316,7 @@ export const clientManifest = {
             "notifications.resolveTarget",
             "notifications.setRead",
             "notifications.markAllRead",
+            "notifications.undoMarkAllRead",
             "artifactComments.listAcrossVersions",
             "organizations.list",
             "organizations.create",
@@ -13995,9 +14020,10 @@ export const clientManifest = {
             "task",
             "conversation",
             "worker_enrollment",
-            "worker"
+            "worker",
+            "inbox"
           ],
-          "description": "Kind of resource the snapshot is scoped to: an organization-wide application feed, one repository, one task, one conversation, one worker enrollment (Admin status feed), or one worker machine (safe status feed)."
+          "description": "Kind of resource the snapshot is scoped to: an organization-wide application feed, one repository, one task, one conversation, one worker enrollment (Admin status feed), or one worker machine (safe status feed). \"inbox\" is events-only: its id must be the caller's own principal id, any member may subscribe to their own, and it carries only notifications.inbox_changed signals; snapshots reject it."
         },
         "scopeId": {
           "type": "string",
@@ -19523,6 +19549,23 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Lists the agent sessions that belong to one run step, so a client can reach a session by run rather than by an id it already knows."
+    },
+    "NotificationUndoMarkAllRead": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "batchId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The batchId a mark-all-read call returned. Only that press of the authenticated recipient can be undone, once, within 10 minutes."
+        }
+      },
+      "required": [
+        "batchId"
+      ],
+      "additionalProperties": false,
+      "description": "Undoes the recipient's last mark-all-read press within its bound, so the Undo toast can restore exactly what was marked."
     },
     "DefinitionPublishGrantCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -31844,6 +31887,7 @@ export const clientManifest = {
                   "notifications.resolveTarget",
                   "notifications.setRead",
                   "notifications.markAllRead",
+                  "notifications.undoMarkAllRead",
                   "artifactComments.listAcrossVersions",
                   "organizations.list",
                   "organizations.create",
@@ -48351,6 +48395,7 @@ export const clientManifest = {
             "notifications.resolveTarget",
             "notifications.setRead",
             "notifications.markAllRead",
+            "notifications.undoMarkAllRead",
             "artifactComments.listAcrossVersions",
             "organizations.list",
             "organizations.create",
@@ -68697,6 +68742,21 @@ export const clientManifest = {
           "minimum": -9007199254740991,
           "maximum": 9007199254740991,
           "description": "The inbox revision after the change, so the client can order it against other responses."
+        },
+        "batchId": {
+          "description": "NotificationMarkAllReadResult.batchId may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Identifier of this mark-all-read press for notifications.undoMarkAllRead, or null when nothing was marked. Undo is accepted for 10 minutes."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
         }
       },
       "required": [
@@ -69650,6 +69710,37 @@ export const clientManifest = {
           "description": "JSON value node."
         }
       }
+    },
+    "NotificationUndoMarkAllReadResult": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "restored": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "NotificationUndoMarkAllReadResult.restored must be at least 0."
+        },
+        "unread": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "NotificationUndoMarkAllReadResult.unread must be at least 0."
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "The newest inbox revision after the undo, for ordering against other responses and events."
+        }
+      },
+      "required": [
+        "restored",
+        "unread",
+        "revision"
+      ],
+      "additionalProperties": false,
+      "description": "Outcome of undoing one mark-all-read press."
     },
     "DefinitionPublishGrant": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
