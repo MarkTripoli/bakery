@@ -26,6 +26,7 @@ import {
 } from "../../apps/server/src/modules/work/migrations.ts";
 import { projectsBakeryMigrationSource } from "../../apps/server/src/modules/projects/migrations.ts";
 import { agentsBakeryMigrationSource } from "../../apps/server/src/modules/agents/migrations.ts";
+import { knowledgeBakeryMigrationSource } from "../../apps/server/src/modules/knowledge/migrations.ts";
 import { repositoryRulesBakeryMigrationSource } from "../../apps/server/src/modules/repository-rules/migrations.ts";
 import { artifactKindsBakeryMigrationSource } from "../../apps/server/src/modules/artifact-kinds/migrations.ts";
 import { integrationsBakeryMigrationSource } from "../../apps/server/src/modules/integrations/migrations.ts";
@@ -79,6 +80,7 @@ Deno.test("checksum migrations and tenant context use real Postgres", async () =
       ...await loadMigrations(workBakeryMigrationSource),
       ...await loadMigrations(projectsBakeryMigrationSource),
       ...await loadMigrations(agentsBakeryMigrationSource),
+      ...await loadMigrations(knowledgeBakeryMigrationSource),
       ...await loadMigrations(repositoryRulesBakeryMigrationSource),
       ...await loadMigrations(artifactKindsBakeryMigrationSource),
       ...await loadMigrations(integrationsBakeryMigrationSource),
@@ -453,6 +455,7 @@ Deno.test("canonical lifecycle preserves populated upgrades and rolls back mappi
       ...await loadMigrations(workBakeryMigrationSource),
       ...await loadMigrations(projectsBakeryMigrationSource),
       ...await loadMigrations(agentsBakeryMigrationSource),
+      ...await loadMigrations(knowledgeBakeryMigrationSource),
       ...await loadMigrations(repositoryRulesBakeryMigrationSource),
       ...await loadMigrations(artifactKindsBakeryMigrationSource),
       ...await loadMigrations(integrationsBakeryMigrationSource),
@@ -787,6 +790,7 @@ Deno.test("provider migration preserves pending inviter state for canonical cuto
       ...await loadMigrations(workBakeryMigrationSource),
       ...await loadMigrations(projectsBakeryMigrationSource),
       ...await loadMigrations(agentsBakeryMigrationSource),
+      ...await loadMigrations(knowledgeBakeryMigrationSource),
       ...await loadMigrations(repositoryRulesBakeryMigrationSource),
       ...await loadMigrations(artifactKindsBakeryMigrationSource),
       ...await loadMigrations(integrationsBakeryMigrationSource),
@@ -902,6 +906,7 @@ Deno.test("confirmed reset removes provider and Bakery state", async () => {
       ...await loadMigrations(workBakeryMigrationSource),
       ...await loadMigrations(projectsBakeryMigrationSource),
       ...await loadMigrations(agentsBakeryMigrationSource),
+      ...await loadMigrations(knowledgeBakeryMigrationSource),
       ...await loadMigrations(repositoryRulesBakeryMigrationSource),
       ...await loadMigrations(artifactKindsBakeryMigrationSource),
       ...await loadMigrations(integrationsBakeryMigrationSource),
@@ -966,6 +971,7 @@ Deno.test("budget provenance upgrade preserves legacy measurements and their res
       ...await loadMigrations(workBakeryMigrationSource),
       ...await loadMigrations(projectsBakeryMigrationSource),
       ...await loadMigrations(agentsBakeryMigrationSource),
+      ...await loadMigrations(knowledgeBakeryMigrationSource),
       ...await loadMigrations(repositoryRulesBakeryMigrationSource),
       ...await loadMigrations(artifactKindsBakeryMigrationSource),
       ...await loadMigrations(integrationsBakeryMigrationSource),

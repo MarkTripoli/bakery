@@ -19,6 +19,7 @@ import {
 } from "../../apps/server/src/modules/agents/migrations.ts";
 import { repositoryRulesBakeryMigrationSource } from "../../apps/server/src/modules/repository-rules/migrations.ts";
 import { artifactKindsBakeryMigrationSource } from "../../apps/server/src/modules/artifact-kinds/migrations.ts";
+import { knowledgeBakeryMigrationSource } from "../../apps/server/src/modules/knowledge/migrations.ts";
 import { integrationsBakeryMigrationSource } from "../../apps/server/src/modules/integrations/migrations.ts";
 import { deliveryBakeryMigrationSource } from "../../apps/server/src/modules/delivery/migrations.ts";
 import { mcpBakeryMigrationSource } from "../../apps/server/src/modules/mcp/migrations.ts";
@@ -1079,6 +1080,7 @@ Deno.test("prepared operation migration is ordered, relational, and idempotent",
       ...await loadMigrations(agentsBakeryMigrationSource),
       ...await loadMigrations(repositoryRulesBakeryMigrationSource),
       ...await loadMigrations(artifactKindsBakeryMigrationSource),
+      ...await loadMigrations(knowledgeBakeryMigrationSource),
       ...await loadMigrations(integrationsBakeryMigrationSource),
       ...await loadMigrations(deliveryBakeryMigrationSource),
       ...await loadMigrations(mcpBakeryMigrationSource),

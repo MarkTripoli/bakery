@@ -36,6 +36,7 @@ import {
 } from "../../apps/server/src/modules/auth/transport/http/v1/routes.ts";
 import { projectsBakeryMigrationSource } from "../../apps/server/src/modules/projects/migrations.ts";
 import { agentsBakeryMigrationSource } from "../../apps/server/src/modules/agents/migrations.ts";
+import { knowledgeBakeryMigrationSource } from "../../apps/server/src/modules/knowledge/migrations.ts";
 import { repositoryRulesBakeryMigrationSource } from "../../apps/server/src/modules/repository-rules/migrations.ts";
 import { artifactKindsBakeryMigrationSource } from "../../apps/server/src/modules/artifact-kinds/migrations.ts";
 import { integrationsBakeryMigrationSource } from "../../apps/server/src/modules/integrations/migrations.ts";
@@ -79,6 +80,7 @@ Deno.test("task commands replay exactly once through one tenant transaction", as
       ...await loadMigrations(workBakeryMigrationSource),
       ...await loadMigrations(projectsBakeryMigrationSource),
       ...await loadMigrations(agentsBakeryMigrationSource),
+      ...await loadMigrations(knowledgeBakeryMigrationSource),
       ...await loadMigrations(repositoryRulesBakeryMigrationSource),
       ...await loadMigrations(artifactKindsBakeryMigrationSource),
       ...await loadMigrations(integrationsBakeryMigrationSource),

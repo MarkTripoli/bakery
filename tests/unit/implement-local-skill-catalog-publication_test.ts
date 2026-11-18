@@ -34,6 +34,7 @@ import {
   bakeryPlatformMigrationSource,
 } from "../../apps/server/src/platform/migrate.ts";
 import { agentsBakeryMigrationSource } from "../../apps/server/src/modules/agents/migrations.ts";
+import { knowledgeBakeryMigrationSource } from "../../apps/server/src/modules/knowledge/migrations.ts";
 import { repositoryRulesBakeryMigrationSource } from "../../apps/server/src/modules/repository-rules/migrations.ts";
 import { artifactKindsBakeryMigrationSource } from "../../apps/server/src/modules/artifact-kinds/migrations.ts";
 import { integrationsBakeryMigrationSource } from "../../apps/server/src/modules/integrations/migrations.ts";
@@ -50,6 +51,7 @@ Deno.test("Bakery migrations follow the globally unique migration sequence", asy
     ...await loadMigrations(workBakeryMigrationSource),
     ...await loadMigrations(projectsBakeryMigrationSource),
     ...await loadMigrations(agentsBakeryMigrationSource),
+    ...await loadMigrations(knowledgeBakeryMigrationSource),
     ...await loadMigrations(repositoryRulesBakeryMigrationSource),
     ...await loadMigrations(artifactKindsBakeryMigrationSource),
     ...await loadMigrations(integrationsBakeryMigrationSource),

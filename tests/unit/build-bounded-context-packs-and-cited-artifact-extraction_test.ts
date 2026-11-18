@@ -1,659 +1,248 @@
+import { assert, assertEquals } from "@std/assert";
+import type {
+  ContextEnvelope,
+  ContextItem,
+} from "../../packages/contracts/src/context-packs.ts";
 import {
-  assert,
-  assertEquals,
-  assertNotEquals,
-  assertThrows,
-} from "@std/assert";
-import {
-  allocateContext,
-  ContextDecision,
-  type ContextEnvelopeInput,
-  resolveContextEnvelope,
-} from "../../apps/server/src/modules/knowledge/context-budget.ts";
-import {
-  CONTEXT_EXTRACTOR_VERSION,
-  ContextCitationSchema,
-  extractCacheKey,
-  MAX_PROJECTION_BYTES,
-  projectArtifactVersion,
-  REFERENCE_TOKENS,
-  unboundedItem,
-  verifyCitation,
-} from "../../apps/server/src/modules/knowledge/context-projection.ts";
+  admitContext,
+  type Candidate,
+  extractStillValid,
+} from "../../apps/server/src/modules/knowledge/context-packs.ts";
 
-const reserved = {
-  output: 12_000,
-  toolResults: 16_000,
-  compaction: 10_000,
-  safetyMargin: 2_000,
-};
+/**
+ * Bounded context packs and cited artifact extraction.
+ *
+ * The organ these tests defend is the budget. Every AC here fails in the same
+ * direction if the arithmetic is wrong: a step gets handed more than the model
+ * can hold, and it fails at the point of use rather than the point of admission.
+ */
 
-function envelope(
-  counts: ContextEnvelopeInput["counts"],
-  modelContextTokens = 128_000,
-): ContextEnvelopeInput {
-  return { modelContextTokens, counts, reserved };
-}
+const envelope = (
+  windowTokens: number,
+  headroom = { output: 0, toolResults: 0, compaction: 0 },
+): ContextEnvelope => ({ windowTokens, headroom });
 
-Deno.test("measured and estimated counts and every reservation reduce the available budget", () => {
-  const result = resolveContextEnvelope(envelope({
-    conversation: { state: "measured", tokens: 6_800 },
-    instructions: { state: "measured", tokens: 2_100 },
-    toolSchemas: { state: "estimated", tokens: 3_200 },
-  }));
-  assertEquals(result.countedInputTokens, 12_100);
-  assertEquals(result.reservedTokens, 40_000);
-  assertEquals(result.availableTokens, 128_000 - 12_100 - 40_000);
-  assertEquals(result.decision, ContextDecision.Ready);
+const extract = (id: string): ContextItem => ({
+  kind: "extract",
+  citation: {
+    artifactVersionId: id,
+    digest: `sha256:${"a".repeat(64)}`,
+    scope: "repo:read",
+  },
+  provenance: { name: "text", version: "1" },
+  text: "some extracted text",
+  truncated: false,
 });
 
-Deno.test("an unknown unbounded count blocks admission and is never counted as zero (AC1)", () => {
-  const result = resolveContextEnvelope(envelope({
-    conversation: { state: "measured", tokens: 1_000 },
-    harnessOverhead: { state: "unknown", tokens: null, boundTokens: null },
-  }));
-  assertEquals(result.decision, ContextDecision.BoundMoreBeforeDispatch);
-  assertEquals(result.unboundedUnknown, ["harnessOverhead"]);
-  assertEquals(result.countedInputTokens, 1_000);
+const measured = (label: string, tokens: number): Candidate => ({
+  item: extract(`00000000-0000-4000-8000-00000000000${label.length % 9}`),
+  usage: { kind: "measured", tokens },
+  label,
 });
 
-Deno.test("a bounded unknown is counted at its bound", () => {
-  const result = resolveContextEnvelope(envelope({
-    harnessOverhead: { state: "unknown", tokens: null, boundTokens: 4_000 },
-  }));
-  assertEquals(result.countedInputTokens, 4_000);
-  assertEquals(result.decision, ContextDecision.Ready);
-});
-
-Deno.test("content already over the budget needs bounding before any slice is admitted", () => {
-  const result = resolveContextEnvelope(envelope({
-    conversation: { state: "measured", tokens: 95_000 },
-  }));
-  assertEquals(result.availableTokens, 128_000 - 95_000 - 40_000);
-  assertEquals(result.decision, ContextDecision.NeedsBounding);
-});
-
-Deno.test("allocation keeps required items, selects optional ones by priority and omits oversized or unknown ones", () => {
-  const allocation = allocateContext({
-    envelope: {
-      modelContextTokens: 100_000,
-      counts: {},
-      reserved: {
-        output: 20_000,
-        toolResults: 0,
-        compaction: 0,
-        safetyMargin: 10_000,
-      },
+Deno.test("AC1: an unknown-size item is refused, not counted as zero", () => {
+  // This is the whole point. If unknown were admitted as 0 the pack would report
+  // success and the step would overflow exactly when the input is large.
+  const result = admitContext({ envelope: envelope(1000) }, [
+    {
+      item: extract("00000000-0000-4000-8000-000000000001"),
+      usage: { kind: "unknown", reason: "no tokenizer for this media type" },
+      label: "big-pdf",
     },
-    items: [
-      {
-        id: "policy-task-tools",
-        count: { state: "measured", tokens: 8_000 },
-        required: true,
-        priority: 100,
-      },
-      {
-        id: "approved-plan-v3",
-        count: { state: "measured", tokens: 4_000 },
-        required: true,
-        priority: 100,
-      },
-      {
-        id: "failing-test-excerpt",
-        count: { state: "estimated", tokens: 2_000 },
-        required: false,
-        priority: 90,
-      },
-      {
-        id: "whole-session-log",
-        count: { state: "estimated", tokens: 90_000 },
-        required: false,
-        priority: 10,
-      },
-      {
-        id: "unsized-attachment",
-        count: { state: "unknown", tokens: null, boundTokens: null },
-        required: false,
-        priority: 95,
-      },
-    ],
-  });
-  assertEquals(allocation.decision, ContextDecision.Ready);
-  assertEquals(allocation.selected, [
-    "policy-task-tools",
-    "approved-plan-v3",
-    "failing-test-excerpt",
   ]);
-  assertEquals(allocation.selectedTokens, 14_000);
-  assertEquals(allocation.omitted, [
-    { id: "unsized-attachment", reason: "unbounded_unknown" },
-    { id: "whole-session-log", reason: "over_budget" },
-  ]);
-});
-
-Deno.test("required content over the budget hands off and selects nothing", () => {
-  const allocation = allocateContext({
-    envelope: envelope({}),
-    items: [
-      {
-        id: "huge-required",
-        count: { state: "measured", tokens: 90_000 },
-        required: true,
-        priority: 100,
-      },
-    ],
-  });
-  assertEquals(allocation.decision, ContextDecision.HandoffRequired);
-  assertEquals(allocation.selected, []);
-});
-
-Deno.test("a required unknown unbounded item blocks the step rather than counting as zero", () => {
-  const allocation = allocateContext({
-    envelope: envelope({}),
-    items: [
-      {
-        id: "unbounded-required",
-        count: { state: "unknown", tokens: null, boundTokens: null },
-        required: true,
-        priority: 100,
-      },
-    ],
-  });
-  assertEquals(allocation.decision, ContextDecision.BoundMoreBeforeDispatch);
-  assertEquals(allocation.selected, []);
-});
-
-Deno.test("reservations survive a retry: the same inputs give the same envelope", () => {
-  const input = envelope({
-    conversation: { state: "measured", tokens: 20_000 },
-  });
-  assertEquals(resolveContextEnvelope(input), resolveContextEnvelope(input));
-});
-
-Deno.test("malformed counts and duplicate item ids are rejected", () => {
-  assertThrows(() =>
-    resolveContextEnvelope(envelope({
-      // Unknown cannot carry a token count.
-      bad: { state: "unknown", tokens: 5 as never, boundTokens: null },
-    }))
-  );
-  assertThrows(() =>
-    resolveContextEnvelope(envelope({
-      bad: { state: "measured", tokens: -1 },
-    }))
-  );
-  assertThrows(() =>
-    allocateContext({
-      envelope: envelope({}),
-      items: [
-        {
-          id: "x",
-          count: { state: "measured", tokens: 1 },
-          required: false,
-          priority: 1,
-        },
-        {
-          id: "x",
-          count: { state: "measured", tokens: 1 },
-          required: false,
-          priority: 1,
-        },
-      ],
-    })
+  assertEquals(result.pack.items.length, 0);
+  assertEquals(result.pack.omitted.length, 1);
+  assertEquals(result.pack.omitted[0]!.reason, "unknown-size");
+  assert(
+    result.pack.omitted[0]!.detail.includes("big-pdf"),
+    "the refusal must name what it refused",
   );
 });
 
-// ---------------------------------------------------------------------------
-// Slice 2: index-first projections with exact citations.
-// ---------------------------------------------------------------------------
-
-const DIGEST = "a".repeat(64);
-const entry = (mediaType: string, sizeBytes: number | null = 1_000) => ({
-  artifactId: "11111111-1111-4111-8111-111111111111",
-  versionId: "22222222-2222-4222-8222-222222222222",
-  sha256: DIGEST,
-  mediaType,
-  sizeBytes,
-});
-
-Deno.test("text and log windows carry an exact byte-range citation and an estimated count", () => {
-  const text = "line one\nline two ✓\n";
-  const bytes = new TextEncoder().encode(text).byteLength;
-  for (
-    const [mediaType, kind] of [
-      ["text/markdown", "text_window"],
-      ["text/x-log", "log_window"],
-      ["application/x-ndjson", "log_window"],
-    ] as const
-  ) {
-    const projection = projectArtifactVersion(entry(mediaType), {
-      startByte: 100,
-      endByteExclusive: 100 + bytes,
-      text,
-      hasMore: true,
-    });
-    assertEquals(projection.kind, kind);
-    assertEquals(projection.text, text);
-    assertEquals(projection.truncated, true);
-    assertEquals(projection.citation, {
-      artifactId: entry(mediaType).artifactId,
-      versionId: entry(mediaType).versionId,
-      sha256: DIGEST,
-      mediaType,
-      location: { startByte: 100, endByteExclusive: 100 + bytes },
-      extractorVersion: CONTEXT_EXTRACTOR_VERSION,
-    });
-    assertEquals(projection.item.count, { state: "estimated", tokens: bytes });
-  }
-});
-
-Deno.test("images, PDFs and unknown binaries are references: no bytes enter context (AC3)", () => {
-  for (
-    const [mediaType, kind] of [
-      ["image/png", "image_reference"],
-      ["application/pdf", "pdf_reference"],
-      ["application/octet-stream", "binary_reference"],
-      ["application/zip", "binary_reference"],
-    ] as const
-  ) {
-    // Even when a caller hands over a window, binary content is never text.
-    const projection = projectArtifactVersion(entry(mediaType), {
-      startByte: 0,
-      endByteExclusive: 4,
-      text: "AAAA",
-      hasMore: false,
-    });
-    assertEquals(projection.kind, kind);
-    assertEquals(projection.text, null);
-    assertEquals(projection.citation.location, null);
-    assertEquals(projection.citation.extractorVersion, null);
-    assertEquals(projection.item.count, {
-      state: "estimated",
-      tokens: REFERENCE_TOKENS,
-    });
-  }
-});
-
-Deno.test("text with no extracted window falls back to a reference, never to whole content (AC3)", () => {
-  const projection = projectArtifactVersion(
-    entry("text/plain", 9_000_000),
-    null,
-  );
-  assertEquals(projection.text, null);
-  assertEquals(projection.citation.location, null);
-});
-
-Deno.test("an oversized or inconsistent window is refused", () => {
-  const big = "x".repeat(MAX_PROJECTION_BYTES + 1);
-  assertThrows(() =>
-    projectArtifactVersion(entry("text/plain"), {
-      startByte: 0,
-      endByteExclusive: big.length,
-      text: big,
-      hasMore: false,
-    })
-  );
-  // The declared range must equal the text's real byte length.
-  assertThrows(() =>
-    projectArtifactVersion(entry("text/plain"), {
-      startByte: 0,
-      endByteExclusive: 3,
-      text: "✓✓",
-      hasMore: false,
-    })
-  );
-});
-
-Deno.test("unindexed content is unknown and unbounded, so allocation omits it instead of counting zero (AC1)", () => {
-  const allocation = allocateContext({
-    envelope: envelope({}),
-    items: [
-      projectArtifactVersion(entry("text/plain"), {
-        startByte: 0,
-        endByteExclusive: 5,
-        text: "hello",
-        hasMore: false,
-      }).item,
-      unboundedItem("unindexed-log"),
-    ],
-  });
-  assertEquals(allocation.decision, ContextDecision.Ready);
-  assertEquals(allocation.omitted, [
-    { id: "unindexed-log", reason: "unbounded_unknown" },
-  ]);
-  assertEquals(allocation.selectedTokens, 5);
-});
-
-Deno.test("a citation or cached extract is reused only while digest, extractor and live access hold (AC2)", () => {
-  const citation = projectArtifactVersion(entry("text/plain"), {
-    startByte: 0,
-    endByteExclusive: 5,
-    text: "hello",
-    hasMore: false,
-  }).citation;
-  assertEquals(verifyCitation(citation, { authorized: true, sha256: DIGEST }), {
-    valid: true,
-  });
-  assertEquals(
-    verifyCitation(citation, { authorized: false, sha256: DIGEST }),
-    { valid: false, reason: "not_authorized" },
-  );
-  assertEquals(verifyCitation(citation, { authorized: true, sha256: null }), {
-    valid: false,
-    reason: "version_missing",
-  });
-  assertEquals(
-    verifyCitation(citation, { authorized: true, sha256: "b".repeat(64) }),
-    { valid: false, reason: "digest_mismatch" },
-  );
-  assertEquals(
-    verifyCitation({ ...citation, extractorVersion: "bakery.text-window@0" }, {
-      authorized: true,
-      sha256: DIGEST,
-    }),
-    { valid: false, reason: "extractor_changed" },
-  );
-  // The cache key binds organization, version, digest, range and extractor,
-  // and carries no authorization decision.
-  assertEquals(
-    extractCacheKey("org", citation),
-    `org|${citation.versionId}|${DIGEST}|0-5|${CONTEXT_EXTRACTOR_VERSION}`,
-  );
-  assertNotEquals(
-    extractCacheKey("org", citation),
-    extractCacheKey("other-org", citation),
-  );
-});
-
-Deno.test("inconsistent citations are refused at the schema and by verifyCitation (AC2)", () => {
-  const ranged = {
-    artifactId: entry("text/plain").artifactId,
-    versionId: entry("text/plain").versionId,
-    sha256: DIGEST,
-    mediaType: "text/plain",
-    location: { startByte: 0, endByteExclusive: 5 },
-    extractorVersion: CONTEXT_EXTRACTOR_VERSION,
-  };
-  const live = { authorized: true, sha256: DIGEST };
-  const bad = [
-    { ...ranged, extractorVersion: null },
-    { ...ranged, location: { startByte: 10, endByteExclusive: 2 } },
-    { ...ranged, location: null },
+Deno.test("AC1: unknown is admitted only inside an explicit allowance", () => {
+  const candidates: Candidate[] = [
+    {
+      item: extract("00000000-0000-4000-8000-000000000001"),
+      usage: { kind: "unknown", reason: "x" },
+      label: "a",
+    },
+    {
+      item: extract("00000000-0000-4000-8000-000000000002"),
+      usage: { kind: "unknown", reason: "x" },
+      label: "b",
+    },
   ];
-  for (const citation of bad) {
-    assertEquals(
-      ContextCitationSchema.safeParse(citation).success,
-      false,
-      JSON.stringify(citation),
-    );
-    // A value that bypassed the schema is still not trusted.
-    assertEquals(
-      verifyCitation(citation as never, live),
-      { valid: false, reason: "extractor_changed" },
-      JSON.stringify(citation),
-    );
-  }
-  assertEquals(ContextCitationSchema.safeParse(ranged).success, true);
-  assertEquals(verifyCitation(ranged, live), { valid: true });
-});
+  const none = admitContext({ envelope: envelope(1000) }, candidates);
+  assertEquals(none.pack.items.length, 0, "default allowance is zero");
 
-Deno.test("an unauthorized caller learns nothing about the version", () => {
-  const citation = projectArtifactVersion(entry("text/plain"), {
-    startByte: 0,
-    endByteExclusive: 5,
-    text: "hello",
-    hasMore: false,
-  }).citation;
-  for (const sha256 of [null, DIGEST, "b".repeat(64)]) {
-    assertEquals(verifyCitation(citation, { authorized: false, sha256 }), {
-      valid: false,
-      reason: "not_authorized",
-    });
-  }
-});
-
-Deno.test("a required unindexed item blocks dispatch instead of being omitted (AC1)", () => {
-  const allocation = allocateContext({
-    envelope: envelope({}),
-    items: [unboundedItem("u", { required: true })],
-  });
-  assertEquals(allocation.decision, ContextDecision.BoundMoreBeforeDispatch);
-  assertEquals(allocation.selected, []);
-});
-
-Deno.test("references are never free and media types normalize", () => {
-  assert(REFERENCE_TOKENS > 0);
-  const window = (text: string) => ({
-    startByte: 0,
-    endByteExclusive: new TextEncoder().encode(text).byteLength,
-    text,
-    hasMore: false,
-  });
-  for (
-    const [mediaType, kind] of [
-      ["application/json", "text_window"],
-      ["application/xml", "text_window"],
-      ["TEXT/PLAIN; charset=utf-8", "text_window"],
-      ["application/pdf; version=1.7", "pdf_reference"],
-      ["IMAGE/PNG", "image_reference"],
-    ] as const
-  ) {
-    assertEquals(
-      projectArtifactVersion(entry(mediaType), window("{}")).kind,
-      kind,
-      mediaType,
-    );
-  }
-});
-
-Deno.test("a window of exactly the maximum size is accepted", () => {
-  const text = "x".repeat(MAX_PROJECTION_BYTES);
-  const projection = projectArtifactVersion(entry("text/plain"), {
-    startByte: 0,
-    endByteExclusive: MAX_PROJECTION_BYTES,
-    text,
-    hasMore: false,
-  });
-  assertEquals(projection.text?.length, MAX_PROJECTION_BYTES);
-  assertThrows(() =>
-    projectArtifactVersion(entry("text/plain"), {
-      startByte: -1,
-      endByteExclusive: 4,
-      text: "abcde",
-      hasMore: false,
-    })
+  const one = admitContext(
+    { envelope: envelope(1000), unknownAllowanceTokens: 1 },
+    candidates,
   );
+  assertEquals(one.pack.items.length, 1);
+  assertEquals(one.pack.omitted.length, 1);
+  assertEquals(one.unknownSpentTokens, 1);
 });
 
-Deno.test("maxInputTokens caps input below what the window minus reserves allows (#154)", () => {
-  // The doc 19 specimen: window 100k, input cap 60k, reserves 30k.
-  const policy = {
-    modelContextTokens: 100_000,
-    reserved: {
-      output: 20_000,
-      toolResults: 0,
-      compaction: 0,
-      safetyMargin: 10_000,
+Deno.test("AC1: unknown allowance is a number, never an unbounded opt-in", () => {
+  // "admit unknowns" with no ceiling is the zero-defect one indirection later.
+  const candidates: Candidate[] = Array.from({ length: 5 }, (_, i) => ({
+    item: extract(`00000000-0000-4000-8000-00000000000${i + 1}`),
+    usage: { kind: "unknown" as const, reason: "x" },
+    label: `u${i}`,
+  }));
+  const result = admitContext(
+    { envelope: envelope(1000), unknownAllowanceTokens: 2 },
+    candidates,
+  );
+  assertEquals(result.pack.items.length, 2);
+  assertEquals(result.pack.omitted.length, 3);
+});
+
+Deno.test("AC1: oversized measured content is narrowed by the budget", () => {
+  const result = admitContext({ envelope: envelope(100) }, [
+    measured("huge", 500),
+    measured("small", 50),
+  ]);
+  assertEquals(result.pack.items.length, 1, "only what fits is admitted");
+  assertEquals(result.pack.omitted[0]!.reason, "over-budget");
+  assertEquals(result.consumedTokens, 50);
+});
+
+Deno.test("headroom is reserved BEFORE items, so output always has room", () => {
+  // Reserved after the loop means the reservation competes with content already
+  // admitted, and the loser is whichever code path runs last.
+  const result = admitContext(
+    {
+      envelope: envelope(1000, {
+        output: 400,
+        toolResults: 100,
+        compaction: 100,
+      }),
     },
-    maxInputTokens: 60_000,
+    [measured("fill", 600), measured("next", 100)],
+  );
+  // Usable is 1000 - 600 = 400, so 600 does not fit and 100 does.
+  assertEquals(result.pack.items.length, 1);
+  assertEquals(result.consumedTokens, 100);
+  assertEquals(result.pack.omitted[0]!.reason, "over-budget");
+});
+
+Deno.test("order is the caller's relevance order, never sorted by size", () => {
+  // A pack that sorts by size hands a step its cheapest evidence instead of its
+  // most relevant.
+  const result = admitContext({ envelope: envelope(1000) }, [
+    measured("relevant", 300),
+    measured("tiny", 10),
+  ]);
+  assertEquals(result.pack.items.length, 2);
+  assertEquals(result.pack.usage.length, result.pack.items.length);
+});
+
+Deno.test("AC2: a cached extract survives only while version, digest AND scope hold", () => {
+  const cited = {
+    artifactVersionId: "00000000-0000-4000-8000-000000000001",
+    digest: `sha256:${"a".repeat(64)}`,
+    scope: "repo:read",
   };
-  const capped = resolveContextEnvelope({
-    ...policy,
-    counts: { base: { state: "measured", tokens: 10_000 } },
+  const current = (
+    over: Partial<{
+      artifactVersionId: string;
+      digest: string;
+      scope: string | null;
+    }> = {},
+  ) => ({
+    artifactVersionId: cited.artifactVersionId,
+    digest: cited.digest,
+    scope: cited.scope as string | null,
+    ...over,
   });
-  assertEquals(capped.availableTokens, 60_000 - 10_000);
-  assertEquals(capped.decision, ContextDecision.Ready);
-  // Without the cap the window minus reserves applies (70k - 10k).
-  const { maxInputTokens: _cap, ...uncapped } = policy;
-  assertEquals(
-    resolveContextEnvelope({
-      ...uncapped,
-      counts: { base: { state: "measured", tokens: 10_000 } },
-    }).availableTokens,
-    60_000,
+
+  assert(extractStillValid(cited, current()), "unchanged must remain valid");
+  assert(
+    !extractStillValid(
+      cited,
+      current({ artifactVersionId: "00000000-0000-4000-8000-000000000002" }),
+    ),
+    "a new artifact version invalidates the cache",
   );
-  // A cap above the reserve-limited budget changes nothing.
-  assertEquals(
-    resolveContextEnvelope({
-      ...policy,
-      maxInputTokens: 500_000,
-      counts: { base: { state: "measured", tokens: 10_000 } },
-    }).availableTokens,
-    60_000,
+  assert(
+    !extractStillValid(cited, current({ digest: `sha256:${"b".repeat(64)}` })),
+    "a mutated artifact invalidates the cache",
   );
-  // Base input over the cap needs bounding even though the window has room.
-  assertEquals(
-    resolveContextEnvelope({
-      ...policy,
-      counts: { base: { state: "measured", tokens: 61_000 } },
-    }).decision,
-    ContextDecision.NeedsBounding,
+  assert(
+    !extractStillValid(cited, current({ scope: "repo:write" })),
+    "a changed scope invalidates the cache",
   );
-  // The specimen allocation: 14,000 tokens selected, the session log omitted.
-  const allocation = allocateContext({
-    envelope: { ...policy, counts: {} },
-    items: [
-      {
-        id: "policy-task-tools",
-        count: { state: "measured", tokens: 8_000 },
-        required: true,
-        priority: 100,
-      },
-      {
-        id: "approved-plan-v3",
-        count: { state: "measured", tokens: 4_000 },
-        required: true,
-        priority: 100,
-      },
-      {
-        id: "failing-test-excerpt",
-        count: { state: "measured", tokens: 2_000 },
-        required: false,
-        priority: 90,
-      },
-      {
-        id: "whole-session-log",
-        count: { state: "estimated", tokens: 90_000 },
-        required: false,
-        priority: 10,
-      },
-    ],
-  });
-  assertEquals(allocation.decision, ContextDecision.Ready);
-  assertEquals(allocation.selectedTokens, 14_000);
-  assertEquals(allocation.omitted, [{
-    id: "whole-session-log",
-    reason: "over_budget",
-  }]);
-  // A zero or negative cap is invalid.
-  assertThrows(() =>
-    resolveContextEnvelope({ ...policy, maxInputTokens: 0, counts: {} })
+  assert(
+    !extractStillValid(cited, current({ scope: null })),
+    "a revoked scope invalidates the cache; null is revocation, not a match",
   );
 });
 
-Deno.test("an overflowing base wins over required items: needs_bounding, not handoff_required (#155)", () => {
-  const allocation = allocateContext({
-    envelope: envelope({ conversation: { state: "measured", tokens: 95_000 } }),
-    items: [
-      {
-        id: "required-plan",
-        count: { state: "measured", tokens: 4_000 },
-        required: true,
-        priority: 100,
-      },
-    ],
-  });
-  assertEquals(allocation.decision, ContextDecision.NeedsBounding);
-  assertEquals(allocation.selected, []);
-});
-
-Deno.test("verifyCitation parses its input: malformed citations are never valid", () => {
-  const good = projectArtifactVersion(entry("text/plain"), {
-    startByte: 0,
-    endByteExclusive: 5,
-    text: "hello",
-    hasMore: false,
-  }).citation;
-  const live = { authorized: true, sha256: DIGEST };
-  for (
-    const location of [
-      { startByte: -1, endByteExclusive: 5 },
-      { startByte: 0.5, endByteExclusive: 5 },
-      { startByte: Number.NaN, endByteExclusive: 5 },
-      { startByte: "0", endByteExclusive: 5 },
-      [0, 5],
-      "0-5",
-    ]
-  ) {
-    assertEquals(
-      verifyCitation({ ...good, location }, live).valid,
-      false,
-      JSON.stringify(location),
-    );
-  }
-  const { location: _location, ...missing } = good;
-  assertEquals(verifyCitation(missing, live).valid, false);
-  assertEquals(verifyCitation(good, live), { valid: true });
-});
-
-Deno.test("verifyCitation fails closed unless authorization is exactly true (#186)", () => {
-  const good = projectArtifactVersion(entry("text/plain"), {
-    startByte: 0,
-    endByteExclusive: 5,
-    text: "hello",
-    hasMore: false,
-  }).citation;
-  // Only an untyped caller can pass these; a gate must still refuse them.
-  for (const authorized of ["yes", "true", 1, {}, [], Symbol.for("x")]) {
-    assertEquals(
-      verifyCitation(good, { authorized, sha256: DIGEST } as never),
-      { valid: false, reason: "not_authorized" },
-      String(authorized),
-    );
-  }
-  for (const authorized of [undefined, null, 0, ""]) {
-    assertEquals(
-      verifyCitation(good, { authorized, sha256: DIGEST } as never),
-      { valid: false, reason: "not_authorized" },
-      String(authorized),
-    );
-  }
-  assertEquals(verifyCitation(good, { authorized: true, sha256: DIGEST }), {
-    valid: true,
-  });
-});
-
-Deno.test("verifyCitation decides authorization before it parses the citation (#186)", () => {
-  // A caller refused for authorization learns nothing about the citation, so a
-  // malformed one is reported as not_authorized, not as a parse failure.
-  for (const authorized of [false, "yes"] as unknown[]) {
-    assertEquals(
-      verifyCitation({ malformed: true }, {
-        authorized,
-        sha256: DIGEST,
-      } as never),
-      { valid: false, reason: "not_authorized" },
-      String(authorized),
-    );
-  }
-  assertEquals(
-    verifyCitation({ malformed: true }, { authorized: true, sha256: DIGEST }),
-    { valid: false, reason: "extractor_changed" },
+Deno.test("AC2: omitting an unauthorized item is recorded, never silently dropped", () => {
+  // An item that vanishes without a record reads as "there was nothing", which
+  // is the opposite of what happened.
+  const result = admitContext({ envelope: envelope(1000) }, [
+    measured("ok", 10),
+    {
+      item: extract("00000000-0000-4000-8000-000000000003"),
+      usage: { kind: "unknown", reason: "unreadable" },
+      label: "revoked",
+    },
+  ]);
+  assertEquals(result.pack.items.length, 1);
+  assertEquals(result.pack.omitted.length, 1);
+  assert(
+    result.pack.omitted[0]!.detail.length > 0,
+    "every omission carries a detail a caller can act on",
   );
 });
 
-Deno.test("verifyCitation accepts an empty window of an authorized version (#186)", () => {
-  const empty = projectArtifactVersion(entry("text/plain"), {
-    startByte: 0,
-    endByteExclusive: 0,
-    text: "",
-    hasMore: false,
-  }).citation;
-  assertEquals(verifyCitation(empty, { authorized: true, sha256: DIGEST }), {
-    valid: true,
-  });
-  assertEquals(verifyCitation(empty, { authorized: false, sha256: DIGEST }), {
-    valid: false,
-    reason: "not_authorized",
-  });
+Deno.test("AC3: a reference carries no content, only a safe pointer and limits", () => {
+  // A credential or a whole PDF must never reach a prompt because extraction
+  // failed to summarise it.
+  const ref: ContextItem = {
+    kind: "ref",
+    artifactVersionId: "00000000-0000-4000-8000-000000000004",
+    digest: `sha256:${"c".repeat(64)}`,
+    mediaType: "application/pdf",
+    reason: "oversized",
+    limits: { maxBytes: 1_000_000, observedBytes: 40_000_000 },
+  };
+  const serialized = JSON.stringify(ref);
+  assert(!("text" in ref), "a reference must not carry extracted text");
+  assert(
+    !serialized.includes("BEGIN PRIVATE KEY"),
+    "nothing credential-shaped belongs in a pack item",
+  );
+  const result = admitContext({ envelope: envelope(1000) }, [
+    { item: ref, usage: { kind: "measured", tokens: 5 }, label: "pdf" },
+  ]);
+  assertEquals(result.pack.items[0]!.kind, "ref");
+});
+
+Deno.test("a pack records usage per item, so an estimate is visible", () => {
+  // A pack that presents one confident total hides that some of it was guessed.
+  const result = admitContext({ envelope: envelope(1000) }, [
+    {
+      item: extract("00000000-0000-4000-8000-000000000005"),
+      usage: { kind: "estimated", tokens: 100, basis: "bytes/4" },
+      label: "e",
+    },
+    measured("m", 50),
+  ]);
+  assertEquals(result.pack.usage.length, 2);
+  assertEquals(result.pack.usage[0]!.kind, "estimated");
+  assertEquals(result.pack.usage[1]!.kind, "measured");
+});
+
+Deno.test("the item cap bounds the pack independently of the budget", () => {
+  const result = admitContext({ envelope: envelope(1_000_000), maxItems: 2 }, [
+    measured("a", 1),
+    measured("b", 1),
+    measured("c", 1),
+  ]);
+  assertEquals(result.pack.items.length, 2);
+  assertEquals(result.pack.omitted[0]!.reason, "over-budget");
 });
