@@ -211,6 +211,12 @@ export function ghRunner(repo: string, token: string): GhRunner {
         }`,
       );
     }
+    // Only `gh api` and `gh issue list` answer in JSON. `issue create`, `edit`
+    // and `comment` print the issue's URL, and `close` prints nothing, so
+    // parsing their output threw after the write had already happened.
+    const answersInJson = args[0] === "api" ||
+      (args[0] === "issue" && args[1] === "list");
+    if (!answersInJson) return null;
     return JSON.parse(new TextDecoder().decode(result.stdout) || "null");
   };
 
