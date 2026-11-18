@@ -18148,7 +18148,8 @@ const transportSchemas = {
         "enabled",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "origin"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -18159,13 +18160,14 @@ const transportSchemas = {
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
         "version": "integer",
-        "description": "string|null"
+        "description": "string|null",
+        "origin": "WorkflowOrigin"
       },
       "nullableFields": [
         "activeVersionId",
         "description"
       ],
-      "description": "A named, organization-owned workflow definition: its stable slug, display name, and which published WorkflowVersion, if any, is currently active. Disabling it blocks new kickoffs without canceling an already-running instance, which follows its own separate cancellation policy.",
+      "description": "A named, organization-owned workflow definition: its stable slug, display name, where it came from, and which published WorkflowVersion, if any, is currently active. Disabling it blocks new kickoffs without canceling an already-running instance, which follows its own separate cancellation policy.",
       "fieldDescriptions": {
         "id": "Stable UUID identifying the workflow record.",
         "slug": "URL-safe stable name used to address the record.",
@@ -18175,11 +18177,34 @@ const transportSchemas = {
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
         "version": "Optimistic-concurrency version used when updating the record.",
-        "description": "Free-text summary of what the workflow does, shown in pickers and the catalog; null when the author left it blank. Set on create and replaced wholesale on update."
+        "description": "Free-text summary of what the workflow does, shown in pickers and the catalog; null when the author left it blank. Set on create and replaced wholesale on update.",
+        "origin": "Where this definition came from, as {kind, catalogKey, catalogVersion}: kind is authored (written in this organization), catalog (installed from the code-owned catalog; system managed and locked against organization edits) or copy; catalogKey and catalogVersion name the catalog item and release revision for a catalog origin and are null otherwise. Set when the definition is created and never changed."
       },
       "optionalFields": [
         "description"
       ]
+    },
+    "WorkflowOrigin": {
+      "fields": [
+        "kind",
+        "catalogKey",
+        "catalogVersion"
+      ],
+      "fieldTypes": {
+        "kind": "authored|catalog|copy",
+        "catalogKey": "string|null",
+        "catalogVersion": "integer|null"
+      },
+      "nullableFields": [
+        "catalogKey",
+        "catalogVersion"
+      ],
+      "description": "Where a workflow definition came from: written in the organization (authored), installed from the code-owned catalog (catalog, system managed and locked against organization edits) or copied from another definition (copy). A catalog origin names the catalog item and release revision it was installed from; the other kinds carry nulls. Set when the definition is created and never changed.",
+      "fieldDescriptions": {
+        "kind": "Origin kind: authored, catalog or copy.",
+        "catalogKey": "Stable key of the catalog item a catalog definition was installed from; null for authored and copied definitions.",
+        "catalogVersion": "Release revision of the catalog item the definition was installed from; null for authored and copied definitions."
+      }
     },
     "WorkflowVersion": {
       "projection": "workflow_versions",
