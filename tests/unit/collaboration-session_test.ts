@@ -70,7 +70,9 @@ class FakeSocket implements SocketLike {
 
 type Timer = { at: number; callback: () => void; id: number };
 
-function harness(options: { storage?: Storage | null } = {}) {
+function harness(
+  options: { storage?: Storage | null; random?: () => number } = {},
+) {
   const sockets: FakeSocket[] = [];
   let clock = 1_000_000;
   let counter = 0;
@@ -88,7 +90,7 @@ function harness(options: { storage?: Storage | null } = {}) {
     },
     now: () => clock,
     uuid,
-    random: () => 0.5,
+    random: options.random ?? (() => 0.5),
     setTimer: (callback, ms) => {
       const timer = { at: clock + ms, callback, id: ++counter };
       timers.push(timer);
@@ -714,4 +716,193 @@ Deno.test("destroy stops timers and detaches the socket", () => {
   assertEquals(h.timers.length, 0);
   assertEquals(socket.closed?.code, 1000);
   assertEquals(socket.onmessage, null);
+});
+Deno.test("a silent half-open socket is dropped after two missed heartbeats and the same mutation is resent", () => {
+  const h = harness();
+  const first = connect(h).socket;
+  type(h, "A");
+  const [sent] = first.binary();
+  h.advance(10_000); // first heartbeat: a ping goes out, nothing comes back
+  assertEquals(first.json().filter((frame) => frame.type === "ping").length, 1);
+  assertEquals(h.session.getSnapshot().connection, "online");
+  h.advance(10_000); // second: twenty silent seconds
+  assertEquals(h.session.getSnapshot().connection, "offline");
+  assertEquals(h.session.getSnapshot().saveState, "offline");
+  assertEquals(first.closed?.code, 4000);
+  h.advance(1000);
+  assertEquals(h.sockets.length, 2);
+  const second = h.sockets[1];
+  second.receive({
+    type: "hello",
+    protocolVersion: 1,
+    connectionId: "99999999-9999-4999-8999-999999999999",
+    heartbeatSeconds: 10,
+    presenceTtlSeconds: 30,
+  });
+  const join = second.json().find((frame) => frame.type === "join")!;
+  second.receive({
+    type: "joined",
+    requestId: join.requestId,
+    room: ROOM,
+    participants: [],
+  });
+  const sync = second.json().find((frame) => frame.type === "sync")!;
+  second.receive({
+    type: "synced",
+    requestId: sync.requestId,
+    room: ROOM,
+    epoch: 1,
+    serverSequence: "1",
+    checkpointId: "88888888-8888-4888-8888-888888888888",
+    byteLength: 1,
+  });
+  second.receiveBinary(serverSnapshot("").frame);
+  assertEquals(second.binary().map((frame) => frame.mutationId), [
+    sent.mutationId,
+  ]);
+});
+
+Deno.test("a server that answers every ping keeps the connection online", () => {
+  const h = harness();
+  const socket = connect(h).socket;
+  for (let beat = 0; beat < 6; beat += 1) {
+    h.advance(10_000);
+    const ping = socket.json().filter((frame) => frame.type === "ping").at(-1)!;
+    socket.receive({ type: "ping", requestId: ping.requestId });
+  }
+  assertEquals(h.session.getSnapshot().connection, "online");
+  assertEquals(h.sockets.length, 1);
+});
+
+Deno.test("edits after a rejected one are refused with it, each kept for the sheet", () => {
+  const h = harness();
+  const { socket } = connect(h, "Intro");
+  type(h, "one", 5);
+  type(h, "two", 8);
+  const [first] = socket.binary();
+  socket.receive({
+    type: "resync_required",
+    room: ROOM,
+    mutationId: first.mutationId,
+    reason: "rejected",
+  });
+  const snapshot = h.session.getSnapshot();
+  assertEquals(snapshot.pendingCount, 0);
+  assertEquals(snapshot.refused.map((piece) => piece.text).sort(), [
+    "one",
+    "two",
+  ]);
+});
+
+Deno.test("a 401 ends the session like a 403", () => {
+  const h = harness();
+  const { socket } = connect(h);
+  socket.receive({
+    type: "problem",
+    requestId: null,
+    problem: {
+      type: "https://bakery.dev/problems/auth_required",
+      title: "Sign in",
+      status: 401,
+      detail: "d",
+      code: "AUTH_REQUIRED",
+      requestId: "11111111-1111-4111-8111-111111111111",
+      retryable: false,
+    },
+  });
+  assertEquals(h.session.getSnapshot().connection, "ended");
+  assertEquals(h.session.getSnapshot().banner, { kind: "revoked" });
+});
+
+Deno.test("a refused deletion is kept too: the removed text comes back as a piece", () => {
+  const h = harness();
+  const { socket } = connect(h, "Introduction");
+  const body = h.session.document.getText("body");
+  body.delete(5, 7);
+  h.session.document.commit();
+  const [update] = socket.binary();
+  socket.receive({
+    type: "resync_required",
+    room: ROOM,
+    mutationId: update.mutationId,
+    reason: "rejected",
+  });
+  const [piece] = h.session.getSnapshot().refused;
+  assertEquals([piece.text, piece.change], ["duction", "deleted"]);
+});
+
+Deno.test("an edit made while still syncing is held until the server's text has landed", () => {
+  const h = harness();
+  h.session.start();
+  const socket = h.sockets[0];
+  socket.receive({
+    type: "hello",
+    protocolVersion: 1,
+    connectionId: "99999999-9999-4999-8999-999999999999",
+    heartbeatSeconds: 10,
+    presenceTtlSeconds: 30,
+  });
+  const join = socket.json().find((frame) => frame.type === "join")!;
+  socket.receive({
+    type: "joined",
+    requestId: join.requestId,
+    room: ROOM,
+    participants: [],
+  });
+  type(h, "early");
+  assertEquals(socket.binary().length, 0);
+  assertEquals(h.session.getSnapshot().pendingCount, 1);
+  const sync = socket.json().find((frame) => frame.type === "sync")!;
+  socket.receive({
+    type: "synced",
+    requestId: sync.requestId,
+    room: ROOM,
+    epoch: 1,
+    serverSequence: "1",
+    checkpointId: "88888888-8888-4888-8888-888888888888",
+    byteLength: 1,
+  });
+  assertEquals(
+    socket.binary().length,
+    0,
+    "still waiting for the snapshot bytes",
+  );
+  socket.receiveBinary(serverSnapshot("").frame);
+  assertEquals(socket.binary().length, 1);
+});
+
+Deno.test("reconnect jitter spreads the delay between 80% and 120%", () => {
+  const delayAfterDrop = (random: number) => {
+    const h = harness({ random: () => random });
+    h.session.start();
+    h.sockets[0].drop();
+    const timer = h.timers.at(-1)!;
+    return timer.at - h.now();
+  };
+  assertEquals(delayAfterDrop(0), 800);
+  assertEquals(delayAfterDrop(0.5), 1000);
+  assertEquals(delayAfterDrop(1), 1200);
+});
+
+Deno.test("a joined frame for another request is ignored", () => {
+  const h = harness();
+  h.session.start();
+  const socket = h.sockets[0];
+  socket.receive({
+    type: "hello",
+    protocolVersion: 1,
+    connectionId: "99999999-9999-4999-8999-999999999999",
+    heartbeatSeconds: 10,
+    presenceTtlSeconds: 30,
+  });
+  socket.receive({
+    type: "joined",
+    requestId: "77777777-7777-4777-8777-777777777777",
+    room: ROOM,
+    participants: [],
+  });
+  assertEquals(
+    socket.json().filter((frame) => frame.type === "sync").length,
+    0,
+  );
 });

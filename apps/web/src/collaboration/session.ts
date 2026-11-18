@@ -33,8 +33,10 @@ export interface SocketLike {
 /** Text the person typed that the server did not keep. Never dropped silently. */
 export type RefusedPiece = Readonly<{
   id: string;
-  /** What was typed, so it can be copied back. */
+  /** What was typed (or, for a deletion, the text that was removed), so it can be copied back. */
   text: string;
+  /** `deleted`: the change removed this text and the server put it back. */
+  change: "typed" | "deleted";
   /** When it was typed, epoch milliseconds. */
   typedAt: number;
   /** Why it is here; never shown to the person as a word. */
@@ -88,6 +90,7 @@ type Pending = {
   readonly id: string;
   readonly bytes: Uint8Array;
   readonly text: string;
+  readonly change: "typed" | "deleted";
   readonly typedAt: number;
   /** Sent on this connection already. */
   sent: boolean;
@@ -98,8 +101,11 @@ const BACKOFF_BASE_MS = 1_000;
 const BACKOFF_MAX_MS = 30_000;
 const PRESENCE_MIN_INTERVAL_MS = 200;
 
-/** The text that was inserted between `before` and `after` (common prefix and suffix removed). */
-export function insertedBetween(before: string, after: string): string {
+/** The text a change inserted and the text it removed (common prefix and suffix excluded). */
+export function changeBetween(
+  before: string,
+  after: string,
+): { inserted: string; removed: string } {
   let start = 0;
   const shortest = Math.min(before.length, after.length);
   while (start < shortest && before[start] === after[start]) start += 1;
@@ -112,7 +118,15 @@ export function insertedBetween(before: string, after: string): string {
     endBefore -= 1;
     endAfter -= 1;
   }
-  return after.slice(start, endAfter);
+  return {
+    inserted: after.slice(start, endAfter),
+    removed: before.slice(start, endBefore),
+  };
+}
+
+/** The text that was inserted between `before` and `after`. */
+export function insertedBetween(before: string, after: string): string {
+  return changeBetween(before, after).inserted;
 }
 
 /**
@@ -144,6 +158,8 @@ export class CollaborationSession {
   #sendingTimer: Timer | null = null;
   #reconnectTimer: Timer | null = null;
   #heartbeatTimer: Timer | null = null;
+  /** When any frame last arrived: a socket that stays silent is half-open. */
+  #lastInboundAt = 0;
   #attempts = 0;
   #joinRequestId: string | null = null;
   #syncRequestId: string | null = null;
@@ -233,23 +249,43 @@ export class CollaborationSession {
     const socket = this.#options.createSocket();
     socket.binaryType = "arraybuffer";
     this.#socket = socket;
+    this.#lastInboundAt = this.#now();
     socket.onmessage = (event) => this.#onMessage(socket, event.data);
     socket.onclose = (event) => this.#onClose(socket, event.code);
     socket.onerror = () => {};
     this.#emit();
   }
 
-  #onClose(socket: SocketLike, code: number): void {
+  #onClose(socket: SocketLike, _code: number): void {
     if (this.#socket !== socket || this.#destroyed) return;
+    this.#lost();
+  }
+
+  /**
+   * The connection is gone, whether the browser said so or it went silent
+   * (a half-open socket never fires close): start the reconnect cycle.
+   */
+  #lost(): void {
+    const socket = this.#socket;
     this.#socket = null;
+    if (socket) {
+      socket.onopen =
+        socket.onmessage =
+        socket.onclose =
+        socket.onerror =
+          null;
+      try {
+        socket.close(4000, "silent");
+      } catch {
+        // Already closed.
+      }
+    }
     this.#clearHeartbeat();
     for (const pending of this.#pending) pending.sent = false;
     this.#participants.clear();
     if (this.#connection === "ended") return this.#emit();
     this.#connection = "offline";
     this.#syncing = true;
-    // 1008 is the server refusing this connection (rate, backpressure): back off like any outage.
-    void code;
     this.#scheduleReconnect();
     this.#emit();
   }
@@ -291,6 +327,7 @@ export class CollaborationSession {
 
   #onMessage(socket: SocketLike, data: unknown): void {
     if (this.#socket !== socket || this.#destroyed) return;
+    this.#lastInboundAt = this.#now();
     if (data instanceof ArrayBuffer) {
       return this.#onBinary(new Uint8Array(data));
     }
@@ -399,6 +436,10 @@ export class CollaborationSession {
   }
 
   #heartbeat(seconds: number): void {
+    // The server answers every ping, so two silent intervals mean the link is dead.
+    if (this.#now() - this.#lastInboundAt >= 2 * seconds * 1000) {
+      return this.#lost();
+    }
     this.#sendJson({ type: "ping", requestId: this.#uuid() });
     this.#heartbeatTimer = this.#setTimer(
       () => this.#heartbeat(seconds),
@@ -450,12 +491,13 @@ export class CollaborationSession {
   #onLocalUpdate(bytes: Uint8Array): void {
     if (this.#destroyed || this.#connection === "ended") return;
     const after = this.#doc.getText("body").toString();
-    const text = insertedBetween(this.#lastText, after);
+    const { inserted, removed } = changeBetween(this.#lastText, after);
     this.#lastText = after;
     this.#pending.push({
       id: this.#uuid(),
       bytes,
-      text,
+      text: inserted !== "" ? inserted : removed,
+      change: inserted !== "" ? "typed" : "deleted",
       typedAt: this.#now(),
       sent: false,
       retried: false,
@@ -581,10 +623,11 @@ export class CollaborationSession {
   }
 
   #addRefused(pending: Pending, cause: RefusedPiece["cause"]): void {
-    if (pending.text === "") return; // A deletion has no text to give back.
+    if (pending.text === "") return; // Nothing to give back.
     this.#refused = [{
       id: pending.id,
       text: pending.text,
+      change: pending.change,
       typedAt: pending.typedAt,
       cause,
     }, ...this.#refused];
@@ -634,7 +677,7 @@ export class CollaborationSession {
         this.#refused = parsed.filter((piece) =>
           typeof piece?.id === "string" && typeof piece.text === "string" &&
           typeof piece.typedAt === "number"
-        );
+        ).map((piece) => ({ ...piece, change: piece.change ?? "typed" }));
       }
     } catch {
       // An unreadable store is an empty one.
