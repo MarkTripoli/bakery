@@ -885,8 +885,12 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
     "9fcf4e1adcc02ae09065355a20314fb476f45220",
   ];
   const approvedDigest =
-    "sha256:9409bd48ce223aad3575df66205770710b25884e0ebd1a28708cc5d8fd224658";
+    "sha256:7d5c92d9eb319e9179f08de17ad6f46cbed9d9ecb03c9383d981b13a7744ffee";
   const rejectedPriorDigests = [
+    // The approval displaced by THIS re-bind (the digest before
+    // integrationConnections.invoke declared SCOPE_REQUIRED and
+    // MALFORMED_REQUEST) is now only a prior approval.
+    "sha256:9409bd48ce223aad3575df66205770710b25884e0ebd1a28708cc5d8fd224658",
     // The approval displaced by THIS re-bind (the digest generated against main
     // 84b2d766, before IntegrationAction.action stopped being rewritten to the
     // worker enum) is now only a prior approval, so it must not pass again.

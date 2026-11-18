@@ -2834,6 +2834,8 @@ export const clientManifest = {
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED",
         "RESOURCE_NOT_FOUND",
         "UNPROCESSABLE",
         "STATE_CONFLICT",

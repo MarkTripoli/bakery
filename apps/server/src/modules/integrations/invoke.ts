@@ -105,6 +105,9 @@ export async function invokeConnectionAction(
   // nothing, so `invokeIntegration` raises its own unknown-action refusal instead
   // of this door inventing a second error shape for the same condition.
   const actionVersion = actionVersionOf(deps.registry, input.action);
+  const { resourceId, arguments: actionArguments } = splitInvocationArguments(
+    input.arguments,
+  );
 
   return await invokeIntegration({
     database: contextDatabase(context),
@@ -126,8 +129,8 @@ export async function invokeConnectionAction(
     input: {
       actionId: input.action,
       actionVersion,
-      resourceId: actionResourceOf(input.arguments),
-      arguments: input.arguments,
+      resourceId,
+      arguments: actionArguments,
     },
   });
 }
@@ -166,21 +169,33 @@ function actionVersionOf(
 }
 
 /**
- * The resource an invocation targets, read from the arguments the shared gate
- * contract already validates. `IntegrationActionInput` carries `resourceId`
- * alongside its arguments, so this reads the same field rather than inventing a
- * second place for it.
+ * Split the REST body into the resource selector and the action's own arguments.
+ *
+ * The REST contract names the target resource inside `arguments`, because a
+ * client posting to `/v1/integration-connections/{id}/actions` has no second
+ * place to put it. `IntegrationActionInput` carries `resourceId` as its own
+ * field, and each action's handler declares a STRICT argument object that knows
+ * nothing about resources.
+ *
+ * So the selector has to be lifted out here, not merely read here. Passing the
+ * body through untouched made every strict-input action unreachable: the gate
+ * resolved the resource, then refused the same body as `invalid action
+ * arguments` because it still contained `resourceId`. Nested invocations could
+ * not see it - only a granted call that reaches the handler's own parse can.
  */
-function actionResourceOf(argumentsInput: unknown): string {
-  const resourceId = (argumentsInput as { resourceId?: unknown } | null)
-    ?.resourceId;
+function splitInvocationArguments(argumentsInput: unknown): {
+  resourceId: string;
+  arguments: Readonly<Record<string, unknown>>;
+} {
+  const value = (argumentsInput ?? {}) as Record<string, unknown>;
+  const { resourceId, ...argumentsWithoutResource } = value;
   if (typeof resourceId !== "string" || resourceId.length === 0) {
     throw new StandardError({
       code: "UNPROCESSABLE",
       detail: "invalid invocation input",
     });
   }
-  return resourceId;
+  return { resourceId, arguments: argumentsWithoutResource };
 }
 
 /**

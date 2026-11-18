@@ -2972,6 +2972,8 @@
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED",
         "RESOURCE_NOT_FOUND",
         "UNPROCESSABLE",
         "STATE_CONFLICT",
@@ -215974,7 +215976,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:9409bd48ce223aad3575df66205770710b25884e0ebd1a28708cc5d8fd224658",
+  "compatibilityDigest": "sha256:7d5c92d9eb319e9179f08de17ad6f46cbed9d9ecb03c9383d981b13a7744ffee",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

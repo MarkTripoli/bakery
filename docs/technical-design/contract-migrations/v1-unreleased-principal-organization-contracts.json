@@ -6,9 +6,18 @@
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:9409bd48ce223aad3575df66205770710b25884e0ebd1a28708cc5d8fd224658",
+  "targetCompatibilityDigest": "sha256:7d5c92d9eb319e9179f08de17ad6f46cbed9d9ecb03c9383d981b13a7744ffee",
   "reason": "#35 slice 2b contract re-bind by dev-workflows on 2026-11-18 under the owner's standing breaking-change authorization (2026-10-09), main 9fcf4e1adcc02ae09065355a20314fb476f45220: workflows.copy is added (WorkflowCopy input, POST /v1/workflows/{id}/copy) and the WorkflowOrigin entity gains three required nullable fields (sourceWorkflowId, sourceVersionId, sourceDigest) naming a copy's source, so Page<Workflow> items gain required properties inside origin, which is what moves the digest. The action is additive; the drift is the origin object growing, not an existing field changing.",
   "priorApprovals": [
+    {
+      "fromBaseRefs": [
+        "84b2d7667a897c1a66ce57a39de9d4311117c268",
+        "9fcf4e1adcc02ae09065355a20314fb476f45220"
+      ],
+      "status": "displaced",
+      "targetCompatibilityDigest": "sha256:9409bd48ce223aad3575df66205770710b25884e0ebd1a28708cc5d8fd224658",
+      "reason": "Displaced by the re-bind that adds SCOPE_REQUIRED and MALFORMED_REQUEST to integrationConnections.invoke, which the live-role contract requires of every required_authenticated_context action. Refs #408 slice 4."
+    },
     {
       "fromBaseRefs": [
         "84b2d7667a897c1a66ce57a39de9d4311117c268"
