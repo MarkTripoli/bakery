@@ -41,10 +41,18 @@ export type ConnectFor<M extends ProviderManifest> =
 /**
  * The ingress a manifest requires: the port when the manifest declares webhooks,
  * and exactly `undefined` when it says null.
+ *
+ * `null extends M["ingress"]` rather than `M["ingress"] extends null`: a manifest
+ * annotated as `ProviderManifest` widens the member to `Scope | null`, and the
+ * narrower form then resolved to a *required* `WebhookIngress` for a provider that
+ * declared no webhooks at all. Asking whether null is a possible value answers the
+ * question the manifest actually posed.
  */
-export type IngressFor<M extends ProviderManifest> = M["ingress"] extends null
-  ? undefined
-  : WebhookIngress;
+export type IngressFor<M extends ProviderManifest> =
+  // Absent when the manifest declares no webhooks, and absent *as a value*: the
+  // member is still present in the type so a provider cannot omit it, and its only
+  // inhabitant is `undefined` so it cannot supply one either.
+  null extends M["ingress"] ? undefined : WebhookIngress;
 
 /** The tickets port when the family is claimed, and `never` when it is not. */
 export type TicketsFor<M extends ProviderManifest> = "tickets" extends
@@ -55,29 +63,63 @@ export type CodeFor<M extends ProviderManifest> = "code" extends
   M["families"][number] ? CodePort : never;
 
 /**
+ * A port member that a family either requires or forbids.
+ *
+ * `Claimed` decides which, and the two arms are deliberately not "required or
+ * optional": an optional member would let an implementation omit the port entirely,
+ * because `tickets?: TicketsPort` accepts `undefined` and a manifest that claims the
+ * family still compiles without one. That was a real hole: the mismatch then only
+ * surfaced when the engine called `.tickets` on an undefined value, which is the
+ * moment this type exists to prevent. `never` in the unclaimed arm forbids a value
+ * as well as requiring its absence.
+ */
+/** Whether the manifest claims a family, as a literal the conditional types can branch on. */
+type Claims<M extends ProviderManifest, F> = F extends M["families"][number]
+  ? true
+  : false;
+
+/**
  * Everything a server provider supplies.
  *
- * `tickets` and `code` are present only for the families the manifest claims. A
- * provider with neither still has a complete implementation, which is what lets a
- * facts-only provider exist without pretending to serve a port.
+ * `tickets` and `code` are required exactly when the manifest claims the family, and
+ * forbidden otherwise. A provider with neither still has a
+ * complete implementation, which is what lets a facts-only provider exist without
+ * pretending to serve a port.
+ *
+ * The intersection is what makes both arms work: distributing over the union of
+ * claimed and unclaimed would widen to a member that is sometimes optional.
  */
-export type ServerImpl<M extends ProviderManifest> = {
-  connect: ConnectFor<M>;
-  credentials: CredentialStrategy;
-  ingress: IngressFor<M>;
-  lifecycle: InstallationLifecycle;
-  /** Its own paged port, not a step of connect, so a scan can resume after a restart. */
-  discovery: ResourceDiscovery;
-  health: HealthProbe;
-  /**
-   * The host authentication profile the gate brokers through. A name, never a
-   * credential: the host owns secrets.
-   */
-  hostProfile: string;
-  /** One discovery result per manifest resource kind; see `defineServerProvider`. */
-  tickets?: TicketsFor<M>;
-  code?: CodeFor<M>;
-};
+export type ServerImpl<M extends ProviderManifest> =
+  & {
+    connect: ConnectFor<M>;
+    credentials: CredentialStrategy;
+    ingress: IngressFor<M>;
+    lifecycle: InstallationLifecycle;
+    /** Its own paged port, not a step of connect, so a scan can resume after a restart. */
+    discovery: ResourceDiscovery;
+    health: HealthProbe;
+    /**
+     * The host authentication profile the gate brokers through. A name, never a
+     * credential: the host owns secrets.
+     */
+    hostProfile: string;
+  }
+  & (Claims<M, "tickets"> extends true ? {
+      /** Serves the ticket family; required because the manifest claims it. */ tickets:
+        TicketsPort;
+    }
+    : {
+      /** Forbidden: the manifest does not claim the ticket family. */ tickets?:
+        never;
+    })
+  & (Claims<M, "code"> extends true ? {
+      /** Serves the code family; required because the manifest claims it. */ code:
+        CodePort;
+    }
+    : {
+      /** Forbidden: the manifest does not claim the code family. */ code?:
+        never;
+    });
 
 /**
  * A provider as the host sees it: the manifest plus the implementation.
@@ -184,10 +226,14 @@ export function defineServerProvider<const M extends ProviderManifest>(
   manifest: M,
   impl: ServerImpl<M>,
 ): ServerProvider<M> {
+  // `Object.freeze` returns `Readonly<T>`, and a readonly view of an object with a
+  // required port member is not assignable to the member's mutable type - so the
+  // frozen value is asserted back to the declared shape rather than returned through
+  // `Readonly`. The freeze is a runtime guarantee; the type should not leak it.
   return Object.freeze({
     kind: "server-provider" as const,
-    manifest: Object.freeze(manifest),
-    impl: Object.freeze(impl),
+    manifest: Object.freeze(manifest) as M,
+    impl: Object.freeze(impl) as ServerImpl<M>,
   });
 }
 

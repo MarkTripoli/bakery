@@ -304,3 +304,122 @@ async function assertRejects(
   }
   throw new Error(`expected a rejection containing ${expected}`);
 }
+
+/**
+ * QA found that an optional port member silently accepted a missing port: with
+ * `exactOptionalPropertyTypes` off (this repo sets no compiler options), `tickets?:
+ * TicketsPort` admits `undefined`, so a manifest claiming the family compiled
+ * without the port. The defect was invisible to the other tests because they only
+ * asserted on values that already existed.
+ *
+ * These cases assert the compiler's verdict by compiling a snippet, so the guarantee
+ * survives any future edit to `ServerImpl`. Without them, the only record that the
+ * type works is a claim in a comment.
+ */
+const TYPE_PROBE_BASE = `
+const base = {
+  slug: "x", integrationId: "bakery.x",
+  providerUuid: "12345678-1234-4123-8123-123456789012",
+  nameKey: "k", appRegistration: null as null,
+  connect: { kind: "api-token" as const, fields: [{ id: "t", labelKey: "k", secret: true, format: "text" as const }] },
+  ingress: null as null,
+  resourceKinds: [{ id: "p", nameKey: "k", serves: ["projects"] }],
+};
+const common = {
+  connect: { probe: () => Promise.resolve({ failure: "x" }) },
+  credentials: { secretSlots: ["t"], mint: () => Promise.resolve({ token: "", expiresAt: new Date(), placement: "bearer" as const }) },
+  ingress: undefined,
+  lifecycle: { onEvent: () => Promise.resolve() },
+  discovery: { list: () => Promise.resolve({ resources: [], nextCursor: null }) },
+  health: { check: () => Promise.resolve({ healthy: true as const }) },
+  hostProfile: "p",
+};
+const ticketsPort = {
+  present: () => Promise.resolve({ kind: "refused" as const, reason: "not_a_ticket" as const }),
+  mutate: () => Promise.resolve({ ok: true as const }),
+};
+`;
+
+/** Compiles a probe against the real SDK and returns its diagnostics. */
+function typecheckProbe(body: string): { ok: boolean; output: string } {
+  const dir = Deno.makeTempDirSync();
+  const file = `${dir}/probe.ts`;
+  Deno.writeTextFileSync(
+    file,
+    `import { defineServerProvider } from ${
+      JSON.stringify(
+        new URL(
+          "../../packages/integration-sdk/provider.ts",
+          import.meta.url,
+        ).href,
+      )
+    };\n${TYPE_PROBE_BASE}\n${body}\n`,
+  );
+  const result = new Deno.Command(Deno.execPath(), {
+    args: ["check", file],
+    stdout: "piped",
+    stderr: "piped",
+  }).outputSync();
+  const output = new TextDecoder().decode(result.stderr) +
+    new TextDecoder().decode(result.stdout);
+  return { ok: result.success, output };
+}
+
+Deno.test("a manifest that claims a family cannot omit its port (QA finding)", () => {
+  // An object literal infers `families` as the tuple `["tickets"]`, where the port is
+  // required even by the old optional-member shape - so this case does NOT reproduce
+  // QA's report on its own. It is kept because it is the shape providers actually
+  // write, and because the control below must compile. The widened form is covered by
+  // the next test, which is where optionality can leak.
+  const missing = typecheckProbe(
+    `defineServerProvider({ ...base, families: ["tickets"] }, { ...common });`,
+  );
+  assert(
+    !missing.ok,
+    "a provider claiming tickets must not compile without the tickets port",
+  );
+  assert(
+    missing.output.includes("tickets"),
+    `the diagnostic must name the missing port, saw: ${missing.output}`,
+  );
+  // Control: the same provider with the port compiles, so the case above fails for
+  // the reason claimed rather than for an unrelated typing mistake in the probe.
+  const complete = typecheckProbe(
+    `defineServerProvider({ ...base, families: ["tickets"] }, { ...common, tickets: ticketsPort });`,
+  );
+  assert(
+    complete.ok,
+    `the control case must compile, saw: ${complete.output}`,
+  );
+});
+
+Deno.test("a familyless provider cannot smuggle in a family port", () => {
+  const smuggled = typecheckProbe(
+    `defineServerProvider({ ...base, families: [] }, { ...common, tickets: ticketsPort });`,
+  );
+  assert(
+    !smuggled.ok,
+    "an unclaimed port must be forbidden, not merely optional",
+  );
+});
+
+Deno.test("the connect arm must match the connect kind", () => {
+  const wrongArm = typecheckProbe(
+    `defineServerProvider({ ...base, families: [] }, { ...common, connect: { begin: () => ({ steps: [] }), complete: () => Promise.resolve({ failure: "x" }) } });`,
+  );
+  assert(
+    !wrongArm.ok,
+    "an api-token provider must not accept a ConnectStrategy",
+  );
+  assert(
+    wrongArm.output.includes("ApiTokenProbe"),
+    `the diagnostic must name the required arm, saw: ${wrongArm.output}`,
+  );
+});
+
+Deno.test("a provider with no ingress cannot supply one", () => {
+  const extra = typecheckProbe(
+    `defineServerProvider({ ...base, families: [] }, { ...common, ingress: { maxBodyBytes: 10, verify: () => ({ ok: false as const, reason: "signature" as const }), classify: () => ({ kind: "ignored" as const }) } });`,
+  );
+  assert(!extra.ok, "ingress: null must forbid an ingress implementation");
+});
