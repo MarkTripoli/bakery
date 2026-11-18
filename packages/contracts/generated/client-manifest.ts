@@ -47244,6 +47244,10 @@ export const clientManifest = {
           ],
           "additionalProperties": false,
           "description": "Git provider branch protection state, separate from Bakery enforcement."
+        },
+        "hasFixedPolicy": {
+          "description": "True when the active profile has a fixed policy, so runs admitted under these rules record a check policyDigest equal to digest. When false, runs admitted under these rules record no check, so no run will match digest.",
+          "type": "boolean"
         }
       },
       "required": [
