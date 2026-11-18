@@ -12,7 +12,7 @@ import {
   POSTGRES_UNIQUE_VIOLATION,
   postgresErrorCode,
 } from "../../platform/postgres-errors.ts";
-import { blobObjectKey } from "./storage-port.ts";
+import { blobObjectKey, SkillFileStoreError } from "./storage-port.ts";
 import type { ScopedOrganizationBlobStore } from "./blob-store.ts";
 
 /**
@@ -304,7 +304,10 @@ export async function createPluginVersion(
 
   await assertPackageHeld(transaction, organizationId, packageId);
   assertSdkRangeReadable(input.sdkRange);
-  const sizeBytes = await assertBundleHeld(dependencies.bundles, {
+  // Verifies the object exists and hashes to the declared digest. Its size is
+  // deliberately not stored: it is derivable from the object, and a stored copy
+  // would be one more number to keep in agreement with the bytes.
+  await assertBundleHeld(dependencies.bundles, {
     organizationId,
     bundleObjectRef: input.bundleObjectRef,
     bundleDigest: input.bundleDigest,
@@ -330,9 +333,6 @@ export async function createPluginVersion(
         JSON.stringify(input.buildEvidence),
       ],
     );
-    // The size is not stored: it is derivable from the object, and a stored
-    // copy would be one more number to keep in agreement with the bytes.
-    void sizeBytes;
     return toVersion(rows.rows[0], organizationId);
   } catch (error) {
     if (
@@ -407,10 +407,24 @@ async function assertBundleHeld(
   }
   // `read` hashes the bytes and compares both the digest and the size, so a
   // truncated or swapped object is refused here rather than at first use.
-  await bundles.read(
-    input.organizationId,
-    input.bundleDigest,
-    stat.sizeBytes,
-  );
+  try {
+    await bundles.read(
+      input.organizationId,
+      input.bundleDigest,
+      stat.sizeBytes,
+    );
+  } catch (error) {
+    // A mismatch is the caller's own content disagreeing with the digest it
+    // declared, so it is a refusal rather than a server fault. Left unmapped it
+    // would surface as a 500, which tells the caller to retry a request that can
+    // never succeed.
+    if (error instanceof SkillFileStoreError) {
+      throw new StandardError({
+        code: "VALIDATION_FAILED",
+        params: { reason: "plugin_bundle_digest_mismatch" },
+      });
+    }
+    throw error;
+  }
   return stat.sizeBytes;
 }

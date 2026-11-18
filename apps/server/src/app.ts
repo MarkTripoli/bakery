@@ -700,6 +700,10 @@ export function createApp(options: {
       githubAppClient,
       broker: installationTokenBroker,
       cursorSecret: options.config.auth.secret,
+      // The one activated registry this process owns, bound above and handed to
+      // the invoke door. Every consumer now reads the same set of deployed
+      // providers instead of re-deriving one.
+      integrationRegistry,
     }),
   );
   app.route(

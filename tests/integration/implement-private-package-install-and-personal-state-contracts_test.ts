@@ -2,6 +2,7 @@ import { assert, assertEquals } from "@std/assert";
 import { sha256Bytes } from "../../apps/server/src/modules/knowledge/bytes.ts";
 import {
   blobObjectKey,
+  SkillFileStoreError,
   type SkillObjectStore,
 } from "../../apps/server/src/modules/catalog/storage-port.ts";
 import { withWorkerFixture } from "../helpers/worker-execution/scenarios.ts";
@@ -33,12 +34,15 @@ function memoryStore(): SkillObjectStore & {
     },
     async read(objectKey, expectedSha256, expectedSize) {
       const found = objects.get(objectKey);
-      if (!found) throw new Error("SKILL_FILE_NOT_FOUND");
-      if (found.byteLength !== expectedSize) {
-        throw new Error("SKILL_FILE_SIZE_MISMATCH");
-      }
-      if (await sha256Bytes(found) !== expectedSha256) {
-        throw new Error("SKILL_FILE_DIGEST_MISMATCH");
+      // The real adapters throw SkillFileStoreError, so this double does too:
+      // a bare Error here would let a caller that maps store failures to a
+      // refusal pass in tests while returning a 500 in production.
+      if (!found) throw new SkillFileStoreError("SKILL_FILE_NOT_FOUND");
+      if (
+        found.byteLength !== expectedSize ||
+        await sha256Bytes(found) !== expectedSha256
+      ) {
+        throw new SkillFileStoreError("SKILL_CONTENT_INTEGRITY_FAILED");
       }
       return found;
     },
@@ -273,12 +277,50 @@ Deno.test("a version records the blob it verified and refuses a digest mismatch"
     );
     assertEquals(refused.status, 404, await refused.clone().text());
 
+    // The case the absent-object test cannot reach: an object that does exist
+    // at the derived key, whose bytes do not hash to the digest the version
+    // claims. A verifier that skipped hashing (or only checked the object was
+    // present) would accept this, so it proves the bytes are actually read and
+    // hashed rather than assumed.
+    const otherBytes = new TextEncoder().encode("different bytes entirely");
+    const otherDigest = await sha256Bytes(otherBytes);
+    const claimedDigest = await sha256Bytes(
+      new TextEncoder().encode("bytes that were never uploaded"),
+    );
+    store.objects.set(
+      `organizations/${fixture.organizationId}/blobs/sha256/${claimedDigest}`,
+      otherBytes,
+    );
+    const mismatched = await call(
+      fixture,
+      `/v1/plugin-packages/${pkg.id}/versions`,
+      {
+        method: "POST",
+        body: versionBody({
+          bundleObjectRef: blobObjectKey(
+            fixture.organizationId,
+            claimedDigest,
+          ),
+          bundleDigest: claimedDigest,
+        }),
+      },
+    );
+    assert(
+      mismatched.status >= 400 && mismatched.status < 500,
+      `expected refusal for bytes that do not match the digest, got ${mismatched.status}`,
+    );
+    assert(otherDigest !== claimedDigest);
+
     const rows = await fixture.pgDatabase.query<{ count: string }>(
       `select count(*)::text as count from bakery.plugin_versions
         where plugin_package_id = $1`,
       [pkg.id],
     );
-    assertEquals(rows.rows[0].count, "1");
+    assertEquals(
+      rows.rows[0].count,
+      "1",
+      "neither refused attempt may leave a version row",
+    );
   }));
 
 Deno.test("a bundle ref outside the organization's own key is refused", () =>
@@ -347,35 +389,119 @@ Deno.test("an unreadable SDK range is refused before it is stored", () =>
     assertEquals(rows.rows[0].count, "0");
   }));
 
+/**
+ * A second, real organization with its own member and its own session.
+ *
+ * The earlier version of this test pointed one session at a random organization
+ * id, which is refused at the membership layer and so never reaches the SQL. A
+ * tenant filter that was deleted would still pass that test. This builds a real
+ * organization with a real member, so the request is authorized and the only
+ * thing that can keep the rows apart is the query's own `organization_id`
+ * predicate.
+ */
+async function secondOrganization(
+  fixture: Fixture,
+): Promise<{ organizationId: string }> {
+  const suffix = crypto.randomUUID();
+  // A real second organization, created through the real route by a principal
+  // that is authenticated in it. Fabricating an id would be refused at the
+  // membership layer, which is the gap this test exists to close: the request
+  // must be authorized, so the only thing that can keep the rows apart is the
+  // tenant predicate in the query itself.
+  const created = await fixture.app.fetch(
+    new Request(`${fixture.config.publicBaseUrl}/v1/organizations`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: fixture.config.publicBaseUrl,
+        Cookie: fixture.adminCookie,
+        "Idempotency-Key": crypto.randomUUID(),
+      },
+      body: JSON.stringify({
+        name: `Tenant B ${suffix}`,
+        slug: `tenant-b-${suffix}`,
+      }),
+    }),
+  );
+  assertEquals(created.status, 201, await created.clone().text());
+  const organization = await created.json();
+  assert(organization.id !== fixture.organizationId);
+  return { organizationId: organization.id };
+}
+
 Deno.test("another organization's package is not found rather than forbidden", () =>
-  withPluginFixture(async (fixture) => {
+  withPluginFixture(async (fixture, store) => {
     const pkg = await (await call(fixture, "/v1/plugin-packages", {
       method: "POST",
       body: packageBody(),
     })).json();
+    const bytes = new TextEncoder().encode("tenant b bundle");
+    const bundle = await uploadBundle(fixture, store, bytes);
+    const published = await call(
+      fixture,
+      `/v1/plugin-packages/${pkg.id}/versions`,
+      { method: "POST", body: versionBody(bundle) },
+    );
+    assertEquals(published.status, 201, await published.clone().text());
+    const version = await published.json();
 
-    // Point the same session at a different organization it is not a member of:
-    // the row is invisible, and a 403 would confirm that it exists.
-    const foreign = await fixture.app.fetch(
-      new Request(
-        `${fixture.config.publicBaseUrl}/v1/plugin-packages/${pkg.id}`,
-        {
-          method: "GET",
+    const second = await secondOrganization(fixture);
+    // A member of the second organization, signed in there, asking for the first
+    // organization's rows: authorized, so the refusal has to come from the SQL.
+    const asTenantB = (
+      path: string,
+      init: { method: string; body?: unknown },
+    ) =>
+      Promise.resolve(fixture.app.fetch(
+        new Request(`${fixture.config.publicBaseUrl}${path}`, {
+          method: init.method,
           headers: {
+            "Content-Type": "application/json",
             Origin: fixture.config.publicBaseUrl,
-            "Bakery-Organization-Id": crypto.randomUUID(),
+            "Bakery-Organization-Id": second.organizationId,
             Cookie: fixture.adminCookie,
+            "Idempotency-Key": crypto.randomUUID(),
           },
-        },
-      ),
-    );
-    assert(
-      foreign.status === 404 || foreign.status === 403,
-      `expected refusal, got ${foreign.status}`,
-    );
-    // Whatever the transport says, the body must not contain the package.
-    const text = await foreign.text();
+          ...(init.body === undefined
+            ? {}
+            : { body: JSON.stringify(init.body) }),
+        }),
+      ));
+
+    // Read one package across the tenant boundary.
+    const readForeign = await asTenantB(`/v1/plugin-packages/${pkg.id}`, {
+      method: "GET",
+    });
+    assertEquals(readForeign.status, 404, await readForeign.clone().text());
+    const text = await readForeign.text();
     assert(!text.includes("A private package"));
+
+    // Listing versions of a package the second organization does not own.
+    const listVersions = await asTenantB(
+      `/v1/plugin-packages/${pkg.id}/versions`,
+      { method: "GET" },
+    );
+    assertEquals(listVersions.status, 404, await listVersions.clone().text());
+
+    // Publishing into somebody else's package.
+    const publishForeign = await asTenantB(
+      `/v1/plugin-packages/${pkg.id}/versions`,
+      { method: "POST", body: versionBody(bundle) },
+    );
+    assertEquals(
+      publishForeign.status,
+      404,
+      await publishForeign.clone().text(),
+    );
+
+    // And nothing was written into the first organization's package.
+    const rows = await fixture.pgDatabase.query<{ count: string }>(
+      `select count(*)::text as count from bakery.plugin_versions
+        where organization_id = $1 and plugin_package_id = $2`,
+      [fixture.organizationId, pkg.id],
+    );
+    assertEquals(rows.rows[0].count, "1");
+    assert(version.id.length > 0);
   }));
 
 Deno.test("personal state is private to its own principal inside one organization", () =>

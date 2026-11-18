@@ -52,7 +52,6 @@ export type PresetRun = Readonly<{
   taskId: string;
   runId: string;
   briefStepId: string;
-  implementStepId: string;
 }>;
 
 // A small reservation keeps the stack's one-dollar installation budget from
@@ -246,22 +245,51 @@ export async function startPresetTaskRun(
   );
   const runId = run.id;
   assert(typeof runId === "string" && UUID.test(runId));
-  const steps = await stack.psql<{ id: string; step_key: string }>(
-    `select id, step_key from bakery.run_steps
-      where organization_id = $1 and run_id = $2`,
-    [world.organizationId, runId],
-  );
-  const stepId = (key: string): string => {
-    const found = steps.find((step) => step.step_key === key)?.id;
-    assert(found, `step ${key} missing`);
-    return found;
-  };
+  // The brief is the plan's first step, so only it is waited for here. The
+  // implement row exists only once the brief completes: see presetImplementStepId.
   return {
     taskId,
     runId,
-    briefStepId: stepId("brief"),
-    implementStepId: stepId("implement"),
+    briefStepId: await presetStepId(stack, world, runId, "brief"),
   };
+}
+
+/**
+ * The id of one of the preset's steps, once the engine has appended its row.
+ *
+ * The preset is a compiled plan: it creates no step rows with the run. The
+ * engine appends each as it decides it, under the plan's container key
+ * (`flow.brief`, then `flow.implement` once the brief completes), so a row is
+ * waited for, not read straight after the run is created.
+ */
+export async function presetStepId(
+  stack: DurableCoreStack,
+  world: PresetWorld,
+  runId: string,
+  name: "brief" | "implement",
+): Promise<string> {
+  return await until(
+    `the engine appended the ${name} step`,
+    150_000,
+    async () => {
+      const rows = await stack.psql<{ id: string; step_key: string }>(
+        `select id, step_key from bakery.run_steps
+        where organization_id = $1 and run_id = $2`,
+        [world.organizationId, runId],
+      );
+      return rows.find((row) => row.step_key.replace(/^flow\./, "") === name)
+        ?.id;
+    },
+  );
+}
+
+/** The implement step's id; its row appears once the brief has completed. */
+export function presetImplementStepId(
+  stack: DurableCoreStack,
+  world: PresetWorld,
+  run: PresetRun,
+): Promise<string> {
+  return presetStepId(stack, world, run.runId, "implement");
 }
 
 export async function until<T>(
@@ -286,11 +314,12 @@ export async function implementJobId(
   run: PresetRun,
 ): Promise<string> {
   try {
+    const implementStepId = await presetImplementStepId(stack, world, run);
     return await until("implement job admitted", 150_000, async () => {
       const rows = await stack.psql<{ id: string }>(
         `select id from bakery.jobs
           where organization_id = $1 and run_step_id = $2`,
-        [world.organizationId, run.implementStepId],
+        [world.organizationId, implementStepId],
       );
       return rows[0]?.id;
     });
