@@ -615,9 +615,14 @@ export class CollaborationSession {
       problem.retryable !== true
     ) {
       // A refusal of what we sent (too large, malformed) never gets better by
-      // sending it again: keep the text for the sheet and start from the
-      // server's, or the same piece would be resent on every reconnect.
-      this.#moveAllPendingToRefused("rejected");
+      // sending it again. The server works through frames in order, so the one
+      // it refused is the oldest unanswered: keep that text for the sheet and
+      // start from the server's, or it would be resent on every reconnect. The
+      // pieces after it are still tried once each (they may not depend on it).
+      const [refused, ...rest] = this.#pending;
+      if (refused) this.#addRefused(refused, "rejected");
+      this.#pending = rest;
+      this.#afterPendingCleared();
       this.#doc = this.#newDocument();
       this.#documentVersion += 1;
       this.#emit();
