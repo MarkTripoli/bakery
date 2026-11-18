@@ -1597,6 +1597,48 @@ Deno.test("close stops mid-queue only when the budget is too small to finish", a
   );
 });
 
+Deno.test("close flushes without waiting for an offer's timer to fire", async () => {
+  // The flake PM saw on CI: "it flushed nothing at all" on a loaded runner. The
+  // cause was not the budget but who started the pump. offer() schedules an
+  // interval timer; close() awaited its own deadline timer and expected that
+  // interval to start the pump first. With a synchronous sink both timers are
+  // armed, and whichever the event loop runs first decides whether anything is
+  // flushed — the deadline could win, so close(1) abandoned a full queue.
+  //
+  // Made deterministic by counting timer turns: the deadline may only fire once
+  // the pump has already run to its own stop.
+  const realSetTimeout = globalThis.setTimeout;
+  let deadlineTimers = 0;
+  let pumpRanFirst = false;
+  const exported: number[] = [];
+  const exporter = make<number>(
+    (batch) => {
+      pumpRanFirst = true;
+      exported.push(...batch);
+    },
+    { capacity: 1000, batchSize: 10, intervalMs: 1, maxAttempts: 1 },
+  );
+  try {
+    globalThis.setTimeout = ((handler: () => void, timeout?: number) => {
+      // intervalMs is 1 here, so a short timer is the offer's flush interval and
+      // the longer one is the close deadline.
+      if (timeout !== undefined && timeout >= 1) deadlineTimers += 1;
+      return realSetTimeout(handler, timeout);
+    }) as typeof setTimeout;
+    for (let item = 0; item < 100; item += 1) exporter.offer(item);
+    await exporter.close(1);
+  } finally {
+    globalThis.setTimeout = realSetTimeout;
+  }
+  assertEquals(exported.length > 0, true, "it flushed nothing at all");
+  assertEquals(pumpRanFirst, true);
+  // The budget chose where it stopped, not the timer race: everything sent, or
+  // the rest accounted as shed.
+  const stats = exporter.stats();
+  conserved(stats);
+  assertEquals(exported.length + stats.dropped.shutdown, 100);
+});
+
 Deno.test("a closing exporter never yields: no zero-delay timer is made while it flushes", async () => {
   const exporter = make<number>(() => {}, {
     capacity: 100,
