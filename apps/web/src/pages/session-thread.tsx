@@ -162,6 +162,8 @@ export type SessionThreadProps = {
   running?: boolean;
   /** The session's own status; a failed one is said by the now line, not twice. */
   sessionStatus?: string;
+  /** The thread starts partway through the session: older events are not held. */
+  truncated?: boolean;
   /** Present when earlier history exists. */
   onLoadEarlier?: () => void;
   loadingEarlier?: boolean;
@@ -195,6 +197,7 @@ export function SessionThread(
     renderArtifact,
     running = false,
     sessionStatus,
+    truncated = false,
   }: SessionThreadProps,
 ) {
   const { locale, translate } = useI18n();
@@ -229,9 +232,11 @@ export function SessionThread(
                 : undefined,
             }
             : undefined,
-          startedLabel: message
-            ? undefined
-            : translate("session.thread.started"),
+          startedLabel: message ? undefined : translate(
+            truncated
+              ? "session.thread.earlierHidden"
+              : "session.thread.started",
+          ),
           summary: summaryOf(turn, translate) || undefined,
           defaultOpen: opensByDefault(
             turn,
@@ -246,7 +251,7 @@ export function SessionThread(
             : undefined,
         };
       }),
-    [model, locale, clock, translate, running, renderArtifact],
+    [model, locale, clock, translate, running, renderArtifact, truncated],
   );
   const end = model.end &&
       !(model.end.outcome === "failed" && sessionStatus === "failed")

@@ -628,6 +628,10 @@ test(
     await expect(
       page.getByText("This session is long, so the thread shows only"),
     ).toBeVisible();
+    // The first line of a shortened thread says it starts partway through.
+    await expect(thread(page).getByText("Earlier events are not shown"))
+      .toBeVisible();
+    await expect(thread(page).getByText("Session started")).toHaveCount(0);
     await still(page, "run-section-truncated", undefined, {
       scrollTo: page.getByText(
         "This session is long, so the thread shows only",

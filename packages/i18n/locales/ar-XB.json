@@ -4226,5 +4226,6 @@
   "session.thread.noSession": "⟪This step has no agent session.⟫",
   "session.thread.rawOutput": "⟪Raw output⟫",
   "session.thread.stepSelect": "⟪Step⟫",
-  "session.thread.truncated": "⟪This session is long, so the thread shows only its newest events. The raw output below has the whole record.⟫"
+  "session.thread.truncated": "⟪This session is long, so the thread shows only its newest events. The raw output below has the whole record.⟫",
+  "session.thread.earlierHidden": "⟪Earlier events are not shown⟫"
 }
