@@ -18161,7 +18161,7 @@ const transportSchemas = {
         "updatedAt": "timestamp",
         "version": "integer",
         "description": "string|null",
-        "origin": "json"
+        "origin": "WorkflowOrigin"
       },
       "nullableFields": [
         "activeVersionId",
@@ -18183,6 +18183,28 @@ const transportSchemas = {
       "optionalFields": [
         "description"
       ]
+    },
+    "WorkflowOrigin": {
+      "fields": [
+        "kind",
+        "catalogKey",
+        "catalogVersion"
+      ],
+      "fieldTypes": {
+        "kind": "authored|catalog|copy",
+        "catalogKey": "string|null",
+        "catalogVersion": "integer|null"
+      },
+      "nullableFields": [
+        "catalogKey",
+        "catalogVersion"
+      ],
+      "description": "Where a workflow definition came from: written in the organization (authored), installed from the code-owned catalog (catalog, system managed and locked against organization edits) or copied from another definition (copy). A catalog origin names the catalog item and release revision it was installed from; the other kinds carry nulls. Set when the definition is created and never changed.",
+      "fieldDescriptions": {
+        "kind": "Origin kind: authored, catalog or copy.",
+        "catalogKey": "Stable key of the catalog item a catalog definition was installed from; null for authored and copied definitions.",
+        "catalogVersion": "Release revision of the catalog item the definition was installed from; null for authored and copied definitions."
+      }
     },
     "WorkflowVersion": {
       "projection": "workflow_versions",
