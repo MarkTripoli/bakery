@@ -271,7 +271,7 @@ for (
       await row.getByRole("button", { name: "Assign" }).click();
       await expect(panel.getByText("Role assigned.")).toBeVisible();
       await expect(row).toContainText("1 permission · 1 member");
-      await expect(row.getByRole("list", { name: /Members holding/ }))
+      await expect(row.getByLabel(/Members holding/))
         .toContainText("Ada Member");
       // A role with holders cannot be deleted.
       await expect(row.getByRole("button", { name: "Delete" })).toBeDisabled();

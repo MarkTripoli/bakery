@@ -413,20 +413,14 @@ export function CustomRolesPanel({ organizationId }: {
                     : null}
                   {holders.length > 0
                     ? (
-                      <UI.Stack
+                      <UI.DescriptionList
                         aria-label={translate("settings.roles.holders", {
                           role: role.name,
                         })}
-                        gap="tight"
-                        role="list"
                       >
                         {holders.map((id) => (
-                          <div key={id} role="listitem">
-                            <UI.Inline gap="compact">
-                              <UI.Text>
-                                {names.get(id) ??
-                                  translate("settings.roles.unknownMember")}
-                              </UI.Text>
+                          <UI.DescriptionItem
+                            action={
                               <UI.Button
                                 variant="quiet"
                                 disabled={busy}
@@ -438,10 +432,13 @@ export function CustomRolesPanel({ organizationId }: {
                               >
                                 {translate("settings.roles.unassignAction")}
                               </UI.Button>
-                            </UI.Inline>
-                          </div>
+                            }
+                            key={id}
+                            title={names.get(id) ??
+                              translate("settings.roles.unknownMember")}
+                          />
                         ))}
-                      </UI.Stack>
+                      </UI.DescriptionList>
                     )
                     : null}
                   {candidates.length > 0
@@ -635,7 +632,7 @@ export function CustomRolesPanel({ organizationId }: {
                   );
                 })}
               </fieldset>
-              <UI.Inline variant="actions">
+              <UI.Inline data-form-actions="" gap="compact">
                 <UI.Button type="submit" loading={busy}>
                   {translate("settings.roles.save")}
                 </UI.Button>
