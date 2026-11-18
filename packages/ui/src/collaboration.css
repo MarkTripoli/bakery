@@ -1186,6 +1186,12 @@
   font: var(--type-caption);
   min-inline-size: 0;
 }
+/* The send control stays at the end even with no hint beside it: without this
+   it sat at the start of the toolbar, which reads as a misplaced primary
+   action rather than the end of the message. */
+.ui-message-composer__action {
+  margin-inline-start: auto;
+}
 .ui-message-composer__footnote {
   color: var(--color-fg-muted);
   font: var(--type-caption);
@@ -1834,4 +1840,203 @@
 .ui-pane-section dd code {
   overflow-wrap: anywhere;
   word-break: break-word;
+}
+
+/* Activity line: one event in a session thread or run timeline. */
+.ui-activity-line {
+  list-style: none;
+  margin: 0;
+}
+
+.ui-activity-line__row {
+  align-items: baseline;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-control);
+  color: var(--color-fg-muted);
+  display: flex;
+  font: var(--type-hint);
+  gap: var(--space-2);
+  inline-size: 100%;
+  padding: var(--space-1);
+  text-align: start;
+}
+
+button.ui-activity-line__row {
+  cursor: pointer;
+}
+
+button.ui-activity-line__row:hover {
+  background: var(--color-surface-subtle);
+  color: var(--color-fg);
+}
+
+.ui-activity-line__row:focus-visible {
+  outline: var(--focus-width) solid var(--color-focus);
+  outline-offset: var(--focus-offset-inset);
+}
+
+.ui-activity-line__icon {
+  display: inline-flex;
+  flex: none;
+}
+
+.ui-activity-line__text {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+
+.ui-activity-line__time {
+  flex: none;
+  font: var(--type-meta);
+  color: var(--color-fg-tertiary);
+  margin-inline-start: auto;
+}
+
+.ui-activity-line__chevron {
+  flex: none;
+  display: inline-flex;
+  color: var(--color-fg-tertiary);
+  transition: transform var(--duration-disclosure) var(--ease-standard);
+}
+
+.ui-activity-line__chevron[data-expanded="true"] {
+  transform: rotate(180deg);
+}
+
+.ui-activity-line[data-tone="danger"] .ui-activity-line__icon {
+  color: var(--color-destructive);
+}
+
+.ui-activity-line[data-tone="success"] .ui-activity-line__icon {
+  color: var(--color-status-success);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-activity-line__chevron {
+    transition-duration: var(--duration-reduced);
+  }
+}
+
+/* Session thread: one column of messages, each owning the work it caused. */
+.ui-session-thread {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.ui-session-thread__earlier {
+  display: flex;
+  justify-content: center;
+}
+
+.ui-session-thread__turns {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ui-session-thread__turn[data-position="far"] {
+  content-visibility: auto;
+  contain-intrinsic-size: auto var(--space-16);
+}
+
+.ui-session-thread__turn[data-highlighted="true"] {
+  outline: var(--focus-width) solid var(--color-focus);
+  outline-offset: var(--focus-offset-inset);
+  border-radius: var(--radius-surface);
+}
+
+.ui-session-thread__receipt {
+  color: var(--color-fg-tertiary);
+  font: var(--type-meta);
+  margin: var(--space-2) 0 0;
+}
+
+.ui-session-thread__work {
+  border-inline-start: var(--border-default) solid var(--color-border);
+  margin-block-start: calc(var(--space-2) * -1);
+  margin-inline-start: var(--space-2);
+  padding-inline-start: var(--space-3);
+}
+
+.ui-session-thread__summary {
+  color: var(--color-fg-muted);
+  font: var(--type-hint);
+  margin: 0;
+  padding: var(--space-1);
+}
+
+.ui-session-thread__steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* Now line: the one polite live region, sitting above the composer. */
+.ui-session-now {
+  align-items: center;
+  color: var(--color-fg-muted);
+  display: flex;
+  font: var(--type-hint);
+  gap: var(--space-2);
+  padding-inline: var(--space-1);
+}
+
+.ui-session-now[data-tone="danger"],
+.ui-session-now[data-tone="warning"] {
+  align-items: flex-start;
+  padding-block: var(--space-2);
+}
+
+.ui-session-now__dot {
+  background: var(--color-status-success);
+  border-radius: var(--radius-circle);
+  flex: none;
+  block-size: var(--space-2);
+  inline-size: var(--space-2);
+}
+
+.ui-session-now[data-tone="idle"] .ui-session-now__dot {
+  background: var(--color-fg-disabled);
+}
+
+.ui-session-now[data-tone="danger"] .ui-session-now__dot {
+  background: var(--color-destructive);
+}
+
+.ui-session-now[data-tone="warning"] .ui-session-now__dot {
+  background: var(--color-status-warning);
+}
+
+.ui-session-now__text {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+
+/* Terminal output under a step: monospace, scrolls its own overflow. */
+.ui-session-thread__terminal {
+  background: var(--color-surface-subtle);
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-surface);
+  color: var(--color-fg);
+  font: var(--type-data);
+  margin: var(--space-1) 0 var(--space-2) var(--space-6);
+  max-block-size: 28rem;
+  overflow: auto;
+  padding: var(--space-3);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* In the thread a person's message is a boxed card and the agent's is plain
+   text, so a reader can tell who is speaking before reading a word. */
+.ui-session-thread .ui-conversation-message[data-variant="person"] {
+  background: var(--color-surface);
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-surface);
+  padding: var(--space-3) var(--space-4);
 }

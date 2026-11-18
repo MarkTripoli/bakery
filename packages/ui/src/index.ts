@@ -186,6 +186,7 @@ export * from "./molecules/WorkspaceSwitcher.tsx";
 export * from "./organisms/ArtifactComment.tsx";
 export * from "./organisms/ArtifactPane.tsx";
 export * from "./organisms/CodeBlock.tsx";
+export * from "./organisms/ActivityLine.tsx";
 export * from "./organisms/ConversationMessage.tsx";
 export * from "./organisms/DataTable.tsx";
 export * from "./organisms/LogViewer.tsx";

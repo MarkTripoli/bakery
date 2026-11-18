@@ -106,6 +106,7 @@ import { ProjectsOnboardingPage } from "./pages/ProjectsOnboardingPage.tsx";
 import { useProjectsOnboardingLabels } from "./pages/projects-onboarding/useProjectsOnboardingLabels.ts";
 import { ApiBoundaryFixture } from "./fixtures/ApiBoundaryFixture.tsx";
 import { MachinesFixture } from "./fixtures/MachinesFixture.tsx";
+import { SessionThreadFixture } from "./fixtures/SessionThreadFixture.tsx";
 import {
   authFixtureStates,
   AuthStateFixture,
@@ -802,6 +803,20 @@ export const routeCoverage = [
     path: "/__fixtures__/machines/detail",
     classification: "fixture",
     states: ["default"],
+  },
+  {
+    id: "fixture-session-thread",
+    path: "/__fixtures__/session-thread/$state",
+    classification: "fixture",
+    states: [
+      "running",
+      "waiting",
+      "failed",
+      "lost",
+      "finished",
+      "empty",
+      "long",
+    ],
   },
   {
     id: "fixture-api-boundary",
@@ -2009,6 +2024,12 @@ const machinesDetailFixtureRoute = createRoute({
   path: "/__fixtures__/machines/detail",
   component: MachinesFixture,
 });
+const sessionThreadFixtureRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/__fixtures__/session-thread/$state",
+  component: SessionThreadFixture,
+});
+
 const apiBoundaryRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/__fixtures__/api-boundary",
@@ -2159,6 +2180,7 @@ const artifactFixtureRoute = createRoute({
 
 const developmentRoutes = [
   machinesFixtureRoute,
+  sessionThreadFixtureRoute,
   machinesDetailFixtureRoute,
   artifactFixtureRoute,
   apiBoundaryRoute,
