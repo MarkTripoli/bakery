@@ -58,8 +58,7 @@ export function shardFiles(
  * Every path Deno's default test discovery matches: a name ending in `_test`,
  * `.test` or bare `test`, followed by a js/ts family extension. The shard must
  * select exactly what the lane would, or a shard split silently drops coverage:
- * `tests/unit/projects-onboarding-page_test.tsx` is four tests that a
- * `_test.ts` glob never sees.
+ * a `_test.tsx` unit file holds tests that a `_test.ts` glob never sees.
  */
 export const testFilePattern = /(^|[_.])test\.(ts|tsx|mts|js|mjs|jsx)$/;
 

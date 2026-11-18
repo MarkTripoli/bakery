@@ -80,10 +80,6 @@
     "path": "/projects"
   },
   {
-    "id": "projects-onboarding",
-    "path": "/projects/onboarding"
-  },
-  {
     "id": "repository",
     "path": "/projects/repositories/$repositoryId"
   },
@@ -1210,10 +1206,6 @@
   {
     "id": "fixture-work-coordination:ticket",
     "path": "/__fixtures__/work/coordination/ticket"
-  },
-  {
-    "id": "fixture-work-onboarding:default",
-    "path": "/__fixtures__/work/onboarding/default"
   },
   {
     "id": "fixture-artifacts-artifact:default",

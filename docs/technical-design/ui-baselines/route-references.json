@@ -243,51 +243,6 @@
       "frames": []
     },
     {
-      "routeId": "projects-onboarding",
-      "path": "/projects/onboarding",
-      "status": "baselined",
-      "rationale": "E06 (#56, #67, #78): applications, repositories, profiles, inspection and coordination aliases on native Paper p-18-0 frames scored as enterprise design cases against /__fixtures__/work/onboarding/$state.",
-      "manifest": "enterprise",
-      "frames": [
-        {
-          "fileId": "01M1X504XVC45FC0VDK857A37D",
-          "pageId": "p-18-0",
-          "frameId": "2JSH-0",
-          "device": "desktop",
-          "theme": "light",
-          "state": "default"
-        },
-        {
-          "fileId": "01M1X504XVC45FC0VDK857A37D",
-          "pageId": "p-18-0",
-          "frameId": "2JZO-0",
-          "device": "desktop",
-          "theme": "dark",
-          "state": "default"
-        },
-        {
-          "fileId": "01M1X504XVC45FC0VDK857A37D",
-          "pageId": "p-18-0",
-          "frameId": "2K4U-0",
-          "device": "phone",
-          "theme": "light",
-          "state": "default"
-        }
-      ],
-      "absentVariants": [
-        {
-          "theme": "dark",
-          "device": "phone",
-          "reason": "Paper p-18-0 draws the phone variant in the light theme only; dark phone is proven by the Storybook dark axe lane, the dark desktop golden and the evidence video."
-        }
-      ],
-      "cases": [
-        "projects-onboarding.default.light.desktop",
-        "projects-onboarding.default.dark.desktop",
-        "projects-onboarding.default.light.phone"
-      ]
-    },
-    {
       "routeId": "sign-in",
       "path": "/sign-in",
       "status": "baselined",
