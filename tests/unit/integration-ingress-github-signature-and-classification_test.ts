@@ -487,6 +487,14 @@ Deno.test("a verified delivery exposes its id so a redelivery can be refused", (
   // payload carries no send time. The port hands the id to the host, whose
   // receipt refuses a second application of the same id; without it the host has
   // nothing to key on and a replay applies twice.
+  //
+  // This test covers the port's half only - that the id leaves the ingress. The
+  // receipt's half is proved against the real receipt and a real database in
+  // `tests/helpers/github-intake/receipts-integration.ts` ("an exact duplicate
+  // acknowledges the original receipt and writes nothing; changed bytes or
+  // event name are refused"). A stand-in for the receipt was removed from this
+  // file: it asserted the stand-in, so it could not have failed if the receipt
+  // regressed.
   const body = enc(JSON.stringify({
     action: "created",
     installation: { id: 42 },
@@ -519,42 +527,4 @@ Deno.test("a verified delivery exposes its id so a redelivery can be refused", (
     now: NOW,
   });
   assertEquals(noId, { ok: false, reason: "malformed" });
-});
-
-Deno.test("the receipt refuses a redelivered id and a changed body under one id", () => {
-  // The host's side of the same guarantee, against a stand-in for
-  // `bakery.inbound_events`: the unique key is (registration, delivery id), and
-  // an insert that conflicts is read back rather than applied.
-  const receipts = new Map<string, { digest: string; eventKind: string }>();
-  const receive = (
-    deliveryId: string,
-    digest: string,
-    eventKind: string,
-  ): "received" | "duplicate" => {
-    const key = `reg-1|${deliveryId}`;
-    const known = receipts.get(key);
-    if (known !== undefined) {
-      if (known.digest !== digest || known.eventKind !== eventKind) {
-        throw new Error("IDEMPOTENCY_PAYLOAD_MISMATCH");
-      }
-      return "duplicate";
-    }
-    receipts.set(key, { digest, eventKind });
-    return "received";
-  };
-
-  assertEquals(receive("d-1", "sha256:aaa", "issues"), "received");
-  // The same delivery, sent again: acknowledged, not applied twice.
-  assertEquals(receive("d-1", "sha256:aaa", "issues"), "duplicate");
-  // The same id with different bytes is not a retry; it changes nothing and is
-  // refused, so a replayed id cannot smuggle a different payload through.
-  let refused = false;
-  try {
-    receive("d-1", "sha256:bbb", "issues");
-  } catch {
-    refused = true;
-  }
-  assertEquals(refused, true);
-  // A different id is a different delivery even with identical bytes.
-  assertEquals(receive("d-2", "sha256:aaa", "issues"), "received");
 });
