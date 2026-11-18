@@ -135,17 +135,12 @@
   inline-size: max-content;
   position: relative;
 }
-/* A phone's bar is short and its button sits 4px from the top, so the overhang
-   the design asks for would land 3px from the edge — inside the 4px it forbids.
-   The icon drops a space instead: the offset stays one rule for both surfaces,
-   which is what the design actually pins, and the pill keeps its 8x8 overlap. */
-@media (max-width: 743px) {
-  .ui-notification-bell__glyph {
-    margin-block-start: var(--space-1);
-  }
-}
 .ui-notification-bell__badge {
   align-items: center;
+  /* The count inside the pill is a number, and numbers read left to right in
+     every locale; isolating the run stops a right-to-left page from drawing
+     "99+" as "+99". */
+  unicode-bidi: isolate;
   background: var(--color-selection);
   block-size: auto;
   border-radius: var(--radius-pill);

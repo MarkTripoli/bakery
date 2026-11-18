@@ -75,7 +75,16 @@ export function NotificationBellGlyph(
             className="ui-notification-bell__badge"
             data-ui-part="notificationBadge"
           >
-            {drawn}
+            {
+              /* A count is read left to right in every locale, so the cap gets
+                its own isolating run. Without it a right-to-left page renders
+                "99+" as "+99", which reads as the wrong number. `dir` sits on
+                the text, not on the badge: the badge's own `inset-inline-start`
+                is what mirrors the pill to the icon's top left. */
+            }
+            <span className="ui-notification-bell__badge-count" dir="ltr">
+              {drawn}
+            </span>
           </span>
         )}
         {status.state === "unknown"
