@@ -471,12 +471,17 @@ Deno.test("the batch counts as lost once, when every destination failed", async 
   assertEquals(sink.stats().otlp.failed, 1);
 });
 
-Deno.test("a sink with no destinations sends nothing and throws nothing", async () => {
-  // Building an empty sink is a caller mistake, but it must not look like a loss
-  // on every batch: the exporter's disabled state is the honest representation.
+Deno.test("a sink with no destinations reports the batch lost rather than exported", async () => {
+  // A batch that reached no destination is lost. Returning normally made the
+  // exporter count it as exported, which is a claim no later check can refute.
   const sink = createTelemetrySink({});
-  await sink([eventRecord()], signal());
-  assertEquals(sink.stats().otlp.sent, 0);
+  let threw = false;
+  try {
+    await sink([eventRecord()], signal());
+  } catch {
+    threw = true;
+  }
+  assertEquals(threw, true);
 });
 
 Deno.test("a write failure is reported once, not swallowed", async () => {
