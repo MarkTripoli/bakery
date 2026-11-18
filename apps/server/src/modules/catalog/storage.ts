@@ -40,7 +40,7 @@ type StoreStat = Identity & {
 
 export type SkillFileStoreOperations = Pick<
   SkillObjectStore,
-  "recover" | "putIfAbsent" | "read"
+  "recover" | "putIfAbsent" | "read" | "stat"
 >;
 
 type SkillFileStorePaths = Readonly<{
@@ -396,6 +396,32 @@ export class SkillFileStore implements SkillObjectStore {
     } finally {
       await temporary?.close().catch(() => undefined);
       if (!preserveTemporary) await unlink(temp).catch(() => undefined);
+    }
+  }
+
+  async stat(objectKey: string): Promise<{ sizeBytes: number } | null> {
+    await this.initialize();
+    const path = fileNameFromKey(this.#root, objectKey);
+    try {
+      // O_NOFOLLOW so a symlink planted at the path cannot make the size
+      // report describe a different file than `read` would later verify.
+      const handle = await open(path, O_RDONLY | O_NOFOLLOW);
+      try {
+        const stat = await handle.stat();
+        // A directory or a symlink reported as an object would let a caller
+        // publish against something `read` can never verify.
+        if (!stat.isFile()) fail("SKILL_FILE_TARGET_INVALID");
+        return { sizeBytes: stat.size };
+      } finally {
+        await handle.close();
+      }
+    } catch (error) {
+      if (error instanceof SkillFileStoreError) throw error;
+      if (isNotFound(error)) return null;
+      if (error instanceof Error && "code" in error && error.code === "ELOOP") {
+        fail("SKILL_FILE_SYMLINK");
+      }
+      throw error;
     }
   }
 

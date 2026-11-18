@@ -40,6 +40,7 @@ import { integrationsBakeryMigrationSource } from "../../apps/server/src/modules
 import { deliveryBakeryMigrationSource } from "../../apps/server/src/modules/delivery/migrations.ts";
 import { mcpBakeryMigrationSource } from "../../apps/server/src/modules/mcp/migrations.ts";
 import { knowledgeBakeryMigrationSource } from "../../apps/server/src/modules/knowledge/migrations.ts";
+import { catalogBakeryMigrationSource } from "../../apps/server/src/modules/catalog/migrations.ts";
 import { authBakeryMigrationSource } from "../../apps/server/src/modules/auth/migrations.ts";
 import { projectsBakeryMigrationSource } from "../../apps/server/src/modules/projects/migrations.ts";
 import { workBakeryMigrationSource } from "../../apps/server/src/modules/work/migrations.ts";
@@ -57,6 +58,7 @@ Deno.test("Bakery migrations follow the globally unique migration sequence", asy
     ...await loadMigrations(deliveryBakeryMigrationSource),
     ...await loadMigrations(mcpBakeryMigrationSource),
     ...await loadMigrations(knowledgeBakeryMigrationSource),
+    ...await loadMigrations(catalogBakeryMigrationSource),
   ];
   for (
     const [version, error] of [
@@ -207,9 +209,11 @@ Deno.test("Bakery migrations follow the globally unique migration sequence", asy
       "0184_inbox_signal_and_read_batches",
       "0185_event_export",
       "0186_definition_publish_grants_and_proposal_supersession",
+      "0187_human_approval_owner_waits_and_outcomes",
       "0189_project_scope_profiles",
       "0190_memory_one_active_entry_per_topic",
       "0191_delivery_identity_per_attempt",
+      "0193_plugin_packages_and_versions",
     ],
   );
 });

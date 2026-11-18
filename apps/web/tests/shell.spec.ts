@@ -212,6 +212,8 @@ async function expectSelectedParent(page: Page, path: string) {
       ? "/settings/access"
       : path.startsWith("/settings/organization/access")
       ? "/settings/organization/access"
+      : path.startsWith("/settings/organization/service-accounts")
+      ? "/settings/organization/service-accounts"
       : path.startsWith("/settings/organization/roles")
       ? "/settings/organization/roles"
       : path.startsWith("/settings/organization/repository-rules")
@@ -540,7 +542,7 @@ test.describe("settings routes and navigation", () => {
     );
   }
 
-  test("a member without administrator rights does not see the Organization group", async ({ page }) => {
+  test("a member without administrator rights sees only Service accounts & tokens in the Organization group", async ({ page }) => {
     await mockAuthenticatedSession(page);
     await stubRole(page, "developer");
     await page.setViewportSize({ width: 1280, height: 960 });
@@ -551,8 +553,11 @@ test.describe("settings routes and navigation", () => {
     }).first();
     await expect(navigation.getByRole("list", { name: "Your account" }))
       .toBeVisible();
-    await expect(navigation.getByRole("list", { name: "Organization" }))
-      .toHaveCount(0);
+    // The phone index lists Service accounts & tokens for a member, so the
+    // desktop group offers it too, and nothing a member may not open.
+    await expect(
+      navigation.getByRole("list", { name: "Organization" }).getByRole("link"),
+    ).toHaveText(["Service accounts & tokens"]);
     await expect(navigation.getByRole("link", { name: "Members & access" }))
       .toHaveCount(0);
     await shot(page, "settings-navigation-member");
@@ -659,7 +664,7 @@ test.describe("settings routes and navigation", () => {
     expect(styles[0]).toMatch(/^Geist\b/);
   });
 
-  test("lists the sections under two labelled groups, with the connected-clients item and without Machines", async ({ page }) => {
+  test("lists the sections under two labelled groups, without Machines", async ({ page }) => {
     await mockAuthenticatedSession(page);
     await stubRole(page, "admin");
     await page.setViewportSize({ width: 1280, height: 960 });
@@ -677,7 +682,6 @@ test.describe("settings routes and navigation", () => {
       "Profile",
       "Account & security",
       "Active sessions",
-      "Connected clients",
       "Appearance",
       "Your access",
     ]);
@@ -685,6 +689,7 @@ test.describe("settings routes and navigation", () => {
       navigation.getByRole("list", { name: "Organization" }).getByRole("link"),
     ).toHaveText([
       "Members & access",
+      "Service accounts & tokens",
       "Custom roles",
       "Repository rules",
       "Integrations",
@@ -740,6 +745,7 @@ test.describe("settings routes and navigation", () => {
       /Active sessions/,
       /Appearance/,
       /Your access/,
+      /Service accounts/,
     ]);
     await page.getByRole("link", { name: /Appearance/ }).click();
     await expect(page).toHaveURL("/settings/appearance");
@@ -810,7 +816,6 @@ test("the account and organization triggers stay one row when a name is long, an
       body: JSON.stringify({
         principalId: "00000000-0000-4000-8000-000000000001",
         principalType: "human",
-        createdByPrincipalId: null,
         displayName: LONG_PERSON,
         locale: "en",
         timeZone: null,

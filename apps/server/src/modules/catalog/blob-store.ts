@@ -23,7 +23,7 @@ export class ScopedOrganizationBlobStore implements OrganizationBlobStore {
   constructor(
     private readonly store: Pick<
       SkillObjectStore,
-      "putIfAbsent" | "read" | "recover"
+      "putIfAbsent" | "read" | "recover" | "stat"
     >,
   ) {}
 
@@ -49,6 +49,13 @@ export class ScopedOrganizationBlobStore implements OrganizationBlobStore {
       sha256,
       expectedSize,
     );
+  }
+
+  async stat(
+    organizationId: string,
+    sha256: string,
+  ): Promise<{ sizeBytes: number } | null> {
+    return await this.store.stat(blobObjectKey(organizationId, sha256));
   }
 
   async recover(

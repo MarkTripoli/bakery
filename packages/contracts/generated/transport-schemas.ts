@@ -7411,7 +7411,9 @@ const transportSchemas = {
           "type": "string",
           "required": true,
           "bounds": {
-            "maxLength": 200
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^(?!\\s)(?=.*\\S)"
           },
           "description": "Stable identifier for this package, unique within the publishing organization; used to reference the package from version and install operations."
         },
@@ -7420,7 +7422,9 @@ const transportSchemas = {
           "type": "string",
           "required": true,
           "bounds": {
-            "maxLength": 200
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^(?!\\s)(?=.*\\S)"
           },
           "description": "Human-readable name for this package shown in install and catalog listings, independent of its stable name."
         },
@@ -7455,7 +7459,9 @@ const transportSchemas = {
           "type": "string",
           "required": true,
           "bounds": {
-            "maxLength": 200
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^(?!\\s)(?=.*\\S)"
           },
           "description": "Version label for this release, unique per package (for example a semantic version); immutable once published."
         },
@@ -7464,7 +7470,9 @@ const transportSchemas = {
           "type": "string",
           "required": true,
           "bounds": {
-            "maxLength": 200
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^(?!\\s)(?=.*\\S)"
           },
           "description": "Range of plugin SDK versions this release is compatible with; installation is blocked when the host's SDK version falls outside this range."
         },
@@ -7482,7 +7490,9 @@ const transportSchemas = {
           "type": "string",
           "required": true,
           "bounds": {
-            "maxLength": 2000
+            "maxLength": 2000,
+            "minLength": 1,
+            "pattern": "^(?!\\s)(?=.*\\S)"
           },
           "description": "Storage key of this version's validated, immutable bundle archive in R2 or the local filesystem; the archive bytes themselves are never stored in Postgres."
         },
@@ -7491,7 +7501,9 @@ const transportSchemas = {
           "type": "string",
           "required": true,
           "bounds": {
-            "maxLength": 64
+            "maxLength": 64,
+            "minLength": 64,
+            "pattern": "^[0-9a-f]{64}$"
           },
           "description": "SHA-256 digest of the bundle archive at bundleObjectRef, unique per package; verified before the archive is extracted or installed so a tampered or corrupted bundle is rejected."
         },
@@ -19162,7 +19174,7 @@ const transportSchemas = {
         "organizationRevision": "Organization rules revision resolved against; 0 means no organization revision is published yet.",
         "entries": "Effective rule entries in canonical rule-key order, each with its provenance and source organization revision.",
         "supersededOverrides": "Proposed overrides that would be inactive under an organization lock; always empty when the preview has no lock conflicts.",
-        "digest": "Lowercase SHA-256 of the canonical effective entries and organization revision."
+        "digest": "Rules fingerprint the proposed rules would have: computed exactly as the effective-rules read's digest and a run check's policyDigest, over the active profile's fixed policy and these entries."
       }
     },
     "RuleSampleFinding": {
@@ -19257,7 +19269,8 @@ const transportSchemas = {
         "digest",
         "repositoryVersion",
         "checkers",
-        "providerProtection"
+        "providerProtection",
+        "hasFixedPolicy"
       ],
       "fieldTypes": {
         "repositoryId": "uuid",
@@ -19269,11 +19282,15 @@ const transportSchemas = {
         "digest": "sha256",
         "repositoryVersion": "positiveInteger",
         "checkers": "RepositoryRuleCheckers",
-        "providerProtection": "RepositoryProviderProtection"
+        "providerProtection": "RepositoryProviderProtection",
+        "hasFixedPolicy": "boolean"
       },
       "nullableFields": [
         "profileId",
         "profileRevision"
+      ],
+      "optionalFields": [
+        "hasFixedPolicy"
       ],
       "description": "The rules in force for one repository: the organization's latest published baseline layered with the overrides of the repository's active profile, one entry per applicable rule with its provenance, plus overrides inactive under an organization lock. Resolved in one snapshot, so every entry's organization revision equals the response's organizationRevision. A repository with no active profile resolves with no overrides.",
       "fieldDescriptions": {
@@ -19283,10 +19300,11 @@ const transportSchemas = {
         "organizationRevision": "Organization rules revision resolved against; 0 means no organization revision is published yet.",
         "entries": "Effective rule entries in canonical rule-key order, each with its provenance and source organization revision; a locked entry is the organization entry with provenance locked_by_organization.",
         "supersededOverrides": "Saved repository overrides that are inactive because the organization currently locks the rule; they stay in the profile and take effect again if the lock is dropped.",
-        "digest": "Lowercase SHA-256 of the canonical effective entries and organization revision; superseded overrides are excluded.",
+        "digest": "Rules fingerprint: equals the policyDigest a check of a run admitted under these rules records (effective policy digest over the active profile's fixed policy, its trusted checker and the effective entries; organization revision and superseded overrides are excluded). Without a fixed policy no check records one and the value matches no run.",
         "repositoryVersion": "Current repository version; the response ETag is \"v<version>\", the If-Match value profile activation requires.",
         "checkers": "Bakery checker availability for the effective rules.",
-        "providerProtection": "Git provider branch protection state, separate from Bakery enforcement."
+        "providerProtection": "Git provider branch protection state, separate from Bakery enforcement.",
+        "hasFixedPolicy": "True when the active profile has a fixed policy, so runs admitted under these rules record a check policyDigest equal to digest. When false, runs admitted under these rules record no check, so no run will match digest."
       }
     },
     "RepositoryRuleCheckers": {
@@ -26183,7 +26201,7 @@ const transportSchemas = {
         "runId": "uuid|null",
         "prompt": "string",
         "status": "enum(open|answered|expired|withdrawn|superseded|revoked|consumed)",
-        "subjectType": "enum(plan_revision|run_stage|merge|deploy|human_approval)",
+        "subjectType": "enum(plan_revision|run_stage|merge|deploy|human_approval|run_step)",
         "subjectId": "uuid",
         "subjectDigest": "sha256",
         "scope": "json",
@@ -26224,7 +26242,7 @@ const transportSchemas = {
         "runId": "UUID of the run that consumed the approval, or null while unconsumed.",
         "prompt": "Human-readable request shown to the approver.",
         "status": "Lifecycle: open, answered (decided), expired, withdrawn, superseded by a newer revision, revoked or consumed by a run.",
-        "subjectType": "What the approval authorizes: plan_revision today; merge and deploy are unsupported.",
+        "subjectType": "What the approval authorizes: a plan revision, a run stage, or a run step (human.approval); merge and deploy are unsupported.",
         "subjectId": "UUID of the exact subject, the plan revision id for plan approvals.",
         "subjectDigest": "SHA-256 digest of the subject the approval is bound to.",
         "scope": "Stage scope the approval applies to, for example the plan stage.",
@@ -28795,6 +28813,24 @@ const transportSchemas = {
       "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
     },
     "approval.requested": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "human.approval.decided": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "workflow.stopped": {
       "schemaVersion": 1,
       "payloadFields": {
         "resourceId": "uuid",
