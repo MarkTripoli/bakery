@@ -4818,6 +4818,94 @@
     },
     {
       "group": "Providers",
+      "method": "GET",
+      "path": "/v1/provider-routes",
+      "action": "providerRoutes.list",
+      "access": "Developer",
+      "permission": "providerRoute:read",
+      "input": "ProviderRouteQuery",
+      "output": "Page<ProviderRoute>",
+      "event": "",
+      "mcp": null,
+      "idempotency": "Read; opaque cursor pagination",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN"
+      ]
+    },
+    {
+      "group": "Providers",
+      "method": "GET",
+      "path": "/v1/provider-routes/{id}",
+      "action": "providerRoutes.get",
+      "access": "Developer",
+      "permission": "providerRoute:read",
+      "input": "IdPath",
+      "output": "ProviderRoute",
+      "event": "",
+      "mcp": null,
+      "idempotency": "Read; no body",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND"
+      ]
+    },
+    {
+      "group": "Providers",
+      "method": "GET",
+      "path": "/v1/provider-routes/{id}/health",
+      "action": "providerRoutes.health",
+      "access": "Developer",
+      "permission": "providerRoute:read",
+      "input": "IdPath",
+      "output": "RouteHealth",
+      "event": "",
+      "mcp": null,
+      "idempotency": "Read; no body",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND"
+      ]
+    },
+    {
+      "group": "Providers",
+      "method": "GET",
+      "path": "/v1/provider-incidents",
+      "action": "providerIncidents.list",
+      "access": "Developer",
+      "permission": "providerIncident:read",
+      "input": "ProviderIncidentQuery",
+      "output": "Page<ProviderIncident>",
+      "event": "",
+      "mcp": null,
+      "idempotency": "Read; opaque cursor pagination",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN"
+      ]
+    },
+    {
+      "group": "Providers",
+      "method": "GET",
+      "path": "/v1/provider-incidents/{id}",
+      "action": "providerIncidents.get",
+      "access": "Developer",
+      "permission": "providerIncident:read",
+      "input": "IdPath",
+      "output": "ProviderIncident",
+      "event": "",
+      "mcp": null,
+      "idempotency": "Read; no body",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND"
+      ]
+    },
+    {
+      "group": "Providers",
       "method": "POST",
       "path": "/v1/workers/{id}/provider-bindings",
       "action": "workerProviderBindings.create",

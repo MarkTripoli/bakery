@@ -12,6 +12,7 @@ import {
 import type { PgTransactionClient } from "../../platform/database.ts";
 import { readLatestRuleVersionRow } from "./postgres.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
+import { rulesPolicyDigest } from "./policy-digest.ts";
 
 const NO_OVERRIDES: RepositoryRuleOverrides = Object.freeze({ entries: [] });
 
@@ -126,6 +127,21 @@ export function checkerAvailability(
   };
 }
 
+/**
+ * The fixed policy of an active profile config, or undefined when it has none
+ * (schema v1, no fixed policy, or a config that does not parse). The read and
+ * the preview fingerprint the same profile with this one helper.
+ */
+export function activeFixedPolicy(
+  profileConfig: unknown,
+): Parameters<typeof rulesPolicyDigest>[0] {
+  const config = RepositoryVersionedProfileConfigSchema.safeParse(
+    profileConfig,
+  );
+  if (!config.success || config.data.schemaVersion !== 2) return undefined;
+  return config.data.fixedPolicy;
+}
+
 type EffectiveRow = {
   repository_id: string;
   repository_version: number;
@@ -186,6 +202,7 @@ export async function getEffectiveRepositoryRules(
   if (!row) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
   let overrides = NO_OVERRIDES;
   let commandIds: ReadonlySet<string> = new Set();
+  let fixedPolicy: Parameters<typeof rulesPolicyDigest>[0];
   if (row.profile_id !== null) {
     const config = RepositoryVersionedProfileConfigSchema.safeParse(
       row.profile_config,
@@ -198,6 +215,7 @@ export async function getEffectiveRepositoryRules(
       });
     }
     overrides = config.data.repositoryRules ?? NO_OVERRIDES;
+    fixedPolicy = activeFixedPolicy(config.data);
     commandIds = new Set(
       (config.data.fixedPolicy?.commands ?? []).map((command) => command.id),
     );
@@ -224,6 +242,9 @@ export async function getEffectiveRepositoryRules(
     organizationRevision: resolved.organizationRevision,
     entries: resolved.entries,
     supersededOverrides: resolved.supersededOverrides,
-    digest: resolved.digest,
+    // The run's own policyDigest over the same pins, never a second formula.
+    digest: await rulesPolicyDigest(fixedPolicy, resolved.entries),
+    // Same input as the digest: only a fixed policy makes runs record a check.
+    hasFixedPolicy: fixedPolicy !== undefined,
   };
 }

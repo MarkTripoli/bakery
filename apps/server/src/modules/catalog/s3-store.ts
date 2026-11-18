@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import {
   GetObjectCommand,
+  HeadObjectCommand,
   ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
@@ -113,6 +114,25 @@ export class S3SkillObjectStore implements SkillObjectStore {
       return bytes;
     } catch (error) {
       throw mapSkillS3Error(error);
+    }
+  }
+
+  async stat(key: string): Promise<{ sizeBytes: number } | null> {
+    assertSkillObjectKey(key);
+    try {
+      const result = await this.client.send(
+        new HeadObjectCommand({ Bucket: this.bucket, Key: key }),
+      );
+      if (result.ContentLength === undefined) {
+        throw new SkillFileStoreError("SKILL_CONTENT_INTEGRITY_FAILED");
+      }
+      return { sizeBytes: result.ContentLength };
+    } catch (error) {
+      const mapped = mapSkillS3Error(error);
+      // Absent is an answer, not a failure: the caller decides whether a
+      // missing bundle is a refusal or a retry.
+      if (mapped.code === "SKILL_FILE_NOT_FOUND") return null;
+      throw mapped;
     }
   }
 

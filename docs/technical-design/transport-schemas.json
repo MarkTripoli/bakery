@@ -7400,7 +7400,9 @@
           "type": "string",
           "required": true,
           "bounds": {
-            "maxLength": 200
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^(?!\\s)(?=.*\\S)"
           },
           "description": "Stable identifier for this package, unique within the publishing organization; used to reference the package from version and install operations."
         },
@@ -7409,7 +7411,9 @@
           "type": "string",
           "required": true,
           "bounds": {
-            "maxLength": 200
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^(?!\\s)(?=.*\\S)"
           },
           "description": "Human-readable name for this package shown in install and catalog listings, independent of its stable name."
         },
@@ -7444,7 +7448,9 @@
           "type": "string",
           "required": true,
           "bounds": {
-            "maxLength": 200
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^(?!\\s)(?=.*\\S)"
           },
           "description": "Version label for this release, unique per package (for example a semantic version); immutable once published."
         },
@@ -7453,7 +7459,9 @@
           "type": "string",
           "required": true,
           "bounds": {
-            "maxLength": 200
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^(?!\\s)(?=.*\\S)"
           },
           "description": "Range of plugin SDK versions this release is compatible with; installation is blocked when the host's SDK version falls outside this range."
         },
@@ -7471,7 +7479,9 @@
           "type": "string",
           "required": true,
           "bounds": {
-            "maxLength": 2000
+            "maxLength": 2000,
+            "minLength": 1,
+            "pattern": "^(?!\\s)(?=.*\\S)"
           },
           "description": "Storage key of this version's validated, immutable bundle archive in R2 or the local filesystem; the archive bytes themselves are never stored in Postgres."
         },
@@ -7480,7 +7490,9 @@
           "type": "string",
           "required": true,
           "bounds": {
-            "maxLength": 64
+            "maxLength": 64,
+            "minLength": 64,
+            "pattern": "^[0-9a-f]{64}$"
           },
           "description": "SHA-256 digest of the bundle archive at bundleObjectRef, unique per package; verified before the archive is extracted or installed so a tampered or corrupted bundle is rejected."
         },
@@ -10785,6 +10797,106 @@
         "A project in another organization, or one that does not exist, answers 404. Check ids must be unique (422 UNPROCESSABLE)."
       ],
       "description": "Publishes the next revision of one project's scope profile: the step defaults every later run of the project inherits and pins at admission."
+    },
+    "ProviderRouteQuery": {
+      "fields": [
+        {
+          "name": "status",
+          "type": "enum",
+          "required": false,
+          "enum": [
+            "active",
+            "disabled",
+            "revoked"
+          ],
+          "description": "Restricts the page to routes in this lifecycle state; a revoked or disabled route is readable but never probed or admitted for new work."
+        },
+        {
+          "name": "health",
+          "type": "enum",
+          "required": false,
+          "enum": [
+            "healthy",
+            "degraded",
+            "open",
+            "unverified"
+          ],
+          "description": "Restricts the page to routes in this circuit state: healthy (closed, inference proven), degraded (failing below the open threshold), open (paused, probing), or unverified (reachable but no inference proof yet)."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque keyset cursor for the next page of routes; bound to the caller's organization and the same status and health filters, so it is rejected if replayed under a different query."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum number of provider routes returned per page; defaults to 25 and cannot exceed 100."
+        }
+      ],
+      "description": "Filters and page position for listing the organization's provider routes. Routes are organization-scoped addresses for one provider endpoint, model, harness and credential binding, so this page never spans organizations."
+    },
+    "ProviderIncidentQuery": {
+      "fields": [
+        {
+          "name": "routeId",
+          "type": "uuid",
+          "required": false,
+          "description": "Restricts the page to incidents recorded against one provider route; omit to list incidents across every route the caller can see."
+        },
+        {
+          "name": "status",
+          "type": "enum",
+          "required": false,
+          "enum": [
+            "open",
+            "recovered",
+            "superseded"
+          ],
+          "description": "Restricts the page to incidents in this state: open (still failing), recovered (probes proved the route again), or superseded (a newer incident generation replaced it without recovery)."
+        },
+        {
+          "name": "severity",
+          "type": "enum",
+          "required": false,
+          "enum": [
+            "degraded",
+            "outage"
+          ],
+          "description": "Restricts the page to degraded incidents, where the route still serves some work, or outage incidents, where it serves none."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque keyset cursor for the next page of incidents; bound to the caller's organization and the same route, status and severity filters."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum number of provider incidents returned per page; defaults to 25 and cannot exceed 100."
+        }
+      ],
+      "description": "Filters and page position for listing provider incidents. An incident is one durable record per affected route and generation, not one per failed attempt, so duplicate and stale probe results do not multiply rows."
     },
     "TicketRoutingRuleInput": {
       "fields": [
@@ -19217,7 +19329,7 @@
         "organizationRevision": "Organization rules revision resolved against; 0 means no organization revision is published yet.",
         "entries": "Effective rule entries in canonical rule-key order, each with its provenance and source organization revision.",
         "supersededOverrides": "Proposed overrides that would be inactive under an organization lock; always empty when the preview has no lock conflicts.",
-        "digest": "Lowercase SHA-256 of the canonical effective entries and organization revision."
+        "digest": "Rules fingerprint the proposed rules would have: computed exactly as the effective-rules read's digest and a run check's policyDigest, over the active profile's fixed policy and these entries."
       }
     },
     "RuleSampleFinding": {
@@ -19312,7 +19424,8 @@
         "digest",
         "repositoryVersion",
         "checkers",
-        "providerProtection"
+        "providerProtection",
+        "hasFixedPolicy"
       ],
       "fieldTypes": {
         "repositoryId": "uuid",
@@ -19324,11 +19437,15 @@
         "digest": "sha256",
         "repositoryVersion": "positiveInteger",
         "checkers": "RepositoryRuleCheckers",
-        "providerProtection": "RepositoryProviderProtection"
+        "providerProtection": "RepositoryProviderProtection",
+        "hasFixedPolicy": "boolean"
       },
       "nullableFields": [
         "profileId",
         "profileRevision"
+      ],
+      "optionalFields": [
+        "hasFixedPolicy"
       ],
       "description": "The rules in force for one repository: the organization's latest published baseline layered with the overrides of the repository's active profile, one entry per applicable rule with its provenance, plus overrides inactive under an organization lock. Resolved in one snapshot, so every entry's organization revision equals the response's organizationRevision. A repository with no active profile resolves with no overrides.",
       "fieldDescriptions": {
@@ -19338,10 +19455,11 @@
         "organizationRevision": "Organization rules revision resolved against; 0 means no organization revision is published yet.",
         "entries": "Effective rule entries in canonical rule-key order, each with its provenance and source organization revision; a locked entry is the organization entry with provenance locked_by_organization.",
         "supersededOverrides": "Saved repository overrides that are inactive because the organization currently locks the rule; they stay in the profile and take effect again if the lock is dropped.",
-        "digest": "Lowercase SHA-256 of the canonical effective entries and organization revision; superseded overrides are excluded.",
+        "digest": "Rules fingerprint: equals the policyDigest a check of a run admitted under these rules records (effective policy digest over the active profile's fixed policy, its trusted checker and the effective entries; organization revision and superseded overrides are excluded). Without a fixed policy no check records one and the value matches no run.",
         "repositoryVersion": "Current repository version; the response ETag is \"v<version>\", the If-Match value profile activation requires.",
         "checkers": "Bakery checker availability for the effective rules.",
-        "providerProtection": "Git provider branch protection state, separate from Bakery enforcement."
+        "providerProtection": "Git provider branch protection state, separate from Bakery enforcement.",
+        "hasFixedPolicy": "True when the active profile has a fixed policy, so runs admitted under these rules record a check policyDigest equal to digest. When false, runs admitted under these rules record no check, so no run will match digest."
       }
     },
     "RepositoryRuleCheckers": {
@@ -27688,6 +27806,241 @@
         "checkCommands": "Check commands offered to steps as defaults, in profile order.",
         "rules": "Rule entries the profile supplies, in profile order.",
         "updatedAt": "When the profile was last published, or null for the empty baseline."
+      }
+    },
+    "Page<ProviderIncident>": {
+      "pageOf": "ProviderIncident",
+      "description": "Cursor page of provider incidents, newest first, returned by `GET /v1/provider-incidents`. `nextCursor: null` marks the last page; there are no page numbers or offsets."
+    },
+    "Page<ProviderRoute>": {
+      "pageOf": "ProviderRoute",
+      "description": "Cursor page of the organization's provider routes with their current circuit state and incident generation, returned by `GET /v1/provider-routes`. `nextCursor: null` marks the last page; there are no page numbers or offsets."
+    },
+    "ProviderIncident": {
+      "fields": [
+        "id",
+        "routeId",
+        "generation",
+        "status",
+        "severity",
+        "reason",
+        "firstFailureAt",
+        "lastFailureAt",
+        "lastProbeAt",
+        "nextProbeAt",
+        "evidenceWatermark",
+        "affectedTaskCount",
+        "recoveredTaskCount",
+        "switchedTaskCount",
+        "stillBlockedTaskCount",
+        "openedAt",
+        "closedAt",
+        "updatedAt",
+        "version"
+      ],
+      "nullableFields": [
+        "reason",
+        "lastProbeAt",
+        "nextProbeAt",
+        "evidenceWatermark",
+        "closedAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "routeId": "uuid",
+        "generation": "integer",
+        "status": "enum(open|recovered|superseded)",
+        "severity": "enum(degraded|outage)",
+        "reason": "enum(rate_limited|credential_invalid|quota_exhausted|transport_failure|provider_error|timeout|reachable_inference_unverified)",
+        "firstFailureAt": "timestamp",
+        "lastFailureAt": "timestamp",
+        "lastProbeAt": "timestamp",
+        "nextProbeAt": "timestamp",
+        "evidenceWatermark": "string",
+        "affectedTaskCount": "integer",
+        "recoveredTaskCount": "integer",
+        "switchedTaskCount": "integer",
+        "stillBlockedTaskCount": "integer",
+        "openedAt": "timestamp",
+        "closedAt": "timestamp",
+        "updatedAt": "timestamp",
+        "version": "integer"
+      },
+      "description": "One durable provider incident, recorded once per affected route and generation. Duplicate and stale probe results update this record instead of opening another, and a result carrying an older generation cannot close a newer incident. The record carries the evidence watermark, the probe schedule and the recovery tallies so an operator can see what is paused, what resumed, what switched and what is still blocked without reading provider output. It is the record a continuation choice names, so a stale choice can be rejected against the generation it was offered at.",
+      "fieldDescriptions": {
+        "id": "Stable UUID identifying the incident record.",
+        "routeId": "UUID of the provider route this incident is scoped to.",
+        "generation": "Monotonic generation for the route's incident line at the moment this incident opened. A probe result, notification or continuation choice carrying a lower generation is stale.",
+        "status": "Incident state: open (the route is still failing), recovered (probes proved the route again), or superseded (a newer generation replaced this incident without recovery).",
+        "severity": "degraded (the route still serves some work) or outage (the route serves none).",
+        "reason": "Typed cause recorded when the incident opened, or null when it opened without a classified reason: rate_limited, credential_invalid, quota_exhausted, transport_failure, provider_error, timeout, or reachable_inference_unverified.",
+        "firstFailureAt": "UTC timestamp of the first classified failure in this generation.",
+        "lastFailureAt": "UTC timestamp of the most recent classified failure in this generation.",
+        "lastProbeAt": "UTC timestamp of the most recent saved probe result for this incident; null when no probe has run yet.",
+        "nextProbeAt": "UTC timestamp at which the next probe becomes claimable; null when probing has stopped.",
+        "evidenceWatermark": "Opaque bounded reference to the deduplicated evidence that keeps this incident current; never a credential, prompt or raw provider error.",
+        "affectedTaskCount": "Number of tasks paused by this incident, counted once per task however many probe results arrive.",
+        "recoveredTaskCount": "Number of paused tasks that resumed automatically once the route recovered.",
+        "switchedTaskCount": "Number of paused tasks continued on a different route through an authorized switch.",
+        "stillBlockedTaskCount": "Number of paused tasks that remain blocked, for example because recovery is no longer eligible or an operator paused them.",
+        "openedAt": "UTC timestamp when the incident opened.",
+        "closedAt": "UTC timestamp when the incident recovered or was superseded; null while it is open.",
+        "updatedAt": "UTC timestamp of the last change to the incident record.",
+        "version": "Optimistic concurrency version, incremented on every write to the incident record."
+      }
+    },
+    "ProviderRoute": {
+      "fields": [
+        "id",
+        "provider",
+        "endpoint",
+        "region",
+        "model",
+        "harness",
+        "billingRoute",
+        "providerAccountId",
+        "workerBindingId",
+        "credentialLocation",
+        "status",
+        "health",
+        "incidentId",
+        "incidentGeneration",
+        "lastProbeAt",
+        "nextProbeAt",
+        "inferenceVerifiedAt",
+        "createdAt",
+        "updatedAt",
+        "version"
+      ],
+      "nullableFields": [
+        "region",
+        "providerAccountId",
+        "workerBindingId",
+        "incidentId",
+        "lastProbeAt",
+        "nextProbeAt",
+        "inferenceVerifiedAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "provider": "string",
+        "region": "string",
+        "model": "string",
+        "harness": "enum(pi|claude_code|codex|mastra)",
+        "billingRoute": "enum(subscription|api_metered|local)",
+        "providerAccountId": "uuid",
+        "workerBindingId": "uuid",
+        "credentialLocation": "enum(harness_host|bakery_secret)",
+        "status": "enum(active|disabled|revoked)",
+        "health": "enum(healthy|degraded|open|unverified)",
+        "incidentId": "uuid",
+        "incidentGeneration": "integer",
+        "lastProbeAt": "timestamp",
+        "nextProbeAt": "timestamp",
+        "inferenceVerifiedAt": "timestamp",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp",
+        "version": "integer",
+        "endpoint": "string"
+      },
+      "bounds": {
+        "endpointMaxBytes": 2048
+      },
+      "description": "One organization-scoped provider route: the provider endpoint, region, model, harness and credential binding that outbound work is admitted against. A route is the unit an outage is scoped to, so one expired credential, one 429 or one broken network never declares the organization down. Health and the current incident generation are projected here so a listing needs no per-route health read; the incident's own evidence and probe schedule live in RouteHealth and ProviderIncident. Credentials are never returned, only where they are kept.",
+      "fieldDescriptions": {
+        "id": "Stable UUID identifying the provider route record.",
+        "provider": "Provider key this route sends to.",
+        "endpoint": "Configured provider endpoint host and path the route calls; never a URL carrying a credential or query secret.",
+        "region": "Provider region the endpoint serves; null when the provider has no regional endpoints.",
+        "model": "Model identifier pinned for work admitted on this route.",
+        "harness": "Harness path that executes work on this route: pi, claude_code, codex or mastra.",
+        "billingRoute": "Billing route the route's spend follows: subscription, api_metered or local.",
+        "providerAccountId": "Provider account whose identity and quota observation the route uses; null for a route with no verified account, which must report usage as unknown rather than zero.",
+        "workerBindingId": "Machine provider binding that places this route, when one does; null for a route served without a machine binding.",
+        "credentialLocation": "Where the credential is kept: harness_host (the machine holds it) or bakery_secret (Bakery holds it as a secret reference). The credential value itself is never returned.",
+        "status": "Route lifecycle: active (eligible for new work and probes), disabled (temporarily withdrawn, kept readable), or revoked (permanently withdrawn, never probed again).",
+        "health": "Current circuit state for the route: healthy (closed after proven inference), degraded (failing but below the open threshold), open (paused while probing), or unverified (reachable, inference not yet proven).",
+        "incidentId": "Current incident for this route; null while no incident is open.",
+        "incidentGeneration": "Monotonic generation for this route's incident line. A probe result or a continuation choice carrying an older generation is stale and cannot close a newer incident or commit a switch.",
+        "lastProbeAt": "UTC timestamp of the most recent probe that completed and was saved under the current generation; null when no probe has run.",
+        "nextProbeAt": "UTC timestamp at which the next probe becomes claimable; null when probing is stopped because the route is revoked, disabled, or nothing is waiting on it.",
+        "inferenceVerifiedAt": "UTC timestamp when an already-authorized request last proved the route's inference path end to end; null means reachable-but-unverified, and a status page or health read never sets it.",
+        "createdAt": "UTC timestamp when the route record was created.",
+        "updatedAt": "UTC timestamp of the last change to the route record.",
+        "version": "Optimistic concurrency version, incremented on every write to the route record."
+      },
+      "fieldBounds": {
+        "endpoint": {
+          "pattern": "^(?!.*[@#])(?!.*[?&][^\\s]*(?:token|secret|key|signature|credential|password)=)[a-z][a-z0-9+.-]*://[^\\s]+$"
+        }
+      }
+    },
+    "RouteHealth": {
+      "fields": [
+        "routeId",
+        "health",
+        "reason",
+        "consecutiveFailures",
+        "consecutiveInferenceTrials",
+        "evidenceWatermark",
+        "lastFailureAt",
+        "lastSuccessAt",
+        "lastProbeAt",
+        "nextProbeAt",
+        "probeLeaseExpiresAt",
+        "corroboration",
+        "incidentId",
+        "incidentGeneration",
+        "inferenceVerifiedAt",
+        "updatedAt"
+      ],
+      "nullableFields": [
+        "reason",
+        "evidenceWatermark",
+        "lastFailureAt",
+        "lastSuccessAt",
+        "lastProbeAt",
+        "nextProbeAt",
+        "probeLeaseExpiresAt",
+        "incidentId",
+        "inferenceVerifiedAt"
+      ],
+      "fieldTypes": {
+        "routeId": "uuid",
+        "health": "enum(healthy|degraded|open|unverified)",
+        "reason": "enum(rate_limited|credential_invalid|quota_exhausted|transport_failure|provider_error|timeout|reachable_inference_unverified)",
+        "consecutiveFailures": "integer",
+        "consecutiveInferenceTrials": "integer",
+        "evidenceWatermark": "string",
+        "lastFailureAt": "timestamp",
+        "lastSuccessAt": "timestamp",
+        "lastProbeAt": "timestamp",
+        "nextProbeAt": "timestamp",
+        "probeLeaseExpiresAt": "timestamp",
+        "corroboration": "enum(none|status_page)",
+        "incidentId": "uuid",
+        "incidentGeneration": "integer",
+        "inferenceVerifiedAt": "timestamp",
+        "updatedAt": "timestamp"
+      },
+      "description": "The monitoring view of one provider route: circuit state, the typed reason for it, the bounded evidence watermark, the probe schedule and the current incident generation. It exists so a caller can answer why a route is paused and when it will be probed without reading free-form provider output. A status-page corroboration and a successful health read are reachability evidence only; neither proves the inference path, which is why inferenceVerifiedAt is separate and only an already-authorized trial sets it.",
+      "fieldDescriptions": {
+        "routeId": "UUID of the provider route this health view describes.",
+        "health": "Circuit state: healthy (closed), degraded (failing below the open threshold), open (paused and probing), or unverified (reachable, inference not yet proven).",
+        "reason": "Typed reason for the current state, or null while the route is healthy: rate_limited (the provider asked us to slow down), credential_invalid (the credential is rejected), quota_exhausted (the account's allowance is spent), transport_failure (connection-level failure), provider_error (a classified provider 5xx), timeout (the deadline passed), or reachable_inference_unverified (the endpoint answers but no authorized request has proven inference).",
+        "consecutiveFailures": "Failures since the last success, reset to zero by a saved probe success; this is what crosses the open threshold.",
+        "consecutiveInferenceTrials": "Consecutive successful authorized inference trials since the route opened; two are required before the circuit closes and waiting work is released.",
+        "evidenceWatermark": "Opaque bounded reference to the evidence that produced this state, so duplicate observations can be deduplicated; it never carries a credential, prompt or raw provider error.",
+        "lastFailureAt": "UTC timestamp of the most recent classified failure; null when none is recorded under the current generation.",
+        "lastSuccessAt": "UTC timestamp of the most recent successful probe or trial; null when none is recorded.",
+        "lastProbeAt": "UTC timestamp of the most recent saved probe result; null when no probe has run.",
+        "nextProbeAt": "UTC timestamp at which the next probe becomes claimable; null when probing is stopped.",
+        "probeLeaseExpiresAt": "UTC timestamp when the current probe lease lapses, after which another process may claim the probe; null when no probe is in flight. This is what makes duplicate wakes take one lease rather than several probes.",
+        "corroboration": "Whether an external status page corroborates the incident: none, or status_page. Corroboration never authorizes recovery on its own.",
+        "incidentId": "Current incident for this route; null while no incident is open.",
+        "incidentGeneration": "Monotonic incident generation for this route. A probe result saved against an older generation is stale and must not change this view.",
+        "inferenceVerifiedAt": "UTC timestamp when an already-authorized request last proved the inference path; null while inference is unproven.",
+        "updatedAt": "UTC timestamp of the last health change."
       }
     },
     "TicketRoutingRule": {
