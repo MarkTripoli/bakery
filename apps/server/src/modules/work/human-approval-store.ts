@@ -290,6 +290,13 @@ async function recordOutcome(
     runId: string;
     outcome: string | null;
     reason?: string;
+    /**
+     * The run status this ending implies. Callers that know why the run ended
+     * say so rather than leaving it to be inferred from the outcome's spelling:
+     * a `workflow.stop` step carries an author-chosen name, so no list of
+     * known-good strings can decide whether the run succeeded.
+     */
+    status?: "succeeded" | "canceled";
   },
 ): Promise<void> {
   if (input.outcome === null) return;
@@ -297,11 +304,13 @@ async function recordOutcome(
   // ended as. A rejection or an expiry finished the run, but neither succeeded,
   // and recording them as `succeeded` would make a failed approval look like a
   // completed one to every reader that filters on status.
-  const status = input.outcome === REJECTED_OUTCOME ||
+  const status = input.status ?? (
+    input.outcome === REJECTED_OUTCOME ||
       input.outcome === APPROVAL_EXPIRED_OUTCOME ||
       input.outcome === CHANGES_REQUESTED_OUTCOME
-    ? "canceled"
-    : "succeeded";
+      ? "canceled"
+      : "succeeded"
+  );
   await transaction.query(
     `update bakery.workflow_runs
         set outcome = $3, outcome_reason = $4, finished_at = now(),
@@ -597,6 +606,10 @@ export async function stopRun(
     runId: input.runId,
     outcome: input.outcome,
     reason: input.reason,
+    // A run stopped on purpose did not succeed, whichever name the workflow
+    // author gave the ending. Inferring this from the name would mark a stop
+    // named `nothing_to_do` as a success.
+    status: "canceled",
   });
   await appendDomainEvent(transaction, {
     organizationId: input.organizationId,

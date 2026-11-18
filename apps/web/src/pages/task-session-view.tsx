@@ -23,6 +23,12 @@ export type TaskSessionViewProps = {
   };
   meta?: ReactNode;
   messages: readonly TaskSessionMessage[];
+  /**
+   * A live session thread, when the page has one. It takes the conversation
+   * area: the thread already contains the messages, grouped with the work each
+   * one caused, so nothing is rendered twice.
+   */
+  thread?: ReactNode;
   /** Transcript content after the messages (artifacts, notices, states). */
   children?: ReactNode;
   pane?: {
@@ -67,6 +73,7 @@ export function TaskSessionView(
     pane,
     presence,
     state,
+    thread,
     title,
   }: TaskSessionViewProps,
 ) {
@@ -89,7 +96,7 @@ export function TaskSessionView(
       {pane.body}
     </UI.SessionPane>
   ));
-  const transcript = (
+  const transcript = thread ?? (
     <>
       {messages.map((message) => (
         <UI.ConversationMessage
