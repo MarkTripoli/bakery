@@ -103,6 +103,7 @@ Deno.test("real network worker client enforces cold, warm, post-copy, corruption
           objectReads += 1;
           return await realStore.read(key, expectedDigest, size);
         },
+        stat: realStore.stat.bind(realStore),
       },
     });
     fixture = openedFixture;

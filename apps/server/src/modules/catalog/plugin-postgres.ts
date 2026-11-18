@@ -8,6 +8,10 @@ import {
 } from "@bakery/contracts/plugin-sdk";
 import type { PgTransactionClient } from "../../platform/database.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
+import {
+  POSTGRES_UNIQUE_VIOLATION,
+  postgresErrorCode,
+} from "../../platform/postgres-errors.ts";
 import { blobObjectKey } from "./storage-port.ts";
 import type { ScopedOrganizationBlobStore } from "./blob-store.ts";
 
@@ -105,10 +109,23 @@ function toVersion(row: VersionRow, organizationId: string): PluginVersion {
   };
 }
 
-/** A unique-constraint violation on the given constraint name. */
-function isUniqueViolation(error: unknown, constraint: string): boolean {
-  return error instanceof Error && "constraint_name" in error &&
-    (error as { constraint_name?: string }).constraint_name === constraint;
+/**
+ * The constraint a unique violation names, walking the `.cause` chain.
+ *
+ * The driver wraps its error, so the SQLSTATE and the constraint name are not on
+ * the thrown value itself. Reading only the top level silently turns every
+ * duplicate into a 500.
+ */
+function violatedConstraint(error: unknown): string | null {
+  let current: unknown = error;
+  for (let depth = 0; depth < 6 && current instanceof Object; depth++) {
+    if (postgresErrorCode(current) === POSTGRES_UNIQUE_VIOLATION) {
+      const { constraint } = current as { constraint?: unknown };
+      return typeof constraint === "string" ? constraint : null;
+    }
+    current = (current as { cause?: unknown }).cause;
+  }
+  return null;
 }
 
 export async function listPluginPackages(
@@ -189,7 +206,7 @@ export async function createPluginPackage(
     return toPackage(rows.rows[0], organizationId);
   } catch (error) {
     if (
-      isUniqueViolation(error, "plugin_packages_organization_name_unique")
+      violatedConstraint(error) === "plugin_packages_organization_name_unique"
     ) {
       throw new StandardError({
         code: "STATE_CONFLICT",
@@ -319,14 +336,15 @@ export async function createPluginVersion(
     return toVersion(rows.rows[0], organizationId);
   } catch (error) {
     if (
-      isUniqueViolation(error, "plugin_versions_package_version_name_unique")
+      violatedConstraint(error) ===
+        "plugin_versions_package_version_name_unique"
     ) {
       throw new StandardError({
         code: "STATE_CONFLICT",
         params: { reason: "plugin_version_name_taken" },
       });
     }
-    if (isUniqueViolation(error, "plugin_versions_package_digest_unique")) {
+    if (violatedConstraint(error) === "plugin_versions_package_digest_unique") {
       // Two labels for identical bytes would make the digest stop identifying
       // the content, so the second label is refused rather than stored.
       throw new StandardError({

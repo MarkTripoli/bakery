@@ -5,6 +5,7 @@ import {
   type SkillObjectStore,
 } from "../../apps/server/src/modules/catalog/storage-port.ts";
 import { withWorkerFixture } from "../helpers/worker-execution/scenarios.ts";
+import { authRequest, sessionCookie } from "../helpers/auth.ts";
 
 /**
  * Private package publication end to end (#15, B14.01, slice 1).
@@ -219,7 +220,7 @@ Deno.test("a second package with the same name in one organization is refused", 
     });
     assertEquals(second.status, 409, await second.clone().text());
     const problem = await second.json();
-    assertEquals(problem.code, "state-conflict");
+    assertEquals(problem.code, "STATE_CONFLICT");
 
     // The name is unique per publisher, so the refusal is about this
     // organization, not about the name being taken globally.
@@ -310,7 +311,7 @@ Deno.test("a bundle ref outside the organization's own key is refused", () =>
     );
     assertEquals(refused.status, 422, await refused.clone().text());
     const problem = await refused.json();
-    assertEquals(problem.code, "validation-failed");
+    assertEquals(problem.code, "VALIDATION_FAILED");
   }));
 
 Deno.test("an unreadable SDK range is refused before it is stored", () =>
@@ -375,4 +376,118 @@ Deno.test("another organization's package is not found rather than forbidden", (
     // Whatever the transport says, the body must not contain the package.
     const text = await foreign.text();
     assert(!text.includes("A private package"));
+  }));
+
+Deno.test("personal state is private to its own principal inside one organization", () =>
+  withWorkerFixture(async (fixture) => {
+    // AC1's preference half. `user_preferences` is already keyed by
+    // (organization_id, principal_id), so what a test must prove is that the
+    // route cannot be used to read or write somebody else's row: the principal
+    // comes from the session, never from the request.
+    const suffix = crypto.randomUUID();
+    const colleagueEmail = `prefs-colleague-${suffix}@example.test`;
+    const password = `Prefs-${suffix}`;
+    // A second member of the SAME organization, invited by the Admin. Sign-up
+    // rather than createSuperuser: the fixture already bootstrapped the
+    // organization's first superuser, and a second one is a bootstrap conflict.
+    const invitation = await fixture.app.fetch(authRequest(
+      `/v1/organizations/${fixture.organizationId}/invitations`,
+      { email: colleagueEmail, role: "developer" },
+      {
+        cookie: fixture.adminCookie,
+        headers: { "Bakery-Organization-Id": fixture.organizationId },
+      },
+    ));
+    assertEquals(invitation.status, 201, await invitation.clone().text());
+    const signUp = await fixture.app.fetch(
+      authRequest("/api/auth/sign-up/email", {
+        email: colleagueEmail,
+        password,
+        name: "Prefs Colleague",
+      }),
+    );
+    assertEquals(signUp.status, 200, await signUp.clone().text());
+    const colleagueCookie = sessionCookie(
+      await fixture.app.fetch(
+        authRequest("/api/auth/sign-in/email", {
+          email: colleagueEmail,
+          password,
+        }),
+      ),
+    );
+    const pending = await fixture.pgDatabase.query<{ id: string }>(
+      `select id from bakery.organization_invitations
+        where organization_id = $1 and email = $2 and status = 'pending'`,
+      [fixture.organizationId, colleagueEmail],
+    );
+    const accepted = await fixture.app.fetch(authRequest(
+      "/api/auth/organization/accept-invitation",
+      { invitationId: pending.rows[0].id },
+      { cookie: colleagueCookie },
+    ));
+    assertEquals(accepted.status, 200, await accepted.clone().text());
+
+    const read = (cookie: string) =>
+      fixture.app.fetch(
+        new Request(`${fixture.config.publicBaseUrl}/v1/user-preferences`, {
+          method: "GET",
+          headers: {
+            "Bakery-Organization-Id": fixture.organizationId,
+            Cookie: cookie,
+          },
+        }),
+      );
+
+    // The Admin chooses dark for themselves, from the version they read.
+    const before = await (await read(fixture.adminCookie)).json();
+    const written = await fixture.app.fetch(
+      new Request(`${fixture.config.publicBaseUrl}/v1/user-preferences`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Origin: fixture.config.publicBaseUrl,
+          "Bakery-Organization-Id": fixture.organizationId,
+          Cookie: fixture.adminCookie,
+          "Idempotency-Key": crypto.randomUUID(),
+        },
+        // The CAS version comes from the read, so the write is the caller's
+        // own optimistic update rather than a blind overwrite.
+        body: JSON.stringify({
+          theme: "dark",
+          expectedCasVersion: before.casVersion,
+        }),
+      }),
+    );
+    assertEquals(written.status, 200, await written.clone().text());
+    assertEquals(
+      (await (await read(fixture.adminCookie)).json()).theme,
+      "dark",
+    );
+
+    // The colleague in the SAME organization sees their own default, not the
+    // Admin's choice. A shared row would leak one member's settings to another.
+    const colleagueView = await (await read(colleagueCookie)).json();
+    assert(
+      colleagueView.theme !== "dark",
+      `a colleague's preference leaked: ${JSON.stringify(colleagueView)}`,
+    );
+
+    // Two rows, one per principal, each naming its own principal. This is what
+    // makes the isolation real rather than a projection detail.
+    const rows = await fixture.pgDatabase.query<
+      { principal_id: string; preferences: { theme?: string } }
+    >(
+      `select principal_id, preferences from bakery.user_preferences
+        where organization_id = $1`,
+      [fixture.organizationId],
+    );
+    assertEquals(
+      rows.rows.map((row) => row.preferences.theme).includes("dark"),
+      true,
+    );
+    assertEquals(
+      new Set(rows.rows.map((row) => row.principal_id)).size,
+      rows.rows.length,
+      "each preference row must belong to a distinct principal",
+    );
   }));
