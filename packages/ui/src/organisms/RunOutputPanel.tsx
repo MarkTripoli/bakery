@@ -32,6 +32,11 @@ export type RunOutputPanelProps = {
     filename?: string;
   };
   latestLabel: string;
+  /**
+   * Whether the panel announces its status and new output. Off when another
+   * region on the page is the one live region (the session thread).
+   */
+  announce?: boolean;
 };
 
 export function RunOutputPanel(
@@ -47,6 +52,7 @@ export function RunOutputPanel(
     archiveActions,
     downloadLink,
     latestLabel,
+    announce = true,
   }: RunOutputPanelProps,
 ) {
   const outputRef = useRef<HTMLDivElement>(null);
@@ -59,7 +65,10 @@ export function RunOutputPanel(
       data-state={state}
     >
       <h2>{title}</h2>
-      <div className="ui-run-card__row" role="status">
+      <div
+        className="ui-run-card__row"
+        role={announce ? "status" : undefined}
+      >
         <span className="ui-run-card__badge">{statusLabel}</span>
         <span className="ui-run-card__meta">{captureLabel}</span>
         {savedLabel
@@ -67,14 +76,21 @@ export function RunOutputPanel(
           : null}
       </div>
       {notice
-        ? <p className="ui-run-card__notice" role="status">{notice}</p>
+        ? (
+          <p
+            className="ui-run-card__notice"
+            role={announce ? "status" : undefined}
+          >
+            {notice}
+          </p>
+        )
         : null}
       <div ref={outputRef}>
         <LogViewer
           label={`${title} ${captureLabel}`}
           entries={entries}
           presentation="output"
-          variant={state === "live" ? "streaming" : "static"}
+          variant={state === "live" && announce ? "streaming" : "static"}
         />
       </div>
       <div className="ui-run-card__actions">
