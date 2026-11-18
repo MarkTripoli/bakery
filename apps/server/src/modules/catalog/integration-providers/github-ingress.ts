@@ -180,7 +180,11 @@ export const githubIngress: WebhookIngress = Object.freeze({
     ) {
       return { ok: false, reason: "stale" };
     }
-    return { ok: true, delivery };
+    // `x-github-delivery` is returned as the delivery's id so the host keys its
+    // receipt on it: that receipt is what refuses a redelivered id, and it is
+    // the one guard that works, because a GitHub payload carries no send time
+    // for the staleness window below to compare against.
+    return { ok: true, delivery, deliveryId: delivery.deliveryId };
   },
 
   /**
