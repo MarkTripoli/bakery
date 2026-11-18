@@ -305,11 +305,13 @@ const people = {
   priya: {
     principalId: PRIYA_ID,
     principalType: "human",
+    createdByPrincipalId: null,
     displayName: "Priya Raman",
   },
   dana: {
     principalId: DANA_ID,
     principalType: "human",
+    createdByPrincipalId: null,
     displayName: "Dana Okafor",
   },
 };
@@ -712,6 +714,7 @@ export function e06Fetch(world: FixtureWorld): typeof fetch {
       return json({
         principalId: PRIYA_ID,
         principalType: "human",
+        createdByPrincipalId: null,
         displayName: "Priya Raman",
         locale: "en",
         direction: "ltr",

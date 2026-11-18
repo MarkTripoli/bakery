@@ -30,7 +30,11 @@ export function OrganizationSettingsNavigation(
         href: currentPath === "/__fixtures__/organization/access"
           ? currentPath
           : "/settings/organization/access",
-        label: translate("shell.navigation.accessShort"),
+        label: translate("shell.navigation.members"),
+      }, {
+        id: "organization-service-accounts",
+        href: "/settings/organization/service-accounts",
+        label: translate("shell.navigation.serviceAccounts"),
       }, {
         id: "organization-roles",
         href: "/settings/organization/roles",

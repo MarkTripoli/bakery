@@ -415,7 +415,11 @@ test.describe("account security journey", () => {
     });
     expect((await callMcp(token)).status).toBe(200);
 
+    // The old path is a bookmark somebody still has; it lands on the page.
     await page.goto("/settings/clients");
+    await expect(page).toHaveURL(
+      /\/settings\/organization\/integrations\/clients$/,
+    );
     await expect(page.locator("main h1")).toHaveText("Connected clients");
     await page.getByRole("button", { name: /^Revoke access for / }).first()
       .click();

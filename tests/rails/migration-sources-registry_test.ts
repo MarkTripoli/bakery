@@ -157,6 +157,46 @@ Deno.test("the allow-read list in package.json agrees with the registry", () => 
   }
 });
 
+Deno.test("the compose migrate service can read every registered source", async () => {
+  // The compose stack runs the same migration task with its own literal
+  // --allow-read list, a third copy of the fact this rail exists to hold
+  // together. It drifted: a module landed on main and the stack could no longer
+  // migrate at all, which is a failure nobody sees until they bring one up.
+  const compose = await Deno.readTextFile(`${root}infra/compose.yaml`);
+  const migrate = /\n\s{2}migrate:\n([\s\S]*?)\n\s{2}[a-z-]+:\n/.exec(compose);
+  assert(migrate, "infra/compose.yaml has no migrate service");
+  const flags = [...migrate[1]!.matchAll(/--allow-read=([^\s"']+)/g)]
+    .flatMap((match) => match[1]!.split(","))
+    .filter((flag) => flag.includes("/migrations"))
+    .map((flag) => flag.replace(/\/$/, ""));
+  assert(
+    flags.length > 0,
+    "the migrate service grants no migrations directory",
+  );
+
+  // The registry stores roots relative to apps/server; compose names them from
+  // the repo root, so compare in the repo-relative space.
+  const registered = BAKERY_MIGRATION_SOURCES.map((source) => {
+    const path = new URL(source.root).pathname;
+    return "apps/server/" +
+      path.slice(`${root}apps/server/`.length).replace(/\/$/, "");
+  });
+  for (const entry of registered) {
+    assert(
+      flags.some((flag) => entry === flag || entry.startsWith(`${flag}/`)),
+      `the compose migrate service cannot read ${entry}`,
+    );
+  }
+  for (const flag of flags) {
+    assert(
+      registered.some((entry) =>
+        entry === flag || entry.startsWith(`${flag}/`)
+      ),
+      `the compose migrate service grants ${flag}, which covers no registered source`,
+    );
+  }
+});
+
 Deno.test("no provider package ships SQL or a migration", async () => {
   // Section 12.1: provider packages are pure adapters. A migration in one would
   // put a table outside the core's ownership and outside this registry.

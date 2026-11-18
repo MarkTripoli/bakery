@@ -145,7 +145,11 @@
   text-align: center;
 }
 /* An unknown count is a hollow ring, never a zero: the ring says "not known
-   yet", which is true, where a 0 would be a confident lie. */
+   yet", which is true, where a 0 would be a confident lie. It takes the
+   emphasis width and the muted stroke, not the hairline default: at 1px in
+   `--color-border` the ring reads as an empty bell in both themes, which
+   loses the distinction the state exists to draw. This is the same pair the
+   repaired notification surfaces carry. */
 .ui-notification-bell__badge--unknown {
   background: transparent;
   border: var(--border-emphasis) solid var(--color-fg-muted);
@@ -157,11 +161,14 @@
 }
 /* A new arrival updates the badge without moving focus. The design allows a
    single opacity fade of 150ms or less, and nothing else; reduced motion drops
-   even that and keeps the update. */
+   even that and keeps the update. The fade is the default and `reduce` removes
+   it, because `no-preference` is not one of the media queries this stylesheet
+   may name. */
 .ui-notification-bell__badge,
 .ui-notification-bell__badge--unknown {
-  transition: opacity var(--duration-feedback) ease-out;
+  transition: opacity 150ms ease-out;
 }
+
 @media (prefers-reduced-motion: reduce) {
   .ui-notification-bell__badge,
   .ui-notification-bell__badge--unknown {
@@ -504,6 +511,14 @@
   }
   .ui-description-item[data-action-placement="below"] .ui-description-item__action .ui-button {
     white-space: nowrap;
+  }
+  /* Opt-in: a row with one button fills the line the way the access-settings
+     phone rows do, instead of sitting at its label's width. */
+  .ui-description-item[data-action-fill="true"] .ui-description-item__action .ui-inline,
+  .ui-description-item[data-action-fill="true"] .ui-description-item__action .ui-button {
+    inline-size: 100%;
+    justify-content: center;
+    min-block-size: var(--target-coarse);
   }
 }
 /* A value beside a button in an item's action takes the room it needs, not a line to itself. */

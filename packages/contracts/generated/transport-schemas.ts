@@ -4095,15 +4095,14 @@ const transportSchemas = {
         },
         {
           "name": "taskType",
-          "type": "enum",
+          "type": "string",
           "required": true,
-          "enum": [
-            "feature",
-            "bug",
-            "epic",
-            "maintenance"
-          ],
-          "description": "Classification of the work: `feature`, `bug`, `maintenance`, or `epic`. An `epic` is a parent task that completes only after its required child tasks complete, not merely when it is decomposed into them."
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 40,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          },
+          "description": "Organization work type label, a lowercase kebab-case token of up to 40 characters. The kernel never branches on it: it names the kind of work for people. `feature`, `bug`, `epic` and `maintenance` are the software-delivery defaults, not a closed set."
         },
         {
           "name": "title",
@@ -8062,6 +8061,79 @@ const transportSchemas = {
         }
       ]
     },
+    "HumanApprovalInput": {
+      "description": "Input to the human.approval workflow action: what the approver is asked, who may answer, and how the choices are labelled. The step waits for one person's decision, at most seven days, and never approves by silence.",
+      "fields": [
+        {
+          "name": "prompt",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "description": "Question put to the approver, shown in the inbox and on the approval page. Plain text: the decision is typed, never inferred from this text."
+        },
+        {
+          "name": "audience",
+          "type": "json",
+          "required": false,
+          "bounds": {
+            "maxBytes": 8192
+          },
+          "description": "Who may decide: a list of one to 50 member, group or role references. Absent means the workflow's owner, which is the default approver; an empty list is refused because a step nobody can answer could only expire."
+        },
+        {
+          "name": "approveLabel",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "description": "Optional label for the approving choice, so a workflow can say Release instead of Approve."
+        },
+        {
+          "name": "rejectLabel",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "description": "Optional label for the rejecting choice, paired with approveLabel."
+        },
+        {
+          "name": "allowRequestChanges",
+          "type": "boolean",
+          "required": false,
+          "description": "Whether the step also offers request changes. Defaults to true, matching the three shipped approval decisions."
+        }
+      ]
+    },
+    "WorkflowStopInput": {
+      "description": "Input to the workflow.stop action: the named outcome that ends the run on purpose, as opposed to failing, and an optional reason.",
+      "fields": [
+        {
+          "name": "outcome",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 100
+          },
+          "description": "Name of the outcome this stop produces, for example cancelled_by_customer or nothing_to_do. It becomes the run's named outcome and is what a later step or a caller branches on; an empty name defaults to stopped."
+        },
+        {
+          "name": "reason",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 2000
+          },
+          "description": "Optional human explanation recorded with the outcome, for whoever reads the run later."
+        }
+      ]
+    },
     "MemoryPromoteInput": {
       "description": "Input to the memory.promote workflow action: the artifact version to promote into project memory and the repository revision that evidence was drawn from.",
       "fields": [
@@ -8136,7 +8208,7 @@ const transportSchemas = {
       "fields": [
         {
           "name": "actionId",
-          "type": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|integration.action|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|artifact.publish|memory.promote|evaluation.sample|task.brief)",
+          "type": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|integration.action|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|task.brief)",
           "required": true,
           "description": "Registered workflow action name, for example harness.implement or delivery.candidate_evidence; an unknown name answers not found."
         },
@@ -8943,15 +9015,14 @@ const transportSchemas = {
         },
         {
           "name": "taskType",
-          "type": "enum",
+          "type": "string",
           "required": true,
-          "enum": [
-            "feature",
-            "bug",
-            "epic",
-            "maintenance"
-          ],
-          "description": "Task classification copied from the task row."
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 40,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          },
+          "description": "Organization work type label copied from the task row. The kernel never branches on it, so any organization label travels here unchanged."
         },
         {
           "name": "approvedPlan",
@@ -10483,7 +10554,7 @@ const transportSchemas = {
         "parentTaskId": "uuid|null",
         "title": "string",
         "description": "string",
-        "taskType": "enum(feature|bug|epic|maintenance)",
+        "taskType": "string",
         "status": "enum(draft|queued|active|waiting_input|blocked|completed|failed|canceled)",
         "priority": "integer",
         "createdBy": "uuid",
@@ -17502,7 +17573,7 @@ const transportSchemas = {
         "parentTaskId": "uuid|null",
         "title": "string",
         "description": "string",
-        "taskType": "enum(feature|bug|epic|maintenance)",
+        "taskType": "string",
         "status": "enum(draft|queued|active|waiting_input|blocked|completed|failed|canceled)",
         "priority": "integer",
         "createdBy": "uuid",
@@ -19243,6 +19314,7 @@ const transportSchemas = {
         "id",
         "principalType",
         "displayName",
+        "createdByPrincipalId",
         "disabledAt",
         "createdAt",
         "updatedAt",
@@ -19255,10 +19327,12 @@ const transportSchemas = {
         "disabledAt": "timestamp|null",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "createdByPrincipalId": "uuid|null"
       },
       "nullableFields": [
-        "disabledAt"
+        "disabledAt",
+        "createdByPrincipalId"
       ],
       "description": "Safe principal lifecycle projection with no organization role or capability; organization authority is resolved separately from current membership or grants.",
       "fieldDescriptions": {
@@ -19268,7 +19342,8 @@ const transportSchemas = {
         "disabledAt": "UTC disablement instant, or null while the principal is enabled; enabled state is reloaded before protected work.",
         "createdAt": "UTC timestamp when the principal lifecycle record was created.",
         "updatedAt": "UTC timestamp when principal-owned lifecycle data was last changed.",
-        "version": "Optimistic-concurrency version for mutations of principal-owned lifecycle data."
+        "version": "Optimistic-concurrency version for mutations of principal-owned lifecycle data.",
+        "createdByPrincipalId": "Principal that created this service account, or null for a human principal or one created before the column existed; a member sees and manages the service accounts they created."
       }
     },
     "SecretMetadata": {
@@ -20114,7 +20189,7 @@ const transportSchemas = {
         "modelBillingRequired"
       ],
       "fieldTypes": {
-        "actionId": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|integration.action|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|artifact.publish|memory.promote|evaluation.sample|task.brief)",
+        "actionId": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|integration.action|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|task.brief)",
         "version": "integer",
         "input": "string",
         "output": "string",
@@ -20159,7 +20234,7 @@ const transportSchemas = {
       ],
       "fieldTypes": {
         "stepId": "string",
-        "action": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|integration.action|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|artifact.publish|memory.promote|evaluation.sample|task.brief)",
+        "action": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|integration.action|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|task.brief)",
         "source": "enum(step|workflow|profile|none)",
         "agentVersionId": "uuid|null",
         "revision": "integer|null",
@@ -25411,7 +25486,7 @@ const transportSchemas = {
         "runId": "uuid|null",
         "prompt": "string",
         "status": "enum(open|answered|expired|withdrawn|superseded|revoked|consumed)",
-        "subjectType": "enum(plan_revision|run_stage|merge|deploy)",
+        "subjectType": "enum(plan_revision|run_stage|merge|deploy|human_approval)",
         "subjectId": "uuid",
         "subjectDigest": "sha256",
         "scope": "json",

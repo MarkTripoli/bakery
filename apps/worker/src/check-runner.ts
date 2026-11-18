@@ -25,7 +25,13 @@ import {
   removeAttempt,
   sweepAttempts,
 } from "./attempt-worktree.ts";
-import type { ArtifactRef } from "./client.ts";
+import type { ArtifactRef, WorkerContextInput } from "./client.ts";
+import {
+  type ContextSeeding,
+  describeSeedingFault,
+  fetcherForAttempt,
+  seedContext,
+} from "./context-seed.ts";
 import {
   enforceWorkerFixedPolicy,
   type ExecutionOutcome,
@@ -92,6 +98,18 @@ const CHECK_ATTEMPT_SCOPE: AttemptScope = Object.freeze({
   unsafeRootCode: "CHECK_ATTEMPT_ROOT_UNSAFE",
 });
 const CHECK_FAULT_TITLE = "The check executor could not run the checks";
+/**
+ * What a check attempt's context index says the step is for.
+ *
+ * A check runs the repository's fixed policy argv; it produces no artifact and
+ * decides nothing beyond pass or fail. The goal states that plainly rather than
+ * leaving an empty string, which would read as "no purpose declared" instead of
+ * "run the pinned checks".
+ */
+const CHECK_CONTEXT_GOAL =
+  "Run the repository's pinned quality checks against the candidate commit.";
+/** Stable key for the step this attempt's context index describes. */
+const CHECK_CONTEXT_STEP_KEY = "quality.check";
 const SAFE_SEGMENT = /^[A-Za-z0-9._-]{1,128}$/;
 const MAX_DURATION_MS = 86_400_000;
 const EVIDENCE_SCHEMA = "bakery.check-evidence/v1";
@@ -163,6 +181,16 @@ export type CheckExecutorOptions = {
   readonly limits?: Partial<CheckRunnerLimits>;
   /** Test seam: absolute group-kill helper used when Deno.kill is not granted. */
   readonly groupKillExecutable?: string;
+  /**
+   * Reads the attempt's pinned inputs, when the caller has a worker client.
+   *
+   * Injected rather than imported so a check executor without one still runs:
+   * a check whose assignment pins no inputs needs no bytes, and demanding a
+   * client to run an argv would make every existing caller construct one.
+   */
+  readonly readAttemptContext?: (
+    attemptId: string,
+  ) => Promise<readonly WorkerContextInput[]>;
 };
 
 type FixedPolicy = NonNullable<
@@ -681,6 +709,57 @@ async function executeCheck(
       );
     }
     throw error;
+  }
+  // Before the worktree and before any process: a step that starts with some of
+  // its inputs cannot tell which ones are missing, so seeding either completes
+  // or the attempt is refused. This runs on the assignment's pins, not on a
+  // re-read of the repository.
+  if ((assignment.contextInputs ?? []).length > 0) {
+    if (options.readAttemptContext === undefined) {
+      return checkFault(
+        "CHECK_CONTEXT_READER_MISSING",
+        "The assignment pins context inputs but this executor has no reader for them; no process started.",
+        500,
+      );
+    }
+    let seeding: ContextSeeding;
+    try {
+      const read = options.readAttemptContext;
+      const fetch = await fetcherForAttempt(() => read(assignment.attemptId));
+      seeding = await seedContext(
+        {
+          // The assignment names a job and an attempt, never a run: a worker
+          // is not told which run it is serving, so the job id is the most
+          // specific identifier it holds. The index is for the step's own use,
+          // and the job id is what an operator traces it back through.
+          runId: assignment.jobId,
+          stepKey: CHECK_CONTEXT_STEP_KEY,
+          goal: CHECK_CONTEXT_GOAL,
+          outputs: [],
+          contextDir: layout.context,
+          outputDir: layout.home,
+        },
+        assignment.contextInputs,
+        fetch,
+      );
+    } catch (error) {
+      // The reader throwing is the host talking, not the run: the route could
+      // not be read at all, so nothing was materialized and nothing is claimed
+      // about the pins.
+      return checkFault(
+        "CHECK_CONTEXT_UNREADABLE",
+        `The attempt's pinned inputs could not be read: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        503,
+      );
+    }
+    if (!seeding.ok) {
+      return checkFault(
+        "CHECK_CONTEXT_UNMATERIALIZABLE",
+        seeding.faults.map(describeSeedingFault).join("; "),
+      );
+    }
   }
   let worktreeAdded = false;
   try {

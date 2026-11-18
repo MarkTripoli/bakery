@@ -595,6 +595,18 @@ export const routeCoverage = [
     states: ["loading", "default", "empty", "error", "forbidden"],
   },
   {
+    id: "settings-organization-access-invitations",
+    path: "/settings/organization/access/invitations",
+    classification: "production",
+    states: ["loading", "default", "empty", "error", "forbidden"],
+  },
+  {
+    id: "settings-organization-service-accounts",
+    path: "/settings/organization/service-accounts",
+    classification: "production",
+    states: ["loading", "default", "empty", "error"],
+  },
+  {
     id: "settings-organization-roles",
     path: "/settings/organization/roles",
     classification: "production",
@@ -705,8 +717,14 @@ export const routeCoverage = [
     states: ["default", "invalid", "loading"],
   },
   {
-    id: "clients",
+    id: "clients-redirect",
     path: "/settings/clients",
+    classification: "production",
+    states: ["redirect"],
+  },
+  {
+    id: "settings-organization-integrations-clients",
+    path: "/settings/organization/integrations/clients",
     classification: "production",
     states: ["default", "empty", "revoked"],
   },
@@ -1465,7 +1483,25 @@ const organizationAccessRoute = createRoute({
   path: "/settings/organization/access",
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
-  component: OrganizationAccessPage,
+  component: () => <OrganizationAccessPage tab="members" />,
+  errorComponent: ProtectedRouteError,
+});
+
+const organizationServiceAccountsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/settings/organization/service-accounts",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => <OrganizationAccessPage page="service-accounts" />,
+  errorComponent: ProtectedRouteError,
+});
+
+const organizationInvitationsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/settings/organization/access/invitations",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => <OrganizationAccessPage tab="invitations" />,
   errorComponent: ProtectedRouteError,
 });
 
@@ -1841,6 +1877,19 @@ const reauthRoute = createRoute({
   errorComponent: ProtectedRouteError,
 });
 
+// Connected clients now live under Integrations (issue 233 split). The old
+// path keeps working as a redirect so a bookmark or a link in an email does
+// not dead-end.
+const clientsRedirectRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/settings/clients",
+  beforeLoad: ({ context, location }) => {
+    requireSession(context.session, location);
+    throw redirect({ to: "/settings/organization/integrations/clients" });
+  },
+  errorComponent: ProtectedRouteError,
+});
+
 const NOTIFICATIONS_PATH = "/notifications";
 
 const notificationsRoute = createRoute({
@@ -1877,7 +1926,7 @@ const notificationsRoute = createRoute({
 
 const clientsRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: "/settings/clients",
+  path: "/settings/organization/integrations/clients",
   validateSearch: (
     search: Record<string, unknown>,
   ): { revoked?: boolean } => ({
@@ -2176,6 +2225,8 @@ const routeTree = rootRoute.addChildren([
   installationAuditRoute,
   installationIntegrationsRoute,
   organizationAccessRoute,
+  organizationInvitationsRoute,
+  organizationServiceAccountsRoute,
   organizationIntegrationsRoute,
   organizationIntegrationConnectionRoute,
   organizationRolesRoute,
@@ -2200,6 +2251,7 @@ const routeTree = rootRoute.addChildren([
   passkeysRoute,
   passkeyAddRoute,
   reauthRoute,
+  clientsRedirectRoute,
   notificationsRoute,
   clientsRoute,
   revokeClientRoute,

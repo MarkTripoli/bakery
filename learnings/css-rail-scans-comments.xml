@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="css-rail-scans-comments" project="bakery">
+  <title>The CSS rail reads comments as text, so an issue number written as `#233` in a stylesheet is a raw hex colour</title>
+  <trigger>`pnpm test:rails` fails in "shared CSS rail rejects raw visual values" with a defect like `raw color: #233`, on a stylesheet that has no colour in it, and the file only changed by gaining or editing a comment.</trigger>
+  <mistake>Wrote a comment naming the issue in the usual GitHub form (`issue #233`) inside packages/ui/src/navigation.css, and read the resulting "raw color" defect as a false positive in the rail rather than as the rail doing exactly what it says: it scans the stylesheet as text, so a `#` followed by hex digits is a colour wherever it sits.</mistake>
+  <rule>Keep issue references in CSS comments without the hash (`issue 233`), or leave the number out. The same rule applies to any text in a stylesheet that could read as a value: a hex-looking word after `#`, a bare `0` where a length is expected, or a number with no unit in a length position. Two more values trip the same rail and are lint-clean everywhere else: `font-weight: 600` must be `font-weight: var(--weight-semibold)`, and an outline must use `var(--focus-width)` with `var(--color-focus)`, not a literal `2px` or an invented `--color-focus-ring`. Run the rail before concluding a CSS change is green; it is a text scan, not a CSS parser.</rule>
+  <verification>
+    <command>pnpm test:rails</command>
+    <requirement>The "shared CSS rail rejects raw visual values" case passes with no defects listed for the edited stylesheet. If it reports a defect at a column that looks like a comment, read that line as text rather than as a declaration before changing anything else.</requirement>
+  </verification>
+</learning>
