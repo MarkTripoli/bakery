@@ -247,6 +247,10 @@ export async function loadSnapshot(
       kind,
       selected: row.resource_selected,
       available: row.resource_available,
+      // The numeric repository id is part of the resource, not only of its
+      // binding: a token minted without it has nothing to be narrowed to, and
+      // the broker would be handed an empty set and refuse at the last moment.
+      repositoryId: String(repositoryId),
       binding: {
         owner,
         repo,

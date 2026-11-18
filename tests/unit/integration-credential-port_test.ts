@@ -9,6 +9,7 @@ import {
 } from "../../apps/server/src/modules/integrations/credential-port.ts";
 import type { AppCredentials } from "../../apps/server/src/modules/integrations/callbacks.ts";
 import type { TokenTarget } from "../../apps/server/src/modules/integrations/token-broker.ts";
+import { createFetchGitHubAppClient } from "../../apps/server/src/modules/integrations/github-app.ts";
 
 /**
  * The production credential store.
@@ -67,7 +68,9 @@ function databaseAnswering(
       return Promise.resolve({
         rows: rows.connection === null ? [] : [
           rows.connection ?? {
-            status: "active",
+            // `enabled`, not `active`: the broker mints only for an enabled
+            // connection and an enabled installation.
+            status: "enabled",
             installationId: INSTALL,
           },
         ],
@@ -76,7 +79,7 @@ function databaseAnswering(
     return Promise.resolve({
       rows: rows.installation === null ? [] : [
         rows.installation ?? {
-          status: "active",
+          status: "enabled",
           externalId: "1234",
         },
       ],
@@ -229,28 +232,53 @@ Deno.test("a missing app registration is refused", async () => {
   assertEquals(targets.length, 0);
 });
 
-Deno.test("a non-numeric repository id narrows to no repositories, not NaN", async () => {
-  // `Number("abc")` is NaN, and a NaN in a permission set is a request GitHub
-  // rejects at best. An unparseable id yields an empty set instead.
-  const { deps, targets } = depsWith({ database: databaseAnswering({}) });
-  await createInstallationCredentialPort(deps).resolve(
-    request({
-      subject: {
-        installId: INSTALL,
-        resourceKind: "repository",
-        repositoryId: "abc",
-      },
+Deno.test("a repository id that is not a number is refused, never narrowed to NaN", async () => {
+  // An empty set is not a narrower token: the real client refuses one, and the
+  // refusal would arrive as DEPENDENCY_UNAVAILABLE, which reads as an outage.
+  let reads = 0;
+  const { deps, targets } = depsWith({
+    database: databaseAnswering({}, () => {
+      reads += 1;
     }),
+  });
+  const error = await assertRejects(
+    () =>
+      createInstallationCredentialPort(deps).resolve(
+        request({
+          subject: {
+            installId: INSTALL,
+            resourceKind: "repository",
+            repositoryId: "abc",
+          },
+        }),
+      ),
+    StandardError,
   );
-  assertEquals(targets[0]!.repositoryIds, []);
+  assertEquals((error as StandardError).code, "STATE_CONFLICT");
+  // Refused before the rows were read and before any key was touched.
+  assertEquals(reads, 0);
+  assertEquals(targets.length, 0);
 });
 
-Deno.test("no repository id yields an empty narrowed set", async () => {
-  const { deps, targets } = depsWith({ database: databaseAnswering({}) });
-  await createInstallationCredentialPort(deps).resolve(
-    request({ subject: { installId: INSTALL, resourceKind: "organization" } }),
+Deno.test("no repository id is refused before anything is read or minted", async () => {
+  let reads = 0;
+  const { deps, targets } = depsWith({
+    database: databaseAnswering({}, () => {
+      reads += 1;
+    }),
+  });
+  const error = await assertRejects(
+    () =>
+      createInstallationCredentialPort(deps).resolve(
+        request({
+          subject: { installId: INSTALL, resourceKind: "organization" },
+        }),
+      ),
+    StandardError,
   );
-  assertEquals(targets[0]!.repositoryIds, []);
+  assertEquals((error as StandardError).code, "STATE_CONFLICT");
+  assertEquals(reads, 0);
+  assertEquals(targets.length, 0);
 });
 
 Deno.test("the credential is never written into the token target or an error", async () => {
@@ -327,4 +355,86 @@ Deno.test("the assembled port reaches the invoke door", async () => {
       .test(app),
     "the generation must come from the process broker, so an edit mid-request refuses",
   );
+});
+
+/**
+ * The proof that the narrowed set is the one GitHub is actually asked for.
+ *
+ * The unit fixture answered `repositoryIds: [900]` no matter what it was given,
+ * which is exactly why #640 shipped: the fixture set the id by hand while the
+ * production snapshot never did. These two tests put the real client in the
+ * path, so the value that reaches the wire is the value the port produced.
+ */
+function recordingGitHub(answer: () => Response) {
+  const requests: { url: string; body: unknown }[] = [];
+  const fetcher = ((input: string | URL | Request, init?: RequestInit) => {
+    requests.push({
+      url: String(input),
+      body: init?.body === undefined ? null : JSON.parse(String(init.body)),
+    });
+    return Promise.resolve(answer());
+  }) as unknown as typeof fetch;
+  return { client: createFetchGitHubAppClient(fetcher), requests };
+}
+
+const TOKEN_ANSWER = () =>
+  new Response(
+    JSON.stringify({
+      token: "ghs_realminted",
+      expires_at: new Date(Date.now() + 3_600_000).toISOString(),
+      permissions: { contents: "read" },
+      repositories: [{ id: 900 }],
+    }),
+    { status: 201, headers: { "content-type": "application/json" } },
+  );
+
+Deno.test("the set the port narrows to is the set GitHub is asked for", async () => {
+  const { client, requests } = recordingGitHub(TOKEN_ANSWER);
+  const { deps, targets } = depsWith();
+  await createInstallationCredentialPort(deps).resolve(request());
+
+  // What the port decided, and then what the real client sent with it.
+  assertEquals(targets[0]!.repositoryIds, [900]);
+  const minted = await client.mintInstallationToken(
+    {
+      jwt: "signed-app-jwt",
+      installationId: targets[0]!.installationId,
+      repositoryIds: targets[0]!.repositoryIds,
+      permissions: targets[0]!.permissions,
+    },
+    new AbortController().signal,
+  );
+
+  assertEquals(minted.kind, "minted");
+  assertEquals(requests.length, 1);
+  assertEquals(
+    requests[0]!.url,
+    "https://api.github.com/app/installations/1234/access_tokens",
+  );
+  assertEquals(
+    (requests[0]!.body as { repository_ids: number[] }).repository_ids,
+    [900],
+  );
+});
+
+Deno.test("the real client refuses an empty set, which is why the port refuses first", async () => {
+  const { client, requests } = recordingGitHub(TOKEN_ANSWER);
+  const error = await assertRejects(
+    () =>
+      client.mintInstallationToken(
+        {
+          jwt: "signed-app-jwt",
+          installationId: 1234,
+          repositoryIds: [],
+          permissions: { contents: "read" },
+        },
+        new AbortController().signal,
+      ),
+    StandardError,
+  );
+
+  // No request left the process, and the code the caller would have seen names
+  // a dependency outage rather than the unbound repository that caused it.
+  assertEquals((error as StandardError).code, "DEPENDENCY_UNAVAILABLE");
+  assertEquals(requests.length, 0);
 });

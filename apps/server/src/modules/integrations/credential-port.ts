@@ -131,12 +131,28 @@ async function readTokenAuthority(
   return { connectionId: request.connectionId, generation, ...row };
 }
 
-/** Numeric repository id the token is narrowed to, or an empty set. */
+/**
+ * The numeric repository id the token is narrowed to.
+ *
+ * A GitHub App installation token is narrowed to a repository set, so a request
+ * with nothing to narrow to cannot produce a usable credential at all: the
+ * client refuses an empty set and the send dies at the last moment with a
+ * dependency error that says nothing about the cause. Refusing here instead
+ * names it, and refuses before any row is read or any key is touched.
+ */
 function repositoryIdsOf(request: CredentialRequest): readonly number[] {
   const repositoryId = request.subject.repositoryId;
-  if (repositoryId === undefined) return [];
-  const numeric = Number(repositoryId);
-  return Number.isSafeInteger(numeric) ? [numeric] : [];
+  const numeric = repositoryId === undefined
+    ? Number.NaN
+    : Number(repositoryId);
+  if (!Number.isSafeInteger(numeric) || numeric < 1) {
+    throw new StandardError({
+      code: "STATE_CONFLICT",
+      detail: "auth_required",
+      params: { reason: "repository_unbound" },
+    });
+  }
+  return [numeric];
 }
 
 /**
@@ -154,6 +170,9 @@ export function createInstallationCredentialPort(
     async resolve(request) {
       // Captured BEFORE the rows are read, so an edit that commits mid-request
       // moves the generation and the broker refuses rather than minting stale.
+      // Narrowing is not a detail to discover after the read: a request with no
+      // repository to narrow to is refused before anything is read.
+      const repositoryIds = repositoryIdsOf(request);
       const generation = deps.generationOf(request.connectionId);
       const authority = await readTokenAuthority(deps, request, generation);
       const target: TokenTarget = {
@@ -164,7 +183,7 @@ export function createInstallationCredentialPort(
         appId: authority.appId,
         privateKey: authority.privateKey,
         installationId: Number(authority.installationExternalId),
-        repositoryIds: repositoryIdsOf(request),
+        repositoryIds,
         permissions: narrowPermissions(request.providerPermissions),
       };
       const minted = await deps.broker.token(
