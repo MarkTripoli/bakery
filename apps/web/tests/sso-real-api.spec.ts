@@ -9,6 +9,7 @@ import {
   type Route,
   test,
 } from "@playwright/test";
+import { laneBudgetMs } from "./helpers/lane-budget.ts";
 
 /**
  * Browser proof of the single sign-on settings page against the real API: a
@@ -118,7 +119,7 @@ test.describe("single sign-on settings against the real API", () => {
   let server: Server;
 
   test.beforeAll(async () => {
-    test.setTimeout(180_000);
+    test.setTimeout(laneBudgetMs(180_000));
     const root = new URL("../../../", import.meta.url);
     child = spawn("deno", [
       "run",
@@ -199,7 +200,7 @@ test.describe("single sign-on settings against the real API", () => {
     control<PasswordSignIn>("/password-sign-in", { who });
 
   test.beforeEach(() => {
-    test.setTimeout(90_000);
+    test.setTimeout(laneBudgetMs(90_000));
   });
 
   test("an administrator opens the production route and sees the empty state the backend reports", async ({ page, baseURL }) => {
