@@ -5,6 +5,7 @@ import {
   requestUntilAccepted,
   submitUntilAccepted,
 } from "./helpers/api-retry.ts";
+import { laneBudgetMs } from "./helpers/lane-budget.ts";
 
 /**
  * Live, real-API proof of the settings acceptance criteria (#151 AC1, AC3):
@@ -258,7 +259,7 @@ test.describe("settings journey", () => {
   });
 
   test("1. a saved theme survives a reload and follows the person to a second browser context", async ({ page, browser, baseURL }) => {
-    test.setTimeout(90_000);
+    test.setTimeout(laneBudgetMs(90_000));
     await signIn(page, ADMIN_EMAIL, ADMIN_PASSWORD);
     // Start from a known server state.
     await patchPreferences(page, organizationId, baseURL!, {
@@ -309,7 +310,7 @@ test.describe("settings journey", () => {
   });
 
   test("2. the time zone preference formats dates and falls back to the browser", async ({ page, browser, baseURL }) => {
-    test.setTimeout(90_000);
+    test.setTimeout(laneBudgetMs(90_000));
     await signIn(page, ADMIN_EMAIL, ADMIN_PASSWORD);
     // A second signed-in session gives the sessions page a row with a date.
     const other = await browser.newContext();
@@ -352,7 +353,7 @@ test.describe("settings journey", () => {
   });
 
   test("3. an Admin sets the organization default language; people without their own language fall back to it", async ({ page, browser, baseURL }) => {
-    test.setTimeout(120_000);
+    test.setTimeout(laneBudgetMs(120_000));
     await signIn(page, ADMIN_EMAIL, ADMIN_PASSWORD);
     await resetOrganizationDefault(page, organizationId, baseURL!);
     await patchPreferences(page, organizationId, baseURL!, { locale: null });
@@ -436,7 +437,7 @@ test.describe("settings journey", () => {
   });
 
   test("4. a stale save surfaces the conflict state and keeps the draft", async ({ page, baseURL }) => {
-    test.setTimeout(90_000);
+    test.setTimeout(laneBudgetMs(90_000));
     await signIn(page, ADMIN_EMAIL, ADMIN_PASSWORD);
     await resetOrganizationDefault(page, organizationId, baseURL!);
     await patchPreferences(page, organizationId, baseURL!, { locale: null });
@@ -488,7 +489,7 @@ test.describe("settings journey", () => {
         "set BAKERY_REAL_SIGNUPS=1 once signups.enabled is on: the Developer " +
           "registers through an invitation",
       );
-      test.setTimeout(150_000);
+      test.setTimeout(laneBudgetMs(150_000));
       await signIn(page, ADMIN_EMAIL, ADMIN_PASSWORD);
       const developer = await inviteAndRegisterDeveloper(
         page,
@@ -539,7 +540,7 @@ test.describe("settings journey", () => {
   test(
     "6. installation capabilities reach /register and /organizations",
     async ({ page, browser, baseURL }, testInfo) => {
-      test.setTimeout(150_000);
+      test.setTimeout(laneBudgetMs(150_000));
       const reported = async () => {
         return await readAvailability(page);
       };
@@ -654,7 +655,7 @@ test.describe("settings journey", () => {
   );
 
   test("7. a profile edit saves with its version, and a stale save surfaces the conflict and keeps the draft", async ({ page, baseURL }) => {
-    test.setTimeout(90_000);
+    test.setTimeout(laneBudgetMs(90_000));
     await signIn(page, ADMIN_EMAIL, ADMIN_PASSWORD);
     const read = async () => {
       const response = await requestUntilAccepted(() =>
@@ -709,7 +710,7 @@ test.describe("settings journey", () => {
   });
 
   test("8. Save preferences stores language and time zone, which survive a reload", async ({ page, baseURL }) => {
-    test.setTimeout(90_000);
+    test.setTimeout(laneBudgetMs(90_000));
     await signIn(page, ADMIN_EMAIL, ADMIN_PASSWORD);
     await patchPreferences(page, organizationId, baseURL!, {
       locale: null,
@@ -743,7 +744,7 @@ test.describe("settings journey", () => {
   });
 
   test("9. Your access shows the live role and refreshes on request", async ({ page }) => {
-    test.setTimeout(90_000);
+    test.setTimeout(laneBudgetMs(90_000));
     await signIn(page, ADMIN_EMAIL, ADMIN_PASSWORD);
     const response = await requestUntilAccepted(() =>
       page.request.get(`/v1/organizations/${organizationId}/effective-access`, {

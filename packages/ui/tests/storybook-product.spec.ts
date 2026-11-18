@@ -3,6 +3,7 @@ import {
   baseURL,
   openByTitle,
   runtime,
+  runtimeContextSweepTimeoutMs,
   runtimeStoryPath,
   waitForSpecimen,
 } from "./storybook-harness.ts";
@@ -179,7 +180,7 @@ test.describe("Storybook product interactions", () => {
   });
 
   test("executes every named runtime context", async ({ browser }) => {
-    test.setTimeout(240_000);
+    test.setTimeout(runtimeContextSweepTimeoutMs());
     for (const [contextId, context] of Object.entries(runtime.contexts)) {
       const runtimeCase = runtime.cases.find((entry) =>
         entry.context === contextId

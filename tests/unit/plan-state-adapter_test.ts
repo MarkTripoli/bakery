@@ -392,6 +392,21 @@ Deno.test("a failure outside a repeat halts, and a requested cancel halts before
   assertEquals(canceled, { kind: "halted", outcome: "canceled", key: null });
 });
 
+Deno.test("an explicit cancelRequested: false behaves exactly like omitting it (#250)", async () => {
+  const document = await compiled([noop("first"), noop("second")]);
+  const runtime = await runtimeOf(document);
+  const omitted = nextPlanStep(runtime, { inputs: {}, task: {}, rows: [] });
+  const explicitFalse = nextPlanStep(runtime, {
+    inputs: {},
+    task: {},
+    rows: [],
+    cancelRequested: false,
+  });
+  assertEquals(explicitFalse, omitted);
+  // A forwarded false that became true would halt the run as canceled.
+  assertEquals(omitted.kind === "halted", false);
+});
+
 Deno.test("the task and the delivery state the engine supplies are what references read", async () => {
   const document = await compiled([
     noop("read", {

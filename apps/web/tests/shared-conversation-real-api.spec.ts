@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { expect, type Page, type Route, test } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { submitUntilAccepted } from "./helpers/api-retry.ts";
+import { laneBudgetMs } from "./helpers/lane-budget.ts";
 
 /**
  * Real-API proof of the shared task conversation: two
@@ -126,7 +127,7 @@ test(
       !realApi,
       "set BAKERY_REAL_API=1 against the owned scripted stack",
     );
-    test.setTimeout(360_000);
+    test.setTimeout(laneBudgetMs(360_000));
     expect(process.env.BAKERY_ENV, "needs the isolated test environment").toBe(
       "test",
     );
