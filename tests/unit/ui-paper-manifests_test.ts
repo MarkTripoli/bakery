@@ -99,6 +99,44 @@ for (const field of ["catalogId", "requiredStoryCase"] as const) {
   });
 }
 
+Deno.test("Paper bindings allow a cropped content-box render narrower than its artboard", async () => {
+  const data = await fixture();
+  const cropped = data.baselines.cases.find((item) =>
+    item.reference === "design" && item.comparisonRegion !== undefined
+  );
+  assert(cropped && cropped.reference === "design");
+  assert(cropped.artboard);
+  cropped.image = {
+    width: cropped.artboard.width - 433,
+    height: cropped.artboard.height - 64,
+  };
+
+  const errors = data.validate();
+
+  assertEquals(errors, []);
+});
+
+Deno.test("Paper bindings reject a cropped content-box render wider than its artboard", async () => {
+  const data = await fixture();
+  const cropped = data.baselines.cases.find((item) =>
+    item.reference === "design" && item.comparisonRegion !== undefined
+  );
+  assert(cropped && cropped.reference === "design");
+  assert(cropped.artboard);
+  cropped.image = {
+    width: cropped.artboard.width + 1,
+    height: cropped.artboard.height,
+  };
+
+  const errors = data.validate();
+
+  assertEquals(errors, [
+    `${cropped.id} image width ${
+      cropped.artboard.width + 1
+    } exceeds artboard width ${cropped.artboard.width}`,
+  ]);
+});
+
 Deno.test("Paper bindings reject duplicate IDs across manifests", async () => {
   const data = await fixture();
   const existing = data.baselines.cases[0];
