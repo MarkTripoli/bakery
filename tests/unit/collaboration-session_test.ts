@@ -906,3 +906,23 @@ Deno.test("a joined frame for another request is ignored", () => {
     0,
   );
 });
+Deno.test("a socket that opens but never says hello is closed and retried", () => {
+  const h = harness();
+  h.session.start();
+  const socket = h.sockets[0];
+  h.advance(14_999);
+  assertEquals(h.session.getSnapshot().connection, "connecting");
+  h.advance(1);
+  assertEquals(h.session.getSnapshot().connection, "offline");
+  assertEquals(socket.closed?.code, 4000);
+  h.advance(1000);
+  assertEquals(h.sockets.length, 2);
+});
+
+Deno.test("a hello within the wait cancels the connect timeout", () => {
+  const h = harness();
+  connect(h);
+  h.advance(16_000); // past the connect wait, before two silent heartbeats
+  assertEquals(h.sockets.length, 1);
+  assertEquals(h.session.getSnapshot().connection, "online");
+});

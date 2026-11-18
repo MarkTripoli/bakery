@@ -100,6 +100,8 @@ type Pending = {
 const BACKOFF_BASE_MS = 1_000;
 const BACKOFF_MAX_MS = 30_000;
 const PRESENCE_MIN_INTERVAL_MS = 200;
+/** A socket that opens but never says hello is dead; give it this long. */
+const HELLO_TIMEOUT_MS = 15_000;
 
 /** The text a change inserted and the text it removed (common prefix and suffix excluded). */
 export function changeBetween(
@@ -158,6 +160,7 @@ export class CollaborationSession {
   #sendingTimer: Timer | null = null;
   #reconnectTimer: Timer | null = null;
   #heartbeatTimer: Timer | null = null;
+  #helloTimer: Timer | null = null;
   /** When any frame last arrived: a socket that stays silent is half-open. */
   #lastInboundAt = 0;
   #attempts = 0;
@@ -250,6 +253,13 @@ export class CollaborationSession {
     socket.binaryType = "arraybuffer";
     this.#socket = socket;
     this.#lastInboundAt = this.#now();
+    this.#clearHello();
+    this.#helloTimer = this.#setTimer(() => {
+      this.#helloTimer = null;
+      if (this.#socket === socket && this.#connection !== "online") {
+        this.#lost();
+      }
+    }, HELLO_TIMEOUT_MS);
     socket.onmessage = (event) => this.#onMessage(socket, event.data);
     socket.onclose = (event) => this.#onClose(socket, event.code);
     socket.onerror = () => {};
@@ -266,6 +276,7 @@ export class CollaborationSession {
    * (a half-open socket never fires close): start the reconnect cycle.
    */
   #lost(): void {
+    this.#clearHello();
     const socket = this.#socket;
     this.#socket = null;
     if (socket) {
@@ -419,6 +430,7 @@ export class CollaborationSession {
   }
 
   #onHello(heartbeatSeconds: number): void {
+    this.#clearHello();
     this.#attempts = 0;
     this.#connection = "online";
     this.#clearHeartbeat();
@@ -742,6 +754,11 @@ export class CollaborationSession {
     else globalThis.clearTimeout(timer as number);
   }
 
+  #clearHello(): void {
+    if (this.#helloTimer !== null) this.#clearTimer(this.#helloTimer);
+    this.#helloTimer = null;
+  }
+
   #clearHeartbeat(): void {
     if (this.#heartbeatTimer !== null) this.#clearTimer(this.#heartbeatTimer);
     this.#heartbeatTimer = null;
@@ -752,12 +769,17 @@ export class CollaborationSession {
     for (
       const timer of [
         this.#sendingTimer,
+        this.#helloTimer,
         this.#reconnectTimer,
         this.#presenceTimer,
       ]
     ) {
       if (timer !== null) this.#clearTimer(timer);
     }
-    this.#sendingTimer = this.#reconnectTimer = this.#presenceTimer = null;
+    this.#sendingTimer =
+      this.#helloTimer =
+      this.#reconnectTimer =
+      this.#presenceTimer =
+        null;
   }
 }
