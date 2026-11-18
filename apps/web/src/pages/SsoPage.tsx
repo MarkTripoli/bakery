@@ -19,24 +19,18 @@ import { useRestoreOrganizationScope } from "../app/restore-organization.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { OrganizationSectionBreadcrumbs } from "../shell/SettingsShellSlots.tsx";
 import { ShellActiveNavigation } from "../shell/shell-slots.tsx";
+import { DomainVerificationRecord } from "./DomainVerificationRecord.tsx";
 
 type View =
   | { readonly kind: "list" }
-  | { readonly kind: "oidc" }
-  | { readonly kind: "saml" }
+  | { readonly kind: "add" }
   | { readonly kind: "edit"; readonly provider: SsoProvider };
+
+type Protocol = SsoProvider["protocol"];
 
 const FORBIDDEN_CODES = new Set(["AUTH_FORBIDDEN", "RESOURCE_NOT_FOUND"]);
 
 type Notice = { tone: "success" | "error" | "information"; key: MessageKey };
-
-/** The TXT record an administrator publishes to prove control of a domain. */
-function txtRecord(
-  provider: Pick<SsoProvider, "providerId" | "domain">,
-  token: string,
-) {
-  return `_bakery-verify-${provider.providerId}.${provider.domain} TXT ${token}`;
-}
 
 /**
  * `/settings/organization/sso`: the organization's single sign-on providers (OIDC and
@@ -84,6 +78,8 @@ export function SsoPage() {
   const [view, setView] = useState<View>({ kind: "list" });
   const [notice, setNotice] = useState<Notice | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  // The provider whose last domain check found no record.
+  const [checkFailed, setCheckFailed] = useState<string | null>(null);
   const refresh = () => queryClient.invalidateQueries({ queryKey });
   const run = async (id: string, work: () => Promise<void>) => {
     if (busy !== null) return;
@@ -143,11 +139,15 @@ export function SsoPage() {
       // administrator) answers 409 DOMAIN_VERIFIED: it is verified, not an error.
       const verified = result.ok ||
         (result.status === 409 && result.code === "DOMAIN_VERIFIED");
+      // No record yet is not an error: the provider's own notice says so and
+      // offers "Check again", so the page shows no banner for it.
+      const notFound = !verified && result.status === 502;
+      setCheckFailed(notFound ? provider.providerId : null);
       setNotice(
         verified
           ? { tone: "success", key: "settings.sso.verify.done" }
-          : result.status === 502
-          ? { tone: "information", key: "settings.sso.verify.pending" }
+          : notFound
+          ? null
           : failure(result, "settings.sso.verify.error"),
       );
       await refresh();
@@ -179,10 +179,8 @@ export function SsoPage() {
     : overview.isPending
     ? { tone: "information", key: "settings.sso.loading" }
     : notice;
-  const title = view.kind === "oidc"
-    ? "settings.sso.dialog.oidc.title"
-    : view.kind === "saml"
-    ? "settings.sso.dialog.saml.title"
+  const title = view.kind === "add"
+    ? "settings.sso.dialog.add.title"
     : view.kind === "edit"
     ? "settings.sso.dialog.edit.title"
     : "settings.sso.title";
@@ -200,11 +198,6 @@ export function SsoPage() {
       )
       : undefined;
   const noticeNode = banner(pageNotice);
-  // The form shows its own "not verified yet" line, so the page banner would
-  // say the same sentence twice.
-  const formNoticeNode = banner(
-    pageNotice?.key === "settings.sso.verify.pending" ? null : pageNotice,
-  );
 
   return (
     <>
@@ -216,7 +209,7 @@ export function SsoPage() {
             <UI.SsoSettings
               title={heading}
               variant="form"
-              notice={formNoticeNode}
+              notice={noticeNode}
             >
               {organizationId && data
                 ? (
@@ -224,6 +217,8 @@ export function SsoPage() {
                     key={view.kind === "edit"
                       ? view.provider.providerId
                       : view.kind}
+                    checkFailed={view.kind === "edit" &&
+                      checkFailed === view.provider.providerId}
                     view={view.kind === "edit"
                       ? {
                         ...view,
@@ -266,47 +261,58 @@ export function SsoPage() {
               title={heading}
               description={translate("settings.sso.description")}
               notice={noticeNode}
-              actions={data
+              actions={data && data.providers.length > 0
                 ? (
-                  <>
-                    <UI.Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setView({ kind: "saml" })}
-                    >
-                      {translate("settings.sso.add.saml")}
-                    </UI.Button>
-                    <UI.Button
-                      type="button"
-                      onClick={() => setView({ kind: "oidc" })}
-                    >
-                      {translate("settings.sso.add.oidc")}
-                    </UI.Button>
-                  </>
+                  <UI.Button
+                    type="button"
+                    onClick={() => setView({ kind: "add" })}
+                  >
+                    {translate("settings.sso.add")}
+                  </UI.Button>
                 )
                 : undefined}
               providersLabel={translate("settings.sso.providers.caption")}
-              emptyMessage={data && data.providers.length === 0
-                ? translate("settings.sso.providers.empty")
+              empty={data && data.providers.length === 0
+                ? (
+                  <UI.EmptyState
+                    action={
+                      <UI.Button
+                        type="button"
+                        onClick={() => setView({ kind: "add" })}
+                      >
+                        {translate("settings.sso.add")}
+                      </UI.Button>
+                    }
+                    description={translate("settings.sso.empty.description")}
+                    title={translate("settings.sso.empty.title")}
+                  />
+                )
                 : undefined}
               providers={(data?.providers ?? []).map((provider) => ({
                 id: provider.providerId,
                 name: `${provider.providerId} · ${
                   translate(`settings.sso.protocol.${provider.protocol}`)
                 }`,
-                detail: provider.protocol === "oidc"
-                  ? provider.issuer
-                  : provider.domain,
+                detail: provider.domain,
                 status: (
-                  <UI.StatusBadge
-                    status={provider.domainVerified ? "healthy" : "needsInput"}
-                  >
-                    {translate(
-                      provider.domainVerified
-                        ? "settings.sso.status.enabled"
-                        : "settings.sso.domain.unverified",
+                  <>
+                    <UI.StatusBadge
+                      status={provider.domainVerified
+                        ? "healthy"
+                        : "needsInput"}
+                    >
+                      {translate(
+                        provider.domainVerified
+                          ? "settings.sso.status.enabled"
+                          : "settings.sso.domain.unverified",
+                      )}
+                    </UI.StatusBadge>
+                    {provider.domainVerified ? null : (
+                      <UI.Text variant="muted">
+                        {translate("settings.sso.verify.nextStep")}
+                      </UI.Text>
                     )}
-                  </UI.StatusBadge>
+                  </>
                 ),
                 action: (
                   <UI.Button
@@ -332,35 +338,15 @@ export function SsoPage() {
                       const token = tokens[index]?.data;
                       return token
                         ? (
-                          <UI.Stack
-                            gap="compact"
+                          <DomainVerificationRecord
+                            checkFailed={checkFailed === provider.providerId}
+                            checking={busy === `check:${provider.providerId}`}
                             key={provider.providerId}
-                            data-testid={`txt-${provider.providerId}`}
-                          >
-                            <UI.Text variant="muted">
-                              {translate("settings.sso.verify.short", {
-                                domain: provider.domain,
-                              })}
-                            </UI.Text>
-                            <UI.SetupKey>
-                              {txtRecord(provider, token)}
-                            </UI.SetupKey>
-                            <UI.Inline>
-                              <UI.Button
-                                type="button"
-                                variant="outline"
-                                aria-label={translate(
-                                  "settings.sso.verify.checkLabel",
-                                  { name: provider.providerId },
-                                )}
-                                loading={busy ===
-                                  `check:${provider.providerId}`}
-                                onClick={() => void checkDomain(provider)}
-                              >
-                                {translate("settings.sso.verify.check")}
-                              </UI.Button>
-                            </UI.Inline>
-                          </UI.Stack>
+                            onCheck={() => void checkDomain(provider)}
+                            provider={provider}
+                            testId={`txt-${provider.providerId}`}
+                            token={token}
+                          />
                         )
                         : null;
                     })}
@@ -472,6 +458,7 @@ function ProviderForm({
   organizationId,
   token,
   checking,
+  checkFailed,
   checkDomain,
   failure,
   onCancel,
@@ -482,6 +469,7 @@ function ProviderForm({
   readonly organizationId: string;
   readonly token: string | undefined;
   readonly checking: boolean;
+  readonly checkFailed: boolean;
   readonly checkDomain: (provider: SsoProvider) => Promise<void>;
   readonly failure: (
     result: { status: number; code: string },
@@ -501,9 +489,14 @@ function ProviderForm({
     clientIdHint: useId(),
     secretHint: useId(),
     metadata: useId(),
+    providerHint: useId(),
+    domainHint: useId(),
+    issuerHint: useId(),
+    metadataHint: useId(),
   };
   const editing = view.kind === "edit" ? view.provider : null;
-  const kind = editing ? editing.protocol : view.kind;
+  const [protocol, setProtocol] = useState<Protocol>("oidc");
+  const kind: Protocol = editing ? editing.protocol : protocol;
   const [providerId, setProviderId] = useState(editing?.providerId ?? "");
   const [domain, setDomain] = useState(editing?.domain ?? "");
   const [issuer, setIssuer] = useState(editing?.issuer ?? "");
@@ -612,31 +605,76 @@ function ProviderForm({
         }}
       >
         {editing ? null : (
-          <UI.Field
-            htmlFor={ids.provider}
-            label={translate("settings.sso.field.providerId")}
-          >
-            <UI.TextInput
-              id={ids.provider}
-              name="providerId"
-              autoComplete="off"
-              type="text"
-              value={providerId}
-              onChange={setProviderId}
-            />
-          </UI.Field>
+          <>
+            <UI.Stack gap="compact" data-testid="sso-protocol">
+              <UI.Text variant="strong">
+                {translate("settings.sso.protocol.label")}
+              </UI.Text>
+              <UI.SegmentedControl
+                aria-label={translate("settings.sso.protocol.label")}
+                name="sso-protocol"
+                variant="inline"
+                value={protocol}
+                onChange={(value) => setProtocol(value as Protocol)}
+                options={[
+                  {
+                    value: "saml",
+                    label: translate("settings.sso.protocol.saml"),
+                  },
+                  {
+                    value: "oidc",
+                    label: translate("settings.sso.protocol.oidc.long"),
+                  },
+                ]}
+              />
+              <UI.Text variant="muted">
+                {translate("settings.sso.protocol.help")}
+              </UI.Text>
+            </UI.Stack>
+            <UI.Field
+              htmlFor={ids.provider}
+              hint={
+                <span id={ids.providerHint}>
+                  {translate("settings.sso.field.providerId.hint")}
+                </span>
+              }
+              label={translate("settings.sso.field.providerId")}
+            >
+              <UI.TextInput
+                id={ids.provider}
+                name="providerId"
+                autoComplete="off"
+                describedBy={ids.providerHint}
+                placeholder={translate(
+                  "settings.sso.field.providerId.placeholder",
+                )}
+                type="text"
+                value={providerId}
+                onChange={setProviderId}
+              />
+            </UI.Field>
+          </>
         )}
         {kind === "oidc"
           ? (
             <>
               <UI.Field
                 htmlFor={ids.issuer}
+                hint={
+                  <span id={ids.issuerHint}>
+                    {translate("settings.sso.field.issuer.hint")}
+                  </span>
+                }
                 label={translate("settings.sso.field.issuer")}
               >
                 <UI.TextInput
                   id={ids.issuer}
                   name="issuer"
                   autoComplete="off"
+                  describedBy={ids.issuerHint}
+                  placeholder={translate(
+                    "settings.sso.field.issuer.placeholder",
+                  )}
                   type="text"
                   inputMode="url"
                   value={issuer}
@@ -645,20 +683,21 @@ function ProviderForm({
               </UI.Field>
               <UI.Field
                 htmlFor={ids.clientId}
-                hint={editing
-                  ? (
-                    <span id={ids.clientIdHint}>
-                      {translate("settings.sso.field.keepClientId")}
-                    </span>
-                  )
-                  : undefined}
+                hint={
+                  <span id={ids.clientIdHint}>
+                    {translate("settings.sso.field.clientId.hint")}
+                    {editing
+                      ? ` ${translate("settings.sso.field.keepClientId")}`
+                      : ""}
+                  </span>
+                }
                 label={translate("settings.sso.field.clientId")}
               >
                 <UI.TextInput
                   id={ids.clientId}
                   name="clientId"
                   autoComplete="off"
-                  describedBy={editing ? ids.clientIdHint : undefined}
+                  describedBy={ids.clientIdHint}
                   type="text"
                   value={clientId}
                   onChange={setClientId}
@@ -666,20 +705,21 @@ function ProviderForm({
               </UI.Field>
               <UI.Field
                 htmlFor={ids.secret}
-                hint={editing
-                  ? (
-                    <span id={ids.secretHint}>
-                      {translate("settings.sso.field.keepSecret")}
-                    </span>
-                  )
-                  : undefined}
+                hint={
+                  <span id={ids.secretHint}>
+                    {translate("settings.sso.field.clientSecret.hint")}
+                    {editing
+                      ? ` ${translate("settings.sso.field.keepSecret")}`
+                      : ""}
+                  </span>
+                }
                 label={translate("settings.sso.field.clientSecret")}
               >
                 <UI.PasswordInput
                   id={ids.secret}
                   name="clientSecret"
                   autoComplete="new-password"
-                  describedBy={editing ? ids.secretHint : undefined}
+                  describedBy={ids.secretHint}
                   value={clientSecret}
                   onChange={setClientSecret}
                   revealLabels={{
@@ -693,10 +733,16 @@ function ProviderForm({
           : (
             <UI.Field
               htmlFor={ids.metadata}
+              hint={
+                <span id={ids.metadataHint}>
+                  {translate("settings.sso.field.metadata.hint")}
+                </span>
+              }
               label={translate("settings.sso.field.metadata")}
               variant="textarea"
             >
               <textarea
+                aria-describedby={ids.metadataHint}
                 id={ids.metadata}
                 name="metadata"
                 placeholder={translate(
@@ -709,12 +755,19 @@ function ProviderForm({
           )}
         <UI.Field
           htmlFor={ids.domain}
+          hint={
+            <span id={ids.domainHint}>
+              {translate("settings.sso.field.domain.hint")}
+            </span>
+          }
           label={translate("settings.sso.field.domain")}
         >
           <UI.TextInput
             id={ids.domain}
             name="domain"
             autoComplete="off"
+            describedBy={ids.domainHint}
+            placeholder={translate("settings.sso.field.domain.placeholder")}
             type="text"
             value={domain}
             onChange={setDomain}
@@ -726,15 +779,13 @@ function ProviderForm({
               <UI.Heading level="section">
                 {translate("settings.sso.verify.heading")}
               </UI.Heading>
-              <UI.Text variant="muted">
-                {translate("settings.sso.verify.instructions", {
-                  domain: editing!.domain,
-                })}
-              </UI.Text>
-              <UI.SetupKey>{txtRecord(editing!, token ?? "…")}</UI.SetupKey>
-              <UI.InlineNotice tone="warning">
-                {translate("settings.sso.verify.pending")}
-              </UI.InlineNotice>
+              <DomainVerificationRecord
+                checkFailed={checkFailed}
+                checking={checking || saving}
+                onCheck={() => void checkDomain(editing!)}
+                provider={editing!}
+                token={token}
+              />
             </UI.Stack>
           )
           : null}
@@ -755,18 +806,6 @@ function ProviderForm({
                 onClick={() => setConfirmingRemove(true)}
               >
                 {translate("settings.sso.provider.delete")}
-              </UI.Button>
-            )
-            : null}
-          {showTxt
-            ? (
-              <UI.Button
-                type="button"
-                variant="outline"
-                loading={checking || saving}
-                onClick={() => void checkDomain(editing!)}
-              >
-                {translate("settings.sso.verify.check")}
               </UI.Button>
             )
             : null}
