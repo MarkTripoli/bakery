@@ -17,18 +17,6 @@ provide the visual reference. Components use native HTML controls where they
 cover the interaction. The public API lives in `packages/ui/src/index.ts`;
 product screens import from `@bakery/ui` and own their routing and data calls.
 
-## Repository task scope
-
-Repository and profile selections on `/projects/onboarding` update its deep link
-without resetting the page scroll. A stale-profile conflict preserves the draft
-and brings its notice into view and focus, unless another control already has
-focus. Task submission remains disabled until the refreshed active profile is
-explicitly reviewed again.
-
-The desktop/mobile `tests/projects-onboarding.spec.ts` checks cover this
-recovery, including keyboard continuation and retaining focus moved during a
-pending request.
-
 The task inbox retains the current rows while a filter or page query fetches.
 Cursor controls stay disabled during placeholder, fetch, offline, reconnecting,
 and error states, so a retained page cursor cannot navigate after a failed

@@ -249,48 +249,6 @@
       "frameName": "12 · Coordination plan · partial · light · 1440",
       "source": "2JLA-0.jsx",
       "sha256": "339d423d533f34b8f4d67c54c77884c76c55626558d01b741dd4a696c92314de"
-    },
-    {
-      "id": "projects-onboarding",
-      "title": "Projects onboarding",
-      "state": "default",
-      "theme": "light",
-      "device": "desktop",
-      "width": 1440,
-      "height": 900,
-      "nodeId": "2JSH-0",
-      "pageId": "p-18-0",
-      "frameName": "13 · Projects onboarding · default · light · 1440",
-      "source": "2JSH-0.jsx",
-      "sha256": "9ddd834b599e25d835138bb00fcf6975fe46b5146937f2e1423d14ba62d29a5f"
-    },
-    {
-      "id": "projects-onboarding",
-      "title": "Projects onboarding",
-      "state": "default",
-      "theme": "dark",
-      "device": "desktop",
-      "width": 1440,
-      "height": 900,
-      "nodeId": "2JZO-0",
-      "pageId": "p-18-0",
-      "frameName": "14 · Projects onboarding · default · dark · 1440",
-      "source": "2JZO-0.jsx",
-      "sha256": "3b250deae030bd0d0312e067a1f009b047bf36529ef9c6ec4f94387053fa0511"
-    },
-    {
-      "id": "projects-onboarding",
-      "title": "Projects onboarding",
-      "state": "default",
-      "theme": "light",
-      "device": "phone",
-      "width": 390,
-      "height": 844,
-      "nodeId": "2K4U-0",
-      "pageId": "p-18-0",
-      "frameName": "15 · Projects onboarding · default · light · 390",
-      "source": "2K4U-0.jsx",
-      "sha256": "67af2f5f1553af226c52b1e6ea5cfdb87af2da8c8eacdb4065f68324e42083ac"
     }
   ]
 }
