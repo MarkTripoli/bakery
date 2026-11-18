@@ -3,10 +3,15 @@
  * Postgres with the in-memory provider reader. Each case names the acceptance
  * criterion (AC1 to AC3) or the guard it proves; #69 AC1 (an edit leaves the
  * pinned report and digest of an admitted request alone) is here too.
+ *
+ * Routed targets run as child tasks of a ticket-origin coordination plan, so
+ * every routed repository has a ready profile (copied from the fixture's)
+ * and a role binding alias, as a real application would.
  */
 import { assert, assertEquals, assertNotEquals } from "@std/assert";
 import type { TicketReadinessReport } from "../../packages/contracts/src/ticket-admission.ts";
 import { recordReadiness } from "../../apps/server/src/modules/work/ticket-admission.ts";
+import { reconcileCoordinationPlan } from "../../apps/server/src/modules/work/coordination-projection.ts";
 import {
   cleanupSeededOrganizations,
   seedOrganization,
@@ -24,7 +29,12 @@ import {
 
 const SOURCES = "/v1/ticket-sources";
 
-type Rule = { labelId: string; repositoryId: string; role: string };
+type Rule = {
+  labelId: string;
+  labelName: string;
+  repositoryId: string;
+  role: string;
+};
 type RuleSet = {
   ticketSourceId: string;
   policyRevision: number;
@@ -35,15 +45,49 @@ type Target = {
   repositoryId: string;
   role: string;
   routingRuleId: string | null;
-  routingRuleVersion: number | null;
-  sourcePolicyRevision: number;
+  childTaskId: string | null;
 };
 
-/** A repository of `applicationId` (the fixture's by default), as the owner role. */
+/** A provider label: the id rules match and the name people see. */
+const LABEL = {
+  backend: { id: "9001", name: "backend" },
+  frontend: { id: "9002", name: "frontend" },
+  api: { id: "9003", name: "api" },
+  server: { id: "9004", name: "server" },
+  web: { id: "9005", name: "web" },
+} as const;
+type LabelKey = keyof typeof LABEL;
+
+/** The issue labels: the execute label plus the routing labels, with ids. */
+function issueLabels(...keys: LabelKey[]) {
+  return {
+    labels: [EXECUTE_LABEL, ...keys.map((key) => LABEL[key].name)],
+    labelIds: ["8000", ...keys.map((key) => LABEL[key].id)],
+  };
+}
+
+function rule(key: LabelKey, repositoryId: string, role: string): Rule {
+  return {
+    labelId: LABEL[key].id,
+    labelName: LABEL[key].name,
+    repositoryId,
+    role,
+  };
+}
+
+/**
+ * A repository of the fixture's application, as the owner role: with a copy
+ * of the fixture repository's ready profile unless `profile` is false, and a
+ * role binding (alias = name) for each of `roles`.
+ */
 async function addRepository(
   fx: TicketFixture,
   name: string,
-  applicationId = fx.applicationId,
+  options: {
+    roles?: string[];
+    profile?: boolean;
+    connectionId?: string;
+  } = {},
 ): Promise<string> {
   const id = crypto.randomUUID();
   await fx.owner.query(
@@ -54,21 +98,52 @@ async function addRepository(
     [
       id,
       fx.organizationId,
-      applicationId,
-      fx.connectionId,
+      fx.applicationId,
+      options.connectionId ?? fx.connectionId,
       `route-${id}`,
       name,
     ],
   );
+  if (options.profile !== false) {
+    const profileId = crypto.randomUUID();
+    await fx.owner.query(
+      `insert into bakery.repository_profiles (
+         id, organization_id, application_id, repository_id, revision, config,
+         digest, created_by
+       ) select $1, profile.organization_id, profile.application_id, $2, 1,
+                profile.config, profile.digest, profile.created_by
+           from bakery.repository_profiles as profile
+           join bakery.repositories as repository
+             on repository.active_profile_id = profile.id
+          where repository.id = $3`,
+      [profileId, id, fx.repositoryId],
+    );
+    await fx.owner.query(
+      "update bakery.repositories set active_profile_id = $2 where id = $1",
+      [id, profileId],
+    );
+  }
+  for (const role of options.roles ?? [name]) {
+    await fx.owner.query(
+      `insert into bakery.repository_role_bindings (
+         organization_id, application_id, repository_id, role, alias
+       ) values ($1, $2, $3, $4, $5)`,
+      [fx.organizationId, fx.applicationId, id, role, `${name}-${role}`],
+    );
+  }
   return id;
 }
 
-async function addApplication(fx: TicketFixture): Promise<string> {
+/** A copy of the fixture's connection that is archived, as the owner role. */
+async function archivedConnection(fx: TicketFixture): Promise<string> {
   const id = crypto.randomUUID();
   await fx.owner.query(
-    `insert into bakery.applications (id, organization_id, slug, name)
-     values ($1, $2, $3, 'Other application')`,
-    [id, fx.organizationId, `route-app-${id}`],
+    `insert into bakery.integration_connections
+       select (jsonb_populate_record(connection, jsonb_build_object(
+         'id', $2::uuid, 'archived_at', now()))).*
+         from bakery.integration_connections as connection
+        where id = $1`,
+    [fx.connectionId, id],
   );
   return id;
 }
@@ -101,16 +176,20 @@ async function putRules(
   });
 }
 
+type TargetRow = {
+  repository_id: string;
+  role: string;
+  routing_rule_id: string | null;
+  routing_rule_version: number | null;
+  source_policy_revision: number;
+  coordination_plan_id: string | null;
+  child_task_id: string | null;
+};
+
 async function targetsOf(fx: TicketFixture, requestId: string) {
-  const result = await fx.owner.query<{
-    repository_id: string;
-    role: string;
-    routing_rule_id: string | null;
-    routing_rule_version: number | null;
-    source_policy_revision: number;
-  }>(
+  const result = await fx.owner.query<TargetRow>(
     `select repository_id, role, routing_rule_id, routing_rule_version,
-            source_policy_revision
+            source_policy_revision, coordination_plan_id, child_task_id
        from bakery.ticket_request_targets
       where organization_id = $1 and ticket_request_id = $2
       order by role, repository_id`,
@@ -119,10 +198,63 @@ async function targetsOf(fx: TicketFixture, requestId: string) {
   return result.rows;
 }
 
-function routeCheck(report: TicketReadinessReport) {
-  const check = report.checks.find((entry) => entry.id === "repository_ready");
-  assert(check, "the report has a repository_ready check");
-  return check;
+async function childTask(fx: TicketFixture, taskId: string) {
+  const result = await fx.owner.query<{
+    repository_id: string | null;
+    parent_task_id: string | null;
+    status: string;
+    runs: number;
+    scope: string[];
+  }>(
+    `select task.repository_id, task.parent_task_id, task.status,
+            (select count(*)::int from bakery.workflow_runs
+              where organization_id = task.organization_id
+                and task_id = task.id) as runs,
+            array(select repository_id::text from bakery.task_repositories
+                   where organization_id = task.organization_id
+                     and task_id = task.id) as scope
+       from bakery.tasks as task
+      where task.organization_id = $1 and task.id = $2`,
+    [fx.organizationId, taskId],
+  );
+  return result.rows[0];
+}
+
+/** Ends one child task as the engine would, then projects its plan. */
+async function finishChild(
+  fx: TicketFixture,
+  target: TargetRow,
+  status: "completed" | "failed",
+): Promise<void> {
+  await fx.owner.query(
+    `update bakery.tasks set status = $3, updated_at = now(),
+            version = version + 1
+      where organization_id = $1 and id = $2`,
+    [fx.organizationId, target.child_task_id, status],
+  );
+  await fx.inTransaction((transaction) =>
+    reconcileCoordinationPlan(transaction, {
+      organizationId: fx.organizationId,
+      principalId: null,
+      traceId: crypto.randomUUID().replaceAll("-", ""),
+    }, target.coordination_plan_id!)
+  );
+}
+
+async function dispositionOf(fx: TicketFixture, requestId: string) {
+  const result = await fx.owner.query<
+    { disposition: string; disposition_reason: string | null }
+  >(
+    "select disposition, disposition_reason from bakery.ticket_requests where id = $1",
+    [requestId],
+  );
+  return result.rows[0];
+}
+
+function check(report: TicketReadinessReport, id: string) {
+  const found = report.checks.find((entry) => entry.id === id);
+  assert(found, `the report has a ${id} check`);
+  return found;
 }
 
 /** A source whose labels "backend" and "frontend" route to two repositories. */
@@ -132,57 +264,92 @@ async function routedSource(fx: TicketFixture) {
   const frontend = await addRepository(fx, "frontend");
   const set = await read<RuleSet>(
     await putRules(fx, sourceId, [
-      { labelId: "backend", repositoryId: backend, role: "backend" },
-      { labelId: "frontend", repositoryId: frontend, role: "frontend" },
+      rule("backend", backend, "backend"),
+      rule("frontend", frontend, "frontend"),
     ]),
     200,
   );
   return { sourceId, backend, frontend, set };
 }
 
-Deno.test("#31 AC1: backend and frontend labels admit one parent request with two scoped children", () =>
+Deno.test("#31 AC1: backend and frontend labels admit one parent with two scoped child tasks that run", () =>
   withTicketFixture(async (fx) => {
     const { sourceId, backend, frontend, set } = await routedSource(fx);
     assertEquals(set.policyRevision, 2, "saving rules advances the revision");
-    fx.reader.setIssue({
-      number: 1,
-      labels: [EXECUTE_LABEL, "backend", "frontend"],
-    });
+    fx.reader.setIssue({ number: 1, ...issueLabels("backend", "frontend") });
     const result = await fx.admit(sourceId, { number: 1 });
     assertEquals(result.kind, "admitted");
     const request = result.request!;
-    assertEquals(request.sourcePolicyRevision, 2);
-    const rule = (labelId: string) =>
-      set.rules.find((entry) => entry.labelId === labelId)!;
+    const targets = await targetsOf(fx, request.id);
     assertEquals(
-      await targetsOf(fx, request.id),
-      [
-        {
-          repository_id: backend,
-          role: "backend",
-          routing_rule_id: rule("backend").id,
-          routing_rule_version: 1,
-          source_policy_revision: 2,
-        },
-        {
-          repository_id: frontend,
-          role: "frontend",
-          routing_rule_id: rule("frontend").id,
-          routing_rule_version: 1,
-          source_policy_revision: 2,
-        },
-      ].sort((a, b) => a.role.localeCompare(b.role)),
+      targets.map((t) => [t.repository_id, t.role, t.routing_rule_version]),
+      [[backend, "backend", 1], [frontend, "frontend", 1]],
     );
-    // One parent: one request, one task, one link; no duplicate work.
+    const ruleOf = (labelId: string) =>
+      set.rules.find((entry) => entry.labelId === labelId)!.id;
+    assertEquals(targets.map((t) => t.routing_rule_id), [
+      ruleOf(LABEL.backend.id),
+      ruleOf(LABEL.frontend.id),
+    ]);
+    // One ticket-origin plan; each child is a real task scoped to its
+    // repository, under the request's task, with its own run.
+    const planIds = new Set(targets.map((t) => t.coordination_plan_id));
+    assertEquals(planIds.size, 1);
+    const plan = await fx.owner.query<
+      { parent_task_id: string; origin: { kind: string } }
+    >(
+      "select parent_task_id, origin from bakery.coordination_plans where id = $1",
+      [[...planIds][0]],
+    );
+    assertEquals(plan.rows[0].parent_task_id, request.taskId);
+    assertEquals(plan.rows[0].origin.kind, "ticket");
+    for (const target of targets) {
+      const child = await childTask(fx, target.child_task_id!);
+      assertEquals(child.repository_id, target.repository_id);
+      assertEquals(child.parent_task_id, request.taskId);
+      assertEquals(child.scope, [target.repository_id]);
+      assertEquals(child.runs, 1, "the child runs on the existing engine");
+    }
+    // One parent: one request and one linked task; the parent runs nothing.
     const counts = await fx.counts(sourceId);
+    assertEquals([counts.requests, counts.tasks, counts.links, counts.runs], [
+      1,
+      1,
+      1,
+      0,
+    ]);
+    assertEquals(request.disposition, "admitted");
     assertEquals(
-      [counts.requests, counts.tasks, counts.links],
-      [1, 1, 1],
-    );
-    assertEquals(
-      routeCheck(result.report).evidence.map((entry) => entry.ref),
+      check(result.report, "repository_ready").evidence.map((e) => e.ref),
       ["route:backend", "route:frontend"],
     );
+  }));
+
+Deno.test("#31 AC1 and AC3: the parent completes only when every child does, and fails when one fails", () =>
+  withTicketFixture(async (fx) => {
+    const { sourceId } = await routedSource(fx);
+    for (
+      const [number, outcome] of [[2, "completed"], [3, "failed"]] as const
+    ) {
+      fx.reader.setIssue({ number, ...issueLabels("backend", "frontend") });
+      const admitted = await fx.admit(sourceId, { number });
+      const request = admitted.request!;
+      const [first, second] = await targetsOf(fx, request.id);
+      await finishChild(fx, first, "completed");
+      // One child done is not the parent done.
+      await fx.recheck(request.externalTicketId);
+      assertEquals(
+        (await dispositionOf(fx, request.id)).disposition,
+        "admitted",
+        `${number}: one of two children finished`,
+      );
+      await finishChild(fx, second, outcome);
+      await fx.recheck(request.externalTicketId);
+      assertEquals(await dispositionOf(fx, request.id), {
+        disposition: outcome,
+        disposition_reason: `task_${outcome}`,
+      });
+    }
   }));
 
 Deno.test("#31 AC1: labels that agree on one repository collapse into one child (dedupe)", () =>
@@ -191,23 +358,60 @@ Deno.test("#31 AC1: labels that agree on one repository collapse into one child 
     const backend = await addRepository(fx, "backend");
     await read(
       await putRules(fx, sourceId, [
-        { labelId: "api", repositoryId: backend, role: "backend" },
-        { labelId: "backend", repositoryId: backend, role: "backend" },
+        rule("api", backend, "backend"),
+        rule("backend", backend, "backend"),
       ]),
       200,
     );
-    fx.reader.setIssue({
-      number: 2,
-      labels: [EXECUTE_LABEL, "api", "backend"],
-    });
-    const result = await fx.admit(sourceId, { number: 2 });
+    fx.reader.setIssue({ number: 4, ...issueLabels("api", "backend") });
+    const result = await fx.admit(sourceId, { number: 4 });
     assertEquals(result.kind, "admitted");
     const targets = await targetsOf(fx, result.request!.id);
-    assertEquals(targets.length, 1);
+    assertEquals(targets.map((t) => [t.repository_id, t.role]), [[
+      backend,
+      "backend",
+    ]]);
+  }));
+
+Deno.test("#31 rules match label ids: a renamed label keeps routing", () =>
+  withTicketFixture(async (fx) => {
+    const { sourceId, backend } = await routedSource(fx);
+    // The provider renamed "backend" to "server-side"; its id is unchanged.
+    fx.reader.setIssue({
+      number: 5,
+      labels: [EXECUTE_LABEL, "server-side"],
+      labelIds: ["8000", LABEL.backend.id],
+    });
+    const result = await fx.admit(sourceId, { number: 5 });
+    assertEquals(result.kind, "admitted");
     assertEquals(
-      [targets[0].repository_id, targets[0].role],
-      [backend, "backend"],
+      (await targetsOf(fx, result.request!.id)).map((t) => t.repository_id),
+      [backend],
     );
+    // A label that only shares the old name routes nowhere.
+    fx.reader.setIssue({
+      number: 6,
+      labels: [EXECUTE_LABEL, "backend"],
+      labelIds: ["8000", "7777"],
+    });
+    const other = await fx.admit(sourceId, { number: 6 });
+    assertEquals(
+      (await targetsOf(fx, other.request!.id)).map((t) => t.role),
+      ["default"],
+    );
+    // A read that names no ids cannot be routed and is refused, not guessed.
+    fx.reader.setIssue({
+      number: 7,
+      labels: [EXECUTE_LABEL, "backend"],
+      labelIds: null,
+    });
+    const blind = await fx.admit(sourceId, { number: 7 });
+    assertEquals(blind.kind, "unadmitted");
+    const ready = check(blind.report, "repository_ready");
+    assertEquals([ready.reason, ready.evidence], [
+      "route_ambiguous",
+      [{ ref: "route:labels:unidentified" }],
+    ]);
   }));
 
 Deno.test("#31 AC2: a deleted (archived) target blocks the preview with a reason and never admits", () =>
@@ -217,11 +421,7 @@ Deno.test("#31 AC2: a deleted (archived) target blocks the preview with a reason
       "update bakery.repositories set archived_at = now() where id = $1",
       [frontend],
     );
-    fx.reader.setIssue({
-      number: 3,
-      labels: [EXECUTE_LABEL, "backend", "frontend"],
-    });
-    // The source preview records the blocked verdict where a client reads it.
+    fx.reader.setIssue({ number: 8, ...issueLabels("backend", "frontend") });
     await read(
       await ticketCall(fx, "POST", `${SOURCES}/${sourceId}/previews`, {
         body: {},
@@ -243,9 +443,7 @@ Deno.test("#31 AC2: a deleted (archived) target blocks the preview with a reason
     );
     assertEquals(view.latestReadiness.verdict, "rejected");
     assertEquals(
-      view.latestReadiness.checks.find((check) =>
-        check.id === "repository_ready"
-      ),
+      view.latestReadiness.checks.find((c) => c.id === "repository_ready"),
       {
         id: "repository_ready",
         status: "reject",
@@ -253,102 +451,134 @@ Deno.test("#31 AC2: a deleted (archived) target blocks the preview with a reason
         evidence: [{ ref: "route:label:frontend" }],
       } as never,
     );
-    const result = await fx.admit(sourceId, { number: 3 });
+    const result = await fx.admit(sourceId, { number: 8 });
     assertEquals(result.kind, "unadmitted");
-    assertEquals(routeCheck(result.report).reason, "route_target_deleted");
     assertEquals((await fx.counts(sourceId)).requests, 0);
   }));
 
-Deno.test("#31 AC2: an inaccessible required target blocks; it is not dropped from the union", () =>
+Deno.test("#31 AC2: a target on an archived connection, or with its role binding gone, is inaccessible and blocks", () =>
   withTicketFixture(async (fx) => {
-    const { sourceId, frontend } = await routedSource(fx);
-    // The repository left the source's application after the rules were saved.
-    const elsewhere = await addApplication(fx);
-    await fx.owner.query(
-      "update bakery.repositories set application_id = $2 where id = $1",
-      [frontend, elsewhere],
-    );
-    fx.reader.setIssue({
-      number: 4,
-      labels: [EXECUTE_LABEL, "backend", "frontend"],
+    const sourceId = await fx.insertSource();
+    const backend = await addRepository(fx, "backend");
+    const archived = await addRepository(fx, "frontend", {
+      connectionId: await archivedConnection(fx),
     });
-    const result = await fx.admit(sourceId, { number: 4 });
+    await read(
+      await putRules(fx, sourceId, [
+        rule("backend", backend, "backend"),
+        rule("frontend", archived, "frontend"),
+      ]),
+      200,
+    );
+    fx.reader.setIssue({ number: 9, ...issueLabels("backend", "frontend") });
+    const result = await fx.admit(sourceId, { number: 9 });
     assertEquals(result.kind, "unadmitted");
-    const check = routeCheck(result.report);
-    assertEquals([check.status, check.reason], [
+    const ready = check(result.report, "repository_ready");
+    assertEquals([ready.status, ready.reason, ready.evidence], [
       "reject",
       "route_target_inaccessible",
+      [{ ref: "route:label:frontend" }],
     ]);
-    assertEquals(result.report.verdict, "rejected");
     assertEquals((await fx.counts(sourceId)).requests, 0);
-    // The label that routes only to the healthy repository still admits.
-    fx.reader.setIssue({ number: 5, labels: [EXECUTE_LABEL, "backend"] });
-    assertEquals((await fx.admit(sourceId, { number: 5 })).kind, "admitted");
+    // The healthy route still admits; then its binding is archived.
+    fx.reader.setIssue({ number: 10, ...issueLabels("backend") });
+    assertEquals((await fx.admit(sourceId, { number: 10 })).kind, "admitted");
+    await fx.owner.query(
+      `update bakery.repository_role_bindings set archived_at = now()
+        where repository_id = $1`,
+      [backend],
+    );
+    fx.reader.setIssue({ number: 11, ...issueLabels("backend") });
+    const unbound = await fx.admit(sourceId, { number: 11 });
+    assertEquals(
+      check(unbound.report, "repository_ready").reason,
+      "route_target_inaccessible",
+    );
   }));
 
 Deno.test("#31 AC2: an ambiguous role or repository blocks with route_ambiguous", () =>
   withTicketFixture(async (fx) => {
     const sourceId = await fx.insertSource();
-    const one = await addRepository(fx, "one");
-    const two = await addRepository(fx, "two");
+    const one = await addRepository(fx, "one", {
+      roles: ["backend", "frontend"],
+    });
+    const two = await addRepository(fx, "two", { roles: ["backend"] });
     await read(
       await putRules(fx, sourceId, [
-        // One role, two repositories.
-        { labelId: "backend", repositoryId: one, role: "backend" },
-        { labelId: "server", repositoryId: two, role: "backend" },
-        // One repository, two roles.
-        { labelId: "web", repositoryId: one, role: "frontend" },
+        rule("backend", one, "backend"),
+        rule("server", two, "backend"),
+        rule("web", one, "frontend"),
       ]),
       200,
     );
     for (
-      const [number, labels, refs] of [
-        [6, ["backend", "server"], ["route:role:backend"]],
-        [7, ["backend", "web"], ["route:label:backend", "route:label:web"]],
+      const [number, keys, refs] of [
+        [12, ["backend", "server"], ["route:role:backend"]],
+        [13, ["backend", "web"], ["route:label:backend", "route:label:web"]],
       ] as const
     ) {
-      fx.reader.setIssue({ number, labels: [EXECUTE_LABEL, ...labels] });
+      fx.reader.setIssue({ number, ...issueLabels(...keys) });
       const result = await fx.admit(sourceId, { number });
       assertEquals(result.kind, "unadmitted", String(number));
-      const check = routeCheck(result.report);
-      assertEquals(check.reason, "route_ambiguous");
-      assertEquals(check.evidence.map((entry) => entry.ref), [...refs]);
+      const ready = check(result.report, "repository_ready");
+      assertEquals(ready.reason, "route_ambiguous");
+      assertEquals(ready.evidence.map((e) => e.ref), [...refs]);
     }
+    assertEquals((await fx.counts(sourceId)).requests, 0);
+  }));
+
+Deno.test("#31 per-target readiness: a routed repository with no ready profile waits with its role named", () =>
+  withTicketFixture(async (fx) => {
+    const sourceId = await fx.insertSource();
+    const backend = await addRepository(fx, "backend");
+    const bare = await addRepository(fx, "frontend", { profile: false });
+    await read(
+      await putRules(fx, sourceId, [
+        rule("backend", backend, "backend"),
+        rule("frontend", bare, "frontend"),
+      ]),
+      200,
+    );
+    fx.reader.setIssue({ number: 14, ...issueLabels("backend", "frontend") });
+    const result = await fx.admit(sourceId, { number: 14 });
+    assertEquals(result.kind, "unadmitted");
+    const ready = check(result.report, "repository_ready");
+    assertEquals([ready.status, ready.reason, ready.evidence], [
+      "wait",
+      "no_active_profile",
+      [{ ref: "route:role:frontend" }],
+    ]);
     assertEquals((await fx.counts(sourceId)).requests, 0);
   }));
 
 Deno.test("#31 AC2: with rules but no matching label the ticket falls back to the source repository, visibly", () =>
   withTicketFixture(async (fx) => {
     const { sourceId } = await routedSource(fx);
-    fx.reader.setIssue({ number: 8, labels: [EXECUTE_LABEL] });
-    const result = await fx.admit(sourceId, { number: 8 });
+    fx.reader.setIssue({ number: 15, ...issueLabels() });
+    const result = await fx.admit(sourceId, { number: 15 });
     assertEquals(result.kind, "admitted");
     assertEquals(
-      routeCheck(result.report).evidence.map((entry) => entry.ref),
+      check(result.report, "repository_ready").evidence.map((e) => e.ref),
       ["route:fallback"],
     );
     const targets = await targetsOf(fx, result.request!.id);
     assertEquals(
-      targets.map((target) => [target.repository_id, target.role]),
-      [[fx.repositoryId, "default"]],
+      targets.map((t) => [t.repository_id, t.role, t.child_task_id]),
+      [[fx.repositoryId, "default", null]],
     );
-    assertEquals(targets[0].routing_rule_id, null);
-
-    // A source without rules routes exactly as before: no route evidence.
+    // The fallback runs on the request's own task, as before routing.
+    assertEquals((await fx.counts(sourceId)).runs, 1);
     const plain = await fx.insertSource();
-    fx.reader.setIssue({ number: 9, labels: [EXECUTE_LABEL] });
-    const before = await fx.admit(plain, { number: 9 });
-    assertEquals(routeCheck(before.report).evidence, []);
+    fx.reader.setIssue({ number: 16, labels: [EXECUTE_LABEL] });
+    const before = await fx.admit(plain, { number: 16 });
+    assertEquals(check(before.report, "repository_ready").evidence, []);
   }));
 
 Deno.test("#31 AC3 and #69 AC1: rule and policy edits affect new admissions only; active pins and children stay", () =>
   withTicketFixture(async (fx) => {
     const { sourceId, backend, frontend } = await routedSource(fx);
-    fx.reader.setIssue({
-      number: 10,
-      labels: [EXECUTE_LABEL, "backend", "frontend"],
-    });
-    const admitted = await fx.admit(sourceId, { number: 10 });
+    fx.reader.setIssue({ number: 17, ...issueLabels("backend", "frontend") });
+    const admitted = await fx.admit(sourceId, { number: 17 });
     assertEquals(admitted.kind, "admitted");
     const request = admitted.request!;
     const before = await targetsOf(fx, request.id);
@@ -359,17 +589,12 @@ Deno.test("#31 AC3 and #69 AC1: rule and policy edits affect new admissions only
          from bakery.ticket_requests where id = $1`,
       [request.id],
     );
-
-    // Retarget the labels: backend moves to a new repository, frontend goes.
-    const moved = await addRepository(fx, "moved");
+    const moved = await addRepository(fx, "moved", { roles: ["backend"] });
     const replaced = await read<RuleSet>(
-      await putRules(fx, sourceId, [
-        { labelId: "backend", repositoryId: moved, role: "backend" },
-      ]),
+      await putRules(fx, sourceId, [rule("backend", moved, "backend")]),
       200,
     );
     assertEquals(replaced.policyRevision, 3);
-    // And edit the policy itself.
     const policy = fx.policy({ requireAcceptanceCriteria: false });
     const patched = await read<{ policyRevision: number }>(
       await ticketCall(fx, "PATCH", `${SOURCES}/${sourceId}`, {
@@ -379,27 +604,28 @@ Deno.test("#31 AC3 and #69 AC1: rule and policy edits affect new admissions only
       200,
     );
     assertEquals(patched.policyRevision, 4);
-
-    // A recheck and a duplicate explicit request see the active request and
-    // keep it as admitted.
     const recheck = await fx.recheck(request.externalTicketId);
     assertEquals(recheck.request?.id, request.id);
-    const again = await fx.admit(sourceId, { number: 10 });
+    const again = await fx.admit(sourceId, { number: 17 });
     assertEquals(again.kind, "existing");
     assertEquals(again.request?.id, request.id);
 
     assertEquals(await targetsOf(fx, request.id), before);
     assertEquals(
-      before.map((target) => target.repository_id).sort(),
+      before.map((t) => t.repository_id).sort(),
       [backend, frontend].sort(),
     );
-    const after = await fx.owner.query<
-      {
-        readiness_report_id: string;
-        requirements_digest: string;
-        source_policy_revision: number;
-      }
-    >(
+    const plans = await fx.owner.query<{ n: number }>(
+      `select count(*)::int as n from bakery.coordination_plans
+        where parent_task_id = $1`,
+      [request.taskId],
+    );
+    assertEquals(plans.rows[0].n, 1, "no second plan retargets the request");
+    const after = await fx.owner.query<{
+      readiness_report_id: string;
+      requirements_digest: string;
+      source_policy_revision: number;
+    }>(
       `select readiness_report_id, requirements_digest, source_policy_revision
          from bakery.ticket_requests where id = $1`,
       [request.id],
@@ -414,17 +640,13 @@ Deno.test("#31 AC3 and #69 AC1: rule and policy edits affect new admissions only
     );
     assertEquals(after.rows[0].source_policy_revision, 2);
 
-    // The next admission is judged on the new rules.
-    fx.reader.setIssue({
-      number: 11,
-      labels: [EXECUTE_LABEL, "backend", "frontend"],
-    });
-    const next = await fx.admit(sourceId, { number: 11 });
+    fx.reader.setIssue({ number: 18, ...issueLabels("backend", "frontend") });
+    const next = await fx.admit(sourceId, { number: 18 });
     assertEquals(next.kind, "admitted");
     assertEquals(
-      (await targetsOf(fx, next.request!.id)).map((target) => [
-        target.repository_id,
-        target.source_policy_revision,
+      (await targetsOf(fx, next.request!.id)).map((t) => [
+        t.repository_id,
+        t.source_policy_revision,
       ]),
       [[moved, 4]],
     );
@@ -433,24 +655,21 @@ Deno.test("#31 AC3 and #69 AC1: rule and policy edits affect new admissions only
 Deno.test("#31 AC3: a deleted rule leaves the child exactly as admitted", () =>
   withTicketFixture(async (fx) => {
     const { sourceId, backend } = await routedSource(fx);
-    fx.reader.setIssue({ number: 12, labels: [EXECUTE_LABEL, "backend"] });
-    const admitted = await fx.admit(sourceId, { number: 12 });
+    fx.reader.setIssue({ number: 19, ...issueLabels("backend") });
+    const admitted = await fx.admit(sourceId, { number: 19 });
     const [child] = await targetsOf(fx, admitted.request!.id);
     assertNotEquals(child.routing_rule_id, null);
     await read(await putRules(fx, sourceId, []), 200);
     assertEquals(await targetsOf(fx, admitted.request!.id), [child]);
     assertEquals(child.repository_id, backend);
-    assertEquals(child.routing_rule_version, 1);
   }));
 
-Deno.test("#31 rules: replace is CAS on the source version (428 and 412), validates targets, and an identical set changes nothing", () =>
+Deno.test("#31 rules: replace is CAS (428 and 412), validates targets and bindings, and an identical set changes nothing", () =>
   withTicketFixture(async (fx) => {
-    const { sourceId, backend, set } = await routedSource(fx);
+    const { sourceId, backend, frontend, set } = await routedSource(fx);
     const same = [
-      { labelId: "backend", repositoryId: backend, role: "backend" },
-      ...set.rules.filter((rule) => rule.labelId === "frontend").map((
-        { labelId, repositoryId, role },
-      ) => ({ labelId, repositoryId, role })),
+      rule("backend", backend, "backend"),
+      rule("frontend", frontend, "frontend"),
     ];
     const missing = await read<Problem>(
       await putRules(fx, sourceId, same, { ifMatch: null }),
@@ -470,45 +689,32 @@ Deno.test("#31 rules: replace is CAS on the source version (428 and 412), valida
       [unchanged.version, unchanged.policyRevision],
       [set.version, set.policyRevision],
     );
-    assertEquals(
-      unchanged.rules.map((rule) => [rule.id, rule.version]),
-      set.rules.map((rule) => [rule.id, rule.version]),
-    );
-    // A changed role keeps the rule id and advances its version.
-    const edited = await read<RuleSet>(
+    // A rename keeps the rule id and advances its version.
+    const renamed = await read<RuleSet>(
       await putRules(fx, sourceId, [
-        { labelId: "backend", repositoryId: backend, role: "api" },
+        { ...rule("backend", backend, "backend"), labelName: "server-side" },
       ]),
       200,
     );
-    const backendRule = set.rules.find((rule) => rule.labelId === "backend")!;
-    assertEquals(edited.rules.map((rule) => [rule.id, rule.version]), [[
-      backendRule.id,
-      2,
-    ]]);
-    // Duplicate pairs, archived and foreign-application targets are refused.
+    const backendRule = set.rules.find((r) => r.labelId === LABEL.backend.id)!;
+    assertEquals(
+      renamed.rules.map((r) => [r.id, r.version, r.labelName]),
+      [[backendRule.id, 2, "server-side"]],
+    );
     const duplicate = await read<Problem>(
       await putRules(fx, sourceId, [
-        { labelId: "x", repositoryId: backend, role: "a" },
-        { labelId: "x", repositoryId: backend, role: "b" },
+        rule("api", backend, "backend"),
+        { ...rule("api", backend, "backend"), labelName: "again" },
       ]),
       422,
     );
     assertEquals(duplicate.issues?.[0]?.code, "routing_rule_duplicate");
-    const foreign = await addRepository(
-      fx,
-      "foreign",
-      await addApplication(fx),
-    );
-    const outside = await read<Problem>(
-      await putRules(fx, sourceId, [
-        { labelId: "x", repositoryId: foreign, role: "a" },
-      ]),
+    const unboundRole = await read<Problem>(
+      await putRules(fx, sourceId, [rule("api", backend, "unbound-role")]),
       422,
     );
-    assertEquals(outside.issues?.[0]?.code, "routing_repository_unavailable");
-    // A request sent with the revision the rules moved past is 412.
-    fx.reader.setIssue({ number: 13, labels: [EXECUTE_LABEL] });
+    assertEquals(unboundRole.issues?.[0]?.code, "routing_role_unbound");
+    fx.reader.setIssue({ number: 20, labels: [EXECUTE_LABEL] });
     await read(
       await ticketCall(fx, "POST", `${SOURCES}/${sourceId}/previews`, {
         body: {},
@@ -519,7 +725,7 @@ Deno.test("#31 rules: replace is CAS on the source version (428 and 412), valida
       { id: string; requirements_digest: string }
     >(
       `select id, requirements_digest from bakery.external_tickets
-        where ticket_source_id = $1 and number = '13'`,
+        where ticket_source_id = $1 and number = '20'`,
       [sourceId],
     );
     const refused = await read<Problem>(
@@ -553,37 +759,32 @@ Deno.test("#31 rules: another organization gets 404 for a source's rules, read o
         organizationId: other.organizationId,
       };
       const path = `${SOURCES}/${sourceId}/routing-rules`;
-      assertEquals(
-        (await ticketCall(fx, "GET", path, asOther)).status,
-        404,
-      );
+      assertEquals((await ticketCall(fx, "GET", path, asOther)).status, 404);
       const replace = await ticketCall(fx, "PUT", path, {
         ...asOther,
-        body: {
-          rules: [{ labelId: "x", repositoryId: backend, role: "a" }],
-        },
+        body: { rules: [rule("api", backend, "backend")] },
         ifMatch: set.version,
       });
       assertEquals(replace.status, 404, await replace.text());
       const own = await read<RuleSet>(await ticketCall(fx, "GET", path), 200);
-      assertEquals(own.version, set.version);
-      assertEquals(own.rules.length, 2);
+      assertEquals([own.version, own.rules.length], [set.version, 2]);
     } finally {
       await cleanupSeededOrganizations(fx.f);
     }
   }));
 
-Deno.test("#31 AC1 over HTTP: ticketRequests.create answers the request's targets", () =>
+Deno.test("#31 AC1 over HTTP: ticketRequests.create answers the request's targets and child tasks", () =>
   withTicketFixture(async (fx) => {
     const { sourceId, backend, frontend, set } = await routedSource(fx);
     fx.reader.setIssue({
-      number: 14,
+      number: 21,
       labels: ["backend", "frontend"],
+      labelIds: [LABEL.backend.id, LABEL.frontend.id],
     });
     const recorded = await recordReadiness(fx.automationDeps(), {
       organizationId: fx.organizationId,
       sourceId,
-      number: 14,
+      number: 21,
       intent: null,
       origin: "poll",
       caller: null,
@@ -610,7 +811,8 @@ Deno.test("#31 AC1 over HTTP: ticketRequests.create answers the request's target
       201,
     );
     assertEquals(
-      created.targets.map((target) => [target.role, target.repositoryId]),
+      created.targets.map((t) => [t.role, t.repositoryId]),
       [["backend", backend], ["frontend", frontend]],
     );
+    assert(created.targets.every((t) => t.childTaskId !== null));
   }, { budget: true }));

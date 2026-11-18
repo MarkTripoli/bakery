@@ -31,6 +31,10 @@ import {
 import { lockAuthority } from "../integrations/write-authority.ts";
 import { createRunCommand } from "./run-command.ts";
 import {
+  createCoordinationPlanCommand,
+  materializeCoordinationPlanCommand,
+} from "./coordination-command.ts";
+import {
   approvalPolicyDigest,
   effectiveApprovalPolicy,
 } from "./stage-policy.ts";
@@ -88,6 +92,7 @@ import {
   readTaskState,
   readTicketRef,
   requestById,
+  requestPlanStatus,
   runStatusOf,
   taskHasUnconsumedApproval,
   type TicketRequest,
@@ -355,16 +360,49 @@ const frameRoutes = new WeakMap<Frame, Promise<TicketRouteResolution>>();
 function routeOf(frame: Frame): Promise<TicketRouteResolution> {
   let route = frameRoutes.get(frame);
   if (route === undefined) {
-    route = readRouteRules(frame.transaction, frame.source).then((rules) =>
-      resolveTicketRoutes(
-        issueLabels(frame.prefetch),
-        rules,
-        frame.source.repositoryId,
-      )
-    );
+    route = resolveFrameRoute(frame);
     frameRoutes.set(frame, route);
   }
   return route;
+}
+
+/** The provider label ids the issue read named, or null when it named none. */
+function issueLabelIds(prefetch: TicketPrefetch): readonly string[] | null {
+  if (prefetch.issue.kind !== "present") return [];
+  return prefetch.issue.snapshot.labelIds ?? null;
+}
+
+async function resolveFrameRoute(
+  frame: Frame,
+): Promise<TicketRouteResolution> {
+  const { source, transaction } = frame;
+  const rules = await readRouteRules(transaction, source);
+  const route = resolveTicketRoutes(
+    issueLabelIds(frame.prefetch),
+    rules,
+    source.repositoryId,
+  );
+  if (route.kind !== "routed") return route;
+  // Each routed target runs the preset in its own repository, so each needs
+  // a ready profile and preset, not only the source's repository.
+  const unready = { profile: [] as string[], preset: [] as string[] };
+  for (const target of route.targets) {
+    if (target.ruleId === null) continue;
+    const availability = await presetAvailability(
+      transaction,
+      source.organizationId,
+      target.repositoryId,
+      FIXED_CODING_PRESET,
+      FIXED_CODING_PRESET.defaultBudgetLimitUsd,
+      frame.deps.budget,
+    );
+    if (availability.reasons.includes("no_active_profile")) {
+      unready.profile.push(`role:${target.role}`);
+    } else if (availability.status !== "ready") {
+      unready.preset.push(`role:${target.role}`);
+    }
+  }
+  return { ...route, unready };
 }
 
 type EvaluationContext = {
@@ -985,24 +1023,61 @@ async function admitFresh(
     pinnedPreset: report.preset,
   });
   // The scoped children: one per routed repository, pinned to this admission.
+  // Rule-routed targets run as child tasks of one ticket-origin coordination
+  // plan under the request's task; the fallback runs on that task itself.
   const route = await routeOf(frame);
   if (route.kind !== "routed") throw new Error("TICKET_ROUTE_NOT_READY");
+  const routed = route.targets.filter((target) => target.ruleId !== null);
+  const children = routed.length === 0 ? null : await planChildren(
+    frame,
+    actor,
+    {
+      requestId,
+      taskId: task.id,
+      ticket,
+      title: text.title,
+      description: text.description,
+    },
+    routed,
+  );
   await insertRequestTargets(transaction, {
     organizationId: call.organizationId,
     requestId,
     sourcePolicyRevision: source.policyRevision,
     pinnedPreset: report.preset,
-    targets: route.targets,
+    targets: route.targets.map((target) => ({
+      ...target,
+      coordinationPlanId: children?.planId ?? null,
+      childTaskId: children?.childByRepository.get(target.repositoryId) ??
+        null,
+    })),
   });
   let request = await mustRequest(transaction, call.organizationId, requestId);
 
-  // (9) A start under an automatic plan approval creates the run now.
+  // (9) A start under an automatic plan approval creates the run now: on the
+  // request's task, or on each child task when the ticket was routed.
   if (intent === "start" && source.policy.approval.plan === "automatic") {
-    const runId = await startRun(frame, actor, request, task);
-    request = await updateRequest(transaction, request, {
-      disposition: "admitted",
-      workflowRunId: runId,
-    });
+    if (children === null) {
+      const runId = await startRun(frame, actor, request, task);
+      request = await updateRequest(transaction, request, {
+        disposition: "admitted",
+        workflowRunId: runId,
+      });
+    } else {
+      for (const childTaskId of children.childByRepository.values()) {
+        await startRun(
+          frame,
+          actor,
+          request,
+          await childTaskRef(frame, childTaskId),
+          undefined,
+          childTaskId,
+        );
+      }
+      request = await updateRequest(transaction, request, {
+        disposition: "admitted",
+      });
+    }
   }
   await recordFacts(
     frame,
@@ -1030,12 +1105,130 @@ async function mustRequest(
   return request;
 }
 
+/** Lane key of a role inside the request's plan: the role made a plan key. */
+function laneKeyOf(role: string): string {
+  const key = role.toLowerCase().replace(/[^a-z0-9-]/g, "-").slice(0, 60);
+  return /^[a-z]/.test(key) ? key : `r-${key}`.slice(0, 63);
+}
+
+/**
+ * Creates and materializes the request's ticket-origin coordination plan:
+ * one lane per routed repository, named by its role binding alias, with no
+ * prerequisites (the targets are independent). The existing coordination
+ * commands create the child tasks, scope them and the parent to their
+ * repositories (task_repositories) and project the plan status from the
+ * children; nothing here runs work of its own.
+ */
+async function planChildren(
+  frame: Frame,
+  actor: OrganizationActor,
+  parent: {
+    requestId: string;
+    taskId: string;
+    ticket: TicketRow;
+    title: string;
+    description: string;
+  },
+  targets: readonly {
+    repositoryId: string;
+    role: string;
+    alias: string | null;
+  }[],
+): Promise<{ planId: string; childByRepository: Map<string, string> }> {
+  const spec = {
+    lanes: targets.map((target) => ({
+      key: laneKeyOf(target.role),
+      repositoryAlias: target.alias as string,
+      title: `${parent.title} (${target.role})`.slice(0, 500),
+      instructions: parent.description,
+      prerequisites: [],
+      outputs: [],
+      inputs: [],
+    })),
+    maxConcurrency: Math.min(16, Math.max(1, targets.length)),
+    join: "all-required",
+    failurePolicy: "stop-dependent",
+  };
+  const origin = await frame.transaction.query<
+    { provider: string; safe_url: string }
+  >(
+    `select source.provider, ticket.safe_url
+       from bakery.external_tickets as ticket
+       join bakery.ticket_sources as source
+         on source.organization_id = ticket.organization_id
+        and source.id = ticket.ticket_source_id
+      where ticket.organization_id = $1 and ticket.id = $2`,
+    [frame.source.organizationId, parent.ticket.id],
+  );
+  const url = origin.rows[0]?.safe_url ?? "";
+  const created = await createCoordinationPlanCommand(
+    internalContext(frame, actor, {}, {
+      operation: "coordinationPlans.create",
+      idempotencyKey: `ticket-request:${parent.requestId}:plan`,
+      target: "/v1/coordination-plans",
+    }),
+    {
+      parentTaskId: parent.taskId,
+      spec,
+      origin: {
+        kind: "ticket",
+        provider: origin.rows[0]?.provider ?? "unknown",
+        reference: parent.ticket.key.slice(0, 200),
+        ...(url.startsWith("https://") ? { url } : {}),
+      },
+    } as Parameters<typeof createCoordinationPlanCommand>[1],
+  );
+  await materializeCoordinationPlanCommand(
+    internalContext(frame, actor, { id: created.id }, {
+      operation: "coordinationPlans.materialize",
+      idempotencyKey: `ticket-request:${parent.requestId}:materialize`,
+      target: `/v1/coordination-plans/${created.id}/materializations`,
+    }),
+    {},
+  );
+  const childByRepository = new Map<string, string>();
+  const lanes = await frame.transaction.query<
+    { repository_id: string; child_task_id: string | null }
+  >(
+    `select repository_id, child_task_id from bakery.coordination_lanes
+      where organization_id = $1 and plan_id = $2`,
+    [frame.source.organizationId, created.id],
+  );
+  for (const lane of lanes.rows) {
+    if (lane.child_task_id === null) {
+      throw new Error("TICKET_PLAN_CHILD_MISSING");
+    }
+    childByRepository.set(lane.repository_id, lane.child_task_id);
+  }
+  return { planId: created.id, childByRepository };
+}
+
+/** A child task's id and repository profile, for its run. */
+async function childTaskRef(
+  frame: Frame,
+  taskId: string,
+): Promise<{ id: string; repositoryProfileId: string | null }> {
+  const result = await frame.transaction.query<
+    { repository_profile_id: string | null }
+  >(
+    `select repository_profile_id from bakery.tasks
+      where organization_id = $1 and id = $2`,
+    [frame.source.organizationId, taskId],
+  );
+  return {
+    id: taskId,
+    repositoryProfileId: result.rows[0]?.repository_profile_id ?? null,
+  };
+}
+
 async function startRun(
   frame: Frame,
   actor: OrganizationActor,
   request: TicketRequest,
   task: { id: string; repositoryProfileId: string | null },
   approvalId?: string,
+  /** A child task of the request's plan: its own idempotency key. */
+  childTaskId?: string,
 ): Promise<string> {
   const input = contractSchemas.RunCreate.safeParse({
     presetId: "fixed-coding",
@@ -1051,7 +1244,9 @@ async function startRun(
   const run = await createRunCommand(
     internalContext(frame, actor, { id: task.id }, {
       operation: "runs.create",
-      idempotencyKey: `ticket-request:${request.id}`,
+      idempotencyKey: childTaskId === undefined
+        ? `ticket-request:${request.id}`
+        : `ticket-request:${request.id}:${childTaskId}`,
       target: `/v1/tasks/${task.id}/runs`,
     }),
     input.data,
@@ -1675,6 +1870,11 @@ async function recheckWithin(
       { reportId: stored.id, runId },
     );
   }
+  const planStatus = await requestPlanStatus(
+    transaction,
+    organizationId,
+    existing.id,
+  );
   const decide = (current: TicketRequest): RecheckDecision =>
     decideRecheck({
       disposition: current.disposition,
@@ -1686,6 +1886,7 @@ async function recheckWithin(
       approvalAvailable: pass.approvalId !== null,
       pinnedRequirementsDigest: current.requirementsDigest,
       pauseRequestedAt: current.pauseRequestedAt?.toISOString() ?? null,
+      planStatus,
     }, report);
 
   const first = decide(request);

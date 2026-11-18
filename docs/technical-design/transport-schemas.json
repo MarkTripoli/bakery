@@ -10796,7 +10796,17 @@
             "minLength": 1,
             "maxLength": 100
           },
-          "description": "The provider's stable key for one label of the ticket source, exactly as the source's ticket reader reports it on a ticket (case-sensitive). A ticket carrying this label is routed to repositoryId."
+          "description": "The provider's stable id of one label of the ticket source (for example a numeric label id written as a string), exactly as the source's ticket reader reports it. Rules match this id, never the name, so renaming the label keeps its routing."
+        },
+        {
+          "name": "labelName",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "description": "Display name of the label, shown in settings and in readiness evidence; never matched. Send the current name to rename it; a rename alone changes nothing about routing."
         },
         {
           "name": "repositoryId",
@@ -10811,7 +10821,7 @@
           "bounds": {
             "maxLength": 63
           },
-          "description": "Role the repository plays for a routed ticket, such as backend or frontend. Within one ticket a role must resolve to one repository and a repository to one role, or admission is blocked as ambiguous."
+          "description": "Role the repository plays for a routed ticket, such as backend or frontend. The application must bind this repository to this role with an alias (applicationRepositoryRoles.set), because the target runs as a lane of a coordination plan that names it by that alias. Within one ticket a role must resolve to one repository and a repository to one role, or admission is blocked as ambiguous."
         },
         {
           "name": "presetId",
@@ -10823,7 +10833,7 @@
           "description": "Workflow preset the routed repository target runs; omitted means fixed-coding, the only preset admission runs. The preset's revision and digest are pinned on each admitted target."
         }
       ],
-      "description": "One routing rule as a client sends it: a provider label key, the repository it routes to, that repository's role and the preset it runs."
+      "description": "One routing rule as a client sends it: a provider label id and its display name, the repository it routes to, that repository's role and the preset it runs."
     },
     "TicketRoutingRulesReplace": {
       "fields": [
@@ -27687,6 +27697,7 @@
         "organizationId",
         "ticketSourceId",
         "labelId",
+        "labelName",
         "repositoryId",
         "role",
         "presetId",
@@ -27704,7 +27715,8 @@
         "presetId": "enum(fixed-coding)",
         "version": "integer",
         "createdAt": "timestamp",
-        "updatedAt": "timestamp"
+        "updatedAt": "timestamp",
+        "labelName": "string"
       },
       "nullableFields": [],
       "description": "One label routing rule of a ticket source: tickets carrying the label are routed to the repository in the given role.",
@@ -27712,13 +27724,14 @@
         "id": "Stable UUID of the rule; an unchanged rule keeps it across replacements, and admitted targets pin it.",
         "organizationId": "UUID of the organization that owns the rule.",
         "ticketSourceId": "UUID of the ticket source the rule belongs to.",
-        "labelId": "Provider label key the rule matches, compared exactly with the labels on a ticket.",
+        "labelId": "Provider label id the rule matches, compared exactly with the label ids on a ticket.",
         "repositoryId": "UUID of the repository the label routes to.",
         "role": "Role the repository plays for a routed ticket.",
         "presetId": "Workflow preset the routed target runs.",
         "version": "Edit count of this rule, starting at 1; admitted targets pin it.",
         "createdAt": "UTC timestamp when the rule was first saved.",
-        "updatedAt": "UTC timestamp when the rule last changed."
+        "updatedAt": "UTC timestamp when the rule last changed.",
+        "labelName": "Display name of the label as last saved; shown only, never matched."
       }
     },
     "TicketRoutingRuleSet": {
@@ -27752,7 +27765,9 @@
         "routingRuleId",
         "routingRuleVersion",
         "sourcePolicyRevision",
-        "pinnedPreset"
+        "pinnedPreset",
+        "coordinationPlanId",
+        "childTaskId"
       ],
       "fieldTypes": {
         "repositoryId": "uuid",
@@ -27760,20 +27775,26 @@
         "routingRuleId": "uuid|null",
         "routingRuleVersion": "integer|null",
         "sourcePolicyRevision": "integer",
-        "pinnedPreset": "json"
+        "pinnedPreset": "json",
+        "coordinationPlanId": "uuid|null",
+        "childTaskId": "uuid|null"
       },
       "nullableFields": [
         "routingRuleId",
-        "routingRuleVersion"
+        "routingRuleVersion",
+        "coordinationPlanId",
+        "childTaskId"
       ],
-      "description": "One repository-scoped child of an admitted ticket request, pinned at admission. Later rule or policy edits never change it.",
+      "description": "One repository-scoped child of an admitted ticket request, pinned at admission and run as a child task of the request's coordination plan. Later rule or policy edits never change it.",
       "fieldDescriptions": {
         "repositoryId": "UUID of the repository this child is scoped to; a request holds each repository at most once.",
         "role": "Role the repository plays for the request; default when the ticket matched no rule and fell back to the source's own repository.",
         "routingRuleId": "UUID of the rule that routed the ticket here as pinned at admission (the rule may since have been deleted), or null for the fallback to the source's repository.",
         "routingRuleVersion": "Version of that rule at admission, or null for the fallback.",
         "sourcePolicyRevision": "Ticket source policy revision the child was admitted under.",
-        "pinnedPreset": "Workflow preset identity (id, revision, digest) the child was admitted with."
+        "pinnedPreset": "Workflow preset identity (id, revision, digest) the child was admitted with.",
+        "coordinationPlanId": "Ticket-origin coordination plan whose lane runs this target, or null for the fallback to the source's repository, which runs on the request's own task.",
+        "childTaskId": "Child task of the request's task that runs this target in its repository, or null for the fallback. The request completes only when every child task completes and fails when any fails."
       }
     }
   },

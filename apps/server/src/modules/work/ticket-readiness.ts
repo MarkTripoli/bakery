@@ -561,6 +561,16 @@ function repositoryReady({ source, route }: ReadinessInput): Outcome {
   if (source.repositoryArchived) return waiting("repository_archived");
   if (!source.repositoryHasActiveProfile) return waiting("no_active_profile");
   if (route === undefined) return passed();
+  // Every routed target needs its own ready profile, not only the source's.
+  const noProfile = route.unready?.profile ?? [];
+  if (noProfile.length > 0) {
+    return waiting(
+      "no_active_profile",
+      ...noProfile.slice(0, TICKET_CHECK_MAX_EVIDENCE).map((ref) =>
+        evidenceRef(`route:${ref}`)
+      ),
+    );
+  }
   if (route.fallback) return passed(evidenceRef("route:fallback"));
   // The evidence names routed targets only; the plain source repository
   // carries none, as it did before routing.
@@ -572,11 +582,22 @@ function repositoryReady({ source, route }: ReadinessInput): Outcome {
   );
 }
 
-function presetReady({ source, preset }: ReadinessInput): Outcome {
+function presetReady({ source, preset, route }: ReadinessInput): Outcome {
   // The policy and the pin both name the one fixed preset by literal type, so
   // there is no identity to compare; only the repository's setup can fail.
   if (!source.presetReady) {
     return waiting("preset_setup_required", evidenceRef(`preset:${preset.id}`));
+  }
+  // A routed target whose repository cannot run the preset waits too.
+  const unready = route?.kind === "routed" ? route.unready?.preset ?? [] : [];
+  if (unready.length > 0) {
+    return waiting(
+      "preset_setup_required",
+      evidenceRef(`preset:${preset.id}`),
+      ...unready.slice(0, TICKET_CHECK_MAX_EVIDENCE - 1).map((ref) =>
+        evidenceRef(`route:${ref}`)
+      ),
+    );
   }
   return passed(evidenceRef(`preset:${preset.id}`));
 }

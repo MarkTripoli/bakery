@@ -406,6 +406,14 @@ const providerLabelName = z.string().min(1).max(TICKET_LABEL_NAME_MAX_LENGTH)
     "Label display name exactly as GitHub reports it, 1 to 50 characters; kept verbatim as evidence and never interpreted.",
   );
 
+/** A provider label id as the reader reports it: opaque, bounded, never a URL. */
+const providerLabelId = z.string().min(1).max(100).refine(
+  (value) => !labelNameIsUnsafe(value),
+  { message: "A label id must be trimmed and free of control characters." },
+).describe(
+  "The provider's stable identifier of one label, as an opaque string of 1 to 100 characters; compared exactly, never interpreted.",
+);
+
 const sha256Hex = z.string().regex(SHA256_HEX).describe(
   "Lowercase 64-character hexadecimal SHA-256 digest.",
 );
@@ -622,6 +630,10 @@ export const TicketSnapshotInputSchema = z.object({
   labels: z.array(providerLabelName).max(TICKET_SNAPSHOT_MAX_LABELS).describe(
     "Label display names on the issue, at most 50.",
   ),
+  labelIds: z.array(providerLabelId).max(TICKET_SNAPSHOT_MAX_LABELS)
+    .optional().describe(
+      "The provider's stable ids of the same labels, in the same order as labels. Label routing matches these, so renaming a label keeps its routing. Omitted by a reader that cannot name label ids; a source with routing rules then blocks the ticket as route_ambiguous instead of guessing.",
+    ),
   state: issueState,
   stateReason: issueStateReason,
   locked: z.boolean().describe(
@@ -636,6 +648,16 @@ export const TicketSnapshotInputSchema = z.object({
       code: "custom",
       path: ["body"],
       message: "The body exceeds 65,536 code points.",
+    });
+  }
+  if (
+    input.labelIds !== undefined &&
+    input.labelIds.length !== input.labels.length
+  ) {
+    context.addIssue({
+      code: "custom",
+      path: ["labelIds"],
+      message: "labelIds names the same labels as labels, one id each.",
     });
   }
 }).describe(

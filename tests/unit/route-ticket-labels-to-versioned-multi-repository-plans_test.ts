@@ -25,6 +25,8 @@ function rule(
   return {
     id: `rule-${labelId}-${repositoryId.slice(-1)}`,
     labelId,
+    labelName: labelId,
+    alias: `${role}-alias`,
     repositoryId,
     role,
     presetId: "fixed-coding",
@@ -57,6 +59,7 @@ Deno.test("#31 unit: the union of matched rules, one target per repository, orde
         ruleId: "rule-api-a",
         ruleVersion: 1,
         presetId: "fixed-coding",
+        alias: "backend-alias",
       },
       {
         repositoryId: B,
@@ -64,6 +67,7 @@ Deno.test("#31 unit: the union of matched rules, one target per repository, orde
         ruleId: "rule-frontend-b",
         ruleVersion: 1,
         presetId: "fixed-coding",
+        alias: "frontend-alias",
       },
     ],
   });
@@ -76,6 +80,7 @@ Deno.test("#31 unit: no rule, or no matching rule, falls back to the source repo
     ruleId: null,
     ruleVersion: null,
     presetId: "fixed-coding",
+    alias: null,
   };
   assertEquals(resolveTicketRoutes(["x"], [], SOURCE_REPO), {
     kind: "routed",
@@ -142,6 +147,26 @@ Deno.test("#31 unit: deleted, inaccessible and ambiguous matches block with a na
       rule("frontend", B, "frontend", { repositoryArchived: true }),
     ], SOURCE_REPO).kind,
     "routed",
+  );
+});
+
+Deno.test("#31 unit: a read without label ids, or a target without a role binding, is never guessed", () => {
+  const rules = [rule("backend", A, "backend")];
+  assertEquals(resolveTicketRoutes(null, rules, SOURCE_REPO), {
+    kind: "blocked",
+    reason: "route_ambiguous",
+    refs: ["labels:unidentified"],
+  });
+  assertEquals(resolveTicketRoutes(null, [], SOURCE_REPO).kind, "routed");
+  assertEquals(
+    resolveTicketRoutes(["backend"], [
+      rule("backend", A, "backend", { alias: null }),
+    ], SOURCE_REPO),
+    {
+      kind: "blocked",
+      reason: "route_target_inaccessible",
+      refs: ["label:backend"],
+    },
   );
 });
 

@@ -61173,6 +61173,12 @@
               "maxLength": 100,
               "description": "TicketRoutingRuleInput.labelId must contain at most 100 characters."
             },
+            "labelName": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "description": "TicketRoutingRuleInput.labelName must contain at most 100 characters."
+            },
             "repositoryId": {
               "type": "string",
               "format": "uuid",
@@ -61195,11 +61201,12 @@
           },
           "required": [
             "labelId",
+            "labelName",
             "repositoryId",
             "role"
           ],
           "additionalProperties": false,
-          "description": "One routing rule as a client sends it: a provider label key, the repository it routes to, that repository's role and the preset it runs."
+          "description": "One routing rule as a client sends it: a provider label id and its display name, the repository it routes to, that repository's role and the preset it runs."
         },
         "TicketRoutingRulesReplace": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -61216,6 +61223,12 @@
                     "minLength": 1,
                     "maxLength": 100,
                     "description": "TicketRoutingRuleInput.labelId must contain at most 100 characters."
+                  },
+                  "labelName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100,
+                    "description": "TicketRoutingRuleInput.labelName must contain at most 100 characters."
                   },
                   "repositoryId": {
                     "type": "string",
@@ -61239,6 +61252,7 @@
                 },
                 "required": [
                   "labelId",
+                  "labelName",
                   "repositoryId",
                   "role"
                 ],
@@ -112584,6 +112598,36 @@
                       }
                     ],
                     "description": "Workflow preset identity (id, revision, digest) the child was admitted with."
+                  },
+                  "coordinationPlanId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "Ticket-origin coordination plan whose lane runs this target, or null for the fallback to the source's repository, which runs on the request's own task."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "TicketRequestTarget.coordinationPlanId may be null in this transport value."
+                  },
+                  "childTaskId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "Child task of the request's task that runs this target in its repository, or null for the fallback. The request completes only when every child task completes and fails when any fails."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "TicketRequestTarget.childTaskId may be null in this transport value."
                   }
                 },
                 "required": [
@@ -112592,7 +112636,9 @@
                   "routingRuleId",
                   "routingRuleVersion",
                   "sourcePolicyRevision",
-                  "pinnedPreset"
+                  "pinnedPreset",
+                  "coordinationPlanId",
+                  "childTaskId"
                 ],
                 "additionalProperties": false,
                 "description": "Repository-scoped children pinned at admission, one per routed repository and ordered by role: the union of the matched routing rules deduplicated by repository, or the source's own repository when no rule matched. Never retargeted by a later rule or policy edit. Omitted by servers that predate label routing. Each array item follows this format."
@@ -200542,6 +200588,36 @@
                             }
                           ],
                           "description": "Workflow preset identity (id, revision, digest) the child was admitted with."
+                        },
+                        "coordinationPlanId": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                              "description": "Ticket-origin coordination plan whose lane runs this target, or null for the fallback to the source's repository, which runs on the request's own task."
+                            },
+                            {
+                              "type": "null",
+                              "description": "Null indicates that the value is unavailable."
+                            }
+                          ],
+                          "description": "TicketRequestTarget.coordinationPlanId may be null in this transport value."
+                        },
+                        "childTaskId": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                              "description": "Child task of the request's task that runs this target in its repository, or null for the fallback. The request completes only when every child task completes and fails when any fails."
+                            },
+                            {
+                              "type": "null",
+                              "description": "Null indicates that the value is unavailable."
+                            }
+                          ],
+                          "description": "TicketRequestTarget.childTaskId may be null in this transport value."
                         }
                       },
                       "required": [
@@ -200550,7 +200626,9 @@
                         "routingRuleId",
                         "routingRuleVersion",
                         "sourcePolicyRevision",
-                        "pinnedPreset"
+                        "pinnedPreset",
+                        "coordinationPlanId",
+                        "childTaskId"
                       ],
                       "additionalProperties": false,
                       "description": "Repository-scoped children pinned at admission, one per routed repository and ordered by role: the union of the matched routing rules deduplicated by repository, or the source's own repository when no rule matched. Never retargeted by a later rule or policy edit. Omitted by servers that predate label routing. Each array item follows this format."
@@ -216335,7 +216413,12 @@
             "labelId": {
               "type": "string",
               "maxLength": 65536,
-              "description": "Provider label key the rule matches, compared exactly with the labels on a ticket."
+              "description": "Provider label id the rule matches, compared exactly with the label ids on a ticket."
+            },
+            "labelName": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Display name of the label as last saved; shown only, never matched."
             },
             "repositoryId": {
               "type": "string",
@@ -216379,6 +216462,7 @@
             "organizationId",
             "ticketSourceId",
             "labelId",
+            "labelName",
             "repositoryId",
             "role",
             "presetId",
@@ -216437,7 +216521,12 @@
                   "labelId": {
                     "type": "string",
                     "maxLength": 65536,
-                    "description": "Provider label key the rule matches, compared exactly with the labels on a ticket."
+                    "description": "Provider label id the rule matches, compared exactly with the label ids on a ticket."
+                  },
+                  "labelName": {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Display name of the label as last saved; shown only, never matched."
                   },
                   "repositoryId": {
                     "type": "string",
@@ -216481,6 +216570,7 @@
                   "organizationId",
                   "ticketSourceId",
                   "labelId",
+                  "labelName",
                   "repositoryId",
                   "role",
                   "presetId",
@@ -216592,6 +216682,36 @@
                 }
               ],
               "description": "Workflow preset identity (id, revision, digest) the child was admitted with."
+            },
+            "coordinationPlanId": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Ticket-origin coordination plan whose lane runs this target, or null for the fallback to the source's repository, which runs on the request's own task."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "TicketRequestTarget.coordinationPlanId may be null in this transport value."
+            },
+            "childTaskId": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Child task of the request's task that runs this target in its repository, or null for the fallback. The request completes only when every child task completes and fails when any fails."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "TicketRequestTarget.childTaskId may be null in this transport value."
             }
           },
           "required": [
@@ -216600,10 +216720,12 @@
             "routingRuleId",
             "routingRuleVersion",
             "sourcePolicyRevision",
-            "pinnedPreset"
+            "pinnedPreset",
+            "coordinationPlanId",
+            "childTaskId"
           ],
           "additionalProperties": false,
-          "description": "One repository-scoped child of an admitted ticket request, pinned at admission. Later rule or policy edits never change it."
+          "description": "One repository-scoped child of an admitted ticket request, pinned at admission and run as a child task of the request's coordination plan. Later rule or policy edits never change it."
         },
         "TicketRequestTarget____schema0": {
           "anyOf": [
@@ -218269,7 +218391,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:7b2571227fbb26dd5299179754c0a3086c01d573635b0672f77a63d800ae6056",
+  "compatibilityDigest": "sha256:144edc622fb9f44e1cd1fc40485dd911fb0d973b16d51f14c982910f5eee7a84",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -244274,6 +244396,12 @@
           "maxLength": 100,
           "description": "TicketRoutingRuleInput.labelId must contain at most 100 characters."
         },
+        "labelName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "description": "TicketRoutingRuleInput.labelName must contain at most 100 characters."
+        },
         "repositoryId": {
           "type": "string",
           "format": "uuid",
@@ -244296,11 +244424,12 @@
       },
       "required": [
         "labelId",
+        "labelName",
         "repositoryId",
         "role"
       ],
       "additionalProperties": false,
-      "description": "One routing rule as a client sends it: a provider label key, the repository it routes to, that repository's role and the preset it runs."
+      "description": "One routing rule as a client sends it: a provider label id and its display name, the repository it routes to, that repository's role and the preset it runs."
     },
     "TicketRoutingRulesReplace": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -244317,6 +244446,12 @@
                 "minLength": 1,
                 "maxLength": 100,
                 "description": "TicketRoutingRuleInput.labelId must contain at most 100 characters."
+              },
+              "labelName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100,
+                "description": "TicketRoutingRuleInput.labelName must contain at most 100 characters."
               },
               "repositoryId": {
                 "type": "string",
@@ -244340,6 +244475,7 @@
             },
             "required": [
               "labelId",
+              "labelName",
               "repositoryId",
               "role"
             ],
@@ -295873,6 +296009,36 @@
                   }
                 ],
                 "description": "Workflow preset identity (id, revision, digest) the child was admitted with."
+              },
+              "coordinationPlanId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Ticket-origin coordination plan whose lane runs this target, or null for the fallback to the source's repository, which runs on the request's own task."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "TicketRequestTarget.coordinationPlanId may be null in this transport value."
+              },
+              "childTaskId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Child task of the request's task that runs this target in its repository, or null for the fallback. The request completes only when every child task completes and fails when any fails."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "TicketRequestTarget.childTaskId may be null in this transport value."
               }
             },
             "required": [
@@ -295881,7 +296047,9 @@
               "routingRuleId",
               "routingRuleVersion",
               "sourcePolicyRevision",
-              "pinnedPreset"
+              "pinnedPreset",
+              "coordinationPlanId",
+              "childTaskId"
             ],
             "additionalProperties": false,
             "description": "Repository-scoped children pinned at admission, one per routed repository and ordered by role: the union of the matched routing rules deduplicated by repository, or the source's own repository when no rule matched. Never retargeted by a later rule or policy edit. Omitted by servers that predate label routing. Each array item follows this format."
@@ -383973,6 +384141,36 @@
                         }
                       ],
                       "description": "Workflow preset identity (id, revision, digest) the child was admitted with."
+                    },
+                    "coordinationPlanId": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                          "description": "Ticket-origin coordination plan whose lane runs this target, or null for the fallback to the source's repository, which runs on the request's own task."
+                        },
+                        {
+                          "type": "null",
+                          "description": "Null indicates that the value is unavailable."
+                        }
+                      ],
+                      "description": "TicketRequestTarget.coordinationPlanId may be null in this transport value."
+                    },
+                    "childTaskId": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                          "description": "Child task of the request's task that runs this target in its repository, or null for the fallback. The request completes only when every child task completes and fails when any fails."
+                        },
+                        {
+                          "type": "null",
+                          "description": "Null indicates that the value is unavailable."
+                        }
+                      ],
+                      "description": "TicketRequestTarget.childTaskId may be null in this transport value."
                     }
                   },
                   "required": [
@@ -383981,7 +384179,9 @@
                     "routingRuleId",
                     "routingRuleVersion",
                     "sourcePolicyRevision",
-                    "pinnedPreset"
+                    "pinnedPreset",
+                    "coordinationPlanId",
+                    "childTaskId"
                   ],
                   "additionalProperties": false,
                   "description": "Repository-scoped children pinned at admission, one per routed repository and ordered by role: the union of the matched routing rules deduplicated by repository, or the source's own repository when no rule matched. Never retargeted by a later rule or policy edit. Omitted by servers that predate label routing. Each array item follows this format."
@@ -399794,7 +399994,12 @@
         "labelId": {
           "type": "string",
           "maxLength": 65536,
-          "description": "Provider label key the rule matches, compared exactly with the labels on a ticket."
+          "description": "Provider label id the rule matches, compared exactly with the label ids on a ticket."
+        },
+        "labelName": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Display name of the label as last saved; shown only, never matched."
         },
         "repositoryId": {
           "type": "string",
@@ -399838,6 +400043,7 @@
         "organizationId",
         "ticketSourceId",
         "labelId",
+        "labelName",
         "repositoryId",
         "role",
         "presetId",
@@ -399896,7 +400102,12 @@
               "labelId": {
                 "type": "string",
                 "maxLength": 65536,
-                "description": "Provider label key the rule matches, compared exactly with the labels on a ticket."
+                "description": "Provider label id the rule matches, compared exactly with the label ids on a ticket."
+              },
+              "labelName": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Display name of the label as last saved; shown only, never matched."
               },
               "repositoryId": {
                 "type": "string",
@@ -399940,6 +400151,7 @@
               "organizationId",
               "ticketSourceId",
               "labelId",
+              "labelName",
               "repositoryId",
               "role",
               "presetId",
@@ -400051,6 +400263,36 @@
             }
           ],
           "description": "Workflow preset identity (id, revision, digest) the child was admitted with."
+        },
+        "coordinationPlanId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Ticket-origin coordination plan whose lane runs this target, or null for the fallback to the source's repository, which runs on the request's own task."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "TicketRequestTarget.coordinationPlanId may be null in this transport value."
+        },
+        "childTaskId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Child task of the request's task that runs this target in its repository, or null for the fallback. The request completes only when every child task completes and fails when any fails."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "TicketRequestTarget.childTaskId may be null in this transport value."
         }
       },
       "required": [
@@ -400059,10 +400301,12 @@
         "routingRuleId",
         "routingRuleVersion",
         "sourcePolicyRevision",
-        "pinnedPreset"
+        "pinnedPreset",
+        "coordinationPlanId",
+        "childTaskId"
       ],
       "additionalProperties": false,
-      "description": "One repository-scoped child of an admitted ticket request, pinned at admission. Later rule or policy edits never change it.",
+      "description": "One repository-scoped child of an admitted ticket request, pinned at admission and run as a child task of the request's coordination plan. Later rule or policy edits never change it.",
       "$defs": {
         "__schema0": {
           "anyOf": [

@@ -828,11 +828,12 @@ Versioned rule routing one provider label of a ticket source to a repository rol
 | `organization_id` | `uuid` | no | `organizations` |
 | `ticket_source_id` | `uuid` | no | `ticket_sources` |
 | `provider_label_id` | `text` | no | none |
+| `label_name` | `text` | no | none |
 | `repository_id` | `uuid` | no | `repositories` |
 | `role` | `text` | no | none |
 | `preset_id` | `text` | no | none |
 
-**Integrity:** UNIQUE(organization_id,ticket_source_id,provider_label_id,repository_id). Owned by its source (cascade on source delete); the repository FK has no cascade, so an archived or inaccessible target stays visible and blocks admission with a named reason. ticketRoutingRules.replace swaps the whole set under the source row lock and If-Match on the source version: a surviving rule keeps its id, version counts its own role or preset edits, a removed rule is deleted, and any change advances ticket_sources.policy_revision and version once. bakery_app may select, insert, delete and update role, preset_id, updated_at and version. Role format, label key bounds and preset ids are TypeScript validation. UNIQUE(organization_id,id) supports composite foreign keys; tenant-owned parent references are constrained to the same organization unless this record documents a host-owned exception.
+**Integrity:** UNIQUE(organization_id,ticket_source_id,provider_label_id,repository_id). Owned by its source (cascade on source delete); the repository FK has no cascade, so an archived or inaccessible target stays visible and blocks admission with a named reason. ticketRoutingRules.replace swaps the whole set under the source row lock and If-Match on the source version: a surviving rule keeps its id, version counts its own role or preset edits, a removed rule is deleted, and any change advances ticket_sources.policy_revision and version once. provider_label_id is the provider's stable label id that admission matches, so renaming a label keeps routing; label_name is display only. Each rule's (repository, role) must have a live repository_role_bindings alias when saved. bakery_app may select, insert, delete and update label_name, role, preset_id, updated_at and version. Role format, label key bounds and preset ids are TypeScript validation. UNIQUE(organization_id,id) supports composite foreign keys; tenant-owned parent references are constrained to the same organization unless this record documents a host-owned exception.
 
 #### `ticket_request_targets`
 
@@ -848,8 +849,10 @@ Immutable repository-scoped child of one admitted ticket request.
 | `routing_rule_version` | `int?` | yes | none |
 | `source_policy_revision` | `int` | no | none |
 | `pinned_preset` | `jsonb` | no | none |
+| `coordination_plan_id` | `uuid?` | yes | `coordination_plans` |
+| `child_task_id` | `uuid?` | yes | `tasks` |
 
-**Integrity:** Insert-only: bakery_app has select and insert and no update or delete grant, so a rule or policy edit, a re-pin or an upgrade never retargets an admitted request. Inherits id and created_at only. UNIQUE(organization_id,ticket_request_id,repository_id): one child per repository, the floor under the resolver's deduplication of matched rules. Admission writes the children with the request, pinning role, rule and rule version (null for the fallback to the source's repository), the source policy revision and the preset. routing_rule_id is a pinned value with no foreign key, so deleting the rule leaves the child exactly as admitted. UNIQUE(organization_id,id) supports composite foreign keys; tenant-owned parent references are constrained to the same organization unless this record documents a host-owned exception.
+**Integrity:** Insert-only: bakery_app has select and insert and no update or delete grant, so a rule or policy edit, a re-pin or an upgrade never retargets an admitted request. Inherits id and created_at only. UNIQUE(organization_id,ticket_request_id,repository_id): one child per repository, the floor under the resolver's deduplication of matched rules. Admission writes the children with the request, pinning role, rule and rule version (null for the fallback to the source's repository), the source policy revision and the preset. routing_rule_id is a pinned value with no foreign key, so deleting the rule leaves the child exactly as admitted. UNIQUE(organization_id,id) supports composite foreign keys; tenant-owned parent references are constrained to the same organization unless this record documents a host-owned exception. A rule-routed target runs as one lane of a ticket-origin coordination plan under the request's task: coordination_plan_id and child_task_id name the plan and the lane's child task (null for the fallback, which runs on the request's own task). The request completes only when the plan projects completed, and fails when it projects failed or partially_delivered.
 
 #### `ticket_task_links`
 

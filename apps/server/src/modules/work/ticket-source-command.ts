@@ -357,6 +357,7 @@ export async function updateTicketSource(
 type StoredRule = {
   id: string;
   provider_label_id: string;
+  label_name: string;
   repository_id: string;
   role: string;
   preset_id: string;
@@ -371,7 +372,8 @@ async function storedRules(
   sourceId: string,
 ): Promise<StoredRule[]> {
   const result = await transaction.query<StoredRule>(
-    `select id, provider_label_id, repository_id, role, preset_id, version,
+    `select id, provider_label_id, label_name, repository_id, role, preset_id,
+            version,
             created_at, updated_at
        from bakery.ticket_routing_rules
       where organization_id = $1 and ticket_source_id = $2
@@ -395,6 +397,7 @@ function ruleSetOutput(
       organizationId,
       ticketSourceId: source.id,
       labelId: rule.provider_label_id,
+      labelName: rule.label_name,
       repositoryId: rule.repository_id,
       role: rule.role,
       presetId: rule.preset_id,
@@ -433,7 +436,9 @@ export async function getTicketRoutingRules(
  * their pins). Any change advances the source's policy revision and version
  * once, under the source row `for update`, so an admission holding it
  * `for share` finishes first and the next one is judged on the new rules.
- * Every target must be a live repository of the source's application.
+ * Every target must be a live repository of the source's application with a
+ * live role binding (alias) for the rule's role. Rules match the provider's
+ * label id, so a rename (a new labelName for the same id) keeps routing.
  */
 export async function replaceTicketRoutingRules(
   context: ActionContext,
@@ -453,7 +458,13 @@ export async function replaceTicketRoutingRules(
   }
   const wanted = new Map<
     string,
-    { labelId: string; repositoryId: string; role: string; presetId: string }
+    {
+      labelId: string;
+      labelName: string;
+      repositoryId: string;
+      role: string;
+      presetId: string;
+    }
   >();
   input.rules.forEach((rule, index) => {
     const key = `${rule.labelId}\u0000${rule.repositoryId}`;
@@ -462,6 +473,7 @@ export async function replaceTicketRoutingRules(
     }
     wanted.set(key, {
       labelId: rule.labelId,
+      labelName: rule.labelName,
       repositoryId: rule.repositoryId,
       role: rule.role,
       presetId: rule.presetId ?? "fixed-coding",
@@ -487,6 +499,27 @@ export async function replaceTicketRoutingRules(
         "routing_repository_unavailable",
       );
     }
+    // A routed target runs as a lane of a coordination plan, which names its
+    // repository by the application's role binding alias for that role.
+    const bound = await transaction.query<
+      { repository_id: string; role: string }
+    >(
+      `select distinct repository_id, role
+         from bakery.repository_role_bindings
+        where organization_id = $1 and application_id = $2
+          and alias is not null and archived_at is null
+          and repository_id = any($3::uuid[])`,
+      [organizationId, current.applicationId, repositoryIds],
+    );
+    const pairs = new Set(
+      bound.rows.map((row) => `${row.repository_id}\u0000${row.role}`),
+    );
+    const unbound = input.rules.findIndex((rule) =>
+      !pairs.has(`${rule.repositoryId}\u0000${rule.role}`)
+    );
+    if (unbound >= 0) {
+      throw unprocessable(["rules", unbound, "role"], "routing_role_unbound");
+    }
   }
   const existing = await storedRules(transaction, organizationId, id);
   let changed = false;
@@ -501,14 +534,15 @@ export async function replaceTicketRoutingRules(
       );
       changed = true;
     } else if (
-      next.role !== rule.role || next.presetId !== rule.preset_id
+      next.role !== rule.role || next.presetId !== rule.preset_id ||
+      next.labelName !== rule.label_name
     ) {
       await transaction.query(
         `update bakery.ticket_routing_rules
-            set role = $3, preset_id = $4, updated_at = now(),
-                version = version + 1
+            set role = $3, preset_id = $4, label_name = $5,
+                updated_at = now(), version = version + 1
           where organization_id = $1 and id = $2`,
-        [organizationId, rule.id, next.role, next.presetId],
+        [organizationId, rule.id, next.role, next.presetId, next.labelName],
       );
       changed = true;
     }
@@ -518,13 +552,14 @@ export async function replaceTicketRoutingRules(
     await transaction.query(
       `insert into bakery.ticket_routing_rules (
          id, organization_id, ticket_source_id, provider_label_id,
-         repository_id, role, preset_id
-       ) values ($1, $2, $3, $4, $5, $6, $7)`,
+         label_name, repository_id, role, preset_id
+       ) values ($1, $2, $3, $4, $5, $6, $7, $8)`,
       [
         crypto.randomUUID(),
         organizationId,
         id,
         rule.labelId,
+        rule.labelName,
         rule.repositoryId,
         rule.role,
         rule.presetId,

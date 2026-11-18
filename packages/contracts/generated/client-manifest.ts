@@ -20311,6 +20311,12 @@ export const clientManifest = {
                 "maxLength": 100,
                 "description": "TicketRoutingRuleInput.labelId must contain at most 100 characters."
               },
+              "labelName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100,
+                "description": "TicketRoutingRuleInput.labelName must contain at most 100 characters."
+              },
               "repositoryId": {
                 "type": "string",
                 "format": "uuid",
@@ -20333,6 +20339,7 @@ export const clientManifest = {
             },
             "required": [
               "labelId",
+              "labelName",
               "repositoryId",
               "role"
             ],
@@ -62084,6 +62091,36 @@ export const clientManifest = {
                   }
                 ],
                 "description": "Workflow preset identity (id, revision, digest) the child was admitted with."
+              },
+              "coordinationPlanId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Ticket-origin coordination plan whose lane runs this target, or null for the fallback to the source's repository, which runs on the request's own task."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "TicketRequestTarget.coordinationPlanId may be null in this transport value."
+              },
+              "childTaskId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Child task of the request's task that runs this target in its repository, or null for the fallback. The request completes only when every child task completes and fails when any fails."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "TicketRequestTarget.childTaskId may be null in this transport value."
               }
             },
             "required": [
@@ -62092,7 +62129,9 @@ export const clientManifest = {
               "routingRuleId",
               "routingRuleVersion",
               "sourcePolicyRevision",
-              "pinnedPreset"
+              "pinnedPreset",
+              "coordinationPlanId",
+              "childTaskId"
             ],
             "additionalProperties": false,
             "description": "Repository-scoped children pinned at admission, one per routed repository and ordered by role: the union of the matched routing rules deduplicated by repository, or the source's own repository when no rule matched. Never retargeted by a later rule or policy edit. Omitted by servers that predate label routing. Each array item follows this format."
@@ -71896,7 +71935,12 @@ export const clientManifest = {
               "labelId": {
                 "type": "string",
                 "maxLength": 65536,
-                "description": "Provider label key the rule matches, compared exactly with the labels on a ticket."
+                "description": "Provider label id the rule matches, compared exactly with the label ids on a ticket."
+              },
+              "labelName": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Display name of the label as last saved; shown only, never matched."
               },
               "repositoryId": {
                 "type": "string",
@@ -71940,6 +71984,7 @@ export const clientManifest = {
               "organizationId",
               "ticketSourceId",
               "labelId",
+              "labelName",
               "repositoryId",
               "role",
               "presetId",

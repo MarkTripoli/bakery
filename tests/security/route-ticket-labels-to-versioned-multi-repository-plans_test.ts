@@ -48,8 +48,19 @@ Deno.test("#31 security: Developers read the rules, only Admins replace them, vi
     const sourceId = await fx.insertSource();
     const path = `${SOURCES}/${sourceId}/routing-rules`;
     const body = {
-      rules: [{ labelId: "backend", repositoryId: fx.repositoryId, role: "a" }],
+      rules: [{
+        labelId: "9001",
+        labelName: "backend",
+        repositoryId: fx.repositoryId,
+        role: "a",
+      }],
     };
+    await fx.owner.query(
+      `insert into bakery.repository_role_bindings (
+         organization_id, application_id, repository_id, role, alias
+       ) values ($1, $2, $3, 'a', 'fixture-a')`,
+      [fx.organizationId, fx.applicationId, fx.repositoryId],
+    );
     try {
       const viewer = await addMember(
         fx.f,
@@ -105,7 +116,8 @@ Deno.test("#31 security: a rule cannot name another organization's repository, a
         await ticketCall(fx, "PUT", path, {
           body: {
             rules: [{
-              labelId: "backend",
+              labelId: "9001",
+              labelName: "backend",
               repositoryId: other.repositoryId,
               role: "backend",
             }],
@@ -124,7 +136,8 @@ Deno.test("#31 security: a rule cannot name another organization's repository, a
         ...asOther,
         body: {
           rules: [{
-            labelId: "backend",
+            labelId: "9001",
+            labelName: "backend",
             repositoryId: other.repositoryId,
             role: "backend",
           }],
