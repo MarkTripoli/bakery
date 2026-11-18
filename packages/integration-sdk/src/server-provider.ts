@@ -73,10 +73,27 @@ export type CodeFor<M extends ProviderManifest> = "code" extends
  * moment this type exists to prevent. `never` in the unclaimed arm forbids a value
  * as well as requiring its absence.
  */
-/** Whether the manifest claims a family, as a literal the conditional types can branch on. */
-type Claims<M extends ProviderManifest, F> = F extends M["families"][number]
-  ? true
-  : false;
+/**
+ * Whether the manifest's family list *excludes* `F`, which is the only case where a
+ * port may be forbidden.
+ *
+ * This asks the question the other way round from "does the manifest claim F", and
+ * the direction is the whole point (QA, round 2). A manifest annotated
+ * `ProviderManifest` widens `families` to the full union, and `F extends
+ * ("tickets" | "code")` is then true for *every* F. So the claim-first form resolves
+ * "claims tickets" and "claims nothing" to the same branch, and a familyless control
+ * silently takes the required-port arm - which is exactly the false pass that made
+ * my own control prove nothing.
+ *
+ * Asking whether F is *excluded* distinguishes them: the wide union excludes
+ * nothing, so its ports stay required; `never` (a familyless manifest) excludes
+ * everything, so its ports are forbidden; and a list of another family excludes this
+ * one. Erring toward required is the safe direction - a missing port fails at the
+ * build, whereas a port that was never required is called on an undefined value at
+ * runtime.
+ */
+type ExcludesFamilies<M extends ProviderManifest, F> = F extends
+  M["families"][number] ? false : true;
 
 /**
  * Everything a server provider supplies.
@@ -104,21 +121,20 @@ export type ServerImpl<M extends ProviderManifest> =
      */
     hostProfile: string;
   }
-  & (Claims<M, "tickets"> extends true ? {
-      /** Serves the ticket family; required because the manifest claims it. */ tickets:
+  & (ExcludesFamilies<M, "tickets"> extends true ? {
+      /** Forbidden: the manifest excludes the ticket family. */ tickets?:
+        never;
+    }
+    : {
+      /** Serves the ticket family; required because the manifest may claim it. */ tickets:
         TicketsPort;
-    }
-    : {
-      /** Forbidden: the manifest does not claim the ticket family. */ tickets?:
-        never;
     })
-  & (Claims<M, "code"> extends true ? {
-      /** Serves the code family; required because the manifest claims it. */ code:
-        CodePort;
+  & (ExcludesFamilies<M, "code"> extends true ? {
+      /** Forbidden: the manifest excludes the code family. */ code?: never;
     }
     : {
-      /** Forbidden: the manifest does not claim the code family. */ code?:
-        never;
+      /** Serves the code family; required because the manifest may claim it. */ code:
+        CodePort;
     });
 
 /**
@@ -206,6 +222,39 @@ export function serverProviderDefects<M extends ProviderManifest>(
         path: "impl.credentials.secretSlots",
         message:
           `The credential strategy mints from the secret slot ${slot}, but no connect or app-registration field collects it.`,
+      });
+    }
+  }
+
+  // The two family arms, restated at runtime (QA, round 2).
+  //
+  // A manifest annotated `ProviderManifest` widens `families` to the full union, and
+  // TypeScript cannot tell `[]` from `["tickets"]` at that type: two such manifests
+  // produce type-identical `ServerImpl`s, so NO conditional type can accept the
+  // familyless one while rejecting the claim-without-port one. The type therefore
+  // requires every possible port for a wide manifest - the safe direction, because a
+  // missing port fails the build - and the exact rule lives here, where the values
+  // are known.
+  const claims = new Set(manifest.families);
+  for (
+    const [family, port] of [
+      ["tickets", impl.tickets],
+      ["code", impl.code],
+    ] as const
+  ) {
+    const supplied = port !== undefined && port !== null;
+    if (claims.has(family) && !supplied) {
+      defects.push({
+        path: `impl.${family}`,
+        message:
+          `The manifest claims the ${family} family but supplies no ${family} port; the engine would call it and find nothing.`,
+      });
+    }
+    if (!claims.has(family) && supplied) {
+      defects.push({
+        path: `impl.${family}`,
+        message:
+          `The manifest does not claim the ${family} family, so it must not supply a ${family} port.`,
       });
     }
   }

@@ -355,8 +355,13 @@ function typecheckProbe(body: string): { ok: boolean; output: string } {
       )
     };\n${TYPE_PROBE_BASE}\n${body}\n`,
   );
+  // `--no-check` only disables checking of the *test* file itself. The probe's own
+  // `deno check` must run with a private, cold cache: with the shared cache Deno can
+  // reuse a previously compiled module and the probe reports success against source
+  // it never re-read, which makes it unable to catch the regression it exists for.
   const result = new Deno.Command(Deno.execPath(), {
-    args: ["check", file],
+    args: ["check", "--no-lock", "--reload", file],
+    env: { DENO_DIR: `${dir}/deno-dir` },
     stdout: "piped",
     stderr: "piped",
   }).outputSync();
@@ -422,4 +427,89 @@ Deno.test("a provider with no ingress cannot supply one", () => {
     `defineServerProvider({ ...base, families: [] }, { ...common, ingress: { maxBodyBytes: 10, verify: () => ({ ok: false as const, reason: "signature" as const }), classify: () => ({ kind: "ignored" as const }) } });`,
   );
   assert(!extra.ok, "ingress: null must forbid an ingress implementation");
+});
+
+/**
+ * QA's round-2 requirement, and the part of her report that closes it: a must-PASS
+ * control, because a set of must-fail probes only answers "did the fix take", never
+ * "did the fix overshoot".
+ *
+ * The control she asked for - a `ProviderManifest`-annotated familyless manifest that
+ * compiles with no ports - is not expressible: that annotation widens `families` to
+ * `("tickets" | "code")[]`, where `[]` and `["tickets"]` produce type-identical
+ * `ServerImpl`s. Two type-identical impls cannot be accepted and rejected by one
+ * conditional, so the type requires every possible port (safe: a missing port fails
+ * the build) and the exact rule is enforced at runtime by `serverProviderDefects`.
+ *
+ * Both halves are asserted below, so neither can be silently dropped.
+ */
+Deno.test("a wide-annotated manifest requires every port at the type level", () => {
+  // The safe default: a manifest that MIGHT claim a family must supply the port. This
+  // is the arm a familyless value also lands in, which is why the runtime check below
+  // exists rather than a cleverer conditional.
+  //
+  // The assertion names `tickets` specifically. A bare `!probe.ok` would pass for the
+  // wrong reason: a wide manifest also fails on `ingress`, so a polarity flip in the
+  // family rule would go unseen - the same must-fail-only weakness QA flagged.
+  const probe = typecheckProbe(
+    `declare const wide: ProviderManifest;
+     defineServerProvider(wide, { ...common });`,
+  );
+  assert(
+    !probe.ok,
+    "a wide-annotated manifest must not compile without its ports",
+  );
+  assert(
+    /Property 'tickets' is missing/.test(probe.output),
+    `the diagnostic must name the family port, not only ingress; saw: ${probe.output}`,
+  );
+});
+
+Deno.test("at runtime a familyless provider with no ports is complete, not refused", () => {
+  // The must-pass half: the value is known here, so the familyless provider is
+  // accepted. Reference behaviour for the runtime rule.
+  const manifest: ProviderManifest = { ...testManifest(), families: [] };
+  const provider = defineServerProvider(manifest, testServerImpl(manifest));
+  assertEquals(serverProviderDefects(provider), []);
+});
+
+Deno.test("at runtime claiming a family without its port is refused", () => {
+  const manifest: ProviderManifest = {
+    ...testManifest(),
+    families: ["tickets"],
+  };
+  // testServerImpl supplies no ports, so this is exactly claim-without-port.
+  const provider = defineServerProvider(manifest, testServerImpl(manifest));
+  const defects = serverProviderDefects(provider);
+  assert(
+    defects.some((defect) => defect.path === "impl.tickets"),
+    `expected a defect naming the missing tickets port, saw ${
+      JSON.stringify(defects)
+    }`,
+  );
+});
+
+Deno.test("at runtime supplying a port for an unclaimed family is refused", () => {
+  // The overshoot direction QA warned about: a provider that declares nothing must
+  // not quietly carry a port nothing will call.
+  const manifest: ProviderManifest = { ...testManifest(), families: [] };
+  const provider = defineServerProvider(
+    manifest,
+    testServerImpl(manifest, {
+      tickets: {
+        present: () =>
+          Promise.resolve({
+            kind: "refused" as const,
+            reason: "not_a_ticket" as const,
+          }),
+        mutate: () => Promise.resolve({ ok: true as const }),
+      },
+    }),
+  );
+  assert(
+    serverProviderDefects(provider).some((defect) =>
+      defect.path === "impl.tickets" &&
+      defect.message.includes("must not supply")
+    ),
+  );
 });
