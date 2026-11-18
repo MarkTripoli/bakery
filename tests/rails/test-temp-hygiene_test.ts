@@ -490,3 +490,31 @@ Deno.test("the root tool refuses a lane root named only by its prefix (#254)", a
     removeTreeSync(base);
   }
 });
+
+Deno.test("the preload's wrappers keep their names and run after a test's own unload handler (#253)", async () => {
+  const run = await runUnitLane(
+    ["tests/unit/fixtures/temp-preload-fidelity.fixture.ts"],
+    true,
+  );
+  assertEquals(run.code, 0, run.text.slice(-1200));
+  assertEquals(
+    run.text.includes("NotFound"),
+    false,
+    "the preload removed the directory before the test's own unload handler",
+  );
+  assertEquals(run.left, [], "the lane left temp entries behind");
+});
+
+Deno.test("a temp dir made inside a Worker is caught by the sweep, which says so (#253)", async () => {
+  const strict = await runUnitLane(
+    ["tests/unit/fixtures/temp-in-worker.fixture.ts"],
+    true,
+  );
+  assertEquals(strict.code, 3, strict.text.slice(-1200));
+  assertEquals(
+    strict.text.includes("bakery-fixture-worker"),
+    true,
+    strict.text.slice(-800),
+  );
+  assertEquals(strict.left, [], "the swept root was left in the temp dir");
+});
