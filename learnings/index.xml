@@ -153,4 +153,5 @@
   <entry file="name-the-writer-when-declaring-the-field.xml" scope="project" />
   <entry file="a-flag-accepted-is-not-a-state-stored.xml" scope="process" />
   <entry file="three-checks-that-answer-a-different-question.xml" scope="process" />
+  <entry file="count-against-both-parents-before-unioning-a-conflict.xml" scope="process" />
 </learnings>

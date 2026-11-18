@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="count-against-both-parents-before-unioning-a-conflict" project="bakery">
+  <title>Count against both parents before unioning a conflict block, because the union of two ones is two</title>
+  <trigger>Resolving a git merge conflict in a file where both sides look additive - separate routes, separate keys, separate entries - so the obvious resolution is to keep both.</trigger>
+  <rule>A conflict block can cut INSIDE a body. Two blocks that look like independent additions may be the head and tail of one definition that both parents already had exactly once. Concatenating them yields a truncated definition followed by a complete duplicate, and the syntax error appears at the seam rather than where the damage is.</rule>
+  <rule>For every name the resolution touches, count its occurrences in both parents and in the result before believing the resolution: `git show HEAD:file | grep -c`, `git show origin/main:file | grep -c`, then the working file. Ours one, theirs one, result two means the block was not additive - the union duplicated an existing definition. Counting beats reading the diff and guessing, because the guess is what produced the duplication.</rule>
+  <rule>The formatter hides syntax breaks. `deno fmt` reported a genuinely unparseable file as "Found 1 not formatted file", so a fmt failure on a file just resolved by hand should be read as possible syntax damage, not as whitespace drift: run the type checker or a parser against that file specifically before running the formatter again. The compiler names the line; the formatter names the symptom.</rule>
+  <verification>
+    <requirement>Record the occurrence count of each touched name in both parents and in the resolved file, and the exact command that proved the file parses. A conflict resolved by eye and confirmed only by fmt is treated as unresolved.</requirement>
+  </verification>
+</learning>
