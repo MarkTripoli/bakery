@@ -138,8 +138,9 @@ type Frame =
  * With `jsx` (a .tsx or .jsx file) a `<` where an expression may start opens
  * a JSX element: attribute strings and `{...}` expressions are read as code,
  * and the text between tags is skipped. A TypeScript generic arrow function
- * written `<T,>(x) => x` is not told apart from JSX; a worker .tsx file would
- * need to avoid that form.
+ * (`<T,>(x) => x` or `<T extends X>(x: T) => x`) is not told apart from JSX
+ * and is reported as lost track, never silently; a worker .tsx file would need
+ * another form, such as a named generic function.
  */
 export function stringLiterals(
   source: string,
