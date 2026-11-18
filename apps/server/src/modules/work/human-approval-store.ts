@@ -308,8 +308,9 @@ export async function decideHumanApproval(
   const swapped = await transaction.query<{ version: number }>(
     `update bakery.questions
         set status = 'answered', decision = $3, decision_comment = $4,
-            decided_by = $5, decided_at = now(), answered_by = $5,
-            answered_at = now(), updated_at = now(), version = version + 1
+            decided_by = $5, decided_at = now(), answer = $7::jsonb,
+            answered_by = $5, answered_at = now(), updated_at = now(),
+            version = version + 1
       where organization_id = $1 and id = $2 and status = 'open'
         and version = $6
       returning version`,
@@ -320,6 +321,14 @@ export async function decideHumanApproval(
       input.note === undefined || input.note.trim() === "" ? null : input.note,
       input.principalId,
       input.expectedVersion,
+      // The same `answer` shape the approval route already stores, so a reader
+      // of either kind of approval sees one projection.
+      JSON.stringify({
+        decision: input.decision,
+        ...(input.note === undefined || input.note.trim() === ""
+          ? {}
+          : { note: input.note }),
+      }),
     ],
   );
   if (swapped.rows.length !== 1) conflict("approval_unavailable");
