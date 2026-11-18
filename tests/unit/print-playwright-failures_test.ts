@@ -2,6 +2,8 @@ import { assert, assertEquals, assertStringIncludes } from "@std/assert";
 import { join } from "node:path";
 import {
   MAX_FAILED_TESTS,
+  MAX_HEADER_CHARS,
+  MAX_LISTED_FILES,
   PER_FILE_BYTES,
   render,
   TOTAL_BYTES,
@@ -197,6 +199,98 @@ Deno.test("the command line prints the diagnostics and exits 0, whatever the dir
       const out = new TextDecoder().decode(result.stdout);
       assert(out.length > 0, "nothing was printed");
       if (dir === root) assertStringIncludes(out, "from the command line");
+    }
+  });
+});
+
+Deno.test("C1 controls and the Unicode line and paragraph separators never reach the log (#294)", async () => {
+  await withResults(async (root) => {
+    await failedTest(
+      root,
+      "hostile",
+      [
+        "csi \u009b31m red",
+        "nel \u0085 next",
+        "line sep \u2028 here",
+        "paragraph sep \u2029 here",
+        "del \u007f and the last C1 \u009f",
+        "kept: é ü 日本",
+      ].join("\n"),
+    );
+    const text = render(root);
+    const code = (character: string) => character.codePointAt(0)!;
+    assert(
+      ![...text].some((character) =>
+        (code(character) >= 0x7f && code(character) <= 0x9f) ||
+        code(character) === 0x2028 || code(character) === 0x2029
+      ),
+      "a C1 control or a line separator reached the log",
+    );
+    // Ordinary non-ASCII text is not touched.
+    assertStringIncludes(text, "kept: é ü 日本");
+    // Each is replaced, not dropped, so the line still reads as it did.
+    assertStringIncludes(text, "csi ?31m red");
+  });
+});
+
+Deno.test("a directory with thousands of files cannot make the header or the output exceed its bound (#294)", async () => {
+  await withResults(async (root) => {
+    const count = 3000;
+    await Deno.mkdir(join(root, "flood"));
+    await Deno.writeTextFile(join(root, "flood", "error-context.md"), "x");
+    for (let index = 0; index < count; index += 1) {
+      await Deno.writeTextFile(
+        join(root, "flood", `file-${String(index).padStart(5, "0")}.txt`),
+        "",
+      );
+    }
+    const text = render(root);
+    const header = text.split("\n").find((line) =>
+      line.startsWith("::group::")
+    )!;
+    assert(
+      header.length <= MAX_HEADER_CHARS,
+      `the header is ${header.length} characters`,
+    );
+    assert(
+      text.length <= TOTAL_BYTES,
+      `${text.length} characters were printed`,
+    );
+    // The files are counted, not silently dropped (3001 regular files, 20 listed).
+    assertStringIncludes(header, `and ${count + 1 - MAX_LISTED_FILES} more`);
+  });
+});
+
+Deno.test("an internal error is reported and the command line still exits 0 (#294)", async () => {
+  const script =
+    new URL("../../scripts/ci/print-playwright-failures.mjs", import.meta.url)
+      .pathname;
+  await withResults(async (root) => {
+    // A failed test whose directory cannot be listed makes render throw.
+    await failedTest(root, "unlistable", "snapshot");
+    await Deno.chmod(join(root, "unlistable"), 0o100);
+    try {
+      let listable = true;
+      try {
+        for (const _ of Deno.readDirSync(join(root, "unlistable"))) break;
+      } catch {
+        listable = false;
+      }
+      // A process that ignores permissions (root) cannot make the directory
+      // unlistable, so there is no internal error to provoke there.
+      if (listable) return;
+      const result = await new Deno.Command("node", {
+        args: [script, root],
+        stdout: "piped",
+        stderr: "piped",
+      }).output();
+      assertEquals(result.code, 0, new TextDecoder().decode(result.stderr));
+      assertStringIncludes(
+        new TextDecoder().decode(result.stdout),
+        "Could not print Playwright failure diagnostics",
+      );
+    } finally {
+      await Deno.chmod(join(root, "unlistable"), 0o700);
     }
   });
 });
