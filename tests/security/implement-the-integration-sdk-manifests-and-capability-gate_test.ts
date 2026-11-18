@@ -1,4 +1,9 @@
-import { assert, assertEquals, assertRejects } from "@std/assert";
+import {
+  assert,
+  assertEquals,
+  assertInstanceOf,
+  assertRejects,
+} from "@std/assert";
 import { z } from "zod";
 import { defineAction, defineIntegration } from "@bakery/integration-sdk";
 import { StandardError } from "../../packages/contracts/src/http.ts";
@@ -583,6 +588,42 @@ Deno.test("bakery.call: allowed with scope, target grant and permission; reloads
   assertEquals(port.loads, before + 2);
 });
 
+Deno.test("bakery.call: a repository-bound grant matches only the record it names", async () => {
+  // qa-qa's #640 Low at its cause. A grant's `repositoryId` names a Bakery
+  // repository record and the gate matches it against the record the snapshot
+  // names, so a snapshot naming a different record must refuse: otherwise an
+  // install bound to one repository could act on every repository.
+  const named = "00000000-0000-4000-8000-0000000000c1";
+  const run = async (repositoryId: string | undefined) => {
+    const { ctx, s } = await scoped({
+      snapshot: () =>
+        withBakery({
+          grants: [outbound(), inbound("tasks:read", { repositoryId: named })],
+          resource: { id: RESOURCE, repositoryId },
+        }),
+    });
+    try {
+      await ctx.bakery.call("tasks.get", {});
+      return { error: null, calls: s.bakery.calls.length };
+    } catch (thrown) {
+      assertInstanceOf(thrown, StandardError);
+      return { error: thrown as StandardError, calls: s.bakery.calls.length };
+    }
+  };
+
+  const matched = await run(named);
+  assertEquals(matched.error, null, "the named record matches");
+  assertEquals(matched.calls, 1);
+
+  const foreign = await run("00000000-0000-4000-8000-0000000000c2");
+  assertEquals(foreign.error?.code, "AUTH_FORBIDDEN");
+  assertEquals(foreign.calls, 0);
+
+  const unnamed = await run(undefined);
+  assertEquals(unnamed.error?.code, "AUTH_FORBIDDEN");
+  assertEquals(unnamed.calls, 0);
+});
+
 Deno.test("bakery.call: grant revoked between calls denies the second call", async () => {
   let live = true;
   const state = {
@@ -1073,6 +1114,9 @@ async function world(
     credentials,
     fetch: fetcher.fn,
     snapshotPort: port,
+    // The generation the broker captures before the snapshot; the credential
+    // port refuses a request that carries none.
+    generationOf: () => 7,
   });
   const bound = await authorizeInvocation(
     reg,
@@ -1129,6 +1173,9 @@ Deno.test("broker: request goes to the template URL with fixed headers and the b
     resourceId: RESOURCE,
     profileId: "github-app",
     providerPermissions: { issues: "write" },
+    // Captured before the snapshot, so an edit between the two is a generation
+    // change the broker refuses rather than a stale mint.
+    generation: 7,
     // The subject carries what the token is narrowed to. Without the provider's
     // numeric id the credential store has nothing to mint against (#640).
     subject: {
@@ -1608,6 +1655,7 @@ Deno.test("broker: a slow provider is aborted by the deadline", async () => {
   const broker = createBroker({
     registry: w.reg,
     credentials: w.credentials,
+    generationOf: () => 7,
     fetch: ((_url: string, init: RequestInit) =>
       new Promise((_resolve, reject) => {
         init.signal!.addEventListener(

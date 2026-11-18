@@ -224,6 +224,8 @@ export function createApp(options: {
     database: options.pgDatabase,
     broker: installationTokenBroker,
     readAppCredentials,
+    // The same broker the port mints through, so the counter the broker compares
+    // against is the counter the door read.
     generationOf: (connectionId) =>
       installationTokenBroker.generation(connectionId),
     registry: integrationRegistry,

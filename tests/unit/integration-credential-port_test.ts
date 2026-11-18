@@ -41,6 +41,9 @@ const request = (
   resourceId: RESOURCE,
   profileId: "github-app",
   providerPermissions: { contents: "read" },
+  // The generation the broker captured before the authority snapshot. A request
+  // carrying none is refused, so every fixture carries one.
+  generation: 7,
   subject: {
     installId: INSTALL,
     resourceKind: "repository",
@@ -135,25 +138,110 @@ Deno.test("a successful mint returns the credential", async () => {
   assertEquals(credential, "ghs_minted");
 });
 
-Deno.test("the generation is captured BEFORE the rows are read", async () => {
-  // Ordering is the safety property, not a detail: capture after the read leaves
-  // a window where a connection revoked mid-request still mints a token against
-  // authority that has since changed.
-  const order: string[] = [];
-  const { deps } = depsWith({
-    database: databaseAnswering({}, () => order.push("read")),
-    generationOf: () => {
-      order.push("generation");
-      return 7;
-    },
-  });
-  await createInstallationCredentialPort(deps).resolve(request());
-  assertEquals(
-    order[0],
-    "generation",
-    "the generation must be captured before any row is read",
+Deno.test("the carried generation is the one the broker mints against", async () => {
+  // The generation is not read here at all. It was captured upstream, BEFORE the
+  // authority snapshot this request was authorized against, so an edit landing
+  // between that snapshot and this mint moves the broker's counter away from the
+  // carried value and the broker refuses. Reading it here would compare a fresh
+  // value against itself and see nothing wrong.
+  const { deps, targets, generationCalls } = depsWith();
+  await createInstallationCredentialPort(deps).resolve(
+    request({ generation: 11 }),
   );
-  assertEquals(order.indexOf("read") > 0, true);
+  assertEquals(generationCalls, [], "the port must not read the generation");
+  assertEquals(targets[0]!.generation, 11);
+});
+
+Deno.test("an edit between the snapshot and the mint refuses instead of minting", async () => {
+  // The reviewer's Medium, at the ordering: the snapshot is authorized under
+  // generation 11, an edit commits, and by the time the port resolves the
+  // counter is 12. The broker compares the carried 11 against its live 12.
+  let live = 11;
+  const minted: string[] = [];
+  const { deps } = depsWith({
+    broker: {
+      token: (target: TokenTarget) => {
+        if (target.generation !== live) {
+          return Promise.resolve({ kind: "refused", reason: "stale" });
+        }
+        minted.push(target.connectionId);
+        return Promise.resolve({
+          kind: "minted",
+          token: "ghs_minted",
+          expiresAt: Date.now() + 3_600_000,
+          permissions: { contents: "read" },
+          repositoryIds: [900],
+        });
+      },
+    } as unknown as CredentialStoreDeps["broker"],
+  });
+  const port = createInstallationCredentialPort(deps);
+  const current = await port.resolve(request({ generation: live }));
+  assertEquals(current, "ghs_minted");
+
+  live += 1; // the edit lands after the snapshot, before the next mint
+  const error = await assertRejects(
+    () => port.resolve(request({ generation: 11 })),
+    StandardError,
+  );
+  assertEquals(error.code, "STATE_CONFLICT");
+  assertEquals(minted.length, 1, "the stale request must not mint");
+});
+
+Deno.test("a request carrying no generation is refused before any read", async () => {
+  let reads = 0;
+  const { deps, targets } = depsWith({
+    database: databaseAnswering({}, () => reads += 1),
+  });
+  const error = await assertRejects(
+    () =>
+      createInstallationCredentialPort(deps).resolve(
+        { ...request(), generation: undefined } as unknown as CredentialRequest,
+      ),
+    StandardError,
+  );
+  assertEquals(error.code, "STATE_CONFLICT");
+  assertEquals(reads, 0);
+  assertEquals(targets.length, 0);
+});
+
+Deno.test("a connection pointing at another installation is not minted", async () => {
+  // The snapshot authorized this invocation under the installation it named; if
+  // the connection has moved to a different one since, a token minted here would
+  // be for authority the invocation was never checked against.
+  const { deps, targets } = depsWith({
+    database: databaseAnswering({
+      connection: { status: "enabled", installationId: "another-install" },
+    }),
+  });
+  const error = await assertRejects(
+    () => createInstallationCredentialPort(deps).resolve(request()),
+    StandardError,
+  );
+  assertEquals(error.code, "STATE_CONFLICT");
+  assertEquals(targets.length, 0);
+});
+
+Deno.test("an installation id that is not a number refuses the mint", async () => {
+  // `Number()` maps anything unparseable to NaN, and the client would ask for
+  // installation "NaN": a request that cannot be about anybody, sent anyway.
+  const { deps, targets } = depsWith({
+    database: databaseAnswering({
+      installation: { status: "enabled", externalId: "not-a-number" },
+    }),
+  });
+  const error = await assertRejects(
+    () => createInstallationCredentialPort(deps).resolve(request()),
+    StandardError,
+  );
+  assertEquals(error.code, "STATE_CONFLICT");
+  assertEquals(targets.length, 0);
+});
+
+Deno.test("the minted token names the validated numeric installation", async () => {
+  const { deps, targets } = depsWith();
+  await createInstallationCredentialPort(deps).resolve(request());
+  assertEquals(targets[0]!.installationId, 1234);
 });
 
 Deno.test("the token is minted with exactly the declared permissions", async () => {
@@ -351,7 +439,7 @@ Deno.test("the assembled port reaches the invoke door", async () => {
   );
   assert(
     // Whitespace-tolerant: the assertion is about the wiring, not the wrapping.
-    /generationOf:[\s\S]{0,120}?installationTokenBroker\.generation\(connectionId\)/
+    /generationOf:[^\n]*\n\s*installationTokenBroker\.generation\(connectionId\)/
       .test(app),
     "the generation must come from the process broker, so an edit mid-request refuses",
   );

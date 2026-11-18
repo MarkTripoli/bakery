@@ -50,6 +50,8 @@ type TokenAuthority = Readonly<{
   status: string;
   installationStatus: string;
   installationExternalId: string;
+  /** The validated numeric installation id the token is minted for. */
+  installationId: number;
   appId: number;
   privateKey: AppCredentials["privateKey"];
 }>;
@@ -68,6 +70,9 @@ export type CredentialStoreDeps = Readonly<{
   /** The connection's current invalidation generation. */
   generationOf(connectionId: string): number;
 }>;
+
+/** How long one installation token mint may take before it is abandoned. */
+const MINT_DEADLINE_MS = 10_000;
 
 /** The permission set a token is minted with, as the action declared it. */
 function narrowPermissions(
@@ -98,6 +103,10 @@ async function readTokenAuthority(
     );
     const connectionRow = connection.rows[0];
     if (!connectionRow) return null;
+    // The snapshot names the installation the invocation was authorized under.
+    // If the connection now points at a different one, the authorization is for
+    // an installation this request would not use, so there is nothing to mint.
+    if (connectionRow.installationId !== request.subject.installId) return null;
     const install = await transaction.query<
       { status: string; externalId: string }
     >(
@@ -108,12 +117,20 @@ async function readTokenAuthority(
     );
     const installRow = install.rows[0];
     if (!installRow) return null;
+    // `Number()` maps anything unparseable to NaN, and a NaN installation id
+    // would reach the client as a request for installation "NaN". A row that
+    // cannot name its installation is not mintable.
+    const installationId = Number(installRow.externalId);
+    if (!Number.isSafeInteger(installationId) || installationId < 1) {
+      return null;
+    }
     const credentials = await deps.readAppCredentials(transaction);
     if (credentials === null) return null;
     return {
       status: connectionRow.status,
       installationStatus: installRow.status,
       installationExternalId: installRow.externalId,
+      installationId,
       appId: credentials.appId,
       privateKey: credentials.privateKey,
     };
@@ -168,12 +185,22 @@ export function createInstallationCredentialPort(
 ): CredentialPort {
   return {
     async resolve(request) {
-      // Captured BEFORE the rows are read, so an edit that commits mid-request
-      // moves the generation and the broker refuses rather than minting stale.
+      // The generation was captured BEFORE the authority snapshot this request
+      // was authorized against, upstream in the broker. Reading it here instead
+      // would compare a fresh value against itself and see no change, so an edit
+      // landing between the snapshot and now would go unnoticed. A request that
+      // carries none is refused rather than minted against an unpinned snapshot.
+      const generation = request.generation;
+      if (!Number.isSafeInteger(generation) || generation < 0) {
+        throw new StandardError({
+          code: "STATE_CONFLICT",
+          detail: "auth_required",
+          params: { reason: "auth_required" },
+        });
+      }
       // Narrowing is not a detail to discover after the read: a request with no
       // repository to narrow to is refused before anything is read.
       const repositoryIds = repositoryIdsOf(request);
-      const generation = deps.generationOf(request.connectionId);
       const authority = await readTokenAuthority(deps, request, generation);
       const target: TokenTarget = {
         connectionId: authority.connectionId,
@@ -182,14 +209,31 @@ export function createInstallationCredentialPort(
         installationStatus: authority.installationStatus,
         appId: authority.appId,
         privateKey: authority.privateKey,
-        installationId: Number(authority.installationExternalId),
+        installationId: authority.installationId,
         repositoryIds,
         permissions: narrowPermissions(request.providerPermissions),
       };
-      const minted = await deps.broker.token(
-        target,
-        new AbortController().signal,
-      );
+      // A mint that never answers would hold the send open indefinitely, so it
+      // gets a deadline of its own. The caller's request deadline cannot stand in
+      // for one: the credential is fetched before the request is built.
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), MINT_DEADLINE_MS);
+      let minted: Awaited<ReturnType<typeof deps.broker.token>>;
+      try {
+        minted = await deps.broker.token(target, controller.signal);
+      } catch (error) {
+        // An aborted mint is the same answer as a refusal: no usable credential.
+        if (controller.signal.aborted) {
+          throw new StandardError({
+            code: "DEPENDENCY_UNAVAILABLE",
+            detail: "auth_required",
+            params: { retryAfterSeconds: 30 },
+          });
+        }
+        throw error;
+      } finally {
+        clearTimeout(timer);
+      }
       // Both arms carry `kind`; the token is the "minted" one. Testing mere
       // presence would refuse every success.
       if (minted.kind !== "minted") {
@@ -223,6 +267,8 @@ export function createProviderRequestPort(
       registry: BrokerDeps["registry"];
       fetch: typeof fetch;
       snapshotPort: BrokerDeps["snapshotPort"];
+      /** The connection's generation, read before the authority snapshot. */
+      generationOf: (connectionId: string) => number;
     }>,
 ): ProviderRequestPort {
   return createBroker({
@@ -230,5 +276,6 @@ export function createProviderRequestPort(
     credentials: createInstallationCredentialPort(deps),
     fetch: deps.fetch,
     snapshotPort: deps.snapshotPort,
+    generationOf: deps.generationOf,
   });
 }

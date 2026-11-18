@@ -27,7 +27,11 @@ const KEY = {
   resourceId: RESOURCE,
 } as const;
 
-function transactionAnswering(row: Record<string, unknown> | null) {
+function transactionAnswering(
+  row: Record<string, unknown> | null,
+  /** The Bakery repositories the tracking query finds for this resource. */
+  tracked: readonly { id: string }[] = [],
+) {
   const queries: string[] = [];
   const transaction = {
     query: (sql: string) => {
@@ -38,11 +42,19 @@ function transactionAnswering(row: Record<string, unknown> | null) {
           rowCount: 1,
         });
       }
+      if (sql.includes("from bakery.repositories")) {
+        return Promise.resolve({
+          rows: [...tracked],
+          rowCount: tracked.length,
+        });
+      }
       return Promise.resolve({ rows: [], rowCount: 0 });
     },
   } as unknown as PgTransactionClient;
   return { transaction, queries };
 }
+
+const BAKERY_REPOSITORY = "00000000-0000-4000-8000-000000003206";
 
 /** A registry holding the one provider this snapshot names. */
 const registry = {
@@ -85,14 +97,46 @@ Deno.test("the snapshot names the repository's numeric id on the resource", asyn
 });
 
 Deno.test("the snapshot names the id after the provider, not after a grant", async () => {
+  // A grant's `repositoryId` names a Bakery repository record (a uuid) and the
+  // provider's number is a different fact. Untracked, there is no Bakery record,
+  // so the resource names only the provider's id.
   const { transaction } = transactionAnswering(row);
   const snapshot = await loadSnapshot(transaction, registry, KEY);
 
-  // A grant's `repositoryId` names a Bakery repository record (a uuid). Reusing
-  // that name here would make an inbound grant mismatch every outbound request
-  // the moment the two ids were compared, which is exactly what shipped in the
-  // first version of this fix.
   assertEquals("providerRepositoryId" in snapshot!.resource, true);
+  assertEquals(
+    (snapshot!.resource as Record<string, unknown>).repositoryId,
+    undefined,
+  );
+});
+
+Deno.test("a tracked repository names the Bakery record a grant targets", async () => {
+  // qa-qa's #640 Low, fixed at its cause: without this the snapshot named no
+  // Bakery repository, so an `into_bakery` grant - which names a repository
+  // uuid - could never match, and every repository-bound call was refused.
+  const { transaction, queries } = transactionAnswering(row, [
+    { id: BAKERY_REPOSITORY },
+  ]);
+  const snapshot = await loadSnapshot(transaction, registry, KEY);
+
+  assert(
+    queries.some((sql) => sql.includes("from bakery.repositories")),
+    "the snapshot must look the Bakery repository up",
+  );
+  assertEquals(snapshot!.resource.repositoryId, BAKERY_REPOSITORY);
+  // Both facts at once, and they are not interchangeable.
+  assertEquals(snapshot!.resource.providerRepositoryId, "900");
+});
+
+Deno.test("two Bakery repositories tracking one provider repository name neither", async () => {
+  // The intake treats an ambiguous repository as untracked, and the snapshot
+  // must agree: naming one of two would silently grant the wrong repository.
+  const { transaction } = transactionAnswering(row, [
+    { id: BAKERY_REPOSITORY },
+    { id: "00000000-0000-4000-8000-000000003207" },
+  ]);
+  const snapshot = await loadSnapshot(transaction, registry, KEY);
+
   assertEquals(
     (snapshot!.resource as Record<string, unknown>).repositoryId,
     undefined,
