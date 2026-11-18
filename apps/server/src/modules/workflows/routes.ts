@@ -9,6 +9,8 @@ import { createWorkflowsHandlers } from "./postgres.ts";
 export function createWorkflowsRoutes(options: {
   database: PgDatabase;
   browserSession: MiddlewareHandler<{ Variables: AuthVariables }>;
+  /** Browser session or access token; agents may read proposals, never decide them. */
+  tokenSession?: MiddlewareHandler<{ Variables: AuthVariables }>;
   publicBaseUrl: string;
   cursorSecret: string;
 }) {
@@ -18,6 +20,10 @@ export function createWorkflowsRoutes(options: {
   app.use("/v1/workflows", options.browserSession);
   app.use("/v1/workflows/*", options.browserSession);
   app.use("/v1/workflow-validations", options.browserSession);
+  app.use(
+    "/v1/workflow-definition-proposals/*",
+    options.tokenSession ?? options.browserSession,
+  );
   app.route(
     "/",
     createApiRouter({
