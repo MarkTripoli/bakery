@@ -194,8 +194,12 @@ export function jobsFromPages(pages: unknown): readonly Job[] {
  */
 export function ghRunner(repo: string, token: string): GhRunner {
   const api = async (args: readonly string[]): Promise<unknown> => {
+    // `gh api` takes the repository in its path and has no `--repo` flag, so
+    // appending one made every job read fail on the flag rather than on the
+    // token. The `issue` subcommands are the ones that take `--repo`.
+    const scoped = args[0] === "api" ? args : [...args, "--repo", repo];
     const result = await new Deno.Command("gh", {
-      args: [...args, "--repo", repo],
+      args: [...scoped],
       env: { ...Deno.env.toObject(), GH_TOKEN: token },
       stdout: "piped",
       stderr: "piped",
@@ -207,6 +211,12 @@ export function ghRunner(repo: string, token: string): GhRunner {
         }`,
       );
     }
+    // Only `gh api` and `gh issue list` answer in JSON. `issue create`, `edit`
+    // and `comment` print the issue's URL, and `close` prints nothing, so
+    // parsing their output threw after the write had already happened.
+    const answersInJson = args[0] === "api" ||
+      (args[0] === "issue" && args[1] === "list");
+    if (!answersInJson) return null;
     return JSON.parse(new TextDecoder().decode(result.stdout) || "null");
   };
 
@@ -217,13 +227,18 @@ export function ghRunner(repo: string, token: string): GhRunner {
       // pages instead, so every job is read no matter how many pages the run
       // takes. Assuming one page would be an assumption about the size of CI
       // rather than a property of the query.
+      //
+      // The `api` rejection is deliberately NOT caught here. It carries gh's
+      // stderr, and that text is the only thing that names the real cause: a
+      // missing `actions: read` scope reaches the log as exactly that, while
+      // swallowing it here reported "could not read the run's jobs" three
+      // dispatches in a row and left the permissions bug invisible.
       const pages = await api([
         "api",
         `repos/${repo}/actions/runs/${runId}/jobs?per_page=100`,
         "--paginate",
         "--slurp",
-      ]).catch(() => null);
-      if (pages === null) throw new Error("could not read the run's jobs");
+      ]);
       return jobsFromPages(pages);
     },
     findOpenIssues: async (title) => {
