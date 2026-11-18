@@ -591,22 +591,29 @@ test("P2 repository, profile and agents through the API; onboarding in the UI", 
   remember("repositoryId", j.repositoryId);
   remember("profileId", j.profileId);
 
-  const onboarding =
-    `/projects/onboarding?application=${j.applicationId}&repository=${j.repositoryId}&profile=${j.profileId}`;
-  await page.goto(onboarding);
-  await expect(page.getByTestId("projects-onboarding-profile-boundary"))
-    .toContainText(`${repository.owner}/${repository.name}`);
-  await axeClean(page, "/projects/onboarding");
+  // The repository's own page (the old Projects onboarding page is gone,
+  // design-ux #65 slice 3): it names the repository and its setup.
+  const repositoryPage = `/projects/repositories/${j.repositoryId}`;
+  await page.goto(repositoryPage);
+  await expect(
+    page.getByRole("heading", {
+      name: `${repository.owner}/${repository.name}`,
+    }),
+  ).toBeVisible();
+  await axeClean(page, "/projects/repositories");
   await shootRoute(
     shots(),
     browser,
     session(),
     j.organizationId,
-    onboarding,
-    "P2-onboarding",
+    repositoryPage,
+    "P2-repository",
     (other) =>
-      expect(other.getByTestId("projects-onboarding-profile-boundary"))
-        .toBeVisible(),
+      expect(
+        other.getByRole("heading", {
+          name: `${repository.owner}/${repository.name}`,
+        }),
+      ).toBeVisible(),
   );
 
   // The composer offers the repository with the fixed coding preset ready.

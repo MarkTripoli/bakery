@@ -10,7 +10,7 @@ import { repositoryRolesListQueryOptions } from "../../api/query.ts";
 import { focusAfterPaint } from "../../app/focus.ts";
 import { useProtectedScope } from "../../app/query-scope-context.tsx";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
-import { useCursorPages } from "../projects-onboarding/useCursorPages.ts";
+import { useCursorPages } from "../../app/cursor-pages/useCursorPages.ts";
 import { NamesSheet } from "./NamesSheet.tsx";
 import { isActive, namesOf } from "./names-state.ts";
 

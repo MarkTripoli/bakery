@@ -326,6 +326,7 @@ export async function repositoryFixture(page: Page, options: Options = {}) {
       if (options.use === "down") {
         return route.fulfill(problem(500, "INTERNAL"));
       }
+      if ("archivedAt" in body) state.archived = body.archivedAt !== null;
       const wanted = profiles.find((profile) =>
         profileId(profile.revision) === body.activeProfileId
       );

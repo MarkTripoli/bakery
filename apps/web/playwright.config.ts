@@ -80,7 +80,6 @@ export const SHARED_ADMIN_SPECS: readonly string[] = [
   authSpec,
   "**/settings-journey.spec.ts",
   "**/account-security-journey.spec.ts",
-  "**/repository-profile-real-api.spec.ts",
   "**/organization-access-real-api.spec.ts",
   "**/installation-integrations-real-api.spec.ts",
   // Not the bootstrap admin, but its child API owns the one GitHub App

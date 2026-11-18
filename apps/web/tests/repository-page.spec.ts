@@ -1350,7 +1350,7 @@ test.describe("names, testing a name, and details for support", () => {
   test("adding a name sends it trimmed, with a key, and shows it on the card", async ({ page }) => {
     const { seen } = await open(page);
     await card(page).getByRole("button", { name: "Add a name" }).click();
-    await sheet(page).getByLabel("Name", { exact: true }).fill("  api  ");
+    await sheet(page).getByLabel(/^Name\*?$/).fill("  api  ");
     await sheet(page).getByLabel("Other names").fill("backend");
     await sheet(page).getByRole("button", { name: "Add name" }).click();
     await expect(card(page).getByTestId("name-api")).toContainText(
@@ -1371,7 +1371,7 @@ test.describe("names, testing a name, and details for support", () => {
     await card(page).getByRole("button", { name: "Add a name" }).click();
     await sheet(page).getByRole("button", { name: "Add name" }).click();
     await expect(sheet(page).getByText("Enter a name.")).toBeVisible();
-    await expect(sheet(page).getByLabel("Name", { exact: true }))
+    await expect(sheet(page).getByLabel(/^Name\*?$/))
       .toHaveAttribute(
         "aria-invalid",
         "true",
@@ -1383,7 +1383,7 @@ test.describe("names, testing a name, and details for support", () => {
     const { seen } = await open(page, { names: NAMES });
     await card(page).getByRole("button", { name: "Change names" }).click();
     await sheet(page).getByRole("button", { name: "Edit api" }).click();
-    await expect(sheet(page).getByLabel("Name", { exact: true })).toHaveValue(
+    await expect(sheet(page).getByLabel(/^Name\*?$/)).toHaveValue(
       "api",
     );
     await expect(sheet(page).getByLabel("Other names")).toHaveValue("backend");
@@ -1425,7 +1425,7 @@ test.describe("names, testing a name, and details for support", () => {
   test("a name that is already used says so and applies nothing", async ({ page }) => {
     await open(page, { nameWrite: "conflict" });
     await card(page).getByRole("button", { name: "Add a name" }).click();
-    await sheet(page).getByLabel("Name", { exact: true }).fill("api");
+    await sheet(page).getByLabel(/^Name\*?$/).fill("api");
     await sheet(page).getByRole("button", { name: "Add name" }).click();
     await expect(
       sheet(page).getByText(/That name is already used in this application/),
@@ -1436,7 +1436,7 @@ test.describe("names, testing a name, and details for support", () => {
   test("a retry after a lost answer keeps its key", async ({ page }) => {
     const { seen } = await open(page, { nameWrite: "down" });
     await card(page).getByRole("button", { name: "Add a name" }).click();
-    await sheet(page).getByLabel("Name", { exact: true }).fill("api");
+    await sheet(page).getByLabel(/^Name\*?$/).fill("api");
     await sheet(page).getByRole("button", { name: "Add name" }).click();
     await expect(
       sheet(page).getByText("The change could not be saved. Try again."),
@@ -1470,7 +1470,7 @@ test.describe("names, testing a name, and details for support", () => {
     const dialog = page.getByRole("dialog", { name: "Test a name" });
     await expect(dialog).toBeVisible();
     if (name !== "") {
-      await dialog.getByLabel("Name", { exact: true }).fill(name);
+      await dialog.getByLabel(/^Name\*?$/).fill(name);
     }
     await dialog.getByRole("button", { name: "Test" }).click();
     return dialog;
@@ -1567,5 +1567,84 @@ test.describe("names, testing a name, and details for support", () => {
     await expect(page.getByRole("button", { name: "Rules" })).toBeVisible();
     await expect(page.getByRole("button", { name: /^More/ }).first())
       .toBeVisible();
+  });
+});
+
+test.describe("archive and restore from More", () => {
+  const more = (page: Page) =>
+    page.getByRole("button", { name: /^More/ }).first();
+  const openMore = async (page: Page, options: Options = {}) => {
+    const fixture = await repositoryFixture(page, options);
+    await page.goto(`/projects/repositories/${REPOSITORY_ID}`);
+    await expect(more(page)).toBeVisible({ timeout: 20_000 });
+    await more(page).click();
+    return fixture;
+  };
+
+  test("an administrator archives after confirming, and sees it archived", async ({ page }) => {
+    const fixture = await openMore(page);
+    await page.getByRole("button", { name: "Archive repository", exact: true })
+      .click();
+    const dialog = page.getByRole("alertdialog", {
+      name: "Archive acme/api-service?",
+    });
+    await expect(dialog).toContainText(
+      "Bakery stops working in it. Tasks already running finish.",
+    );
+    await expect(dialog).toContainText("You can restore it.");
+    await dialog.getByRole("button", { name: "Archive", exact: true }).click();
+    await expect(
+      page.getByText(
+        "This repository is archived, so its settings cannot be changed.",
+      ),
+    ).toBeVisible();
+    const sent = fixture.seen.updates.at(-1)!;
+    expect(sent.ifMatch).toBe('"v1"');
+    expect(typeof sent.body.archivedAt).toBe("string");
+  });
+
+  test("cancel archives nothing", async ({ page }) => {
+    const fixture = await openMore(page);
+    await page.getByRole("button", { name: "Archive repository", exact: true })
+      .click();
+    await page.getByRole("alertdialog").getByRole("button", {
+      name: "Cancel",
+      exact: true,
+    }).click();
+    await expect(page.getByRole("alertdialog")).toHaveCount(0);
+    expect(fixture.seen.updates).toEqual([]);
+  });
+
+  test("a restore needs no confirmation and clears the archived notice", async ({ page }) => {
+    const fixture = await openMore(page, { archived: true });
+    await page.getByRole("button", { name: "Restore repository", exact: true })
+      .click();
+    await expect(
+      page.getByText(
+        "This repository is archived, so its settings cannot be changed.",
+      ),
+    ).toHaveCount(0);
+    const sent = fixture.seen.updates.at(-1)!;
+    expect(sent.body.archivedAt).toBeNull();
+  });
+
+  test("a stale archive says someone else changed it and archives nothing", async ({ page }) => {
+    await openMore(page, { use: "conflict" });
+    await page.getByRole("button", { name: "Archive repository", exact: true })
+      .click();
+    const dialog = page.getByRole("alertdialog");
+    await dialog.getByRole("button", { name: "Archive", exact: true }).click();
+    await expect(dialog).toContainText("Someone else changed this just now");
+  });
+
+  test("only an administrator is offered Archive", async ({ page }) => {
+    await openMore(page, { role: "member" });
+    await expect(
+      page.getByRole("button", { name: "Test a name", exact: true }),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Archive repository" }))
+      .toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Restore repository" }))
+      .toHaveCount(0);
   });
 });

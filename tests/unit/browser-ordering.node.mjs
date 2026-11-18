@@ -36,7 +36,6 @@ for (const mode of ["core", "full"]) {
       const spec of [
         "account-security-journey.spec.ts",
         "settings-journey.spec.ts",
-        "repository-profile-real-api.spec.ts",
         "organization-access-real-api.spec.ts",
         "browser-artifact-core.spec.ts",
       ]

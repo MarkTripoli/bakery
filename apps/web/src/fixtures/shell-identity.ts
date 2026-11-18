@@ -41,19 +41,9 @@ export const NORTHWIND_FIXTURE_PROFILE = {
 const NORTHWIND_FIXTURE_PREFIXES = [
   "/__fixtures__/work/conversation/",
   "/__fixtures__/work/coordination/",
-  "/__fixtures__/work/onboarding/",
 ] as const;
 
 export function isNorthwindFixturePath(pathname: string): boolean {
   return import.meta.env.DEV &&
     NORTHWIND_FIXTURE_PREFIXES.some((prefix) => pathname.startsWith(prefix));
-}
-
-/**
- * The onboarding phone frame (Paper 2K4U-0) is drawn without a top bar or
- * tab bar; only its design fixture hides them.
- */
-export function isOnboardingFixturePath(pathname: string): boolean {
-  return import.meta.env.DEV &&
-    pathname.startsWith("/__fixtures__/work/onboarding/");
 }

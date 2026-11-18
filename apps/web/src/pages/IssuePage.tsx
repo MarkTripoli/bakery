@@ -131,7 +131,7 @@ function ReasonNext(
   }
   const to = action.kind === "integrations"
     ? "/settings/organization/integrations" as const
-    : "/projects/onboarding" as const;
+    : "/projects" as const;
   return (
     <UI.Button
       variant="quiet"

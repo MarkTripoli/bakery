@@ -163,13 +163,13 @@ Deno.test("screens that need no run are scanned before the first funded step (re
   const source = await code(specPath);
   const firstFunded = source.search(/\bawait fundedStep\(/);
   assert(firstFunded > 0);
-  for (const label of ["/tasks/new", "/projects/onboarding", "/machines"]) {
+  for (const label of ["/tasks/new", "/projects/repositories", "/machines"]) {
     const at = source.indexOf(`axeClean(page, "${label}`);
     assert(at >= 0, `no axe scan of ${label}`);
     assert(at < firstFunded, `${label} is scanned after a funded step`);
   }
   const p7 = (await phases()).get(7)!;
-  for (const label of ["/tasks/new", "/projects/onboarding", "/machines"]) {
+  for (const label of ["/tasks/new", "/projects/repositories", "/machines"]) {
     assert(!p7.includes(`"${label}`), `P7 repeats the scan of ${label}`);
   }
   assert(source.includes("completionCopyScope"));
