@@ -1,4 +1,5 @@
 import { assert, assertEquals } from "@std/assert";
+import { BAKERY_MIGRATION_SOURCES } from "../../apps/server/src/migration-sources.ts";
 
 /**
  * The migration runner reads every registered module's migration directory,
@@ -9,32 +10,42 @@ import { assert, assertEquals } from "@std/assert";
  * fresh worktree stack died on `NotCapable: Requires read access to
  * .../artifact-kinds/migrations/bakery` while a host-run migrate was fine.
  *
- * This walks the tree the way the runner does and requires both launch paths to
- * name every module that actually holds baked migrations, so the next module
- * added cannot leave one launch path unreadable.
+ * The set of directories is not guessed here: `BAKERY_MIGRATION_SOURCES` is the
+ * registry the runner itself loads (`tasks.ts`), and `tests/rails/
+ * migration-sources-registry_test.ts` proves it covers every directory on disk.
+ * So this test asks one question only — do both launch paths name every root the
+ * registry declares? — and cannot drift from the runner.
+ *
+ * Deriving the set from the tree instead was the earlier mistake: the platform
+ * source roots at `platform/migrations` (its first migration creates the
+ * pgcrypto extension) while modules root at `migrations/bakery`, so a walk of
+ * `modules/&#42;/migrations/bakery/` skipped the platform bootstrap entirely and
+ * would report agreement while `pnpm migrate` could not read it.
  */
 const REPO = new URL("../../", import.meta.url);
-const MODULES = new URL("apps/server/src/modules/", REPO);
 const PACKAGE_JSON = new URL("apps/server/package.json", REPO);
 const COMPOSE = new URL("infra/compose.yaml", REPO);
 
-/** Modules that keep a `migrations/bakery/` directory, in tree order. */
-async function modulesWithBakedMigrations(): Promise<string[]> {
-  const found: string[] = [];
-  for await (const module of Deno.readDir(MODULES)) {
-    if (!module.isDirectory) continue;
-    const bakery = new URL(`${module.name}/migrations/bakery/`, MODULES);
-    let sawFile = false;
-    try {
-      for await (const entry of Deno.readDir(bakery)) {
-        if (entry.isFile && entry.name.endsWith(".sql")) sawFile = true;
-      }
-    } catch {
-      continue; // this module keeps no baked migrations
-    }
-    if (sawFile) found.push(module.name);
-  }
-  return found;
+/**
+ * Every registered root, relative to `apps/server` and with the layer folder
+ * dropped.
+ *
+ * The registry roots at the layer (`migrations/bakery`, or `migrations` for the
+ * platform source, which has no layer). A launch grants a directory and Deno
+ * allows a read anywhere beneath it, so the grant that covers a root names its
+ * `migrations` ancestor — `src/modules/auth/migrations` covers
+ * `src/modules/auth/migrations/bakery`. Comparing at the `migrations` directory
+ * is therefore the question the runner actually needs answered.
+ */
+function registeredRoots(): string[] {
+  const serverPrefix = new URL("apps/server/", REPO).pathname;
+  const roots = BAKERY_MIGRATION_SOURCES.map((source) => {
+    const path = new URL(source.root).pathname.slice(serverPrefix.length)
+      .replace(/\/$/, "");
+    const at = path.lastIndexOf("/migrations");
+    return at === -1 ? path : path.slice(0, at + "/migrations".length);
+  });
+  return [...new Set(roots)].sort();
 }
 
 /**
@@ -52,18 +63,18 @@ function allowReadEntries(command: string): string[] {
  *
  * The two launches run from different working directories: the package script
  * from `apps/server`, the compose service from the repository root. So the same
- * directory is spelled `src/modules/x/migrations` in one and
- * `apps/server/src/modules/x/migrations` in the other; each caller passes the
+ * directory is spelled `src/platform/migrations` in one and
+ * `apps/server/src/platform/migrations` in the other; each caller passes the
  * prefix its own launch uses.
  */
-function expectedEntries(modules: string[], prefix: string): string[] {
-  return modules.map((name) => `${prefix}modules/${name}/migrations`);
+function expectedEntries(roots: string[], prefix: string): string[] {
+  return roots.map((root) => `${prefix}${root}`);
 }
 
-Deno.test("every launch path may read every baked migration directory", async () => {
-  const modules = await modulesWithBakedMigrations();
-  assert(modules.length > 0, "found no baked migration directories");
-  const subject = modules.join(", ");
+Deno.test("every launch path may read every registered migration root", async () => {
+  const roots = registeredRoots();
+  assert(roots.length > 0, "BAKERY_MIGRATION_SOURCES is empty");
+  const subject = roots.join(", ");
 
   const pkg = JSON.parse(await Deno.readTextFile(PACKAGE_JSON));
   assert(
@@ -71,10 +82,10 @@ Deno.test("every launch path may read every baked migration directory", async ()
     "apps/server/package.json has no migrate script",
   );
   const fromPackage = allowReadEntries(pkg.scripts.migrate);
-  for (const entry of expectedEntries(modules, "src/")) {
+  for (const entry of expectedEntries(roots, "")) {
     assert(
       fromPackage.includes(entry),
-      `package.json migrate cannot read ${entry} (modules: ${subject})`,
+      `package.json migrate cannot read ${entry} (registered: ${subject})`,
     );
   }
 
@@ -85,36 +96,21 @@ Deno.test("every launch path may read every baked migration directory", async ()
     "infra/compose.yaml has no migrate service",
   );
   const fromCompose = allowReadEntries(migrateService);
-  for (const entry of expectedEntries(modules, "apps/server/src/")) {
+  for (const entry of expectedEntries(roots, "apps/server/")) {
     assert(
       fromCompose.includes(entry),
-      `infra/compose.yaml migrate cannot read ${entry} (modules: ${subject})`,
+      `infra/compose.yaml migrate cannot read ${entry} (registered: ${subject})`,
     );
   }
 
-  // The two launches drive the same runner; a module one can read and the other
-  // cannot is the exact drift this test exists to catch. Compare the module
-  // names, since the two spell the shared prefix differently.
-  const moduleOf = (entry: string) =>
-    entry.replace(/^(?:apps\/server\/)?src\//, "").replace(
-      /\/migrations$/,
-      "",
-    );
+  // The two launches drive the same runner; a root one can read and the other
+  // cannot is the exact drift this test exists to catch. Compare in the space
+  // both were asserted against above, dropping each launch's own prefix.
+  const rootOf = (entry: string) =>
+    entry.replace(/^(?:apps\/server\/)?src\//, "");
   assertEquals(
-    fromCompose.map(moduleOf).sort(),
-    fromPackage.map(moduleOf).sort(),
+    fromCompose.map(rootOf).sort(),
+    fromPackage.map(rootOf).sort(),
     "compose and package.json disagree about which migration directories are readable",
   );
-
-  // Both lists also carry `platform`, which keeps no baked migrations and is
-  // granted anyway. That is an over-grant, not drift: nothing here reads it, so
-  // this test stays silent about it rather than asserting a shape the runner
-  // does not need. Stated so the next reader does not mistake the equality
-  // above for "the lists are exactly the tree".
-  const unread = modules.filter((name) =>
-    !fromPackage.includes(
-      `src/modules/${name}/migrations`,
-    )
-  );
-  assertEquals(unread, [], "package.json cannot read a module the tree has");
 });
