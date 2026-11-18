@@ -309,3 +309,50 @@ Deno.test("NotificationCursorQuery bounds the contract input", () => {
   );
   void otherPrincipalId;
 });
+
+Deno.test("every notification action carries its own authorization guard", async () => {
+  // `CurrentMember` is not one of the base organization policies, so an action
+  // that names it without a guard is refused for every caller — the inbox
+  // answered 403 to its own owner. Each action must state the guard.
+  const { createNotificationActionRegistry } = await import(
+    "../../apps/server/src/modules/work/notification-actions.ts"
+  );
+  const registry = createNotificationActionRegistry(
+    {} as never,
+    "test-cursor-secret-0123456789abcdef",
+  );
+  const actions = registry
+      .list === undefined
+    ? []
+    : registry.list();
+  assert(actions.length > 0, "expected the notification actions to register");
+  for (const action of actions) {
+    assertEquals(
+      typeof action.policy.authorize,
+      "function",
+      `${action.name} names CurrentMember without an authorize guard`,
+    );
+  }
+});
+
+Deno.test("a run-step target is scoped through its run, never by a task column", async () => {
+  // `bakery.run_steps` has no `task_id`: the step reaches its task through
+  // `workflow_runs`. A lookup that names a `task_id` on the step table throws
+  // for every step notification, which is a 500 rather than a row.
+  const { readFile } = await import("node:fs/promises");
+  const source = await readFile(
+    new URL(
+      "../../apps/server/src/modules/work/notifications-target.ts",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  assert(
+    !/byId\("bakery\.run_steps"\)/.test(source),
+    "run steps must not take the task_id-scoped byId path",
+  );
+  assert(
+    /join bakery\.workflow_runs/.test(source),
+    "the run-step branch must join the run that carries the task",
+  );
+});

@@ -44,6 +44,70 @@ export type NotificationBellProps =
   };
 
 /**
+ * The bell's drawn face: the glyph and the badge, with no button of its own.
+ *
+ * It exists as a separate piece because the two places a bell appears own
+ * opposite controls: on a phone it is a link to the page, and from 744px up it
+ * is a popover trigger. A control cannot nest inside another control, so the
+ * face must not be one — each caller supplies the interactive wrapper.
+ */
+export function NotificationBellGlyph(
+  { cap = 99, status = { state: "none" } }: {
+    readonly cap?: number;
+    readonly status?: NotificationBellStatus;
+  },
+) {
+  const drawn = status.state === "unread"
+    ? (status.count >= cap ? `${cap}+` : String(status.count))
+    : null;
+  return (
+    <>
+      <IconGlyph name="bell" size="medium" />
+      {drawn === null ? null : (
+        <span
+          aria-hidden="true"
+          className="ui-notification-bell__badge"
+          data-ui-part="notificationBadge"
+        >
+          {drawn}
+        </span>
+      )}
+      {status.state === "unknown"
+        ? (
+          <span
+            aria-hidden="true"
+            className="ui-notification-bell__badge ui-notification-bell__badge--unknown"
+            data-ui-part="notificationBadgeUnknown"
+          />
+        )
+        : null}
+    </>
+  );
+}
+
+/**
+ * The one polite live region a bell announces arrivals through. It is a
+ * component of its own because the bell reaches the screen two ways — its own
+ * button on a phone, a popover's button from 744px up — and both need the same
+ * batched sentence announced once, without moving focus.
+ */
+export function NotificationArrival(
+  { announcement }: { readonly announcement?: string | null },
+) {
+  return (
+    <span
+      aria-atomic="true"
+      aria-live="polite"
+      className="bakery-visually-hidden"
+      data-ui-part="notificationArrival"
+      role="status"
+    >
+      {announcement ?? ""}
+    </span>
+  );
+}
+
+/**
  * The bell at the right end of the top bar. Always a number in the badge, never
  * a bare dot, so the badge and the page can never disagree.
  */
@@ -68,9 +132,6 @@ export function NotificationBell(
     : status.state === "unknown"
     ? unknownLabel
     : label;
-  const drawn = status.state === "unread"
-    ? (status.count >= cap ? `${cap}+` : String(status.count))
-    : null;
   return (
     <span
       className={`ui-notification-bell ui-notification-bell--${variant}`}
@@ -84,35 +145,9 @@ export function NotificationBell(
         type="button"
         {...props}
       >
-        <IconGlyph name="bell" size="medium" />
-        {drawn === null ? null : (
-          <span
-            aria-hidden="true"
-            className="ui-notification-bell__badge"
-            data-ui-part="notificationBadge"
-          >
-            {drawn}
-          </span>
-        )}
-        {status.state === "unknown"
-          ? (
-            <span
-              aria-hidden="true"
-              className="ui-notification-bell__badge ui-notification-bell__badge--unknown"
-              data-ui-part="notificationBadgeUnknown"
-            />
-          )
-          : null}
+        <NotificationBellGlyph cap={cap} status={status} />
       </button>
-      <span
-        aria-live="polite"
-        aria-atomic="true"
-        className="bakery-visually-hidden"
-        data-ui-part="notificationArrival"
-        role="status"
-      >
-        {arrivalAnnouncement ?? ""}
-      </span>
+      <NotificationArrival announcement={arrivalAnnouncement} />
     </span>
   );
 }

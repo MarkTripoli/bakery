@@ -126,12 +126,18 @@
 /* The badge sits at the bell's top end; in a right-to-left page `inline-end`
    mirrors it to the top left, which is where the design asks it to be. */
 .ui-notification-bell__badge {
+  align-items: center;
   background: var(--color-selection);
+  block-size: var(--space-3);
   border-radius: var(--radius-pill);
   color: var(--color-surface);
+  display: inline-flex;
   font: var(--type-notification);
+  inline-size: auto;
   inset-block-start: calc(var(--space-1) * -1);
   inset-inline-end: calc(var(--space-1) * -1);
+  justify-content: center;
+  line-height: 1;
   min-inline-size: var(--space-3);
   padding-block: 0;
   padding-inline: var(--space-1);
@@ -1874,8 +1880,16 @@
   align-items: center;
   display: flex;
   gap: var(--space-2);
+  /* The action keeps its whole label; the heading gives up its width first,
+     so "Mark all read" never clips against the panel edge. */
   justify-content: space-between;
   padding-block-end: var(--space-2);
+}
+.ui-notification-popover__header > .ui-notification-popover__title {
+  min-inline-size: 0;
+}
+.ui-notification-popover__header > .ui-notification-popover__action {
+  white-space: nowrap;
 }
 .ui-notification-popover__title {
   font: var(--type-heading-subsection);

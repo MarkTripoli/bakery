@@ -54,15 +54,19 @@ export function NotificationsList(
     const destinationTitle = row.destination.available
       ? row.destination.title ?? untitledLabel
       : unavailableLabel;
+    // The step's own name and the document's own version number travel in the
+    // row's anchor, the position within the target. Falling back to the task
+    // title would print the same words on both lines, and the notification
+    // revision is not the document's revision, so neither is a substitute.
     const headline = translate(copy.headline, {
       actor: actorName,
-      step: row.destination.title ?? untitledLabel,
+      step: row.targetAnchor ?? row.destination.title ?? untitledLabel,
       document: row.destination.title ?? untitledLabel,
     });
     const destination = copy.destination
       ? translate(copy.destination, {
-        version: String(row.revision),
-        task: row.destination.title ?? untitledLabel,
+        document: row.destination.title ?? untitledLabel,
+        version: row.targetAnchor ?? String(row.revision),
       })
       : destinationTitle;
     return (

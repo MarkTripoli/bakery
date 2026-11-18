@@ -147,7 +147,17 @@ async function targetExists(
       return found.rows.length > 0;
     }
     case "run_step": {
-      const found = await byId("bakery.run_steps");
+      // A step hangs off its run, which carries the task link; the step table
+      // itself has no task column, so scope through the run rather than byId.
+      const found = await transaction.query<{ id: string }>(
+        `select step.id from bakery.run_steps as step
+           join bakery.workflow_runs as run
+             on run.organization_id = step.organization_id
+            and run.id = step.run_id
+          where step.organization_id = $1::uuid and step.id = $2::uuid
+            and run.task_id = $3::uuid`,
+        [organizationId, row.targetId, row.taskId],
+      );
       return found.rows.length > 0;
     }
     case "comment": {

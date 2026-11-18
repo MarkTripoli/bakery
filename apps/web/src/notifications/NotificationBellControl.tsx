@@ -55,19 +55,27 @@ export function NotificationBellControl() {
   }
 
   return (
-    <UI.Popover
-      label={accessibleLabel}
-      open={open}
-      onOpenChange={setOpen}
-      triggerAppearance="plain"
-      triggerLabel={accessibleLabel}
-      trigger={<NotificationBellGlyph status={status} arrival={arrival} />}
-    >
-      <NotificationBellPopover
-        status={status}
-        onClose={close}
-      />
-    </UI.Popover>
+    <>
+      <UI.Popover
+        align="end"
+        label={accessibleLabel}
+        open={open}
+        onOpenChange={setOpen}
+        trigger={<NotificationBellTriggerFace status={status} />}
+        triggerAppearance="plain"
+        triggerLabel={accessibleLabel}
+      >
+        <NotificationBellPopover
+          status={status}
+          onClose={close}
+        />
+      </UI.Popover>
+      {
+        /* The popover owns the trigger button, so the batched arrival sentence
+          lives beside it: one polite region, announced without moving focus. */
+      }
+      <UI.NotificationArrival announcement={arrival} />
+    </>
   );
 }
 
@@ -105,24 +113,15 @@ function useArrivalAnnouncement(unread: number | null): string | null {
   return announcement;
 }
 
-function NotificationBellGlyph({
-  arrival,
+// The popover supplies the button, its accessible name and its keyboard
+// behaviour, so its trigger is the bell's drawn face alone: a button here would
+// nest one control inside another.
+function NotificationBellTriggerFace({
   status,
 }: {
   readonly status: ReturnType<typeof bellStatusOf>;
-  readonly arrival: string | null;
 }) {
-  const { translate } = useI18n();
-  return (
-    <UI.NotificationBell
-      label={translate("notifications.bell.label")}
-      status={status}
-      unreadLabel={(value) =>
-        translate("notifications.bell.unread", { count: value })}
-      unknownLabel={translate("notifications.bell.unknown")}
-      arrivalAnnouncement={arrival}
-    />
-  );
+  return <UI.NotificationBellGlyph status={status} />;
 }
 
 function NotificationBellPopover(

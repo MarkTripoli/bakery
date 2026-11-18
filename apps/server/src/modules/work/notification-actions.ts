@@ -17,6 +17,7 @@ import { ActionAccess } from "@bakery/contracts/contracts";
 import { createPostgresCommandRunner } from "../../platform/command-replay.ts";
 import type { PgDatabase } from "../../platform/database.ts";
 import { PostgresAuthorityRunner } from "../auth/adapters/authority-postgres.ts";
+import { requireHumanMember } from "../auth/transport/http/v1/handlers.ts";
 import { createNotificationHandlers } from "./notification-handlers.ts";
 
 /**
@@ -37,15 +38,20 @@ export function createNotificationActionRegistry(
   const handlers = createNotificationHandlers(secret);
   const organizationContext =
     OrganizationContextPolicy.RequiredAuthenticatedContext;
+  // `CurrentMember` is not a base organization policy, so every action states
+  // the guard that grants it: a live human member, reading or changing only the
+  // inbox the authorized transaction resolves for them.
   const read = {
     type: ActionKind.Query,
     access: ActionAccess.CurrentMember,
     organizationContext,
+    authorize: requireHumanMember,
   } as const;
   const write = {
     type: ActionKind.Command,
     access: ActionAccess.CurrentMember,
     organizationContext,
+    authorize: requireHumanMember,
   } as const;
 
   registry.register({

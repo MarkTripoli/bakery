@@ -4035,6 +4035,6 @@
   "notifications.kind.stepFailed": "A step failed: {step}",
   "notifications.kind.approvalRequested": "Your approval is needed",
   "notifications.kind.questionAsked": "A question needs your answer",
-  "notifications.kind.documentVersion": "A new version is ready: {document}",
-  "notifications.kind.documentVersion.subtitle": "Version {version} · {task}"
+  "notifications.kind.documentVersion": "A new version is ready",
+  "notifications.kind.documentVersion.subtitle": "{document} · Version {version}"
 }

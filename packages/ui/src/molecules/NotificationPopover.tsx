@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Button } from "../atoms/Button.tsx";
+import { Link } from "../atoms/Link.tsx";
 import { Skeleton } from "../atoms/Skeleton.tsx";
 import { VisuallyHidden } from "../atoms/VisuallyHidden.tsx";
 import "../data.css";
@@ -108,7 +109,7 @@ export function NotificationPopover(
           : children}
       </div>
       <div className="ui-notification-popover__footer">
-        <a href={viewAllHref}>{viewAllLabel}</a>
+        <Link href={viewAllHref} variant="quiet">{viewAllLabel}</Link>
       </div>
     </div>
   );
