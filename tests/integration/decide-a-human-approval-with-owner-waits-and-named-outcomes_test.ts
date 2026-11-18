@@ -1,6 +1,7 @@
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import { StandardError } from "../../packages/contracts/src/http.ts";
 import type { PgTransactionClient } from "../../apps/server/src/platform/database.ts";
+import { loopElapsedMs } from "../../apps/server/src/modules/delivery/review-store.ts";
 import {
   activeLoopElapsedMs,
   appendDecision,
@@ -419,6 +420,22 @@ Deno.test("AC3: the active clock excludes the wait while wall time includes it",
     // The pair is the evidence: the same run looks shorter on the active clock
     // and unchanged on the wall clock.
     assert(Number(wall.rows[0]!.ms) > active);
+
+    // The delivery path must report the active number too. Asserting only the
+    // helper would pass while the loop still charged the wait to the work.
+    const reported = await loopElapsedMs(run.client, {
+      organizationId: fixture.organizationId,
+      runId: run.job.runId,
+    });
+    // Two calls read the clock at different instants, so the numbers agree to
+    // within a second rather than exactly; what matters is that the delivery
+    // path reports the active figure and not the wall one.
+    assert(reported !== null);
+    assert(
+      Math.abs(reported - active) < 1000,
+      `loopElapsedMs should report the active clock, got ${reported}ms vs ${active}ms`,
+    );
+    assert(reported < Number(wall.rows[0]!.ms));
     assertEquals(asked.approverPrincipalId, fixture.principalId);
   });
 });
