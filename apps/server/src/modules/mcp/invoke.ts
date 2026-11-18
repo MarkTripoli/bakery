@@ -74,12 +74,16 @@ export type McpPinnedStatePort = {
     hostId: string;
     /**
      * The ownership the caller is invoking as. A binding owned by a different
-     * workflow, agent or step must not match, so the slots are part of the read
-     * rather than something the check layer could forget to apply.
+     * workflow, agent, step, repository, skill version or automation version
+     * must not match, so every slot is part of the read rather than something
+     * the check layer could forget to apply.
      */
     workflowVersionId?: string | null;
     agentVersionId?: string | null;
     stepKey?: string | null;
+    repositoryId?: string | null;
+    skillVersionOwnerId?: string | null;
+    automationVersionId?: string | null;
   }): Promise<McpPinnedState | null>;
 };
 
@@ -110,12 +114,17 @@ export type McpInvokeInput =
     hostId: string;
     /**
      * The ownership the call is made for, when it is made for one. A binding
-     * owned by a different workflow, agent or step does not match, which is why
-     * these travel with the call rather than being looked up later.
+     * owned by a different workflow, agent, step, repository, skill version or
+     * automation version does not match, which is why these travel with the call
+     * rather than being looked up later. Omitted means "owned by nothing", so a
+     * binding that names an owner cannot serve an unowned caller.
      */
     workflowVersionId?: string | null;
     agentVersionId?: string | null;
     stepKey?: string | null;
+    repositoryId?: string | null;
+    skillVersionOwnerId?: string | null;
+    automationVersionId?: string | null;
   }>;
 
 export type McpInvokeResult = Readonly<{
@@ -300,6 +309,12 @@ export async function invokeMcpTool(
     workflowVersionId: rawInput.workflowVersionId ?? null,
     agentVersionId: rawInput.agentVersionId ?? null,
     stepKey: rawInput.stepKey ?? null,
+    // Every owner slot is passed, not just the three the first version carried:
+    // a binding owned by a repository, skill version or automation version names
+    // an owner, and omitting its slot would let it serve an unowned caller.
+    repositoryId: rawInput.repositoryId ?? null,
+    skillVersionOwnerId: rawInput.skillVersionOwnerId ?? null,
+    automationVersionId: rawInput.automationVersionId ?? null,
   });
   if (state === null) {
     // An unknown connection is a denial, not an empty pass. Falling through to

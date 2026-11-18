@@ -662,8 +662,13 @@ async function seedPinnedConnection(
     hostId: string;
     /** The connection the pinned snapshot belongs to; defaults to the new one. */
     snapshotOwnedBy?: "this" | "other";
-    /** The binding's owner slot, left unset for an organization-wide grant. */
+    /** The binding's owner slots, unset for an organization-wide grant. */
     stepKey?: string;
+    workflowVersionId?: string;
+    agentVersionId?: string;
+    repositoryId?: string;
+    skillVersionOwnerId?: string;
+    automationVersionId?: string;
     /** Whether the dispatching host can run work. */
     hostEligible?: boolean;
   },
@@ -705,10 +710,25 @@ async function seedPinnedConnection(
     await db`update bakery.mcp_connections set current_snapshot_id = ${snapshotId}
       where organization_id = ${options.organizationId} and id = ${connectionId}`;
   }
-  await db`insert into bakery.capability_bindings (id, organization_id, mcp_connection_id, mcp_snapshot_id, mcp_snapshot_digest, actor_ref, step_key, allowed_operations, required, created_at, updated_at, version)
-    values (${crypto.randomUUID()}, ${options.organizationId}, ${connectionId}, ${snapshotId}, ${digest}, ${options.principalId}, ${
-    options.stepKey ?? null
-  }, ${db.json(["search"])}, false, ${now}, ${now}, 1)`;
+  // The owner columns are real foreign keys, so an id that names no row cannot
+  // be inserted normally. The reference triggers are deferred for this one
+  // statement: the test is about which binding the read selects, and building a
+  // workflow, agent, skill and automation version would bury that.
+  await db`set session_replication_role = replica`;
+  try {
+    await db`insert into bakery.capability_bindings (id, organization_id, mcp_connection_id, mcp_snapshot_id, mcp_snapshot_digest, actor_ref, step_key, workflow_version_id, agent_version_id, repository_id, skill_version_owner_id, automation_version_id, allowed_operations, required, created_at, updated_at, version)
+      values (${crypto.randomUUID()}, ${options.organizationId}, ${connectionId}, ${snapshotId}, ${digest}, ${options.principalId}, ${
+      options.stepKey ?? null
+    }, ${options.workflowVersionId ?? null}, ${
+      options.agentVersionId ?? null
+    }, ${options.repositoryId ?? null}, ${
+      options.skillVersionOwnerId ?? null
+    }, ${options.automationVersionId ?? null}, ${
+      db.json(["search"])
+    }, false, ${now}, ${now}, 1)`;
+  } finally {
+    await db`set session_replication_role = origin`;
+  }
   return { connectionId, snapshotId, digest };
 }
 
@@ -1022,3 +1042,113 @@ Deno.test("LOW: a step-scoped grant outranks a newer organization-wide one", asy
     await closeDatabase(db);
   }
 });
+
+/**
+ * Every owner column on a binding, and the input slot that must match it.
+ *
+ * A binding is a grant to one owner, so a binding naming any of these must not
+ * serve a caller that does not supply it. Filtering only some of the columns left
+ * the rest serving any caller with the connection id, which is a grant the owner
+ * never made.
+ */
+const OWNER_SLOTS = [
+  { column: "repositoryId", label: "repository" },
+  { column: "skillVersionOwnerId", label: "skill version" },
+  { column: "automationVersionId", label: "automation version" },
+  { column: "workflowVersionId", label: "workflow version" },
+  { column: "agentVersionId", label: "agent version" },
+  { column: "stepKey", label: "step" },
+] as const;
+
+for (const slot of OWNER_SLOTS) {
+  Deno.test(`an unowned caller is refused a binding owned by a ${slot.label}`, async () => {
+    const db = openDatabase(databaseConfig.databaseUrl);
+    const world = await seedWorld(db, `owned-${slot.column}`);
+    try {
+      // The binding names this owner; the caller supplies nothing.
+      const owned = await seedPinnedConnection(db, {
+        organizationId: world.organizationId,
+        principalId: world.principalId,
+        hostId: world.hostId,
+        [slot.column]: crypto.randomUUID(),
+      });
+
+      const transport = recordingTransport();
+      let denial: string | undefined;
+      try {
+        await invokeMcpTool(
+          { pinnedState: createPostgresMcpPinnedStatePort(db), transport },
+          {
+            organizationId: world.organizationId,
+            actorRef: world.principalId,
+            connectionId: owned.connectionId,
+            toolName: "search",
+            pinnedDigest: owned.digest,
+            arguments: {},
+            hostId: world.hostId,
+          },
+        );
+      } catch (error) {
+        denial = (error as { params?: { reason?: string } }).params?.reason;
+      }
+      // No live grant remains once the owned binding is filtered out.
+      assertEquals(denial, "grant_revoked");
+      assertEquals(
+        transport.calls,
+        [],
+        `a ${slot.label}-owned binding must not serve an unowned caller`,
+      );
+    } finally {
+      await removeOrganization(db, world.organizationId, {
+        userIds: [world.userId],
+        principalIds: [
+          world.principalId,
+          ...(world.worker ? [world.worker.principalId] : []),
+        ],
+      });
+      await closeDatabase(db);
+    }
+  });
+
+  Deno.test(`the owning caller is served a binding owned by a ${slot.label}`, async () => {
+    const db = openDatabase(databaseConfig.databaseUrl);
+    const world = await seedWorld(db, `owner-${slot.column}`);
+    try {
+      const ownerId = crypto.randomUUID();
+      const owned = await seedPinnedConnection(db, {
+        organizationId: world.organizationId,
+        principalId: world.principalId,
+        hostId: world.hostId,
+        [slot.column]: ownerId,
+      });
+
+      const transport = recordingTransport();
+      const result = await invokeMcpTool(
+        { pinnedState: createPostgresMcpPinnedStatePort(db), transport },
+        {
+          organizationId: world.organizationId,
+          actorRef: world.principalId,
+          connectionId: owned.connectionId,
+          toolName: "search",
+          pinnedDigest: owned.digest,
+          arguments: {},
+          hostId: world.hostId,
+          [slot.column]: ownerId,
+        },
+      );
+      // The exclusion must be an ownership test, not a blanket refusal: the
+      // owner has to keep working, or the fix would break every scoped grant.
+      assertEquals(result.toolName, "search");
+      assertEquals(transport.calls, [`${owned.connectionId}:search`]);
+    } finally {
+      await removeOrganization(db, world.organizationId, {
+        userIds: [world.userId],
+        principalIds: [
+          world.principalId,
+          ...(world.worker ? [world.worker.principalId] : []),
+        ],
+      });
+      await closeDatabase(db);
+    }
+  });
+}

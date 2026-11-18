@@ -106,6 +106,16 @@ export function createPostgresMcpPinnedStatePort(
                  and (b.step_key is null or b.step_key = ${
         input.stepKey ?? null
       })
+                 and (b.repository_id is null
+                   or b.repository_id = ${input.repositoryId ?? null})
+                 and (b.skill_version_owner_id is null
+                   or b.skill_version_owner_id = ${
+        input.skillVersionOwnerId ?? null
+      })
+                 and (b.automation_version_id is null
+                   or b.automation_version_id = ${
+        input.automationVersionId ?? null
+      })
                )
              -- A binding that names more of this caller's ownership slots is
              -- more specific and wins, so a step-scoped grant is preferred over
@@ -115,6 +125,9 @@ export function createPostgresMcpPinnedStatePort(
                         (b.workflow_version_id is not null)::int
                         + (b.agent_version_id is not null)::int
                         + (b.step_key is not null)::int
+                        + (b.repository_id is not null)::int
+                        + (b.skill_version_owner_id is not null)::int
+                        + (b.automation_version_id is not null)::int
                       ) desc,
                       (b.actor_ref = ${input.actorRef}) desc nulls last,
                       b.created_at desc
