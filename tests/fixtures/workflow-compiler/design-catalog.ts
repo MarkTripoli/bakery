@@ -223,22 +223,6 @@ export const designSchemas: Readonly<Record<string, Schema>> = Object.freeze({
   }),
   EmptyInput: obj({}),
   EmptyOutput: obj({}),
-  WorkflowStopInput: obj({ outcome: str(), reason: str() }),
-  WorkflowStopOutput: obj({ outcome: nonEmpty(), reason: str() }),
-  HumanApprovalInput: obj({
-    prompt: nonEmpty({ maxLength: 2000 }),
-    audience: obj({}),
-    approveLabel: str(),
-    rejectLabel: str(),
-    allowRequestChanges: bool(),
-  }),
-  HumanApprovalOutput: obj({
-    decision: enumOf("approve", "request_changes", "reject"),
-    note: str(),
-    decidedBy: uuid(),
-    decidedAt: str({ format: "date-time" }),
-    approvalId: uuid(),
-  }),
   ArtifactPublishInput: obj({ artifact: artifactRef() }),
   MemoryPromoteInput: obj({
     artifact: artifactRef(),
