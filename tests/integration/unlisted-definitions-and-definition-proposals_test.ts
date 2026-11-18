@@ -263,6 +263,27 @@ Deno.test("a coordinator proposes an unlisted definition, a person decides it an
       );
     }
 
+    // A decision naming a stale proposal version is refused with 412 and
+    // decides nothing (the proposal's own If-Match, not the draft's).
+    assertEquals(
+      (await decide(fixture, seed, {
+        ...waiting,
+        version: waiting.version + 5,
+      }, "accept")).status,
+      412,
+    );
+    assertEquals(
+      (await json<Proposal>(
+        await call(
+          fixture,
+          seed,
+          `/v1/workflow-definition-proposals/${proposalId}`,
+        ),
+        200,
+      )).state,
+      "waiting",
+    );
+
     // A person accepts: an unlisted, coordinator-origin definition with a draft.
     const accepted = await json<Proposal>(
       await decide(fixture, seed, waiting, "accept"),
@@ -550,6 +571,18 @@ Deno.test("an unlisted definition runs at its exact published version through no
     )).items.map((item) => item.id);
     assert(listed.includes(copy.id));
     assert(!listed.includes(workflow.id));
+    // A listed source (here the copy itself) cannot be saved again: 409.
+    const listedAgain = await apiCall(
+      fixture,
+      scope,
+      "POST",
+      `/v1/workflows/${copy.id}/listings`,
+      {
+        body: { versionId: published.id },
+        headers: { "If-Match": `"${copy.version}"` },
+      },
+    );
+    assertEquals(listedAgain.status, 409, await listedAgain.text());
     // A stale If-Match on the source is refused and copies nothing.
     assertEquals(
       (await apiCall(

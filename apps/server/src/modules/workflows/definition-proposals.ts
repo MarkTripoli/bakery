@@ -252,6 +252,8 @@ export async function decideWorkflowDefinitionProposal(
   if (expectedVersion === undefined) {
     throw new StandardError({ code: "PRECONDITION_REQUIRED" });
   }
+  // The row is locked for update, so this one check is the proposal's
+  // compare-and-set: nothing below can race it.
   const row = await readProposal(transaction, organizationId, proposalId, true);
   if (row.version !== expectedVersion) {
     throw new StandardError({ code: "PRECONDITION_FAILED" });
@@ -306,14 +308,13 @@ export async function decideWorkflowDefinitionProposal(
   }
   const decided = (await transaction.query<ProposalRow>(
     `update bakery.workflow_definition_proposals
-        set state = $4, workflow_id = $5, decided_by = $6,
+        set state = $3, workflow_id = $4, decided_by = $5,
             decided_at = now(), updated_at = now(), version = version + 1
-      where organization_id = $1 and id = $2 and version = $3
+      where organization_id = $1 and id = $2
       returning ${PROPOSAL_COLUMNS}`,
     [
       organizationId,
       proposalId,
-      expectedVersion,
       decision === "accept"
         ? DefinitionProposalState.Accepted
         : DefinitionProposalState.Rejected,
@@ -321,7 +322,7 @@ export async function decideWorkflowDefinitionProposal(
       principalId,
     ],
   )).rows[0];
-  if (!decided) throw new StandardError({ code: "PRECONDITION_FAILED" });
+  if (!decided) throw new Error("DEFINITION_PROPOSAL_DECIDE_FAILED");
   await appendAudit(transaction, {
     organizationId,
     principalId,
