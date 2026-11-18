@@ -194,8 +194,12 @@ export function jobsFromPages(pages: unknown): readonly Job[] {
  */
 export function ghRunner(repo: string, token: string): GhRunner {
   const api = async (args: readonly string[]): Promise<unknown> => {
+    // `gh api` takes the repository in its path and has no `--repo` flag, so
+    // appending one made every job read fail on the flag rather than on the
+    // token. The `issue` subcommands are the ones that take `--repo`.
+    const scoped = args[0] === "api" ? args : [...args, "--repo", repo];
     const result = await new Deno.Command("gh", {
-      args: [...args, "--repo", repo],
+      args: [...scoped],
       env: { ...Deno.env.toObject(), GH_TOKEN: token },
       stdout: "piped",
       stderr: "piped",

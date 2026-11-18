@@ -14,6 +14,7 @@ import { assert, assertEquals } from "@std/assert";
 import {
   failingJobs,
   type GhRunner,
+  ghRunner,
   type Job,
   jobsFromPages,
   redBody,
@@ -301,4 +302,40 @@ Deno.test("a green dispatched run closes the issue as a dispatched run", async (
     String(close?.comment).includes("dispatched run went green"),
     `expected the close comment to name a dispatched run, got ${close?.comment}`,
   );
+});
+
+Deno.test("the real runner never hands `gh api` a --repo flag it rejects", async () => {
+  // A stand-in `gh` that refuses `api ... --repo` the way the real one does
+  // ("unknown flag: --repo") and logs every argv it is given.
+  const dir = await Deno.makeTempDir({ prefix: "nightly-signal-gh-" });
+  const log = `${dir}/argv.log`;
+  const script = `#!/bin/sh
+echo "$*" >> "${log}"
+if [ "$1" = "api" ]; then
+  for a in "$@"; do
+    if [ "$a" = "--repo" ]; then echo "unknown flag: --repo" >&2; exit 1; fi
+  done
+  echo '[{"jobs":[{"name":"x","conclusion":"success"}]}]'
+else
+  echo '[]'
+fi
+`;
+  await Deno.writeTextFile(`${dir}/gh`, script);
+  await Deno.chmod(`${dir}/gh`, 0o755);
+  const path = Deno.env.get("PATH") ?? "";
+  Deno.env.set("PATH", `${dir}:${path}`);
+  try {
+    const gh = ghRunner("owner/repo", "token");
+    const jobs = await gh.listJobs("42");
+    assertEquals(jobs.length, 1);
+    await gh.findOpenIssues(SIGNAL_TITLE);
+    const calls = (await Deno.readTextFile(log)).trim().split("\n");
+    assert(calls[0].startsWith("api repos/owner/repo/actions/runs/42/jobs"));
+    assert(!calls[0].includes("--repo"));
+    assert(calls[1].startsWith("issue list"));
+    assert(calls[1].endsWith("--repo owner/repo"));
+  } finally {
+    Deno.env.set("PATH", path);
+    await Deno.remove(dir, { recursive: true });
+  }
 });
