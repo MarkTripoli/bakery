@@ -103,16 +103,40 @@ export type WorkflowBuilder<I extends WorkflowInputs> = {
   toJSON(): WorkflowDefinition;
 };
 
-const STEP_REFERENCE = /\$step\.([A-Za-z][A-Za-z0-9_-]*)(?=\.|$)/g;
+/**
+ * A string is a reference only when the whole string is one: the document
+ * grammar reads a string that begins with `$` as a reference and everything
+ * else as text, so text that merely mentions `$step.x` mid-sentence stays text.
+ */
+const STEP_REFERENCE = /^\$step\.([A-Za-z][A-Za-z0-9_-]*)(?=\.|$)/;
 
-/** Every `$step.<id>` a value mentions, in order, however deep it sits. */
-function stepsReferencedBy(value: unknown, found: Set<string>): void {
+/**
+ * Walks one step's bindings. It collects the step each reference reads, in
+ * order, and refuses a value a document cannot hold: a workflow is data, so a
+ * function (or a symbol) is an error here rather than a field that silently
+ * disappears when the document is serialized.
+ */
+function readBindings(
+  value: unknown,
+  stepId: string,
+  found: Set<string>,
+  path = "",
+): void {
   if (typeof value === "string") {
-    for (const match of value.matchAll(STEP_REFERENCE)) found.add(match[1]!);
+    const match = STEP_REFERENCE.exec(value);
+    if (match) found.add(match[1]!);
+  } else if (typeof value === "function" || typeof value === "symbol") {
+    throw new Error(
+      `step "${stepId}" binds a ${typeof value} at "${path}"; a workflow is data and holds no callback`,
+    );
   } else if (Array.isArray(value)) {
-    for (const item of value) stepsReferencedBy(item, found);
+    value.forEach((item, index) =>
+      readBindings(item, stepId, found, `${path}/${index}`)
+    );
   } else if (value !== null && typeof value === "object") {
-    for (const item of Object.values(value)) stepsReferencedBy(item, found);
+    for (const [key, item] of Object.entries(value)) {
+      readBindings(item, stepId, found, `${path}/${key}`);
+    }
   }
 }
 
@@ -155,11 +179,11 @@ export function defineWorkflow<const I extends WorkflowInputs>(
       throw new Error(`workflow step id "${id}" is already used`);
     }
     const referenced = new Set<string>();
-    stepsReferencedBy(bindings, referenced);
+    readBindings(bindings, id, referenced);
     for (const target of referenced) {
       if (!steps.some((step) => step.id === target)) {
         throw new Error(
-          `step "${id}" reads $step.${target}, which is not declared before it`,
+          `step "${id}" reads $step.${target}, which is not declared before it (a string that begins with $ is a reference; write text that must start with $ as a literal)`,
         );
       }
     }

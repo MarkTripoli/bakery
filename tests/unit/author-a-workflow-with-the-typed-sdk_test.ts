@@ -146,6 +146,35 @@ Deno.test("a duplicate id, an undeclared read and a foreign step are refused at 
   );
 });
 
+Deno.test("only a whole string that begins with $step. is a reference; mid-text mentions stay text", () => {
+  const w = defineWorkflow({ name: "text", inputs: {} });
+  w.action("a", "task.brief", { note: "see $step.ghost for details" });
+  assertEquals(w.toJSON().steps[0]!.with, {
+    note: "see $step.ghost for details",
+  });
+  assertEquals(w.toJSON().steps[0]!.needs, undefined);
+  assertThrows(
+    () => w.action("b", "task.brief", { note: "$step.ghost.output" }),
+    Error,
+    "not declared before it",
+  );
+});
+
+Deno.test("a function or symbol binding is refused, not dropped", () => {
+  const w = defineWorkflow({ name: "data", inputs: {} });
+  assertThrows(
+    () => w.action("a", "task.brief", { run: () => 1 }),
+    Error,
+    "holds no callback",
+  );
+  assertThrows(
+    () => w.action("b", "task.brief", { nested: { list: [Symbol("x")] } }),
+    Error,
+    "/nested/list/0",
+  );
+  assertEquals(w.toJSON().steps.length, 0);
+});
+
 Deno.test("types: a reference of the wrong type is a compile-time error", () => {
   const w = defineWorkflow({
     name: "types",
