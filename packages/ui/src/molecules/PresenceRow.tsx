@@ -31,6 +31,8 @@ export type PresenceRowProps =
     "role"
   >
   & {
+    /** The group's accessible name ("People in this document"), already translated. */
+    "aria-label": string;
     /** Everyone here, in the order to show them. */
     people: readonly PresencePerson[];
     /** At most this many avatars are drawn; the rest are counted. Five by default. */
