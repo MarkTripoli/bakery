@@ -4568,6 +4568,104 @@ export const clientManifest = {
     },
     {
       "group": "Providers",
+      "method": "GET",
+      "path": "/v1/provider-routes",
+      "action": "providerRoutes.list",
+      "access": "Developer",
+      "permission": "providerRoute:read",
+      "input": "ProviderRouteQuery",
+      "output": "Page<ProviderRoute>",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Read; opaque cursor pagination",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN"
+      ],
+      "organizationContext": "none",
+      "implemented": true
+    },
+    {
+      "group": "Providers",
+      "method": "GET",
+      "path": "/v1/provider-routes/{id}",
+      "action": "providerRoutes.get",
+      "access": "Developer",
+      "permission": "providerRoute:read",
+      "input": "IdPath",
+      "output": "ProviderRoute",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Read; no body",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND"
+      ],
+      "organizationContext": "none",
+      "implemented": true
+    },
+    {
+      "group": "Providers",
+      "method": "GET",
+      "path": "/v1/provider-routes/{id}/health",
+      "action": "providerRoutes.health",
+      "access": "Developer",
+      "permission": "providerRoute:read",
+      "input": "IdPath",
+      "output": "RouteHealth",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Read; no body",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND"
+      ],
+      "organizationContext": "none",
+      "implemented": true
+    },
+    {
+      "group": "Providers",
+      "method": "GET",
+      "path": "/v1/provider-incidents",
+      "action": "providerIncidents.list",
+      "access": "Developer",
+      "permission": "providerIncident:read",
+      "input": "ProviderIncidentQuery",
+      "output": "Page<ProviderIncident>",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Read; opaque cursor pagination",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN"
+      ],
+      "organizationContext": "none",
+      "implemented": true
+    },
+    {
+      "group": "Providers",
+      "method": "GET",
+      "path": "/v1/provider-incidents/{id}",
+      "action": "providerIncidents.get",
+      "access": "Developer",
+      "permission": "providerIncident:read",
+      "input": "IdPath",
+      "output": "ProviderIncident",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Read; no body",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND"
+      ],
+      "organizationContext": "none",
+      "implemented": true
+    },
+    {
+      "group": "Providers",
       "method": "POST",
       "path": "/v1/workers/{id}/provider-bindings",
       "action": "workerProviderBindings.create",
@@ -21280,6 +21378,88 @@ export const clientManifest = {
           "description": "JSON value node."
         }
       }
+    },
+    "ProviderRouteQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "status": {
+          "description": "Restricts the page to routes in this lifecycle state; a revoked or disabled route is readable but never probed or admitted for new work.",
+          "type": "string",
+          "enum": [
+            "active",
+            "disabled",
+            "revoked"
+          ]
+        },
+        "health": {
+          "description": "Restricts the page to routes in this circuit state: healthy (closed, inference proven), degraded (failing below the open threshold), open (paused, probing), or unverified (reachable but no inference proof yet).",
+          "type": "string",
+          "enum": [
+            "healthy",
+            "degraded",
+            "open",
+            "unverified"
+          ]
+        },
+        "cursor": {
+          "description": "Opaque keyset cursor for the next page of routes; bound to the caller's organization and the same status and health filters, so it is rejected if replayed under a different query. ProviderRouteQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "limit": {
+          "description": "Maximum number of provider routes returned per page; defaults to 25 and cannot exceed 100. ProviderRouteQuery.limit must be at least 1. ProviderRouteQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "additionalProperties": false,
+      "description": "Filters and page position for listing the organization's provider routes. Routes are organization-scoped addresses for one provider endpoint, model, harness and credential binding, so this page never spans organizations."
+    },
+    "ProviderIncidentQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "routeId": {
+          "description": "Restricts the page to incidents recorded against one provider route; omit to list incidents across every route the caller can see.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "status": {
+          "description": "Restricts the page to incidents in this state: open (still failing), recovered (probes proved the route again), or superseded (a newer incident generation replaced it without recovery).",
+          "type": "string",
+          "enum": [
+            "open",
+            "recovered",
+            "superseded"
+          ]
+        },
+        "severity": {
+          "description": "Restricts the page to degraded incidents, where the route still serves some work, or outage incidents, where it serves none.",
+          "type": "string",
+          "enum": [
+            "degraded",
+            "outage"
+          ]
+        },
+        "cursor": {
+          "description": "Opaque keyset cursor for the next page of incidents; bound to the caller's organization and the same route, status and severity filters. ProviderIncidentQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "limit": {
+          "description": "Maximum number of provider incidents returned per page; defaults to 25 and cannot exceed 100. ProviderIncidentQuery.limit must be at least 1. ProviderIncidentQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "additionalProperties": false,
+      "description": "Filters and page position for listing provider incidents. An incident is one durable record per affected route and generation, not one per failed attempt, so duplicate and stale probe results do not multiply rows."
     },
     "UserPreferences": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -74450,6 +74630,1191 @@ export const clientManifest = {
           "description": "JSON value node."
         }
       }
+    },
+    "Page<ProviderIncident>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID identifying the incident record."
+              },
+              "routeId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the provider route this incident is scoped to."
+              },
+              "generation": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Monotonic generation for the route's incident line at the moment this incident opened. A probe result, notification or continuation choice carrying a lower generation is stale."
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "open",
+                  "recovered",
+                  "superseded"
+                ],
+                "description": "Incident state: open (the route is still failing), recovered (probes proved the route again), or superseded (a newer generation replaced this incident without recovery)."
+              },
+              "severity": {
+                "type": "string",
+                "enum": [
+                  "degraded",
+                  "outage"
+                ],
+                "description": "degraded (the route still serves some work) or outage (the route serves none)."
+              },
+              "reason": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "rate_limited",
+                      "credential_invalid",
+                      "quota_exhausted",
+                      "transport_failure",
+                      "provider_error",
+                      "timeout",
+                      "reachable_inference_unverified"
+                    ],
+                    "description": "Typed cause recorded when the incident opened, or null when it opened without a classified reason: rate_limited, credential_invalid, quota_exhausted, transport_failure, provider_error, timeout, or reachable_inference_unverified."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "ProviderIncident.reason may be null in the safe projection."
+              },
+              "firstFailureAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp of the first classified failure in this generation."
+              },
+              "lastFailureAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp of the most recent classified failure in this generation."
+              },
+              "lastProbeAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "UTC timestamp of the most recent saved probe result for this incident; null when no probe has run yet."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "ProviderIncident.lastProbeAt may be null in the safe projection."
+              },
+              "nextProbeAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "UTC timestamp at which the next probe becomes claimable; null when probing has stopped."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "ProviderIncident.nextProbeAt may be null in the safe projection."
+              },
+              "evidenceWatermark": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Opaque bounded reference to the deduplicated evidence that keeps this incident current; never a credential, prompt or raw provider error."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "ProviderIncident.evidenceWatermark may be null in the safe projection."
+              },
+              "affectedTaskCount": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Number of tasks paused by this incident, counted once per task however many probe results arrive."
+              },
+              "recoveredTaskCount": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Number of paused tasks that resumed automatically once the route recovered."
+              },
+              "switchedTaskCount": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Number of paused tasks continued on a different route through an authorized switch."
+              },
+              "stillBlockedTaskCount": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Number of paused tasks that remain blocked, for example because recovery is no longer eligible or an operator paused them."
+              },
+              "openedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the incident opened."
+              },
+              "closedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "UTC timestamp when the incident recovered or was superseded; null while it is open."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "ProviderIncident.closedAt may be null in the safe projection."
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp of the last change to the incident record."
+              },
+              "version": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Optimistic concurrency version, incremented on every write to the incident record."
+              }
+            },
+            "required": [
+              "id",
+              "routeId",
+              "generation",
+              "status",
+              "severity",
+              "reason",
+              "firstFailureAt",
+              "lastFailureAt",
+              "lastProbeAt",
+              "nextProbeAt",
+              "evidenceWatermark",
+              "affectedTaskCount",
+              "recoveredTaskCount",
+              "switchedTaskCount",
+              "stillBlockedTaskCount",
+              "openedAt",
+              "closedAt",
+              "updatedAt",
+              "version"
+            ],
+            "additionalProperties": false,
+            "description": "One durable provider incident, recorded once per affected route and generation. Duplicate and stale probe results update this record instead of opening another, and a result carrying an older generation cannot close a newer incident. The record carries the evidence watermark, the probe schedule and the recovery tallies so an operator can see what is paused, what resumed, what switched and what is still blocked without reading provider output. It is the record a continuation choice names, so a stale choice can be rejected against the generation it was offered at."
+          },
+          "description": "ProviderIncident items in this cursor page. Page<ProviderIncident>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<ProviderIncident>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<ProviderIncident>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<ProviderIncident>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<ProviderIncident>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of ProviderIncident."
+    },
+    "Page<ProviderRoute>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID identifying the provider route record."
+              },
+              "provider": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Provider key this route sends to."
+              },
+              "endpoint": {
+                "type": "string",
+                "maxLength": 65536,
+                "pattern": "^(?!.*[@#])(?!.*[?&][^\\s]*(?:token|secret|key|signature|credential|password)=)[a-z][a-z0-9+.-]*:\\/\\/[^\\s]+$",
+                "description": "Configured provider endpoint host and path the route calls; never a URL carrying a credential or query secret. ProviderRoute.endpoint must match the pattern ^(?!.*[@#])(?!.*[?&][^\\s]*(?:token|secret|key|signature|credential|password)=)[a-z][a-z0-9+.-]*://[^\\s]+$."
+              },
+              "region": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Provider region the endpoint serves; null when the provider has no regional endpoints."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "ProviderRoute.region may be null in the safe projection."
+              },
+              "model": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Model identifier pinned for work admitted on this route."
+              },
+              "harness": {
+                "type": "string",
+                "enum": [
+                  "pi",
+                  "claude_code",
+                  "codex",
+                  "mastra"
+                ],
+                "description": "Harness path that executes work on this route: pi, claude_code, codex or mastra."
+              },
+              "billingRoute": {
+                "type": "string",
+                "enum": [
+                  "subscription",
+                  "api_metered",
+                  "local"
+                ],
+                "description": "Billing route the route's spend follows: subscription, api_metered or local."
+              },
+              "providerAccountId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Provider account whose identity and quota observation the route uses; null for a route with no verified account, which must report usage as unknown rather than zero."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "ProviderRoute.providerAccountId may be null in the safe projection."
+              },
+              "workerBindingId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Machine provider binding that places this route, when one does; null for a route served without a machine binding."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "ProviderRoute.workerBindingId may be null in the safe projection."
+              },
+              "credentialLocation": {
+                "type": "string",
+                "enum": [
+                  "harness_host",
+                  "bakery_secret"
+                ],
+                "description": "Where the credential is kept: harness_host (the machine holds it) or bakery_secret (Bakery holds it as a secret reference). The credential value itself is never returned."
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "active",
+                  "disabled",
+                  "revoked"
+                ],
+                "description": "Route lifecycle: active (eligible for new work and probes), disabled (temporarily withdrawn, kept readable), or revoked (permanently withdrawn, never probed again)."
+              },
+              "health": {
+                "type": "string",
+                "enum": [
+                  "healthy",
+                  "degraded",
+                  "open",
+                  "unverified"
+                ],
+                "description": "Current circuit state for the route: healthy (closed after proven inference), degraded (failing but below the open threshold), open (paused while probing), or unverified (reachable, inference not yet proven)."
+              },
+              "incidentId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Current incident for this route; null while no incident is open."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "ProviderRoute.incidentId may be null in the safe projection."
+              },
+              "incidentGeneration": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Monotonic generation for this route's incident line. A probe result or a continuation choice carrying an older generation is stale and cannot close a newer incident or commit a switch."
+              },
+              "lastProbeAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "UTC timestamp of the most recent probe that completed and was saved under the current generation; null when no probe has run."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "ProviderRoute.lastProbeAt may be null in the safe projection."
+              },
+              "nextProbeAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "UTC timestamp at which the next probe becomes claimable; null when probing is stopped because the route is revoked, disabled, or nothing is waiting on it."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "ProviderRoute.nextProbeAt may be null in the safe projection."
+              },
+              "inferenceVerifiedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "UTC timestamp when an already-authorized request last proved the route's inference path end to end; null means reachable-but-unverified, and a status page or health read never sets it."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "ProviderRoute.inferenceVerifiedAt may be null in the safe projection."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the route record was created."
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp of the last change to the route record."
+              },
+              "version": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Optimistic concurrency version, incremented on every write to the route record."
+              }
+            },
+            "required": [
+              "id",
+              "provider",
+              "endpoint",
+              "region",
+              "model",
+              "harness",
+              "billingRoute",
+              "providerAccountId",
+              "workerBindingId",
+              "credentialLocation",
+              "status",
+              "health",
+              "incidentId",
+              "incidentGeneration",
+              "lastProbeAt",
+              "nextProbeAt",
+              "inferenceVerifiedAt",
+              "createdAt",
+              "updatedAt",
+              "version"
+            ],
+            "additionalProperties": false,
+            "description": "One organization-scoped provider route: the provider endpoint, region, model, harness and credential binding that outbound work is admitted against. A route is the unit an outage is scoped to, so one expired credential, one 429 or one broken network never declares the organization down. Health and the current incident generation are projected here so a listing needs no per-route health read; the incident's own evidence and probe schedule live in RouteHealth and ProviderIncident. Credentials are never returned, only where they are kept."
+          },
+          "description": "ProviderRoute items in this cursor page. Page<ProviderRoute>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<ProviderRoute>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<ProviderRoute>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<ProviderRoute>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<ProviderRoute>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of ProviderRoute."
+    },
+    "ProviderIncident": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID identifying the incident record."
+        },
+        "routeId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "UUID of the provider route this incident is scoped to."
+        },
+        "generation": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Monotonic generation for the route's incident line at the moment this incident opened. A probe result, notification or continuation choice carrying a lower generation is stale."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "open",
+            "recovered",
+            "superseded"
+          ],
+          "description": "Incident state: open (the route is still failing), recovered (probes proved the route again), or superseded (a newer generation replaced this incident without recovery)."
+        },
+        "severity": {
+          "type": "string",
+          "enum": [
+            "degraded",
+            "outage"
+          ],
+          "description": "degraded (the route still serves some work) or outage (the route serves none)."
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "rate_limited",
+                "credential_invalid",
+                "quota_exhausted",
+                "transport_failure",
+                "provider_error",
+                "timeout",
+                "reachable_inference_unverified"
+              ],
+              "description": "Typed cause recorded when the incident opened, or null when it opened without a classified reason: rate_limited, credential_invalid, quota_exhausted, transport_failure, provider_error, timeout, or reachable_inference_unverified."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "ProviderIncident.reason may be null in the safe projection."
+        },
+        "firstFailureAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp of the first classified failure in this generation."
+        },
+        "lastFailureAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp of the most recent classified failure in this generation."
+        },
+        "lastProbeAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp of the most recent saved probe result for this incident; null when no probe has run yet."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "ProviderIncident.lastProbeAt may be null in the safe projection."
+        },
+        "nextProbeAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp at which the next probe becomes claimable; null when probing has stopped."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "ProviderIncident.nextProbeAt may be null in the safe projection."
+        },
+        "evidenceWatermark": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque bounded reference to the deduplicated evidence that keeps this incident current; never a credential, prompt or raw provider error."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "ProviderIncident.evidenceWatermark may be null in the safe projection."
+        },
+        "affectedTaskCount": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Number of tasks paused by this incident, counted once per task however many probe results arrive."
+        },
+        "recoveredTaskCount": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Number of paused tasks that resumed automatically once the route recovered."
+        },
+        "switchedTaskCount": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Number of paused tasks continued on a different route through an authorized switch."
+        },
+        "stillBlockedTaskCount": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Number of paused tasks that remain blocked, for example because recovery is no longer eligible or an operator paused them."
+        },
+        "openedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when the incident opened."
+        },
+        "closedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp when the incident recovered or was superseded; null while it is open."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "ProviderIncident.closedAt may be null in the safe projection."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp of the last change to the incident record."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Optimistic concurrency version, incremented on every write to the incident record."
+        }
+      },
+      "required": [
+        "id",
+        "routeId",
+        "generation",
+        "status",
+        "severity",
+        "reason",
+        "firstFailureAt",
+        "lastFailureAt",
+        "lastProbeAt",
+        "nextProbeAt",
+        "evidenceWatermark",
+        "affectedTaskCount",
+        "recoveredTaskCount",
+        "switchedTaskCount",
+        "stillBlockedTaskCount",
+        "openedAt",
+        "closedAt",
+        "updatedAt",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "One durable provider incident, recorded once per affected route and generation. Duplicate and stale probe results update this record instead of opening another, and a result carrying an older generation cannot close a newer incident. The record carries the evidence watermark, the probe schedule and the recovery tallies so an operator can see what is paused, what resumed, what switched and what is still blocked without reading provider output. It is the record a continuation choice names, so a stale choice can be rejected against the generation it was offered at."
+    },
+    "ProviderRoute": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID identifying the provider route record."
+        },
+        "provider": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Provider key this route sends to."
+        },
+        "endpoint": {
+          "type": "string",
+          "maxLength": 65536,
+          "pattern": "^(?!.*[@#])(?!.*[?&][^\\s]*(?:token|secret|key|signature|credential|password)=)[a-z][a-z0-9+.-]*:\\/\\/[^\\s]+$",
+          "description": "Configured provider endpoint host and path the route calls; never a URL carrying a credential or query secret. ProviderRoute.endpoint must match the pattern ^(?!.*[@#])(?!.*[?&][^\\s]*(?:token|secret|key|signature|credential|password)=)[a-z][a-z0-9+.-]*://[^\\s]+$."
+        },
+        "region": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Provider region the endpoint serves; null when the provider has no regional endpoints."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "ProviderRoute.region may be null in the safe projection."
+        },
+        "model": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Model identifier pinned for work admitted on this route."
+        },
+        "harness": {
+          "type": "string",
+          "enum": [
+            "pi",
+            "claude_code",
+            "codex",
+            "mastra"
+          ],
+          "description": "Harness path that executes work on this route: pi, claude_code, codex or mastra."
+        },
+        "billingRoute": {
+          "type": "string",
+          "enum": [
+            "subscription",
+            "api_metered",
+            "local"
+          ],
+          "description": "Billing route the route's spend follows: subscription, api_metered or local."
+        },
+        "providerAccountId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Provider account whose identity and quota observation the route uses; null for a route with no verified account, which must report usage as unknown rather than zero."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "ProviderRoute.providerAccountId may be null in the safe projection."
+        },
+        "workerBindingId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Machine provider binding that places this route, when one does; null for a route served without a machine binding."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "ProviderRoute.workerBindingId may be null in the safe projection."
+        },
+        "credentialLocation": {
+          "type": "string",
+          "enum": [
+            "harness_host",
+            "bakery_secret"
+          ],
+          "description": "Where the credential is kept: harness_host (the machine holds it) or bakery_secret (Bakery holds it as a secret reference). The credential value itself is never returned."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "active",
+            "disabled",
+            "revoked"
+          ],
+          "description": "Route lifecycle: active (eligible for new work and probes), disabled (temporarily withdrawn, kept readable), or revoked (permanently withdrawn, never probed again)."
+        },
+        "health": {
+          "type": "string",
+          "enum": [
+            "healthy",
+            "degraded",
+            "open",
+            "unverified"
+          ],
+          "description": "Current circuit state for the route: healthy (closed after proven inference), degraded (failing but below the open threshold), open (paused while probing), or unverified (reachable, inference not yet proven)."
+        },
+        "incidentId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Current incident for this route; null while no incident is open."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "ProviderRoute.incidentId may be null in the safe projection."
+        },
+        "incidentGeneration": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Monotonic generation for this route's incident line. A probe result or a continuation choice carrying an older generation is stale and cannot close a newer incident or commit a switch."
+        },
+        "lastProbeAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp of the most recent probe that completed and was saved under the current generation; null when no probe has run."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "ProviderRoute.lastProbeAt may be null in the safe projection."
+        },
+        "nextProbeAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp at which the next probe becomes claimable; null when probing is stopped because the route is revoked, disabled, or nothing is waiting on it."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "ProviderRoute.nextProbeAt may be null in the safe projection."
+        },
+        "inferenceVerifiedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp when an already-authorized request last proved the route's inference path end to end; null means reachable-but-unverified, and a status page or health read never sets it."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "ProviderRoute.inferenceVerifiedAt may be null in the safe projection."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when the route record was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp of the last change to the route record."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Optimistic concurrency version, incremented on every write to the route record."
+        }
+      },
+      "required": [
+        "id",
+        "provider",
+        "endpoint",
+        "region",
+        "model",
+        "harness",
+        "billingRoute",
+        "providerAccountId",
+        "workerBindingId",
+        "credentialLocation",
+        "status",
+        "health",
+        "incidentId",
+        "incidentGeneration",
+        "lastProbeAt",
+        "nextProbeAt",
+        "inferenceVerifiedAt",
+        "createdAt",
+        "updatedAt",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "One organization-scoped provider route: the provider endpoint, region, model, harness and credential binding that outbound work is admitted against. A route is the unit an outage is scoped to, so one expired credential, one 429 or one broken network never declares the organization down. Health and the current incident generation are projected here so a listing needs no per-route health read; the incident's own evidence and probe schedule live in RouteHealth and ProviderIncident. Credentials are never returned, only where they are kept."
+    },
+    "RouteHealth": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "routeId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "UUID of the provider route this health view describes."
+        },
+        "health": {
+          "type": "string",
+          "enum": [
+            "healthy",
+            "degraded",
+            "open",
+            "unverified"
+          ],
+          "description": "Circuit state: healthy (closed), degraded (failing below the open threshold), open (paused and probing), or unverified (reachable, inference not yet proven)."
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "rate_limited",
+                "credential_invalid",
+                "quota_exhausted",
+                "transport_failure",
+                "provider_error",
+                "timeout",
+                "reachable_inference_unverified"
+              ],
+              "description": "Typed reason for the current state, or null while the route is healthy: rate_limited (the provider asked us to slow down), credential_invalid (the credential is rejected), quota_exhausted (the account's allowance is spent), transport_failure (connection-level failure), provider_error (a classified provider 5xx), timeout (the deadline passed), or reachable_inference_unverified (the endpoint answers but no authorized request has proven inference)."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "RouteHealth.reason may be null in the safe projection."
+        },
+        "consecutiveFailures": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Failures since the last success, reset to zero by a saved probe success; this is what crosses the open threshold."
+        },
+        "consecutiveInferenceTrials": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Consecutive successful authorized inference trials since the route opened; two are required before the circuit closes and waiting work is released."
+        },
+        "evidenceWatermark": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque bounded reference to the evidence that produced this state, so duplicate observations can be deduplicated; it never carries a credential, prompt or raw provider error."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "RouteHealth.evidenceWatermark may be null in the safe projection."
+        },
+        "lastFailureAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp of the most recent classified failure; null when none is recorded under the current generation."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "RouteHealth.lastFailureAt may be null in the safe projection."
+        },
+        "lastSuccessAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp of the most recent successful probe or trial; null when none is recorded."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "RouteHealth.lastSuccessAt may be null in the safe projection."
+        },
+        "lastProbeAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp of the most recent saved probe result; null when no probe has run."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "RouteHealth.lastProbeAt may be null in the safe projection."
+        },
+        "nextProbeAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp at which the next probe becomes claimable; null when probing is stopped."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "RouteHealth.nextProbeAt may be null in the safe projection."
+        },
+        "probeLeaseExpiresAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp when the current probe lease lapses, after which another process may claim the probe; null when no probe is in flight. This is what makes duplicate wakes take one lease rather than several probes."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "RouteHealth.probeLeaseExpiresAt may be null in the safe projection."
+        },
+        "corroboration": {
+          "type": "string",
+          "enum": [
+            "none",
+            "status_page"
+          ],
+          "description": "Whether an external status page corroborates the incident: none, or status_page. Corroboration never authorizes recovery on its own."
+        },
+        "incidentId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Current incident for this route; null while no incident is open."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "RouteHealth.incidentId may be null in the safe projection."
+        },
+        "incidentGeneration": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Monotonic incident generation for this route. A probe result saved against an older generation is stale and must not change this view."
+        },
+        "inferenceVerifiedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp when an already-authorized request last proved the inference path; null while inference is unproven."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "RouteHealth.inferenceVerifiedAt may be null in the safe projection."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp of the last health change."
+        }
+      },
+      "required": [
+        "routeId",
+        "health",
+        "reason",
+        "consecutiveFailures",
+        "consecutiveInferenceTrials",
+        "evidenceWatermark",
+        "lastFailureAt",
+        "lastSuccessAt",
+        "lastProbeAt",
+        "nextProbeAt",
+        "probeLeaseExpiresAt",
+        "corroboration",
+        "incidentId",
+        "incidentGeneration",
+        "inferenceVerifiedAt",
+        "updatedAt"
+      ],
+      "additionalProperties": false,
+      "description": "The monitoring view of one provider route: circuit state, the typed reason for it, the bounded evidence watermark, the probe schedule and the current incident generation. It exists so a caller can answer why a route is paused and when it will be probed without reading free-form provider output. A status-page corroboration and a successful health read are reachability evidence only; neither proves the inference path, which is why inferenceVerifiedAt is separate and only an already-authorized trial sets it."
     }
   }
 } as const;

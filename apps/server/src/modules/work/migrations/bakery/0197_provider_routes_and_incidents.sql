@@ -18,10 +18,13 @@
 --     makes an older one superseded. That is the fence the issue's AC1 needs:
 --     a stale probe arriving late cannot close an incident it predates.
 --
--- Business rules stay out of the database: there is no trigger, no rule and no
--- row-level security here. The invariants stated are the ones a mistaken writer
--- could otherwise satisfy silently (one health row per route, one open incident
--- per route, non-negative counters), and nothing more.
+-- Business rules stay out of the database. There is no trigger, no rule, no
+-- row-level security and no CHECK constraint: a value like `health` is an
+-- enumerated vocabulary the application owns, and stating it in the schema
+-- would mean a new reason code could not ship without a migration. What the
+-- schema does state is the structure a mistaken writer could otherwise satisfy
+-- silently, and only that: a key per route's health, one open incident per
+-- route, and an incident generation unique within its route.
 
 create table bakery.provider_routes (
   id uuid primary key default gen_random_uuid(),
@@ -64,21 +67,7 @@ create table bakery.provider_routes (
     references bakery.worker_provider_bindings (organization_id, id)
     on delete restrict,
   constraint provider_routes_organization_id_unique
-    unique (organization_id, id),
-  constraint provider_routes_status_check
-    check (status in ('active', 'disabled', 'revoked')),
-  constraint provider_routes_health_check
-    check (health in ('healthy', 'degraded', 'open', 'unverified')),
-  constraint provider_routes_harness_check
-    check (harness in ('pi', 'claude_code', 'codex', 'mastra')),
-  constraint provider_routes_billing_route_check
-    check (billing_route in ('subscription', 'api_metered', 'local')),
-  constraint provider_routes_credential_location_check
-    check (credential_location in ('harness_host', 'bakery_secret')),
-  constraint provider_routes_generation_check
-    check (incident_generation >= 0),
-  constraint provider_routes_endpoint_bytes_check
-    check (octet_length(endpoint) between 1 and 2048)
+    unique (organization_id, id)
 );
 
 -- The route list is keyset-paginated on (created_at, id) inside one
@@ -122,28 +111,7 @@ create table bakery.provider_route_health (
   constraint provider_route_health_pkey primary key (organization_id, route_id),
   constraint provider_route_health_route_fk
     foreign key (organization_id, route_id)
-    references bakery.provider_routes (organization_id, id) on delete cascade,
-  constraint provider_route_health_health_check
-    check (health in ('healthy', 'degraded', 'open', 'unverified')),
-  constraint provider_route_health_reason_check
-    check (
-      reason is null or reason in (
-        'rate_limited', 'credential_invalid', 'quota_exhausted',
-        'transport_failure', 'provider_error', 'timeout',
-        'reachable_inference_unverified'
-      )
-    ),
-  constraint provider_route_health_corroboration_check
-    check (corroboration in ('none', 'status_page')),
-  constraint provider_route_health_counts_check
-    check (consecutive_failures >= 0 and consecutive_inference_trials >= 0),
-  constraint provider_route_health_generation_check
-    check (incident_generation >= 0),
-  constraint provider_route_health_watermark_bytes_check
-    check (
-      evidence_watermark is null or
-      octet_length(evidence_watermark) between 1 and 512
-    )
+    references bakery.provider_routes (organization_id, id) on delete cascade
 );
 
 create table bakery.provider_incidents (
@@ -175,34 +143,7 @@ create table bakery.provider_incidents (
   constraint provider_incidents_organization_id_unique
     unique (organization_id, id),
   constraint provider_incidents_route_generation_unique
-    unique (organization_id, route_id, generation),
-  constraint provider_incidents_status_check
-    check (status in ('open', 'recovered', 'superseded')),
-  constraint provider_incidents_severity_check
-    check (severity in ('degraded', 'outage')),
-  constraint provider_incidents_reason_check
-    check (
-      reason is null or reason in (
-        'rate_limited', 'credential_invalid', 'quota_exhausted',
-        'transport_failure', 'provider_error', 'timeout',
-        'reachable_inference_unverified'
-      )
-    ),
-  constraint provider_incidents_generation_check
-    check (generation >= 1),
-  constraint provider_incidents_counts_check
-    check (
-      affected_task_count >= 0 and recovered_task_count >= 0 and
-      switched_task_count >= 0 and still_blocked_task_count >= 0
-    ),
-  -- A closed incident names when it closed; an open one has not closed yet.
-  -- Stating it here is what stops a reader seeing "closed" with no time and
-  -- having to guess whether the writer intended it.
-  constraint provider_incidents_closed_check
-    check (
-      (status = 'open' and closed_at is null) or
-      (status <> 'open' and closed_at is not null)
-    )
+    unique (organization_id, route_id, generation)
 );
 
 -- At most one open incident per route. A second open incident would give the

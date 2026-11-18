@@ -5016,7 +5016,7 @@
         "AUTH_FORBIDDEN"
       ],
       "organizationContext": "none",
-      "implemented": false
+      "implemented": true
     },
     {
       "group": "Providers",
@@ -5036,7 +5036,7 @@
         "RESOURCE_NOT_FOUND"
       ],
       "organizationContext": "none",
-      "implemented": false
+      "implemented": true
     },
     {
       "group": "Providers",
@@ -5056,7 +5056,7 @@
         "RESOURCE_NOT_FOUND"
       ],
       "organizationContext": "none",
-      "implemented": false
+      "implemented": true
     },
     {
       "group": "Providers",
@@ -5075,7 +5075,7 @@
         "AUTH_FORBIDDEN"
       ],
       "organizationContext": "none",
-      "implemented": false
+      "implemented": true
     },
     {
       "group": "Providers",
@@ -5095,7 +5095,7 @@
         "RESOURCE_NOT_FOUND"
       ],
       "organizationContext": "none",
-      "implemented": false
+      "implemented": true
     },
     {
       "group": "Providers",
@@ -10145,6 +10145,11 @@
     "agents.activateVersion",
     "agentVersions.create",
     "agentVersions.list",
+    "providerRoutes.list",
+    "providerRoutes.get",
+    "providerRoutes.health",
+    "providerIncidents.list",
+    "providerIncidents.get",
     "repositoryRules.get",
     "repositoryRuleVersions.create",
     "repositoryRuleVersions.list",
@@ -218886,7 +218891,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:fc6128799994a7ec2ab43bc364c1f126b47537717d43b7e6770761889a3a9684",
+  "compatibilityDigest": "sha256:3019f1567a681ed859f9b005e706a43ab276f566183ac5585ba0fe1a25599065",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
