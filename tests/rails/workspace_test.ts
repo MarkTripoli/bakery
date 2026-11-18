@@ -1002,14 +1002,15 @@ Deno.test("a scheduled red run records itself as a tracking issue", async () => 
   assertEquals(signal.get("continue-on-error"), true);
   const script = String(signal.get("run"));
 
-  // The job list is read from the API, so no `needs` list can drift away from
-  // the jobs that actually ran.
-  assert(script.includes("actions/runs/$RUN_ID/jobs"));
-  // Idempotency: one open issue found by a stable title, updated in place.
-  assert(script.includes("gh issue list"));
-  assert(script.includes("gh issue edit"));
-  assert(script.includes("gh issue close"));
-  assert(script.includes('title="nightly red: scheduled CI"'));
+  // The decision is a tested script, not inline shell. Inline shell could only
+  // be exercised by waiting for a scheduled run that happened to be red, which
+  // is why the first version shipped with none of its branches proven; the
+  // script's own unit tests cover the failing set, the idempotency and the
+  // close path, so this job only has to show the wiring.
+  assert(
+    script.includes("scripts/ci/nightly-signal.ts"),
+    `the signal step must call the tested script, got: ${script}`,
+  );
 });
 
 Deno.test("the nightly signal is not a required lane", async () => {

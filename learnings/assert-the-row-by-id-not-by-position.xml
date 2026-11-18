@@ -15,7 +15,7 @@
     temporal answer when the rows were written in a single transaction, previewed in a
     single call, or seeded in a loop - PostgreSQL's `now()` is the transaction's start,
     so those rows share an instant exactly, and the query's tie-break (typically
-    `<timestamp> desc, id desc`) then decides by a UUID. The expectation came from write
+    `&lt;timestamp&gt; desc, id desc`) then decides by a UUID. The expectation came from write
     order; the read never promised write order.
   </cause>
   <rule>
