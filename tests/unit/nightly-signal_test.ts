@@ -11,14 +11,18 @@
  * would print.
  */
 import { assert, assertEquals } from "@std/assert";
+import { validateDescription } from "../../scripts/authoring/validate.ts";
 import {
   failingJobs,
+  type GhResult,
   type GhRunner,
   ghRunner,
+  type GhSpawn,
   type Job,
   jobsFromPages,
   redBody,
   runNightlySignal,
+  SIGNAL_JOB_NAME,
   SIGNAL_TITLE,
 } from "../../scripts/ci/nightly-signal.ts";
 
@@ -281,13 +285,27 @@ Deno.test("the body says which kind of run failed", () => {
   const url = "https://github.com/o/r/actions/runs/123";
   const failing = failingJobs([job("a / y", "failure")]);
   assertEquals(
-    redBody(failing, url, "scheduled", at).split("\n")[0],
-    "The scheduled run on 2026-11-18T05:23:00Z failed.",
+    redBody(failing, url, "scheduled", at).split("\n")[2],
+    `The scheduled CI run on 2026-11-18T05:23:00Z failed (run ${url}). Outcome: the failing lanes are green again, or each red lane is fixed by a PR that links this issue. Out of scope: lanes that are green.`,
   );
-  assertEquals(
-    redBody(failing, url, "dispatched", at).split("\n")[0],
-    "The dispatched run on 2026-11-18T05:23:00Z failed.",
+  assert(
+    redBody(failing, url, "dispatched", at).includes(
+      "The dispatched CI run on 2026-11-18T05:23:00Z failed",
+    ),
   );
+});
+
+Deno.test("the body is a valid work item, so a PR that fixes the lane can link it", () => {
+  // The description check validates the issue a PR links. A body without the
+  // work-item sections made every such PR fail it.
+  const body = redBody(
+    ["full / integration", "ui / storybook browser"],
+    "https://github.com/o/r/actions/runs/123",
+    "scheduled",
+    new Date("2026-11-18T05:23:00Z"),
+  );
+  assertEquals(validateDescription("issue", body), []);
+  assert(body.includes("`full / integration`, `ui / storybook browser`"));
 });
 
 Deno.test("a green dispatched run closes the issue as a dispatched run", async () => {
@@ -305,53 +323,84 @@ Deno.test("a green dispatched run closes the issue as a dispatched run", async (
 });
 
 Deno.test("the real runner never hands `gh api` a --repo flag it rejects", async () => {
-  // A stand-in `gh` that refuses `api ... --repo` the way the real one does
-  // ("unknown flag: --repo") and logs every argv it is given.
-  const dir = await Deno.makeTempDir({ prefix: "nightly-signal-gh-" });
-  const log = `${dir}/argv.log`;
-  const script = `#!/bin/sh
-echo "$*" >> "${log}"
-if [ "$1" = "api" ]; then
-  for a in "$@"; do
-    if [ "$a" = "--repo" ]; then echo "unknown flag: --repo" >&2; exit 1; fi
-  done
-  echo '[{"jobs":[{"name":"x","conclusion":"success"}]}]'
-elif [ "$1 $2" = "issue list" ]; then
-  echo '[]'
-elif [ "$1 $2" = "issue close" ]; then
-  :
-else
-  echo "https://github.com/owner/repo/issues/7"
-fi
-`;
-  await Deno.writeTextFile(`${dir}/gh`, script);
-  await Deno.chmod(`${dir}/gh`, 0o755);
-  const path = Deno.env.get("PATH") ?? "";
-  Deno.env.set("PATH", `${dir}:${path}`);
-  try {
-    const gh = ghRunner("owner/repo", "token");
-    const jobs = await gh.listJobs("42");
-    assertEquals(jobs.length, 1);
-    await gh.findOpenIssues(SIGNAL_TITLE);
-    const calls = (await Deno.readTextFile(log)).trim().split("\n");
-    assert(calls[0].startsWith("api repos/owner/repo/actions/runs/42/jobs"));
-    assert(!calls[0].includes("--repo"));
-    assert(calls[1].startsWith("issue list"));
-    assert(calls[1].endsWith("--repo owner/repo"));
-    // The writes: create, edit and comment print an issue URL, close prints
-    // nothing. None of them answers in JSON, and none may throw once gh succeeded.
-    await gh.createIssue("title", "body");
-    await gh.updateIssue(7, "body");
-    await gh.commentOnIssue(7, "still red");
-    await gh.closeIssue(7, "green");
-    const writes = (await Deno.readTextFile(log)).trim().split("\n").slice(2);
-    assertEquals(
-      writes.map((call) => call.split(" ").slice(0, 2).join(" ")),
-      ["issue create", "issue edit", "issue comment", "issue close"],
-    );
-    for (const call of writes) assert(call.endsWith("--repo owner/repo"));
-  } finally {
-    Deno.env.set("PATH", path);
-    await Deno.remove(dir, { recursive: true });
+  // A stand-in for `gh` that refuses `api ... --repo` the way the real one does
+  // ("unknown flag: --repo"), prints a URL for create, edit and comment and
+  // nothing for close, and records every argv it is given. It is injected, not
+  // put on PATH: the unit lane may not run a process.
+  const encoder = new TextEncoder();
+  const argv: string[][] = [];
+  const spawn: GhSpawn = (args) => {
+    argv.push([...args]);
+    const ok = (text: string): Promise<GhResult> =>
+      Promise.resolve({
+        success: true,
+        stdout: encoder.encode(text),
+        stderr: new Uint8Array(),
+      });
+    if (args[0] === "api") {
+      if (args.includes("--repo")) {
+        return Promise.resolve({
+          success: false,
+          stdout: new Uint8Array(),
+          stderr: encoder.encode("unknown flag: --repo"),
+        });
+      }
+      return ok('[{"jobs":[{"name":"x","conclusion":"success"}]}]');
+    }
+    if (args[0] === "issue" && args[1] === "list") return ok("[]");
+    if (args[0] === "issue" && args[1] === "close") return ok("");
+    return ok("https://github.com/owner/repo/issues/7\n");
+  };
+  const gh = ghRunner("owner/repo", "token", spawn);
+  const jobs = await gh.listJobs("42");
+  assertEquals(jobs.length, 1);
+  await gh.findOpenIssues(SIGNAL_TITLE);
+  assert(argv[0]![1]!.startsWith("repos/owner/repo/actions/runs/42/jobs"));
+  assert(!argv[0]!.includes("--repo"));
+  assertEquals(argv[1]!.slice(0, 2), ["issue", "list"]);
+  assertEquals(argv[1]!.slice(-2), ["--repo", "owner/repo"]);
+  // The writes: create, edit and comment print an issue URL, close prints
+  // nothing. None of them answers in JSON, and none may throw once gh succeeded.
+  await gh.createIssue("title", "body");
+  await gh.updateIssue(7, "body");
+  await gh.commentOnIssue(7, "still red");
+  await gh.closeIssue(7, "green");
+  const writes = argv.slice(2);
+  assertEquals(
+    writes.map((call) => call.slice(0, 2).join(" ")),
+    ["issue create", "issue edit", "issue comment", "issue close"],
+  );
+  for (const call of writes) {
+    assertEquals(call.slice(-2), ["--repo", "owner/repo"]);
   }
+});
+
+Deno.test("the signal's own job is never one of the run's failures, so a green run can close the issue", async () => {
+  // While the signal runs its own conclusion has not arrived; read as "never
+  // arrived counts as failing" it would be listed, and no run could ever be green.
+  const own = job(SIGNAL_JOB_NAME, null);
+  assertEquals(failingJobs([own, job("a / x", "success")]), []);
+  assertEquals(failingJobs([own, job("a / y", "failure")]), ["a / y"]);
+  const { gh, calls } = recordingGh({
+    jobs: [own, job("a / x", "success")],
+    openIssues: [42],
+  });
+  const outcome = await runNightlySignal(gh, {
+    runId: "1",
+    runUrl: "https://github.com/o/r/actions/runs/1",
+    trigger: "scheduled",
+    now: new Date("2026-11-18T05:23:00Z"),
+  });
+  assertEquals(outcome.kind, "closed");
+  assert(calls.some((call) => call.op === "close"));
+});
+
+Deno.test("the signal job is named in the workflow exactly as the script excludes it", async () => {
+  const workflow = await Deno.readTextFile(".github/workflows/ci.yml");
+  assert(
+    workflow.split("\n").some((line) =>
+      line.trim() === `name: ${SIGNAL_JOB_NAME}`
+    ),
+    "ci.yml must declare the signal job under the name the script excludes",
+  );
 });
