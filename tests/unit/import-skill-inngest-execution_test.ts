@@ -40,6 +40,7 @@ const skillFileStore = {
   recover: () => Promise.resolve(),
   putIfAbsent: () => Promise.resolve(),
   read: () => Promise.resolve(new Uint8Array()),
+  stat: () => Promise.resolve(null),
 } satisfies SkillFileStoreOperations;
 
 Deno.test("default Inngest registration keeps workflow and budget recovery handlers and adds the import handlers and the automation clock", () => {

@@ -37,6 +37,7 @@ import { integrationsBakeryMigrationSource } from "../../apps/server/src/modules
 import { deliveryBakeryMigrationSource } from "../../apps/server/src/modules/delivery/migrations.ts";
 import { mcpBakeryMigrationSource } from "../../apps/server/src/modules/mcp/migrations.ts";
 import { knowledgeBakeryMigrationSource } from "../../apps/server/src/modules/knowledge/migrations.ts";
+import { catalogBakeryMigrationSource } from "../../apps/server/src/modules/catalog/migrations.ts";
 import { resolveRepositoryBinding } from "../../apps/server/src/modules/projects/binding.ts";
 import { migrateData } from "../../apps/server/src/platform/data-migrate.ts";
 import { PostgresAuthorityRunner } from "../../apps/server/src/modules/auth/adapters/authority-postgres.ts";
@@ -242,6 +243,7 @@ async function migrateTestDatabase(
       ...await loadMigrations(deliveryBakeryMigrationSource),
       ...await loadMigrations(mcpBakeryMigrationSource),
       ...await loadMigrations(knowledgeBakeryMigrationSource),
+      ...await loadMigrations(catalogBakeryMigrationSource),
     ];
     await migrate(owner, allMigrations, {
       through: "0031_issue42_execution_control_replay",
@@ -6664,7 +6666,7 @@ Deno.test("Data migration 0049 preserves frozen v1 execution, replay bytes and c
           "run",
           "--allow-env",
           "--allow-net",
-          "--allow-read=src/platform/migrations,src/modules/auth/migrations,src/modules/work/migrations,src/modules/projects/migrations,src/modules/agents/migrations,src/modules/repository-rules/migrations,src/modules/artifact-kinds/migrations,src/modules/integrations/migrations,src/modules/delivery/migrations,src/modules/mcp/migrations,src/modules/knowledge/migrations",
+          "--allow-read=src/platform/migrations,src/modules/auth/migrations,src/modules/work/migrations,src/modules/projects/migrations,src/modules/agents/migrations,src/modules/repository-rules/migrations,src/modules/artifact-kinds/migrations,src/modules/integrations/migrations,src/modules/delivery/migrations,src/modules/mcp/migrations,src/modules/knowledge/migrations,src/modules/catalog/migrations",
           "src/tasks.ts",
           task,
         ],

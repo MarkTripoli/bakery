@@ -31,6 +31,7 @@ import { integrationsBakeryMigrationSource } from "../../apps/server/src/modules
 import { deliveryBakeryMigrationSource } from "../../apps/server/src/modules/delivery/migrations.ts";
 import { mcpBakeryMigrationSource } from "../../apps/server/src/modules/mcp/migrations.ts";
 import { knowledgeBakeryMigrationSource } from "../../apps/server/src/modules/knowledge/migrations.ts";
+import { catalogBakeryMigrationSource } from "../../apps/server/src/modules/catalog/migrations.ts";
 import { projectsBakeryMigrationSource } from "../../apps/server/src/modules/projects/migrations.ts";
 import { readTestDatabaseConfig } from "../../packages/config/src/env.ts";
 import { cleanupAuthFixture } from "../helpers/auth.ts";
@@ -82,6 +83,7 @@ Deno.test("database fixture boundary is fail closed", async () => {
       ...await loadMigrations(deliveryBakeryMigrationSource),
       ...await loadMigrations(mcpBakeryMigrationSource),
       ...await loadMigrations(knowledgeBakeryMigrationSource),
+      ...await loadMigrations(catalogBakeryMigrationSource),
     ];
     await migrateProvider(authDb, providerMigrations);
     await migrate(db, bakeryMigrations);

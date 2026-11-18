@@ -8791,7 +8791,7 @@
         "SCOPE_REQUIRED"
       ],
       "organizationContext": "required_authenticated_context",
-      "implemented": false
+      "implemented": true
     },
     {
       "group": "Plugins",
@@ -8817,7 +8817,7 @@
         "SCOPE_REQUIRED"
       ],
       "organizationContext": "required_authenticated_context",
-      "implemented": false
+      "implemented": true
     },
     {
       "group": "Plugins",
@@ -8840,7 +8840,7 @@
         "SCOPE_REQUIRED"
       ],
       "organizationContext": "required_authenticated_context",
-      "implemented": false
+      "implemented": true
     },
     {
       "group": "Plugins",
@@ -8863,7 +8863,7 @@
         "SCOPE_REQUIRED"
       ],
       "organizationContext": "required_authenticated_context",
-      "implemented": false
+      "implemented": true
     },
     {
       "group": "Plugins",
@@ -8889,7 +8889,7 @@
         "SCOPE_REQUIRED"
       ],
       "organizationContext": "required_authenticated_context",
-      "implemented": false
+      "implemented": true
     },
     {
       "group": "Plugins",
@@ -10281,6 +10281,11 @@
     "skills.create",
     "skills.update",
     "skillVersions.create",
+    "pluginPackages.list",
+    "pluginPackages.create",
+    "pluginPackages.get",
+    "pluginVersions.list",
+    "pluginVersions.create",
     "skillStorageSettings.get",
     "skillStorageSettings.put",
     "skillStorageSettings.verify",
@@ -56318,13 +56323,17 @@
           "properties": {
             "name": {
               "type": "string",
+              "minLength": 1,
               "maxLength": 200,
-              "description": "Stable identifier for this package, unique within the publishing organization; used to reference the package from version and install operations. PluginPackageCreate.name must contain at most 200 characters."
+              "pattern": "^(?!\\s)(?=.*\\S)",
+              "description": "Stable identifier for this package, unique within the publishing organization; used to reference the package from version and install operations. PluginPackageCreate.name must contain at least 1 characters. PluginPackageCreate.name must contain at most 200 characters. PluginPackageCreate.name must match the pattern ^(?!\\s)(?=.*\\S)."
             },
             "displayName": {
               "type": "string",
+              "minLength": 1,
               "maxLength": 200,
-              "description": "Human-readable name for this package shown in install and catalog listings, independent of its stable name. PluginPackageCreate.displayName must contain at most 200 characters."
+              "pattern": "^(?!\\s)(?=.*\\S)",
+              "description": "Human-readable name for this package shown in install and catalog listings, independent of its stable name. PluginPackageCreate.displayName must contain at least 1 characters. PluginPackageCreate.displayName must contain at most 200 characters. PluginPackageCreate.displayName must match the pattern ^(?!\\s)(?=.*\\S)."
             },
             "license": {
               "type": "string",
@@ -56498,13 +56507,17 @@
           "properties": {
             "versionName": {
               "type": "string",
+              "minLength": 1,
               "maxLength": 200,
-              "description": "Version label for this release, unique per package (for example a semantic version); immutable once published. PluginVersionCreate.versionName must contain at most 200 characters."
+              "pattern": "^(?!\\s)(?=.*\\S)",
+              "description": "Version label for this release, unique per package (for example a semantic version); immutable once published. PluginVersionCreate.versionName must contain at least 1 characters. PluginVersionCreate.versionName must contain at most 200 characters. PluginVersionCreate.versionName must match the pattern ^(?!\\s)(?=.*\\S)."
             },
             "sdkRange": {
               "type": "string",
+              "minLength": 1,
               "maxLength": 200,
-              "description": "Range of plugin SDK versions this release is compatible with; installation is blocked when the host's SDK version falls outside this range. PluginVersionCreate.sdkRange must contain at most 200 characters."
+              "pattern": "^(?!\\s)(?=.*\\S)",
+              "description": "Range of plugin SDK versions this release is compatible with; installation is blocked when the host's SDK version falls outside this range. PluginVersionCreate.sdkRange must contain at least 1 characters. PluginVersionCreate.sdkRange must contain at most 200 characters. PluginVersionCreate.sdkRange must match the pattern ^(?!\\s)(?=.*\\S)."
             },
             "manifest": {
               "description": "Immutable manifest describing this version's UI entry points, server/skill references, requested capabilities, compatibility and migration metadata; a running install enforces this same manifest against its granted permissions. PluginVersionCreate.manifest must contain at most 131072 UTF-8 bytes.",
@@ -56548,13 +56561,17 @@
             },
             "bundleObjectRef": {
               "type": "string",
+              "minLength": 1,
               "maxLength": 2000,
-              "description": "Storage key of this version's validated, immutable bundle archive in R2 or the local filesystem; the archive bytes themselves are never stored in Postgres. PluginVersionCreate.bundleObjectRef must contain at most 2000 characters."
+              "pattern": "^(?!\\s)(?=.*\\S)",
+              "description": "Storage key of this version's validated, immutable bundle archive in R2 or the local filesystem; the archive bytes themselves are never stored in Postgres. PluginVersionCreate.bundleObjectRef must contain at least 1 characters. PluginVersionCreate.bundleObjectRef must contain at most 2000 characters. PluginVersionCreate.bundleObjectRef must match the pattern ^(?!\\s)(?=.*\\S)."
             },
             "bundleDigest": {
               "type": "string",
+              "minLength": 64,
               "maxLength": 64,
-              "description": "SHA-256 digest of the bundle archive at bundleObjectRef, unique per package; verified before the archive is extracted or installed so a tampered or corrupted bundle is rejected. PluginVersionCreate.bundleDigest must contain at most 64 characters."
+              "pattern": "^[0-9a-f]{64}$",
+              "description": "SHA-256 digest of the bundle archive at bundleObjectRef, unique per package; verified before the archive is extracted or installed so a tampered or corrupted bundle is rejected. PluginVersionCreate.bundleDigest must contain at least 64 characters. PluginVersionCreate.bundleDigest must contain at most 64 characters. PluginVersionCreate.bundleDigest must match the pattern ^[0-9a-f]{64}$."
             },
             "sourceEvidence": {
               "description": "Record of the source inputs — such as repository, commit, or authoring prompt — that produced this version, kept for provenance and later review. PluginVersionCreate.sourceEvidence must contain at most 32000 UTF-8 bytes.",
@@ -146862,7 +146879,7 @@
             "digest": {
               "type": "string",
               "pattern": "^[a-f0-9]{64}$",
-              "description": "Lowercase SHA-256 of the canonical effective entries and organization revision."
+              "description": "Rules fingerprint the proposed rules would have: computed exactly as the effective-rules read's digest and a run check's policyDigest, over the active profile's fixed policy and these entries."
             }
           },
           "required": [
@@ -148099,7 +148116,7 @@
                     "digest": {
                       "type": "string",
                       "pattern": "^[a-f0-9]{64}$",
-                      "description": "Lowercase SHA-256 of the canonical effective entries and organization revision."
+                      "description": "Rules fingerprint the proposed rules would have: computed exactly as the effective-rules read's digest and a run check's policyDigest, over the active profile's fixed policy and these entries."
                     }
                   },
                   "required": [
@@ -149292,7 +149309,7 @@
             "digest": {
               "type": "string",
               "pattern": "^[a-f0-9]{64}$",
-              "description": "Lowercase SHA-256 of the canonical effective entries and organization revision; superseded overrides are excluded."
+              "description": "Rules fingerprint: equals the policyDigest a check of a run admitted under these rules records (effective policy digest over the active profile's fixed policy, its trusted checker and the effective entries; organization revision and superseded overrides are excluded). Without a fixed policy no check records one and the value matches no run."
             },
             "repositoryVersion": {
               "type": "integer",
@@ -149365,6 +149382,10 @@
               ],
               "additionalProperties": false,
               "description": "Git provider branch protection state, separate from Bakery enforcement."
+            },
+            "hasFixedPolicy": {
+              "description": "True when the active profile has a fixed policy, so runs admitted under these rules record a check policyDigest equal to digest. When false, runs admitted under these rules record no check, so no run will match digest.",
+              "type": "boolean"
             }
           },
           "required": [
@@ -218865,7 +218886,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:5c8e39711cb18461ff88cc1e9f52f83b029c3dd3611cfbc7bb3473126fe6a351",
+  "compatibilityDigest": "sha256:fc6128799994a7ec2ab43bc364c1f126b47537717d43b7e6770761889a3a9684",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -239757,13 +239778,17 @@
       "properties": {
         "name": {
           "type": "string",
+          "minLength": 1,
           "maxLength": 200,
-          "description": "Stable identifier for this package, unique within the publishing organization; used to reference the package from version and install operations. PluginPackageCreate.name must contain at most 200 characters."
+          "pattern": "^(?!\\s)(?=.*\\S)",
+          "description": "Stable identifier for this package, unique within the publishing organization; used to reference the package from version and install operations. PluginPackageCreate.name must contain at least 1 characters. PluginPackageCreate.name must contain at most 200 characters. PluginPackageCreate.name must match the pattern ^(?!\\s)(?=.*\\S)."
         },
         "displayName": {
           "type": "string",
+          "minLength": 1,
           "maxLength": 200,
-          "description": "Human-readable name for this package shown in install and catalog listings, independent of its stable name. PluginPackageCreate.displayName must contain at most 200 characters."
+          "pattern": "^(?!\\s)(?=.*\\S)",
+          "description": "Human-readable name for this package shown in install and catalog listings, independent of its stable name. PluginPackageCreate.displayName must contain at least 1 characters. PluginPackageCreate.displayName must contain at most 200 characters. PluginPackageCreate.displayName must match the pattern ^(?!\\s)(?=.*\\S)."
         },
         "license": {
           "type": "string",
@@ -239939,13 +239964,17 @@
       "properties": {
         "versionName": {
           "type": "string",
+          "minLength": 1,
           "maxLength": 200,
-          "description": "Version label for this release, unique per package (for example a semantic version); immutable once published. PluginVersionCreate.versionName must contain at most 200 characters."
+          "pattern": "^(?!\\s)(?=.*\\S)",
+          "description": "Version label for this release, unique per package (for example a semantic version); immutable once published. PluginVersionCreate.versionName must contain at least 1 characters. PluginVersionCreate.versionName must contain at most 200 characters. PluginVersionCreate.versionName must match the pattern ^(?!\\s)(?=.*\\S)."
         },
         "sdkRange": {
           "type": "string",
+          "minLength": 1,
           "maxLength": 200,
-          "description": "Range of plugin SDK versions this release is compatible with; installation is blocked when the host's SDK version falls outside this range. PluginVersionCreate.sdkRange must contain at most 200 characters."
+          "pattern": "^(?!\\s)(?=.*\\S)",
+          "description": "Range of plugin SDK versions this release is compatible with; installation is blocked when the host's SDK version falls outside this range. PluginVersionCreate.sdkRange must contain at least 1 characters. PluginVersionCreate.sdkRange must contain at most 200 characters. PluginVersionCreate.sdkRange must match the pattern ^(?!\\s)(?=.*\\S)."
         },
         "manifest": {
           "description": "Immutable manifest describing this version's UI entry points, server/skill references, requested capabilities, compatibility and migration metadata; a running install enforces this same manifest against its granted permissions. PluginVersionCreate.manifest must contain at most 131072 UTF-8 bytes.",
@@ -239989,13 +240018,17 @@
         },
         "bundleObjectRef": {
           "type": "string",
+          "minLength": 1,
           "maxLength": 2000,
-          "description": "Storage key of this version's validated, immutable bundle archive in R2 or the local filesystem; the archive bytes themselves are never stored in Postgres. PluginVersionCreate.bundleObjectRef must contain at most 2000 characters."
+          "pattern": "^(?!\\s)(?=.*\\S)",
+          "description": "Storage key of this version's validated, immutable bundle archive in R2 or the local filesystem; the archive bytes themselves are never stored in Postgres. PluginVersionCreate.bundleObjectRef must contain at least 1 characters. PluginVersionCreate.bundleObjectRef must contain at most 2000 characters. PluginVersionCreate.bundleObjectRef must match the pattern ^(?!\\s)(?=.*\\S)."
         },
         "bundleDigest": {
           "type": "string",
+          "minLength": 64,
           "maxLength": 64,
-          "description": "SHA-256 digest of the bundle archive at bundleObjectRef, unique per package; verified before the archive is extracted or installed so a tampered or corrupted bundle is rejected. PluginVersionCreate.bundleDigest must contain at most 64 characters."
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "SHA-256 digest of the bundle archive at bundleObjectRef, unique per package; verified before the archive is extracted or installed so a tampered or corrupted bundle is rejected. PluginVersionCreate.bundleDigest must contain at least 64 characters. PluginVersionCreate.bundleDigest must contain at most 64 characters. PluginVersionCreate.bundleDigest must match the pattern ^[0-9a-f]{64}$."
         },
         "sourceEvidence": {
           "description": "Record of the source inputs — such as repository, commit, or authoring prompt — that produced this version, kept for provenance and later review. PluginVersionCreate.sourceEvidence must contain at most 32000 UTF-8 bytes.",
@@ -330583,7 +330616,7 @@
         "digest": {
           "type": "string",
           "pattern": "^[a-f0-9]{64}$",
-          "description": "Lowercase SHA-256 of the canonical effective entries and organization revision."
+          "description": "Rules fingerprint the proposed rules would have: computed exactly as the effective-rules read's digest and a run check's policyDigest, over the active profile's fixed policy and these entries."
         }
       },
       "required": [
@@ -331820,7 +331853,7 @@
                 "digest": {
                   "type": "string",
                   "pattern": "^[a-f0-9]{64}$",
-                  "description": "Lowercase SHA-256 of the canonical effective entries and organization revision."
+                  "description": "Rules fingerprint the proposed rules would have: computed exactly as the effective-rules read's digest and a run check's policyDigest, over the active profile's fixed policy and these entries."
                 }
               },
               "required": [
@@ -333013,7 +333046,7 @@
         "digest": {
           "type": "string",
           "pattern": "^[a-f0-9]{64}$",
-          "description": "Lowercase SHA-256 of the canonical effective entries and organization revision; superseded overrides are excluded."
+          "description": "Rules fingerprint: equals the policyDigest a check of a run admitted under these rules records (effective policy digest over the active profile's fixed policy, its trusted checker and the effective entries; organization revision and superseded overrides are excluded). Without a fixed policy no check records one and the value matches no run."
         },
         "repositoryVersion": {
           "type": "integer",
@@ -333086,6 +333119,10 @@
           ],
           "additionalProperties": false,
           "description": "Git provider branch protection state, separate from Bakery enforcement."
+        },
+        "hasFixedPolicy": {
+          "description": "True when the active profile has a fixed policy, so runs admitted under these rules record a check policyDigest equal to digest. When false, runs admitted under these rules record no check, so no run will match digest.",
+          "type": "boolean"
         }
       },
       "required": [
