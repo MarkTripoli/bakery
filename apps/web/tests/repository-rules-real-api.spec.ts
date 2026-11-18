@@ -14,6 +14,7 @@ import {
   RULE_ENTRIES,
   type RuleEntry,
 } from "./helpers/repository-rules-fixtures.ts";
+import { laneBudgetMs } from "./helpers/lane-budget.ts";
 
 /**
  * Browser proof of the repository rules page (`/projects/repositories/$id/rules`)
@@ -63,7 +64,7 @@ test.describe("repository rules against the real API", () => {
   let server: ChildServer;
 
   test.beforeAll(async () => {
-    test.setTimeout(180_000);
+    test.setTimeout(laneBudgetMs(180_000));
     ({ child, server } = await startChild<ChildServer>(
       "tests/helpers/repository-rules-server.child.ts",
     ));
@@ -75,7 +76,7 @@ test.describe("repository rules against the real API", () => {
     await stopChild(child);
   });
   test.beforeEach(() => {
-    test.setTimeout(90_000);
+    test.setTimeout(laneBudgetMs(90_000));
   });
 
   const publish = async (expectedRevision: number, entries: RuleEntry[]) => {
