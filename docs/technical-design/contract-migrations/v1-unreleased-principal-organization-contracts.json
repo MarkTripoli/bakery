@@ -1,13 +1,39 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "d51a725b005a7261b1b5b9f6a70b322256485a51"
+    "f8018bd37aaeb7d88b0799c41f2f03d842955cf2"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:09b09f0f1fac1d0159314e792984f878628b3d34d48218f5793892e72943c4c1",
-  "reason": "Re-bind by dev-agx4 on 2026-11-18 for PR #608 (#408 slice 4) after folding main, under the owner's standing breaking-change authorization (2026-10-09): the merged tree carries both main's #22 sourced-memory delta and this branch's integrationConnections.invoke delta, so the digest covers both. This branch's part is unchanged: invoke becomes a real route, so the catalogue entry gains organizationContext required_authenticated_context plus the SCOPE_REQUIRED and MALFORMED_REQUEST faults, and IntegrationAction.action stops being rewritten to the six-value worker enum, gaining maxLength and losing its enum. Additive for every other action.",
+  "targetCompatibilityDigest": "sha256:fc6128799994a7ec2ab43bc364c1f126b47537717d43b7e6770761889a3a9684",
+  "reason": "Re-bind by dev-agx2 on 2026-11-18 for PR #638 (#15 slice 1) after folding main f85be00c, under the owner's standing breaking-change authorization: the merged tree carries main's #640 credential-store and #645 repository-rules deltas plus this branch's plugin delta. Move of 0193's nine CHECK constraints into TypeScript: PluginPackageCreate and PluginVersionCreate gain minLength, maxLength and pattern bounds on name, displayName, versionName, sdkRange, bundleObjectRef and bundleDigest. Constraint added, so it is breaking for a producer that sent a blank or malformed value; every value the database accepted unchanged still validates. Additive for every other schema.",
   "priorApprovals": [
+    {
+      "fromBaseRefs": [
+        "f85be00c54fd47df1d119c724e384c051c91b385"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:c2ea1145b2b35476f0f1f55b7034d2e12ad9df0a5ed876f7221e90fe1d5ddd1f"
+    },
+    {
+      "fromBaseRefs": [
+        "b2eb5fcf7b9743a64c9dd8eeea42bda2916fc07a"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:4cc7f7f231a01ca2973fbc286f4835dbafded08006c964c3efc5bf6aa2151636",
+      "reason": "Re-bind by dev-agx2 on 2026-11-18 for PR #638 (#15 slice 1) after folding main b2eb5fcf, under the owner's standing breaking-change authorization: the merged tree carries main's #640 credential-store delta plus this branch's plugin delta. Move of 0193's nine CHECK constraints into TypeScript: PluginPackageCreate and PluginVersionCreate gain minLength, maxLength and pattern bounds on name, displayName, versionName, sdkRange, bundleObjectRef and bundleDigest. Constraint added, so it is breaking for a producer that sent a blank or malformed value; every value the database accepted unchanged still validates. Additive for every other schema."
+    },
+    {
+      "fromBaseRefs": [
+        "d51a725b005a7261b1b5b9f6a70b322256485a51"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:09b09f0f1fac1d0159314e792984f878628b3d34d48218f5793892e72943c4c1",
+      "reason": "Re-bind by dev-agx4 on 2026-11-18 for PR #608 (#408 slice 4) after folding main, under the owner's standing breaking-change authorization (2026-10-09): the merged tree carries both main's #22 sourced-memory delta and this branch's integrationConnections.invoke delta, so the digest covers both. This branch's part is unchanged: invoke becomes a real route, so the catalogue entry gains organizationContext required_authenticated_context plus the SCOPE_REQUIRED and MALFORMED_REQUEST faults, and IntegrationAction.action stops being rewritten to the six-value worker enum, gaining maxLength and losing its enum. Additive for every other action."
+    },
     {
       "fromBaseRefs": [
         "9fcf4e1adcc02ae09065355a20314fb476f45220",

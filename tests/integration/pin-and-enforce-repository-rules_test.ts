@@ -100,7 +100,9 @@ Deno.test("AC5: no rule versions and no overrides pin the empty baseline and beh
       entries: [],
       digest: EMPTY_BASELINE_DIGEST,
     });
-    // The repository-scoped effective read reports the same baseline digest.
+    // The repository-scoped effective read reports the same baseline entries;
+    // its digest is the run's check policyDigest, proved in
+    // rules-fingerprint-equals-run-policy-digest_test.ts.
     const effective = await expectJson<{ digest: string; entries: unknown[] }>(
       await apiCall(
         fixture,
@@ -110,7 +112,7 @@ Deno.test("AC5: no rule versions and no overrides pin the empty baseline and beh
       ),
       200,
     );
-    assertEquals(effective.digest, pin.digest);
+    assertEquals(effective.entries, pin.entries);
     // The job of that run admits, claims and carries the same empty pin.
     await admitPresetRun(fixture.pgDatabase, fixture, run);
     const assignment = await claimImplementJob(fixture, "empty");
@@ -200,7 +202,7 @@ Deno.test("AC1, AC2 and AC4: runs keep their pinned rules while later runs follo
         "code.magicNumbers": "locked_by_organization",
       });
       // The repository effective read agrees with what the run pinned.
-      const effective = await expectJson<{ digest: string }>(
+      const effective = await expectJson<{ entries: unknown[] }>(
         await apiCall(
           fixture,
           fixture,
@@ -209,7 +211,7 @@ Deno.test("AC1, AC2 and AC4: runs keep their pinned rules while later runs follo
         ),
         200,
       );
-      assertEquals(effective.digest, secondPin.digest);
+      assertEquals(effective.entries, secondPin.entries);
       // The first run is still on its own revision.
       assertEquals(
         (await pinnedRulesOf(db, org, first.run.id)).organizationRevision,

@@ -141,6 +141,15 @@ export async function mockUserPreferences(
  * (written against the no-backend fixtures lane) don't expect.
  */
 export async function mockAuthenticatedSession(page: Page): Promise<void> {
+  // A run step's sessions: none by default, so the run section shows the step's
+  // raw output open with its one muted line. A spec about the thread registers
+  // its own route, which wins because the latest route matches first.
+  await page.route("**/v1/sessions?*", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ items: [], nextCursor: null }),
+    }));
   await mockBootstrappedInstallation(page);
   await mockUserPreferences(page);
   await page.route("**/v1/me", (route) =>
@@ -150,7 +159,6 @@ export async function mockAuthenticatedSession(page: Page): Promise<void> {
       body: JSON.stringify({
         principalId: MOCK_PRINCIPAL_ID,
         principalType: "human",
-        createdByPrincipalId: null,
         displayName: "Fixture Admin",
         locale: "en",
         timeZone: null,
@@ -272,6 +280,41 @@ export async function mockAuthenticatedSession(page: Page): Promise<void> {
         }],
         nextCursor: null,
       }),
+    });
+  });
+  // The shell bell and the security hub each read one more protected endpoint.
+  // Unstubbed they reach the real API with no cookie, answer 401 and retry,
+  // and the page (`/settings/security`) keeps an empty `<main>` for longer
+  // than the first-render budget (#559). A spec that drives either answer
+  // registers its own route after this helper and wins.
+  await page.route("**/v1/notifications/count", (route) => {
+    if (route.request().method() !== "GET") return route.fallback();
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ unread: 0, revision: 1 }),
+    });
+  });
+  await page.route("**/v1/installation/settings", (route) => {
+    if (route.request().method() !== "GET") return route.fallback();
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        registrationMode: "invitation",
+        organizationCreationPolicy: "installation_admins",
+        version: 1,
+        updatedByPrincipalId: MOCK_PRINCIPAL_ID,
+        updatedAt: "2026-10-11T14:12:00.000Z",
+      }),
+    });
+  });
+  await page.route("**/api/auth/passkey/list-user-passkeys", (route) => {
+    if (route.request().method() !== "GET") return route.fallback();
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: "[]",
     });
   });
   // The shell rail names the organization from its own record (`GET

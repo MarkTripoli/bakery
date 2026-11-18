@@ -61,6 +61,7 @@ import type { FrozenStepAgents } from "./agent-run-admission.ts";
 import { admitStagePolicy } from "./stage-admission.ts";
 import { ticketRequestBlocksRun } from "./ticket-run-guard.ts";
 import { pinEffectiveRepositoryRules } from "../repository-rules/pinned.ts";
+import { fixedPolicyPins as fixedPolicyPinsOf } from "../repository-rules/policy-digest.ts";
 import { assertPlanSatisfiesRules } from "../workflows/rule-guard.ts";
 import { writePlanRun } from "../workflow-adapter/plan-admission.ts";
 import {
@@ -1125,10 +1126,9 @@ export async function createRunCommand(
   const fixedPolicy = profile?.config.schemaVersion === 2
     ? profile.config.fixedPolicy
     : undefined;
-  const fixedPolicyPins = fixedPolicy === undefined ? {} : {
-    fixedPolicyDigest: await sha256Hex(canonicalJson(fixedPolicy)),
-    trustedCheckerConfigDigest: fixedPolicy.trustedChecker.configDigest,
-  };
+  const fixedPolicyPins = fixedPolicy === undefined
+    ? {}
+    : await fixedPolicyPinsOf(fixedPolicy);
   // The one rules read of this admission (organization baseline and pinned
   // profile together). The snapshot freezes it; nothing reads rules again.
   const pinnedRules = profile === null

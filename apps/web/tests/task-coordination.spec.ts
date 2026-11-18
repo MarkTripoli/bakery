@@ -338,6 +338,17 @@ async function mockWorld(page: Page, state: World) {
             createdAt: stamp,
             updatedAt: stamp,
             version: 1,
+            origin: {
+              kind: "authored",
+              catalogKey: null,
+              catalogVersion: null,
+              sourceWorkflowId: null,
+              sourceVersionId: null,
+              sourceDigest: null,
+              conversationId: null,
+              turnId: null,
+            },
+            visibility: "listed",
           },
         })
         : route.fulfill({

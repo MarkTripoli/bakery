@@ -182,6 +182,7 @@ function fakeApi(
         throw new Error("not stubbed for this test");
       },
     },
+    sessions: { list: rejecting, feed: rejecting, stream: rejecting },
     getArtifactStorage: rejecting,
     getArtifactPreviewAvailability: rejecting,
     createArtifactPreview: rejecting,

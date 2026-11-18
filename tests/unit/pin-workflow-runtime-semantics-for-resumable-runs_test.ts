@@ -192,6 +192,28 @@ Deno.test("a pin to a revision that is no longer deployed is refused, never run 
   assert(!error.message.includes(pin.interpreterRevision + pin.semanticDigest));
 });
 
+Deno.test("the deployed revision registry cannot be changed at run time (#212)", () => {
+  // A revision is never edited or removed while a run can be pinned to it, so a
+  // caller must not be able to add, replace or delete one. Modules are strict,
+  // so each of these throws on a frozen registry.
+  const registry = INTERPRETER_REVISIONS as Record<string, unknown>;
+  const before = Object.keys(registry);
+  const revisionOne = registry["1"];
+  assert(Object.isFrozen(INTERPRETER_REVISIONS));
+  assertThrows(() => {
+    registry["3"] = nextStep;
+  }, TypeError);
+  assertThrows(() => {
+    registry["1"] = nextStep;
+  }, TypeError);
+  assertThrows(() => {
+    delete registry["1"];
+  }, TypeError);
+  assertEquals(Object.keys(registry), before);
+  assert(registry["1"] === revisionOne, "revision 1 was replaced");
+  assertEquals("3" in registry, false);
+});
+
 Deno.test("inherited names are not revisions", async () => {
   const document = await sample();
   const pin = await pinWorkflowRuntime(document);

@@ -24,6 +24,10 @@
     "path": "/library/workflows/$workflowId"
   },
   {
+    "id": "library-workflow-editor",
+    "path": "/library/workflows/$workflowId/edit"
+  },
+  {
     "id": "library-builtin",
     "path": "/library/built-in/$presetId"
   },
@@ -40,6 +44,14 @@
     "path": "/issues/$issueId"
   },
   {
+    "id": "issue-settings",
+    "path": "/issues/settings"
+  },
+  {
+    "id": "issue-settings-detail",
+    "path": "/issues/settings/$sourceId"
+  },
+  {
     "id": "machines",
     "path": "/machines"
   },
@@ -50,6 +62,10 @@
   {
     "id": "machine-detail",
     "path": "/machines/$machineId"
+  },
+  {
+    "id": "notifications",
+    "path": "/notifications"
   },
   {
     "id": "status",
@@ -132,6 +148,14 @@
     "path": "/settings/organization/access"
   },
   {
+    "id": "settings-organization-access-invitations",
+    "path": "/settings/organization/access/invitations"
+  },
+  {
+    "id": "settings-organization-service-accounts",
+    "path": "/settings/organization/service-accounts"
+  },
+  {
     "id": "settings-organization-roles",
     "path": "/settings/organization/roles"
   },
@@ -190,6 +214,10 @@
   {
     "id": "reauth",
     "path": "/account/reauthenticate"
+  },
+  {
+    "id": "clients-redirect",
+    "path": "/settings/clients"
   },
   {
     "id": "settings-organization-integrations-clients",

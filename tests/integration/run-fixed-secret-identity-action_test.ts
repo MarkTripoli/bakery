@@ -23,6 +23,7 @@ import { integrationsBakeryMigrationSource } from "../../apps/server/src/modules
 import { deliveryBakeryMigrationSource } from "../../apps/server/src/modules/delivery/migrations.ts";
 import { mcpBakeryMigrationSource } from "../../apps/server/src/modules/mcp/migrations.ts";
 import { knowledgeBakeryMigrationSource } from "../../apps/server/src/modules/knowledge/migrations.ts";
+import { catalogBakeryMigrationSource } from "../../apps/server/src/modules/catalog/migrations.ts";
 import {
   authBakeryMigrationSource,
 } from "../../apps/server/src/modules/auth/migrations.ts";
@@ -1084,6 +1085,7 @@ Deno.test("prepared operation migration is ordered, relational, and idempotent",
       ...await loadMigrations(deliveryBakeryMigrationSource),
       ...await loadMigrations(mcpBakeryMigrationSource),
       ...await loadMigrations(knowledgeBakeryMigrationSource),
+      ...await loadMigrations(catalogBakeryMigrationSource),
     ];
     const before = await f.fixture.pgDatabase.query<{
       version: string;
