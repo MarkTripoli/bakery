@@ -46,7 +46,8 @@ From the worktree root (run `pnpm install --frozen-lockfile` first in a fresh wo
 
 ```bash
 pnpm migrate
-(cd apps/server && bash scripts/run-main.sh > /tmp/bakery-dev-server.log 2>&1 & echo $! > /tmp/bakery-dev-server.pid)
+(cd apps/server && exec bash scripts/run-main.sh > /tmp/bakery-dev-server.log 2>&1) &
+echo $! > /tmp/bakery-dev-server.pid
 for i in $(seq 1 90); do curl -fsS "http://127.0.0.1:$SERVER/health/ready" >/dev/null && break; sleep 1; done
 WEB_AUTH_SEED_PASSWORD=Browser-Admin-Passw0rd-1 deno run --allow-env --allow-net --allow-read \
   tests/helpers/web-auth-seed.ts browser-admin@example.test
@@ -70,11 +71,12 @@ with no session cookie and answers 401).
 
 ## 5. Tear down
 
-`run-main.sh` execs `deno`, so killing the wrapper's pid is not enough:
+The API is started with `exec`, and `run-main.sh` itself execs `deno`, so the
+pid in the file is the `deno` process. Backgrounding the whole `cd ... && bash ...`
+list instead would record a subshell and leave `deno` running after the kill.
 
 ```bash
 kill "$(cat /tmp/bakery-dev-server.pid)" 2>/dev/null
-pkill -f "$PWD/apps/server" 2>/dev/null   # the deno child of this worktree
 docker rm -fv bakery-dev-pg
 ```
 
