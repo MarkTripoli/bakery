@@ -56,12 +56,37 @@ export function deployedIntegrationsDefects(): string[] {
 }
 
 /**
+ * Freeze a value and everything reachable from it.
+ *
+ * `Object.freeze` is shallow, and a definition's `manifest` is a nested object, so
+ * freezing the list alone leaves `manifest.id` writable at runtime while the type
+ * says `readonly`. A provider's manifest deciding what the provider is, that is a
+ * value nothing downstream may change.
+ *
+ * Deliberately NOT `deepFreeze` from `packages/integration-sdk/src/context.ts`:
+ * that helper skips objects that are already frozen (`!Object.isFrozen(value)`),
+ * so called on a frozen array it returns at once and never reaches the manifest -
+ * it would look like a fix and change nothing. Descent here is unconditional.
+ */
+function freezeDeep<T>(value: T): T {
+  if (value && typeof value === "object" && !Object.isFrozen(value)) {
+    Object.freeze(value);
+  }
+  if (value && typeof value === "object") {
+    for (const child of Object.values(value as Record<string, unknown>)) {
+      freezeDeep(child);
+    }
+  }
+  return value;
+}
+
+/**
  * The definitions, in registry order.
  *
  * Ordered by the registry rather than by the literal's own order, so the deployed
  * list has one ordering rule and it is the one the registry states.
  */
-export const deployedIntegrations = Object.freeze(
+export const deployedIntegrations = freezeDeep(
   REGISTERED_GATE_IDS.map((gateId) =>
     DEFINITIONS.find((definition) => definition.manifest.id === gateId)
   ).filter((definition) => definition !== undefined),

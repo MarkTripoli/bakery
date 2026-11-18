@@ -178,6 +178,39 @@ Deno.test("the deployed list is ordered by the registry, not by the literal", ()
   assertEquals(deployedProviderSlugs(), ["github"]);
 });
 
+Deno.test("a deployed manifest refuses mutation all the way down", () => {
+  // `Object.freeze` is shallow, so freezing the list alone left `manifest.id`
+  // writable at runtime while the type said `readonly`. A provider's manifest
+  // decides what the provider is; nothing downstream may rewrite it.
+  assertEquals(Object.isFrozen(deployedIntegrations), true);
+  for (const definition of deployedIntegrations) {
+    assertEquals(Object.isFrozen(definition), true, "definition is frozen");
+    assertEquals(
+      Object.isFrozen(definition.manifest),
+      true,
+      "a nested manifest is frozen too, not only the list holding it",
+    );
+    // The assertion that would have gone red before the fix: a write must throw.
+    let threw = false;
+    try {
+      (definition.manifest as unknown as Record<string, unknown>)["id"] =
+        "hacked";
+    } catch {
+      threw = true;
+    }
+    assertEquals(
+      threw,
+      true,
+      "writing a manifest id must throw, not silently take",
+    );
+    assertEquals(
+      definition.manifest.id,
+      "bakery.github",
+      "the manifest id is unchanged after the attempted write",
+    );
+  }
+});
+
 Deno.test("the registry and the deployed list are frozen", () => {
   // A caller must not be able to add a provider at runtime: "which providers does
   // this build have" has to be answerable by reading a file.
