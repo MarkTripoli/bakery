@@ -675,7 +675,9 @@ export async function runAuditMatrix(
       operation: "principals.create",
       failure: () =>
         developerCall("POST", "/v1/principals", {
-          body: { displayName: "Denied", role: "developer" },
+          // A member may create a service account no stronger than
+          // themselves (#534), so the refusal is an Admin-role account.
+          body: { displayName: "Denied", role: "admin" },
         }),
       success: async () => {
         const response = await adminCall("POST", "/v1/principals", {
@@ -809,8 +811,11 @@ export async function runAuditMatrix(
     {
       operation: "accessTokens.create",
       failure: () =>
+        // A member may mint their own tokens (#534), never one for the
+        // Admin above them.
         developerCall("POST", "/v1/access-tokens", {
           body: {
+            principalId: f.adminId,
             name: "Denied",
             scopes: ["bakery:read"],
             expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
@@ -906,6 +911,64 @@ export async function runAuditMatrix(
         ),
         organizationId: f.organizationId,
         resourceId: state.accessBinding,
+      }),
+    },
+    {
+      operation: "definitionPublishGrants.create",
+      failure: async () => {
+        // A real workflow, so only authorization can refuse the developer.
+        const workflow = await adminCall("POST", "/v1/workflows", {
+          body: {
+            slug: `matrix-flow-${suffix}`,
+            name: `Matrix flow ${suffix}`,
+            description: "",
+          },
+        });
+        state.grantWorkflow = String((await json(workflow)).id);
+        return developerCall("POST", "/v1/definition-publish-grants", {
+          body: {
+            definitionKind: "workflow",
+            definitionId: state.grantWorkflow,
+          },
+        });
+      },
+      success: async () => {
+        const response = await adminCall(
+          "POST",
+          "/v1/definition-publish-grants",
+          {
+            body: {
+              definitionKind: "workflow",
+              definitionId: state.grantWorkflow,
+            },
+          },
+        );
+        const created = await json(response.clone());
+        state.publishGrant = String(created.id);
+        state.publishGrantVersion = String(created.version);
+        return {
+          response,
+          organizationId: f.organizationId,
+          resourceId: state.publishGrant,
+        };
+      },
+    },
+    {
+      operation: "definitionPublishGrants.delete",
+      failure: () =>
+        developerCall(
+          "DELETE",
+          `/v1/definition-publish-grants/${state.publishGrant}`,
+          { headers: { "If-Match": `"${state.publishGrantVersion}"` } },
+        ),
+      success: async () => ({
+        response: await adminCall(
+          "DELETE",
+          `/v1/definition-publish-grants/${state.publishGrant}`,
+          { headers: { "If-Match": `"${state.publishGrantVersion}"` } },
+        ),
+        organizationId: f.organizationId,
+        resourceId: state.publishGrant,
       }),
     },
     {

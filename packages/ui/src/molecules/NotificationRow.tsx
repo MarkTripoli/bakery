@@ -45,7 +45,20 @@ export type NotificationRowProps = {
   /** Outlines the row once when it was arrived at from `/notifications?item=`. */
   readonly highlighted?: boolean;
   readonly onSelect?: () => void;
+  /**
+   * The row's catalogued state. It is derived (highlighted, unavailable
+   * destination, unread, read) unless the caller names one, which only
+   * "long-text" needs: the row cannot tell its own text is the worst case.
+   */
+  readonly state?: NotificationRowState;
 };
+
+export type NotificationRowState =
+  | "read"
+  | "unread"
+  | "highlighted"
+  | "long-text"
+  | "unavailable-destination";
 
 const TILE_GLYPH: Record<NotificationRowTile, IconGlyphName> = {
   check: "check",
@@ -80,6 +93,7 @@ export function NotificationRow(
     menu,
     onSelect,
     relativeTime,
+    state,
     unread,
     unreadLabel,
   }: NotificationRowProps,
@@ -114,12 +128,16 @@ export function NotificationRow(
           : null}
       </span>
       <span className="ui-notification-row__text">
-        <span className="ui-notification-row__headline">
+        <span
+          className="ui-notification-row__headline"
+          data-rail="truncation-allowed"
+        >
           {unread ? <VisuallyHidden>{unreadLabel}</VisuallyHidden> : null}
           {headline}
         </span>
         <span
           className="ui-notification-row__destination"
+          data-rail="truncation-allowed"
           data-ui-part="notificationDestination"
         >
           {destination}
@@ -140,8 +158,16 @@ export function NotificationRow(
     <li
       className="ui-notification-row"
       data-highlighted={highlighted ? "true" : undefined}
+      data-state={state ?? (highlighted
+        ? "highlighted"
+        : href === null
+        ? "unavailable-destination"
+        : unread
+        ? "unread"
+        : "read")}
       data-ui-component="notificationRow"
       data-unread={unread ? "true" : "false"}
+      data-variant={actor?.kind ?? "event"}
       id={`notification-${id}`}
     >
       {href === null

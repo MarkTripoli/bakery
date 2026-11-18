@@ -32,24 +32,22 @@ const providers = [
 export const Contract: StoryObj = {
   render: () => (
     <SettingsContent>
-      <SsoSettings title="Add OIDC provider" variant="form">
+      <SsoSettings title="Add provider" variant="form">
         <p>The provider form goes here.</p>
       </SsoSettings>
       <SsoSettings
         title="Single sign-on"
-        description="Sign in through your identity provider with OIDC or SAML."
-        actions={
-          <>
-            <Button variant="outline">Add SAML</Button>
-            <Button>Add OIDC</Button>
-          </>
-        }
+        description="Let members sign in with your company's identity provider instead of a password."
+        actions={<Button>Add provider</Button>}
         providers={providers}
         providersLabel="Single sign-on providers"
         domain={
           <>
             <h2>Domain verification</h2>
-            <p>Add this TXT record to prove you control acme.example.</p>
+            <p>
+              Add this record where you manage DNS for acme.example. It proves
+              your organization controls the domain.
+            </p>
           </>
         }
         enforcement={

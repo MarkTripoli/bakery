@@ -173,7 +173,16 @@ export function createApp(options: {
 }) {
   assertRuntimeConfig(options.config);
   // Fails startup closed when a deployed native violates manifest, profile or handler parity.
-  activateDeployedIntegrations(deployedIntegrations);
+  //
+  // The result is BOUND, not discarded. Discarding it was a real defect: every
+  // integration consumer downstream takes an `ActiveIntegrationRegistry`, so
+  // dropping the one this process just validated left the registry correct,
+  // reachable by `get`, and wired to nothing - a name lookup would have had to
+  // be re-derived locally, which is how two views of "which providers exist"
+  // start disagreeing.
+  const integrationRegistry = activateDeployedIntegrations(
+    deployedIntegrations,
+  );
   if (!options.config.auth) throw new Error(AuthErrorCode.ConfigRequired);
   const installationSettings = options.installationSettings ??
     createPostgresInstallationSettingsReader(options.pgDatabase);
@@ -207,6 +216,10 @@ export function createApp(options: {
     github: githubAppClient,
     secretsKey: options.config.secretsKey,
     broker: installationTokenBroker,
+    // The activated registry travels with the other integration dependencies, so
+    // a consumer that holds a provider NAME can resolve it instead of re-deriving
+    // which providers exist from a second source.
+    registry: integrationRegistry,
   };
   const app = new Hono();
   app.onError((error, context) =>
@@ -671,6 +684,7 @@ export function createApp(options: {
     createWorkflowsRoutes({
       database: options.pgDatabase,
       browserSession,
+      tokenSession,
       publicBaseUrl: options.config.publicBaseUrl,
       cursorSecret: options.config.auth.secret,
     }),

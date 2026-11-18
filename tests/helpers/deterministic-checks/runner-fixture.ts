@@ -344,6 +344,7 @@ export type RunOptions = {
   readonly readAttemptContext?: (
     attemptId: string,
   ) => Promise<readonly WorkerContextInput[]>;
+  readonly killGroup?: CheckExecutorOptions["killGroup"];
   readonly redactionSecrets?: readonly string[];
   readonly credentialPaths?: (state: {
     stateDir: string;
@@ -379,6 +380,7 @@ export async function runCheckExecutor(options: RunOptions): Promise<
       limits: options.limits,
       groupKillExecutable: options.groupKillExecutable,
       readAttemptContext: options.readAttemptContext,
+      killGroup: options.killGroup,
     },
   );
   const base = checkAssignment({

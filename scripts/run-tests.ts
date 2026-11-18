@@ -3,6 +3,7 @@ import {
   parseLaneStacks,
   sweepLaneStacks,
 } from "./ci/lane-stacks.ts";
+import { allowRunFlags } from "./ci/lane-allow-run.ts";
 import {
   ISOLATED_HOME_LANES,
   isolatedLaneEnvironment,
@@ -74,39 +75,31 @@ const permissions = lane === "native" ? ["--allow-all"] : [
   ...(lane === "unit"
     ? [
       "--allow-write",
-      // The server's fixed launchers (infra/server-exec) are how its git and
-      // systemd calls run; the unit tests exercise them through the real
-      // spawn path, so the lane names them exactly.
-      // `Deno.execPath()` is here for the type-level probes: a few guarantees are
-      // about what the compiler REJECTS, and the only honest way to assert that is to
-      // compile a snippet. Without it those probes cannot run in this lane, and a
-      // type guarantee that is not asserted is a comment.
-      `--allow-run=zip,unzip,node,git,/usr/bin/git,/usr/bin/stat,/usr/bin/prlimit,/usr/bin/setsid,/usr/bin/kill,${
-        serverLauncher("git.sh")
-      },${serverLauncher("draft-systemd.sh")},${Deno.execPath()}`,
     ]
     : []),
-  // Provider conformance runs fixtures only: no bare --allow-run and no
-  // --allow-net, so a stray host binary or network call fails the lane.
+  // What each lane may spawn is decided in scripts/ci/lane-allow-run.ts, where
+  // a test pins every list (#259).
+  ...allowRunFlags(lane, {
+    execPath: Deno.execPath(),
+    serverLauncher,
+    providerRealCli:
+      (Deno.env.get("BAKERY_PROVIDER_REAL_CLI") ?? "").trim().length > 0,
+  }),
+  // Provider conformance runs fixtures only: no --allow-net, so a stray network
+  // call fails the lane.
   ...(lane === "provider"
     ? [
       `--allow-write=${temporaryDirectory}`,
-      "--allow-run=git,/usr/bin/git,/usr/bin/setsid,/usr/bin/kill",
       "--allow-sys=uid",
     ]
     : []),
   // Owner opt-in only (BAKERY_PROVIDER_REAL_CLI): a real harness CLI needs to
-  // be spawned and to reach its model provider. CI never sets the variable.
+  // reach its model provider. CI never sets the variable.
   ...(lane === "provider" &&
       (Deno.env.get("BAKERY_PROVIDER_REAL_CLI") ?? "").trim().length > 0
-    ? ["--allow-run", "--allow-net"]
+    ? ["--allow-net"]
     : []),
-  ...(lane === "contract"
-    ? [
-      `--allow-write=${temporaryDirectory}`,
-      `--allow-run=${Deno.execPath()},bash`,
-    ]
-    : []),
+  ...(lane === "contract" ? [`--allow-write=${temporaryDirectory}`] : []),
   ...(lane === "recovery" ? ["--allow-write"] : lane === "e2e"
     // The e2e lane writes per-conversation scripts for the scripted coordinator.
     ? [
@@ -123,10 +116,6 @@ const permissions = lane === "native" ? ["--allow-all"] : [
     ? ["--allow-sys=uid,statfs"]
     : lane === "r2"
     ? ["--allow-sys=uid,osRelease"]
-    : []),
-  ...(lane === "rails" || lane === "integration" || lane === "recovery" ||
-      lane === "security" || lane === "e2e" || lane === "connected"
-    ? ["--allow-run"]
     : []),
   ...(lane === "contract" || lane === "integration" || lane === "recovery" ||
       lane === "security" || lane === "e2e" || lane === "connected" ||
@@ -338,13 +327,33 @@ if (isolatedRoot !== undefined) {
   await removeLaneStacks(laneEnvPaths(isolatedRoot).stacks);
   const swept = await rootTool("sweep", temporaryDirectory, isolatedRoot);
   try {
-    const { homeEntries, homeNames, homeNamesTruncated } = JSON.parse(
-      swept.text,
-    ) as {
+    const {
+      anomaly,
+      anomalyTarget,
+      homeEntries,
+      homeNames,
+      homeNamesTruncated,
+      removeError,
+    } = JSON.parse(swept.text) as {
+      anomaly?: string;
+      anomalyTarget?: string;
       homeEntries?: number;
       homeNames?: string[];
       homeNamesTruncated?: boolean;
+      removeError?: string;
     };
+    if (anomaly !== undefined) {
+      console.error(
+        `lane HOME: the isolated root was changed under the run (${anomaly}${
+          anomalyTarget === undefined ? "" : `, pointing at ${anomalyTarget}`
+        }); it was not followed`,
+      );
+    }
+    if (removeError !== undefined) {
+      console.error(
+        `lane HOME: the isolated root could not be removed (${removeError})`,
+      );
+    }
     // What a lane writes into its isolated HOME is what depended on a real one.
     if (homeEntries !== undefined && homeEntries > 0) {
       const names = (homeNames ?? []).join(", ");
@@ -363,19 +372,37 @@ if (isolatedRoot !== undefined) {
 if (laneRoot !== undefined) {
   const swept = await rootTool("sweep", temporaryDirectory, laneRoot);
   try {
-    const { leaked, prefixes } = JSON.parse(swept.text) as {
-      leaked: number;
-      prefixes: Record<string, number>;
-    };
-    if (leaked > 0) {
+    const { anomaly, anomalyTarget, leaked, prefixes, removeError } = JSON
+      .parse(swept.text) as {
+        anomaly?: string;
+        anomalyTarget?: string;
+        leaked: number;
+        prefixes: Record<string, number>;
+        removeError?: string;
+      };
+    const strict = Deno.env.get("BAKERY_TEST_TMP_STRICT") === "1";
+    if (anomaly !== undefined) {
+      // A lane root swapped for a link or a file: what a link points at is
+      // neither swept nor listed, and the swap is never a clean run.
+      console.error(
+        `test temp root: the lane root was changed under the run (${anomaly}${
+          anomalyTarget === undefined ? "" : `, pointing at ${anomalyTarget}`
+        }); it was not followed`,
+      );
+      if (strict && code === 0) code = 3;
+    } else if (leaked > 0) {
       console.error(
         `test temp root: ${leaked} entries were still there after the run and were removed; by prefix ${
           JSON.stringify(prefixes)
         }`,
       );
-      if (Deno.env.get("BAKERY_TEST_TMP_STRICT") === "1" && code === 0) {
-        code = 3;
-      }
+      if (strict && code === 0) code = 3;
+    }
+    if (removeError !== undefined) {
+      console.error(
+        `test temp root: the root could not be removed (${removeError}); it may remain`,
+      );
+      if (strict && code === 0) code = 3;
     }
   } catch {
     console.error(

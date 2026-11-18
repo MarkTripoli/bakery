@@ -37,6 +37,10 @@ export type WorkflowsActionHandlers = {
     context: ActionContext,
     input: z.output<typeof contractSchemas.DefinitionUpdate>,
   ) => Promise<z.output<typeof contractSchemas.Workflow>>;
+  copyWorkflow: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.WorkflowCopy>,
+  ) => Promise<z.output<typeof contractSchemas.Workflow>>;
   listVersions: (
     context: ActionContext,
     input: z.output<typeof contractSchemas.CursorQuery>,
@@ -65,6 +69,26 @@ export type WorkflowsActionHandlers = {
     context: ActionContext,
     input: z.output<typeof contractSchemas.WorkflowValidation>,
   ) => Promise<z.output<typeof contractSchemas.ValidationReport>>;
+  createListing: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.WorkflowListingCreate>,
+  ) => Promise<z.output<typeof contractSchemas.Workflow>>;
+  getProposal: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.IdPath>,
+  ) => Promise<z.output<typeof contractSchemas.WorkflowDefinitionProposal>>;
+  decideProposal: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.WorkflowDefinitionProposalDecision>,
+  ) => Promise<z.output<typeof contractSchemas.WorkflowDefinitionProposal>>;
+  createPublishGrant: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.DefinitionPublishGrantCreate>,
+  ) => Promise<z.output<typeof contractSchemas.DefinitionPublishGrant>>;
+  deletePublishGrant: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.IdPath>,
+  ) => Promise<null>;
 };
 
 export function createWorkflowsActionRegistry(
@@ -127,6 +151,17 @@ export function createWorkflowsActionRegistry(
     output: contractSchemas.Workflow,
     policy: commandPolicy,
     handler: handlers.updateWorkflow,
+  });
+  registry.register({
+    name: WorkflowImplementedAction.WorkflowsCopy,
+    method: HttpMethod.Post,
+    path: "/v1/workflows/:id/copy",
+    input: contractSchemas.WorkflowCopy,
+    output: contractSchemas.Workflow,
+    policy: commandPolicy,
+    // The copy is a new resource, like `workflows.create`.
+    successStatus: 201,
+    handler: handlers.copyWorkflow,
   });
   registry.register({
     name: WorkflowImplementedAction.WorkflowVersionsList,
@@ -195,6 +230,60 @@ export function createWorkflowsActionRegistry(
     policy: validatePolicy,
     successStatus: 200,
     handler: handlers.validate,
+  });
+
+  registry.register({
+    name: WorkflowImplementedAction.WorkflowListingsCreate,
+    method: HttpMethod.Post,
+    path: "/v1/workflows/:id/listings",
+    input: contractSchemas.WorkflowListingCreate,
+    output: contractSchemas.Workflow,
+    policy: commandPolicy,
+    explicitIdempotency: "key-and-if-match",
+    successStatus: 201,
+    handler: handlers.createListing,
+  });
+  registry.register({
+    name: WorkflowImplementedAction.WorkflowDefinitionProposalsGet,
+    method: HttpMethod.Get,
+    path: "/v1/workflow-definition-proposals/:id",
+    input: contractSchemas.IdPath,
+    output: contractSchemas.WorkflowDefinitionProposal,
+    policy: queryPolicy,
+    handler: handlers.getProposal,
+  });
+  registry.register({
+    name: WorkflowImplementedAction.WorkflowDefinitionProposalDecisionsCreate,
+    method: HttpMethod.Post,
+    path: "/v1/workflow-definition-proposals/:id/decisions",
+    input: contractSchemas.WorkflowDefinitionProposalDecision,
+    output: contractSchemas.WorkflowDefinitionProposal,
+    policy: commandPolicy,
+    explicitIdempotency: "key-and-if-match",
+    successStatus: 200,
+    handler: handlers.decideProposal,
+  });
+  // Granting an agent the publish power is a person's act (O51), so these
+  // need a browser session; a token never reaches them.
+  registry.register({
+    name: WorkflowImplementedAction.DefinitionPublishGrantsCreate,
+    method: HttpMethod.Post,
+    path: "/v1/definition-publish-grants",
+    input: contractSchemas.DefinitionPublishGrantCreate,
+    output: contractSchemas.DefinitionPublishGrant,
+    policy: { ...commandPolicy, sessionOnly: true },
+    successStatus: 201,
+    handler: handlers.createPublishGrant,
+  });
+  registry.register({
+    name: WorkflowImplementedAction.DefinitionPublishGrantsDelete,
+    method: HttpMethod.Delete,
+    path: "/v1/definition-publish-grants/:id",
+    input: contractSchemas.IdPath,
+    output: contractSchemas.NoContent,
+    policy: { ...commandPolicy, sessionOnly: true },
+    explicitIdempotency: "key-and-if-match",
+    handler: handlers.deletePublishGrant,
   });
 
   assertRegisteredActions(registry);

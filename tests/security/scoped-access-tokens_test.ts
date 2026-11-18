@@ -1,8 +1,12 @@
 import { assert, assertEquals, assertNotEquals } from "@std/assert";
 import {
+  authRequest,
   call,
+  type InstallationFixture,
   openInstallationFixture,
+  signIn,
 } from "../helpers/installation-settings.ts";
+import { cleanupAuthFixture } from "../helpers/auth.ts";
 import { orgHeader } from "../helpers/account-settings.ts";
 import {
   adminJson,
@@ -235,7 +239,9 @@ Deno.test("a token of a disabled principal, a revoked token and an expired token
 Deno.test("non-admins and tokens cannot mint stronger service accounts, grants or tokens", async () => {
   const f = await openInstallationFixture();
   try {
-    // A developer human holds neither principal:manage nor accessToken:manage.
+    // Since #534 a developer may create the service accounts and tokens they
+    // own, but never one stronger than themselves.
+    const admin = await createServiceAccount(f, "Token admin", "admin");
     const asDeveloper = (path: string, body: unknown) =>
       call(f, "POST", path, f.developerCookie, {
         body,
@@ -250,15 +256,36 @@ Deno.test("non-admins and tokens cannot mint stronger service accounts, grants o
     });
     assertEquals(devPrincipal.status, 403, await devPrincipal.clone().text());
     const devToken = await asDeveloper("/v1/access-tokens", {
+      principalId: admin.id,
       name: "x",
       scopes: ["bakery:admin"],
       expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
     });
-    assertEquals(devToken.status, 403, await devToken.clone().text());
+    // The Admin created that account, so to the developer it does not exist.
+    assertEquals(devToken.status, 404, await devToken.clone().text());
+
+    // A developer's own token may carry the admin scope, but a scope only
+    // narrows the principal's live permissions: it still cannot do what only
+    // an Admin may.
+    const ownToken = await asDeveloper("/v1/access-tokens", {
+      name: "own",
+      scopes: ["bakery:admin"],
+      expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+    });
+    assertEquals(ownToken.status, 201, await ownToken.clone().text());
+    const ownSecret = String((await ownToken.json()).secret);
+    const adminWrite = await bearerCall(
+      f,
+      "POST",
+      "/v1/applications",
+      ownSecret,
+      { body: applicationBody },
+    );
+    assertEquals(adminWrite.status, 403, await adminWrite.clone().text());
+    assertEquals((await problem(adminWrite)).code, "AUTH_FORBIDDEN");
 
     // A token, even an admin-scoped one of an admin-role service account,
     // cannot change access: those mutations need a browser session.
-    const admin = await createServiceAccount(f, "Token admin", "admin");
     const adminToken = await mintToken(f, admin.id, ["bakery:admin"]);
     const expiresAt = new Date(Date.now() + 86_400_000).toISOString();
     const attempts: [string, string, unknown][] = [
@@ -487,6 +514,163 @@ Deno.test("a member's token never reaches another organization they also belong 
       await sessionInSecond.clone().text(),
     );
   } finally {
+    await f.finish();
+  }
+});
+
+/** Signs a second developer into the fixture's organization. */
+async function secondDeveloper(f: InstallationFixture) {
+  const email = `settings-dev-b-${crypto.randomUUID()}@example.test`;
+  const invitation = await call(
+    f,
+    "POST",
+    `/v1/organizations/${f.organizationId}/invitations`,
+    f.adminCookie,
+    {
+      body: { email, role: "developer" },
+      headers: {
+        ...orgHeader(f.organizationId),
+        "Idempotency-Key": crypto.randomUUID(),
+      },
+    },
+  );
+  assertEquals(invitation.status, 201, await invitation.clone().text());
+  const signUp = await f.app.fetch(authRequest("/api/auth/sign-up/email", {
+    email,
+    password: f.password,
+    name: "Second Developer",
+  }));
+  assertEquals(signUp.status, 200, await signUp.clone().text());
+  const cookie = await signIn(f, email, f.password);
+  const pending = await f.pgDatabase.query<{ id: string }>(
+    `select id from bakery.organization_invitations
+     where organization_id = $1 and email = $2 and status = 'pending'`,
+    [f.organizationId, email],
+  );
+  const accepted = await f.app.fetch(authRequest(
+    "/api/auth/organization/accept-invitation",
+    { invitationId: pending.rows[0].id },
+    { cookie },
+  ));
+  assertEquals(accepted.status, 200, await accepted.clone().text());
+  return { email, cookie };
+}
+
+Deno.test("a member reaches only the service accounts and tokens they created", async () => {
+  const f = await openInstallationFixture();
+  let emailB: string | undefined;
+  try {
+    const as = (
+      cookie: string,
+      method: string,
+      path: string,
+      body?: unknown,
+      headers: Record<string, string> = {},
+    ) =>
+      call(f, method, path, cookie, {
+        body,
+        headers: {
+          ...orgHeader(f.organizationId),
+          "Idempotency-Key": crypto.randomUUID(),
+          ...headers,
+        },
+      });
+    const expiresAt = new Date(Date.now() + 86_400_000).toISOString();
+    // Developer A creates a service account and mints a token for it.
+    const accountA = await as(f.developerCookie, "POST", "/v1/principals", {
+      displayName: "A's deployer",
+      role: "developer",
+    });
+    assertEquals(accountA.status, 201, await accountA.clone().text());
+    const accountAId = String((await accountA.json()).id);
+    const tokenA = await as(f.developerCookie, "POST", "/v1/access-tokens", {
+      principalId: accountAId,
+      name: "A's token",
+      scopes: ["bakery:read"],
+      expiresAt,
+    });
+    assertEquals(tokenA.status, 201, await tokenA.clone().text());
+    const tokenABody = await tokenA.json();
+
+    const b = await secondDeveloper(f);
+    emailB = b.email;
+    const tokensBefore = await f.pgDatabase.query<{ count: string }>(
+      "select count(*)::text as count from bakery.access_tokens where principal_id = $1",
+      [accountAId],
+    );
+
+    // B cannot mint for A's account: a not-found, and nothing is written.
+    const minted = await as(b.cookie, "POST", "/v1/access-tokens", {
+      principalId: accountAId,
+      name: "B as A",
+      scopes: ["bakery:read"],
+      expiresAt,
+    });
+    assertEquals(minted.status, 404, await minted.clone().text());
+    assertEquals((await problem(minted)).code, "RESOURCE_NOT_FOUND");
+    const tokensAfter = await f.pgDatabase.query<{ count: string }>(
+      "select count(*)::text as count from bakery.access_tokens where principal_id = $1",
+      [accountAId],
+    );
+    assertEquals(tokensAfter.rows[0].count, tokensBefore.rows[0].count);
+
+    // B's lists hold neither A's account nor A's token.
+    const principalsB = await as(b.cookie, "GET", "/v1/principals");
+    assertEquals(principalsB.status, 200, await principalsB.clone().text());
+    const principalIds = ((await principalsB.json()).items as { id: string }[])
+      .map((item) => item.id);
+    assertEquals(principalIds.includes(accountAId), false);
+    const tokensB = await as(b.cookie, "GET", "/v1/access-tokens");
+    assertEquals(tokensB.status, 200, await tokensB.clone().text());
+    const tokenIds = ((await tokensB.json()).items as { id: string }[]).map(
+      (item) => item.id,
+    );
+    assertEquals(tokenIds.includes(String(tokenABody.id)), false);
+
+    // B cannot revoke A's token.
+    const revoked = await as(
+      b.cookie,
+      "DELETE",
+      `/v1/access-tokens/${tokenABody.id}`,
+      undefined,
+      { "If-Match": `"v${tokenABody.version}"` },
+    );
+    assertEquals(revoked.status, 404, await revoked.clone().text());
+    await revoked.body?.cancel();
+
+    // The Admin still sees and acts on all of it.
+    const adminPrincipals = await as(f.adminCookie, "GET", "/v1/principals");
+    assertEquals(
+      ((await adminPrincipals.json()).items as { id: string }[]).some((item) =>
+        item.id === accountAId
+      ),
+      true,
+    );
+    const adminTokens = await as(f.adminCookie, "GET", "/v1/access-tokens");
+    assertEquals(
+      ((await adminTokens.json()).items as { id: string }[]).some((item) =>
+        item.id === tokenABody.id
+      ),
+      true,
+    );
+    const adminMint = await as(f.adminCookie, "POST", "/v1/access-tokens", {
+      principalId: accountAId,
+      name: "Admin for A",
+      scopes: ["bakery:read"],
+      expiresAt,
+    });
+    assertEquals(adminMint.status, 201, await adminMint.clone().text());
+    await adminMint.body?.cancel();
+    const adminRevoke = await as(
+      f.adminCookie,
+      "DELETE",
+      `/v1/access-tokens/${tokenABody.id}`,
+      undefined,
+      { "If-Match": `"v${tokenABody.version}"` },
+    );
+    assertEquals(adminRevoke.status, 204, await adminRevoke.clone().text());
+  } finally {
+    if (emailB !== undefined) await cleanupAuthFixture(f.pgDatabase, [emailB]);
     await f.finish();
   }
 });

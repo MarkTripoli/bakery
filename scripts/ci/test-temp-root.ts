@@ -7,7 +7,10 @@
  *   create <base>          prints the path of a new `<base>/bakery-lane-XXXXXX`
  *   skeleton <base> <root> makes the isolated HOME, XDG directories and git
  *                          config of #246 under `<root>/env`
- *   sweep <base> <root>    prints {"leaked":n,"prefixes":{...}} and removes <root>;
+ *   sweep <base> <root>    prints {"leaked":n,"prefixes":{...}} and removes <root>
+ *                          (a root that is not a real directory is reported as
+ *                          `anomaly`, never followed, and counts as leaked;
+ *                          a removal that fails is reported as `removeError`);
  *                          `<root>/env` is the lane's own home, not a leak, and
  *                          its entry count is reported as `homeEntries` and its
  *                          names (one level into a directory, capped) as
@@ -17,9 +20,18 @@
  */
 import { basename, dirname, isAbsolute, join } from "node:path";
 import { laneEnvPaths, MINIMAL_GIT_CONFIG } from "./lane-environment.ts";
-import { entriesOf, removeTreeSync } from "./temp-tree.ts";
+import { entriesOf, kindOf, removeTreeSync } from "./temp-tree.ts";
 
 export const LANE_ROOT_PREFIX = "bakery-lane-";
+
+/**
+ * Whether `name` is the basename of a lane root this tool makes: the prefix
+ * and the random suffix `makeTempDir` adds. The prefix alone, with no suffix,
+ * is not one (#254): it would name a directory a person or another tool made.
+ */
+export function isLaneRootName(name: string): boolean {
+  return new RegExp(`^${LANE_ROOT_PREFIX}[A-Za-z0-9]+$`).test(name);
+}
 
 /**
  * What the pinned mise writes into any HOME it runs under (#246): the settings
@@ -61,6 +73,13 @@ export function homeNamesOf(
   };
 }
 
+/** A short, stable name for why a call failed: its code, else its type. */
+export function errorCodeOf(error: unknown): string {
+  const code = (error as { code?: unknown } | null)?.code;
+  if (typeof code === "string" && code.length > 0) return code.slice(0, 40);
+  return error instanceof Error ? error.name.slice(0, 40) : "UnknownError";
+}
+
 /** Groups entry names by their name minus the random suffix. */
 export function prefixesOf(names: readonly string[]): Record<string, number> {
   const counts: Record<string, number> = {};
@@ -87,7 +106,7 @@ if (import.meta.main) {
     // Only ever a root this tool made, directly under the base it was given.
     if (
       !root || dirname(root) !== base.replace(/\/+$/, "") ||
-      !basename(root).startsWith(LANE_ROOT_PREFIX)
+      !isLaneRootName(basename(root))
     ) {
       console.error(
         `test-temp-root: refusing to ${command} a path that is not a lane root`,
@@ -101,6 +120,38 @@ if (import.meta.main) {
       }
       Deno.writeTextFileSync(paths.gitconfig, MINIMAL_GIT_CONFIG);
     } else {
+      const kind = kindOf(root);
+      if (kind !== "directory") {
+        // A lane root swapped for a link or a file, or gone: never followed,
+        // so what a link points at is neither swept nor listed, but the swap
+        // is reported and is not a clean 0.
+        let anomalyTarget: string | undefined;
+        if (kind === "symlink") {
+          try {
+            anomalyTarget = Deno.readLinkSync(root).slice(0, 200);
+          } catch {
+            // Reported without a target.
+          }
+        }
+        let removeError: string | undefined;
+        if (kind !== "missing") {
+          try {
+            Deno.removeSync(root);
+          } catch (error) {
+            removeError = errorCodeOf(error);
+          }
+        }
+        console.log(
+          JSON.stringify({
+            leaked: kind === "missing" ? 0 : 1,
+            prefixes: {},
+            anomaly: `root_${kind}`,
+            ...(anomalyTarget === undefined ? {} : { anomalyTarget }),
+            ...(removeError === undefined ? {} : { removeError }),
+          }),
+        );
+        Deno.exit(0);
+      }
       const paths = laneEnvPaths(root);
       const isolated = entriesOf(root).includes("env");
       const homeTop = isolated
@@ -115,11 +166,19 @@ if (import.meta.main) {
       const left = entriesOf(root).filter((name) =>
         !(isolated && name === "env")
       );
-      removeTreeSync(root);
+      // A failing removal must not cost the report: it says what was left and
+      // why the root could not be removed, instead of exiting with nothing.
+      let removeError: string | undefined;
+      try {
+        removeTreeSync(root);
+      } catch (error) {
+        removeError = errorCodeOf(error);
+      }
       console.log(
         JSON.stringify({
           leaked: left.length,
           prefixes: prefixesOf(left),
+          ...(removeError === undefined ? {} : { removeError }),
           ...(homeEntries === undefined ? {} : {
             homeEntries,
             // The names, one level into a directory, so the writer can be found (capped).

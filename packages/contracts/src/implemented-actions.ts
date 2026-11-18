@@ -223,6 +223,8 @@ export const ProjectsImplementedAction = Object.freeze(
     RolesList: "projects.roles.list",
     RolesResolve: "projects.roles.resolve",
     RolesUpdate: "projects.roles.update",
+    ScopeProfilesGet: "scopeProfiles.get",
+    ScopeProfilesPut: "scopeProfiles.put",
   } as const satisfies Record<string, CatalogActionName>,
 );
 
@@ -349,6 +351,7 @@ export const NotificationImplementedAction = Object.freeze(
     NotificationsResolveTarget: "notifications.resolveTarget",
     NotificationsSetRead: "notifications.setRead",
     NotificationsMarkAllRead: "notifications.markAllRead",
+    NotificationsUndoMarkAllRead: "notifications.undoMarkAllRead",
   } as const satisfies Record<string, CatalogActionName>,
 );
 export const notificationImplementedActions = Object.freeze(
@@ -361,6 +364,7 @@ export const WorkflowImplementedAction = Object.freeze(
     WorkflowsGet: "workflows.get",
     WorkflowsCreate: "workflows.create",
     WorkflowsUpdate: "workflows.update",
+    WorkflowsCopy: "workflows.copy",
     WorkflowVersionsList: "workflowVersions.list",
     WorkflowVersionsGet: "workflowVersions.get",
     WorkflowVersionsCreate: "workflowVersions.create",
@@ -368,6 +372,12 @@ export const WorkflowImplementedAction = Object.freeze(
     WorkflowVersionsPublish: "workflowVersions.publish",
     WorkflowActivationsCreate: "workflowActivations.create",
     WorkflowsValidate: "workflows.validate",
+    WorkflowListingsCreate: "workflowListings.create",
+    WorkflowDefinitionProposalsGet: "workflowDefinitionProposals.get",
+    WorkflowDefinitionProposalDecisionsCreate:
+      "workflowDefinitionProposalDecisions.create",
+    DefinitionPublishGrantsCreate: "definitionPublishGrants.create",
+    DefinitionPublishGrantsDelete: "definitionPublishGrants.delete",
   } as const satisfies Record<string, CatalogActionName>,
 );
 export const workflowImplementedActions = Object.freeze(
@@ -434,6 +444,11 @@ export const DraftImplementedAction = Object.freeze(
     SuggestionList: "draftSuggestions.list",
     SuggestionAccept: "draftSuggestions.accept",
     SuggestionReject: "draftSuggestions.reject",
+    CommentCreate: "draftComments.create",
+    CommentList: "draftComments.list",
+    CommentUpdate: "draftComments.update",
+    ReferenceCreate: "draftReferences.create",
+    ReferenceGet: "draftReferences.get",
   } as const satisfies Record<string, CatalogActionName>,
 );
 

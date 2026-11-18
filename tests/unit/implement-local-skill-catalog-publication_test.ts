@@ -38,6 +38,7 @@ import { repositoryRulesBakeryMigrationSource } from "../../apps/server/src/modu
 import { artifactKindsBakeryMigrationSource } from "../../apps/server/src/modules/artifact-kinds/migrations.ts";
 import { integrationsBakeryMigrationSource } from "../../apps/server/src/modules/integrations/migrations.ts";
 import { deliveryBakeryMigrationSource } from "../../apps/server/src/modules/delivery/migrations.ts";
+import { mcpBakeryMigrationSource } from "../../apps/server/src/modules/mcp/migrations.ts";
 import { authBakeryMigrationSource } from "../../apps/server/src/modules/auth/migrations.ts";
 import { projectsBakeryMigrationSource } from "../../apps/server/src/modules/projects/migrations.ts";
 import { workBakeryMigrationSource } from "../../apps/server/src/modules/work/migrations.ts";
@@ -53,6 +54,7 @@ Deno.test("Bakery migrations follow the globally unique migration sequence", asy
     ...await loadMigrations(artifactKindsBakeryMigrationSource),
     ...await loadMigrations(integrationsBakeryMigrationSource),
     ...await loadMigrations(deliveryBakeryMigrationSource),
+    ...await loadMigrations(mcpBakeryMigrationSource),
   ];
   for (
     const [version, error] of [
@@ -191,6 +193,19 @@ Deno.test("Bakery migrations follow the globally unique migration sequence", asy
       "0172_work_type_is_an_organization_label",
       "0173_notifications",
       "0174_decisions_ledger",
+      "0175_workflow_origin_provenance",
+      "0176_artifact_draft_comments",
+      "0177_artifact_draft_comment_publications",
+      "0178_artifact_draft_references",
+      "0179_workflow_copy_lineage",
+      "0180_mcp_servers_and_connections",
+      "0181_mcp_capability_snapshots_and_bindings",
+      "0183_unlisted_definitions_and_definition_proposals",
+      "0184_inbox_signal_and_read_batches",
+      "0185_event_export",
+      "0186_definition_publish_grants_and_proposal_supersession",
+      "0189_project_scope_profiles",
+      "0191_delivery_identity_per_attempt",
     ],
   );
 });

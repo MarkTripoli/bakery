@@ -673,6 +673,30 @@ Deno.test("the account home is found under each lane's own sys permissions", asy
   }
 });
 
+Deno.test("the account home is the one the account database gives this uid (#257)", async () => {
+  // An independent answer: getent, not this lookup's own reading of the file.
+  const uid = Deno.uid();
+  assert(uid !== null, "no uid on this platform");
+  const entry = new TextDecoder().decode(
+    (await new Deno.Command("getent", {
+      args: ["passwd", String(uid)],
+      stdout: "piped",
+      stderr: "null",
+    }).output()).stdout,
+  ).trim();
+  const expected = entry.split(":")[5];
+  assert(
+    typeof expected === "string" && expected.startsWith("/"),
+    `getent gave no home for uid ${uid}: ${entry}`,
+  );
+  const result = await runChild(
+    ["--allow-env", `--allow-read=${REPO},/etc/passwd`, "--allow-sys=uid"],
+    ACCOUNT_HOME_SCRIPT,
+  );
+  assert(result.success, result.err);
+  assertEquals(JSON.parse(result.out), expected);
+});
+
 Deno.test("without the permissions to find it, the account home is unknown and the gate refuses", async () => {
   for (
     const [label, permissions] of [

@@ -9,6 +9,7 @@ import {
   type Route,
   test,
 } from "@playwright/test";
+import { laneBudgetMs } from "./helpers/lane-budget.ts";
 
 /**
  * Browser proof of the single sign-on settings page against the real API: a
@@ -118,7 +119,7 @@ test.describe("single sign-on settings against the real API", () => {
   let server: Server;
 
   test.beforeAll(async () => {
-    test.setTimeout(180_000);
+    test.setTimeout(laneBudgetMs(180_000));
     const root = new URL("../../../", import.meta.url);
     child = spawn("deno", [
       "run",
@@ -199,13 +200,12 @@ test.describe("single sign-on settings against the real API", () => {
     control<PasswordSignIn>("/password-sign-in", { who });
 
   test.beforeEach(() => {
-    test.setTimeout(90_000);
+    test.setTimeout(laneBudgetMs(90_000));
   });
 
   test("an administrator opens the production route and sees the empty state the backend reports", async ({ page, baseURL }) => {
     await openAsAdmin(page, baseURL);
-    await expect(page.getByText("No identity provider yet", { exact: false }))
-      .toBeVisible();
+    await expect(page.getByText("No sign-in provider yet")).toBeVisible();
     const state = await control<State>("/state");
     expect(state.stored).toEqual([]);
     expect(state.overview).toEqual({ enforce: false, providers: [] });
@@ -214,8 +214,8 @@ test.describe("single sign-on settings against the real API", () => {
 
   test("registers an OIDC provider the backend stores and the page keeps after a reload", async ({ page, baseURL }) => {
     await openAsAdmin(page, baseURL);
-    await page.getByRole("button", { name: "Add OIDC" }).click();
-    await page.getByLabel("Display name").fill(PROVIDER);
+    await page.getByRole("button", { name: "Add provider" }).click();
+    await page.getByLabel("Provider name").fill(PROVIDER);
     await page.getByLabel("Issuer URL").fill(server.issuer.issuer);
     await page.getByLabel("Client ID").fill(server.issuer.clientId);
     await page.getByLabel("Client secret", { exact: true }).fill(
@@ -265,27 +265,26 @@ test.describe("single sign-on settings against the real API", () => {
 
   test("verifies the domain through a real DNS lookup, refusing until the record exists", async ({ page, baseURL }) => {
     await openAsAdmin(page, baseURL);
-    // The record itself, apart from the sentence and the button around it.
-    const record = page.getByTestId(`txt-${PROVIDER}`).locator(
-      '[data-ui-component="setupKey"]',
-    );
-    await expect(record).toContainText(`${TXT_NAME} TXT `);
-    const token = (await record.textContent())!.split(" TXT ").at(-1)!.trim();
+    // The record itself: its host and its value, each on its own row.
+    const record = page.getByTestId(`txt-${PROVIDER}`);
+    await expect(record.getByTestId("sso-txt-host")).toHaveText(TXT_NAME);
+    const token = (await record.getByTestId("sso-txt-value").textContent())!
+      .trim();
     expect(token).not.toBe("");
 
     await page.getByRole("button", { name: `Edit ${PROVIDER}` }).click();
     await expect(page.getByRole("heading", { name: `Edit ${PROVIDER}` }))
       .toBeVisible();
     await shot(page, "sso-edit-unverified");
-    const check = page.getByRole("button", { name: "Check domain" });
+    const check = page.getByRole("button", { name: /Check (domain|again)/ });
     const verifyAnswer = () =>
       page.waitForResponse((response) =>
         response.url().endsWith("/api/auth/sso/verify-domain")
       );
 
     // No TXT record is published yet: the server's own lookup finds nothing.
-    // Wait for that answer itself; the form's static "Not verified yet." line
-    // is on screen before any check has been made.
+    // Wait for that answer itself; the record's "not found" notice only
+    // shows after a check has been made.
     const refused = verifyAnswer();
     await check.click();
     expect((await refused).status()).toBe(502);
@@ -301,8 +300,9 @@ test.describe("single sign-on settings against the real API", () => {
     // Verified: the form follows the stored provider and offers no further
     // check, so nothing here can ask the server about it a second time.
     await expect(check).toHaveCount(0);
-    await expect(page.getByText("Not verified yet.", { exact: false }))
-      .toHaveCount(0);
+    await expect(
+      page.getByText("We could not find the record yet.", { exact: false }),
+    ).toHaveCount(0);
     await expect(
       page.getByText("The domain could not be checked right now."),
     ).toHaveCount(0);
@@ -397,8 +397,9 @@ test.describe("single sign-on settings against the real API", () => {
 
   test("registers a SAML provider from pasted identity provider metadata and shows its TXT record", async ({ page, baseURL }) => {
     await openAsAdmin(page, baseURL);
-    await page.getByRole("button", { name: "Add SAML" }).click();
-    await page.getByLabel("Display name").fill(SAML_PROVIDER);
+    await page.getByRole("button", { name: "Add provider" }).click();
+    await page.getByRole("radio", { name: "SAML" }).check();
+    await page.getByLabel("Provider name").fill(SAML_PROVIDER);
     await page.getByLabel("Email domain").fill(SAML_DOMAIN);
     await shot(page, "sso-add-saml");
     await page.getByLabel("Identity provider metadata").fill(
@@ -423,9 +424,9 @@ test.describe("single sign-on settings against the real API", () => {
     expect(state.overview.providers).toMatchObject([
       { providerId: SAML_PROVIDER, protocol: "saml" },
     ]);
-    await expect(page.getByTestId(`txt-${SAML_PROVIDER}`)).toContainText(
-      `_bakery-verify-${SAML_PROVIDER}.${SAML_DOMAIN} TXT `,
-    );
+    await expect(
+      page.getByTestId(`txt-${SAML_PROVIDER}`).getByTestId("sso-txt-host"),
+    ).toHaveText(`_bakery-verify-${SAML_PROVIDER}.${SAML_DOMAIN}`);
     await shot(page, "sso-saml-registered");
     await page.reload();
     await expect(

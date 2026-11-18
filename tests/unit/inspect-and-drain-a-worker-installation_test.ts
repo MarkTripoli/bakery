@@ -71,6 +71,15 @@ async function installRelease(
 ): Promise<void> {
   const release = join(root, "releases", "1.2.3-linux-x64");
   await mkdir(release, { recursive: true });
+  // `mkdir`'s mode is masked by the ambient umask, so a caller running with
+  // `umask 000` gets a group- and world-writable `releases`, and
+  // `requireOwnDirectory` - correctly - refuses to read a release out of one.
+  // The fixture then reported "the record cannot be read" for a record it had
+  // just written, and seven assertions failed for a property of the caller's
+  // shell rather than of the code. `chmod` states the mode instead of
+  // inheriting it, so the fixture is the same under any umask.
+  await chmod(join(root, "releases"), 0o755);
+  await chmod(release, 0o755);
   await writeFile(join(release, "bakery-worker"), binary, { mode: 0o755 });
   await writeFile(
     join(release, "release.json"),

@@ -29,7 +29,7 @@ const entry = (value, id) => value.entries.find((e) => e.id === id);
 test("schema accepts the authored catalog", () => {
   const result = parseComponentCatalog(raw());
   assert.deepEqual(result.success ? [] : result.issues, []);
-  assert.equal(result.catalog.entries.length, 142);
+  assert.equal(result.catalog.entries.length, 149);
 });
 
 test("every entry carries paper frames or a stated absence reason", () => {
@@ -208,8 +208,10 @@ test("findComponents ranks a query and honours filters", () => {
   assert(atoms.length > 0 && atoms.every((m) => m.entry.level === "atom"));
   const forAtoms = findComponents({ consumerLevel: "atom" }, catalog);
   assert(forAtoms.every((m) => m.entry.level === "atom"));
+  // The query must contain no real word: matching is exact word matching, so
+  // "no-such-thing" matched any entry whose prose says "such as".
   assert.deepEqual(
-    findComponents({ query: "zzzz-no-such-thing" }, catalog),
+    findComponents({ query: "zzzzqqqqwwww" }, catalog),
     [],
   );
 });

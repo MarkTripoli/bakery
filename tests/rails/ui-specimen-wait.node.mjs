@@ -179,6 +179,12 @@ export const multipliesCatalog = (harness) =>
     harness,
     /catalog\.entries\.length \* passes \* SWEEP_MS_PER_STORY/,
   ) !== null;
+/** Whether the runtime-context budget is the contexts times the per-visit allowance. */
+export const multipliesContexts = (harness) =>
+  execInCode(
+    harness,
+    /export function runtimeContextSweepTimeoutMs\(\): number \{\s*return Object\.keys\(runtime\.contexts\)\.length \* SWEEP_MS_PER_STORY;\s*\}/,
+  ) !== null;
 export const loopsScenarios = (spec) =>
   execInCode(spec, /for \(const scenario of scenarios\)/) !== null;
 export const openStoryWaits = (harness) => {
@@ -217,10 +223,14 @@ export const importsSharedWait = (source) =>
 export const sharedWaitCalls = (source) =>
   occurrences(source, "waitForSpecimen(").length +
   occurrences(source, "openStory(").length;
+/** The helpers a whole-sweep budget may come from: each scales with the work. */
+const SWEEP_BUDGETS = ["sweepTimeoutMs(", "runtimeContextSweepTimeoutMs("];
 export const fixedSweepBudgets = (spec) => {
   const call = "test.setTimeout(";
   return occurrences(spec, call)
-    .filter((at) => !spec.startsWith("sweepTimeoutMs(", at + call.length))
+    .filter((at) =>
+      !SWEEP_BUDGETS.some((budget) => spec.startsWith(budget, at + call.length))
+    )
     .map((at) => lineOf(spec, at));
 };
 
@@ -326,14 +336,22 @@ test("a canonical-story sweep budget scales with the catalog", () => {
   // budget passed on the fast CI hosts and timed out on a slow one under load,
   // so the budget is the catalog size times an allowance, never a constant.
   const spec = read("storybook.spec.ts");
-  const fixed = fixedSweepBudgets(spec).map((line) =>
-    `storybook.spec.ts:${line}`
+  // Every spec that visits the catalog or the runtime contexts in one test, not
+  // only the first one that was found (#559: the others kept a fixed 240 s).
+  const fixed = [
+    "storybook.spec.ts",
+    "storybook-context.spec.ts",
+    "storybook-controls.spec.ts",
+    "storybook-product.spec.ts",
+    "storybook-navigation.spec.ts",
+  ].flatMap((name) =>
+    fixedSweepBudgets(read(name)).map((line) => `${name}:${line}`)
   );
   assert.deepEqual(
     fixed,
     [],
     "these sweeps fix their budget; use test.setTimeout(sweepTimeoutMs(...)) " +
-      "so it grows with the catalog",
+      "(or runtimeContextSweepTimeoutMs()) so it grows with the work",
   );
   assert.ok(
     multipliesCatalog(harness),
@@ -349,6 +367,13 @@ test("a canonical-story sweep budget scales with the catalog", () => {
   assert.ok(
     budgetsEveryScenario(spec),
     "a sweep over scenarios must budget scenarios.length passes",
+  );
+  // The runtime-context test opens one story per named context, so its budget
+  // is the contexts times the same allowance (#559); a budget that is a
+  // constant, or drops the multiplication, comes back to a guess.
+  assert.ok(
+    multipliesContexts(harness),
+    "runtimeContextSweepTimeoutMs must be the contexts times SWEEP_MS_PER_STORY",
   );
   const perStory = sweepAllowanceOf(harness);
   assert.ok(

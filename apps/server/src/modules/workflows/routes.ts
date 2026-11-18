@@ -9,15 +9,28 @@ import { createWorkflowsHandlers } from "./postgres.ts";
 export function createWorkflowsRoutes(options: {
   database: PgDatabase;
   browserSession: MiddlewareHandler<{ Variables: AuthVariables }>;
+  /**
+   * Browser session or access token. Agents author workflow drafts through it
+   * (chapter 25 section 11); publishing and "Use this version" need a grant,
+   * and deciding a proposal needs a person.
+   */
+  tokenSession?: MiddlewareHandler<{ Variables: AuthVariables }>;
   publicBaseUrl: string;
   cursorSecret: string;
 }) {
   // Startup proof that the workflow action runtime matches the registry.
   createWorkflowActionRuntime();
   const app = new Hono<{ Variables: AuthVariables }>();
-  app.use("/v1/workflows", options.browserSession);
-  app.use("/v1/workflows/*", options.browserSession);
-  app.use("/v1/workflow-validations", options.browserSession);
+  const authoring = options.tokenSession ?? options.browserSession;
+  app.use("/v1/workflows", authoring);
+  app.use("/v1/workflows/*", authoring);
+  app.use("/v1/workflow-validations", authoring);
+  app.use("/v1/definition-publish-grants", options.browserSession);
+  app.use("/v1/definition-publish-grants/*", options.browserSession);
+  app.use(
+    "/v1/workflow-definition-proposals/*",
+    options.tokenSession ?? options.browserSession,
+  );
   app.route(
     "/",
     createApiRouter({

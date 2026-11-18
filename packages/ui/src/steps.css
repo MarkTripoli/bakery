@@ -203,7 +203,9 @@
   gap: var(--space-2);
   inline-size: 100%;
   max-inline-size: var(--layout-step-card);
-  min-inline-size: var(--layout-step-card);
+  /* The card keeps its width while there is room; a pane narrower than the card
+     shrinks it instead of pushing the diagram past its container. */
+  min-inline-size: min(var(--layout-step-card), 100%);
   padding: var(--space-2);
   text-align: start;
 }
@@ -241,18 +243,22 @@
 }
 .ui-step-card__title {
   font: var(--type-body);
+  overflow-wrap: anywhere;
 }
 .ui-step-card__summary {
   color: var(--color-fg-muted);
   font: var(--type-hint);
+  overflow-wrap: anywhere;
 }
 .ui-step-card__needs-setup {
   color: var(--color-destructive);
   font: var(--type-hint);
+  overflow-wrap: anywhere;
 }
 .ui-step-card__written {
   color: var(--color-fg-muted);
   font: var(--type-hint);
+  overflow-wrap: anywhere;
 }
 
 /* The third line of a card on a read-only page: which agent the step runs. */

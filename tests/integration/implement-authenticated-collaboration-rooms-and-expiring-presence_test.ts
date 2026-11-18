@@ -1123,6 +1123,264 @@ Deno.test("a peer revoked between sweeps receives no draft bytes (AC1)", async (
   }
 });
 
+Deno.test("a peer revoked right after a relayed update receives no later draft bytes (#174)", async () => {
+  // The sweep is held far away. B has just passed a relay check, so any reuse
+  // of that verdict would still deliver the next update to a removed session.
+  const harness = await openHarness({ sweepMilliseconds: 600_000 });
+  try {
+    const second = await addMember(
+      harness.fixture,
+      harness.fixture.ids.organizationId,
+      "Revoked After Relay",
+    );
+    harness.extra.push(second);
+    const a = await open(harness, harness.owner);
+    const aState = await joinAndSync(a, harness);
+    keepPresent(harness, a);
+    const b = await open(harness, second);
+    await joinAndSync(b, harness);
+    keepPresent(harness, b);
+
+    await a.sendRaw(
+      0x2,
+      updateFrame(
+        harness,
+        aState.epoch,
+        crypto.randomUUID(),
+        localEdit(aState.doc, 0, "first "),
+      ),
+    );
+    assertEquals((await until(a, "ack", ACK_WAIT_MS)).type, "ack");
+    // The control: a still-valid peer does receive the update.
+    await until(b, "committed");
+    assertEquals((await nextBinary(b)).kind, BinaryFrameKind.ServerUpdate);
+
+    await harness.fixture.pgDatabase.query(
+      "delete from public.session where token=$1",
+      [second.sessionToken],
+    );
+    await a.sendRaw(
+      0x2,
+      updateFrame(
+        harness,
+        aState.epoch,
+        crypto.randomUUID(),
+        localEdit(aState.doc, 0, "secret "),
+      ),
+    );
+    assertEquals((await until(a, "ack", ACK_WAIT_MS)).type, "ack");
+    const binaries: Uint8Array[] = [];
+    let closed: { code: number; reason: string } | undefined;
+    const deadline = Date.now() + 1_500;
+    while (Date.now() < deadline) {
+      const value = await b.nextMessage(deadline - Date.now()).catch(() =>
+        undefined
+      );
+      if (value === undefined) break;
+      if (typeof value === "object" && "binary" in value) {
+        binaries.push(value.binary);
+      } else if (typeof value === "object" && "code" in value) {
+        closed = value;
+        break;
+      }
+    }
+    assertEquals(binaries.length, 0);
+    assertExists(closed);
+    assertEquals(closed.code, 1008);
+  } finally {
+    await closeHarness(harness);
+  }
+});
+
+Deno.test("a no-op update acks without a receipt and does not reserve its mutation id (#161)", async () => {
+  const harness = await openHarness();
+  try {
+    const a = await open(harness, harness.owner);
+    const synced = await joinAndSync(a, harness);
+    keepPresent(harness, a);
+    const update = localEdit(synced.doc, 0, "Hello ");
+    await a.sendRaw(
+      0x2,
+      updateFrame(harness, synced.epoch, crypto.randomUUID(), update),
+    );
+    assertEquals((await until(a, "ack", ACK_WAIT_MS)).type, "ack");
+    assertEquals(await receiptCount(harness), 1);
+
+    // Already-committed bytes add nothing: a null receipt, nothing stored.
+    const noOpId = crypto.randomUUID();
+    await a.sendRaw(0x2, updateFrame(harness, synced.epoch, noOpId, update));
+    assertEquals((await until(a, "ack", ACK_WAIT_MS)).receipt, null);
+    assertEquals(await receiptCount(harness), 1);
+
+    // The id was not reserved: the same id with different bytes is a new
+    // mutation, committed with its own receipt, not IDEMPOTENCY_PAYLOAD_MISMATCH.
+    await a.sendRaw(
+      0x2,
+      updateFrame(
+        harness,
+        synced.epoch,
+        noOpId,
+        localEdit(synced.doc, 0, "World "),
+      ),
+    );
+    const ack = await until(a, "ack", ACK_WAIT_MS);
+    assertEquals(ack.mutationId, noOpId);
+    assert(ack.receipt !== null);
+    assertEquals(await receiptCount(harness), 2);
+  } finally {
+    await closeHarness(harness);
+  }
+});
+
+/**
+ * Commits one update in a room of `members * tabs` joined peers and reports
+ * how many database transactions began, and how long the last peer waited.
+ */
+async function relayCost(members: number, tabs: number) {
+  const harness = await openHarness({
+    maxConnectionsPerPrincipal: 32,
+    // The sweep also checks every connection; keep it out of the window.
+    sweepMilliseconds: 600_000,
+  });
+  try {
+    const a = await open(harness, harness.owner);
+    const aState = await joinAndSync(a, harness);
+    keepPresent(harness, a);
+    const peers: WsClient[] = [];
+    for (let index = 0; index < members; index += 1) {
+      const member = await addMember(
+        harness.fixture,
+        harness.fixture.ids.organizationId,
+        `Cost Peer ${index}`,
+      );
+      harness.extra.push(member);
+      for (let tab = 0; tab < tabs; tab += 1) {
+        const peer = await open(harness, member);
+        await join(peer, harness);
+        await until(peer, "joined");
+        peers.push(peer);
+      }
+    }
+    const database = harness.fixture.runtimePgDatabase;
+    const connect = database.connect.bind(database);
+    let began = 0;
+    let counting = false;
+    database.connect = ((...args: unknown[]) => {
+      if (counting) began += 1;
+      return Reflect.apply(connect, database, args);
+    }) as typeof database.connect;
+    counting = true;
+    const startedAt = performance.now();
+    await a.sendRaw(
+      0x2,
+      updateFrame(
+        harness,
+        aState.epoch,
+        crypto.randomUUID(),
+        localEdit(aState.doc, 0, "cost "),
+      ),
+    );
+    assertEquals((await until(a, "ack", ACK_WAIT_MS)).type, "ack");
+    const ackedAt = performance.now();
+    let lastPeerAt = ackedAt;
+    for (const peer of peers) {
+      for (;;) {
+        const value = await peer.nextMessage(10_000);
+        if (typeof value === "object" && "binary" in value) break;
+      }
+      lastPeerAt = performance.now();
+    }
+    counting = false;
+    return {
+      peers: peers.length,
+      transactions: began,
+      ackMs: Math.round(ackedAt - startedAt),
+      relayMs: Math.round(lastPeerAt - ackedAt),
+    };
+  } finally {
+    await closeHarness(harness);
+  }
+}
+
+Deno.test("in one relay round the valid member gets the bytes and the revoked one gets nothing (#160)", async () => {
+  // The sweep is held far away, so only the relay round can stop the revoked
+  // member. Both recipients share one round, the valid member first: a verdict
+  // keyed by organization alone would hand the second the first's pass.
+  const harness = await openHarness({ sweepMilliseconds: 600_000 });
+  try {
+    const valid = await addMember(
+      harness.fixture,
+      harness.fixture.ids.organizationId,
+      "Valid Recipient",
+    );
+    const revoked = await addMember(
+      harness.fixture,
+      harness.fixture.ids.organizationId,
+      "Revoked Recipient",
+    );
+    harness.extra.push(valid, revoked);
+    const a = await open(harness, harness.owner);
+    const aState = await joinAndSync(a, harness);
+    keepPresent(harness, a);
+    const validPeer = await open(harness, valid);
+    await joinAndSync(validPeer, harness);
+    const revokedPeer = await open(harness, revoked);
+    await joinAndSync(revokedPeer, harness);
+    await harness.fixture.pgDatabase.query(
+      "delete from bakery.organization_memberships where principal_id=$1",
+      [revoked.principalId],
+    );
+    await a.sendRaw(
+      0x2,
+      updateFrame(
+        harness,
+        aState.epoch,
+        crypto.randomUUID(),
+        localEdit(aState.doc, 0, "secret "),
+      ),
+    );
+    assertEquals((await until(a, "ack", ACK_WAIT_MS)).type, "ack");
+    // The valid member receives the committed update.
+    await until(validPeer, "committed");
+    assertEquals(
+      (await nextBinary(validPeer)).kind,
+      BinaryFrameKind.ServerUpdate,
+    );
+    // The revoked member receives no draft bytes, only the refusal.
+    const binaries: Uint8Array[] = [];
+    const refusal = await untilWithBinary(
+      revokedPeer,
+      "problem",
+      binaries,
+      3_000,
+    );
+    assertEquals(binaries.length, 0);
+    assert(
+      ["AUTH_FORBIDDEN", "RESOURCE_NOT_FOUND"].includes(
+        (refusal.problem as { code: string }).code,
+      ),
+      JSON.stringify(refusal.problem),
+    );
+  } finally {
+    await closeHarness(harness);
+  }
+});
+
+Deno.test("relay access checks do not grow with the number of peers (#160)", async () => {
+  const small = await relayCost(1, 2);
+  // The room holds 64 participants at most: the writer and 63 peers.
+  const large = await relayCost(21, 3);
+  console.log(`#160 relay cost: ${JSON.stringify({ small, large })}`);
+  assertEquals(small.peers, 2);
+  assertEquals(large.peers, 63);
+  // The committing writer's own transactions are the same in both rooms. A
+  // per-peer check would add about two transactions for each of 61 more peers.
+  assert(
+    large.transactions <= small.transactions + 2,
+    `transactions grew with peers: ${JSON.stringify({ small, large })}`,
+  );
+});
+
 Deno.test("frames queued behind a slow join are bounded and the connection is closed (AC3)", async () => {
   // The rate limit is set out of reach so only the pending-frame cap applies.
   const harness = await openHarness({
@@ -1165,10 +1423,11 @@ Deno.test("frames queued behind a slow join are bounded and the connection is cl
   }
 });
 
-// Smoke test for back-to-back updates with many joined peers. It passes with
-// the relay inside or outside the admission section on a fast local database,
-// so it does not by itself prove the ordering fix; see PR #140 round 1 notes.
-Deno.test("back-to-back updates with twenty joined peers are all acknowledged", async () => {
+// Back-to-back updates with many joined peers: every one is acknowledged, and
+// a joined peer receives the committed updates in commit order (#175). Relays
+// run outside admission, so the order rests on each peer's relay checks being
+// chained, not on the relay being serialized.
+Deno.test("back-to-back updates with twenty joined peers are acknowledged and relayed in order", async () => {
   const harness = await openHarness({ maxConnectionsPerPrincipal: 32 });
   try {
     const a = await open(harness, harness.owner);
@@ -1221,6 +1480,25 @@ Deno.test("back-to-back updates with twenty joined peers are all acknowledged", 
     assertEquals(acked.size, ids.length);
     const committed = await committedText(harness);
     assertEquals(committed.serverSequence, "12");
+    // A peer receives all twelve committed updates in commit order.
+    const received: bigint[] = [];
+    const stop = Date.now() + 10_000;
+    while (received.length < ids.length && Date.now() < stop) {
+      const value = await peers[0]!.nextMessage(stop - Date.now()).catch(() =>
+        undefined
+      );
+      if (value === undefined) break;
+      if (typeof value === "object" && "binary" in value) {
+        const frame = decodeBinaryFrame(value.binary);
+        if (frame.kind === BinaryFrameKind.ServerUpdate) {
+          received.push(frame.sequence);
+        }
+      }
+    }
+    assertEquals(
+      received,
+      Array.from({ length: ids.length }, (_, index) => BigInt(index + 1)),
+    );
   } finally {
     await closeHarness(harness);
   }
