@@ -4257,5 +4257,9 @@
   "settings.roles.thing.auditRetention": "⟪audit retention settings⟫",
   "settings.roles.thing.installationAdministrator": "⟪installation administrators⟫",
   "settings.roles.thing.installationAuditEvent": "⟪installation audit events⟫",
-  "settings.roles.thing.installationSetting": "⟪installation settings⟫"
+  "settings.roles.thing.installationSetting": "⟪installation settings⟫",
+  "core.actions.showAll": "⟪Show all⟫",
+  "core.actions.showLess": "⟪Show less⟫",
+  "repository.rules.summary.show.named": "⟪Show all of {rule}⟫",
+  "repository.rules.summary.hide.named": "⟪Show less of {rule}⟫"
 }
