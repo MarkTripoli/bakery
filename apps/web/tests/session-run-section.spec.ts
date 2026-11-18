@@ -269,100 +269,133 @@ const thread = (page: Page) =>
 const now = (page: Page) =>
   page.locator('[data-ui-component="sessionNowLine"]');
 
-test("the selected step shows its session as the thread, with raw output folded under it", async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await prepare(page);
-  await page.goto(`/tasks/${taskId}`);
-  await expect(thread(page)).toBeVisible({ timeout: 20_000 });
-  // The running step is the default one, and its newest turn is open.
-  await expect(page.getByText("I will read the upload step first"))
-    .toBeVisible();
-  await expect(page.getByText("Delivered to the agent")).toBeVisible();
-  await expect(page.getByText("run_tests")).toBeVisible();
-  // The raw output is reachable, under the thread, closed.
-  const raw = page.locator("details", { hasText: "Raw output" });
-  await expect(raw).toBeVisible();
-  await expect(raw).not.toHaveAttribute("open", "");
-  // One live region for the step: the now line, naming the running tool.
-  await expect(now(page)).toHaveCount(1);
-  await expect(now(page)).toContainText("Running run_tests…");
-  await still(page, "run-section-running");
-});
+test(
+  "the selected step shows its session as the thread, with raw output folded under it",
+  async ({ page }, testInfo) => {
+    if (testInfo.project.name === "desktop") {
+      await page.setViewportSize({ width: 1440, height: 900 });
+    }
+    await prepare(page);
+    await page.goto(`/tasks/${taskId}`);
+    await expect(thread(page)).toBeVisible({ timeout: 20_000 });
+    // The running step is the default one, and its newest turn is open.
+    await expect(page.getByText("I will read the upload step first"))
+      .toBeVisible();
+    await expect(page.getByText("Delivered to the agent")).toBeVisible();
+    await expect(thread(page).getByText("run_tests").first()).toBeVisible();
+    // The raw output is reachable, under the thread, closed.
+    const raw = page.locator("details", { hasText: "Raw output" });
+    await expect(raw).toBeVisible();
+    await expect(raw).not.toHaveAttribute("open", "");
+    // One live region for the step: the now line, naming the running tool.
+    await expect(now(page)).toHaveCount(1);
+    await expect(now(page)).toContainText("Running run_tests…");
+    await still(page, "run-section-running");
+  },
+);
 
-test("another step selected: the line names the running step and selecting it switches", async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await prepare(page);
-  await page.goto(`/tasks/${taskId}`);
-  await expect(thread(page)).toBeVisible({ timeout: 20_000 });
-  await page.getByLabel("Output step").selectOption(doneStepId);
-  await expect(page.getByText("This step has no agent session.")).toBeVisible();
-  const line = now(page);
-  await expect(line).toContainText("implement: Running run_tests…");
-  await still(page, "run-section-other-step-now");
-  await line.getByRole("button").click();
-  await expect(page.getByLabel("Output step")).toHaveValue(runningStepId);
-  await expect(thread(page)).toBeVisible();
-});
+test(
+  "another step selected: the line names the running step and selecting it switches",
+  async ({ page }, testInfo) => {
+    if (testInfo.project.name === "desktop") {
+      await page.setViewportSize({ width: 1440, height: 900 });
+    }
+    await prepare(page);
+    await page.goto(`/tasks/${taskId}`);
+    await expect(thread(page)).toBeVisible({ timeout: 20_000 });
+    await page.getByLabel("Output step").selectOption(doneStepId);
+    await expect(page.getByText("This step has no agent session."))
+      .toBeVisible();
+    const line = now(page);
+    await expect(line).toContainText("implement: Running run_tests…");
+    await still(page, "run-section-other-step-now");
+    await line.getByRole("button").click();
+    await expect(page.getByLabel("Output step")).toHaveValue(runningStepId);
+    await expect(thread(page)).toBeVisible();
+  },
+);
 
-test("a step with no session shows its raw output, open, and says why", async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await prepare(page, {
-    stepStatuses: ["completed", "completed"],
-    sessionsByStep: { [runningStepId]: [], [doneStepId]: [] },
-  });
-  await page.goto(`/tasks/${taskId}`);
-  await expect(page.getByText("This step has no agent session.")).toBeVisible({
-    timeout: 20_000,
-  });
-  await expect(page.locator("details", { hasText: "Raw output" }))
-    .toHaveAttribute(
-      "open",
-      "",
+test(
+  "a step with no session shows its raw output, open, and says why",
+  async ({ page }, testInfo) => {
+    if (testInfo.project.name === "desktop") {
+      await page.setViewportSize({ width: 1440, height: 900 });
+    }
+    await prepare(page, {
+      stepStatuses: ["completed", "completed"],
+      sessionsByStep: { [runningStepId]: [], [doneStepId]: [] },
+    });
+    await page.goto(`/tasks/${taskId}`);
+    await expect(page.getByText("This step has no agent session.")).toBeVisible(
+      {
+        timeout: 20_000,
+      },
     );
-  // No running step, no line.
-  await expect(now(page)).toHaveCount(0);
-  await still(page, "run-section-no-session");
-});
+    await expect(page.locator("details", { hasText: "Raw output" }))
+      .toHaveAttribute(
+        "open",
+        "",
+      );
+    // No running step, no line.
+    await expect(now(page)).toHaveCount(0);
+    await still(page, "run-section-no-session");
+  },
+);
 
-test("a session that cannot be read says so, offers Try again and still offers the raw output", async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await prepare(page, { feedStatus: 500 });
-  await page.goto(`/tasks/${taskId}`);
-  await expect(page.getByText("This session could not load.")).toBeVisible({
-    timeout: 20_000,
-  });
-  await expect(page.getByRole("button", { name: "Try again" }).first())
-    .toBeVisible();
-  await expect(page.locator("details", { hasText: "Raw output" }))
-    .toHaveAttribute(
-      "open",
-      "",
-    );
-});
+test(
+  "a session that cannot be read says so, offers Try again and still offers the raw output",
+  async ({ page }, testInfo) => {
+    if (testInfo.project.name === "desktop") {
+      await page.setViewportSize({ width: 1440, height: 900 });
+    }
+    await prepare(page, { feedStatus: 500 });
+    await page.goto(`/tasks/${taskId}`);
+    await expect(page.getByText("This session could not load.")).toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(page.getByRole("button", { name: "Try again" }).first())
+      .toBeVisible();
+    await expect(page.locator("details", { hasText: "Raw output" }))
+      .toHaveAttribute(
+        "open",
+        "",
+      );
+  },
+);
 
-test("a dropped stream keeps the thread and says the connection was lost", async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await prepare(page, { streamStatus: 503 });
-  await page.goto(`/tasks/${taskId}`);
-  await expect(thread(page)).toBeVisible({ timeout: 20_000 });
-  await expect(now(page)).toContainText("Connection lost. Reconnecting…", {
-    timeout: 20_000,
-  });
-  await expect(page.getByText("I will read the upload step first"))
-    .toBeVisible();
-});
+test(
+  "a dropped stream keeps the thread and says the connection was lost",
+  async ({ page }, testInfo) => {
+    if (testInfo.project.name === "desktop") {
+      await page.setViewportSize({ width: 1440, height: 900 });
+    }
+    await prepare(page, { streamStatus: 503 });
+    await page.goto(`/tasks/${taskId}`);
+    await expect(thread(page)).toBeVisible({ timeout: 20_000 });
+    await expect(now(page)).toContainText("Connection lost. Reconnecting…", {
+      timeout: 20_000,
+    });
+    await expect(page.getByText("I will read the upload step first"))
+      .toBeVisible();
+  },
+);
 
-test("raw output opened under the thread does not announce", async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await prepare(page);
-  await page.goto(`/tasks/${taskId}`);
-  await expect(thread(page)).toBeVisible({ timeout: 20_000 });
-  await page.locator("details", { hasText: "Raw output" }).locator("summary")
-    .click();
-  await expect(
-    page.locator("details", { hasText: "Raw output" }).locator(
-      "[role=status], [aria-live]",
-    ),
-  ).toHaveCount(0);
-  await still(page, "run-section-raw-output-open");
-});
+test(
+  "raw output opened under the thread does not announce",
+  async ({ page }, testInfo) => {
+    if (testInfo.project.name === "desktop") {
+      await page.setViewportSize({ width: 1440, height: 900 });
+    }
+    await prepare(page);
+    await page.goto(`/tasks/${taskId}`);
+    await expect(thread(page)).toBeVisible({ timeout: 20_000 });
+    await page.locator("details", { hasText: "Raw output" }).locator("summary")
+      .click();
+    await expect(
+      page.locator("details", { hasText: "Raw output" }).locator(
+        "[role=status], [aria-live]",
+      ),
+    ).toHaveCount(0);
+    await still(page, "run-section-raw-output-open");
+  },
+);

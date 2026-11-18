@@ -38,6 +38,9 @@ const STATES = [
   },
   { name: "finished", marker: ".ui-session-thread__turn" },
   { name: "empty", marker: '[data-ui-component="emptyState"]' },
+  { name: "wide", marker: ".ui-session-thread__usage" },
+  { name: "loading", marker: '[data-ui-component="skeleton"]' },
+  { name: "error", marker: '[data-ui-component="inlineNotice"]' },
 ] as const;
 
 for (const theme of ["light", "dark"] as const) {
@@ -59,6 +62,8 @@ for (const theme of ["light", "dark"] as const) {
         await expect(
           page.locator('[data-ui-component="sessionThread"]').or(
             page.locator('[data-ui-component="emptyState"]'),
+          ).or(page.locator('[data-ui-component="skeleton"]')).or(
+            page.locator('[data-ui-component="inlineNotice"]'),
           ).first(),
         ).toBeVisible({ timeout: 15_000 });
 

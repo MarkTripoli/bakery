@@ -35,7 +35,10 @@ export function TaskRunOutput(
     streams[0];
   if (query.isError) {
     return (
-      <UI.InlineNotice tone="warning">
+      <UI.InlineNotice
+        tone="warning"
+        {...(quiet ? { role: "note" } : {})}
+      >
         {t("tasks.run.output.unavailable")}
       </UI.InlineNotice>
     );
@@ -47,7 +50,10 @@ export function TaskRunOutput(
     )
   ) {
     return (
-      <UI.InlineNotice tone="error">
+      <UI.InlineNotice
+        tone="error"
+        {...(quiet ? { role: "note" } : {})}
+      >
         {t("tasks.run.output.unavailable")}
       </UI.InlineNotice>
     );
