@@ -1726,6 +1726,44 @@ const actionSpecs: Record<
       status: "enum(completed|failed|canceled|timed_out)",
     },
   },
+  HumanApprovalOutput: {
+    fields: {
+      decision: "enum(approve|request_changes|reject)",
+      note: "string?",
+      decidedBy: "uuid",
+      decidedAt: "timestamp",
+      approvalId: "uuid",
+    },
+    bounds: { note: { maxLength: 4000 } },
+    meanings: {
+      decision:
+        "The decision the approver made. Only approve lets the step continue; the other two end the run with that named outcome.",
+      note:
+        "Note the approver attached, recorded verbatim in the decisions ledger.",
+      decidedBy:
+        "Principal who decided. Always a person: an agent may decide only where a workflow grants it, and this step is the human form.",
+      decidedAt:
+        "UTC instant of the decision, so the run can report how long the wait lasted.",
+      approvalId:
+        "The approval record the decision was made on, referenced by the decisions ledger and the inbox.",
+    },
+  },
+  WorkflowStopOutput: {
+    fields: {
+      outcome: "string",
+      reason: "string?",
+    },
+    bounds: {
+      outcome: { minLength: 1, maxLength: 100 },
+      reason: { maxLength: 2000 },
+    },
+    meanings: {
+      outcome:
+        "The named outcome the run ended with, after defaulting an unnamed stop to stopped.",
+      reason:
+        "The reason recorded with the stop, absent when the caller gave none.",
+    },
+  },
 };
 const actionOutputTypes = new Set(Object.keys(actionSpecs));
 /**

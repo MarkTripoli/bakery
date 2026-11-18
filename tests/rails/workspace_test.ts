@@ -1011,6 +1011,19 @@ Deno.test("a scheduled red run records itself as a tracking issue", async () => 
     script.includes("scripts/ci/nightly-signal.ts"),
     `the signal step must call the tested script, got: ${script}`,
   );
+
+  // A job that calls deno must install it first. This job shipped without the
+  // setup step and exited 127 "deno: command not found" on its first live
+  // dispatch, while `continue-on-error` reported the job green - so the signal
+  // had never once run, and nothing said so. Asserting the installer is present
+  // is weaker than running the script, but it is checkable without a run.
+  const installs = steps.items.some((step) =>
+    isMap(step) && String(step.get("uses") ?? "").includes("setup-deno")
+  );
+  assert(
+    installs,
+    "the nightly signal calls deno, so it must install it; without the setup step it exits 127 and continue-on-error hides it",
+  );
 });
 
 Deno.test("the nightly signal is not a required lane", async () => {

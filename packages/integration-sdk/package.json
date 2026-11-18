@@ -5,7 +5,9 @@
   "type": "module",
   "exports": {
     ".": "./mod.ts",
-    "./testing": "./testing.ts"
+    "./testing": "./testing.ts",
+    "./provider": "./provider.ts",
+    "./web": "./web.ts"
   },
   "scripts": {
     "build": "deno check mod.ts testing.ts",

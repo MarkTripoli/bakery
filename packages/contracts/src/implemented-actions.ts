@@ -571,6 +571,8 @@ export function assertImplementedActionRegistry(
 export const WorkflowRuntimeImplementedAction = Object.freeze(
   {
     Noop: "workflow.noop",
+    Stop: "workflow.stop",
+    HumanApproval: "human.approval",
     Plan: "rpi.plan",
     Design: "rpi.design",
     Implement: "harness.implement",
