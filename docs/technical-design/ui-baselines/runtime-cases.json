@@ -1164,6 +1164,20 @@
       "context": "desktop-light-fine"
     },
     {
+      "id": "ui.presenceRow.contract.desktop-light-fine",
+      "catalogId": "ui.presenceRow",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-presencerow--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.suggestionCard.contract.desktop-light-fine",
+      "catalogId": "ui.suggestionCard",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-suggestioncard--contract",
+      "context": "desktop-light-fine"
+    },
+    {
       "id": "ui.helpTip.contract.desktop-light-fine",
       "catalogId": "ui.helpTip",
       "requiredCaseId": "contract",
