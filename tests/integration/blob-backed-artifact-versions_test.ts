@@ -315,6 +315,12 @@ function objectStore(): SkillObjectStore & {
         throw new Error("SKILL_FILE_DIGEST_MISMATCH");
       }
     },
+    stat(objectKey: string) {
+      const found = objects.get(objectKey);
+      return Promise.resolve(
+        found === undefined ? null : { sizeBytes: found.byteLength },
+      );
+    },
     async *list() {
       for (const [objectKey, content] of objects) {
         yield {
