@@ -32,6 +32,7 @@ import { useShellViewport } from "../../app/responsive.ts";
 import { RouterLink } from "../../app/router-link.tsx";
 import { WORK_HOME } from "../../shell/breadcrumb-paths.ts";
 import { ShellFlushMain, ShellSlot } from "../../shell/shell-slots.tsx";
+import { NowLineOutlet, NowLineProvider } from "../now-line-slot.tsx";
 import { useProtectedScope } from "../../app/query-scope-context.tsx";
 import { useSession } from "../../app/session-context.tsx";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
@@ -582,7 +583,7 @@ export function TaskConversation(
     </>
   );
   return (
-    <>
+    <NowLineProvider>
       <ShellFlushMain inset="page" phoneHeader="page" />
       {!phone && (
         <ShellSlot name="breadcrumbs">
@@ -736,6 +737,7 @@ export function TaskConversation(
         }
         composer={
           <>
+            <NowLineOutlet />
             {liveTurn && (
               <TurnStatus
                 turn={liveTurn}
@@ -893,6 +895,6 @@ export function TaskConversation(
         {extras}
         {phone && aside}
       </UI.TaskDetail>
-    </>
+    </NowLineProvider>
   );
 }

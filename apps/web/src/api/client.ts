@@ -79,6 +79,8 @@ export type RunListResponse = ClientOutputMap["Page<Run>"];
 export type RunResponse = ClientOutputMap["Run"];
 export type RunControlCapabilities = ClientOutputMap["RunControlCapabilities"];
 export type RunStepListResponse = ClientOutputMap["Page<RunStep>"];
+export type AgentSessionPageResponse = ClientOutputMap["AgentSessionPage"];
+export type SessionFeedResponse = ClientOutputMap["SessionFeed"];
 export type CheckRunListResponse = ClientOutputMap["Page<CheckRun>"];
 export type ReviewCycleListResponse = ClientOutputMap["Page<ReviewCycle>"];
 export type ReviewFindingListResponse = ClientOutputMap["Page<ReviewFinding>"];
@@ -513,6 +515,31 @@ export type BakeryApiClient = {
       signal?: AbortSignal,
     ) => Promise<ApiResult<OutputReadPage>>;
     readonly socketUrl: (organizationId: string) => string;
+  };
+  /** An agent session's own reads: who ran a step, and what the session did. */
+  readonly sessions: {
+    readonly list: (
+      organizationId: string,
+      runStepId: string,
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<AgentSessionPageResponse>>;
+    readonly feed: (
+      organizationId: string,
+      sessionId: string,
+      cursor?: string,
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<SessionFeedResponse>>;
+    /**
+     * Opens the session's server-sent event stream. It resumes after the last
+     * event id when one is given, and ends when the signal aborts or the
+     * connection drops; a refusal comes back as the read route's own problem.
+     */
+    readonly stream: (
+      organizationId: string,
+      sessionId: string,
+      lastEventId: string | undefined,
+      signal: AbortSignal,
+    ) => Promise<ApiResult<ReadableStream<Uint8Array>>>;
   };
   readonly readiness: (
     signal?: AbortSignal,
@@ -1821,6 +1848,16 @@ async function throwArtifactResponseError(response: Response): Promise<never> {
   throw new ApiProblemError(value as ApiProblem);
 }
 
+/** The problem a refused response carries, as the error a caller can classify. */
+async function problemOf(response: Response): Promise<unknown> {
+  try {
+    await throwArtifactResponseError(response);
+  } catch (error) {
+    return error;
+  }
+  return new ApiTransportError("protocol", response.status);
+}
+
 async function getArtifactContentResponse(
   fetchImpl: typeof fetch,
   baseUrl: string,
@@ -2420,6 +2457,66 @@ export function createBakeryApiClient({
         url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
         url.searchParams.set("organizationId", org);
         return url.href;
+      },
+    },
+    sessions: {
+      async list(org, runStepId, signal) {
+        const scoped = createBakeryClient({
+          baseUrl,
+          fetch: fetchImpl,
+          getContext: () => ({ organizationId: org }),
+        });
+        try {
+          return {
+            ok: true,
+            data: await scoped.actions["sessions.list"]({ runStepId }, {
+              signal,
+            }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async feed(org, sessionId, cursor, signal) {
+        const scoped = createBakeryClient({
+          baseUrl,
+          fetch: fetchImpl,
+          getContext: () => ({ organizationId: org }),
+        });
+        try {
+          return {
+            ok: true,
+            data: await scoped.actions["sessions.feed"](
+              { id: sessionId, ...(cursor === undefined ? {} : { cursor }) },
+              { signal },
+            ),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async stream(org, sessionId, lastEventId, signal) {
+        try {
+          const headers = new Headers({
+            Accept: "text/event-stream",
+            "Bakery-Organization-Id": org,
+          });
+          if (lastEventId !== undefined) {
+            headers.set("Last-Event-ID", lastEventId);
+          }
+          const response = await fetchImpl(
+            baseUrl.replace(/\/$/, "") + "/v1/sessions/" +
+              encodeURIComponent(sessionId) + "/feed/stream",
+            { method: "GET", credentials: "include", headers, signal },
+          );
+          if (!response.ok) return failed(await problemOf(response));
+          if (!response.body) {
+            return failed(new ApiTransportError("protocol", response.status));
+          }
+          return { ok: true, data: response.body };
+        } catch (error) {
+          return failed(error);
+        }
       },
     },
     async readiness(signal) {

@@ -2,6 +2,7 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -11,6 +12,9 @@ import * as UI from "@bakery/ui";
 import { useBakeryApi } from "../api/context.tsx";
 import type { JobAttemptRead } from "../api/client.ts";
 import { runQueryOptions, runStepsListQueryOptions } from "../api/query.ts";
+import { SessionRunNow, SessionStepThread } from "./SessionStepThread.tsx";
+import { useSessionThread } from "./useSessionThread.ts";
+import { usePublishNowLine } from "./now-line-slot.tsx";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import type { DurableSyncConnectivity } from "../api/durable-sync.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
@@ -223,6 +227,50 @@ export function TaskRunSection(
   const mismatch = !!run.data && run.data.taskId !== taskId;
   const invalidSteps = steps.data?.items.some((step) => step.runId !== runId);
   const selectedStepId = resolveOutputStepId(steps.data?.items, outputStepId);
+  const itemParam = typeof globalThis.location === "undefined"
+    ? null
+    : new URLSearchParams(globalThis.location.search).get("item");
+  // The thread for the step on screen, and, when a different step is the one
+  // running, that step's too, so the line above the composer can name it.
+  const runningStepId =
+    steps.data?.items.find((step) => step.status === "running")?.id ?? null;
+  const readable = activeRun && !steps.isError && !invalidSteps && !!steps.data;
+  const selectedThread = useSessionThread(readable ? selectedStepId : null);
+  const otherRunning = runningStepId !== null &&
+    runningStepId !== selectedStepId;
+  const runningThread = useSessionThread(
+    readable && otherRunning ? runningStepId : null,
+  );
+  const runningSource = runningStepId === null
+    ? null
+    : otherRunning
+    ? runningThread
+    : selectedThread;
+  const runningStepKey = steps.data?.items.find((step) =>
+    step.id === runningStepId
+  )?.stepKey;
+  const threadShown = selectedThread.phase === "ready";
+  // The line about the running step lives in the footer above the composer, so
+  // it stays in view however far the page has scrolled; where the page has no
+  // footer for it, it is drawn here.
+  const selectRunning = useCallback(
+    () => setOutputStepId(runningStepId),
+    [runningStepId],
+  );
+  const nowLine = useMemo(
+    () =>
+      runningSource
+        ? (
+          <SessionRunNow
+            source={runningSource}
+            stepName={otherRunning ? runningStepKey : undefined}
+            onSelect={selectRunning}
+          />
+        )
+        : null,
+    [runningSource, otherRunning, runningStepKey, selectRunning],
+  );
+  const nowLinePublished = usePublishNowLine(nowLine);
   const usageAuthority = `${authority}:${selectedStepId}`;
   const [usageRecord, setUsageRecord] = useState<
     {
@@ -262,9 +310,9 @@ export function TaskRunSection(
             ? <BlockedNotice run={run.data} />
             : null}
           <UI.VisuallyHidden
-            role="status"
-            aria-live="polite"
-            aria-atomic="true"
+            role={threadShown ? undefined : "status"}
+            aria-live={threadShown ? undefined : "polite"}
+            aria-atomic={threadShown ? undefined : "true"}
             aria-label={t("tasks.run.updates")}
           >
             {validRun && run.data
@@ -460,7 +508,7 @@ export function TaskRunSection(
                     <>
                       {steps.data.items.length > 1 && (
                         <UI.Combobox
-                          label={t("tasks.run.output.step")}
+                          label={t("session.thread.stepSelect")}
                           value={selectedStepId}
                           options={steps.data.items.map((step) => ({
                             value: step.id,
@@ -470,20 +518,29 @@ export function TaskRunSection(
                             setOutputStepId(event.target.value)}
                         />
                       )}
-                      <TaskRunOutput
+                      <SessionStepThread
                         key={selectedStepId}
                         taskId={taskId}
-                        onUsageChange={onUsageChange}
-                        stepId={selectedStepId}
-                        stepStatus={steps.data?.items.find((step) =>
-                          step.id === selectedStepId
-                        )?.status}
-                        stepErrorCode={stepFaultCode(
-                          steps.data?.items.find((step) =>
-                            step.id === selectedStepId
-                          )?.error,
-                        )}
+                        source={selectedThread}
+                        highlightedItemId={itemParam ?? undefined}
+                        rawOutput={
+                          <TaskRunOutput
+                            taskId={taskId}
+                            onUsageChange={onUsageChange}
+                            quiet={threadShown}
+                            stepId={selectedStepId}
+                            stepStatus={steps.data?.items.find((step) =>
+                              step.id === selectedStepId
+                            )?.status}
+                            stepErrorCode={stepFaultCode(
+                              steps.data?.items.find((step) =>
+                                step.id === selectedStepId
+                              )?.error,
+                            )}
+                          />
+                        }
                       />
+                      {nowLinePublished ? null : nowLine}
                     </>
                   )}
                 </>

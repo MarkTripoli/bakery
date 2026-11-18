@@ -1383,7 +1383,9 @@ test("output step defaults to the running step, not an empty earlier step", asyn
     });
   });
   await page.goto(`/tasks/${id}`);
-  await expect(page.getByLabel("Output step")).toHaveValue(stepId);
+  await expect(page.getByRole("combobox", { name: "Step" })).toHaveValue(
+    stepId,
+  );
   expect(requested.every((value) => value === stepId)).toBe(true);
 });
 
