@@ -5851,35 +5851,52 @@ Deno.test("fixed repository policy is CAS-published, inspection-bound, pinned, e
       assertEquals(active.revision, 2);
       assertEquals(active.config.fixedPolicy, observedPolicy);
 
-      const workflowId = crypto.randomUUID();
-      const workflowVersionId = crypto.randomUUID();
-      const spec = {
-        apiVersion: "bakery.dev/v1",
-        kind: "workflow",
-        name: "fixed-policy-check",
-        steps: [{
-          id: "fixed_checks",
-          uses: "quality.check",
-          with: {
-            repositoryId: "$task.repositoryId",
-            revision: "$input.revision",
-            checks: "$input.checks",
+      // #400: a run is a compiled plan. The checks are literal in the plan
+      // (there is no array input), so each check set is its own version.
+      const planVersions = new Map<string, string>();
+      const planVersionFor = async (checks: string[]) => {
+        const known = planVersions.get(checks.join(","));
+        if (known !== undefined) return known;
+        const workflowId = crypto.randomUUID();
+        const workflowVersionId = crypto.randomUUID();
+        const slug = `fixed-policy-check-${planVersions.size}`;
+        const spec = {
+          apiVersion: "bakery.dev/v1",
+          kind: "workflow",
+          name: slug,
+          inputs: {
+            repositoryId: { type: "uuid", required: true },
+            revision: { type: "string", required: true },
           },
-        }],
+          steps: [{
+            id: "flow",
+            steps: [{
+              id: "fixed_checks",
+              uses: "quality.check",
+              with: {
+                repositoryId: "$input.repositoryId",
+                revision: "$input.revision",
+                checks,
+              },
+            }],
+          }],
+        };
+        await fixture.owner`
+          insert into bakery.workflow_definitions (id, organization_id, slug, name, description)
+          values (${workflowId}, ${harness.organizationId}, ${slug}, 'Fixed policy check', '')`;
+        await fixture.owner`
+          insert into bakery.workflow_versions (id, organization_id, workflow_id, revision, source_yaml, normalized_spec, digest, status, created_by)
+          values (${workflowVersionId}, ${harness.organizationId}, ${workflowId}, 1, '', ${
+          fixture.owner.json(spec)
+        }, ${await digestFor(
+          spec,
+        )}, 'published', ${fixture.legacyJob.principalId})`;
+        await fixture.owner`
+          update bakery.workflow_definitions set active_version_id = ${workflowVersionId}
+           where organization_id = ${harness.organizationId} and id = ${workflowId}`;
+        planVersions.set(checks.join(","), workflowVersionId);
+        return workflowVersionId;
       };
-      await fixture.owner`
-        insert into bakery.workflow_definitions (id, organization_id, slug, name, description)
-        values (${workflowId}, ${harness.organizationId}, 'fixed-policy-check', 'Fixed policy check', '')`;
-      await fixture.owner`
-        insert into bakery.workflow_versions (id, organization_id, workflow_id, revision, source_yaml, normalized_spec, digest, status, created_by)
-        values (${workflowVersionId}, ${harness.organizationId}, ${workflowId}, 1, '', ${
-        fixture.owner.json(spec)
-      }, ${await digestFor(
-        spec,
-      )}, 'published', ${fixture.legacyJob.principalId})`;
-      await fixture.owner`
-        update bakery.workflow_definitions set active_version_id = ${workflowVersionId}
-         where organization_id = ${harness.organizationId} and id = ${workflowId}`;
 
       const createTask = async (title: string) => {
         const response = await harness.memberRequest("POST", "/v1/tasks", {
@@ -5896,11 +5913,14 @@ Deno.test("fixed repository policy is CAS-published, inspection-bound, pinned, e
           "POST",
           `/v1/tasks/${taskId}/runs`,
           {
-            workflowVersionId,
+            workflowVersionId: await planVersionFor(checks),
             repositoryProfileId: active.profileId,
             executionMode: "repository",
             budgetLimitUsd: "0.005000",
-            inputs: { revision: source.snapshotSha, checks },
+            inputs: {
+              repositoryId: source.repositoryId,
+              revision: source.snapshotSha,
+            },
           },
         );
         assertEquals(response.status, 201, await response.clone().text());
@@ -5930,14 +5950,14 @@ Deno.test("fixed repository policy is CAS-published, inspection-bound, pinned, e
         database: fixture.appPg,
         maxAttempts: 2,
       });
-      const key = await adapter.findNext(run.id);
-      if (!key) throw new Error("FIXED_POLICY_KEY_MISSING");
       const owner = await adapter.acquireEngineOwner(
         run.id,
         crypto.randomUUID(),
         60_000,
       );
       if (!owner) throw new Error("FIXED_POLICY_OWNER_MISSING");
+      const key = await adapter.findNext(run.id, owner);
+      if (!key) throw new Error("FIXED_POLICY_KEY_MISSING");
       for (const defect of ["missing", "unauthorized"] as const) {
         const corrupt = structuredClone(stored.snapshot);
         if (defect === "missing") {
@@ -5984,14 +6004,14 @@ Deno.test("fixed repository policy is CAS-published, inspection-bound, pinned, e
 
       const missingTask = await createTask("Fixed policy missing requirement");
       const missingRun = await createRun(missingTask.id, ["lint.warn"]);
-      const missingKey = await adapter.findNext(missingRun.id);
-      if (!missingKey) throw new Error("FIXED_POLICY_MISSING_KEY");
       const missingOwner = await adapter.acquireEngineOwner(
         missingRun.id,
         crypto.randomUUID(),
         60_000,
       );
       if (!missingOwner) throw new Error("FIXED_POLICY_MISSING_OWNER");
+      const missingKey = await adapter.findNext(missingRun.id, missingOwner);
+      if (!missingKey) throw new Error("FIXED_POLICY_MISSING_KEY");
       await assertRejects(() => adapter.admit(missingKey, missingOwner));
       assertEquals(
         (await fixture.owner`
@@ -6625,7 +6645,7 @@ Deno.test("Data migration 0049 preserves frozen v1 execution, replay bytes and c
           "run",
           "--allow-env",
           "--allow-net",
-          "--allow-read=src/platform/migrations,src/modules/auth/migrations,src/modules/work/migrations,src/modules/projects/migrations,src/modules/agents/migrations,src/modules/repository-rules/migrations,src/modules/integrations/migrations,src/modules/delivery/migrations",
+          "--allow-read=src/platform/migrations,src/modules/auth/migrations,src/modules/work/migrations,src/modules/projects/migrations,src/modules/agents/migrations,src/modules/repository-rules/migrations,src/modules/artifact-kinds/migrations,src/modules/integrations/migrations,src/modules/delivery/migrations,src/modules/mcp/migrations",
           "src/tasks.ts",
           task,
         ],
