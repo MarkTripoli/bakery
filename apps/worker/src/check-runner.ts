@@ -49,6 +49,7 @@ import {
   sha256Hex,
   spawnHarnessProcess,
 } from "./harness-common.ts";
+import type { GroupSignal } from "./process-group.ts";
 import type { NativeOutputChannel, NativeOutputSink } from "./native-output.ts";
 import {
   provenCanceledOutcome,
@@ -191,6 +192,13 @@ export type CheckExecutorOptions = {
   readonly readAttemptContext?: (
     attemptId: string,
   ) => Promise<readonly WorkerContextInput[]>;
+  /**
+   * Test seam: the signal-a-group call itself. The real default is Deno.kill,
+   * which the unit lane cannot be granted, so a test that asserts what happens
+   * when the group cannot be signalled must inject that failure rather than
+   * relying on the runner to forbid the syscall. See {@link signalProcessGroup}.
+   */
+  readonly killGroup?: (pid: number, signal: GroupSignal) => void;
 };
 
 type FixedPolicy = NonNullable<
@@ -380,6 +388,8 @@ type CommandOptions = {
   readonly signal: AbortSignal;
   readonly output?: NativeOutputSink;
   readonly groupKillExecutable?: string;
+  /** Test seam: forwarded to the teardown so a refusal can be injected. */
+  readonly killGroup?: (pid: number, signal: GroupSignal) => void;
 };
 
 /** Resolves when `work` settles or after `milliseconds`, whichever is first. */
@@ -429,7 +439,11 @@ async function runCommand(options: CommandOptions): Promise<CommandRun> {
   let breach: "deadline" | "output_limit" | null = null;
   const terminate = () => {
     kills.markKilled();
-    teardown ??= killHarnessProcessGroup(child, options.groupKillExecutable);
+    teardown ??= killHarnessProcessGroup(
+      child,
+      options.groupKillExecutable,
+      options.killGroup,
+    );
   };
   const timer = setTimeout(() => {
     breach ??= "deadline";
@@ -808,6 +822,7 @@ async function executeCheck(
           drainMs: limits.pumpDrainMs,
           signal,
           groupKillExecutable: options.groupKillExecutable,
+          killGroup: options.killGroup,
         }, { ...limits, probeMs: Math.min(limits.probeMs, left) });
         if (typeof resolved === "object") {
           return harnessCanceledOutcome(resolved.teardown);
@@ -837,6 +852,7 @@ async function executeCheck(
             signal,
             output,
             groupKillExecutable: options.groupKillExecutable,
+            killGroup: options.killGroup,
           });
           if (run.kind === "aborted") {
             return harnessCanceledOutcome(run.teardown);
