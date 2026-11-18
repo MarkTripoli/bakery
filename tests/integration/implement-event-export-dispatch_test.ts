@@ -195,14 +195,18 @@ function recordingLedger(db: Db): DeliveryLedger & { records: number } {
 /** Records every outbound request, so a refusal is observable on the wire too. */
 function recordingTransport(
   outcome: DeliveryOutcome = { kind: "acknowledged", status: 202 },
-): DeliveryTransport & { sent: number } {
-  const state = { sent: 0 };
+): DeliveryTransport & { sent: number; addresses: readonly string[] } {
+  const state = { sent: 0, addresses: [] as readonly string[] };
   return {
     get sent() {
       return state.sent;
     },
-    send() {
+    get addresses() {
+      return state.addresses;
+    },
+    send(input) {
       state.sent += 1;
+      state.addresses = input.addresses;
       return Promise.resolve(outcome);
     },
   };
@@ -407,6 +411,7 @@ async function dispatch(
     transportOutcome?: DeliveryOutcome;
     attempt?: number;
     sourceEventId?: string;
+    addresses?: readonly string[];
   } = {},
 ) {
   const ledger = recordingLedger(db);
@@ -422,6 +427,7 @@ async function dispatch(
     payloadDigest: "digest-1",
     sign,
     reloadAuthority: () => Promise.resolve(snapshot(options.snapshot)),
+    resolve: () => Promise.resolve(options.addresses ?? ["93.184.216.34"]),
     ledger,
     transport,
     now,
@@ -581,6 +587,7 @@ Deno.test("an uncertain acknowledgement keeps the delivery and retries under the
       payloadDigest: "digest-1",
       sign,
       reloadAuthority: () => Promise.resolve(snapshot()),
+      resolve: () => Promise.resolve(["93.184.216.34"]),
       ledger: recordingLedger(app),
       transport: recordingTransport({
         kind: "acknowledged",
@@ -613,6 +620,86 @@ Deno.test("an uncertain acknowledgement keeps the delivery and retries under the
       attempts[1]!.delivery_identity,
       "both attempts must carry the same receiver-facing identity",
     );
+  } finally {
+    await cleanup(admin);
+    await admin.end();
+    await app.end();
+  }
+});
+
+Deno.test("a destination resolving to a private address sends nothing", async () => {
+  const admin = openPgDatabase(adminUrl);
+  const app = openPgDatabase(appUrl);
+  await ensureMigrated();
+  try {
+    await seed(admin);
+
+    // The rebinding shape: the registered URL is fine, the answer is not.
+    for (const addresses of [
+      ["127.0.0.1"],
+      ["169.254.169.254"],
+      ["10.0.0.1"],
+      ["93.184.216.34", "127.0.0.1"],
+      [],
+    ]) {
+      const { result, ledger, transport } = await dispatch(app, { addresses });
+      assertEquals(result, {
+        ok: false,
+        reason: addresses.length === 0
+          ? "unresolved"
+          : "resolves_to_private_address",
+      });
+      assertEquals(ledger.records, 0);
+      assertEquals(transport.sent, 0);
+    }
+    assertEquals(await deliveryRows(app), 0);
+
+    // The same database still sends to a public address, so the zeros above are
+    // the refusal and not a fixture that never sends.
+    const allowed = await dispatch(app, { addresses: ["93.184.216.34"] });
+    assertEquals(allowed.transport.sent, 1);
+    assertEquals(await deliveryRows(app), 1);
+  } finally {
+    await cleanup(admin);
+    await admin.end();
+    await app.end();
+  }
+});
+
+Deno.test("the transport is told the addresses that were checked", async () => {
+  const admin = openPgDatabase(adminUrl);
+  const app = openPgDatabase(appUrl);
+  await ensureMigrated();
+  try {
+    await seed(admin);
+
+    // Judging one set of addresses and connecting to another is the rebinding
+    // attack, so the transport must receive exactly what was judged.
+    const { transport } = await dispatch(app, {
+      addresses: ["93.184.216.34", "93.184.216.35"],
+    });
+    assertEquals(transport.addresses, ["93.184.216.34", "93.184.216.35"]);
+  } finally {
+    await cleanup(admin);
+    await admin.end();
+    await app.end();
+  }
+});
+
+Deno.test("a non-https destination sends nothing", async () => {
+  const admin = openPgDatabase(adminUrl);
+  const app = openPgDatabase(appUrl);
+  await ensureMigrated();
+  try {
+    await seed(admin);
+
+    const { result, ledger, transport } = await dispatch(app, {
+      destination: { origin: "http://receiver.example.test" },
+    });
+    assertEquals(result, { ok: false, reason: "not_https" });
+    assertEquals(ledger.records, 0);
+    assertEquals(transport.sent, 0);
+    assertEquals(await deliveryRows(app), 0);
   } finally {
     await cleanup(admin);
     await admin.end();

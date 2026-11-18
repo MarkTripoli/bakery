@@ -1,0 +1,196 @@
+/**
+ * Where an event export may be sent (issue #21, AC3).
+ *
+ * AC3 is "DNS rebinding / redirect / private address / uncertain receiver ack
+ * => SSRF blocked". The threat is not a malicious *destination* - an
+ * organization registers its own endpoint - it is a destination that resolves
+ * somewhere the organization never intended, or that changes where it resolves
+ * between the check and the connection.
+ *
+ * That shapes the design. A single "is this URL safe" check at registration time
+ * is worthless against rebinding, because the answer can change a second later.
+ * So the address is judged at dispatch, from the addresses actually resolved for
+ * that attempt, and the caller is expected to connect to *those* addresses
+ * rather than re-resolving. This module decides; it never resolves or connects,
+ * so it cannot be the thing that re-resolves.
+ */
+
+/** Why a destination was refused. Every value is safe to store and to show. */
+export type DestinationRefusal =
+  /** Not an https URL, or not a URL at all. */
+  | "not_https"
+  /** Carries credentials, a fragment, or a port that is not the default. */
+  | "unsafe_url_shape"
+  /** The host is an IP literal in a range that is not publicly routable. */
+  | "private_address"
+  /** A resolved address is in a range that is not publicly routable. */
+  | "resolves_to_private_address"
+  /** The host resolved to nothing, so there is nothing safe to connect to. */
+  | "unresolved"
+  /** A redirect left the registered origin or path. */
+  | "redirect_not_allowed";
+
+export type DestinationDecision =
+  | { readonly ok: true }
+  | { readonly ok: false; readonly reason: DestinationRefusal };
+
+const allow: DestinationDecision = { ok: true };
+const refuse = (reason: DestinationRefusal): DestinationDecision => ({
+  ok: false,
+  reason,
+});
+
+/** Longest redirect chain followed before the delivery is refused. */
+export const MAX_REDIRECTS = 0;
+
+/**
+ * Parses a dotted-quad IPv4 literal to its four octets, or null.
+ *
+ * Only plain decimal is accepted. The alternative forms a resolver may accept -
+ * `0x7f.1`, `2130706433`, `0177.0.0.1`, `127.1` - are refused rather than
+ * interpreted, because interpreting them is how a check and a resolver come to
+ * disagree about which address is meant.
+ */
+export function parseIpv4(value: string): readonly number[] | null {
+  const parts = value.split(".");
+  if (parts.length !== 4) return null;
+  const octets: number[] = [];
+  for (const part of parts) {
+    if (!/^(0|[1-9][0-9]{0,2})$/.test(part)) return null;
+    const octet = Number(part);
+    if (octet > 255) return null;
+    octets.push(octet);
+  }
+  return octets;
+}
+
+/** True when an IPv4 literal is not publicly routable. */
+export function isPrivateIpv4(octets: readonly number[]): boolean {
+  const [a, b] = octets as [number, number, number, number];
+  if (a === 0) return true; // "this network"
+  if (a === 10) return true; // private
+  if (a === 127) return true; // loopback
+  if (a === 169 && b === 254) return true; // link-local, incl. cloud metadata
+  if (a === 172 && b >= 16 && b <= 31) return true; // private
+  if (a === 192 && b === 168) return true; // private
+  if (a === 192 && b === 0) return true; // IETF protocol assignments
+  if (a === 100 && b >= 64 && b <= 127) return true; // carrier-grade NAT
+  if (a === 198 && (b === 18 || b === 19)) return true; // benchmarking
+  if (a === 198 && b === 51) return true; // documentation
+  if (a === 203 && b === 0) return true; // documentation
+  if (a >= 224) return true; // multicast, reserved, broadcast
+  return false;
+}
+
+/**
+ * True when an IPv6 literal is not publicly routable.
+ *
+ * IPv4-mapped and 6to4 addresses are unwrapped and judged as IPv4, because
+ * `::ffff:127.0.0.1` reaches loopback and a check that only looked at the IPv6
+ * prefix would let it through.
+ */
+export function isPrivateIpv6(value: string): boolean {
+  const address = value.toLowerCase().split("%")[0]!;
+
+  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(address);
+  if (mapped !== null) {
+    const octets = parseIpv4(mapped[1]!);
+    return octets === null ? true : isPrivateIpv4(octets);
+  }
+
+  if (address === "::" || address === "::1") return true;
+  if (address.startsWith("fe8") || address.startsWith("fe9")) return true;
+  if (address.startsWith("fea") || address.startsWith("feb")) return true;
+  if (address.startsWith("fc") || address.startsWith("fd")) return true; // ULA
+  if (address.startsWith("ff")) return true; // multicast
+  if (address.startsWith("64:ff9b:")) return true; // NAT64
+  if (address.startsWith("2001:db8")) return true; // documentation
+  if (address.startsWith("2002:")) return true; // 6to4, unwrap not attempted
+  return false;
+}
+
+/** True when `address` is an IP literal in a range that is not publicly routable. */
+export function isPrivateAddress(address: string): boolean {
+  const octets = parseIpv4(address);
+  if (octets !== null) return isPrivateIpv4(octets);
+  if (address.includes(":")) return isPrivateIpv6(address);
+  // Not an IP literal at all: the caller must have resolved it first.
+  return false;
+}
+
+/**
+ * Judges a registered destination's URL shape, before any resolution.
+ *
+ * The port is restricted to the default because a destination is a webhook
+ * endpoint, and allowing arbitrary ports turns every export into a port scanner
+ * that reports its results through delivery status.
+ */
+export function checkDestinationUrl(
+  origin: string,
+  path: string,
+): DestinationDecision {
+  let url: URL;
+  try {
+    url = new URL(`${origin}${path}`);
+  } catch {
+    return refuse("not_https");
+  }
+  if (url.protocol !== "https:") return refuse("not_https");
+  if (url.username !== "" || url.password !== "") {
+    return refuse("unsafe_url_shape");
+  }
+  if (url.hash !== "") return refuse("unsafe_url_shape");
+  if (url.port !== "" && url.port !== "443") return refuse("unsafe_url_shape");
+  return allow;
+}
+
+/**
+ * Judges the addresses actually resolved for this attempt.
+ *
+ * This is the rebinding defence: the caller resolves once, passes the result
+ * here, and connects to these addresses. A host that resolved publicly at
+ * registration and privately now is refused here, at dispatch, which is the only
+ * moment the answer is still true.
+ */
+export function checkResolvedAddresses(
+  addresses: readonly string[],
+): DestinationDecision {
+  if (addresses.length === 0) return refuse("unresolved");
+  for (const address of addresses) {
+    if (isPrivateAddress(address)) return refuse("resolves_to_private_address");
+  }
+  return allow;
+}
+
+/**
+ * Judges a redirect target against the registered destination.
+ *
+ * Redirects are not followed at all by default (`MAX_REDIRECTS` is 0), because a
+ * redirect is the cheapest way to move a delivery from an approved endpoint to
+ * an unapproved one. When a caller does allow them, the target must stay on the
+ * same origin and under the same path, so it cannot leave the approved endpoint
+ * even within the same host.
+ */
+export function checkRedirect(input: {
+  readonly registeredOrigin: string;
+  readonly registeredPath: string;
+  readonly target: string;
+  readonly redirectsFollowed: number;
+}): DestinationDecision {
+  if (input.redirectsFollowed > MAX_REDIRECTS) {
+    return refuse("redirect_not_allowed");
+  }
+  let target: URL;
+  try {
+    target = new URL(input.target);
+  } catch {
+    return refuse("redirect_not_allowed");
+  }
+  if (target.origin !== input.registeredOrigin) {
+    return refuse("redirect_not_allowed");
+  }
+  if (!target.pathname.startsWith(input.registeredPath)) {
+    return refuse("redirect_not_allowed");
+  }
+  return allow;
+}

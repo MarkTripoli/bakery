@@ -6,6 +6,11 @@ import {
   type ExportSubscription,
 } from "./event-export-authorization.ts";
 import type { AuthoritySnapshot } from "../catalog/integration-gate.ts";
+import {
+  checkDestinationUrl,
+  checkResolvedAddresses,
+  type DestinationRefusal,
+} from "./destination-safety.ts";
 
 /**
  * Sends one event to one destination, or refuses to (issue #21, AC2 and AC3).
@@ -61,6 +66,12 @@ export type DeliveryTransport = {
   send(input: {
     readonly origin: string;
     readonly path: string;
+    /**
+     * The addresses that were checked. The transport must connect to these
+     * rather than resolving the host again: a second resolution is the rebinding
+     * window this check exists to close.
+     */
+    readonly addresses: readonly string[];
     readonly raw: Uint8Array<ArrayBuffer>;
     readonly headers: Readonly<Record<string, string>>;
   }): Promise<DeliveryOutcome>;
@@ -81,6 +92,7 @@ export type DeliveryOutcome =
 
 export type DispatchFailureReason =
   | ExportRefusal
+  | DestinationRefusal
   | "signing_failed"
   | "authority_changed";
 
@@ -156,6 +168,13 @@ export async function dispatchEventExport(input: {
     deliveryIdentity: string,
   ) => Promise<Readonly<Record<string, string>>>;
   /**
+   * Resolves the destination host, once, for this attempt.
+   *
+   * Injected because the check only means anything if the addresses judged are
+   * the addresses connected to, and that is a property of the caller.
+   */
+  readonly resolve: (host: string) => Promise<readonly string[]>;
+  /**
    * Reloads the authority just before the send.
    *
    * The snapshot passed in is a value, not a lock: nothing stops a subscription
@@ -179,6 +198,24 @@ export async function dispatchEventExport(input: {
 
   // A refusal ends here. Nothing is written and nothing is sent.
   if (!decision.ok) return { ok: false, reason: decision.reason };
+
+  // Authorization passed, so the destination is worth looking at. The URL shape
+  // is judged before any resolution, so a malformed or non-https destination
+  // costs no DNS query.
+  const shape = checkDestinationUrl(
+    input.destination.origin,
+    input.destination.path,
+  );
+  if (!shape.ok) return { ok: false, reason: shape.reason };
+
+  // Resolved once, here, and the result is both judged and handed to the
+  // transport. Judging one set of addresses and connecting to another is the
+  // rebinding attack, so the two cannot be separate steps.
+  const host = new URL(`${input.destination.origin}${input.destination.path}`)
+    .hostname;
+  const addresses = await input.resolve(host);
+  const reachable = checkResolvedAddresses(addresses);
+  if (!reachable.ok) return { ok: false, reason: reachable.reason };
 
   // One identity per subscription and event, computed before the row is written
   // so the row and the receiver see the same value on every attempt.
@@ -235,6 +272,7 @@ export async function dispatchEventExport(input: {
   try {
     outcome = await input.transport.send({
       origin: input.destination.origin,
+      addresses,
       path: input.destination.path,
       raw: input.raw,
       headers,

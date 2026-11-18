@@ -197,7 +197,14 @@ export async function signWebhookDelivery(input: {
   if (!DELIVERY_VALUE.test(input.deliveryId)) {
     throw new TypeError("invalid_delivery_identity");
   }
-  if (!Number.isSafeInteger(input.timestamp) || input.timestamp < 0) {
+  // Bounded exactly as the verifier bounds it: 1 to 12 digits. A 13-digit
+  // timestamp is a safe integer, so without this bound the signer would accept
+  // a value the verifier can never match - the same silent asymmetry the
+  // delivery-ID check above closes.
+  if (
+    !Number.isSafeInteger(input.timestamp) || input.timestamp < 0 ||
+    String(input.timestamp).length > 12
+  ) {
     throw new TypeError("invalid_timestamp");
   }
   if (input.secret.byteLength === 0) {

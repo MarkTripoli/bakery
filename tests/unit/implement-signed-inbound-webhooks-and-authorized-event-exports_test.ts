@@ -209,6 +209,20 @@ Deno.test("the signer refuses a timestamp or secret it cannot honestly sign", as
     TypeError,
     "invalid_timestamp",
   );
+  // 13 digits: a safe integer, so only the digit bound refuses it, and the
+  // verifier could never match it. This is the QA low from #610, which merged
+  // before the fix landed.
+  await assertRejects(
+    () =>
+      signWebhookDelivery({
+        timestamp: 1_000_000_000_000,
+        deliveryId: "d",
+        raw,
+        secret,
+      }),
+    TypeError,
+    "invalid_timestamp",
+  );
   await assertRejects(
     () =>
       signWebhookDelivery({
