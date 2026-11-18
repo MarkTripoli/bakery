@@ -30,7 +30,6 @@ import { repositoryRulesBakeryMigrationSource } from "../../apps/server/src/modu
 import { artifactKindsBakeryMigrationSource } from "../../apps/server/src/modules/artifact-kinds/migrations.ts";
 import { integrationsBakeryMigrationSource } from "../../apps/server/src/modules/integrations/migrations.ts";
 import { deliveryBakeryMigrationSource } from "../../apps/server/src/modules/delivery/migrations.ts";
-import { knowledgeBakeryMigrationSource } from "../../apps/server/src/modules/delivery/migrations.ts";
 import { knowledgeBakeryMigrationSource } from "../../apps/server/src/modules/knowledge/migrations.ts";
 import { withPgTransaction } from "../../apps/server/src/platform/database.ts";
 import { readUsageSummary } from "../../apps/server/src/modules/work/usage.ts";

@@ -7,6 +7,7 @@ import { createSkillStorageRoutes } from "./modules/catalog/skill-storage-action
 import { createAgentsRoutes } from "./modules/agents/index.ts";
 import { createRepositoryRulesRoutes } from "./modules/repository-rules/index.ts";
 import { createArtifactKindsRoutes } from "./modules/artifact-kinds/index.ts";
+import { createMemoryRoutes } from "./modules/knowledge/memory-routes.ts";
 import { createDeliveryRoutes } from "./modules/delivery/index.ts";
 import {
   createFetchGitHubAppClient,
@@ -632,6 +633,14 @@ export function createApp(options: {
       browserSession,
       publicBaseUrl: options.config.publicBaseUrl,
       cursorSecret: options.config.auth.secret,
+    }),
+  );
+  app.route(
+    "/",
+    createMemoryRoutes({
+      database: options.pgDatabase,
+      browserSession,
+      publicBaseUrl: options.config.publicBaseUrl,
     }),
   );
   app.route(

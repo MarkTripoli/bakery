@@ -5508,6 +5508,7 @@
       "method": "GET",
       "path": "/v1/memories",
       "action": "memories.list",
+      "organizationContext": "required_authenticated_context",
       "access": "Developer",
       "permission": "memory:read",
       "input": "CursorQuery",
@@ -5521,13 +5522,15 @@
         "RESOURCE_NOT_FOUND",
         "INVALID_CURSOR",
         "MALFORMED_REQUEST"
-      ]
+      ],
+      "implemented": true
     },
     {
       "group": "Memory",
       "method": "GET",
       "path": "/v1/memories/{id}",
       "action": "memories.get",
+      "organizationContext": "required_authenticated_context",
       "access": "Developer",
       "permission": "memory:read",
       "input": "IdPath",
@@ -5539,13 +5542,15 @@
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND"
-      ]
+      ],
+      "implemented": true
     },
     {
       "group": "Memory",
       "method": "POST",
       "path": "/v1/memories",
       "action": "memories.create",
+      "organizationContext": "required_authenticated_context",
       "access": "Developer",
       "permission": "memory:write",
       "input": "MemoryCreate",
@@ -5561,13 +5566,15 @@
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH"
-      ]
+      ],
+      "implemented": true
     },
     {
       "group": "Memory",
       "method": "PATCH",
       "path": "/v1/memories/{id}",
       "action": "memories.update",
+      "organizationContext": "required_authenticated_context",
       "access": "Developer",
       "permission": "memory:write",
       "input": "MemoryUpdate",
@@ -5583,13 +5590,15 @@
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH"
-      ]
+      ],
+      "implemented": true
     },
     {
       "group": "Memory",
       "method": "POST",
       "path": "/v1/memories/{id}/revisions",
       "action": "memoryRevisions.create",
+      "organizationContext": "required_authenticated_context",
       "access": "Developer",
       "permission": "memoryRevision:write",
       "input": "MemoryRevisionCreate",
@@ -5605,13 +5614,15 @@
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH"
-      ]
+      ],
+      "implemented": true
     },
     {
       "group": "Memory",
       "method": "GET",
       "path": "/v1/memories/{id}/revisions",
       "action": "memoryRevisions.list",
+      "organizationContext": "required_authenticated_context",
       "access": "Developer",
       "permission": "memoryRevision:read",
       "input": "CursorQuery",
@@ -5625,7 +5636,8 @@
         "RESOURCE_NOT_FOUND",
         "INVALID_CURSOR",
         "MALFORMED_REQUEST"
-      ]
+      ],
+      "implemented": true
     },
     {
       "group": "Delivery",

@@ -113,3 +113,13 @@ create index memory_revisions_history_idx
 create index memory_revisions_supersedes_idx
   on bakery.memory_revisions (organization_id, supersedes_id)
   where supersedes_id is not null;
+
+-- The application role reads and writes memory through the routes, so it needs
+-- the table grants. Without these the queries fail with "permission denied" at
+-- runtime, which no structural check would catch.
+grant select, insert, update on bakery.memory_entries to bakery_app;
+grant select, insert on bakery.memory_revisions to bakery_app;
+
+-- A revision is history: it is written once and never updated or deleted, so the
+-- application role gets no update or delete on it. Correcting memory adds a
+-- revision rather than editing one.
