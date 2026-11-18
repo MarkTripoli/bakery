@@ -20,9 +20,10 @@
 --
 -- Existing preset rows predate these columns and default to 'authored'. They
 -- are not backfilled here, because migrations are structural only and a data
--- repair is not structure. The install path repairs them instead, once a preset
--- is used again - see ensurePresetWorkflowVersion, whose insert fills in an
--- origin that is still 'authored' and never rewrites one already set.
+-- repair is not structure. The data migration of the same name repairs them
+-- once - migrations/data/0175_workflow_origin_provenance.ts. The install path
+-- (ensurePresetWorkflowVersion) only writes the origin of a row it creates and
+-- never rewrites one that exists.
 alter table bakery.workflow_definitions
   add column origin_kind text not null default 'authored',
   add column origin_catalog_key text,
