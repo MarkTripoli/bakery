@@ -20,6 +20,16 @@ import {
   send,
   withFixture,
 } from "../helpers/definition-authoring.ts";
+import { FIXED_CODING_PRESET } from "../../packages/contracts/src/workflow-presets.ts";
+import { withWorkerFixture } from "../helpers/worker-execution/scenarios.ts";
+import {
+  apiCall,
+  createPresetTask,
+  expectJson,
+  presetBudgetEnv,
+  seedFundedCodingAgent,
+  seedPresetRepository,
+} from "../helpers/fixed-coding-preset.ts";
 
 // Issue #421, QA test plan comment 6904898662: sections 1 (the disciplines on
 // the kind that has drafts) and 4 (reconciliation on the version path).
@@ -300,3 +310,116 @@ Deno.test("4.18: Use this version points at a real, immutable version of this de
     assertEquals(reread.normalizedSpec, PUBLISHABLE);
     assertEquals(reread.digest, v1.digest);
   }));
+
+Deno.test("3.12: a run admitted on version N keeps N after a new version is published and used", () =>
+  withWorkerFixture(async (fixture) => {
+    const scope = fixture;
+    const runnable = JSON.parse(JSON.stringify(FIXED_CODING_PRESET.spec));
+    const agent = await seedFundedCodingAgent(fixture, scope, "pin");
+    const repository = await seedPresetRepository(fixture.pgDatabase, scope, {
+      agentVersionId: agent,
+    });
+    const workflow = await expectJson<{ id: string }>(
+      await apiCall(fixture, scope, "POST", "/v1/workflows", {
+        body: { slug: "pinned-flow", name: "Pinned", description: "" },
+      }),
+      201,
+    );
+    const publishDraft = async () => {
+      const draft = await expectJson<{ id: string; version: number }>(
+        await apiCall(
+          fixture,
+          scope,
+          "POST",
+          `/v1/workflows/${workflow.id}/versions`,
+          { body: { definition: runnable } },
+        ),
+        201,
+      );
+      return await expectJson<{ id: string; digest: string }>(
+        await apiCall(
+          fixture,
+          scope,
+          "POST",
+          `/v1/workflows/${workflow.id}/versions/${draft.id}/publish`,
+          { body: {}, headers: { "If-Match": `"${draft.version}"` } },
+        ),
+        200,
+      );
+    };
+    const use = async (versionId: string) => {
+      const current = await expectJson<{ version: number }>(
+        await apiCall(fixture, scope, "GET", `/v1/workflows/${workflow.id}`),
+        200,
+      );
+      return await expectJson<{ activeVersionId: string }>(
+        await apiCall(
+          fixture,
+          scope,
+          "POST",
+          `/v1/workflows/${workflow.id}/activations`,
+          {
+            body: { versionId },
+            headers: { "If-Match": `"${current.version}"` },
+          },
+        ),
+        200,
+      );
+    };
+    const first = await publishDraft();
+    await use(first.id);
+    const task = await createPresetTask(fixture, scope, repository, {
+      title: "Pinned run",
+    });
+    const run = await expectJson<{ id: string; workflowVersionId: string }>(
+      await apiCall(fixture, scope, "POST", `/v1/tasks/${task.id}/runs`, {
+        body: {
+          workflowVersionId: first.id,
+          executionMode: "repository",
+          repositoryProfileId: repository.profileId,
+          budgetLimitUsd: "5.00",
+          inputs: {
+            repositoryId: repository.repositoryId,
+            brief: {
+              title: "Pin",
+              description: "Keep the pin.",
+              taskType: "feature",
+            },
+            instructions: "Keep the pin.",
+          },
+        },
+      }),
+      201,
+    );
+    assertEquals(run.workflowVersionId, first.id);
+
+    // A new version is published and made the one in use.
+    const second = await publishDraft();
+    assert(second.id !== first.id);
+    assertEquals((await use(second.id)).activeVersionId, second.id);
+
+    // The admitted run still names version N, and N is unchanged.
+    const reread = await expectJson<{ workflowVersionId: string }>(
+      await apiCall(fixture, scope, "GET", `/v1/runs/${run.id}`),
+      200,
+    );
+    assertEquals(reread.workflowVersionId, first.id);
+    const pinned = await expectJson<{ id: string; digest: string }>(
+      await apiCall(
+        fixture,
+        scope,
+        "GET",
+        `/v1/workflows/${workflow.id}/versions/${first.id}`,
+      ),
+      200,
+    );
+    assertEquals(pinned.digest, first.digest);
+    const stored = await fixture.pgDatabase.query<
+      { workflow_version_id: string }
+    >(
+      `select workflow_version_id from bakery.workflow_runs
+        where organization_id = $1 and id = $2`,
+      [scope.organizationId, run.id],
+    );
+    assertEquals(stored.rows[0].workflow_version_id, first.id);
+  }, { env: presetBudgetEnv }));
