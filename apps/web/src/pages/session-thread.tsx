@@ -260,6 +260,12 @@ export function SessionThread(
     <UI.SessionThread
       turns={turns}
       end={end}
+      empty={
+        <UI.EmptyState
+          title={translate("session.thread.empty.title")}
+          description={translate("session.thread.empty.body")}
+        />
+      }
       maxSteps={MAX_STEP_LINES}
       showMore={(hidden) => translate("session.thread.showMore", { n: hidden })}
       labels={{

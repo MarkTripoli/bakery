@@ -382,13 +382,6 @@ export function SessionThreadFixture() {
             {translate("session.thread.loadFailed")}
           </UI.InlineNotice>
         )
-        : fixture.empty
-        ? (
-          <UI.EmptyState
-            title={translate("session.thread.empty.title")}
-            description={translate("session.thread.empty.body")}
-          />
-        )
         : (
           <SessionThread
             items={fixture.items}
@@ -399,7 +392,6 @@ export function SessionThreadFixture() {
           />
         )}
     >
-      {fixture.empty ? <SessionNow state={fixture.now} /> : null}
     </TaskSessionView>
   );
 }

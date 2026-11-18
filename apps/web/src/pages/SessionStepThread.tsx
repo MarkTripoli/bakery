@@ -79,6 +79,13 @@ export function SessionStepThread(
   }
   return (
     <UI.Stack gap="standard">
+      {source.truncated
+        ? (
+          <UI.InlineNotice tone="information">
+            {translate("session.thread.truncated")}
+          </UI.InlineNotice>
+        )
+        : null}
       <SessionThread
         items={source.items}
         running={source.session ? LIVE.has(source.session.status) : false}

@@ -2421,3 +2421,8 @@ button.ui-activity-line__row:hover {
   flex-wrap: wrap;
   gap: var(--space-2);
 }
+
+/* An empty thread's card is as wide as the thread that will fill it. */
+.ui-session-thread .ui-empty-state {
+  max-inline-size: none;
+}

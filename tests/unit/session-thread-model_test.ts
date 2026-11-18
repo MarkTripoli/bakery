@@ -1,6 +1,8 @@
 import { assertEquals } from "@std/assert";
 import {
+  backoffDelay,
   buildSessionThread,
+  createFeedWindow,
   formatUsage,
   MAX_STEP_LINES,
   opensByDefault,
@@ -281,4 +283,50 @@ Deno.test("times are short, relative and carry the exact instant", () => {
   assertEquals(fifteen.exact, "2026-11-18T11:45:00.000Z");
   assertEquals(fifteen.label.includes("15"), true);
   assertEquals(relativeTime("not a time", "en-US", now).label, "not a time");
+});
+
+Deno.test("the feed window keeps order, replaces a repeat and says when it cut", () => {
+  const at = (sequence: number, text = "a") =>
+    ({
+      ...said(sequence, "agent"),
+      id: `item-${sequence}-${text}`,
+    }) as SessionFeedItem;
+  const window = createFeedWindow(3);
+  for (const sequence of [1, 2, 3]) window.take(at(sequence));
+  assertEquals(window.items().map((item) => item.sequence), ["1", "2", "3"]);
+  assertEquals(window.truncated(), false);
+  // A repeat replaces; it is not added a second time.
+  window.take(at(3, "again"));
+  assertEquals(window.items().length, 3);
+  assertEquals(window.items().at(-1)?.id, "item-3-again");
+  // Past the bound the oldest fall off and the window says so.
+  window.take(at(4));
+  assertEquals(window.items().map((item) => item.sequence), ["2", "3", "4"]);
+  assertEquals(window.truncated(), true);
+  assertEquals(window.newest(), "4");
+  // A late item is sorted into place, and a number past 2^53 still orders.
+  const late = createFeedWindow(10);
+  for (const sequence of ["9007199254740993", "9007199254740992"]) {
+    late.take(
+      { ...said(1, "agent"), sequence, id: sequence } as SessionFeedItem,
+    );
+  }
+  assertEquals(late.items().map((item) => item.sequence), [
+    "9007199254740992",
+    "9007199254740993",
+  ]);
+  assertEquals(late.newest(), "9007199254740993");
+  assertEquals(createFeedWindow(3).newest(), undefined);
+});
+
+Deno.test("the reconnect wait doubles from one second and stops at fifteen", () => {
+  assertEquals([0, 1, 2, 3, 4, 5, 6].map(backoffDelay), [
+    1_000,
+    2_000,
+    4_000,
+    8_000,
+    15_000,
+    15_000,
+    15_000,
+  ]);
 });

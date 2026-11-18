@@ -547,3 +547,86 @@ test(
       .toHaveCount(1);
   },
 );
+
+test(
+  "a new session for the step restarts the stream on that session",
+  async ({ page }) => {
+    const nextSessionId = "00000000-0000-4000-8000-000000000042";
+    const streamed: string[] = [];
+    let replaced = false;
+    await page.clock.install();
+    await prepare(page);
+    // Routes registered later win: the step's session list changes once told to.
+    await page.route("**/v1/sessions?*", (route) => {
+      const stepId =
+        new URL(route.request().url()).searchParams.get("runStepId") ?? "";
+      const current = replaced
+        ? {
+          ...session(runningStepId, "active"),
+          id: nextSessionId,
+          createdAt: "2026-01-02T00:00:00.000Z",
+        }
+        : session(runningStepId, "active");
+      return route.fulfill({
+        json: {
+          items: stepId === runningStepId ? [current] : [],
+          nextCursor: null,
+        },
+      });
+    });
+    await page.route(
+      `**/v1/sessions/${nextSessionId}/feed`,
+      (route) => route.fulfill({ json: { items: [], nextCursor: null } }),
+    );
+    await page.route(/\/v1\/sessions\/[^/]+\/feed\/stream/, (route) => {
+      streamed.push(
+        /sessions\/([^/]+)\/feed\/stream/.exec(route.request().url())![1],
+      );
+      // The stream stays open, saying nothing.
+    });
+    await page.goto(`/tasks/${taskId}`);
+    await expect(thread(page)).toBeVisible({ timeout: 20_000 });
+    await expect.poll(() => streamed).toEqual([sessionId]);
+    replaced = true;
+    await page.clock.fastForward(11_000);
+    // The thread follows the new session, not the one it started on.
+    await expect.poll(() => streamed).toContain(nextSessionId);
+  },
+);
+
+test(
+  "a session longer than the thread holds says only its newest events are shown",
+  async ({ page }) => {
+    await prepare(page);
+    const long = Array.from({ length: 1_105 }, (_, index) => ({
+      ...base(index + 1, "tool", 5),
+      tool: {
+        callId: `call-${index}`,
+        name: "run_tests",
+        phase: "started",
+        ok: null,
+      },
+    }));
+    await page.route(
+      (url) => url.pathname.endsWith(`/v1/sessions/${sessionId}/feed`),
+      (route) => {
+        // The history comes in pages of a hundred, as the real route gives it.
+        const at = Number(
+          new URL(route.request().url()).searchParams.get("cursor") ?? "0",
+        );
+        const items = long.slice(at, at + 100);
+        return route.fulfill({
+          json: {
+            items,
+            nextCursor: at + 100 < long.length ? String(at + 100) : null,
+          },
+        });
+      },
+    );
+    await page.goto(`/tasks/${taskId}`);
+    await expect(thread(page)).toBeVisible({ timeout: 20_000 });
+    await expect(
+      page.getByText("This session is long, so the thread shows only"),
+    ).toBeVisible();
+  },
+);

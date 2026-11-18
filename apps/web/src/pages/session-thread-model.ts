@@ -398,3 +398,71 @@ export function pickSession<
   ) ??
     newest(sessions);
 }
+
+/**
+ * The newest events of one session, in sequence order and bounded. Events
+ * arrive in order, so each is appended; only a late one is sorted into place,
+ * and a repeat of a sequence replaces it instead of showing twice. Past `max`
+ * the oldest fall off and the window says it is no longer the whole session.
+ */
+export function createFeedWindow(max: number) {
+  const ordered: SessionFeedItem[] = [];
+  const seen = new Set<string>();
+  let newest: bigint | null = null;
+  let unsorted = false;
+  let truncated = false;
+  const bySequence = (a: SessionFeedItem, b: SessionFeedItem) => {
+    const left = BigInt(a.sequence);
+    const right = BigInt(b.sequence);
+    return left < right ? -1 : left > right ? 1 : a.id.localeCompare(b.id);
+  };
+  return {
+    take(item: SessionFeedItem): void {
+      if (seen.has(item.sequence)) {
+        // The repeat is nearly always among the newest, so look from the end.
+        for (let at = ordered.length - 1; at >= 0; at -= 1) {
+          if (ordered[at].sequence === item.sequence) {
+            ordered[at] = item;
+            break;
+          }
+        }
+        return;
+      }
+      const key = BigInt(item.sequence);
+      seen.add(item.sequence);
+      ordered.push(item);
+      if (newest === null || key > newest) newest = key;
+      else unsorted = true;
+      if (ordered.length > max) {
+        for (const dropped of ordered.splice(0, ordered.length - max)) {
+          seen.delete(dropped.sequence);
+        }
+        truncated = true;
+      }
+    },
+    /** The window as a new array, so a caller can hand it to React. */
+    items(): SessionFeedItem[] {
+      if (unsorted) {
+        ordered.sort(bySequence);
+        unsorted = false;
+      }
+      return ordered.slice();
+    },
+    /** The newest sequence seen, where a stream resumes from. */
+    newest(): string | undefined {
+      return newest === null ? undefined : newest.toString();
+    },
+    truncated(): boolean {
+      return truncated;
+    },
+    /** Marks the window as partial when history itself was cut short. */
+    markTruncated(): void {
+      truncated = true;
+    },
+  };
+}
+
+/** How long to wait before the next stream attempt: 1 s, doubling, at most 15 s. */
+export function backoffDelay(retries: number): number {
+  return Math.min(1_000 * 2 ** retries, 15_000);
+}

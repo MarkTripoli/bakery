@@ -88,6 +88,8 @@ export type SessionThreadProps = {
   loadingEarlier?: boolean;
   /** Deep-linked item: its turn opens, it scrolls into view and is outlined once. */
   highlightedItemId?: string;
+  /** Shown in place of the turns when the session has none yet. */
+  empty?: ReactNode;
   /** Rendered after the thread, for example the line that says what is happening now. */
   children?: ReactNode;
 };
@@ -291,6 +293,7 @@ function TurnView(
 export function SessionThread(
   {
     children,
+    empty,
     end,
     highlightedItemId,
     labels,
@@ -405,6 +408,21 @@ export function SessionThread(
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [jumpToLatest, turns]);
+
+  if (turns.length === 0 && empty) {
+    return (
+      <div
+        className="ui-session-thread"
+        data-ui-component="sessionThread"
+        data-empty="true"
+        ref={rootRef}
+      >
+        {empty}
+        <div ref={bottomRef} className="ui-session-thread__bottom" />
+        {children}
+      </div>
+    );
+  }
 
   return (
     <div

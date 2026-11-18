@@ -45,57 +45,63 @@ const STATES = [
 
 for (const theme of ["light", "dark"] as const) {
   for (const viewport of VIEWPORTS) {
-    test(`session thread stills ${viewport.name} ${theme}`, async ({ page }) => {
-      // Seven states in one still set outlives the default budget.
-      test.setTimeout(laneBudgetMs(180_000));
-      await page.setViewportSize({
-        width: viewport.width,
-        height: viewport.height,
+    // A phone is a touch screen: no hover, no keys, so the shortcut help is not drawn.
+    test.describe(`${viewport.name} ${theme}`, () => {
+      test.use(
+        viewport.name === "phone" ? { hasTouch: true, isMobile: true } : {},
+      );
+      test(`session thread stills ${viewport.name} ${theme}`, async ({ page }) => {
+        // Seven states in one still set outlives the default budget.
+        test.setTimeout(laneBudgetMs(180_000));
+        await page.setViewportSize({
+          width: viewport.width,
+          height: viewport.height,
+        });
+        await page.emulateMedia({ colorScheme: theme });
+        await mockAuthenticatedSession(page);
+        await mkdir(OUT, { recursive: true });
+        const digests = new Map<string, string>();
+
+        for (const state of STATES) {
+          await page.goto(`/__fixtures__/session-thread/${state.name}`);
+          await expect(
+            page.locator('[data-ui-component="sessionThread"]').or(
+              page.locator('[data-ui-component="emptyState"]'),
+            ).or(page.locator('[data-ui-component="skeleton"]')).or(
+              page.locator('[data-ui-component="inlineNotice"]'),
+            ).first(),
+          ).toBeVisible({ timeout: 15_000 });
+
+          // The route chunk, not just a skeleton, is on screen: a lazy-route fallback
+          // is a skeleton too, and is how the dark loading still once showed the wrong page.
+          await expect(page.getByRole("heading", { name: "Task detail" }))
+            .toBeVisible({
+              timeout: 15_000,
+            });
+          const marker = page.locator(state.marker).first();
+          await expect(marker, `${state.name} never showed its own marker`)
+            .toBeVisible({ timeout: 15_000 });
+          // Bring the marker into frame: the Now line sits below the fold once
+          // the thread is long, which is how an earlier still photographed the
+          // wrong state entirely.
+          await marker.scrollIntoViewIfNeeded();
+          await page.waitForTimeout(250);
+          await expect(marker).toBeInViewport();
+
+          const buffer = await page.screenshot();
+          const digest = createHash("md5").update(buffer).digest("hex");
+          const previous = digests.get(digest);
+          expect(
+            previous,
+            `${state.name} rendered identically to ${previous}, so it has no evidence of its own`,
+          ).toBeUndefined();
+          digests.set(digest, state.name);
+          await writeFile(
+            `${OUT}/${state.name}-${viewport.name}-${theme}.png`,
+            buffer,
+          );
+        }
       });
-      await page.emulateMedia({ colorScheme: theme });
-      await mockAuthenticatedSession(page);
-      await mkdir(OUT, { recursive: true });
-      const digests = new Map<string, string>();
-
-      for (const state of STATES) {
-        await page.goto(`/__fixtures__/session-thread/${state.name}`);
-        await expect(
-          page.locator('[data-ui-component="sessionThread"]').or(
-            page.locator('[data-ui-component="emptyState"]'),
-          ).or(page.locator('[data-ui-component="skeleton"]')).or(
-            page.locator('[data-ui-component="inlineNotice"]'),
-          ).first(),
-        ).toBeVisible({ timeout: 15_000 });
-
-        // The route chunk, not just a skeleton, is on screen: a lazy-route fallback
-        // is a skeleton too, and is how the dark loading still once showed the wrong page.
-        await expect(page.getByRole("heading", { name: "Task detail" }))
-          .toBeVisible({
-            timeout: 15_000,
-          });
-        const marker = page.locator(state.marker).first();
-        await expect(marker, `${state.name} never showed its own marker`)
-          .toBeVisible({ timeout: 15_000 });
-        // Bring the marker into frame: the Now line sits below the fold once
-        // the thread is long, which is how an earlier still photographed the
-        // wrong state entirely.
-        await marker.scrollIntoViewIfNeeded();
-        await page.waitForTimeout(250);
-        await expect(marker).toBeInViewport();
-
-        const buffer = await page.screenshot();
-        const digest = createHash("md5").update(buffer).digest("hex");
-        const previous = digests.get(digest);
-        expect(
-          previous,
-          `${state.name} rendered identically to ${previous}, so it has no evidence of its own`,
-        ).toBeUndefined();
-        digests.set(digest, state.name);
-        await writeFile(
-          `${OUT}/${state.name}-${viewport.name}-${theme}.png`,
-          buffer,
-        );
-      }
     });
   }
 }

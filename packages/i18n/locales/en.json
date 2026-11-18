@@ -4118,6 +4118,7 @@
   "session.thread.jumpToLatest": "Jump to latest",
   "session.thread.empty.title": "Nothing here yet",
   "session.thread.empty.body": "Messages and the agent's work appear here as the session runs.",
+  "session.thread.truncated": "This session is long, so the thread shows only its newest events. The raw output below has the whole record.",
   "session.thread.loadFailed": "This session could not load.",
   "session.thread.loading": "Loading the session…",
   "session.thread.shortcuts": "Keyboard shortcuts",

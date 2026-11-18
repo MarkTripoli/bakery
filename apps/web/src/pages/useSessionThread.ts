@@ -5,6 +5,8 @@ import { useBakeryApi } from "../api/context.tsx";
 import { createSseParser } from "../api/session-feed-sse.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import {
+  backoffDelay,
+  createFeedWindow,
   LIVE_SESSION_STATUSES as LIVE,
   pickSession,
   type SessionFeedItem,
@@ -12,11 +14,14 @@ import {
 
 export type AgentSession = AgentSessionPageResponse["items"][number];
 
-/** Statuses of a session that is still doing something. */
 /** The reader asks again for a session's status this often while it runs. */
 const STATUS_POLL_MS = 10_000;
 /** History is read in pages of this size, at most this many pages. */
 const HISTORY_PAGES = 50;
+/** The thread keeps this many of a session's newest events in memory. */
+const MAX_ITEMS = 1_000;
+/** A stream that stayed open this long was healthy, even without a frame. */
+const HEALTHY_CONNECTION_MS = 10_000;
 
 export type SessionThreadSource = Readonly<{
   /**
@@ -26,6 +31,8 @@ export type SessionThreadSource = Readonly<{
   phase: "idle" | "loading" | "none" | "error" | "ready";
   session: AgentSession | null;
   items: readonly SessionFeedItem[];
+  /** The session is longer than the thread holds: older events are only in the raw output. */
+  truncated: boolean;
   /** The live stream is connected, or has dropped and is being retried. */
   connection: "live" | "lost" | "closed";
   /** When the stream dropped, if it has. */
@@ -40,6 +47,7 @@ const NOTHING: Omit<SessionThreadSource, "retry" | "reconnect"> = {
   phase: "idle",
   session: null,
   items: [],
+  truncated: false,
   connection: "closed",
   lostSince: null,
 };
@@ -47,12 +55,6 @@ const NOTHING: Omit<SessionThreadSource, "retry" | "reconnect"> = {
 type Snapshot = Omit<SessionThreadSource, "retry" | "reconnect">;
 
 const LOADING: Snapshot = { ...NOTHING, phase: "loading" };
-
-const bySequence = (a: SessionFeedItem, b: SessionFeedItem) => {
-  const left = BigInt(a.sequence);
-  const right = BigInt(b.sequence);
-  return left < right ? -1 : left > right ? 1 : a.id.localeCompare(b.id);
-};
 
 /**
  * Everything the thread needs for one run step: which session it was, the
@@ -81,7 +83,8 @@ export function useSessionThread(
     if (!organizationId || !runStepId) return;
     const controller = new AbortController();
     const { signal } = controller;
-    const items = new Map<string, SessionFeedItem>();
+    // The window the reader sees: bounded, in sequence order, deduplicated.
+    const feed = createFeedWindow(MAX_ITEMS);
     let session: AgentSession | null = null;
     let phase: Snapshot["phase"] = "loading";
     let connection: Snapshot["connection"] = "closed";
@@ -93,20 +96,13 @@ export function useSessionThread(
         value: {
           phase,
           session,
-          items: [...items.values()].sort(bySequence),
+          items: feed.items(),
+          truncated: feed.truncated(),
           connection,
           lostSince,
         },
       });
     };
-    const take = (item: SessionFeedItem) => {
-      items.set(item.sequence, item);
-    };
-    const lastSequence = () =>
-      items.size === 0
-        ? undefined
-        : [...items.keys()].reduce((a, b) => BigInt(a) > BigInt(b) ? a : b);
-
     const run = async () => {
       publish();
       const listed = await api.sessions.list(organizationId, runStepId, signal);
@@ -134,15 +130,19 @@ export function useSessionThread(
           phase = "error";
           return publish();
         }
-        for (const item of read.data.items) take(item);
+        for (const item of read.data.items) feed.take(item);
         cursor = read.data.nextCursor ?? undefined;
         if (!cursor) break;
       }
+      // A session longer than the pages read says so instead of looking whole.
+      if (cursor) feed.markTruncated();
       phase = "ready";
       publish();
 
       // The session's status is read again while it runs, so the thread knows
-      // when it has finished and the stream can stop.
+      // when it has finished and the stream can stop. A different session for
+      // the step (a new attempt) starts the whole read again, so the stream
+      // never tails one session while the thread shows another.
       const poll = setInterval(async () => {
         const again = await api.sessions.list(
           organizationId,
@@ -151,9 +151,13 @@ export function useSessionThread(
         );
         if (signal.aborted || !again.ok) return;
         const next = pickSession(again.data.items);
-        if (
-          next && (next.status !== session?.status || next.id !== session?.id)
-        ) {
+        if (!next) return;
+        if (next.id !== id) {
+          clearInterval(poll);
+          setAttempt((value) => value + 1);
+          return;
+        }
+        if (next.status !== session?.status) {
           session = next;
           publish();
         }
@@ -167,15 +171,15 @@ export function useSessionThread(
         const opened = await api.sessions.stream(
           organizationId,
           id,
-          lastSequence(),
+          feed.newest(),
           signal,
         );
         if (signal.aborted) return;
         if (opened.ok) {
           connection = "live";
           lostSince = null;
-          retries = 0;
           publish();
+          const openedAt = Date.now();
           const decoder = new TextDecoder();
           const parse = createSseParser();
           const reader = opened.data.getReader();
@@ -186,12 +190,15 @@ export function useSessionThread(
               for (
                 const event of parse(decoder.decode(value, { stream: true }))
               ) {
+                // The server has spoken: the connection is healthy, so the
+                // next drop starts its backoff again from the shortest wait.
+                retries = 0;
                 if (event.event !== "feed") continue;
                 try {
                   const parsed = contractSchemas.SessionFeedItem.safeParse(
                     JSON.parse(event.data),
                   );
-                  if (parsed.success) take(parsed.data as SessionFeedItem);
+                  if (parsed.success) feed.take(parsed.data as SessionFeedItem);
                 } catch {
                   // A frame that is not JSON is not an item.
                 }
@@ -204,23 +211,26 @@ export function useSessionThread(
           } finally {
             reader.cancel().catch(() => undefined);
           }
+          // A connection that stayed up this long was working, frame or not.
+          if (Date.now() - openedAt >= HEALTHY_CONNECTION_MS) retries = 0;
         }
         if (signal.aborted || !session || !LIVE.has(session.status)) break;
         connection = "lost";
         lostSince ??= new Date().toISOString();
         publish();
+        const delay = backoffDelay(retries);
+        retries += 1;
         await new Promise<void>((resolve) => {
-          const timer = setTimeout(
-            resolve,
-            Math.min(1_000 * 2 ** retries++, 15_000),
-          );
-          wake.current = () => {
+          const done = () => {
             clearTimeout(timer);
+            signal.removeEventListener("abort", done);
+            wake.current = null;
             resolve();
           };
-          signal.addEventListener("abort", () => resolve(), { once: true });
+          const timer = setTimeout(done, delay);
+          wake.current = done;
+          signal.addEventListener("abort", done, { once: true });
         });
-        wake.current = null;
       }
       connection = "closed";
       lostSince = null;
