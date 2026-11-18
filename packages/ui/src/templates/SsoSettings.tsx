@@ -26,7 +26,8 @@ export type SsoSettingsProps = {
   readonly variant?: "list" | "form";
   readonly providers?: readonly SsoProviderEntry[];
   readonly providersLabel?: string;
-  readonly emptyMessage?: string;
+  /** What shows when there is no provider: an `EmptyState` with its action. */
+  readonly empty?: ReactNode;
   /** Domain verification section content (list). */
   readonly domain?: ReactNode;
   /** The require-SSO control (list). */
@@ -49,7 +50,7 @@ export function SsoSettings(
     variant = "list",
     providers = [],
     providersLabel,
-    emptyMessage,
+    empty,
     domain,
     enforcement,
     children,
@@ -102,9 +103,7 @@ export function SsoSettings(
                   ))}
                 </ul>
               )
-              : emptyMessage
-              ? <p className="ui-sso-settings__empty">{emptyMessage}</p>
-              : null}
+              : empty ?? null}
             {domain
               ? <section className="ui-sso-settings__domain">{domain}</section>
               : null}

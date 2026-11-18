@@ -25,6 +25,9 @@ function row(overrides: Record<string, unknown> = {}) {
     origin_kind: "authored",
     origin_catalog_key: null,
     origin_catalog_version: null,
+    origin_source_workflow_id: null,
+    origin_source_version_id: null,
+    origin_source_digest: null,
     ...overrides,
   };
 }
@@ -35,6 +38,9 @@ Deno.test("an authored definition carries no catalog origin", () => {
     kind: "authored",
     catalogKey: null,
     catalogVersion: null,
+    sourceWorkflowId: null,
+    sourceVersionId: null,
+    sourceDigest: null,
   });
 });
 
@@ -51,6 +57,9 @@ Deno.test("an installed definition carries the catalog key and version it came f
     kind: "catalog",
     catalogKey: "review",
     catalogVersion: 3,
+    sourceWorkflowId: null,
+    sourceVersionId: null,
+    sourceDigest: null,
   });
 });
 

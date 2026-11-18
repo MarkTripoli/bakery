@@ -2550,6 +2550,7 @@ Deno.test("revocation between preparation and commit discards the isolated candi
     initialize: real.initialize,
     slice: real.slice,
     verify: real.verify,
+    anchors: real.anchors,
     importUpdate: real.importUpdate,
     async edit(current, source, input, signal) {
       const candidate = await real.edit(current, source, input, signal);
@@ -2622,6 +2623,7 @@ exec "$@"`);
     initialize: (...args) => active.initialize(...args),
     slice: (...args) => active.slice(...args),
     verify: (...args) => active.verify(...args),
+    anchors: (...args) => active.anchors(...args),
     edit: (...args) => active.edit(...args),
     importUpdate: (...args) => active.importUpdate(...args),
   };

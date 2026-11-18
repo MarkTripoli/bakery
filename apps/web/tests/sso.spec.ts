@@ -136,10 +136,79 @@ test.describe("single sign-on settings", () => {
     await expect(
       page.getByRole("heading", { name: "Single sign-on" }).first(),
     ).toBeVisible();
-    await expect(page.getByText("No identity provider yet", { exact: false }))
+    await expect(page.getByText("No sign-in provider yet")).toBeVisible();
+    // One way in: a single "Add provider" action, not a choice of protocols.
+    await expect(page.getByRole("button", { name: "Add provider" }))
+      .toHaveCount(1);
+    await expect(page.getByRole("button", { name: "Add provider" }))
+      .toBeEnabled();
+    await shot(page, "sso-empty");
+  });
+
+  test("the list has exactly one primary button, Add provider", async ({ page }) => {
+    await ssoFixture(page, { providers: [OKTA_UNVERIFIED] });
+    await page.goto("/settings/organization/sso");
+    await expect(page.getByRole("button", { name: "Add provider" }))
+      .toHaveCount(1);
+    await expect(page.getByRole("button", { name: "Add SAML" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Add OIDC" })).toHaveCount(0);
+    // The row names the email domain and the next step, not the issuer URL.
+    const row = page.getByRole("listitem").filter({ hasText: "okta" });
+    await expect(row).toContainText("acme.example");
+    await expect(row).toContainText("Verify the domain below to turn this on");
+    await expect(row).not.toContainText("https://acme.okta.example");
+    await shot(page, "sso-provider-awaiting-domain");
+  });
+
+  test("every add-form field has help text tied to its input", async ({ page }) => {
+    await ssoFixture(page);
+    await page.goto("/settings/organization/sso");
+    await page.getByRole("button", { name: "Add provider" }).click();
+    await expect(page.getByRole("radio", { name: "OpenID Connect" }))
+      .toBeChecked();
+    await shot(page, "sso-add-provider");
+    await expect(
+      page.getByText(
+        "Use whichever your identity provider offers. If it offers both, OpenID Connect is simpler to set up.",
+      ),
+    ).toBeVisible();
+    for (
+      const [label, help] of [
+        ["Provider name", "Shown to members on the sign-in page"],
+        ["Issuer URL", "The address of your identity provider"],
+        ["Client ID", "Copy this from the application you created"],
+        ["Client secret", "Copy this from the same place."],
+        ["Email domain", "Members whose email ends in this domain"],
+      ] as const
+    ) {
+      await expect(page.getByLabel(label, { exact: true }))
+        .toHaveAccessibleDescription(new RegExp(help));
+    }
+    await page.getByRole("radio", { name: "SAML" }).check();
+    await expect(page.getByLabel("Identity provider metadata"))
+      .toHaveAccessibleDescription(/Paste the metadata XML from your identity/);
+    await shot(page, "sso-add-saml");
+  });
+
+  test("a check that finds no record says what happened and offers Check again", async ({ page }) => {
+    await ssoFixture(page, { providers: [OKTA_UNVERIFIED] });
+    await page.goto("/settings/organization/sso");
+    const record = page.getByTestId("txt-okta");
+    await expect(record.getByText("TXT", { exact: true })).toBeVisible();
+    await expect(record.getByRole("button", { name: "Copy type" }))
       .toBeVisible();
-    await expect(page.getByRole("button", { name: "Add OIDC" })).toBeEnabled();
-    await expect(page.getByRole("button", { name: "Add SAML" })).toBeEnabled();
+    await expect(record.getByRole("button", { name: "Copy host" }))
+      .toBeVisible();
+    await expect(record.getByRole("button", { name: "Copy value" }))
+      .toBeVisible();
+    await record.getByRole("button", { name: "Check domain" }).click();
+    const failed = record.getByTestId("sso-check-failed");
+    await expect(failed).toContainText(
+      "We could not find the record yet. DNS changes can take up to an hour.",
+    );
+    await expect(failed.getByRole("button", { name: "Check again" }))
+      .toBeVisible();
+    await shot(page, "sso-check-failed");
   });
 
   test("sits under the Settings breadcrumb", async ({ page, isMobile }) => {
@@ -180,10 +249,12 @@ test.describe("single sign-on settings", () => {
   test("adds an OIDC provider without ever showing the secret again", async ({ page }) => {
     const state = await ssoFixture(page);
     await page.goto("/settings/organization/sso");
-    await page.getByRole("button", { name: "Add OIDC" }).click();
-    await expect(page.getByRole("heading", { name: "Add OIDC provider" }))
+    await page.getByRole("button", { name: "Add provider" }).click();
+    await expect(page.getByRole("heading", { name: "Add provider" }))
       .toBeVisible();
-    await page.getByLabel("Display name").fill("okta");
+    await expect(page.getByRole("radio", { name: "OpenID Connect" }))
+      .toBeChecked();
+    await page.getByLabel("Provider name").fill("okta");
     await page.getByLabel("Issuer URL").fill("https://acme.okta.example");
     await page.getByLabel("Client ID").fill("0oa8k2m4n6p");
     await page.getByLabel("Client secret", { exact: true }).fill(
@@ -205,8 +276,9 @@ test.describe("single sign-on settings", () => {
   test("adds a SAML provider that always requires signed assertions", async ({ page }) => {
     const state = await ssoFixture(page);
     await page.goto("/settings/organization/sso");
-    await page.getByRole("button", { name: "Add SAML" }).click();
-    await page.getByLabel("Display name").fill("entra");
+    await page.getByRole("button", { name: "Add provider" }).click();
+    await page.getByRole("radio", { name: "SAML" }).check();
+    await page.getByLabel("Provider name").fill("entra");
     await page.getByLabel("Identity provider metadata").fill(SAML_METADATA);
     await page.getByLabel("Email domain").fill("acme.example");
     await page.getByRole("button", { name: "Save provider" }).click();
@@ -227,8 +299,9 @@ test.describe("single sign-on settings", () => {
   test("refuses SAML metadata that names no sign-on endpoint without calling the server", async ({ page }) => {
     const state = await ssoFixture(page);
     await page.goto("/settings/organization/sso");
-    await page.getByRole("button", { name: "Add SAML" }).click();
-    await page.getByLabel("Display name").fill("entra");
+    await page.getByRole("button", { name: "Add provider" }).click();
+    await page.getByRole("radio", { name: "SAML" }).check();
+    await page.getByLabel("Provider name").fill("entra");
     await page.getByLabel("Identity provider metadata").fill(
       "<EntityDescriptor/>",
     );
@@ -250,15 +323,18 @@ test.describe("single sign-on settings", () => {
       }],
     });
     await page.goto("/settings/organization/sso");
-    await expect(page.getByTestId("txt-okta")).toContainText(
-      "_bakery-verify-okta.acme.example TXT txt-token-123",
+    await expect(page.getByTestId("sso-txt-host")).toHaveText(
+      "_bakery-verify-okta.acme.example",
     );
+    await expect(page.getByTestId("sso-txt-value")).toHaveText("txt-token-123");
     await page.getByRole("button", { name: "okta · OIDC" }).click();
     await page.getByRole("button", { name: "Check domain" }).click();
-    await expect(page.getByText("Not verified yet.", { exact: false }).first())
-      .toBeVisible();
+    await expect(
+      page.getByText("We could not find the record yet.", { exact: false })
+        .first(),
+    ).toBeVisible();
     state.verified = true;
-    await page.getByRole("button", { name: "Check domain" }).click();
+    await page.getByRole("button", { name: "Check again" }).click();
     await expect(page.getByText("Domain verified.")).toBeVisible();
     await page.getByRole("button", { name: "Cancel" }).click();
     await expect(page.getByText("Enabled")).toBeVisible();
@@ -276,18 +352,21 @@ test.describe("single sign-on settings", () => {
     });
     await page.goto("/settings/organization/sso");
     await page.getByRole("button", { name: "okta · OIDC" }).click();
-    const check = page.getByRole("button", { name: "Check domain" });
+    const check = page.getByRole("button", { name: /Check (domain|again)/ });
     await expect(check).toBeVisible();
-    await expect(page.getByText("Not verified yet.", { exact: false }))
-      .toHaveCount(1);
+    // Nothing has been checked yet, so nothing says the record is missing.
+    await expect(
+      page.getByText("We could not find the record yet.", { exact: false }),
+    ).toHaveCount(0);
     state.verified = true;
     await check.click();
     await expect(page.getByText("Domain verified.")).toBeVisible();
     // The form follows the stored provider: nothing left to check, and the
-    // amber "not verified" line is gone while the green banner shows.
+    // "record not found" notice is gone while the green banner shows.
     await expect(check).toHaveCount(0);
-    await expect(page.getByText("Not verified yet.", { exact: false }))
-      .toHaveCount(0);
+    await expect(
+      page.getByText("We could not find the record yet.", { exact: false }),
+    ).toHaveCount(0);
     await expect(
       page.getByText("The domain could not be checked right now."),
     ).toHaveCount(0);
@@ -316,16 +395,17 @@ test.describe("single sign-on settings", () => {
   test("the add forms have no verification step; a saved provider is verified later", async ({ page }) => {
     await ssoFixture(page);
     await page.goto("/settings/organization/sso");
-    for (const protocol of ["SAML", "OIDC"]) {
-      await page.getByRole("button", { name: `Add ${protocol}` }).click();
-      await expect(
-        page.getByRole("heading", { name: `Add ${protocol} provider` }),
-      ).toBeVisible();
+    for (const protocol of ["SAML", "OpenID Connect"]) {
+      await page.getByRole("button", { name: "Add provider" }).click();
+      await expect(page.getByRole("heading", { name: "Add provider" }))
+        .toBeVisible();
+      await page.getByRole("radio", { name: protocol }).check();
       await expect(page.getByText("Verify your domain")).toHaveCount(0);
       await expect(page.getByRole("button", { name: "Check domain" }))
         .toHaveCount(0);
-      await expect(page.getByText("Not verified yet.", { exact: false }))
-        .toHaveCount(0);
+      await expect(
+        page.getByText("We could not find the record yet.", { exact: false }),
+      ).toHaveCount(0);
       await page.getByRole("button", { name: "Cancel" }).click();
     }
   });
@@ -336,13 +416,17 @@ test.describe("single sign-on settings", () => {
     });
     await page.goto("/settings/organization/sso");
     const record = page.getByTestId("txt-okta");
-    await expect(record).toContainText(
-      "_bakery-verify-okta.acme.example TXT txt-token-123",
+    await expect(record.getByTestId("sso-txt-host")).toHaveText(
+      "_bakery-verify-okta.acme.example",
     );
-    const check = record.getByRole("button", { name: "Check domain" });
+    await expect(record.getByTestId("sso-txt-value")).toHaveText(
+      "txt-token-123",
+    );
+    const check = record.getByRole("button", { name: /Check (domain|again)/ });
     await check.click();
-    await expect(page.getByText("Not verified yet.", { exact: false }))
-      .toHaveCount(1);
+    await expect(
+      page.getByText("We could not find the record yet.", { exact: false }),
+    ).toHaveCount(1);
     state.verified = true;
     await check.click();
     await expect(page.getByText("Domain verified.")).toBeVisible();
@@ -353,12 +437,10 @@ test.describe("single sign-on settings", () => {
   test("every unverified provider shows its own record and check", async ({ page }) => {
     await ssoFixture(page, { providers: [OKTA_UNVERIFIED, ENTRA_UNVERIFIED] });
     await page.goto("/settings/organization/sso");
-    await expect(page.getByTestId("txt-okta")).toContainText(
-      "_bakery-verify-okta.acme.example TXT",
-    );
-    await expect(page.getByTestId("txt-entra")).toContainText(
-      "_bakery-verify-entra.corp.example TXT",
-    );
+    await expect(page.getByTestId("txt-okta").getByTestId("sso-txt-host"))
+      .toHaveText("_bakery-verify-okta.acme.example");
+    await expect(page.getByTestId("txt-entra").getByTestId("sso-txt-host"))
+      .toHaveText("_bakery-verify-entra.corp.example");
     await expect(
       page.getByRole("button", { name: "Check domain for okta" }),
     ).toBeVisible();
@@ -440,15 +522,16 @@ test.describe("single sign-on settings", () => {
     expect(state.removed).toEqual(["okta"]);
   });
 
-  test("the Edit form says a domain is not verified once, not twice", async ({ page }) => {
+  test("the Edit form says the record was not found once, not twice", async ({ page }) => {
     await ssoFixture(page, { providers: [OKTA_UNVERIFIED] });
     await page.goto("/settings/organization/sso");
     await page.getByRole("button", { name: "Edit okta" }).click();
     await page.getByRole("button", { name: "Check domain" }).click();
-    // The check found no record: the form's own line says so; the page banner
-    // does not repeat the sentence.
-    await expect(page.getByText("Not verified yet.", { exact: false }))
-      .toHaveCount(1);
+    // The check found no record: the record's own notice says so; the page
+    // banner does not repeat the sentence.
+    await expect(
+      page.getByText("We could not find the record yet.", { exact: false }),
+    ).toHaveCount(1);
   });
 
   test("edits a provider, requires SSO through the switch and removes it", async ({ page }) => {
@@ -633,14 +716,16 @@ test.describe("single sign-on settings", () => {
     await shot(page, "sso-edit-oidc-keep-secret");
     // The hints are tied to their inputs.
     await expect(page.getByLabel("Client secret", { exact: true }))
-      .toHaveAccessibleDescription("Leave blank to keep the current secret.");
+      .toHaveAccessibleDescription(
+        /Leave blank to keep the current secret\.$/,
+      );
     await expect(page.getByLabel("Client ID"))
       .toHaveAccessibleDescription(
-        "Leave blank to keep the current client ID.",
+        /Leave blank to keep the current client ID\.$/,
       );
     // Adding a provider has no such helper: both fields are required there.
     await page.getByRole("button", { name: "Cancel" }).click();
-    await page.getByRole("button", { name: "Add OIDC" }).click();
+    await page.getByRole("button", { name: "Add provider" }).click();
     await expect(secretHint).toHaveCount(0);
     await expect(idHint).toHaveCount(0);
   });
