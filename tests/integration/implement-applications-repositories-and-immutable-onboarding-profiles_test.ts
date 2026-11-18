@@ -2446,6 +2446,20 @@ Deno.test(
           status: "queued",
           reason: null,
         },
+        // #433: derived from the steps (quality.check holds git) and the
+        // project's scope profile, the empty baseline here.
+        workspaceRequirement: {
+          required: true,
+          workspaces: [],
+          reason: "a_step_requires_a_workspace",
+        },
+        scopeProfile: {
+          applicationId: legacyJob.applicationId,
+          revision: 0,
+          digest: "",
+          checkCommands: [],
+          rules: [],
+        },
       };
       const apiRunBeforeSwitchRows = await owner`
         select snapshot,
@@ -2761,7 +2775,10 @@ Deno.test(
         applicationId: legacyJob.applicationId,
         title: "Cloud-only compatibility",
         description: "",
-        taskType: "maintenance",
+        // Work type is an organization label (O23, #433): a feature task with
+        // no repository is admitted and its job queued exactly like the
+        // maintenance task the dropped rule once required.
+        taskType: "feature",
       });
       assertEquals(cloudTaskResponse.status, 201);
       const cloudTask = await cloudTaskResponse.json() as { id: string };
@@ -6530,7 +6547,7 @@ Deno.test("Data migration 0049 preserves frozen v1 execution, replay bytes and c
           "run",
           "--allow-env",
           "--allow-net",
-          "--allow-read=src/platform/migrations,src/modules/auth/migrations,src/modules/work/migrations,src/modules/projects/migrations,src/modules/agents/migrations,src/modules/repository-rules/migrations,src/modules/integrations/migrations,src/modules/delivery/migrations",
+          "--allow-read=src/platform/migrations,src/modules/auth/migrations,src/modules/work/migrations,src/modules/projects/migrations,src/modules/agents/migrations,src/modules/repository-rules/migrations,src/modules/artifact-kinds/migrations,src/modules/integrations/migrations,src/modules/delivery/migrations,src/modules/mcp/migrations",
           "src/tasks.ts",
           task,
         ],
