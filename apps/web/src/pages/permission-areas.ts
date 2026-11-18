@@ -112,6 +112,8 @@ export const RESOURCE_AREAS = {
   integrationInstallation: "integrations",
   integrationProvider: "integrations",
   integrationResource: "integrations",
+  providerIncident: "automation",
+  providerRoute: "automation",
   integrationSubscription: "integrations",
   channelLink: "integrations",
   externalIdentityLink: "integrations",

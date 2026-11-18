@@ -562,6 +562,22 @@ function byteLength(value: unknown, serializedJson = false): number {
   return new TextEncoder().encode(encoded ?? "").length;
 }
 
+/**
+ * A constraint sentence on top of whatever the field already said.
+ *
+ * Describing a bounded field with only the constraint dropped the field's own
+ * meaning from the published contract (`CheckRun.checkName` published as
+ * "must contain at most 100 characters" and nothing else). A reader needs both:
+ * what the field is, and what it accepts.
+ */
+function constrained<T extends Schema>(schema: T, sentence: string): T {
+  const existing = (schema as unknown as Node).description;
+  return described(
+    schema,
+    text(existing) ? `${existing} ${sentence}` : sentence,
+  );
+}
+
 function bounded<T extends Schema>(
   schema: T,
   bounds: JsonObject,
@@ -580,13 +596,13 @@ function bounded<T extends Schema>(
     ? ((result as unknown as Node)._def?.innerType as Node)?._def?.type
     : kind;
   if (boundedKind === "string" && typeof bounds.minLength === "number") {
-    result = described(
+    result = constrained(
       (result as z.ZodString).min(bounds.minLength),
       `${path} must contain at least ${bounds.minLength} characters.`,
     );
   }
   if (boundedKind === "string" && typeof bounds.maxLength === "number") {
-    result = described(
+    result = constrained(
       (result as z.ZodString).max(bounds.maxLength),
       `${path} must contain at most ${bounds.maxLength} characters.`,
     );
@@ -595,7 +611,7 @@ function bounded<T extends Schema>(
   // descriptor could promise a shape (0172 moved `taskType` from a closed set
   // to a kebab-case token here) and the only enforcement was min/max length.
   if (boundedKind === "string" && typeof bounds.pattern === "string") {
-    result = described(
+    result = constrained(
       (result as z.ZodString).regex(
         new RegExp(bounds.pattern),
         `${path} must match the pattern ${bounds.pattern}.`,
@@ -626,7 +642,7 @@ function bounded<T extends Schema>(
       ...(lowerBytes === undefined ? {} : { "x-utf8-min-bytes": lowerBytes }),
       ...(upperBytes === undefined ? {} : { "x-utf8-max-bytes": upperBytes }),
     });
-    result = described(
+    result = constrained(
       refined,
       lowerBytes !== undefined && upperBytes !== undefined
         ? `${path} must contain between ${lowerBytes} and ${upperBytes} UTF-8 bytes.`
@@ -636,13 +652,13 @@ function bounded<T extends Schema>(
     );
   }
   if (boundedKind === "array" && typeof bounds.minItems === "number") {
-    result = described(
+    result = constrained(
       (result as z.ZodArray).min(bounds.minItems),
       `${path} must contain at least ${bounds.minItems} items.`,
     );
   }
   if (boundedKind === "array" && typeof bounds.maxItems === "number") {
-    result = described(
+    result = constrained(
       (result as z.ZodArray).max(bounds.maxItems),
       `${path} must contain at most ${bounds.maxItems} items.`,
     );
@@ -651,7 +667,7 @@ function bounded<T extends Schema>(
     boundedKind === "array" &&
     bounds.uniqueItems === true
   ) {
-    result = described(
+    result = constrained(
       (result as z.ZodArray).refine(
         (items) => new Set(items).size === items.length,
         `${path} must contain unique items.`,
@@ -663,7 +679,7 @@ function bounded<T extends Schema>(
     boundedKind === "number" &&
     typeof bounds.min === "number"
   ) {
-    result = described(
+    result = constrained(
       (result as z.ZodNumber).min(bounds.min),
       `${path} must be at least ${bounds.min}.`,
     );
@@ -672,7 +688,7 @@ function bounded<T extends Schema>(
     boundedKind === "number" &&
     typeof bounds.max === "number"
   ) {
-    result = described(
+    result = constrained(
       (result as z.ZodNumber).max(bounds.max),
       `${path} must be at most ${bounds.max}.`,
     );
