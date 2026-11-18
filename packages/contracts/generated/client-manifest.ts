@@ -18662,6 +18662,17 @@ export const clientManifest = {
           "type": "string",
           "pattern": "^[a-f0-9]{64}$",
           "description": "Lowercase SHA-256 of the checkpoint's UTF-8 body text as the publisher previewed it; a different digest fails without publishing."
+        },
+        "projectThreads": {
+          "description": "DraftPublicationCreate.projectThreads must contain at most 50 items.",
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "Open root draft comments of this draft to copy, with their retained replies, onto the new version as version-pinned comments. Each anchor is resolved against the published checkpoint, not the live draft; a thread that is not open, unknown or outdated at that cutoff fails the whole publish with nothing written. Omit or send an empty list to project nothing. A replay of the same publication never copies a thread twice. Each array item follows this format."
+          }
         }
       },
       "required": [
@@ -66114,6 +66125,40 @@ export const clientManifest = {
           "format": "date-time",
           "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
           "description": "UTC time the comment last changed."
+        },
+        "publishedAs": {
+          "description": "Version-pinned copies of this comment made when a publication projected its thread, oldest first; empty when the thread was never projected. The draft comment itself is never changed or resolved by a projection.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "artifactVersionId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Immutable artifact version the comment was copied onto by a draft publication."
+              },
+              "artifactCommentId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Version-pinned artifact comment created from this draft comment; read it through artifactComments.list on that version."
+              },
+              "sourceCheckpointId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Published draft checkpoint whose frozen text the copied anchor was resolved against."
+              }
+            },
+            "required": [
+              "artifactVersionId",
+              "artifactCommentId",
+              "sourceCheckpointId"
+            ],
+            "additionalProperties": false,
+            "description": "Version-pinned copies of this comment made when a publication projected its thread, oldest first; empty when the thread was never projected. The draft comment itself is never changed or resolved by a projection. Each array item follows this format."
+          }
         }
       },
       "required": [
@@ -66426,6 +66471,40 @@ export const clientManifest = {
                 "format": "date-time",
                 "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
                 "description": "UTC time the comment last changed."
+              },
+              "publishedAs": {
+                "description": "Version-pinned copies of this comment made when a publication projected its thread, oldest first; empty when the thread was never projected. The draft comment itself is never changed or resolved by a projection.",
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "artifactVersionId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "Immutable artifact version the comment was copied onto by a draft publication."
+                    },
+                    "artifactCommentId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "Version-pinned artifact comment created from this draft comment; read it through artifactComments.list on that version."
+                    },
+                    "sourceCheckpointId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "Published draft checkpoint whose frozen text the copied anchor was resolved against."
+                    }
+                  },
+                  "required": [
+                    "artifactVersionId",
+                    "artifactCommentId",
+                    "sourceCheckpointId"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Version-pinned copies of this comment made when a publication projected its thread, oldest first; empty when the thread was never projected. The draft comment itself is never changed or resolved by a projection. Each array item follows this format."
+                }
               }
             },
             "required": [

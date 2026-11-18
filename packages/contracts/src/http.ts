@@ -308,6 +308,10 @@ export const DRAFT_EDIT_REFUSAL_REASONS = Object.freeze(
       "comment_quote_mismatch",
       "comment_anchor_stale",
       "comment_anchor_splits_character",
+      // A projected draft thread whose anchor is outdated at the cutoff.
+      "projected_thread_outdated",
+      // A guarded edit whose cursors were relocated (#28).
+      "target_ambiguous",
     ]),
     AUTH_FORBIDDEN: new Set([
       "agent_edit_requires_suggestion",

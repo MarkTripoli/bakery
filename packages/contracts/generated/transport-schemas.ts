@@ -9910,9 +9910,41 @@ const transportSchemas = {
           "type": "sha256",
           "required": true,
           "description": "Lowercase SHA-256 of the checkpoint's UTF-8 body text as the publisher previewed it; a different digest fails without publishing."
+        },
+        {
+          "name": "projectThreads",
+          "type": "uuid[]",
+          "required": false,
+          "bounds": {
+            "maxItems": 50
+          },
+          "description": "Open root draft comments of this draft to copy, with their retained replies, onto the new version as version-pinned comments. Each anchor is resolved against the published checkpoint, not the live draft; a thread that is not open, unknown or outdated at that cutoff fails the whole publish with nothing written. Omit or send an empty list to project nothing. A replay of the same publication never copies a thread twice."
         }
       ],
       "description": "Publishes one exact committed draft checkpoint as the artifact's next immutable version through the shared artifact-version service. No content, actor, artifact, parent version or organization can be supplied by the caller."
+    },
+    "DraftCommentPublication": {
+      "description": "Provenance of one draft comment copied onto a published version: which version and version-pinned comment it became, and from which frozen checkpoint.",
+      "fields": [
+        {
+          "name": "artifactVersionId",
+          "type": "uuid",
+          "required": true,
+          "description": "Immutable artifact version the comment was copied onto by a draft publication."
+        },
+        {
+          "name": "artifactCommentId",
+          "type": "uuid",
+          "required": true,
+          "description": "Version-pinned artifact comment created from this draft comment; read it through artifactComments.list on that version."
+        },
+        {
+          "name": "sourceCheckpointId",
+          "type": "uuid",
+          "required": true,
+          "description": "Published draft checkpoint whose frozen text the copied anchor was resolved against."
+        }
+      ]
     },
     "DraftSuggestionCreate": {
       "fields": [
@@ -26317,7 +26349,8 @@ const transportSchemas = {
         "deletedAt",
         "version",
         "createdAt",
-        "updatedAt"
+        "updatedAt",
+        "publishedAs"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -26343,7 +26376,8 @@ const transportSchemas = {
         "deletedAt": "timestamp|null",
         "version": "integer",
         "createdAt": "timestamp",
-        "updatedAt": "timestamp"
+        "updatedAt": "timestamp",
+        "publishedAs": "DraftCommentPublication[]"
       },
       "description": "One comment on a collaborative draft: an anchored root thread or a flat reply. A root carries its relative Loro cursors, quote and creation checkpoint, and reads resolve them against the current draft. Body and resolution are stored apart from the document text.",
       "fieldDescriptions": {
@@ -26370,7 +26404,8 @@ const transportSchemas = {
         "deletedAt": "UTC time the comment was deleted; null while retained.",
         "version": "Optimistic-concurrency version; send it as If-Match to update the comment. A reply change also increments its root's version.",
         "createdAt": "UTC time the comment was recorded.",
-        "updatedAt": "UTC time the comment last changed."
+        "updatedAt": "UTC time the comment last changed.",
+        "publishedAs": "Version-pinned copies of this comment made when a publication projected its thread, oldest first; empty when the thread was never projected. The draft comment itself is never changed or resolved by a projection."
       },
       "bounds": {
         "authorName": {
@@ -26388,7 +26423,10 @@ const transportSchemas = {
         "coordinateEncoding": {
           "maxBytes": 64
         }
-      }
+      },
+      "optionalFields": [
+        "publishedAs"
+      ]
     },
     "Page<DraftComment>": {
       "pageOf": "DraftComment",

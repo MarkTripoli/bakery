@@ -386,6 +386,16 @@ async function resolveGuardedEditTarget(
   if (body.toString().slice(start, end) !== input.expectedText) {
     throw new DraftCandidateError("precondition", "CURRENT_TARGET_CHANGED");
   }
+  // The expected text is at the resolved range, but a cursor's own character
+  // was deleted and Loro moved it to a surviving neighbour: the range may be
+  // retyped or other text that happens to match, so it is not the one the
+  // caller read. Refused rather than guessed (#28).
+  if (
+    document.getCursorPos(startCursor)?.update !== undefined ||
+    document.getCursorPos(endCursor)?.update !== undefined
+  ) {
+    throw new DraftCandidateError("precondition", "CURRENT_TARGET_AMBIGUOUS");
+  }
   return { document, body, start, end };
 }
 

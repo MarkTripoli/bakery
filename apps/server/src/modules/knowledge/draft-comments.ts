@@ -70,6 +70,11 @@ type CommentRow = {
   created_at: Date;
   updated_at: Date;
   cursor_created_at: string;
+  published_as: {
+    artifactVersionId: string;
+    artifactCommentId: string;
+    sourceCheckpointId: string;
+  }[];
 };
 
 const COLUMNS = `c.id,c.draft_id,c.epoch,c.parent_comment_id,c.author_id,
@@ -79,7 +84,15 @@ const COLUMNS = `c.id,c.draft_id,c.epoch,c.parent_comment_id,c.author_id,
   c.resolved_at,c.deleted_at,c.deleted_by,c.row_version,c.created_at,
   c.updated_at,
   to_char(c.created_at at time zone 'UTC', '${TIMESTAMP_SQL}')
-    as cursor_created_at`;
+    as cursor_created_at,
+  coalesce((select json_agg(json_build_object(
+      'artifactVersionId', m.artifact_version_id,
+      'artifactCommentId', m.artifact_comment_id,
+      'sourceCheckpointId', m.source_checkpoint_id)
+      order by m.created_at, m.id)
+    from bakery.artifact_draft_comment_publications m
+    where m.organization_id = c.organization_id
+      and m.draft_comment_id = c.id), '[]'::json) as published_as`;
 const FROM = `from bakery.artifact_draft_comments c
   join bakery.principals author on author.id = c.author_id
   left join bakery.access_tokens token
@@ -125,6 +138,7 @@ function toComment(row: CommentRow, anchor: AnchorAnswer): DraftCommentRead {
     version: row.row_version,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
+    publishedAs: row.published_as,
   });
 }
 

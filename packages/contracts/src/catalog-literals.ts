@@ -738,6 +738,7 @@ export type ContractInputName =
   | "DesignInput"
   | "DraftCheckpointPath"
   | "DraftCommentCreate"
+  | "DraftCommentPublication"
   | "DraftCommentQuery"
   | "DraftCommentUpdate"
   | "DraftEdit"

@@ -58,6 +58,12 @@ import {
   updateDraftComment,
 } from "./draft-comments.ts";
 import {
+  type PreparedThreadProjection,
+  prepareThreadProjection,
+  type ResolvedThreadProjection,
+} from "./draft-comment-projection.ts";
+import {
+  draftCheckpointPublished,
   type DraftPublicationRecord,
   freezeTextDraftCheckpoint,
   publishFrozenDraft,
@@ -182,6 +188,9 @@ type DraftExecutionStage = {
   /** A draft comment page whose root anchors the worker resolves (#28). */
   commentPage?: PreparedDraftCommentPage;
   commentPositions?: DraftAnchorPosition[];
+  /** Draft threads a publication projects, resolved at its cutoff (#28). */
+  projection?: PreparedThreadProjection;
+  projectionPositions?: DraftAnchorPosition[];
 };
 
 const draftExecutionStage: unique symbol = Symbol("draft-execution-stage");
@@ -263,6 +272,51 @@ function mapIsolationError(error: unknown): never {
   }
 }
 
+/**
+ * The threads a publication projects (#28). The first pass loads the named
+ * roots and stops so the worker can resolve their anchors at the cutoff; the
+ * second pass reloads them (a thread resolved meanwhile is refused) and
+ * carries the resolved positions. A checkpoint already published is a replay
+ * and projects nothing again.
+ */
+async function threadProjection(
+  context: StagedActionContext,
+  organizationId: string,
+  id: string,
+  checkpointId: string,
+  rootIds: readonly string[],
+): Promise<ResolvedThreadProjection | undefined> {
+  if (rootIds.length === 0) return undefined;
+  const { transaction } = requireWorkTransaction(context);
+  if (
+    await draftCheckpointPublished(
+      transaction,
+      organizationId,
+      id,
+      checkpointId,
+    )
+  ) return undefined;
+  const stage = context[draftExecutionStage];
+  if (!stage) throw new Error("DRAFT_STAGE_MISSING");
+  const prepared = await prepareThreadProjection(
+    transaction,
+    organizationId,
+    id,
+    checkpointId,
+    rootIds,
+  );
+  if (!stage.projectionPositions) {
+    stage.projection = prepared;
+    stage.organizationId = organizationId;
+    throw new DraftPreparationComplete();
+  }
+  if (
+    JSON.stringify(stage.projection?.anchors) !==
+      JSON.stringify(prepared.anchors)
+  ) throw new StandardError({ code: "PRECONDITION_FAILED" });
+  return { ...prepared, positions: stage.projectionPositions };
+}
+
 function isStagedAction(name: string): boolean {
   return name === DraftImplementedAction.Open ||
     name === DraftImplementedAction.Edit ||
@@ -340,12 +394,41 @@ export function createDraftResourceRoutes(
   ) => {
     if (action.name === DraftImplementedAction.PublicationCreate) {
       const holder: PublicationHolder = {};
-      const result = await postgresAuthority.run(
-        action,
-        Object.assign({}, context, { [committedPublication]: holder }),
-        input,
-        next,
-      );
+      const stage: DraftExecutionStage = {};
+      const publishOnce = () =>
+        postgresAuthority.run(
+          action,
+          Object.assign({}, context, {
+            [committedPublication]: holder,
+            [draftExecutionStage]: stage,
+          }),
+          input,
+          next,
+        );
+      let result;
+      try {
+        result = await publishOnce();
+      } catch (error) {
+        if (!(error instanceof DraftPreparationComplete)) throw error;
+        // Projected threads: their anchors are resolved against the frozen
+        // checkpoint in the isolated worker, then the publish runs again.
+        const projection = stage.projection;
+        if (!projection) {
+          throw new Error("DRAFT_PROJECTION_PREPARATION_MISSING");
+        }
+        try {
+          stage.projectionPositions = await isolation.anchors(
+            projection.state,
+            projection.anchors,
+            false,
+            context.signal,
+            stage.organizationId,
+          );
+        } catch (failure) {
+          mapIsolationError(failure);
+        }
+        result = await publishOnce();
+      }
       // After commit only: a rolled-back publish is never announced.
       if (holder.publication && holder.organizationId && !holder.replayed) {
         options.collaboration?.notifyDraftPublished(
@@ -424,6 +507,19 @@ export function createDraftResourceRoutes(
                   stage.refusal = reason;
                   refusal = reason;
                   continue;
+                }
+                if (reason && action.name === DraftImplementedAction.Edit) {
+                  // A guarded edit names why it could not apply (#28).
+                  throw new StandardError({
+                    code: "PRECONDITION_FAILED",
+                    params: {
+                      reason: (error as DraftIsolationError).message ===
+                          "CURRENT_TARGET_AMBIGUOUS"
+                        ? "target_ambiguous"
+                        : "text_changed",
+                    },
+                    cause: error,
+                  });
                 }
                 throw error;
               }
@@ -715,6 +811,13 @@ export function createDraftResourceRoutes(
           requireWorkTransaction(context);
         const id = draftId(context);
         const supplied = context.request.headers.get("idempotency-key");
+        const projection = await threadProjection(
+          context as StagedActionContext,
+          organizationId,
+          id,
+          input.checkpointId,
+          input.projectThreads ?? [],
+        );
         const frozen = await freezeTextDraftCheckpoint(
           transaction,
           organizationId,
@@ -735,6 +838,7 @@ export function createDraftResourceRoutes(
             traceId: context.traceId,
             operation: DraftImplementedAction.PublicationCreate,
             blobStore: options.blobStore,
+            ...(projection ? { projection } : {}),
           },
         );
         const holder = (context as PublicationActionContext)[
