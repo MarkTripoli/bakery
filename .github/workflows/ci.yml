@@ -831,7 +831,10 @@ jobs:
         # One runner's own pnpm and package store: runners that share a host
         # (and so a home directory) must not share ~/setup-pnpm, which another
         # job rewrites while this one is using it.
-        with: { version: "${{ env.PNPM_VERSION }}", dest: "${{ runner.tool_cache }}/setup-pnpm" }
+        with: {
+          version: "${{ env.PNPM_VERSION }}",
+          dest: "${{ runner.tool_cache }}/setup-pnpm",
+        }
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
       - name: Configure PostgreSQL connection
@@ -1362,7 +1365,10 @@ jobs:
         # One runner's own pnpm and package store: runners that share a host
         # (and so a home directory) must not share ~/setup-pnpm, which another
         # job rewrites while this one is using it.
-        with: { version: "${{ env.PNPM_VERSION }}", dest: "${{ runner.tool_cache }}/setup-pnpm" }
+        with: {
+          version: "${{ env.PNPM_VERSION }}",
+          dest: "${{ runner.tool_cache }}/setup-pnpm",
+        }
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
       - name: Pick a free Storybook port
@@ -1455,7 +1461,10 @@ jobs:
         # One runner's own pnpm and package store: runners that share a host
         # (and so a home directory) must not share ~/setup-pnpm, which another
         # job rewrites while this one is using it.
-        with: { version: "${{ env.PNPM_VERSION }}", dest: "${{ runner.tool_cache }}/setup-pnpm" }
+        with: {
+          version: "${{ env.PNPM_VERSION }}",
+          dest: "${{ runner.tool_cache }}/setup-pnpm",
+        }
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
       - name: Plan this shard's browser work
@@ -1612,7 +1621,10 @@ jobs:
         # One runner's own pnpm and package store: runners that share a host
         # (and so a home directory) must not share ~/setup-pnpm, which another
         # job rewrites while this one is using it.
-        with: { version: "${{ env.PNPM_VERSION }}", dest: "${{ runner.tool_cache }}/setup-pnpm" }
+        with: {
+          version: "${{ env.PNPM_VERSION }}",
+          dest: "${{ runner.tool_cache }}/setup-pnpm",
+        }
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
       - name: Plan this shard's browser work
@@ -1769,7 +1781,10 @@ jobs:
         # One runner's own pnpm and package store: runners that share a host
         # (and so a home directory) must not share ~/setup-pnpm, which another
         # job rewrites while this one is using it.
-        with: { version: "${{ env.PNPM_VERSION }}", dest: "${{ runner.tool_cache }}/setup-pnpm" }
+        with: {
+          version: "${{ env.PNPM_VERSION }}",
+          dest: "${{ runner.tool_cache }}/setup-pnpm",
+        }
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
       - name: Plan this shard's browser work
@@ -1926,7 +1941,10 @@ jobs:
         # One runner's own pnpm and package store: runners that share a host
         # (and so a home directory) must not share ~/setup-pnpm, which another
         # job rewrites while this one is using it.
-        with: { version: "${{ env.PNPM_VERSION }}", dest: "${{ runner.tool_cache }}/setup-pnpm" }
+        with: {
+          version: "${{ env.PNPM_VERSION }}",
+          dest: "${{ runner.tool_cache }}/setup-pnpm",
+        }
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
       - name: Plan this shard's browser work
@@ -2064,7 +2082,10 @@ jobs:
         # One runner's own pnpm and package store: runners that share a host
         # (and so a home directory) must not share ~/setup-pnpm, which another
         # job rewrites while this one is using it.
-        with: { version: "${{ env.PNPM_VERSION }}", dest: "${{ runner.tool_cache }}/setup-pnpm" }
+        with: {
+          version: "${{ env.PNPM_VERSION }}",
+          dest: "${{ runner.tool_cache }}/setup-pnpm",
+        }
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
       - name: Pick a free web port
@@ -2198,7 +2219,10 @@ jobs:
         # One runner's own pnpm and package store: runners that share a host
         # (and so a home directory) must not share ~/setup-pnpm, which another
         # job rewrites while this one is using it.
-        with: { version: "${{ env.PNPM_VERSION }}", dest: "${{ runner.tool_cache }}/setup-pnpm" }
+        with: {
+          version: "${{ env.PNPM_VERSION }}",
+          dest: "${{ runner.tool_cache }}/setup-pnpm",
+        }
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
       - name: Pick a free web port
@@ -2340,7 +2364,10 @@ jobs:
         # One runner's own pnpm and package store: runners that share a host
         # (and so a home directory) must not share ~/setup-pnpm, which another
         # job rewrites while this one is using it.
-        with: { version: "${{ env.PNPM_VERSION }}", dest: "${{ runner.tool_cache }}/setup-pnpm" }
+        with: {
+          version: "${{ env.PNPM_VERSION }}",
+          dest: "${{ runner.tool_cache }}/setup-pnpm",
+        }
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
       - name: Pick a free web port
@@ -2836,6 +2863,11 @@ jobs:
     needs: [aggregate]
     runs-on: ubuntu-24.04
     permissions:
+      # The signal reads the run it is signalling about before it writes
+      # anything. Listing a run's jobs is `actions: read`; without it the very
+      # first call the script makes is refused, and every live dispatch so far
+      # reported success from `continue-on-error` while creating nothing.
+      actions: read
       contents: read
       issues: write
     steps:
