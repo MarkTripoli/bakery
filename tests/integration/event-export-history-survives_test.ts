@@ -1,5 +1,7 @@
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import { openPgDatabase } from "../../apps/server/src/platform/database.ts";
+import { openAuthFixture } from "../helpers/auth.ts";
+import { deleteEventExportHistory } from "../../apps/server/src/modules/integrations/event-export-retention.ts";
 
 /**
  * Event export history and tenant pinning, proved against a real database
@@ -16,6 +18,30 @@ import { openPgDatabase } from "../../apps/server/src/platform/database.ts";
  * The writes that matter run as `bakery_app`, the role the application actually
  * uses, so a grant that looks right but is defeated by a cascade still fails.
  */
+
+/**
+ * Applies migrations before any test touches the database.
+ *
+ * This used to depend on whatever ran first: on a fresh database the suite failed
+ * with "relation bakery.integration_deliveries does not exist", which means a
+ * file that passes only because another file migrated first is not evidence. QA
+ * found it by running the file alone on an empty PG16.
+ *
+ * `openAuthFixture` already applies every module's migrations plus data
+ * migrations, so this reuses that path instead of a second one, and closes the
+ * fixture immediately - only the schema is wanted here, not an app instance.
+ */
+let migrated: Promise<void> | undefined;
+function ensureMigrated(): Promise<void> {
+  migrated ??= (async () => {
+    const fixture = await openAuthFixture();
+    await fixture.close();
+  })().catch((error) => {
+    migrated = undefined;
+    throw error;
+  });
+  return migrated;
+}
 
 function required(name: string): string {
   const value = Deno.env.get(name)?.trim();
@@ -293,6 +319,7 @@ const DELIVERY_INSERT = `insert into bakery.integration_deliveries (
 Deno.test("deleting a subscription cannot erase delivery history", async () => {
   const admin = openPgDatabase(adminUrl);
   const app = openPgDatabase(appUrl);
+  await ensureMigrated();
   const deliveryId = crypto.randomUUID();
   try {
     await seedParents(admin);
@@ -360,6 +387,7 @@ Deno.test("deleting a subscription cannot erase delivery history", async () => {
 Deno.test("a subscription cannot reach another connection's destination or source", async () => {
   const admin = openPgDatabase(adminUrl);
   const app = openPgDatabase(appUrl);
+  await ensureMigrated();
   try {
     await seedParents(admin);
 
@@ -428,6 +456,179 @@ Deno.test("a subscription cannot reach another connection's destination or sourc
       accepted[0]!.count === 1,
       "the matching subscription must be stored",
     );
+  } finally {
+    await cleanup(admin);
+    await admin.end();
+    await app.end();
+  }
+});
+
+Deno.test("a connection with history is deleted only after its history is swept", async () => {
+  const admin = openPgDatabase(adminUrl);
+  const app = openPgDatabase(appUrl);
+  await ensureMigrated();
+  const deliveryId = crypto.randomUUID();
+  try {
+    await seedParents(admin);
+    await q(app, SUBSCRIPTION_INSERT, [
+      subscriptionId,
+      organizationId,
+      connectionId,
+      installationId,
+      destinationId,
+      resourceId,
+    ]);
+    await q(app, DELIVERY_INSERT, [
+      deliveryId,
+      organizationId,
+      subscriptionId,
+      destinationId,
+      "evt-1",
+      `identity-${deliveryId}`,
+    ]);
+
+    // RESTRICT is doing its job: the connection cannot be deleted while it owns
+    // a delivery, and that failure is the property we want, not the bug.
+    await assertRejects(
+      () =>
+        q(admin, "delete from bakery.integration_connections where id = $1", [
+          connectionId,
+        ]),
+      Error,
+      "violates foreign key constraint",
+    );
+
+    // The application role cannot sweep history, and that is the point: it holds
+    // no DELETE on deliveries, so erasing what was sent is an administrative act
+    // rather than something the serving path can do.
+    await assertRejects(
+      () =>
+        deleteEventExportHistory(
+          {
+            // `rowCount` must come from pg: a DELETE without RETURNING yields
+            // no rows, so counting rows would report zero for every statement.
+            query: async (text, values) => {
+              const result = await app.query(text, values as unknown[]);
+              return { rowCount: result.rowCount };
+            },
+          },
+          { organizationId, connectionId },
+        ),
+      Error,
+      "permission denied",
+    );
+
+    // The named sweep removes history first, in the documented order, as the
+    // administrative role, after which the connection can be deleted. Without
+    // this the RESTRICT keys would make a connection with history permanently
+    // undeletable.
+    const swept = await deleteEventExportHistory(
+      {
+        query: async (text, values) => {
+          const result = await admin.query(text, values as unknown[]);
+          return { rowCount: result.rowCount };
+        },
+      },
+      { organizationId, connectionId },
+    );
+    assertEquals(swept.deliveries, 1);
+    assertEquals(swept.subscriptions, 1);
+    assertEquals(swept.destinations, 1);
+
+    await q(admin, "delete from bakery.integration_connections where id = $1", [
+      connectionId,
+    ]);
+    const remaining = await q<{ count: number }>(
+      admin,
+      "select count(*)::int as count from bakery.integration_connections where id = $1",
+      [connectionId],
+    );
+    assertEquals(remaining[0]!.count, 0);
+  } finally {
+    await cleanup(admin);
+    await admin.end();
+    await app.end();
+  }
+});
+
+Deno.test("the sweep refuses an id that is not a uuid", async () => {
+  const calls: string[] = [];
+  await assertRejects(
+    () =>
+      deleteEventExportHistory(
+        {
+          query: (text) => {
+            calls.push(text);
+            return Promise.resolve({ rowCount: 0 });
+          },
+        },
+        { organizationId, connectionId: "1' or '1'='1" },
+      ),
+    TypeError,
+    "invalid_identifier",
+  );
+  // Nothing ran: the identifier is validated before any statement is built.
+  assertEquals(calls.length, 0);
+});
+
+Deno.test("the sweep is scoped to its organization and binds its values", async () => {
+  const admin = openPgDatabase(adminUrl);
+  const app = openPgDatabase(appUrl);
+  const deliveryId = crypto.randomUUID();
+  try {
+    await seedParents(admin);
+    await q(app, SUBSCRIPTION_INSERT, [
+      subscriptionId,
+      organizationId,
+      connectionId,
+      installationId,
+      destinationId,
+      resourceId,
+    ]);
+    await q(app, DELIVERY_INSERT, [
+      deliveryId,
+      organizationId,
+      subscriptionId,
+      destinationId,
+      "evt-1",
+      `identity-${deliveryId}`,
+    ]);
+
+    // Same connection id, wrong organization: an administrative sweep handed the
+    // wrong tenant must remove nothing. A bare connection id would have matched.
+    const wrongTenant = await deleteEventExportHistory(
+      {
+        query: async (text, values) => {
+          const result = await admin.query(text, values as unknown[]);
+          return { rowCount: result.rowCount };
+        },
+      },
+      { organizationId: crypto.randomUUID(), connectionId },
+    );
+    assertEquals(wrongTenant.deliveries, 0);
+    assertEquals(wrongTenant.subscriptions, 0);
+    assertEquals(wrongTenant.destinations, 0);
+
+    // The history is still there, so the zero above is scoping and not an
+    // already-empty table.
+    const survived = await q<{ count: number }>(
+      admin,
+      "select count(*)::int as count from bakery.integration_deliveries where organization_id = $1",
+      [organizationId],
+    );
+    assertEquals(survived[0]!.count, 1);
+
+    // And the right tenant still sweeps.
+    const swept = await deleteEventExportHistory(
+      {
+        query: async (text, values) => {
+          const result = await admin.query(text, values as unknown[]);
+          return { rowCount: result.rowCount };
+        },
+      },
+      { organizationId, connectionId },
+    );
+    assertEquals(swept.deliveries, 1);
   } finally {
     await cleanup(admin);
     await admin.end();
