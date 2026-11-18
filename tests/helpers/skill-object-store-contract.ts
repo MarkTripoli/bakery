@@ -10,6 +10,7 @@ function dropFirstPutResponse(store: SkillObjectStore): SkillObjectStore {
   let drop = true;
   return {
     read: store.read.bind(store),
+    stat: store.stat.bind(store),
     recover: store.recover.bind(store),
     list: store.list.bind(store),
     async putIfAbsent(key, bytes, digest) {
@@ -42,6 +43,15 @@ export async function skillObjectStoreContract(
   );
   await store.recover(key, digest, bytes.length);
   assertEquals(await store.read(key, digest, bytes.length), bytes);
+  // `stat` reports the size `read` will verify against, and null for an
+  // object that is not there rather than throwing.
+  assertEquals(await store.stat(key), { sizeBytes: bytes.length });
+  assertEquals(
+    await store.stat(
+      skillObjectKey(crypto.randomUUID(), crypto.randomUUID(), digest),
+    ),
+    null,
+  );
   const inventory = [];
   for await (const object of store.list()) inventory.push(object);
   assertEquals(inventory.filter((item) => item.objectKey === key), [{
