@@ -1,4 +1,4 @@
-import type { HTMLAttributes, ReactNode } from "react";
+import { type HTMLAttributes, type ReactNode, useId } from "react";
 import type { SemanticNativeProps } from "../foundations/semantic-native-props.ts";
 import "../data.css";
 
@@ -13,10 +13,11 @@ export type ListRowProps =
     detail?: ReactNode;
     detailTone?: "default" | "warning" | "code";
     /**
-     * Clamps the detail to this many lines, then an ellipsis; a text detail is
-     * also its own `title`. The `title` alone is not an accessible way to show
-     * the hidden text (keyboard and touch cannot open it): make the whole text
-     * reachable another way, for example by opening the row.
+     * Clamps the detail to this many lines, then an ellipsis. There is no
+     * `title`: a tooltip cannot be opened by keyboard or touch. Make the whole
+     * text reachable another way, for example by opening the row. A selectable
+     * row describes its control with the detail, so a screen reader reads the
+     * whole text after the control's name.
      */
     detailLines?: 2;
     onSelect?: () => void;
@@ -44,6 +45,7 @@ export function ListRow(
     ...props
   }: ListRowProps,
 ) {
+  const detailId = useId();
   const content = (
     <>
       <span className="ui-list-row__lead">
@@ -62,9 +64,7 @@ export function ListRow(
               data-lines={detailLines}
               data-rail={detailLines ? "truncation-allowed" : undefined}
               data-tone={detailTone}
-              title={detailLines && typeof detail === "string"
-                ? detail
-                : undefined}
+              id={detailId}
             >
               {detail}
             </span>
@@ -87,6 +87,7 @@ export function ListRow(
       {onSelect
         ? (
           <button
+            aria-describedby={detail ? detailId : undefined}
             aria-label={controlLabel}
             aria-pressed={selected}
             className="ui-list-row__control"

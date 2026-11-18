@@ -1991,3 +1991,50 @@
   margin: 0;
   padding: 0;
 }
+
+/* ExpandableText: a clamped summary with a control that shows the whole text,
+   directly under it and start-aligned. Kept last so its control rules win over
+   the list-section and data-table button rules at equal weight. */
+.ui-expandable-text {
+  align-items: flex-start;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-inline-size: 0;
+}
+.ui-expandable-text .ui-text {
+  inline-size: 100%;
+  overflow-wrap: anywhere;
+}
+/* The control is 24px tall on a fine pointer and keeps no space of its own. */
+.ui-expandable-text .ui-button--text.ui-button--text {
+  font: var(--type-hint);
+  margin-block: var(--space-0);
+  min-block-size: var(--space-6);
+  min-inline-size: var(--space-0);
+  padding: var(--space-0);
+}
+/* The table's cell rule restyles every button as a plain outlined one; the
+   control stays a text button there too. */
+.ui-data-table .ui-expandable-text .ui-button--text.ui-button--text {
+  background: transparent;
+  border-color: transparent;
+  color: var(--color-selection);
+}
+@media (pointer: coarse) {
+  /* Touch: a 44px target around the line. Its hit area grows past the line, so
+     the container holds that overhang (11px) and nothing escapes it; it exists
+     only while the control does. */
+  .ui-expandable-text .ui-button--text.ui-button--text {
+    margin-block: calc(
+      (var(--space-5) + 2 * var(--border-default) - var(--target-coarse)) / 2
+    );
+    min-block-size: var(--target-coarse);
+    min-inline-size: var(--target-coarse);
+  }
+  .ui-expandable-text[data-cut="true"] {
+    padding-block-end: calc(
+      (var(--target-coarse) - var(--space-5) - 2 * var(--border-default)) / 2
+    );
+  }
+}

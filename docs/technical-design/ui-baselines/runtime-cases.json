@@ -1157,6 +1157,13 @@
       "context": "desktop-light-fine"
     },
     {
+      "id": "ui.expandableText.contract.desktop-light-fine",
+      "catalogId": "ui.expandableText",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-expandabletext--contract",
+      "context": "desktop-light-fine"
+    },
+    {
       "id": "ui.helpTip.contract.desktop-light-fine",
       "catalogId": "ui.helpTip",
       "requiredCaseId": "contract",

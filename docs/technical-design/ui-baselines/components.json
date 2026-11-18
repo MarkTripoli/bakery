@@ -1,5 +1,5 @@
 {
-  "revision": "7344c49a2abb5a9b928c46e578532a6bfadeb7f08ed6d1f329f9eb201c78393e",
+  "revision": "3077a7599499857bfaa739bca806368d8fd4901ab7d74d589c733075cad32563",
   "schemaVersion": 1,
   "owner": "Mark Tripoli",
   "rules": [
@@ -7290,6 +7290,139 @@
         ]
       },
       "paperAbsentReason": "Designed in the #65 UX design comment (section E amendment, 2026-11-12); no Paper frame names it."
+    },
+    {
+      "id": "ui.expandableText",
+      "name": "ExpandableText",
+      "description": "A summary clamped to two lines, with a text button that shows the whole of it: the button exists only while the text is cut, so a summary that fits looks as it did.",
+      "level": "molecule",
+      "owner": "Mark Tripoli",
+      "storyTitle": "Bakery/Molecules/ExpandableText",
+      "usage": {
+        "whenToUse": "Show a long summary in a table cell or list row without hiding the rest of it from keyboard and touch users.",
+        "whenNotToUse": "Do not use a title attribute as the only way to read cut text, and do not nest it inside a control that is itself a button.",
+        "ruleIds": [
+          "ui.semantic-import",
+          "ui.layout-containment",
+          "ui.accessible-control",
+          "ui.translated-copy"
+        ],
+        "alternatives": [
+          {
+            "when": "The text must always be shown whole",
+            "use": "ui.text"
+          },
+          {
+            "when": "The row itself opens the full text",
+            "use": "ui.listRow"
+          }
+        ],
+        "replacesElements": [],
+        "allowedLevels": [
+          "molecule",
+          "organism",
+          "template",
+          "page",
+          "app"
+        ]
+      },
+      "paper": [],
+      "a11y": {
+        "role": "button",
+        "accessibleName": "aria-label",
+        "keyboard": [
+          "Tab reaches the button; Enter or Space shows or hides the whole text",
+          "Focus stays on the button after a press; it carries aria-expanded and aria-controls"
+        ],
+        "targetSize": "min 44px (coarse pointer)",
+        "notes": "The button exists only when the text is cut. Cut text is never reachable only through a title."
+      },
+      "tokens": [
+        "--border-default",
+        "--color-selection",
+        "--space-0",
+        "--space-1",
+        "--space-5",
+        "--space-6",
+        "--target-coarse",
+        "--type-hint",
+        "--type-label"
+      ],
+      "variants": [
+        "default"
+      ],
+      "states": [
+        "collapsed",
+        "expanded"
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "layoutProfiles": [
+        "sheet",
+        "pane",
+        "rail"
+      ],
+      "pointerProfiles": [
+        "coarse",
+        "fine"
+      ],
+      "requirementIds": [
+        "theme.paired",
+        "layout.reflow",
+        "pointer.independent",
+        "a11y.semantic-focus",
+        "i18n.translated-logical"
+      ],
+      "requiredCases": [
+        {
+          "id": "contract",
+          "description": "Exercises the documented ExpandableText states across required contexts: a short summary with no control, a cut one with its control, and an unbroken long value.",
+          "variants": [
+            "default"
+          ],
+          "states": [
+            "collapsed",
+            "expanded"
+          ],
+          "baselineIds": []
+        }
+      ],
+      "evidenceRefs": [
+        "design.auth"
+      ],
+      "status": "implemented",
+      "coverage": {
+        "automated": {
+          "theme:light": [
+            "runtime:ui.expandableText.contract.desktop-light-fine"
+          ],
+          "theme:dark": [
+            "suite:storybook.canonical-dark-axe"
+          ],
+          "layout:sheet": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:pane": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:rail": [
+            "runtime:ui.expandableText.contract.desktop-light-fine"
+          ],
+          "pointer:fine": [
+            "runtime:ui.expandableText.contract.desktop-light-fine"
+          ],
+          "pointer:coarse": [
+            "suite:storybook.coarse-targets"
+          ]
+        },
+        "notApplicable": {},
+        "visualContexts": [
+          "desktop-light-fine"
+        ]
+      },
+      "paperAbsentReason": "Designed in the issue 203 UX design comment; no Paper frame names it."
     },
     {
       "id": "ui.disclosure",
