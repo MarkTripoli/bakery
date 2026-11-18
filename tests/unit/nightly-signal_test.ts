@@ -11,6 +11,7 @@
  * would print.
  */
 import { assert, assertEquals } from "@std/assert";
+import { validateDescription } from "../../scripts/authoring/validate.ts";
 import {
   failingJobs,
   type GhRunner,
@@ -281,13 +282,27 @@ Deno.test("the body says which kind of run failed", () => {
   const url = "https://github.com/o/r/actions/runs/123";
   const failing = failingJobs([job("a / y", "failure")]);
   assertEquals(
-    redBody(failing, url, "scheduled", at).split("\n")[0],
-    "The scheduled run on 2026-11-18T05:23:00Z failed.",
+    redBody(failing, url, "scheduled", at).split("\n")[2],
+    `The scheduled CI run on 2026-11-18T05:23:00Z failed (run ${url}). Outcome: the failing lanes are green again, or each red lane is fixed by a PR that links this issue. Out of scope: lanes that are green.`,
   );
-  assertEquals(
-    redBody(failing, url, "dispatched", at).split("\n")[0],
-    "The dispatched run on 2026-11-18T05:23:00Z failed.",
+  assert(
+    redBody(failing, url, "dispatched", at).includes(
+      "The dispatched CI run on 2026-11-18T05:23:00Z failed",
+    ),
   );
+});
+
+Deno.test("the body is a valid work item, so a PR that fixes the lane can link it", () => {
+  // The description check validates the issue a PR links. A body without the
+  // work-item sections made every such PR fail it.
+  const body = redBody(
+    ["full / integration", "ui / storybook browser"],
+    "https://github.com/o/r/actions/runs/123",
+    "scheduled",
+    new Date("2026-11-18T05:23:00Z"),
+  );
+  assertEquals(validateDescription("issue", body), []);
+  assert(body.includes("`full / integration`, `ui / storybook browser`"));
 });
 
 Deno.test("a green dispatched run closes the issue as a dispatched run", async () => {
