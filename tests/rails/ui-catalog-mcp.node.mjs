@@ -520,7 +520,7 @@ test("ui_check_file equals checkFile, the function CI runs", async () => {
   const files = [
     "apps/web/src/router.tsx",
     "apps/web/src/pages/SignInPage.tsx",
-    "apps/web/src/pages/projects-onboarding/BindingSection.tsx",
+    "apps/web/src/pages/projects/NamesCard.tsx",
     "apps/web/src/screens/SecurityHubScreen.tsx",
     "apps/web/src/screens/OrganizationSettingsScreen.tsx",
     "apps/web/src/pages/OrganizationSettingsPage.tsx",

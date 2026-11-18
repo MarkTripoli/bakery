@@ -22,6 +22,7 @@ import { artifactKindsBakeryMigrationSource } from "../../apps/server/src/module
 import { integrationsBakeryMigrationSource } from "../../apps/server/src/modules/integrations/migrations.ts";
 import { deliveryBakeryMigrationSource } from "../../apps/server/src/modules/delivery/migrations.ts";
 import { mcpBakeryMigrationSource } from "../../apps/server/src/modules/mcp/migrations.ts";
+import { knowledgeBakeryMigrationSource } from "../../apps/server/src/modules/knowledge/migrations.ts";
 import {
   authBakeryMigrationSource,
 } from "../../apps/server/src/modules/auth/migrations.ts";
@@ -1082,6 +1083,7 @@ Deno.test("prepared operation migration is ordered, relational, and idempotent",
       ...await loadMigrations(integrationsBakeryMigrationSource),
       ...await loadMigrations(deliveryBakeryMigrationSource),
       ...await loadMigrations(mcpBakeryMigrationSource),
+      ...await loadMigrations(knowledgeBakeryMigrationSource),
     ];
     const before = await f.fixture.pgDatabase.query<{
       version: string;

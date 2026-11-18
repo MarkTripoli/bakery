@@ -33,6 +33,7 @@ import { artifactKindsBakeryMigrationSource } from "../../apps/server/src/module
 import { integrationsBakeryMigrationSource } from "../../apps/server/src/modules/integrations/migrations.ts";
 import { deliveryBakeryMigrationSource } from "../../apps/server/src/modules/delivery/migrations.ts";
 import { mcpBakeryMigrationSource } from "../../apps/server/src/modules/mcp/migrations.ts";
+import { knowledgeBakeryMigrationSource } from "../../apps/server/src/modules/knowledge/migrations.ts";
 import { migrateData } from "../../apps/server/src/platform/data-migrate.ts";
 import { PostgresAuthorityRunner } from "../../apps/server/src/modules/auth/adapters/authority-postgres.ts";
 import { createWorkTaskHandlers } from "../../apps/server/src/modules/work/index.ts";
@@ -135,6 +136,7 @@ Deno.test("provide the first authorized repository and immutable fixed execution
       ...await loadMigrations(integrationsBakeryMigrationSource),
       ...await loadMigrations(deliveryBakeryMigrationSource),
       ...await loadMigrations(mcpBakeryMigrationSource),
+      ...await loadMigrations(knowledgeBakeryMigrationSource),
     ]);
     await migrateData(owner, bakeryDataMigrations);
 

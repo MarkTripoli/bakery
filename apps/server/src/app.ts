@@ -7,6 +7,7 @@ import { createSkillStorageRoutes } from "./modules/catalog/skill-storage-action
 import { createAgentsRoutes } from "./modules/agents/index.ts";
 import { createRepositoryRulesRoutes } from "./modules/repository-rules/index.ts";
 import { createArtifactKindsRoutes } from "./modules/artifact-kinds/index.ts";
+import { createMemoryRoutes } from "./modules/knowledge/memory-routes.ts";
 import { createDeliveryRoutes } from "./modules/delivery/index.ts";
 import {
   createFetchGitHubAppClient,
@@ -636,6 +637,14 @@ export function createApp(options: {
   );
   app.route(
     "/",
+    createMemoryRoutes({
+      database: options.pgDatabase,
+      browserSession,
+      publicBaseUrl: options.config.publicBaseUrl,
+    }),
+  );
+  app.route(
+    "/",
     createDeliveryRoutes({
       database: options.pgDatabase,
       session: tokenSession,
@@ -677,6 +686,10 @@ export function createApp(options: {
       githubAppClient,
       broker: installationTokenBroker,
       cursorSecret: options.config.auth.secret,
+      // The one activated registry this process owns, bound above and handed to
+      // the invoke door. Every consumer now reads the same set of deployed
+      // providers instead of re-deriving one.
+      integrationRegistry,
     }),
   );
   app.route(

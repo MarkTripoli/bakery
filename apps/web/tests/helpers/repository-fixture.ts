@@ -69,7 +69,25 @@ export type Options = {
    * repository and its versions again to judge the result against it.
    */
   completionPublishes?: boolean;
+  /** The names (role bindings) of the application, of this and other repositories. */
+  names?: Name[];
+  /** What writing a name answers. */
+  nameWrite?: "conflict" | "down";
+  /** What testing a name finds. */
+  resolve?: "this" | "other" | "none" | "archived" | "ambiguous" | "foreign";
 };
+
+export type Name = {
+  id?: string;
+  role: string;
+  alias?: string | null;
+  note?: string | null;
+  /** The repository the name points at; this page's repository when absent. */
+  other?: boolean;
+  archived?: boolean;
+  version?: number;
+};
+export const OTHER_REPOSITORY_ID = uuid(251);
 
 export const CHECK_ID = uuid(700);
 export const JOB_ID = uuid(701);
@@ -202,6 +220,8 @@ export async function repositoryFixture(page: Page, options: Options = {}) {
     active: options.active ?? null as number | null,
     version: 1,
     archived: options.archived ?? false,
+    name: "api-service",
+    branch: null as string | null,
   };
   const checkState = {
     started: options.existingCheck === true,
@@ -211,13 +231,40 @@ export async function repositoryFixture(page: Page, options: Options = {}) {
     observed: null as number | null,
   };
   const observedRevision = () => checkState.observed ?? state.active ?? 1;
+  const nameRows = (options.names ?? []).map((name, index) => ({
+    id: name.id ?? uuid(5000 + index),
+    role: name.role,
+    alias: name.alias ?? null,
+    provenance: name.note ?? null,
+    repositoryId: name.other ? OTHER_REPOSITORY_ID : REPOSITORY_ID,
+    archivedAt: name.archived ? STAMP : null as string | null,
+    version: name.version ?? 1,
+  }));
+  const nameBody = (row: (typeof nameRows)[number]) => ({
+    ...row,
+    organizationId: MOCK_ORGANIZATION_ID,
+    applicationId: APPLICATION_ID,
+    repositorySlug: "api-service",
+  });
   const seen = {
     starts: [] as (string | null)[],
+    nameWrites: [] as {
+      method: string;
+      id: string | null;
+      ifMatch: string | null;
+      key: string | null;
+      body: Record<string, unknown>;
+    }[],
+    resolves: [] as Record<string, unknown>[],
     createdProfiles: [] as Record<string, unknown>[],
     createKeys: [] as (string | null)[],
     /** The If-Match each save over a version that carries rules was sent with. */
     createIfMatch: [] as (string | null)[],
-    updates: [] as { ifMatch: string | null; body: Record<string, unknown> }[],
+    updates: [] as {
+      ifMatch: string | null;
+      key: string | null;
+      body: Record<string, unknown>;
+    }[],
     profileReads: 0,
   };
   const profileBody = (profile: Profile) => ({
@@ -238,8 +285,8 @@ export async function repositoryFixture(page: Page, options: Options = {}) {
     integrationConnectionId: CONNECTION_ID,
     providerRepoId: "5001",
     owner: "acme",
-    name: "api-service",
-    defaultBranch: base,
+    name: state.name,
+    defaultBranch: state.branch ?? base,
     activeProfileId: state.active === null ? null : profileId(state.active),
     // The highest stored revision plus one: a hidden failed candidate holds one.
     nextProfileRevision: Math.max(0, ...profiles.map((item) => item.revision)) +
@@ -271,6 +318,7 @@ export async function repositoryFixture(page: Page, options: Options = {}) {
       const body = request.postDataJSON() as Record<string, unknown>;
       seen.updates.push({
         ifMatch: request.headers()["if-match"] ?? null,
+        key: request.headers()["idempotency-key"] ?? null,
         body,
       });
       // The server answers 412 to a stale version: the page must hold the
@@ -284,6 +332,11 @@ export async function repositoryFixture(page: Page, options: Options = {}) {
       }
       if (options.use === "down") {
         return route.fulfill(problem(500, "INTERNAL"));
+      }
+      if ("archivedAt" in body) state.archived = body.archivedAt !== null;
+      if (typeof body.name === "string") state.name = body.name;
+      if (typeof body.defaultBranch === "string") {
+        state.branch = body.defaultBranch;
       }
       const wanted = profiles.find((profile) =>
         profileId(profile.revision) === body.activeProfileId
@@ -592,6 +645,150 @@ export async function repositoryFixture(page: Page, options: Options = {}) {
         },
       }));
     },
+  );
+  await page.route(
+    (url) => url.pathname === `/v1/applications/${APPLICATION_ID}/roles`,
+    (route) => {
+      const request = route.request();
+      if (request.method() === "POST") {
+        const body = request.postDataJSON() as Record<string, unknown>;
+        seen.nameWrites.push({
+          method: "POST",
+          id: null,
+          ifMatch: null,
+          key: request.headers()["idempotency-key"] ?? null,
+          body,
+        });
+        if (options.nameWrite === "conflict") {
+          return route.fulfill(problem(409, "STATE_CONFLICT"));
+        }
+        if (options.nameWrite === "down") {
+          return route.fulfill(problem(500, "INTERNAL"));
+        }
+        const row = {
+          id: uuid(5500 + nameRows.length),
+          role: String(body.role),
+          alias: (body.alias as string | null) ?? null,
+          provenance: (body.provenance as string | null) ?? null,
+          repositoryId: String(body.repositoryId),
+          archivedAt: null as string | null,
+          version: 1,
+        };
+        nameRows.push(row);
+        return route.fulfill(json(nameBody(row), 201));
+      }
+      return route.fulfill(
+        json({ items: nameRows.map(nameBody), nextCursor: null }),
+      );
+    },
+  );
+  await page.route(
+    (url) =>
+      new RegExp(`^/v1/applications/${APPLICATION_ID}/roles/[0-9a-f-]{36}$`)
+        .test(
+          url.pathname,
+        ),
+    (route) => {
+      const request = route.request();
+      const id = new URL(request.url()).pathname.split("/").pop() ?? "";
+      const body = request.postDataJSON() as Record<string, unknown>;
+      seen.nameWrites.push({
+        method: request.method(),
+        id,
+        ifMatch: request.headers()["if-match"] ?? null,
+        key: request.headers()["idempotency-key"] ?? null,
+        body,
+      });
+      if (options.nameWrite === "conflict") {
+        return route.fulfill(problem(409, "STATE_CONFLICT"));
+      }
+      const row = nameRows.find((item) => item.id === id);
+      if (!row) return route.fulfill(problem(404, "NOT_FOUND"));
+      if (typeof body.role === "string") row.role = body.role;
+      if ("alias" in body) row.alias = (body.alias as string | null) ?? null;
+      if ("provenance" in body) {
+        row.provenance = (body.provenance as string | null) ?? null;
+      }
+      if ("archivedAt" in body) {
+        row.archivedAt = (body.archivedAt as string | null) ?? null;
+      }
+      row.version += 1;
+      return route.fulfill(json(nameBody(row)));
+    },
+  );
+  await page.route(
+    (url) =>
+      url.pathname === `/v1/applications/${APPLICATION_ID}/roles/resolve`,
+    (route) => {
+      seen.resolves.push(
+        route.request().postDataJSON() as Record<string, unknown>,
+      );
+      const mode = options.resolve ?? "this";
+      if (mode === "foreign") return route.fulfill(problem(404, "NOT_FOUND"));
+      if (mode === "none") {
+        return route.fulfill(
+          json({ status: "unavailable", reason: "no_matching_binding" }),
+        );
+      }
+      if (mode === "archived") {
+        return route.fulfill(
+          json({ status: "unavailable", reason: "repository_archived" }),
+        );
+      }
+      if (mode === "ambiguous") {
+        const candidate = (repositoryId: string, n: number) => ({
+          bindingId: uuid(6000 + n),
+          repositoryId,
+          role: "api",
+          alias: null,
+          provenance: null,
+          repositoryArchived: false,
+          profileRevision: null,
+          hasEligibleObservation: false,
+        });
+        return route.fulfill(json({
+          status: "ambiguous",
+          candidates: [
+            candidate(REPOSITORY_ID, 1),
+            candidate(OTHER_REPOSITORY_ID, 2),
+          ],
+          truncated: false,
+        }));
+      }
+      return route.fulfill(json({
+        status: "resolved",
+        binding: {
+          organizationId: MOCK_ORGANIZATION_ID,
+          applicationId: APPLICATION_ID,
+          repositoryId: mode === "other" ? OTHER_REPOSITORY_ID : REPOSITORY_ID,
+          repositoryProfileId: null,
+          repositoryProfileRevision: null,
+          repositoryProfileDigest: null,
+          observationId: null,
+          observationDigest: null,
+          baseSha: null,
+        },
+      }));
+    },
+  );
+  await page.route(
+    (url) => url.pathname === `/v1/repositories/${OTHER_REPOSITORY_ID}`,
+    (route) =>
+      route.fulfill(json({
+        id: OTHER_REPOSITORY_ID,
+        applicationId: APPLICATION_ID,
+        slug: "billing",
+        integrationConnectionId: CONNECTION_ID,
+        providerRepoId: "5002",
+        owner: "acme",
+        name: "billing",
+        defaultBranch: "main",
+        activeProfileId: null,
+        archivedAt: null,
+        createdAt: STAMP,
+        updatedAt: STAMP,
+        version: 1,
+      })),
   );
   return { seen, state, profiles };
 }

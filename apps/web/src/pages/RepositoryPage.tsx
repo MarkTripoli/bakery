@@ -24,10 +24,15 @@ import { useShellViewport } from "../app/responsive.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { PROJECTS_HOME, WORK_HOME } from "../shell/breadcrumb-paths.ts";
 import { ShellSlot } from "../shell/shell-slots.tsx";
-import { useCursorPages } from "./projects-onboarding/useCursorPages.ts";
+import { useCursorPages } from "../app/cursor-pages/useCursorPages.ts";
+import { NamesCard } from "./projects/NamesCard.tsx";
 import { ReadinessStep } from "./projects/ReadinessStep.tsx";
 import { useCheckView } from "./projects/use-check-view.ts";
 import { standingOf } from "./projects/check-state.ts";
+import { SupportDetails } from "./projects/SupportDetails.tsx";
+import { TestNameDialog } from "./projects/TestNameDialog.tsx";
+import { EditRepositoryDialog } from "./projects/EditRepositoryDialog.tsx";
+import { useArchiveRepository } from "./projects/use-archive-repository.ts";
 import { WorkingSettingsSheet } from "./projects/WorkingSettingsSheet.tsx";
 import {
   activeProfile,
@@ -106,6 +111,11 @@ export function RepositoryPage(
   }, [hasNext, loadingMore, moreError, loadMore]);
 
   const [sheet, setSheet] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [archiving, setArchiving] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [saved, setSaved] = useState(false);
   const opener = useRef<HTMLElement | null>(null);
   const openSheet = () => {
     opener.current = document.activeElement instanceof HTMLElement
@@ -119,6 +129,7 @@ export function RepositoryPage(
   };
 
   const current = repository.data;
+  const archiveChange = useArchiveRepository(current);
   const info = useCheckView(
     { id: repositoryId, applicationId: current?.applicationId ?? "" },
     checkId,
@@ -263,6 +274,83 @@ export function RepositoryPage(
       {translate("projects.repository.rules" as never)}
     </UI.Button>
   );
+  const moreMenu = (
+    <UI.Inline gap="compact" data-trailing-popover={phone ? "start" : ""}>
+      <UI.Popover
+        label={translate("projects.repository.moreNamed" as never, {
+          name: title,
+        })}
+        variant="interactive"
+        open={menuOpen}
+        onOpenChange={setMenuOpen}
+        triggerAppearance="toolbar"
+        trigger={
+          <>
+            {translate("projects.repository.more" as never)}
+            <UI.VisuallyHidden>
+              {translate("projects.repository.moreAbout" as never, {
+                name: title,
+              })}
+            </UI.VisuallyHidden>
+          </>
+        }
+      >
+        <UI.Menu
+          aria-label={translate("projects.repository.moreNamed" as never, {
+            name: title,
+          })}
+          items={[
+            ...(canManage && !archived
+              ? [{
+                id: "edit",
+                label: translate("projects.repository.edit.menu" as never),
+              }]
+              : []),
+            {
+              id: "test",
+              label: translate("projects.repository.test.menu" as never),
+            },
+            ...(canManage
+              ? [{
+                id: archived ? "restore" : "archive",
+                label: translate(
+                  (archived
+                    ? "projects.repository.restore"
+                    : "projects.repository.archive") as never,
+                ),
+              }]
+              : []),
+          ]}
+          onSelect={(id) => {
+            const trigger = document.querySelector<HTMLElement>(
+              '[data-testid="repository-page"] .ui-popover__trigger, .bakery-top-bar__actions .ui-popover__trigger',
+            );
+            setMenuOpen(false);
+            if (id === "edit") {
+              opener.current = trigger;
+              setSaved(false);
+              setEditing(true);
+            } else if (id === "test") {
+              opener.current = trigger;
+              setTesting(true);
+            } else if (id === "archive") {
+              opener.current = trigger;
+              archiveChange.clearFailure();
+              setArchiving(true);
+            } else if (id === "restore") {
+              void archiveChange.run(false);
+            }
+          }}
+        />
+      </UI.Popover>
+    </UI.Inline>
+  );
+  const actions = (
+    <UI.Inline gap="compact">
+      {rulesButton}
+      {moreMenu}
+    </UI.Inline>
+  );
   // The next action of the setup: at the end of the step's line, label-wide;
   // full width in the step's detail only on a phone.
   const choose = (
@@ -277,7 +365,7 @@ export function RepositoryPage(
   return (
     <>
       {breadcrumbs}
-      {!phone ? <ShellSlot name="actions">{rulesButton}</ShellSlot> : null}
+      {!phone ? <ShellSlot name="actions">{actions}</ShellSlot> : null}
       <UI.SettingsContent data-testid="repository-page" variant="wide">
         <UI.PageHeader
           variant="list"
@@ -323,13 +411,20 @@ export function RepositoryPage(
                 )}
             </UI.Stack>
           }
-          actions={phone ? rulesButton : null}
+          actions={phone ? actions : null}
         />
         <UI.Stack gap="spacious">
           {access.isSuccess && !canManage
             ? (
               <UI.InlineNotice tone="information">
                 {translate("projects.repository.adminOnly" as never)}
+              </UI.InlineNotice>
+            )
+            : null}
+          {saved
+            ? (
+              <UI.InlineNotice tone="success" role="status">
+                {translate("projects.repository.edit.saved" as never)}
               </UI.InlineNotice>
             )
             : null}
@@ -453,7 +548,105 @@ export function RepositoryPage(
                 : "projects.repository.setup.footnote") as never,
             )}
           </UI.Text>
+          <NamesCard repository={current} canManage={canManage} />
+          <SupportDetails
+            repository={current}
+            active={active}
+            checkId={checkId}
+          />
         </UI.Stack>
+        {testing
+          ? (
+            <TestNameDialog
+              repository={current}
+              onClose={() => {
+                setTesting(false);
+                focusAfterPaint(() => opener.current);
+              }}
+            />
+          )
+          : null}
+        {editing
+          ? (
+            <EditRepositoryDialog
+              repository={current}
+              onClose={() => {
+                setEditing(false);
+                focusAfterPaint(() => opener.current);
+              }}
+              onSaved={() => {
+                setEditing(false);
+                setSaved(true);
+                focusAfterPaint(() => opener.current);
+              }}
+            />
+          )
+          : null}
+        {archiving
+          ? (
+            <UI.AlertDialog
+              open
+              onOpenChange={(open) => {
+                if (!open) {
+                  setArchiving(false);
+                  focusAfterPaint(() => opener.current);
+                }
+              }}
+              state={archiveChange.pending ? "confirming" : "open"}
+              title={translate(
+                "projects.repository.archiveDialog.title" as never,
+                {
+                  name: title,
+                },
+              )}
+              cancelAction={
+                <UI.Button
+                  variant="secondary"
+                  onClick={() => {
+                    setArchiving(false);
+                    focusAfterPaint(() => opener.current);
+                  }}
+                >
+                  {translate("core.actions.cancel" as never)}
+                </UI.Button>
+              }
+              confirmAction={
+                <UI.Button
+                  variant="primary"
+                  disabled={archiveChange.pending}
+                  onClick={() =>
+                    void archiveChange.run(true).then((done) => {
+                      if (done) setArchiving(false);
+                    })}
+                >
+                  {translate(
+                    "projects.repository.archiveDialog.confirm" as never,
+                  )}
+                </UI.Button>
+              }
+            >
+              <UI.Stack gap="compact">
+                <UI.Text>
+                  {translate("projects.repository.archiveDialog.body" as never)}
+                </UI.Text>
+                <UI.Text variant="muted">
+                  {translate(
+                    "projects.repository.archiveDialog.restore" as never,
+                  )}
+                </UI.Text>
+                {archiveChange.failure !== null
+                  ? (
+                    <UI.InlineNotice tone="error">
+                      {translate(
+                        `projects.list.failure.${archiveChange.failure}` as never,
+                      )}
+                    </UI.InlineNotice>
+                  )
+                  : null}
+              </UI.Stack>
+            </UI.AlertDialog>
+          )
+          : null}
         {sheet
           ? (
             <WorkingSettingsSheet

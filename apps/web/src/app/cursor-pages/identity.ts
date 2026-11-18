@@ -1,36 +1,5 @@
 export type Identified = Readonly<{ id: string }>;
 
-export type ProjectsOnboardingSelection = Readonly<{
-  application?: string;
-  repository?: string;
-  profile?: string;
-}>;
-
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-export function validatedProjectsOnboardingSelection(
-  value: Readonly<Record<string, unknown>>,
-): ProjectsOnboardingSelection {
-  const application = typeof value.application === "string" &&
-      UUID_PATTERN.test(value.application)
-    ? value.application
-    : undefined;
-  const repository = typeof value.repository === "string" &&
-      UUID_PATTERN.test(value.repository)
-    ? value.repository
-    : undefined;
-  const profile = typeof value.profile === "string" &&
-      UUID_PATTERN.test(value.profile)
-    ? value.profile
-    : undefined;
-  return {
-    ...(application === undefined ? {} : { application }),
-    ...(repository === undefined ? {} : { repository }),
-    ...(profile === undefined ? {} : { profile }),
-  };
-}
-
 export function mergeCursorItems<Item extends Identified>(
   pages: readonly (readonly Item[])[],
 ): readonly Item[] {

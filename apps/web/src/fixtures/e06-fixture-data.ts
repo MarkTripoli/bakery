@@ -551,7 +551,7 @@ export type FixtureWorld = Readonly<{
   onboarding?: boolean;
 }>;
 
-/** Paper 2JSH-0 / 2K4U-0 projects-onboarding sample (read only). */
+/** Projects sample for the E06 fixtures (read only). */
 export const WAREHOUSE_APPLICATION_ID = "00000000-0000-4000-8000-000000000044";
 export const ONBOARDING_INSPECTION_ID = "00000000-0000-4000-8000-000000000801";
 const ONBOARDING_JOB_ID = "00000000-0000-4000-8000-000000000802";
