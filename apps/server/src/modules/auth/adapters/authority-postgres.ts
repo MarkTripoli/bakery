@@ -14,7 +14,7 @@ import {
   OrganizationContextPolicy,
   type OrganizationId,
   organizationId as toOrganizationId,
-  type OrganizationRole,
+  OrganizationRole,
   type PrincipalId,
   principalId as toPrincipalId,
   PrincipalType,
@@ -391,6 +391,44 @@ function authorizeWithBindings(
   })();
 }
 
+/**
+ * Read-state changes on the caller's OWN inbox. Every one of these handlers
+ * scopes to recipient = the authenticated principal and never accepts a
+ * recipient from the request, so a member whose role lacks
+ * notification:write (a Viewer) may still mark their own items read or
+ * unread. This is a principal-equals-recipient rule, not a role grant: it
+ * reaches no other action and no other person's notifications.
+ */
+const OWN_INBOX_WRITE_ACTIONS: ReadonlySet<string> = new Set([
+  "notifications.setRead",
+  "notifications.markAllRead",
+  "notifications.undoMarkAllRead",
+]);
+
+function authorizeOwnInboxWrite(
+  action: ActionDefinition,
+  actor: OrganizationActor,
+  denied: unknown,
+): OrganizationActor {
+  if (
+    !OWN_INBOX_WRITE_ACTIONS.has(action.name) ||
+    actor.subject.principalType !== PrincipalType.Human ||
+    actor.role === undefined ||
+    (actor.role === OrganizationRole.Guest && actor.customRole === undefined)
+  ) throw denied;
+  const permission = permissionForAction(action.name as CatalogActionName);
+  if (
+    actor.tokenScopes !== undefined &&
+    !scopeAllows(permission, actor.tokenScopes)
+  ) {
+    throw new StandardError({
+      code: "INSUFFICIENT_SCOPE",
+      params: { requiredScopes: minimalScopes(permission) },
+    });
+  }
+  return actor;
+}
+
 export async function resolveOrganizationActor(
   transaction: PgTransactionClient,
   principalId: PrincipalId,
@@ -550,7 +588,7 @@ export class PostgresAuthorityRunner implements ActionAuthorityRunner {
                 id: context.params.id,
                 input,
               }),
-          );
+          ).catch((denied) => authorizeOwnInboxWrite(action, actor, denied));
           subject = permitted.subject;
           authority = permitted;
         } else {
