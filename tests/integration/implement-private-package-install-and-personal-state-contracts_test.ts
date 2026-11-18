@@ -74,6 +74,50 @@ function memoryStore(): SkillObjectStore & {
   };
 }
 
+/**
+ * Removes the colleagues a test signed up, without touching the organization.
+ *
+ * The bootstrap check requires exactly one user and one principal in the
+ * installation, so a colleague left behind does not fail the test that created
+ * it; it fails every test after it with AUTH_BOOTSTRAP_CONFLICT. Deleting the
+ * organization instead would destroy the fixture's own organization, which is
+ * why this removes the dependent rows and then the principal and user, and
+ * leaves the organization standing.
+ */
+async function removeColleagues(pgDatabase: Fixture["pgDatabase"]) {
+  const users = await pgDatabase.query<{ id: string }>(
+    `select id from public."user"
+      where email like 'plugin-colleague-%@example.test'
+         or email like 'prefs-colleague-%@example.test'`,
+  );
+  const userIds = users.rows.map(({ id }) => id);
+  if (userIds.length === 0) return;
+  const principals = `
+    select id from bakery.principals where provider_user_id = any($1::uuid[])`;
+  await pgDatabase.query(
+    `delete from bakery.organization_memberships where principal_id in (${principals})`,
+    [userIds],
+  );
+  // Rows that name the principal and do not cascade: every request these tests
+  // made as the colleague left an idempotency record.
+  await pgDatabase.query(
+    `delete from bakery.idempotency_records where principal_id in (${principals})`,
+    [userIds],
+  );
+  await pgDatabase.query(
+    `delete from bakery.user_preferences where principal_id in (${principals})`,
+    [userIds],
+  );
+  await pgDatabase.query(
+    `delete from bakery.principals where provider_user_id = any($1::uuid[])`,
+    [userIds],
+  );
+  await pgDatabase.query(
+    `delete from public."user" where id = any($1::uuid[])`,
+    [userIds],
+  );
+}
+
 const withPluginFixture = (
   run: (
     fixture: Fixture,
@@ -81,7 +125,13 @@ const withPluginFixture = (
   ) => Promise<void>,
 ) => {
   const store = memoryStore();
-  return withWorkerFixture((fixture) => run(fixture, store), {
+  return withWorkerFixture(async (fixture) => {
+    try {
+      await run(fixture, store);
+    } finally {
+      await removeColleagues(fixture.pgDatabase);
+    }
+  }, {
     skillFileStore: store,
   });
 };

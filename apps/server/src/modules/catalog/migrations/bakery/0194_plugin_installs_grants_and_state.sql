@@ -47,12 +47,17 @@ create table bakery.plugin_installs (
   constraint plugin_installs_organization_fk
     foreign key (organization_id)
     references bakery.organizations (id) on delete cascade,
-  -- The pair is the real reference: a version of another package cannot be
-  -- named here at all.
+  -- The trio is the real reference: a version of another package cannot be
+  -- named here at all. Deleting the version cascades rather than restricting,
+  -- because a version is removed only by removing its package, and an install
+  -- of a package that no longer exists would be an install with nothing to run.
+  -- Cascade also keeps two paths from racing: the organization cascade and a
+  -- restrict to a version can meet in whichever order the planner chooses, and
+  -- the restrict then fails on a delete that should have succeeded.
   constraint plugin_installs_package_version_fk
     foreign key (organization_id, plugin_package_id, plugin_version_id)
     references bakery.plugin_versions (organization_id, plugin_package_id, id)
-    on delete restrict,
+    on delete cascade,
   constraint plugin_installs_owner_fk
     foreign key (owner_principal_id)
     references bakery.principals (id) on delete cascade,

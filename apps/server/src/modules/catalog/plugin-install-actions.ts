@@ -17,7 +17,11 @@ import {
   ActionAccess,
   contractSchemas,
   OrganizationContextPolicy,
+  OrganizationRole,
 } from "@bakery/contracts/contracts";
+import { StandardError } from "@bakery/contracts/http";
+import { isOrganizationMember } from "../auth/application/authorize.ts";
+import type { OrganizationActor } from "../auth/application/authority.ts";
 import { PostgresAuthorityRunner } from "../auth/adapters/authority-postgres.ts";
 import { createPostgresCommandRunner } from "../../platform/command-replay.ts";
 import type { PgDatabase } from "../../platform/database.ts";
@@ -90,6 +94,70 @@ export function createPluginInstallActionRegistry(
     organizationContext: OrganizationContextPolicy,
   ): ActionPolicy => ({ access, type, organizationContext });
   const memberContext = OrganizationContextPolicy.RequiredAuthenticatedContext;
+  /**
+   * The actor the authority runner resolved for this request.
+   *
+   * The runner has already refused a caller with no live membership, so this is
+   * a narrowing cast rather than a second authorization.
+   */
+  const actorOf = (context: ActionContext): OrganizationActor => {
+    if (
+      !("authority" in context) ||
+      typeof context.authority !== "object" ||
+      context.authority === null ||
+      !("organizationId" in context.authority)
+    ) {
+      throw new StandardError({ code: "AUTH_FORBIDDEN" });
+    }
+    return context.authority as OrganizationActor;
+  };
+
+  /**
+   * What "Developer for personal; Admin for organization" means in code.
+   *
+   * The framework derives one permission floor per access string, so the floor
+   * here is Developer and this guard carries the finer rule: an install that
+   * affects everybody needs Admin, and one that affects only its owner needs
+   * nothing beyond membership. The guard receives the parsed input, which is why
+   * it can look at the requested scope at all; the handler repeats the check
+   * because a handler can later be reached by another route, and one indexed
+   * read is a cheap second lock on a door that matters.
+   */
+  const requireInstallAuthority = (
+    context: ActionContext,
+    input: unknown,
+  ): void => {
+    const actor = actorOf(context);
+    if (!isOrganizationMember(actor) && actor.role !== OrganizationRole.Admin) {
+      throw new StandardError({ code: "AUTH_FORBIDDEN" });
+    }
+    const scope = (input as { scope?: unknown } | undefined)?.scope;
+    if (scope !== "organization") return;
+    if (actor.role !== OrganizationRole.Admin) {
+      throw new StandardError({ code: "AUTH_FORBIDDEN" });
+    }
+  };
+
+  /**
+   * An update's scope is not in the body: it is the scope of the row the path
+   * names. A personal install may be changed only by its owner, a shared one only
+   * by an Admin, so the row decides and the handler applies it.
+   */
+  const requireUpdateAuthority = (context: ActionContext): void => {
+    const actor = actorOf(context);
+    if (!isOrganizationMember(actor) && actor.role !== OrganizationRole.Admin) {
+      throw new StandardError({ code: "AUTH_FORBIDDEN" });
+    }
+  };
+
+  /** Any member may read an install or its state; the row decides whose it is. */
+  const requireMember = (context: ActionContext): void => {
+    const actor = actorOf(context);
+    if (!isOrganizationMember(actor)) {
+      throw new StandardError({ code: "AUTH_FORBIDDEN" });
+    }
+  };
+
   const queryPolicy = policy(
     ActionAccess.Developer,
     ActionKind.Query,
@@ -114,11 +182,14 @@ export function createPluginInstallActionRegistry(
     path: "/v1/plugin-installs",
     input: contractSchemas.PluginInstallCreate,
     output: contractSchemas.PluginInstall,
-    policy: policy(
-      "Developer for personal; Admin for organization",
-      ActionKind.Command,
-      memberContext,
-    ),
+    policy: {
+      ...policy(
+        "Developer for personal; Admin for organization",
+        ActionKind.Command,
+        memberContext,
+      ),
+      authorize: requireInstallAuthority,
+    },
     explicitIdempotency: "key",
     handler: handlers.createInstall,
   });
@@ -128,7 +199,10 @@ export function createPluginInstallActionRegistry(
     path: "/v1/plugin-installs/:id",
     input: contractSchemas.IdPath,
     output: contractSchemas.PluginInstall,
-    policy: policy("Authorized owner/member", ActionKind.Query, memberContext),
+    policy: {
+      ...policy("Authorized owner/member", ActionKind.Query, memberContext),
+      authorize: requireMember,
+    },
     handler: handlers.getInstall,
   });
   registry.register({
@@ -137,11 +211,14 @@ export function createPluginInstallActionRegistry(
     path: "/v1/plugin-installs/:id",
     input: contractSchemas.PluginInstallUpdate,
     output: contractSchemas.PluginInstall,
-    policy: policy(
-      "Owner for personal; Admin for organization",
-      ActionKind.Command,
-      memberContext,
-    ),
+    policy: {
+      ...policy(
+        "Owner for personal; Admin for organization",
+        ActionKind.Command,
+        memberContext,
+      ),
+      authorize: requireUpdateAuthority,
+    },
     explicitIdempotency: "key",
     handler: handlers.updateInstall,
   });
@@ -151,7 +228,10 @@ export function createPluginInstallActionRegistry(
     path: "/v1/plugin-installs/:id/state",
     input: contractSchemas.CursorQuery,
     output: contractSchemas["Page<PluginState>"],
-    policy: policy("Authorized owner/member", ActionKind.Query, memberContext),
+    policy: {
+      ...policy("Authorized owner/member", ActionKind.Query, memberContext),
+      authorize: requireMember,
+    },
     transactionIsolation: TransactionIsolation.RepeatableRead,
     handler: handlers.getState,
   });
@@ -164,11 +244,14 @@ export function createPluginInstallActionRegistry(
     path: "/v1/plugin-installs/:id/state/:namespace/:key",
     input: contractSchemas.PluginStatePut,
     output: contractSchemas.PluginState,
-    policy: policy(
-      "Authorized owner/member+install grant",
-      ActionKind.Command,
-      memberContext,
-    ),
+    policy: {
+      ...policy(
+        "Authorized owner/member+install grant",
+        ActionKind.Command,
+        memberContext,
+      ),
+      authorize: requireMember,
+    },
     explicitIdempotency: "key",
     handler: handlers.putState,
   });
