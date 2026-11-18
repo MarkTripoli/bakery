@@ -3,6 +3,7 @@ import {
   parseLaneStacks,
   sweepLaneStacks,
 } from "./ci/lane-stacks.ts";
+import { allowRunFlags } from "./ci/lane-allow-run.ts";
 import {
   ISOLATED_HOME_LANES,
   isolatedLaneEnvironment,
@@ -74,39 +75,31 @@ const permissions = lane === "native" ? ["--allow-all"] : [
   ...(lane === "unit"
     ? [
       "--allow-write",
-      // The server's fixed launchers (infra/server-exec) are how its git and
-      // systemd calls run; the unit tests exercise them through the real
-      // spawn path, so the lane names them exactly.
-      // `Deno.execPath()` is here for the type-level probes: a few guarantees are
-      // about what the compiler REJECTS, and the only honest way to assert that is to
-      // compile a snippet. Without it those probes cannot run in this lane, and a
-      // type guarantee that is not asserted is a comment.
-      `--allow-run=zip,unzip,node,git,/usr/bin/git,/usr/bin/stat,/usr/bin/prlimit,/usr/bin/setsid,/usr/bin/kill,${
-        serverLauncher("git.sh")
-      },${serverLauncher("draft-systemd.sh")},${Deno.execPath()}`,
     ]
     : []),
-  // Provider conformance runs fixtures only: no bare --allow-run and no
-  // --allow-net, so a stray host binary or network call fails the lane.
+  // What each lane may spawn is decided in scripts/ci/lane-allow-run.ts, where
+  // a test pins every list (#259).
+  ...allowRunFlags(lane, {
+    execPath: Deno.execPath(),
+    serverLauncher,
+    providerRealCli:
+      (Deno.env.get("BAKERY_PROVIDER_REAL_CLI") ?? "").trim().length > 0,
+  }),
+  // Provider conformance runs fixtures only: no --allow-net, so a stray network
+  // call fails the lane.
   ...(lane === "provider"
     ? [
       `--allow-write=${temporaryDirectory}`,
-      "--allow-run=git,/usr/bin/git,/usr/bin/setsid,/usr/bin/kill",
       "--allow-sys=uid",
     ]
     : []),
   // Owner opt-in only (BAKERY_PROVIDER_REAL_CLI): a real harness CLI needs to
-  // be spawned and to reach its model provider. CI never sets the variable.
+  // reach its model provider. CI never sets the variable.
   ...(lane === "provider" &&
       (Deno.env.get("BAKERY_PROVIDER_REAL_CLI") ?? "").trim().length > 0
-    ? ["--allow-run", "--allow-net"]
+    ? ["--allow-net"]
     : []),
-  ...(lane === "contract"
-    ? [
-      `--allow-write=${temporaryDirectory}`,
-      `--allow-run=${Deno.execPath()},bash`,
-    ]
-    : []),
+  ...(lane === "contract" ? [`--allow-write=${temporaryDirectory}`] : []),
   ...(lane === "recovery" ? ["--allow-write"] : lane === "e2e"
     // The e2e lane writes per-conversation scripts for the scripted coordinator.
     ? [
@@ -123,10 +116,6 @@ const permissions = lane === "native" ? ["--allow-all"] : [
     ? ["--allow-sys=uid,statfs"]
     : lane === "r2"
     ? ["--allow-sys=uid,osRelease"]
-    : []),
-  ...(lane === "rails" || lane === "integration" || lane === "recovery" ||
-      lane === "security" || lane === "e2e" || lane === "connected"
-    ? ["--allow-run"]
     : []),
   ...(lane === "contract" || lane === "integration" || lane === "recovery" ||
       lane === "security" || lane === "e2e" || lane === "connected" ||
