@@ -1,9 +1,28 @@
-import { expect, type Page, type Route, test } from "@playwright/test";
+import {
+  expect,
+  type Locator,
+  type Page,
+  type Route,
+  test,
+} from "@playwright/test";
 import {
   MOCK_ORGANIZATION_ID,
   mockAuthenticatedSession,
 } from "./helpers/mock-session.ts";
 import { shot } from "./helpers/real-api.ts";
+
+/** Opens an area's closed row if it is closed, then ticks one permission in it. */
+async function choosePermission(
+  panel: Locator,
+  area: string,
+  permission: string,
+) {
+  const row = panel.getByTestId(`permission-area-${area}`);
+  if ((await row.getAttribute("data-state")) !== "open") {
+    await row.locator("summary").click();
+  }
+  await row.getByLabel(permission).check();
+}
 
 const MEMBER_ID = "00000000-0000-4000-8000-0000000000a1";
 const OTHER_ID = "00000000-0000-4000-8000-0000000000a2";
@@ -226,7 +245,7 @@ for (
       ).toBe(true);
       await panel.getByLabel("Role name").fill("Auditors");
       await panel.getByLabel("Role key").fill("auditors");
-      await panel.getByLabel("principal:read").check();
+      await choosePermission(panel, "access", "principal:read");
       await panel.getByRole("button", { name: "Save role" }).click();
       await expect(panel.getByText("Role saved.")).toBeVisible();
       expect(state.writes[0]).toMatchObject({
@@ -340,7 +359,7 @@ for (
       await panel.getByRole("button", { name: "Create custom role" }).click();
       await panel.getByLabel("Role name").fill("Auditors");
       await panel.getByLabel("Role key").fill("auditors");
-      await panel.getByLabel("principal:read").check();
+      await choosePermission(panel, "access", "principal:read");
       await panel.getByRole("button", { name: "Save role" }).click();
       const notice = panel.locator('[data-ui-component="inlineNotice"]');
       await expect(notice).toContainText("Role saved.");
@@ -350,23 +369,75 @@ for (
       await expect(panel.getByText("Role saved.")).toHaveCount(0);
     });
 
-    test("permissions are grouped under named areas, each with a sentence", async ({ page }) => {
+    test("permissions sit in closed areas with a count, each permission one line with its key", async ({ page }) => {
       await rolesFixture(page);
       await page.goto("/settings/organization/roles");
       const panel = page.getByTestId("custom-roles");
       await panel.getByRole("button", { name: "Create custom role" }).click();
+      // The empty card does not sit above the form it contradicts.
+      await expect(panel.getByText("No custom roles yet")).toHaveCount(0);
       const access = panel.getByTestId("permission-area-access");
+      await expect(access).toHaveAttribute("data-state", "closed");
       await expect(access).toContainText("Members and access");
+      await expect(access).toContainText(/0 of \d+ chosen/);
+      // Every area starts closed on a new role.
+      const areas = panel.locator("[data-testid^='permission-area-']");
+      for (let index = 0; index < (await areas.count()); index += 1) {
+        await expect(areas.nth(index)).toHaveAttribute("data-state", "closed");
+      }
+      await access.locator("summary").click();
       await expect(access.getByLabel("principal:read")).toBeVisible();
-      await expect(access).toContainText("See members and service accounts");
+      // The sentence and the key share one line.
+      const label = access.locator("label").filter({
+        hasText: "principal:read",
+      })
+        .first();
+      await expect(label).toContainText("See members and service accounts");
+      const lineHeight = await label.evaluate((element) =>
+        element.getBoundingClientRect().height
+      );
+      // A phone may wrap a long sentence; a wide screen keeps it on one line.
+      if (viewport.name === "desktop") expect(lineHeight).toBeLessThan(48);
+      // Choose all / Clear change the count.
+      await access.getByRole("button", { name: "Choose all" }).click();
+      await expect(access).not.toContainText("0 of");
+      await expect(access.getByLabel("principal:read")).toBeChecked();
+      await access.getByRole("button", { name: "Clear" }).click();
+      await expect(access).toContainText(/^.*0 of \d+ chosen/);
+      await panel.getByTestId("permission-area-work").locator("summary")
+        .click();
       await expect(panel.getByTestId("permission-area-work")).toContainText(
         "Start, stop and steer runs",
       );
-      // Every permission has a sentence; none shows only its key.
-      expect(
-        await panel.locator("[data-testid^='permission-area-'] label").count(),
-      ).toBeGreaterThan(150);
-      await shot(page, "custom-roles-form");
+      // Reworded nouns: no system words.
+      await panel.getByTestId("permission-area-automation").locator("summary")
+        .click();
+      await expect(panel.getByTestId("permission-area-automation"))
+        .toContainText("what agents are allowed to use");
+      await shot(page, "custom-roles-form-closed");
+      await access.locator("summary").click();
+      await shot(page, "custom-roles-form-area-open");
+    });
+
+    test("saving with nothing chosen opens the areas; editing opens the ones with a choice", async ({ page }) => {
+      await rolesFixture(page, { roles: [existing()] });
+      await page.goto("/settings/organization/roles");
+      const panel = page.getByTestId("custom-roles");
+      await page.getByTestId("custom-role-auditors").getByRole("button", {
+        name: "Edit Auditors",
+      }).click();
+      // principal:read is chosen, so its area opens; the others stay closed.
+      await expect(panel.getByTestId("permission-area-access")).toHaveAttribute(
+        "data-state",
+        "open",
+      );
+      await expect(panel.getByTestId("permission-area-work")).toHaveAttribute(
+        "data-state",
+        "closed",
+      );
+      await expect(panel.getByTestId("permission-area-access")).toContainText(
+        /1 of \d+ chosen/,
+      );
     });
 
     test("a role with members cannot be deleted and says why", async ({ page }) => {
@@ -379,6 +450,12 @@ for (
       await expect(row).toContainText(
         "Remove its 2 members first to delete this role.",
       );
+      // The hint belongs to the Delete button, and the member list has its own label.
+      await expect(row.getByRole("button", { name: "Delete" }))
+        .toHaveAccessibleDescription(
+          "Remove its 2 members first to delete this role.",
+        );
+      await expect(row.getByText("Members with this role")).toBeVisible();
       await shot(page, "custom-roles-with-members");
     });
 
@@ -389,7 +466,7 @@ for (
       await panel.getByRole("button", { name: "Create custom role" }).click();
       await panel.getByLabel("Role name").fill("Too much");
       await panel.getByLabel("Role key").fill("too-much");
-      await panel.getByLabel("principal:read").check();
+      await choosePermission(panel, "access", "principal:read");
       state.refuseNextWrite = { status: 403, code: "AUTH_FORBIDDEN" };
       await panel.getByRole("button", { name: "Save role" }).click();
       await expect(

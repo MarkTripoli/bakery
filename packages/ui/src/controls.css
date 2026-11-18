@@ -724,6 +724,13 @@ input.ui-password-input__field {
   padding: var(--space-0);
 }
 
+/* A key inside a checkbox label trails the sentence on the same line, muted. */
+.ui-checkbox .ui-data-text {
+  color: var(--color-fg-muted);
+  inline-size: auto;
+  margin-inline-start: var(--space-2);
+}
+
 /* Disclosure: a text control with a chevron, and its facts beneath when open. */
 .ui-disclosure__summary {
   align-items: center;

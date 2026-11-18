@@ -46,6 +46,10 @@
   flex-wrap: wrap;
   gap: var(--space-2);
 }
+/* A page action reads as one line; the description beside it yields instead. */
+.ui-access-settings__actions .ui-button {
+  white-space: nowrap;
+}
 .ui-access-settings .ui-button--primary {
   box-sizing: border-box;
   min-block-size: 36px;

@@ -127,6 +127,8 @@ export function CustomRolesPanel({ organizationId }: {
   >(null);
   const [invalid, setInvalid] = useState(false);
   const [deleting, setDeleting] = useState<OrganizationRoleItem | null>(null);
+  /** Changes each time the form opens, so every area picks its open state afresh. */
+  const [editorKey, setEditorKey] = useState(0);
   const intent = useIdempotentIntent();
 
   const inFlight = useRef(false);
@@ -154,6 +156,7 @@ export function CustomRolesPanel({ organizationId }: {
   };
 
   const open = (next: Editor) => {
+    setEditorKey((current) => current + 1);
     setNotice(null);
     setInvalid(false);
     setEditor(next);
@@ -294,7 +297,9 @@ export function CustomRolesPanel({ organizationId }: {
           </UI.AlertBanner>
         )
         : undefined}
-      state={roles.isSuccess && items.length === 0 ? "empty" : "default"}
+      state={roles.isSuccess && items.length === 0 && editor === null
+        ? "empty"
+        : "default"}
       status={{
         testId: "custom-roles-empty",
         title: translate("settings.roles.empty.title"),
@@ -352,20 +357,44 @@ export function CustomRolesPanel({ organizationId }: {
                         <UI.DataText>{role.key}</UI.DataText>
                       </>
                     }
-                    metadata={translate("settings.roles.summary", {
-                      permissions: role.permissions.length,
-                      members: role.memberCount,
-                    })}
+                    metadata={
+                      <UI.Stack gap="tight">
+                        <span>
+                          {translate("settings.roles.summary", {
+                            permissions: role.permissions.length,
+                            members: role.memberCount,
+                          })}
+                        </span>
+                        {role.memberCount > 0
+                          ? (
+                            <UI.Text
+                              id={`delete-blocked-${role.id}`}
+                              variant="hint"
+                            >
+                              {translate("settings.roles.delete.blocked", {
+                                count: role.memberCount,
+                              })}
+                            </UI.Text>
+                          )
+                          : null}
+                      </UI.Stack>
+                    }
                     actions={
                       <UI.Inline gap="compact">
                         <UI.Button
+                          aria-label={translate("settings.roles.editRole", {
+                            role: role.name,
+                          })}
                           variant="secondary"
                           disabled={busy}
                           onClick={() => open({ mode: "edit", role })}
                         >
-                          {translate("settings.roles.edit")}
+                          {translate("settings.roles.editAction")}
                         </UI.Button>
                         <UI.Button
+                          aria-describedby={role.memberCount > 0
+                            ? `delete-blocked-${role.id}`
+                            : undefined}
                           variant="destructive"
                           disabled={busy || role.memberCount > 0}
                           onClick={() => setDeleting(role)}
@@ -375,12 +404,10 @@ export function CustomRolesPanel({ organizationId }: {
                       </UI.Inline>
                     }
                   />
-                  {role.memberCount > 0
+                  {holders.length > 0
                     ? (
-                      <UI.Text variant="hint">
-                        {translate("settings.roles.delete.blocked", {
-                          count: role.memberCount,
-                        })}
+                      <UI.Text variant="strong">
+                        {translate("settings.roles.members.label")}
                       </UI.Text>
                     )
                     : null}
@@ -529,31 +556,78 @@ export function CustomRolesPanel({ organizationId }: {
                     </UI.Text>
                   )
                   : null}
-                {PERMISSION_AREA_GROUPS.map(([area, keys]) => (
-                  <fieldset key={area} data-testid={`permission-area-${area}`}>
-                    <legend>
-                      {translate(`settings.roles.area.${area}`)}
-                    </legend>
-                    <UI.Stack gap="compact">
-                      {keys.map((permission) => (
-                        <UI.Checkbox
-                          key={permission}
-                          checked={selected.has(permission)}
-                          onChange={(event) =>
-                            setSelected((current) => {
-                              const next = new Set(current);
-                              if (event.target.checked) next.add(permission);
-                              else next.delete(permission);
-                              return next;
-                            })}
-                        >
-                          {sentence(permission)}{" "}
-                          <UI.DataText>{permission}</UI.DataText>
-                        </UI.Checkbox>
-                      ))}
-                    </UI.Stack>
-                  </fieldset>
-                ))}
+                {PERMISSION_AREA_GROUPS.map(([area, keys]) => {
+                  const chosen = keys.filter((key) => selected.has(key)).length;
+                  const needsChoice = invalid && selected.size === 0;
+                  return (
+                    <UI.Disclosure
+                      key={`${editorKey}-${area}-${needsChoice}`}
+                      data-testid={`permission-area-${area}`}
+                      defaultOpen={chosen > 0 || needsChoice}
+                      summary={
+                        <span>
+                          {translate(`settings.roles.area.${area}`)} ·{" "}
+                          {translate("settings.roles.area.chosen", {
+                            chosen,
+                            total: keys.length,
+                          })}
+                        </span>
+                      }
+                    >
+                      <fieldset
+                        aria-label={translate(`settings.roles.area.${area}`)}
+                      >
+                        <UI.Stack gap="compact">
+                          <UI.Inline gap="compact">
+                            <UI.Button
+                              type="button"
+                              variant="quiet"
+                              onClick={() =>
+                                setSelected((current) =>
+                                  new Set([...current, ...keys])
+                                )}
+                            >
+                              {translate("settings.roles.area.chooseAll")}
+                            </UI.Button>
+                            <UI.Button
+                              type="button"
+                              variant="quiet"
+                              onClick={() =>
+                                setSelected((current) =>
+                                  new Set(
+                                    [...current].filter((key) =>
+                                      !keys.includes(key)
+                                    ),
+                                  )
+                                )}
+                            >
+                              {translate("settings.roles.area.clear")}
+                            </UI.Button>
+                          </UI.Inline>
+                          {keys.map((permission) => (
+                            <UI.Checkbox
+                              key={permission}
+                              checked={selected.has(permission)}
+                              onChange={(event) =>
+                                setSelected((current) => {
+                                  const next = new Set(current);
+                                  if (event.target.checked) {
+                                    next.add(permission);
+                                  } else next.delete(permission);
+                                  return next;
+                                })}
+                            >
+                              {sentence(permission)}{" "}
+                              <UI.DataText translate="no" variant="code">
+                                {permission}
+                              </UI.DataText>
+                            </UI.Checkbox>
+                          ))}
+                        </UI.Stack>
+                      </fieldset>
+                    </UI.Disclosure>
+                  );
+                })}
               </fieldset>
               <UI.Inline gap="compact">
                 <UI.Button type="submit" loading={busy}>
