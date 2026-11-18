@@ -66,24 +66,84 @@ function graphqlDocumentOf(template: {
   return template.graphqlQuery ?? null;
 }
 
-/** A document may open with a query or an anonymous selection, nothing else. */
-const GRAPHQL_OPERATION = /^\s*(?:query\b|\{)/;
 /**
- * A mutation anywhere in the document blocks a read. Anchoring this at the
- * start would let `query Q { a } mutation M { ... }` through, and a document
- * chains operations, so the keyword is searched for at any depth.
+ * Removes everything in a document that is not structure: comments (`#` to end
+ * of line), string and block-string literals, and commas.
+ *
+ * Commas are insignificant whitespace in GraphQL, so `},mutation` chains a
+ * second operation on the same line. A regex that requires whitespace before
+ * the keyword therefore reads `query Q { a },mutation M { b }` as a query.
+ * A field or argument may also contain the word `mutation` inside a string,
+ * which must not count.
  */
-const GRAPHQL_MUTATION = /(?:^|[}\s])mutation\b/;
+function graphqlStructure(document: string): string {
+  let out = "";
+  let index = 0;
+  while (index < document.length) {
+    const char = document[index];
+    if (char === "#") {
+      while (index < document.length && document[index] !== "\n") index++;
+      continue;
+    }
+    if (document.startsWith('"""', index)) {
+      index += 3;
+      while (index < document.length && !document.startsWith('"""', index)) {
+        if (document[index] === "\\") index++;
+        index++;
+      }
+      index += 3;
+      out += " ";
+      continue;
+    }
+    if (char === '"') {
+      index++;
+      while (index < document.length && document[index] !== '"') {
+        if (document[index] === "\\") index++;
+        index++;
+      }
+      index++;
+      out += " ";
+      continue;
+    }
+    out += char;
+    index++;
+  }
+  return out.replaceAll(",", " ");
+}
+
+const GRAPHQL_TOKEN = /[A-Za-z_][A-Za-z0-9_]*|[{}]/g;
+const GRAPHQL_READABLE_OPENERS = new Set(["query", "fragment", "{"]);
+const GRAPHQL_WRITE_OPERATIONS = new Set(["mutation", "subscription"]);
 
 /**
  * A GraphQL request is a POST whose body is a document. It is a `read` only
- * when the document is verifiably a query: the first keyword must be `query`
- * (or `subscription` is refused here too, since it streams) and the text must
- * not open a `mutation` anywhere, because a document can chain operations and
- * an alias or fragment can hide one further down.
+ * when the whole document is queries and fragments.
+ *
+ * This reads the document's shape rather than matching words: strings and
+ * comments are removed, commas are treated as whitespace, and only tokens at
+ * brace depth zero are judged. Every depth-zero word must not be `mutation` or
+ * `subscription`, so a document cannot chain a write after a query however the
+ * two are separated. A field named `mutation` inside a selection is a field,
+ * not an operation, and is allowed.
  */
 export function isGraphqlRead(query: string): boolean {
-  return GRAPHQL_OPERATION.test(query) && !GRAPHQL_MUTATION.test(query);
+  const tokens = graphqlStructure(query).match(GRAPHQL_TOKEN);
+  if (!tokens || tokens.length === 0) return false;
+  if (!GRAPHQL_READABLE_OPENERS.has(tokens[0])) return false;
+  let depth = 0;
+  for (const token of tokens) {
+    if (token === "{") {
+      depth++;
+      continue;
+    }
+    if (token === "}") {
+      depth--;
+      if (depth < 0) return false;
+      continue;
+    }
+    if (depth === 0 && GRAPHQL_WRITE_OPERATIONS.has(token)) return false;
+  }
+  return depth === 0;
 }
 
 export const requestTemplateSchema = z.strictObject({

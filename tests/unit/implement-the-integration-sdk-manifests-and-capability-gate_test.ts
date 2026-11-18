@@ -301,18 +301,57 @@ Deno.test("a graphql request may be a read only when its document is a query", (
   assert(parse(graphql()).success);
   assert(parse(graphql({ effect: "write" })).success);
 
-  // A mutation is never a read, whichever way it is spelled.
+  // A mutation is never a read, whichever way it is spelled. The comma and
+  // subscription rows are qa3's cases from PR #655, where an earlier regex
+  // guard let them through: commas are insignificant whitespace in GraphQL, and
+  // a chained subscription streams.
   for (
     const document of [
       "mutation Close($id: String!) { issueClose(id: $id) { ok } }",
       '  mutation { issueClose(id: "1") { ok } }',
-      // A document can chain operations; the alias must not smuggle a mutation.
+      // A document chains operations, so a query first does not make it a read.
       'query Q { a } mutation M { issueClose(id: "1") { ok } }',
+      "query Q { a }mutation M { b }",
+      // Commas are insignificant whitespace in GraphQL.
+      "query Q { a },mutation M { b }",
+      "query Q { a },\nmutation M { b }",
+      "{ a },mutation M { b }",
+      // A byte-order mark is whitespace too.
+      "query Q { a }\uFEFFmutation M { b }",
+      "query Q { a } subscription S { b }",
+      "subscription S { b }",
+      "mutation M { b }",
+      // Braces that do not balance are not a document to vouch for.
+      "query Q { a",
+      "query Q { a } }",
+      "   ",
     ]
   ) {
     assert(
       !parse(graphql({ graphqlQuery: document })).success,
-      `a read accepted a mutation document: ${document}`,
+      `a read accepted a write document: ${document}`,
+    );
+  }
+
+  // The other direction, so the guard is not simply refusing everything: these
+  // shapes are reads and must stay accepted.
+  for (
+    const document of [
+      "query Q { a }",
+      "{ a }",
+      "query Q($id: ID!) { node(id: $id) { id } }",
+      // A field may legitimately be named mutation inside a selection.
+      "query Q { mutation }",
+      // A fragment definition is part of a read, not an operation that writes.
+      "fragment F on Issue { id }",
+      // The word inside a string or a comment must not refuse the document.
+      'query Q { node(id: "mutation") { id } }',
+      "# a mutation in a comment\nquery Q { a }",
+    ]
+  ) {
+    assert(
+      parse(graphql({ graphqlQuery: document })).success,
+      `a read document was refused: ${document}`,
     );
   }
 
