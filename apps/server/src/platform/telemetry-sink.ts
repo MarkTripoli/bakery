@@ -251,10 +251,11 @@ function otlpResource(): Record<string, unknown> {
 /**
  * The OTLP/HTTP trace body.
  *
- * Every span gets a trace and span id: OTLP requires both, so a record without
- * W3C context is given fresh ids rather than a span a collector cannot key. Such
- * a span is its own root; the record's real trace, when it has one, becomes the
- * span's own ids and its links become references to other spans.
+ * Every span gets its own ids, because OTLP requires both and a collector keys
+ * spans by spanId. A record with W3C context keeps the context's trace id and
+ * names the context's span as its parent, so the events appear as children of
+ * the work they describe rather than replacing it. A record without context is
+ * its own root.
  */
 export function encodeOtlpTraces(
   batch: readonly TelemetryRecord[],
@@ -264,7 +265,12 @@ export function encodeOtlpTraces(
     if (record.kind !== "event") continue;
     spans.push({
       traceId: record.trace?.traceId ?? randomTraceId(),
-      spanId: record.trace?.spanId ?? randomSpanId(),
+      // A fresh id per span. Reusing the context's spanId would give every event
+      // under one trace context the same span id, and a collector keys spans by
+      // it: the events would collapse into one span instead of appearing as
+      // separate children of the work they describe.
+      spanId: randomSpanId(),
+      ...(record.trace ? { parentSpanId: record.trace.spanId } : {}),
       name: record.name,
       // SPAN_KIND_INTERNAL: these are points in our own work, not RPC edges.
       kind: 1,

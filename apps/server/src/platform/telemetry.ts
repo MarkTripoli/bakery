@@ -100,6 +100,9 @@ export function createServerTelemetryFromConfig(
   const otlp = config.otlpEndpoint === undefined ? undefined : createOtlpSink({
     endpoint: config.otlpEndpoint,
     fetch: options.fetch ?? fetch,
+    // Collector tokens live here. They are configuration, never a log field, and
+    // the sink does not put request headers in a record.
+    headers: config.otlpHeaders,
   });
   // The sink carries per-destination counters, and slice 2 publishes them from
   // the metric sampler. They cannot be recorded here: a metric write from inside

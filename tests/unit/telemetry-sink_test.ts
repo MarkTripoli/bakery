@@ -275,15 +275,44 @@ Deno.test("every span carries the ids OTLP requires, including one with no trace
   assertEquals(bare!.traceId === "0".repeat(32), false);
   assertEquals(bare!.spanId === "0".repeat(16), false);
 
-  // The record's own context is used when it has one.
+  // The record's own context keeps the trace id and names its span as the
+  // parent, but the span gets its own id.
   assertEquals(traced!.traceId, "0af7651916cd43dd8448eb211c80319c");
-  assertEquals(traced!.spanId, "b7ad6b7169203331");
+  assertEquals(traced!.parentSpanId, "b7ad6b7169203331");
+  assertEquals(/^[0-9a-f]{16}$/.test(traced!.spanId as string), true);
+  assertEquals(traced!.spanId === "b7ad6b7169203331", false);
   assertEquals(traced!.kind, 1);
   // The trace id must not also appear as an attribute: a collector would show it
   // twice and connect the span to nothing.
   const keys = (traced!.attributes as { key: string }[]).map((a) => a.key);
   assertEquals(keys.includes("traceId"), false);
   assertEquals(keys.includes("trace_id"), false);
+});
+
+Deno.test("two events under one trace context get different span ids", () => {
+  // A collector keys spans by spanId, so reusing the context's span id collapsed
+  // every event of one trace into a single span. That was the reviewer's Medium.
+  const context = {
+    traceId: "0af7651916cd43dd8448eb211c80319c",
+    spanId: "b7ad6b7169203331",
+    sampled: true,
+  };
+  const body = encodeOtlpTraces([
+    eventRecord({ trace: context }),
+    eventRecord({ trace: context }),
+  ]) as {
+    resourceSpans: { scopeSpans: { spans: Record<string, unknown>[] }[] }[];
+  };
+  const spans = body.resourceSpans[0]!.scopeSpans[0]!.spans;
+  assertEquals(spans.length, 2);
+  assertEquals(spans[0]!.traceId, spans[1]!.traceId);
+  assert(
+    spans[0]!.spanId !== spans[1]!.spanId,
+    "two events under one context share a span id, so they collapse into one span",
+  );
+  // Both still point at the work they describe.
+  assertEquals(spans[0]!.parentSpanId, "b7ad6b7169203331");
+  assertEquals(spans[1]!.parentSpanId, "b7ad6b7169203331");
 });
 
 Deno.test("metrics are grouped once per instrument, as a gauge or a monotonic sum", () => {
