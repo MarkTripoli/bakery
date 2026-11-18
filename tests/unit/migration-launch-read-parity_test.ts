@@ -105,4 +105,16 @@ Deno.test("every launch path may read every baked migration directory", async ()
     fromPackage.map(moduleOf).sort(),
     "compose and package.json disagree about which migration directories are readable",
   );
+
+  // Both lists also carry `platform`, which keeps no baked migrations and is
+  // granted anyway. That is an over-grant, not drift: nothing here reads it, so
+  // this test stays silent about it rather than asserting a shape the runner
+  // does not need. Stated so the next reader does not mistake the equality
+  // above for "the lists are exactly the tree".
+  const unread = modules.filter((name) =>
+    !fromPackage.includes(
+      `src/modules/${name}/migrations`,
+    )
+  );
+  assertEquals(unread, [], "package.json cannot read a module the tree has");
 });
