@@ -1,0 +1,348 @@
+import { assert, assertEquals } from "@std/assert";
+import type { IntakeIntent } from "@bakery/integration-sdk";
+import { githubIngress } from "../../apps/server/src/modules/catalog/integration-providers/github-ingress.ts";
+import { hmacSha256 } from "../../apps/server/src/modules/catalog/integration-providers/hmac-sha256.ts";
+import { INTAKE_MAX_BODY_BYTES } from "../../apps/server/src/modules/integrations/intake-body.ts";
+
+/**
+ * #408 slice 5: the GitHub delivery ingress behind the SDK's `WebhookIngress`.
+ *
+ * These tests exist because the verification primitive here is the one
+ * hand-written hash in the repository. The first test pins it against Web
+ * Crypto, so a mistake in the arithmetic fails the suite rather than a delivery;
+ * everything after it tests the port's decisions, which is what the core relies
+ * on when it hands the provider exact bytes.
+ */
+
+const enc = (value: string): Uint8Array<ArrayBuffer> =>
+  new TextEncoder().encode(value);
+const hex = (bytes: Uint8Array): string =>
+  Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+
+const secret = enc("a-webhook-secret");
+const NOW = new Date("2026-11-18T12:00:00.000Z");
+
+const installation = (action: string, extra: Record<string, unknown> = {}) => ({
+  event: "installation",
+  action,
+  installation: { id: 42 },
+  ...extra,
+});
+
+Deno.test("the hand-written HMAC agrees with Web Crypto", async () => {
+  const cases: Array<[string, string]> = [
+    ["key", "The quick brown fox jumps over the lazy dog"],
+    ["secret", "x".repeat(1_000)],
+    ["k".repeat(200), "a key longer than one block is hashed first"],
+    ["k".repeat(64), "a key of exactly one block is not hashed"],
+    ["k".repeat(65), "a key one byte over a block is hashed"],
+  ];
+  for (const [key, message] of cases) {
+    const imported = await crypto.subtle.importKey(
+      "raw",
+      enc(key),
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign"],
+    );
+    const expected = new Uint8Array(
+      await crypto.subtle.sign("HMAC", imported, enc(message)),
+    ) as Uint8Array<ArrayBuffer>;
+    assertEquals(
+      hex(hmacSha256(enc(key), enc(message))),
+      hex(expected),
+      `key ${key.length} bytes, message ${message.length} bytes`,
+    );
+  }
+});
+
+Deno.test("digest comparison is length-checked and constant-shape", async () => {
+  const { equalDigests } = await import(
+    "../../apps/server/src/modules/catalog/integration-providers/hmac-sha256.ts"
+  );
+  const left = hmacSha256(secret, enc("a"));
+  assertEquals(equalDigests(left, hmacSha256(secret, enc("a"))), true);
+  assertEquals(equalDigests(left, hmacSha256(secret, enc("b"))), false);
+  assertEquals(equalDigests(left, left.subarray(0, 31)), false);
+  assertEquals(equalDigests(new Uint8Array(), new Uint8Array()), true);
+});
+
+Deno.test("a signed delivery of the exact bytes is accepted", () => {
+  const body = enc(JSON.stringify(installation("created")));
+  const result = githubIngress.verify({
+    body,
+    headers: new Headers({
+      "x-hub-signature-256": `sha256=${hex(hmacSha256(secret, body))}`,
+      "x-github-event": "installation",
+      "x-github-delivery": "d1",
+    }),
+    secrets: [secret],
+    now: NOW,
+  });
+  assertEquals(result.ok, true);
+});
+
+Deno.test("one flipped byte of the body is refused as a signature failure", () => {
+  const body = enc(JSON.stringify(installation("created")));
+  const signature = `sha256=${hex(hmacSha256(secret, body))}`;
+  const tampered = new Uint8Array(body);
+  tampered[tampered.length - 2] ^= 0x01;
+  const result = githubIngress.verify({
+    body: tampered,
+    headers: new Headers({
+      "x-hub-signature-256": signature,
+      "x-github-event": "installation",
+      "x-github-delivery": "d1",
+    }),
+    secrets: [secret],
+    now: NOW,
+  });
+  assertEquals(result, { ok: false, reason: "signature" });
+});
+
+Deno.test("a wrong secret, a wrong length and no secret are all refused", () => {
+  const body = enc(JSON.stringify(installation("created")));
+  const signature = `sha256=${hex(hmacSha256(secret, body))}`;
+  const at = (headers: Record<string, string>, secrets: Uint8Array[]) =>
+    githubIngress.verify({
+      body,
+      headers: new Headers({
+        "x-github-event": "installation",
+        "x-github-delivery": "d1",
+        ...headers,
+      }),
+      secrets,
+      now: NOW,
+    });
+
+  assertEquals(
+    at({ "x-hub-signature-256": signature }, [enc("another-secret")]),
+    { ok: false, reason: "signature" },
+  );
+  // A truncated signature is well formed to a reader but cannot be the digest.
+  assertEquals(
+    at({ "x-hub-signature-256": `sha256=${"a".repeat(62)}` }, [secret]),
+    { ok: false, reason: "signature" },
+  );
+  assertEquals(at({}, [secret]), { ok: false, reason: "signature" });
+  // No candidate at all, and an empty candidate: an unset secret never verifies.
+  assertEquals(
+    at({ "x-hub-signature-256": signature }, []),
+    { ok: false, reason: "signature" },
+  );
+  assertEquals(
+    at({ "x-hub-signature-256": signature }, [new Uint8Array()]),
+    { ok: false, reason: "signature" },
+  );
+});
+
+Deno.test("a rotation window accepts either secret", () => {
+  const body = enc(JSON.stringify(installation("created")));
+  const old = enc("the-previous-secret");
+  const oldSignature = `sha256=${hex(hmacSha256(old, body))}`;
+  const result = githubIngress.verify({
+    body,
+    headers: new Headers({
+      "x-hub-signature-256": oldSignature,
+      "x-github-event": "installation",
+      "x-github-delivery": "d1",
+    }),
+    secrets: [secret, old],
+    now: NOW,
+  });
+  assertEquals(result.ok, true);
+});
+
+Deno.test("an old delivery is refused as stale and a fresh one is not", () => {
+  const stalePayload = {
+    ...installation("created"),
+    delivery_timestamp: "2026-11-18T05:00:00.000Z",
+  };
+  const stale = enc(JSON.stringify(stalePayload));
+  const refused = githubIngress.verify({
+    body: stale,
+    headers: new Headers({
+      "x-hub-signature-256": `sha256=${hex(hmacSha256(secret, stale))}`,
+      "x-github-event": "installation",
+      "x-github-delivery": "d1",
+    }),
+    secrets: [secret],
+    now: NOW,
+  });
+  assertEquals(refused, { ok: false, reason: "stale" });
+
+  // The same body, sent two hours ago: inside GitHub's three-hour retry window.
+  const freshPayload = {
+    ...installation("created"),
+    delivery_timestamp: "2026-11-18T10:00:00.000Z",
+  };
+  const fresh = enc(JSON.stringify(freshPayload));
+  assertEquals(
+    githubIngress.verify({
+      body: fresh,
+      headers: new Headers({
+        "x-hub-signature-256": `sha256=${hex(hmacSha256(secret, fresh))}`,
+        "x-github-event": "installation",
+        "x-github-delivery": "d1",
+      }),
+      secrets: [secret],
+      now: NOW,
+    }).ok,
+    true,
+  );
+});
+
+Deno.test("a delivery with no timestamp is not refused as a replay", () => {
+  // Refusing it would hide a body the provider could read: staleness is a
+  // guess about time, and there is no time to guess from.
+  const result = githubIngress.verify({
+    body: enc(JSON.stringify(installation("created"))),
+    headers: new Headers({
+      "x-hub-signature-256": `sha256=${
+        hex(hmacSha256(secret, enc(JSON.stringify(installation("created")))))
+      }`,
+      "x-github-event": "installation",
+      "x-github-delivery": "d1",
+    }),
+    secrets: [secret],
+    now: NOW,
+  });
+  assertEquals(result.ok, true);
+});
+
+Deno.test("a signed body that is not a delivery is refused as malformed", () => {
+  for (const body of [enc("not json"), enc("[]"), enc('"a string"')]) {
+    const result = githubIngress.verify({
+      body,
+      headers: new Headers({
+        "x-hub-signature-256": `sha256=${hex(hmacSha256(secret, body))}`,
+        "x-github-event": "push",
+        "x-github-delivery": "d1",
+      }),
+      secrets: [secret],
+      now: NOW,
+    });
+    assertEquals(result, { ok: false, reason: "malformed" });
+  }
+});
+
+Deno.test("the declared body ceiling is the host's, not GitHub's 25 MB", () => {
+  assertEquals(githubIngress.maxBodyBytes, INTAKE_MAX_BODY_BYTES);
+  assert(githubIngress.maxBodyBytes <= 256 * 1024);
+});
+
+const classify = (payload: unknown) => {
+  const verified = githubIngress.verify({
+    body: enc(JSON.stringify(payload)),
+    headers: new Headers({
+      "x-hub-signature-256": `sha256=${
+        hex(hmacSha256(secret, enc(JSON.stringify(payload))))
+      }`,
+      "x-github-event": String(
+        (payload as Record<string, unknown> | null)?.event ?? "push",
+      ),
+      "x-github-delivery": "d1",
+    }),
+    secrets: [secret],
+    now: NOW,
+  });
+  assert(verified.ok, "the fixture is signed with the candidate secret");
+  return githubIngress.classify(
+    (verified as { delivery: unknown }).delivery,
+  );
+};
+
+Deno.test("an installation delivery is a lifecycle intent in the SDK's words", () => {
+  assertEquals(classify(installation("created")), {
+    kind: "routed",
+    externalAuthorizationId: "42",
+    projection: installation("created"),
+    intents: [{ kind: "lifecycle", event: "installed" }],
+  });
+  assertEquals(
+    (classify(installation("suspended")) as {
+      intents: readonly IntakeIntent[];
+    }).intents,
+    [{ kind: "lifecycle", event: "suspended" }],
+  );
+  // GitHub's `deleted` is the SDK's `revoked`: the installation is gone, not
+  // merely suspended, and the host treats those two differently.
+  assertEquals(
+    (classify(installation("deleted")) as { intents: readonly IntakeIntent[] })
+      .intents,
+    [{ kind: "lifecycle", event: "revoked" }],
+  );
+  // `new_permissions_accepted` changes nothing about whether the installation
+  // works, so it must not be read as an install.
+  assertEquals(
+    (classify(installation("new_permissions_accepted")) as {
+      intents: readonly IntakeIntent[];
+    })
+      .intents,
+    [{ kind: "discovery" }],
+  );
+});
+
+Deno.test("an issue delivery is never read as an installation lifecycle", () => {
+  const intents = (classify({
+    event: "issues",
+    action: "created",
+    installation: { id: 42 },
+    repository: { id: 900 },
+    issue: { id: 7 },
+  }) as { intents: readonly IntakeIntent[] }).intents;
+  assertEquals(intents, [{
+    kind: "refresh",
+    subject: "check",
+    resourceExternalId: "900",
+    subjectExternalId: "7",
+  }]);
+});
+
+Deno.test("a delivery about no installation is ignored, not refused", () => {
+  // GitHub's App-level ping and marketplace events are about no installation.
+  assertEquals(classify({ event: "ping", zen: "hi" }), { kind: "ignored" });
+  // `classify` is called with whatever a verified delivery carried, so a shape
+  // the port never saw is answered rather than thrown on.
+  assertEquals(githubIngress.classify(null), { kind: "ignored" });
+  assertEquals(githubIngress.classify("a string"), { kind: "ignored" });
+  // An installation id that is not a positive safe integer cannot name one.
+  assertEquals(
+    classify({
+      event: "installation",
+      action: "created",
+      installation: { id: "42" },
+    }),
+    { kind: "ignored" },
+  );
+  assertEquals(
+    classify({
+      event: "installation",
+      action: "created",
+      installation: { id: -1 },
+    }),
+    { kind: "ignored" },
+  );
+});
+
+Deno.test("a repository delivery the payload never names becomes a sweep", () => {
+  // The set of reachable repositories may have changed, so the host re-sweeps
+  // instead of applying a delta it cannot see.
+  assertEquals(
+    (classify({
+      event: "installation_repositories",
+      installation: { id: 42 },
+    }) as {
+      intents: readonly IntakeIntent[];
+    }).intents,
+    [{ kind: "discovery" }],
+  );
+  assertEquals(
+    (classify({
+      event: "push",
+      installation: { id: 42 },
+      repository: { id: 900 },
+    }) as { intents: readonly IntakeIntent[] }).intents,
+    [{ kind: "discovery" }],
+  );
+});

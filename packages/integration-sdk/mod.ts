@@ -43,6 +43,7 @@ export type {
   ValidationResult,
 } from "./src/activation.ts";
 export { deepFreeze } from "./src/context.ts";
+export type { IntakeIntent, WebhookIngress } from "./src/strategies.ts";
 export type {
   ActionContext,
   BakeryOperation,
