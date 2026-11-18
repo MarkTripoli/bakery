@@ -47,6 +47,7 @@ Deno.test("clean tenant creates, publishes, and reads exact local skill bytes an
       await observe("read");
       return await realStore.read(key, digest, size);
     },
+    stat: realStore.stat.bind(realStore),
   };
   try {
     context = await openPublicationTestContext({ root, store });

@@ -77,6 +77,7 @@ Deno.test("persisted exact pins authorize staged manifest and file reads through
       await afterRead?.();
       return bytes;
     },
+    stat: realStore.stat.bind(realStore),
   };
   const fixture = await openWorkerFixture({
     skillFileRoot: root,

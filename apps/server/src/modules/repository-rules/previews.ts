@@ -29,7 +29,8 @@ import {
 } from "../../platform/cursor.ts";
 import { postgresErrorCode } from "../../platform/postgres-errors.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
-import { organizationRules } from "./effective.ts";
+import { activeFixedPolicy, organizationRules } from "./effective.ts";
+import { rulesPolicyDigest } from "./policy-digest.ts";
 import {
   readLatestRuleVersionRow,
   repositoryRuleVersionDigest,
@@ -432,6 +433,7 @@ type RepositoryPreviewRow = {
   repository_id: string;
   profile_id: string | null;
   profile_revision: number | null;
+  profile_config: unknown;
   organization_revision: number | null;
   organization_config: { entries?: unknown } | null;
 };
@@ -456,6 +458,7 @@ export async function previewRepositoryRuleOverrides(
     `select r.id as repository_id,
             p.id as profile_id,
             p.revision as profile_revision,
+            p.config as profile_config,
             o.revision as organization_revision,
             o.config as organization_config
        from bakery.repositories r
@@ -513,7 +516,16 @@ export async function previewRepositoryRuleOverrides(
       sampleResults: [],
     };
   }
-  const effective = await resolveRepositoryRules(organization, overrides.data);
+  const resolved = await resolveRepositoryRules(organization, overrides.data);
+  // The same fingerprint the effective-rules read and a run's checks carry:
+  // the active profile's fixed policy over the previewed entries.
+  const effective = {
+    ...resolved,
+    digest: await rulesPolicyDigest(
+      activeFixedPolicy(row.profile_config),
+      resolved.entries,
+    ),
+  };
   return {
     ...base,
     conflicts: [],

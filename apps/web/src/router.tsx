@@ -104,6 +104,7 @@ import { OAuthConsentPage } from "./pages/OAuthConsentPage.tsx";
 import { createConsentGateway } from "./app/consent-gateway.ts";
 import { ApiBoundaryFixture } from "./fixtures/ApiBoundaryFixture.tsx";
 import { MachinesFixture } from "./fixtures/MachinesFixture.tsx";
+import { SessionThreadFixture } from "./fixtures/SessionThreadFixture.tsx";
 import {
   authFixtureStates,
   AuthStateFixture,
@@ -780,6 +781,20 @@ export const routeCoverage = [
     path: "/__fixtures__/machines/detail",
     classification: "fixture",
     states: ["default"],
+  },
+  {
+    id: "fixture-session-thread",
+    path: "/__fixtures__/session-thread/$state",
+    classification: "fixture",
+    states: [
+      "default",
+      "loading",
+      "empty",
+      "error",
+      "failed",
+      "complete",
+      "reconnecting",
+    ],
   },
   {
     id: "fixture-api-boundary",
@@ -1952,6 +1967,12 @@ const machinesDetailFixtureRoute = createRoute({
   path: "/__fixtures__/machines/detail",
   component: MachinesFixture,
 });
+const sessionThreadFixtureRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/__fixtures__/session-thread/$state",
+  component: SessionThreadFixture,
+});
+
 const apiBoundaryRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/__fixtures__/api-boundary",
@@ -2096,6 +2117,7 @@ const artifactFixtureRoute = createRoute({
 
 const developmentRoutes = [
   machinesFixtureRoute,
+  sessionThreadFixtureRoute,
   machinesDetailFixtureRoute,
   artifactFixtureRoute,
   apiBoundaryRoute,

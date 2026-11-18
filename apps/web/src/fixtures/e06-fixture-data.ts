@@ -714,7 +714,6 @@ export function e06Fetch(world: FixtureWorld): typeof fetch {
       return json({
         principalId: PRIYA_ID,
         principalType: "human",
-        createdByPrincipalId: null,
         displayName: "Priya Raman",
         locale: "en",
         direction: "ltr",

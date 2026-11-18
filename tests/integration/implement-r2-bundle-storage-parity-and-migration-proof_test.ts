@@ -178,6 +178,7 @@ Deno.test("lost S3 publication response leaves bytes inaccessible; retry publish
         throw new Error("LOST_RESPONSE");
       }
     },
+    stat: (key: string) => database!.store.stat(key),
   };
   let context:
     | Awaited<ReturnType<typeof openPublicationTestContext>>
