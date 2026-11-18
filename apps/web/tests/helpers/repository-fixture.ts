@@ -220,6 +220,8 @@ export async function repositoryFixture(page: Page, options: Options = {}) {
     active: options.active ?? null as number | null,
     version: 1,
     archived: options.archived ?? false,
+    name: "api-service",
+    branch: null as string | null,
   };
   const checkState = {
     started: options.existingCheck === true,
@@ -279,8 +281,8 @@ export async function repositoryFixture(page: Page, options: Options = {}) {
     integrationConnectionId: CONNECTION_ID,
     providerRepoId: "5001",
     owner: "acme",
-    name: "api-service",
-    defaultBranch: base,
+    name: state.name,
+    defaultBranch: state.branch ?? base,
     activeProfileId: state.active === null ? null : profileId(state.active),
     // The highest stored revision plus one: a hidden failed candidate holds one.
     nextProfileRevision: Math.max(0, ...profiles.map((item) => item.revision)) +
@@ -327,6 +329,10 @@ export async function repositoryFixture(page: Page, options: Options = {}) {
         return route.fulfill(problem(500, "INTERNAL"));
       }
       if ("archivedAt" in body) state.archived = body.archivedAt !== null;
+      if (typeof body.name === "string") state.name = body.name;
+      if (typeof body.defaultBranch === "string") {
+        state.branch = body.defaultBranch;
+      }
       const wanted = profiles.find((profile) =>
         profileId(profile.revision) === body.activeProfileId
       );

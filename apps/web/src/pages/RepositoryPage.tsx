@@ -31,6 +31,7 @@ import { useCheckView } from "./projects/use-check-view.ts";
 import { standingOf } from "./projects/check-state.ts";
 import { SupportDetails } from "./projects/SupportDetails.tsx";
 import { TestNameDialog } from "./projects/TestNameDialog.tsx";
+import { EditRepositoryDialog } from "./projects/EditRepositoryDialog.tsx";
 import { useArchiveRepository } from "./projects/use-archive-repository.ts";
 import { WorkingSettingsSheet } from "./projects/WorkingSettingsSheet.tsx";
 import {
@@ -113,6 +114,8 @@ export function RepositoryPage(
   const [menuOpen, setMenuOpen] = useState(false);
   const [testing, setTesting] = useState(false);
   const [archiving, setArchiving] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [saved, setSaved] = useState(false);
   const opener = useRef<HTMLElement | null>(null);
   const openSheet = () => {
     opener.current = document.activeElement instanceof HTMLElement
@@ -297,6 +300,12 @@ export function RepositoryPage(
             name: title,
           })}
           items={[
+            ...(canManage && !archived
+              ? [{
+                id: "edit",
+                label: translate("projects.repository.edit.menu" as never),
+              }]
+              : []),
             {
               id: "test",
               label: translate("projects.repository.test.menu" as never),
@@ -317,7 +326,11 @@ export function RepositoryPage(
               '[data-testid="repository-page"] .ui-popover__trigger, .bakery-top-bar__actions .ui-popover__trigger',
             );
             setMenuOpen(false);
-            if (id === "test") {
+            if (id === "edit") {
+              opener.current = trigger;
+              setSaved(false);
+              setEditing(true);
+            } else if (id === "test") {
               opener.current = trigger;
               setTesting(true);
             } else if (id === "archive") {
@@ -405,6 +418,13 @@ export function RepositoryPage(
             ? (
               <UI.InlineNotice tone="information">
                 {translate("projects.repository.adminOnly" as never)}
+              </UI.InlineNotice>
+            )
+            : null}
+          {saved
+            ? (
+              <UI.InlineNotice tone="success" role="status">
+                {translate("projects.repository.edit.saved" as never)}
               </UI.InlineNotice>
             )
             : null}
@@ -541,6 +561,22 @@ export function RepositoryPage(
               repository={current}
               onClose={() => {
                 setTesting(false);
+                focusAfterPaint(() => opener.current);
+              }}
+            />
+          )
+          : null}
+        {editing
+          ? (
+            <EditRepositoryDialog
+              repository={current}
+              onClose={() => {
+                setEditing(false);
+                focusAfterPaint(() => opener.current);
+              }}
+              onSaved={() => {
+                setEditing(false);
+                setSaved(true);
                 focusAfterPaint(() => opener.current);
               }}
             />

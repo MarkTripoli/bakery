@@ -4150,5 +4150,18 @@
   "projects.repository.archiveDialog.title": "⟦Àŕçĥïṽë {name}? ŧëš⟧",
   "projects.repository.archiveDialog.body": "⟦Ɓàķëŕÿ šŧôþš ŵôŕķïñĝ ïñ ïŧ. Ŧàšķš àļŕëàðÿ ŕûññïñĝ ƒïñïšĥ. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "projects.repository.archiveDialog.restore": "⟦Ÿôû çàñ ŕëšŧôŕë ïŧ. ŧëšŧ⟧",
-  "projects.repository.archiveDialog.confirm": "⟦Àŕçĥïṽë…⟧"
+  "projects.repository.archiveDialog.confirm": "⟦Àŕçĥïṽë…⟧",
+  "projects.repository.edit.menu": "⟦Ëðïŧ⟧",
+  "projects.repository.edit.title": "⟦Ëðïŧ {name} ŧ⟧",
+  "projects.repository.edit.name": "⟦Ñàɱë⟧",
+  "projects.repository.edit.nameHelp": "⟦Ŧĥë ñàɱë šĥôŵñ ïñ Ɓàķëŕÿ. Ïŧ ðôëš ñôŧ ŕëñàɱë ŧĥë ŕëþôšïŧôŕÿ ôñ ĜïŧĤûƀ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
+  "projects.repository.edit.nameEmpty": "⟦Ëñŧëŕ à ñàɱë. ŧë⟧",
+  "projects.repository.edit.branch": "⟦Ðëƒàûļŧ ƀŕàñçĥ ŧë⟧",
+  "projects.repository.edit.branchHelp": "⟦Ñëŵ ŧàšķš šŧàŕŧ ƒŕôɱ ŧĥïš ƀŕàñçĥ. ŧëšŧ çôþÿ⟧",
+  "projects.repository.edit.branchEmpty": "⟦Ëñŧëŕ à ƀŕàñçĥ. ŧëš⟧",
+  "projects.repository.edit.save": "⟦Šàṽë çĥàñĝëš ŧë⟧",
+  "projects.repository.edit.saving": "⟦Šàṽïñĝ……⟧",
+  "projects.repository.edit.changed": "⟦Ŧĥïš ŕëþôšïŧôŕÿ çĥàñĝëð ŵĥïļë ÿôû ŵëŕë ëðïŧïñĝ. Ŕëļôàð ŧô šëë ŧĥë ļàŧëšŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
+  "projects.repository.edit.reload": "⟦Ŕëļôàð…⟧",
+  "projects.repository.edit.saved": "⟦Çĥàñĝëš šàṽëð ŧë⟧"
 }

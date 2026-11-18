@@ -1648,3 +1648,94 @@ test.describe("archive and restore from More", () => {
       .toHaveCount(0);
   });
 });
+
+test.describe("edit name and default branch from More", () => {
+  const more = (page: Page) =>
+    page.getByRole("button", { name: /^More/ }).first();
+  const openEdit = async (page: Page, options: Options = {}) => {
+    const fixture = await repositoryFixture(page, options);
+    await page.goto(`/projects/repositories/${REPOSITORY_ID}`);
+    await expect(more(page)).toBeVisible({ timeout: 20_000 });
+    await more(page).click();
+    await page.getByRole("button", { name: "Edit", exact: true }).click();
+    return { fixture, dialog: page.getByRole("dialog", { name: /^Edit / }) };
+  };
+
+  test("Edit is first in the menu and the dialog starts untouched", async ({ page }) => {
+    await repositoryFixture(page, {});
+    await page.goto(`/projects/repositories/${REPOSITORY_ID}`);
+    await more(page).click();
+    const items = page.getByRole("button", {
+      name: /^(Edit|Test a name|Archive repository|Restore repository)$/,
+    });
+    await expect(items.first()).toHaveText("Edit");
+    await page.getByRole("button", { name: "Edit", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Edit acme/api-service" });
+    await expect(dialog.getByLabel(/^Name\*?$/)).toHaveValue("api-service");
+    await expect(dialog.getByLabel(/^Default branch/)).toHaveValue("main");
+    await expect(dialog.getByRole("button", { name: "Save changes" }))
+      .toBeDisabled();
+  });
+
+  test("saving sends only the changed field with the version, then shows it", async ({ page }) => {
+    const { fixture, dialog } = await openEdit(page);
+    await dialog.getByLabel(/^Default branch/).fill("develop");
+    await expect(dialog.getByRole("button", { name: "Save changes" }))
+      .toBeEnabled();
+    await dialog.getByRole("button", { name: "Save changes" }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(page.getByText("Changes saved")).toBeVisible();
+    const sent = fixture.seen.updates.at(-1)!;
+    expect(sent.ifMatch).toBe('"v1"');
+    expect(sent.body).toEqual({ defaultBranch: "develop" });
+  });
+
+  test("a renamed repository shows its new name in the header", async ({ page }) => {
+    const { dialog } = await openEdit(page);
+    await dialog.getByLabel(/^Name\*?$/).fill("payments");
+    await dialog.getByRole("button", { name: "Save changes" }).click();
+    await expect(page.getByRole("heading", { name: "acme/payments" }))
+      .toBeVisible();
+  });
+
+  test("an empty name or branch says what to enter and sends nothing", async ({ page }) => {
+    const { fixture, dialog } = await openEdit(page);
+    await dialog.getByLabel(/^Name\*?$/).fill("");
+    await dialog.getByLabel(/^Default branch/).fill("");
+    await expect(dialog.getByRole("button", { name: "Save changes" }))
+      .toBeEnabled();
+    await dialog.getByRole("button", { name: "Save changes" }).click();
+    await expect(dialog.getByText("Enter a name.")).toBeVisible();
+    await expect(dialog.getByText("Enter a branch.")).toBeVisible();
+    expect(fixture.seen.updates).toEqual([]);
+  });
+
+  test("a version that moved says so, with Reload, and keeps the dialog", async ({ page }) => {
+    const { dialog } = await openEdit(page, { use: "conflict" });
+    await dialog.getByLabel(/^Default branch/).fill("develop");
+    await dialog.getByRole("button", { name: "Save changes" }).click();
+    await expect(dialog).toContainText(
+      "This repository changed while you were editing. Reload to see the latest.",
+    );
+    await expect(dialog.getByRole("button", { name: "Reload" })).toBeVisible();
+  });
+
+  test("Cancel sends nothing; an archived repository has no Edit; a non-administrator has none", async ({ page }) => {
+    const { fixture, dialog } = await openEdit(page);
+    await dialog.getByRole("button", { name: "Cancel" }).click();
+    await expect(dialog).toHaveCount(0);
+    expect(fixture.seen.updates).toEqual([]);
+    await page.unrouteAll({ behavior: "ignoreErrors" });
+    await repositoryFixture(page, { archived: true });
+    await page.goto(`/projects/repositories/${REPOSITORY_ID}`);
+    await more(page).click();
+    await expect(page.getByRole("button", { name: "Edit", exact: true }))
+      .toHaveCount(0);
+    await page.unrouteAll({ behavior: "ignoreErrors" });
+    await repositoryFixture(page, { role: "member" });
+    await page.goto(`/projects/repositories/${REPOSITORY_ID}`);
+    await more(page).click();
+    await expect(page.getByRole("button", { name: "Edit", exact: true }))
+      .toHaveCount(0);
+  });
+});

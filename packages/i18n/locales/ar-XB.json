@@ -4150,5 +4150,18 @@
   "projects.repository.archiveDialog.title": "⟪Archive {name}?⟫",
   "projects.repository.archiveDialog.body": "⟪Bakery stops working in it. Tasks already running finish.⟫",
   "projects.repository.archiveDialog.restore": "⟪You can restore it.⟫",
-  "projects.repository.archiveDialog.confirm": "⟪Archive⟫"
+  "projects.repository.archiveDialog.confirm": "⟪Archive⟫",
+  "projects.repository.edit.menu": "⟪Edit⟫",
+  "projects.repository.edit.title": "⟪Edit {name}⟫",
+  "projects.repository.edit.name": "⟪Name⟫",
+  "projects.repository.edit.nameHelp": "⟪The name shown in Bakery. It does not rename the repository on GitHub.⟫",
+  "projects.repository.edit.nameEmpty": "⟪Enter a name.⟫",
+  "projects.repository.edit.branch": "⟪Default branch⟫",
+  "projects.repository.edit.branchHelp": "⟪New tasks start from this branch.⟫",
+  "projects.repository.edit.branchEmpty": "⟪Enter a branch.⟫",
+  "projects.repository.edit.save": "⟪Save changes⟫",
+  "projects.repository.edit.saving": "⟪Saving…⟫",
+  "projects.repository.edit.changed": "⟪This repository changed while you were editing. Reload to see the latest.⟫",
+  "projects.repository.edit.reload": "⟪Reload⟫",
+  "projects.repository.edit.saved": "⟪Changes saved⟫"
 }
