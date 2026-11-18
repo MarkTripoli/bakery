@@ -8,6 +8,11 @@ import {
   type PgTransactionClient,
 } from "@bakery/persistence";
 import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
+import {
+  type CursorBinding,
+  decodeCursor,
+  encodeCursor,
+} from "../../platform/cursor.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import {
   adapterSupportsSteering,
@@ -119,6 +124,106 @@ export async function getAgentSession(context: ActionContext) {
     updatedAt: iso(row.updated_at),
     version: row.version,
   });
+}
+
+type SessionListInput = {
+  runStepId: string;
+  cursor?: string;
+  limit?: number;
+};
+
+/**
+ * The agent sessions that belong to one run step.
+ *
+ * A client that has a run step cannot otherwise reach a session: the by-id read
+ * needs an id it already knows. This lists them in the same stable order the
+ * cursor is bound to, so a caller walking a long step never sees a gap or a
+ * repeat. A step in another organization answers 404 rather than an empty page,
+ * so the route cannot be used to learn that a step exists.
+ */
+export function createSessionListHandler(secret: string) {
+  return async function listAgentSessions(
+    context: ActionContext,
+    rawInput: unknown,
+  ) {
+    const { transaction, organizationId, principalId } = requireWorkTransaction(
+      context,
+    );
+    const input = rawInput as SessionListInput;
+    const runStepId = input.runStepId;
+
+    const step = await transaction.query<{ id: string }>(
+      `select id from bakery.run_steps
+      where organization_id = $1 and id = $2`,
+      [organizationId, runStepId],
+    );
+    if (step.rows.length === 0) {
+      throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+    }
+
+    const cursorBinding: CursorBinding = {
+      action: "sessions.list",
+      organizationId,
+      principalId,
+      ordering: "createdAt:asc,id:asc",
+      filters: `runStep:${runStepId}`,
+      schemaVersion: 1,
+    };
+    const position = await decodeCursor(secret, input.cursor, cursorBinding);
+    const limit = input.limit ?? 25;
+
+    const result = await transaction.query<SessionRow>(
+      `select ${SESSION_COLUMNS}
+       from bakery.agent_sessions session
+      where session.organization_id = $1
+        and session.run_step_id = $2
+        and (
+          $3::timestamptz is null or
+          (session.created_at, session.id) > ($3::timestamptz, $4::uuid)
+        )
+      order by session.created_at asc, session.id asc
+      limit $5`,
+      [
+        organizationId,
+        runStepId,
+        position?.createdAt ?? null,
+        position?.id ?? null,
+        limit + 1,
+      ],
+    );
+
+    const visible = result.rows.slice(0, limit);
+    const last = visible.at(-1);
+    return contractSchemas.AgentSessionPage.parse({
+      items: await Promise.all(visible.map(async (row) => {
+        const attempt = row.run_step_id === null
+          ? undefined
+          : await liveAttempt(transaction, organizationId, row.run_step_id);
+        return {
+          id: row.id,
+          runStepId: row.run_step_id,
+          conversationId: row.conversation_id,
+          agentVersionId: row.agent_version_id,
+          harness: row.harness,
+          status: row.status,
+          resumeRef: row.resume_ref ?? null,
+          parentSessionId: row.parent_session_id,
+          adapterCapabilities: readAdapterCapabilities(
+            attempt?.adapterCapabilities,
+          ),
+          createdAt: iso(row.created_at),
+          updatedAt: iso(row.updated_at),
+          version: row.version,
+        };
+      })),
+      nextCursor: result.rows.length > limit && last
+        ? await encodeCursor(secret, cursorBinding, {
+          createdAt: iso(last.created_at),
+          id: last.id,
+        })
+        : null,
+    });
+  };
 }
 
 type MessageRow = {

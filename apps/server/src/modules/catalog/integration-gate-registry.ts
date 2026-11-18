@@ -67,12 +67,28 @@ export function deployedIntegrationsDefects(): string[] {
  * that helper skips objects that are already frozen (`!Object.isFrozen(value)`),
  * so called on a frozen array it returns at once and never reaches the manifest -
  * it would look like a fix and change nothing. Descent here is unconditional.
+ *
+ * A zod schema is skipped: it is a library object, not definition data. It carries
+ * internal caches that `z.toJSONSchema` fills on first use, so a schema frozen
+ * before that use cannot be converted at all - `toJSONSchema` then reports the
+ * opaque "Error converting schema to JSON". `computeManifestDigest` converts every
+ * handler input and output, so freezing them here made `createApp` throw on
+ * startup for every integration test. Frozen manifest data still stops a provider
+ * from redefining itself, which is what this helper is for.
  */
+/**
+ * Whether a value is a zod schema, recognised by its own shape rather than by
+ * importing zod: this module holds the definitions' data and must not pull the
+ * schema library in to describe it.
+ */
+function isZodSchema(value: unknown): boolean {
+  return typeof (value as { _zod?: { def?: unknown } } | null)?._zod?.def ===
+    "object";
+}
+
 function freezeDeep<T>(value: T): T {
-  if (value && typeof value === "object" && !Object.isFrozen(value)) {
-    Object.freeze(value);
-  }
-  if (value && typeof value === "object") {
+  if (value && typeof value === "object" && !isZodSchema(value)) {
+    if (!Object.isFrozen(value)) Object.freeze(value);
     for (const child of Object.values(value as Record<string, unknown>)) {
       freezeDeep(child);
     }

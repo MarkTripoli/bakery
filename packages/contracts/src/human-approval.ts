@@ -101,17 +101,20 @@ export type HumanApprovalOutput = z.output<typeof HumanApprovalOutputSchema>;
 
 /**
  * Input of `workflow.stop`: the neutral action that ends a run on purpose with
- * a named outcome, as opposed to failing.
+ * a named outcome, as opposed to failing. The outcome is optional: a stop that
+ * names none still ends the run, and `normalizeWorkflowStop` gives it
+ * `DEFAULT_STOP_OUTCOME`, because asking for an explicit name where the reason
+ * already explains the ending buys nothing.
  */
 export const WorkflowStopInputSchema = z.object({
-  outcome: z.string().min(1).max(100).describe(
-    "Name of the outcome this stop produces, for example cancelled_by_customer or nothing_to_do. It becomes the run's named outcome and is what a later step or a caller branches on.",
+  outcome: z.string().min(1).max(100).optional().describe(
+    "Name of the outcome this stop produces, for example cancelled_by_customer or nothing_to_do. It becomes the run's named outcome and is what a later step or a caller branches on. Omit it to end the run with the neutral outcome stopped.",
   ),
   reason: z.string().max(2000).optional().describe(
     "Optional human explanation recorded with the outcome, for whoever reads the run later.",
   ),
 }).strict().describe(
-  "Input of a workflow.stop step: the named outcome that ends the run and an optional reason.",
+  "Input of a workflow.stop step: an optional named outcome that ends the run, and an optional reason. A stop that names no outcome still ends the run.",
 );
 export type WorkflowStopInput = z.output<typeof WorkflowStopInputSchema>;
 
@@ -122,11 +125,14 @@ export const DEFAULT_STOP_OUTCOME = "stopped";
  * Input of `workflow.stop` with its default applied. A stop that names no
  * outcome still ends the run; it is not an error, because asking for an explicit
  * name where the reason already explains the ending buys nothing.
+ *
+ * `reason` is optional in the output, meaning absent rather than null when the
+ * caller gave none, so it is omitted here instead of set to null.
  */
 export function normalizeWorkflowStop(input: WorkflowStopInput) {
   return {
     outcome: input.outcome || DEFAULT_STOP_OUTCOME,
-    reason: input.reason ?? null,
+    ...(input.reason === undefined ? {} : { reason: input.reason }),
   };
 }
 

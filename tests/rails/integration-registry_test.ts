@@ -15,6 +15,7 @@ import {
   deployedIntegrations,
   deployedIntegrationsDefects,
 } from "../../apps/server/src/modules/catalog/integration-gate-registry.ts";
+import { computeManifestDigest } from "../../apps/server/src/modules/catalog/integration-gate.ts";
 
 /**
  * Slice 3 of the modular integrations program (chapter 09 section 12.4): one
@@ -217,4 +218,16 @@ Deno.test("the registry and the deployed list are frozen", () => {
   assert(Object.isFrozen(PROVIDER_IDENTITIES));
   assert(Object.isFrozen(GITHUB_PROVIDER_IDENTITY));
   assert(Object.isFrozen(deployedIntegrations));
+});
+
+Deno.test("basis 5: every deployed definition still converts to JSON Schema", () => {
+  // `computeManifestDigest` converts each handler's input and output, and
+  // `activateDeployedIntegrations` runs it while `createApp` starts. Freezing a
+  // zod schema before its first conversion makes `z.toJSONSchema` throw the opaque
+  // "Error converting schema to JSON", which took down startup for every
+  // integration test. This asserts the digest computes, so a freeze that reaches a
+  // schema fails here instead of at app boot.
+  for (const definition of deployedIntegrations) {
+    assert(computeManifestDigest(definition).length === 64);
+  }
 });
