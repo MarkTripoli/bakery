@@ -1835,3 +1835,89 @@
   overflow-wrap: anywhere;
   word-break: break-word;
 }
+
+/* Who is editing a shared document, and where this person's changes stand. */
+.ui-presence-row {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  min-inline-size: 0;
+}
+.ui-presence-row__people {
+  align-items: center;
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  max-inline-size: 100%;
+}
+.ui-presence-row__more {
+  color: var(--color-fg-muted);
+  font: var(--type-hint);
+}
+.ui-presence-row__status {
+  color: var(--color-fg-muted);
+  flex: 1 1 0;
+  font: var(--type-hint);
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+.ui-presence-row__save {
+  align-items: center;
+  color: var(--color-fg-muted);
+  display: inline-flex;
+  font: var(--type-hint);
+  gap: var(--space-1);
+  margin-inline-start: auto;
+  max-inline-size: 100%;
+  min-inline-size: 0;
+}
+.ui-presence-row__save > span {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+.ui-presence-row__save[data-tone="warning"] {
+  color: var(--color-fg);
+}
+.ui-presence-row__save[data-tone="error"] {
+  color: var(--color-destructive);
+}
+
+/* One suggestion from an agent, beside the text it would change. */
+.ui-suggestion-card {
+  background: var(--color-surface-raised);
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-surface);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-inline-size: 0;
+  padding: var(--space-3);
+}
+.ui-suggestion-card__heading {
+  font: var(--type-label);
+  margin: var(--space-0);
+}
+.ui-suggestion-card__summary {
+  font: var(--type-body);
+  margin: var(--space-0);
+  overflow-wrap: anywhere;
+}
+.ui-suggestion-card__origin {
+  color: var(--color-fg-muted);
+  font: var(--type-hint);
+  margin: var(--space-0);
+  overflow-wrap: anywhere;
+}
+.ui-suggestion-card__message {
+  font: var(--type-hint);
+  margin: var(--space-0);
+}
+.ui-suggestion-card[data-state="outdated"] .ui-suggestion-card__message {
+  color: var(--color-destructive);
+}
+.ui-suggestion-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
