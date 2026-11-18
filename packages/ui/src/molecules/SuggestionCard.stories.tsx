@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import {
   Stack,
@@ -44,6 +45,46 @@ function Card(
   );
 }
 
+/**
+ * Two cards that can be chosen and one that cannot, with counts of what was
+ * called; packages/ui/tests/suggestion-card-selection.spec.ts drives it.
+ */
+function SelectionDemo() {
+  const [selected, setSelected] = useState<string | null>(null);
+  const [selects, setSelects] = useState(0);
+  const [accepts, setAccepts] = useState(0);
+  const card = (id: string, choosable: boolean) => (
+    <SuggestionCard
+      acceptLabel={`Accept ${id}`}
+      checkAgainLabel="Check again"
+      heading={`Suggestion ${id}`}
+      message={undefined}
+      onAccept={() => setAccepts((count) => count + 1)}
+      onReject={() => {}}
+      onSelect={choosable
+        ? () => {
+          setSelected(id);
+          setSelects((count) => count + 1);
+        }
+        : undefined}
+      origin="From “shorten the introduction”, asked by Ana Reyes · 5 min ago"
+      rejectLabel={`Reject ${id}`}
+      selected={selected === id}
+      summary={`What ${id} does.`}
+    />
+  );
+  return (
+    <div data-testid="selection-demo">
+      {card("one", true)}
+      {card("two", true)}
+      {card("fixed", false)}
+      <Text data-testid="selection-counts">
+        {`selects ${selects}, accepts ${accepts}`}
+      </Text>
+    </div>
+  );
+}
+
 /** Every state: it can be accepted, no longer fits, is unknown, or is in flight; then the chosen card. */
 export const Contract: StoryObj = {
   render: () => (
@@ -60,6 +101,7 @@ export const Contract: StoryObj = {
         <Text>selected: the card whose text is in view</Text>
         <Card selected state="default" />
       </div>
+      <SelectionDemo />
     </Stack>
   ),
 };
