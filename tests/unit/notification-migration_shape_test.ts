@@ -2,7 +2,7 @@ import { assert, assertEquals } from "@std/assert";
 
 const migration = await Deno.readTextFile(
   new URL(
-    "../../apps/server/src/modules/work/migrations/bakery/0172_notifications.sql",
+    "../../apps/server/src/modules/work/migrations/bakery/0173_notifications.sql",
     import.meta.url,
   ),
 );
