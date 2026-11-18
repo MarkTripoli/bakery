@@ -110,7 +110,8 @@ export const ContextPackBuildSchema = z.strictObject({
   ),
 }).describe("A pack build: the envelope, its candidates and optional scope.");
 
-export type ContextPackBuild = z.infer<typeof ContextPackBuildSchema>;
+export type ContextPackBuild = z.output<typeof ContextPackBuildSchema>;
+export type ContextPackBuildInput = z.input<typeof ContextPackBuildSchema>;
 
 export type ContextPackOmissionReason =
   | "unbounded_unknown"
@@ -283,9 +284,11 @@ export type ContextPack = Readonly<{
  */
 export async function buildContextPack(
   context: ActionContext,
-  raw: ContextPackBuild,
+  raw: unknown,
 ): Promise<ContextPack> {
-  const input = ContextPackBuildSchema.parse(raw);
+  // The door parses: defaults live in the schema, so a caller may omit priority
+  // and required and still get the same pack as one that spells them out.
+  const input: ContextPackBuild = ContextPackBuildSchema.parse(raw);
   const seen = new Set<string>();
   for (const candidate of input.candidates) {
     if (seen.has(candidate.itemId)) {
@@ -314,10 +317,13 @@ export async function buildContextPack(
     items: planned.map((entry) => entry.item),
   });
 
-  const byId = new Map(planned.map((entry) => [entry.itemId, entry]));
-  const items = allocation.selected.flatMap((id) => {
-    const entry = byId.get(id);
-    if (entry === undefined) return [];
+  // The allocator decides *which* items are admitted, in priority order; the
+  // pack then reports them in the caller's relevance order, so a reader sees
+  // the same sequence the caller asked for and the digest does not move when
+  // two candidates share a priority.
+  const admitted = new Set(allocation.selected);
+  const items = planned.flatMap((entry) => {
+    if (!admitted.has(entry.itemId)) return [];
     return [{
       itemId: entry.itemId,
       kind: entry.projection?.kind ?? "text",

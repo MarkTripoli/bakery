@@ -436,7 +436,7 @@ export function createArtifactActions(
       policy: contextPackPolicy,
       handler: async (context, input) =>
         contractSchemas.ContextPack.parse(
-          await buildContextPack(context, input as never),
+          await buildContextPack(context, input),
         ),
     })
     .register({
