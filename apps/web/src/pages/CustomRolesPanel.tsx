@@ -329,14 +329,22 @@ export function CustomRolesPanel({ organizationId }: {
         : items.length === 0
         ? null
         : (
-          <ul aria-label={translate("settings.roles.list")}>
+          <UI.Stack
+            aria-label={translate("settings.roles.list")}
+            gap="compact"
+            role="list"
+          >
             {items.map((role) => {
               const holders = role.memberIds;
               const candidates = [...names].filter(([id]) =>
                 !holders.includes(id)
               );
               return (
-                <li key={role.id} data-testid={`custom-role-${role.key}`}>
+                <div
+                  key={role.id}
+                  data-testid={`custom-role-${role.key}`}
+                  role="listitem"
+                >
                   <UI.ObjectRow
                     identity={
                       <>
@@ -378,13 +386,15 @@ export function CustomRolesPanel({ organizationId }: {
                     : null}
                   {holders.length > 0
                     ? (
-                      <ul
+                      <UI.Stack
                         aria-label={translate("settings.roles.holders", {
                           role: role.name,
                         })}
+                        gap="tight"
+                        role="list"
                       >
                         {holders.map((id) => (
-                          <li key={id}>
+                          <div key={id} role="listitem">
                             <UI.Inline gap="compact">
                               <UI.Text>
                                 {names.get(id) ??
@@ -402,9 +412,9 @@ export function CustomRolesPanel({ organizationId }: {
                                 {translate("settings.roles.unassignAction")}
                               </UI.Button>
                             </UI.Inline>
-                          </li>
+                          </div>
                         ))}
-                      </ul>
+                      </UI.Stack>
                     )
                     : null}
                   {candidates.length > 0
@@ -441,10 +451,10 @@ export function CustomRolesPanel({ organizationId }: {
                       </UI.Inline>
                     )
                     : null}
-                </li>
+                </div>
               );
             })}
-          </ul>
+          </UI.Stack>
         )}
       <div>
         {editor === null ? null : (
@@ -524,22 +534,24 @@ export function CustomRolesPanel({ organizationId }: {
                     <legend>
                       {translate(`settings.roles.area.${area}`)}
                     </legend>
-                    {keys.map((permission) => (
-                      <UI.Checkbox
-                        key={permission}
-                        checked={selected.has(permission)}
-                        onChange={(event) =>
-                          setSelected((current) => {
-                            const next = new Set(current);
-                            if (event.target.checked) next.add(permission);
-                            else next.delete(permission);
-                            return next;
-                          })}
-                      >
-                        {sentence(permission)}{" "}
-                        <UI.DataText>{permission}</UI.DataText>
-                      </UI.Checkbox>
-                    ))}
+                    <UI.Stack gap="compact">
+                      {keys.map((permission) => (
+                        <UI.Checkbox
+                          key={permission}
+                          checked={selected.has(permission)}
+                          onChange={(event) =>
+                            setSelected((current) => {
+                              const next = new Set(current);
+                              if (event.target.checked) next.add(permission);
+                              else next.delete(permission);
+                              return next;
+                            })}
+                        >
+                          {sentence(permission)}{" "}
+                          <UI.DataText>{permission}</UI.DataText>
+                        </UI.Checkbox>
+                      ))}
+                    </UI.Stack>
                   </fieldset>
                 ))}
               </fieldset>
