@@ -1,0 +1,40 @@
+name: Debug gate
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    strategy:
+      fail-fast: false
+      matrix:
+        author: [Triippz, torvalds, github-actions[bot], no-such-user-zz-0042]
+    steps:
+      - name: Maintainers only
+        id: maintainer
+        env:
+          GH_TOKEN: ${{ github.token }}
+          AUTHOR: ${{ matrix.author }}
+        run: |
+          # The event's author_association reads CONTRIBUTOR for a private
+          # organization member, so ask the repository who may write to it. A
+          # lookup that fails for any reason but "not a user with access" fails the
+          # job, so a broken gate shows red instead of silently skipping.
+          err="$RUNNER_TEMP/maintainer.err"
+          if level=$(gh api "repos/$GITHUB_REPOSITORY/collaborators/$AUTHOR/permission" --jq .permission 2>"$err"); then
+            :
+          elif grep -q 'HTTP 404' "$err"; then
+            level=none
+          else
+            cat "$err" >&2
+            exit 1
+          fi
+          case "$level" in
+            admin|maintain|write) echo "allowed=true" >> "$GITHUB_OUTPUT" ;;
+            *) echo "allowed=false" >> "$GITHUB_OUTPUT"; echo "Skipped: $AUTHOR has $level access." ;;
+          esac
+      - name: Show the gate output
+        run: echo "author=${{ matrix.author }} allowed=${{ steps.maintainer.outputs.allowed }}"
