@@ -1,0 +1,42 @@
+<learning scope="project">
+  <title>An observation is not an invariant: check the timestamp, not just the fact</title>
+  <trigger>
+    You verify a shared artifact - a PR description, a config, a lockfile, another seat's
+    checklist tick - and then act on that verification, or report it as a gate that has
+    been met.
+  </trigger>
+  <symptom>
+    The check passed when you ran it and the thing is not true now. Nothing you did was
+    wrong and nothing the other seat did was wrong; the artifact was rewritten between
+    your read and your use. It reads as somebody dropping a step, which is why it gets
+    explained as carelessness and never fixed.
+  </symptom>
+  <rule>
+    A full-body write is a lost-update generator. Pull the live body, edit only your own
+    line, write it back. Necessary and NOT sufficient: two seats can pull the same second,
+    so a straight readback confirms the past.
+  </rule>
+  <rule>
+    The gate is line-survival checked against `updatedAt` after the writer's window
+    closes - not the edit's success message, and not a single readback. If `updatedAt`
+    moved under you, re-read the line itself, because the timestamp alone cannot tell you
+    whether your line survived.
+  </rule>
+  <rule>
+    The general shape, which is the same failure as an ordering bug: confirming a property
+    of a snapshot and treating it as a property of the system. Before shipping a fact,
+    ask what the fact is about - the present state or an instant you happened to sample.
+    Anything you did not derive from the artifact's own rules is an observation.
+  </rule>
+  <evidence>
+    PR 540. qa-qa ticked `tests cover` in the PR description, read it back, and reported
+    it. The description-policy check failed at 21:36:25Z on that exact line: the body's
+    `updatedAt` was the same second, and the body that replaced hers carried LATER edits
+    from another seat that were not in her copy - a full-body write from a pre-tick
+    snapshot. Her readback was true when she made it. The same shape produced the bug the
+    PR fixed: the case asserted an order derived from the ids it happened to observe and
+    called that a property of the read. Same move in a database and in a description.
+    Caught by the description gate refusing the merge; re-ticked, and CI went green at
+    `985e34d1d`.
+  </evidence>
+</learning>

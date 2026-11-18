@@ -1091,6 +1091,139 @@
    ]
   },
   {
+   "group": "Conversation",
+   "name": "notifications",
+   "purpose": "Durable per-recipient inbox item whose typed target reaches a conversation, run, step, approval, question, document version or comment",
+   "fields": [
+    {
+     "name": "organization_id",
+     "type": "uuid",
+     "nullable": false,
+     "references": "organizations"
+    },
+    {
+     "name": "recipient_id",
+     "type": "uuid",
+     "nullable": false,
+     "references": "principals",
+     "description": "The one member whose inbox holds this item. Every read, count and read-state mutation is scoped to this principal."
+    },
+    {
+     "name": "kind",
+     "type": "enum(mention,comment_mention,comment,run_completed,run_failed,step_failed,approval_requested,question_asked,document_version)",
+     "nullable": false,
+     "references": null,
+     "description": "Stable event code, never a rendered sentence. Copy for the actor, event and destination title localizes through @bakery/i18n from this code."
+    },
+    {
+     "name": "target_kind",
+     "type": "enum(conversation_message,run,run_step,approval,question,document_version,comment)",
+     "nullable": false,
+     "references": null,
+     "description": "The typed destination the row opens, widened from chapter 24's chat-only target to runs, steps, approvals, questions, document versions and comments."
+    },
+    {
+     "name": "target_id",
+     "type": "uuid",
+     "nullable": false,
+     "references": null,
+     "description": "Identifier of the target in target_kind. A notification ID or URL never grants access; the destination is reauthorized on every open."
+    },
+    {
+     "name": "target_anchor",
+     "type": "text?",
+     "nullable": true,
+     "references": null,
+     "description": "Optional exact anchor inside the target, such as a message sequence, step key or version number, so the row opens at its exact place rather than the top."
+    },
+    {
+     "name": "conversation_id",
+     "type": "uuid?",
+     "nullable": true,
+     "references": "conversations"
+    },
+    {
+     "name": "run_id",
+     "type": "uuid?",
+     "nullable": true,
+     "references": "workflow_runs",
+     "description": "Set when the target lives inside a run, so the run guard can reauthorize before anything about the run is shown."
+    },
+    {
+     "name": "task_id",
+     "type": "uuid?",
+     "nullable": true,
+     "references": "tasks"
+    },
+    {
+     "name": "actor_id",
+     "type": "uuid?",
+     "nullable": true,
+     "references": "principals"
+    },
+    {
+     "name": "source_event_id",
+     "type": "uuid",
+     "nullable": false,
+     "references": "domain_events",
+     "description": "The domain event this item projects. Required, not optional: a unique index compares nulls as distinct, so a nullable source would let one logical event insert twice. One inbox item exists per recipient per source event."
+    },
+    {
+     "name": "source_version",
+     "type": "int",
+     "nullable": false,
+     "references": null,
+     "description": "Version of the source transition that produced this item. A later rerun or outcome is a new row rather than overwriting history."
+    },
+    {
+     "name": "arguments",
+     "type": "jsonb",
+     "nullable": false,
+     "references": null,
+     "description": "Bounded safe localization arguments, such as a run title or message author. Never pre-rendered English, message bodies or protected bytes."
+    },
+    {
+     "name": "read_at",
+     "type": "timestamp?",
+     "nullable": true,
+     "references": null
+    },
+    {
+     "name": "revision",
+     "type": "int",
+     "nullable": false,
+     "references": null
+    }
+   ],
+   "constraints": "UNIQUE(organization_id,recipient_id,kind,source_event_id,source_version) is the dedupe key, and source_event_id is NOT NULL so the key cannot be defeated by a null: a replayed or duplicated source event, dispatcher restart or offline browser cannot create a second row for the same logical source and recipient. One item per recipient; never one per repository reader or chat viewer. Self-notification is not created. Read/unread mutations and mark-all-read run at READ COMMITTED under SELECT FOR UPDATE so concurrent cross-device writes serialize and return a revision a client can discard stale responses against; mark-all-read updates only rows at or before the snapshot cutoff, so arrivals during the action stay unread. notifications.list and .count are recipient-only; a redacted unavailable target must not expose protected titles or snippets. Creation means saved in the inbox, not seen or delivered. UNIQUE(organization_id,id) supports composite foreign keys; conversation, run and task references are constrained to the same organization. recipient_id, actor_id and source_event_id carry the organization on this row and are checked against it in the reading query, matching principals and domain_events, which are keyed by a global id rather than a tenant composite.",
+   "scopedReferences": [
+    {
+     "fields": [
+      "organization_id",
+      "conversation_id"
+     ],
+     "references": "conversations(organization_id,id)",
+     "nullable": true
+    },
+    {
+     "fields": [
+      "organization_id",
+      "run_id"
+     ],
+     "references": "workflow_runs(organization_id,id)",
+     "nullable": true
+    },
+    {
+     "fields": [
+      "organization_id",
+      "task_id"
+     ],
+     "references": "tasks(organization_id,id)",
+     "nullable": true
+    }
+   ]
+  },
+  {
    "group": "Work",
    "name": "tasks",
    "purpose": "User-visible work and parent epic",
@@ -8079,7 +8212,7 @@
      "references": null
     }
    ],
-   "constraints": "UNIQUE(organization_id,operation,target,idempotency_key). Request digest covers the request identity only: operation, action version, target, connection, resource, external account and resource identities, validated input, actor, run step, automation, reservation and approval reference. It deliberately excludes authority version counters (authorization revision, install, grant, manifest digest), so an unrelated grant edit never turns a replay into a mismatch; claim rechecks all of them against fresh authority (and the broker rechecks the grant again before send). Changed input/resource is IDEMPOTENCY_PAYLOAD_MISMATCH. Integration effects require connection, resource, action_version, immutable external identities and authorization revision; MCP/deployment effects retain their existing connection/profile provenance without fake integration IDs. Subscription deliveries require subscription and integration provenance. One executor claims a dispatch generation. Unknown results reconcile with the same immutable identity and current grant; absence alone never authorizes another write. Safe arguments/results are bounded (64 KiB) but not redacted by the ledger: secrets stay out because action input schemas carry no credential fields and the broker refuses any response that echoes a credential. A result over the bound is stored as null (the remote id is kept). UNIQUE(organization_id,id) supports composite foreign keys; tenant-owned parent references are constrained to the same organization unless this record documents a host-owned exception. Credential provenance may reference a same-organization secret version OR an installation-owned version whose installation matches this effect’s authorized integration connection. The broker checks that explicit exception under the effect/credential locks; no arbitrary cross-organization credential reference is allowed. Migration 0127 persists this table: the status state machine, bounds and the integration-effect non-null invariant are enforced in TypeScript (no CHECK constraints); identity columns are immutable via column-scoped grants. Migration 0135 adds FK(organization_id,integration_connection_id) to integration_connections(organization_id,id) and FK(integration_resource_id,integration_connection_id) to integration_resources(id,connection_id), both NO ACTION, so an effect keeps its connection and that connection's resource across suspend, revoke and reconnect. MCP connection, automation, subscription, install and grant columns have no foreign key until their parent tables exist; integration_install_id names the integration gate's deployed install, not an integration_installations row. credential_version_id is unwritten until credential provenance (#60). All parent references are ON DELETE NO ACTION except the organization cascade; budget_reservations.external_effect_id references this table.",
+   "constraints": "UNIQUE(organization_id,operation,target,idempotency_key). Request digest covers the request identity only: operation, action version, target, connection, resource, external account and resource identities, validated input, actor, run step, automation, reservation and approval reference. It deliberately excludes authority version counters (authorization revision, install, grant, manifest digest), so an unrelated grant edit never turns a replay into a mismatch; claim rechecks all of them against fresh authority (and the broker rechecks the grant again before send). Changed input/resource is IDEMPOTENCY_PAYLOAD_MISMATCH. Integration effects require connection, resource, action_version, immutable external identities and authorization revision; MCP/deployment effects retain their existing connection/profile provenance without fake integration IDs. Subscription deliveries require subscription and integration provenance. One executor claims a dispatch generation. Unknown results reconcile with the same immutable identity and current grant; absence alone never authorizes another write. Safe arguments/results are bounded (64 KiB) but not redacted by the ledger: secrets stay out because action input schemas carry no credential fields and the broker refuses any response that echoes a credential. A result over the bound is stored as null (the remote id is kept). UNIQUE(organization_id,id) supports composite foreign keys; tenant-owned parent references are constrained to the same organization unless this record documents a host-owned exception. Credential provenance may reference a same-organization secret version OR an installation-owned version whose installation matches this effect\u2019s authorized integration connection. The broker checks that explicit exception under the effect/credential locks; no arbitrary cross-organization credential reference is allowed. Migration 0127 persists this table: the status state machine, bounds and the integration-effect non-null invariant are enforced in TypeScript (no CHECK constraints); identity columns are immutable via column-scoped grants. Migration 0135 adds FK(organization_id,integration_connection_id) to integration_connections(organization_id,id) and FK(integration_resource_id,integration_connection_id) to integration_resources(id,connection_id), both NO ACTION, so an effect keeps its connection and that connection's resource across suspend, revoke and reconnect. MCP connection, automation, subscription, install and grant columns have no foreign key until their parent tables exist; integration_install_id names the integration gate's deployed install, not an integration_installations row. credential_version_id is unwritten until credential provenance (#60). All parent references are ON DELETE NO ACTION except the organization cascade; budget_reservations.external_effect_id references this table.",
    "scopedReferences": [
     {
      "fields": [

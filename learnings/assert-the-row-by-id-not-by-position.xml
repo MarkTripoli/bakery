@@ -42,4 +42,29 @@
     their own assertion - two people writing different code against the same read
     walked into it, one of them deliberately not depending on the other's work.
   </evidence>
+  <detection>
+    A derivation cannot be checked by running the test twice. An always-inverted
+    conditional is STABLE - it fails identically on every run - so repetition
+    proves an order-sensitive assertion is stable, not that a derivation is
+    correct, and a diff read misses it because both branches look plausible in
+    isolation. The cheap test that catches it without a database: for each
+    derived expectation, swap the two inputs and require the output to swap. A
+    reversed ternary returns the same wrong order both ways and fails instantly.
+    Apply it to every conditional that derives an expected value, not just the
+    one that failed.
+  </detection>
+  <evidence2>
+    PR 540, `tests/integration/read-the-tickets-linked-to-one-task_test.ts`,
+    third and fourth instances. `const linksOfSecond = otherLinkId &lt; secondLinkId
+    ? [otherTask, taskId] : [taskId, otherTask]` returned the tasks backwards in
+    BOTH branches - the read is newest first, tie-broken `id desc`, so the larger
+    id leads - and was therefore red for 200,000 of 200,000 modelled pairs. It
+    read as a coin flip because two runs failed with opposite orderings as the
+    random ids differed. qa-qa diagnosed a UUID byte-vs-text ordering mismatch
+    and proposed an orderable SQL tie-break; measured, that class does not exist
+    (PostgreSQL compares `uuid` by 16 bytes and the hyphenated text form sorts
+    identically: 0 mismatches in 500,000 random v4 pairs), so no schema change
+    was needed. Both reviewers had re-read the line and passed it; the swap test
+    would have caught it in seconds. Fixed in `0c88bf1aa`.
+  </evidence2>
 </learning>

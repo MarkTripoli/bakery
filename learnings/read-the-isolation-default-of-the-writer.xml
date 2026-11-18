@@ -1,0 +1,44 @@
+<learning scope="project">
+  <title>Read the isolation default on the route that writes the row you order by</title>
+  <trigger>
+    A test or query expects rows in `created_at desc` order, `created_at` defaults to
+    `now()`, and the rows are written by more than one request, handler or statement.
+  </trigger>
+  <symptom>
+    An expectation about ordering is repeatedly wrong in ways that each look like a
+    different bug. Every diagnosis names a plausible mechanism - tie-break, UUID byte
+    order, positional index, string comparison - and each fix moves the failure to the
+    next one instead of removing it. The runs are stable, so the assertion looks correct
+    and the argument is about why the system misbehaves.
+  </symptom>
+  <rule>
+    `now()` is the TRANSACTION's start, not the statement's and not the request's. Two
+    rows share a `created_at` only if they were written inside one transaction. Whether
+    ids, tie-breaks or byte order decide anything therefore depends on the transaction
+    boundary of the route that creates the rows - read it before reasoning about the
+    ordering at all.
+  </rule>
+  <rule>
+    The default isolation and transaction shape are not on the route that does the
+    reading. Find the writer. A route that does not set `transactionIsolation` gets the
+    default, and each request to it is its own transaction, so its rows get distinct
+    `now()` values and any tie-break you wrote never runs.
+  </rule>
+  <rule>
+    When several diagnoses of one assertion have each named a different plausible
+    mechanism, stop diagnosing and read the source that creates the data. Five confident
+    theories in a row were all downstream of one unread default.
+  </rule>
+  <evidence>
+    PR 540, the same assertion red five times before it was right. Five causes in order:
+    a positional index; the ticket tie-break; the paging order; an inverted link ternary;
+    and finally the real one - each `/links` POST is its own transaction
+    (`ticket-actions.ts` registers the route without `transactionIsolation`;
+    `authority-postgres.ts:584` defaults to `ReadCommitted`), so the two links have
+    strictly different `created_at` values, `created_at desc` decides alone, and the
+    `id desc` tie-break never ran. Every derivation up to that point answered "which id is
+    larger", a question the read does not ask. The first four causes were all downstream:
+    nobody had read the isolation default on the route that creates the row being
+    ordered. Fixed in `985e34d1d`.
+  </evidence>
+</learning>

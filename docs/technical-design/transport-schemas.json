@@ -10058,6 +10058,84 @@
     "BlobUploadComplete": {
       "fields": [],
       "description": "Completes a session with no body: the session already carries the declared digest, size and media type. Completing is idempotent, so a client that never saw the first response can retry without storing a second blob."
+    },
+    "NotificationCursorQuery": {
+      "fields": [
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token for the same notification filter, ordering, recipient and organization scope."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum number of notifications returned in this page; defaults to 25 and cannot exceed 100."
+        },
+        {
+          "name": "filter",
+          "type": "enum",
+          "required": false,
+          "enum": [
+            "all",
+            "unread",
+            "mentions"
+          ],
+          "description": "Local view of the one inbox: all notifications, only unread ones, or only items where someone mentioned the recipient. Omitted means all."
+        }
+      ],
+      "pagination": "pagination",
+      "rules": [
+        "Cursor pagination only: reject page, offset and skip; bind continuation to every supplied filter and the authenticated organization and recipient principal.",
+        "Rows are ordered newest first by an immutable created_at with an id tie-breaker, so a new arrival at the top never shifts or duplicates a row on a later page."
+      ],
+      "description": "Bounded filters over the authenticated recipient's own notification inbox, with cursor pagination and the three local views (all, unread, mentions)."
+    },
+    "NotificationReadUpdate": {
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "UUID of the notification to change; it must belong to the authenticated recipient in the current organization, else the call is refused as not found."
+        },
+        {
+          "name": "read",
+          "type": "boolean",
+          "required": true,
+          "description": "True marks the item read, false marks it unread again. Marking read is idempotent; marking unread clears read_at so the row is unread exactly as it was before."
+        },
+        {
+          "name": "expectedCasVersion",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1
+          },
+          "description": "The revision the caller last saw for this notification; a stale revision is rejected as a version conflict so an older cross-device response cannot overwrite a newer one."
+        }
+      ],
+      "description": "Explicit read or unread mutation for one notification the recipient owns, guarded by the revision the client last saw."
+    },
+    "NotificationMarkAllRead": {
+      "fields": [
+        {
+          "name": "readBefore",
+          "type": "timestamp",
+          "required": true,
+          "description": "The snapshot cutoff the client is marking up to, normally the newest item in the list it showed when the action was pressed. Only rows created at or before this instant are marked read, so anything arriving during the action stays unread."
+        }
+      ],
+      "description": "Snapshot-bounded bulk mark-all-read for the recipient's own inbox: arrivals after the cutoff are deliberately left unread."
     }
   },
   "projections": {
@@ -26040,6 +26118,222 @@
         "mediaType": "IANA media type recorded for the stored bytes.",
         "createdAt": "When this blob was first stored. A later upload of the same bytes does not change it."
       }
+    },
+    "Notification": {
+      "projection": "notifications",
+      "fields": [
+        "id",
+        "organizationId",
+        "recipientId",
+        "kind",
+        "targetKind",
+        "targetId",
+        "targetAnchor",
+        "conversationId",
+        "runId",
+        "taskId",
+        "actor",
+        "destination",
+        "read",
+        "revision",
+        "createdAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "organizationId": "uuid",
+        "recipientId": "uuid",
+        "kind": "enum(mention|comment_mention|comment|run_completed|run_failed|step_failed|approval_requested|question_asked|document_version)",
+        "targetKind": "enum(conversation_message|run|run_step|approval|question|document_version|comment)",
+        "targetId": "uuid",
+        "targetAnchor": "string|null",
+        "conversationId": "uuid|null",
+        "runId": "uuid|null",
+        "taskId": "uuid|null",
+        "actor": "NotificationActor|null",
+        "destination": "NotificationDestination",
+        "read": "boolean",
+        "revision": "integer",
+        "createdAt": "timestamp"
+      },
+      "nullableFields": [
+        "targetAnchor",
+        "conversationId",
+        "runId",
+        "taskId",
+        "actor"
+      ],
+      "fieldDescriptions": {
+        "id": "Stable UUID identifying this notification; it addresses the item inside the recipient's own inbox and never grants access to the destination.",
+        "organizationId": "UUID of the organization whose inbox holds this item.",
+        "recipientId": "UUID of the one principal whose inbox this item is in; always the authenticated caller on every response.",
+        "kind": "Stable event code that selects the wording; never a rendered sentence and never an internal workflow action name.",
+        "targetKind": "The typed kind of destination this row opens: a conversation message, run, run step, approval, question, document version or comment.",
+        "targetId": "UUID of the destination in targetKind; it is reauthorized when the item is opened and never carries access by itself.",
+        "targetAnchor": "Optional exact anchor inside the destination, such as a message sequence or step key, so the row opens at the exact place; null means open at the top.",
+        "conversationId": "UUID of the conversation the destination lives in, or null when the destination is not in a conversation.",
+        "runId": "UUID of the run the destination lives in, or null, so a run guard can reauthorize before anything about the run is shown.",
+        "taskId": "UUID of the task the destination lives in, or null.",
+        "actor": "Who caused the event, for an avatar and a name in the sentence; null when no person caused it, such as a run that failed on its own.",
+        "destination": "Safe destination summary: the title for the row's second line and whether it is still reachable, without exposing a protected title for an unavailable target.",
+        "read": "Whether the item has been marked read; opening a row marks it read once its destination opens, and a manual choice always sticks.",
+        "revision": "Monotonic revision of this item's read state; clients discard an older response or event than the revision they already hold.",
+        "createdAt": "UTC timestamp when the item entered the inbox, which is also its place in the newest-first order."
+      },
+      "rules": [
+        "Recipient-only: a row is returned only to the principal in recipient_id, and one recipient never sees another's item.",
+        "Bounded safe arguments only. Never a message body, pre-rendered English, or protected bytes; copy is composed in the client from kind and these fields.",
+        "An unavailable destination keeps its row but hides the protected title, so the client shows the no-longer-available state instead."
+      ],
+      "description": "One item in a person's notification inbox: a stable kind, a typed destination that is reauthorized on open, a safe destination title, read state and a revision."
+    },
+    "NotificationActor": {
+      "fields": [
+        "principalId",
+        "displayName",
+        "avatarUrl"
+      ],
+      "fieldTypes": {
+        "principalId": "uuid",
+        "displayName": "string",
+        "avatarUrl": "string|null"
+      },
+      "nullableFields": [
+        "avatarUrl"
+      ],
+      "fieldBounds": {
+        "displayName": {
+          "maxLength": 200
+        },
+        "avatarUrl": {
+          "maxLength": 2048
+        }
+      },
+      "fieldDescriptions": {
+        "principalId": "UUID of the person who caused the event; identity stays stable even if their display name changes.",
+        "displayName": "The person's current display name, or a neutral stand-in when the account is gone; never an email address.",
+        "avatarUrl": "Absolute HTTPS URL of the person's avatar, or null to draw initials."
+      },
+      "description": "The person who caused a notification, reduced to the safe identity the directory already exposes: principal, display name and avatar."
+    },
+    "NotificationDestination": {
+      "fields": [
+        "title",
+        "available"
+      ],
+      "fieldTypes": {
+        "title": "string|null",
+        "available": "boolean"
+      },
+      "nullableFields": [
+        "title"
+      ],
+      "fieldBounds": {
+        "title": {
+          "maxLength": 500
+        }
+      },
+      "fieldDescriptions": {
+        "title": "The destination's own title for the row's second line, or null when it is unavailable or untitled; a protected title is never sent for a target the recipient cannot reach.",
+        "available": "Whether the destination still resolves for this recipient. When false the title is withheld and the client shows the no-longer-available state with the way back."
+      },
+      "description": "Safe summary of where a notification points: its title for the second line and whether the recipient can still reach it, without promising access."
+    },
+    "Page<Notification>": {
+      "pageOf": "Notification",
+      "description": "Cursor page of the recipient's notifications, newest first. `nextCursor: null` marks the last page; there are no page numbers or offsets."
+    },
+    "NotificationCount": {
+      "fields": [
+        "unread",
+        "revision"
+      ],
+      "fieldTypes": {
+        "unread": "integer|null",
+        "revision": "integer|null"
+      },
+      "nullableFields": [
+        "unread",
+        "revision"
+      ],
+      "fieldBounds": {
+        "unread": {
+          "min": 0
+        }
+      },
+      "fieldDescriptions": {
+        "unread": "The authoritative number of unread items for this recipient in this organization, or null when no count is available yet; null is never drawn as zero.",
+        "revision": "Revision of the inbox snapshot this count was read at, or null alongside an unavailable count; clients discard an older count than the revision they hold."
+      },
+      "rules": [
+        "Recipient-only. A null count means unknown (not yet loaded or failed), never \"zero unread\"."
+      ],
+      "description": "The authenticated recipient's unread total in one organization, with the revision it was read at; unread and revision are null when no authoritative count is available."
+    },
+    "NotificationTarget": {
+      "fields": [
+        "status",
+        "targetKind",
+        "path",
+        "anchor"
+      ],
+      "fieldTypes": {
+        "status": "enum(available|unavailable)",
+        "targetKind": "enum(conversation_message|run|run_step|approval|question|document_version|comment)",
+        "path": "string|null",
+        "anchor": "string|null"
+      },
+      "nullableFields": [
+        "path",
+        "anchor"
+      ],
+      "fieldBounds": {
+        "path": {
+          "maxLength": 2048
+        },
+        "anchor": {
+          "maxLength": 200
+        }
+      },
+      "fieldDescriptions": {
+        "status": "Whether the stored destination still resolves and the recipient is still authorized to open it; unavailable means the client shows the no-longer-available state.",
+        "targetKind": "The typed kind of the resolved destination, echoed so the client can pick the right view.",
+        "path": "A validated relative internal route to open when available, or null when the destination is gone or no longer accessible.",
+        "anchor": "Optional exact anchor inside the destination to scroll to, or null."
+      },
+      "rules": [
+        "Recipient-only, and reauthorizes the destination on every call. A notification ID never grants access; an unauthorized target returns unavailable, not its title."
+      ],
+      "description": "The authoritative answer to \"can I still open this notification's destination\": a validated internal route and anchor when reachable, or an unavailable status."
+    },
+    "NotificationMarkAllReadResult": {
+      "fields": [
+        "marked",
+        "remainingUnread",
+        "revision"
+      ],
+      "fieldTypes": {
+        "marked": "integer",
+        "remainingUnread": "integer",
+        "revision": "integer"
+      },
+      "nullableFields": [],
+      "fieldBounds": {
+        "marked": {
+          "min": 0
+        },
+        "remainingUnread": {
+          "min": 0
+        }
+      },
+      "fieldDescriptions": {
+        "marked": "How many items this call actually marked read, for the toast's count.",
+        "remainingUnread": "How many items are still unread for the recipient after the call, which is above zero when arrivals landed after the cutoff.",
+        "revision": "The inbox revision after the change, so the client can order it against other responses."
+      },
+      "rules": [
+        "Only rows created at or before readBefore are marked, so arrivals during the action stay unread."
+      ],
+      "description": "Outcome of a snapshot-bounded mark-all-read: how many items were marked, how many are still unread, and the resulting revision."
     }
   },
   "pageEnvelope": {
