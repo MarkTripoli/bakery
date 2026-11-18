@@ -169,9 +169,12 @@
   display: flex;
   flex: none;
   justify-content: flex-end;
-  /* Tall enough for its button, which is centred in it rather than stretched
-     past it by its own negative margin. */
+  /* The box holds its whole button (centred, not stretched past it), and a
+     negative margin hands the extra height back so the row keeps its rhythm. */
   align-items: center;
+  margin-block: calc(
+    (var(--space-5) + 2 * var(--border-default) - var(--target-min)) / 2
+  );
   min-block-size: var(--target-min);
   /* One width for the header and every row, so a cell starts under its header
      and all four tables share the same column starts (issue 233, round 2). */
@@ -331,13 +334,26 @@
     display: none;
   }
   /* `block` puts the row's one action on its own full-width line under it. */
+  /* The button's 44px hit area no longer hangs below its box: the action holds
+     it whole, and the row's own padding gives back what the old overhang used,
+     so the row and the button keep their positions. */
+  .ui-access-settings__rows[data-phone="block"] .ui-access-settings__row {
+    padding-block-end: calc(
+      var(--space-2-5) + (var(--space-5) + 2 * var(--border-default) -
+      var(--target-min)) / 2
+    );
+  }
   .ui-access-settings__rows[data-phone="block"] .ui-access-settings__action {
     display: flex;
     inline-size: 100%;
-    margin-block-start: var(--space-3);
+    margin-block: calc(
+      var(--space-3) + (var(--space-5) + 2 * var(--border-default) -
+      var(--target-min)) / 2
+    ) var(--space-0);
   }
   .ui-access-settings__rows[data-phone="block"] .ui-access-settings__action .ui-button {
     inline-size: 100%;
+    margin-block: var(--space-0);
     min-block-size: var(--target-coarse);
     font: var(--type-control);
   }
@@ -345,6 +361,7 @@
     position: absolute;
     inset: 0;
     inline-size: auto;
+    margin-block: var(--space-0);
   }
   .ui-access-settings__rows[data-phone="overlay"] .ui-access-settings__action .ui-button {
     position: absolute;
@@ -379,8 +396,17 @@
     content: " · ";
     white-space: pre;
   }
+  /* Inline: the action holds its whole button, and the row's padding gives back
+     the overhang the button used to hang into, so the row keeps its height. */
+  .ui-access-settings__rows[data-phone="inline"] .ui-access-settings__row {
+    padding-block: calc(
+      var(--space-2-5) + (var(--space-5) + 2 * var(--border-default) -
+      var(--target-min)) / 2
+    );
+  }
   .ui-access-settings__rows[data-phone="inline"] .ui-access-settings__action {
     margin-inline-start: auto;
+    margin-block: var(--space-0);
   }
   .ui-access-settings__rows[data-phone="stacked"] .ui-access-settings__action {
     display: inline;
