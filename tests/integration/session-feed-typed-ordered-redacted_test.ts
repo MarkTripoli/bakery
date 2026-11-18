@@ -244,4 +244,29 @@ Deno.test("AC: the projection exposes no column it does not name", () =>
       false,
       "the feed exposed a column its projection does not name",
     );
+
+    // The mapper is the gate that actually holds: a column the SELECT happens to
+    // return still cannot reach the wire, because each item is built from named
+    // fields. This pins that shape, so widening the SELECT alone cannot start
+    // leaking and spreading a raw row into the item cannot pass unnoticed.
+    const feed = JSON.parse(serialized) as Feed;
+    const expected = [
+      "id",
+      "sessionId",
+      "sequence",
+      "kind",
+      "occurredAt",
+      "redacted",
+      "message",
+      "terminal",
+      "status",
+      "tool",
+      "fileChange",
+      "artifact",
+      "usage",
+      "deliveredInput",
+    ];
+    for (const item of feed.items) {
+      assertEquals(Object.keys(item).sort(), expected.sort());
+    }
   }));

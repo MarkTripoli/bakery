@@ -73,15 +73,17 @@ function authorKind(row: SessionFeedRow): "person" | "agent" | "system" {
  * partial one, so a client resuming from its last sequence sees a gapless
  * continuation.
  *
- * The projection is the redaction boundary. It names every column it reads, and
- * none of them holds secret ciphertext, a lease token or a raw provider payload;
- * an item therefore exposes exactly the attributed conversation text it claims
- * and nothing alongside it. That is a property of the SELECT, not of the body:
- * a message body is authored by a person, and text a person typed is their
- * message, not a server secret, so the feed republishes it verbatim rather than
- * guessing at what inside it looks secret. A future source that can carry real
- * secret material (harness terminal or tool output) must redact per item and set
- * `redacted` from that, never reuse the constant below.
+ * Redaction has two gates, and the mapper is the one that holds. The mapper
+ * builds each item from named fields, so a column the SELECT happens to return
+ * still cannot reach the wire: widening the SELECT alone leaves every test
+ * green, while spreading the raw row into the item leaks at once. The SELECT is
+ * the second gate, not the first, and no column it reads today holds secret
+ * ciphertext, a lease token or a raw provider payload. A message body is
+ * authored by a person, and text a person typed is their message, not a server
+ * secret, so the feed republishes it verbatim rather than guessing at what
+ * inside it looks secret. A future source that can carry real secret material
+ * (harness terminal or tool output) must redact per item and set `redacted`
+ * from that, never reuse the constant below.
  */
 export function createSessionFeedHandler(secret: string) {
   return async function sessionFeed(
