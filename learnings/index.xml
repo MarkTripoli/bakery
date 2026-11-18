@@ -5,6 +5,7 @@
   <entry file="css-rail-scans-comments.xml" scope="project" />
   <entry file="deno-fixed-read-capability.xml" scope="project" />
   <entry file="ephemeral-worktree-stack.xml" scope="project" />
+  <entry file="edited-run-is-a-metadata-run.xml" scope="project" />
   <entry file="local-services-before-test-blocker.xml" scope="project" />
   <entry file="test-lane-database-env-per-command.xml" scope="project" />
   <entry file="websocket-backpressure-modelled-buffer.xml" scope="project" />

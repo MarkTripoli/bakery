@@ -73,6 +73,24 @@ function offsetFromEdge(
 }
 
 /**
+ * Resolves a length to px the way the token sheet would: a bare number, or a
+ * `var(--token)` this rail can look up. Null is "cannot re-derive", which the
+ * caller reports rather than guessing.
+ */
+function resolveLength(value: string, tokensCss: string): number | null {
+  const literal = value.match(/^(\d+(?:\.\d+)?)(?:px)?$/);
+  if (literal) return Number(literal[1]);
+  const byToken = value.match(/^var\((--[a-z0-9-]+)\)$/);
+  if (byToken) {
+    const declared = tokensCss.match(
+      new RegExp(`${byToken[1]}:\\s*(\\d+(?:\\.\\d+)?)px`),
+    );
+    return declared ? Number(declared[1]) : null;
+  }
+  return null;
+}
+
+/**
  * Every `@media` block that re-*places* the badge. A block that only changes
  * how the badge fades is welcome; a block that moves it by width is the thing
  * that made the desktop and the phone disagree.
@@ -103,6 +121,66 @@ function widthScopedBadgeRules(css: string): string[] {
     if (repositions) found.push(`@media ${match[1].trim()}`);
   }
   return found;
+}
+
+/**
+ * The value of the LAST declaration of `property` in a rule body. CSS lets a
+ * later declaration of the same property win, so reading the first one would
+ * check a value the browser never uses.
+ */
+function lastDeclaration(body: string, property: string): string | null {
+  const all = [
+    ...body.matchAll(
+      new RegExp(`(?:^|\\n)\\s*${property}:\\s*([^;]+);`, "g"),
+    ),
+  ];
+  return all.length === 0 ? null : all[all.length - 1][1].trim();
+}
+
+/**
+ * The block-axis space a rule adds around its content, in px: padding at both
+ * ends plus the border at both ends. Each is read from the last declaration
+ * that sets it (longhand or shorthand, whichever comes last in the rule).
+ * Null means a value this rail cannot re-derive.
+ */
+function blockExtras(body: string, tokensCss: string): number | null {
+  let padding = 0;
+  let border = 0;
+  const declarations = [
+    ...body.matchAll(/(?:^|\n)\s*([a-z-]+):\s*([^;]+);/g),
+  ];
+  for (const [, property, raw] of declarations) {
+    const parts = raw.trim().split(/\s+(?![^(]*\))/);
+    if (property === "padding-block") {
+      const lengths = parts.map((part) => resolveLength(part, tokensCss));
+      if (lengths.includes(null)) return null;
+      padding = (lengths[0] as number) + ((lengths[1] ?? lengths[0]) as number);
+    } else if (property === "padding") {
+      const lengths = parts.map((part) => resolveLength(part, tokensCss));
+      if (lengths.includes(null)) return null;
+      const top = lengths[0] as number;
+      const bottom = (lengths[2] ?? lengths[0]) as number;
+      padding = top + bottom;
+    } else if (
+      property === "border" || property === "border-block" ||
+      property === "border-width" || property === "border-block-width"
+    ) {
+      // A shorthand's width is its first length (or token); `none` is no border.
+      if (/^(?:none|0)$/.test(raw.trim())) {
+        border = 0;
+        continue;
+      }
+      const width = parts.map((part) => resolveLength(part, tokensCss)).find((
+        value,
+      ) => value !== null);
+      if (width === undefined) {
+        if (property.endsWith("width")) return null;
+        continue;
+      }
+      border = (width as number) * 2;
+    }
+  }
+  return padding + border;
 }
 
 /** Renders an offset for a message: an absent declaration is not "nullpx". */
@@ -146,7 +224,58 @@ export function badgeGeometryViolations(
     );
   }
 
-  // 2. The offset is measured from the glyph's own box.
+  // 2. The pill is drawn 16px tall by the declaration that WINS.
+  //
+  // The token above is the line the text is drawn on, not the height the pill
+  // takes: `min-block-size` sets a floor, so it beats the line box, and any
+  // other rule that sets a block size beats both. Checking only the token let a
+  // 20px pill ship green, which is the defect this closes. So the winning
+  // height is re-derived from whatever the rule actually declares.
+  const declaredHeights: number[] = [];
+  for (const property of ["min-block-size", "block-size", "height"] as const) {
+    const value = lastDeclaration(badgeBody, property);
+    if (value === null) continue;
+    // `auto` and `0` defer to the line box rather than pinning a height, so
+    // only a real length participates in the floor.
+    if (/^(?:auto|0)$/.test(value)) continue;
+    const resolved = resolveLength(value, tokensCss);
+    if (resolved === null) {
+      violations.push(
+        `badge ${property} is ${value}, which this rail cannot re-derive`,
+      );
+      continue;
+    }
+    declaredHeights.push(resolved);
+  }
+  // The painted height also carries the block padding and border: a
+  // content-box height gets them on top of it, a border-box height has them
+  // inside it, but in both the pill can be taller than the number declared.
+  const extras = blockExtras(badgeBody, tokensCss);
+  const borderBox = lastDeclaration(badgeBody, "box-sizing") === "border-box";
+  const linePx = typeBadge === null ? 0 : Number(typeBadge[1]);
+  if (declaredHeights.length === 0) {
+    violations.push(
+      "badge declares no block size, so its height is the line box; the design pins a 16px pill",
+    );
+  } else if (extras === null) {
+    violations.push(
+      "badge padding or border is a value this rail cannot re-derive",
+    );
+  } else {
+    const floor = Math.max(...declaredHeights);
+    const painted = borderBox
+      ? Math.max(floor, linePx + extras)
+      : Math.max(floor, linePx) + extras;
+    if (painted !== 16) {
+      violations.push(
+        `badge is ${painted}px tall${
+          extras > 0 ? ` including ${extras}px of padding and border` : ""
+        }; the design pins 16px`,
+      );
+    }
+  }
+
+  // 3. The offset is measured from the glyph's own box.
   if (!glyphMissing && !/position:\s*relative/.test(glyphBody)) {
     violations.push("the glyph is not the badge's positioning cell");
   }
@@ -154,7 +283,7 @@ export function badgeGeometryViolations(
     violations.push("the badge is not positioned against the glyph");
   }
 
-  // 3. The overlap is 8x8, derived from the tokens rather than trusted.
+  // 4. The overlap is 8x8, derived from the tokens rather than trusted.
   const overlapBlock = offsetFromEdge(
     badgeBody,
     "inset-block-start",
@@ -180,14 +309,14 @@ export function badgeGeometryViolations(
     );
   }
 
-  // 4. One rule for both surfaces: nothing may re-place the badge by width.
+  // 5. One rule for both surfaces: nothing may re-place the badge by width.
   for (const query of widthScopedBadgeRules(css)) {
     violations.push(
       `${query} re-places the badge; the design pins one offset for both surfaces`,
     );
   }
 
-  // 5. Logical insets are what mirror the pill in a right-to-left page.
+  // 6. Logical insets are what mirror the pill in a right-to-left page.
   for (const physical of ["left", "right", "top", "bottom"]) {
     if (new RegExp(`(?:^|\\n)\\s*${physical}:`).test(badgeBody)) {
       violations.push(
@@ -196,7 +325,7 @@ export function badgeGeometryViolations(
     }
   }
 
-  // 6. The ring is 12px with a 6px overhang, per the same geometry.
+  // 7. The ring is 12px with a 6px overhang, per the same geometry.
   const ringSize = ringBody.match(/block-size:\s*var\(--space-(\d+)\)/);
   if (ringSize === null || spaceValue(tokensCss, ringSize[1]) !== 12) {
     violations.push("the unknown ring is not 12px");
@@ -214,7 +343,7 @@ export function badgeGeometryViolations(
     }
   }
 
-  // 7. A count reads left to right in every locale. Without the isolate a
+  // 8. A count reads left to right in every locale. Without the isolate a
   // right-to-left page draws "99+" as "+99", which reads as another number.
   if (!/unicode-bidi:\s*isolate/.test(badgeBody)) {
     violations.push("the badge does not isolate its count's direction");
@@ -298,5 +427,75 @@ Deno.test("a cap without its left-to-right isolate is reported", () => {
     badgeGeometryViolations(unisolated, tokensCss, component).some((
       violation,
     ) => violation.includes("isolate its count's direction")),
+  );
+});
+
+Deno.test("a pill taller than the design's 16px is reported even when the token still says 16px", () => {
+  // The exact hole this check closes: `min-block-size` sets a floor and so beats
+  // the line box, meaning a taller declaration wins while --type-badge stays
+  // correct. Checking only the token reported nothing here.
+  const taller = css.replace(
+    "min-block-size: var(--space-4);",
+    "min-block-size: 20px;",
+  );
+  assert(taller !== css, "the fixture did not change the rule it targets");
+  assert(
+    badgeGeometryViolations(taller, tokensCss, component).some((violation) =>
+      violation.includes("the design pins 16px")
+    ),
+    "a 20px pill must be reported where a 16px token is also present",
+  );
+});
+
+Deno.test("a pill sized only by its line box is reported as not pinned", () => {
+  // Dropping the floor entirely leaves the height to the line box: 16px today,
+  // but nothing in the rule states it, which is a different defect from tall.
+  const unpinned = css.replace("min-block-size: var(--space-4);", "");
+  assert(unpinned !== css, "the fixture did not change the rule it targets");
+  assert(
+    badgeGeometryViolations(unpinned, tokensCss, component).some((violation) =>
+      violation.includes("the design pins a 16px pill")
+    ),
+    "a pill with no declared block size must be reported",
+  );
+});
+
+Deno.test("the last declaration of a property is the one that is checked", () => {
+  // CSS lets the later declaration win. The first one is 16px, the one the
+  // browser draws is 20px: reading the first would report nothing.
+  const doubled = css.replace(
+    "min-block-size: var(--space-4);",
+    "min-block-size: var(--space-4);\n  min-block-size: 20px;",
+  );
+  assert(doubled !== css, "the fixture did not change the rule it targets");
+  assert(
+    badgeGeometryViolations(doubled, tokensCss, component).some((violation) =>
+      violation.includes("the design pins 16px")
+    ),
+    "a later 20px declaration must be reported over an earlier 16px one",
+  );
+});
+
+Deno.test("block padding and border count toward the painted height", () => {
+  const padded = css.replace(
+    "padding-block: 0;",
+    "padding-block: var(--space-1);",
+  );
+  assert(padded !== css, "the fixture did not change the rule it targets");
+  assert(
+    badgeGeometryViolations(padded, tokensCss, component).some((violation) =>
+      violation.includes("of padding and border")
+    ),
+    "a 16px floor with 4px of padding at each end paints 24px",
+  );
+  const bordered = css.replace(
+    "padding-block: 0;",
+    "padding-block: 0;\n  border-block: 1px solid var(--color-border);",
+  );
+  assert(
+    badgeGeometryViolations(bordered, tokensCss, component).some((violation) =>
+      violation.includes("of padding and border")
+    ),
+    "a 1px border at each end paints 18px",
   );
 });
