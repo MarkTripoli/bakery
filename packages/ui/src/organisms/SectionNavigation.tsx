@@ -1,4 +1,12 @@
-import { type MouseEvent, type ReactNode, useId, useRef } from "react";
+import {
+  type MouseEvent,
+  type ReactNode,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from "react";
+import { IconGlyph } from "../atoms/IconGlyph.tsx";
 import "../navigation.css";
 
 export type SectionNavigationItem = {
@@ -144,6 +152,32 @@ export function SectionNavigation(
   const resolvedVariant = variant ?? "sidebar";
   const detailsRef = useRef<HTMLDetailsElement>(null);
   const summaryRef = useRef<HTMLElement>(null);
+  // A phone shows where you are, not the name of the menu: the summary carries
+  // the current page and a chevron that flips while the menu is open.
+  const [menuOpen, setMenuOpen] = useState(false);
+  const currentItem = [
+    ...(items ?? []),
+    ...(groups ?? []).flatMap((group) => group.items),
+  ].find((item) => isSelected(item, currentPath));
+  const summaryLabel = currentItem?.label ?? label;
+  // The accessible name has to be text: a label is a node, so only a string
+  // one can extend the menu's own name.
+  // A label is usually an <I18nText> node, so the page name is only known as
+  // text once it has rendered. Read it back to name the control.
+  const labelRef = useRef<HTMLSpanElement>(null);
+  const [summaryText, setSummaryText] = useState("");
+  useEffect(() => {
+    setSummaryText(labelRef.current?.textContent?.trim() ?? "");
+  }, [currentPath]);
+  const summaryName = summaryText === "" ? label : `${label}, ${summaryText}`;
+  useEffect(() => {
+    const node = detailsRef.current;
+    if (node === null) return;
+    const sync = () => setMenuOpen(node.open);
+    sync();
+    node.addEventListener("toggle", sync);
+    return () => node.removeEventListener("toggle", sync);
+  }, []);
   const handleMenuNavigate: SectionLinkClick = (event, item) => {
     const target = new URL(event.currentTarget.href, document.baseURI);
     const remainsOnCurrentDocument =
@@ -203,11 +237,20 @@ export function SectionNavigation(
             ref={detailsRef}
           >
             <summary
-              aria-label={label}
+              aria-label={summaryName}
               className="bakery-section-navigation__summary"
+              data-open={menuOpen ? "true" : "false"}
               ref={summaryRef}
             >
-              {label}
+              <span
+                className="bakery-section-navigation__summary-label"
+                ref={labelRef}
+              >
+                {summaryLabel}
+              </span>
+              <IconGlyph
+                name={menuOpen ? "chevron-up" : "chevron-down"}
+              />
             </summary>
             <nav aria-label={label}>
               <SectionLinks

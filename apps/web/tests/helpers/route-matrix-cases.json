@@ -196,8 +196,8 @@
     "path": "/account/reauthenticate"
   },
   {
-    "id": "clients",
-    "path": "/settings/clients"
+    "id": "settings-organization-integrations-clients",
+    "path": "/settings/organization/integrations/clients"
   },
   {
     "id": "revoke-client",

@@ -3614,7 +3614,7 @@
       "method": "GET",
       "path": "/v1/principals",
       "action": "principals.list",
-      "access": "Admin",
+      "access": "Initiating principal or Admin",
       "permission": "principal:read",
       "input": "CursorQuery",
       "output": "Page<Principal>",
@@ -3641,8 +3641,8 @@
       "method": "POST",
       "path": "/v1/principals",
       "action": "principals.create",
-      "access": "Admin",
-      "permission": "principal:manage",
+      "access": "Initiating principal or Admin",
+      "permission": "principal:create",
       "input": "PrincipalCreate",
       "output": "Principal",
       "event": "principal.created",
@@ -3792,7 +3792,7 @@
       "method": "GET",
       "path": "/v1/access-tokens",
       "action": "accessTokens.list",
-      "access": "Admin",
+      "access": "Initiating principal or Admin",
       "permission": "accessToken:read",
       "input": "CursorQuery",
       "output": "Page<AccessToken>",
@@ -3819,7 +3819,7 @@
       "method": "POST",
       "path": "/v1/access-tokens",
       "action": "accessTokens.create",
-      "access": "Admin",
+      "access": "Initiating principal or Admin",
       "permission": "accessToken:manage",
       "input": "AccessTokenCreate",
       "output": "AccessTokenCreated",
@@ -3849,7 +3849,7 @@
       "method": "DELETE",
       "path": "/v1/access-tokens/{id}",
       "action": "accessTokens.revoke",
-      "access": "Admin",
+      "access": "Initiating principal or Admin",
       "permission": "accessToken:manage",
       "input": "IdPath",
       "output": "NoContent",
@@ -83802,6 +83802,21 @@
               "maxLength": 65536,
               "description": "Human-readable principal name safe for authorized attribution displays; it is not an authorization attribute."
             },
+            "createdByPrincipalId": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Principal that created this service account, or null for a human principal or one created before the column existed; a member sees and manages the service accounts they created."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "Principal.createdByPrincipalId may be null in this transport value."
+            },
             "disabledAt": {
               "anyOf": [
                 {
@@ -83840,6 +83855,7 @@
             "id",
             "principalType",
             "displayName",
+            "createdByPrincipalId",
             "disabledAt",
             "createdAt",
             "updatedAt",
@@ -129767,6 +129783,21 @@
                     "maxLength": 65536,
                     "description": "Human-readable principal name safe for authorized attribution displays; it is not an authorization attribute."
                   },
+                  "createdByPrincipalId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "Principal that created this service account, or null for a human principal or one created before the column existed; a member sees and manages the service accounts they created."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "Principal.createdByPrincipalId may be null in this transport value."
+                  },
                   "disabledAt": {
                     "anyOf": [
                       {
@@ -129805,6 +129836,7 @@
                   "id",
                   "principalType",
                   "displayName",
+                  "createdByPrincipalId",
                   "disabledAt",
                   "createdAt",
                   "updatedAt",
@@ -192435,6 +192467,7 @@
                   "connectedClient:read",
                   "connectedClient:write",
                   "principal:read",
+                  "principal:create",
                   "principal:manage",
                   "permissionGrant:read",
                   "permissionGrant:manage",
@@ -210567,7 +210600,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:5fcf7f018fe6f941f8c1ef92ebdd37bd9f2e31e60adb81705cd005bfa9377cff",
+  "compatibilityDigest": "sha256:e2d845e01f8fe230e4d22a4a2c164e808ef401b106a11a2ec4d64524b9f0ccad",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -261011,6 +261044,21 @@
           "maxLength": 65536,
           "description": "Human-readable principal name safe for authorized attribution displays; it is not an authorization attribute."
         },
+        "createdByPrincipalId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Principal that created this service account, or null for a human principal or one created before the column existed; a member sees and manages the service accounts they created."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "Principal.createdByPrincipalId may be null in this transport value."
+        },
         "disabledAt": {
           "anyOf": [
             {
@@ -261049,6 +261097,7 @@
         "id",
         "principalType",
         "displayName",
+        "createdByPrincipalId",
         "disabledAt",
         "createdAt",
         "updatedAt",
@@ -307124,6 +307173,21 @@
                 "maxLength": 65536,
                 "description": "Human-readable principal name safe for authorized attribution displays; it is not an authorization attribute."
               },
+              "createdByPrincipalId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Principal that created this service account, or null for a human principal or one created before the column existed; a member sees and manages the service accounts they created."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "Principal.createdByPrincipalId may be null in this transport value."
+              },
               "disabledAt": {
                 "anyOf": [
                   {
@@ -307162,6 +307226,7 @@
               "id",
               "principalType",
               "displayName",
+              "createdByPrincipalId",
               "disabledAt",
               "createdAt",
               "updatedAt",
@@ -369868,6 +369933,7 @@
               "connectedClient:read",
               "connectedClient:write",
               "principal:read",
+              "principal:create",
               "principal:manage",
               "permissionGrant:read",
               "permissionGrant:manage",

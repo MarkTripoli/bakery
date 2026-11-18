@@ -19241,6 +19241,7 @@ const transportSchemas = {
         "id",
         "principalType",
         "displayName",
+        "createdByPrincipalId",
         "disabledAt",
         "createdAt",
         "updatedAt",
@@ -19253,10 +19254,12 @@ const transportSchemas = {
         "disabledAt": "timestamp|null",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "createdByPrincipalId": "uuid|null"
       },
       "nullableFields": [
-        "disabledAt"
+        "disabledAt",
+        "createdByPrincipalId"
       ],
       "description": "Safe principal lifecycle projection with no organization role or capability; organization authority is resolved separately from current membership or grants.",
       "fieldDescriptions": {
@@ -19266,7 +19269,8 @@ const transportSchemas = {
         "disabledAt": "UTC disablement instant, or null while the principal is enabled; enabled state is reloaded before protected work.",
         "createdAt": "UTC timestamp when the principal lifecycle record was created.",
         "updatedAt": "UTC timestamp when principal-owned lifecycle data was last changed.",
-        "version": "Optimistic-concurrency version for mutations of principal-owned lifecycle data."
+        "version": "Optimistic-concurrency version for mutations of principal-owned lifecycle data.",
+        "createdByPrincipalId": "Principal that created this service account, or null for a human principal or one created before the column existed; a member sees and manages the service accounts they created."
       }
     },
     "SecretMetadata": {
