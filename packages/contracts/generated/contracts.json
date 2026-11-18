@@ -3660,7 +3660,7 @@
       "method": "GET",
       "path": "/v1/principals",
       "action": "principals.list",
-      "access": "Admin",
+      "access": "Initiating principal or Admin",
       "permission": "principal:read",
       "input": "CursorQuery",
       "output": "Page<Principal>",
@@ -3687,8 +3687,8 @@
       "method": "POST",
       "path": "/v1/principals",
       "action": "principals.create",
-      "access": "Admin",
-      "permission": "principal:manage",
+      "access": "Initiating principal or Admin",
+      "permission": "principal:create",
       "input": "PrincipalCreate",
       "output": "Principal",
       "event": "principal.created",
@@ -3838,7 +3838,7 @@
       "method": "GET",
       "path": "/v1/access-tokens",
       "action": "accessTokens.list",
-      "access": "Admin",
+      "access": "Initiating principal or Admin",
       "permission": "accessToken:read",
       "input": "CursorQuery",
       "output": "Page<AccessToken>",
@@ -3865,7 +3865,7 @@
       "method": "POST",
       "path": "/v1/access-tokens",
       "action": "accessTokens.create",
-      "access": "Admin",
+      "access": "Initiating principal or Admin",
       "permission": "accessToken:manage",
       "input": "AccessTokenCreate",
       "output": "AccessTokenCreated",
@@ -3895,7 +3895,7 @@
       "method": "DELETE",
       "path": "/v1/access-tokens/{id}",
       "action": "accessTokens.revoke",
-      "access": "Admin",
+      "access": "Initiating principal or Admin",
       "permission": "accessToken:manage",
       "input": "IdPath",
       "output": "NoContent",
@@ -44260,13 +44260,9 @@
             },
             "taskType": {
               "type": "string",
-              "enum": [
-                "feature",
-                "bug",
-                "epic",
-                "maintenance"
-              ],
-              "description": "Classification of the work: `feature`, `bug`, `maintenance`, or `epic`. An `epic` is a parent task that completes only after its required child tasks complete, not merely when it is decomposed into them."
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "TaskCreate.taskType must contain at most 40 characters."
             },
             "title": {
               "type": "string",
@@ -57283,13 +57279,9 @@
             },
             "taskType": {
               "type": "string",
-              "enum": [
-                "feature",
-                "bug",
-                "epic",
-                "maintenance"
-              ],
-              "description": "Task classification copied from the task row."
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "TaskBrief.taskType must contain at most 40 characters."
             },
             "approvedPlan": {
               "description": "Plan revision a human approved for this task, frozen with the brief; absent when the plan stage ran without an approval.",
@@ -57510,13 +57502,9 @@
                 },
                 "taskType": {
                   "type": "string",
-                  "enum": [
-                    "feature",
-                    "bug",
-                    "epic",
-                    "maintenance"
-                  ],
-                  "description": "Task classification copied from the task row."
+                  "minLength": 1,
+                  "maxLength": 40,
+                  "description": "TaskBrief.taskType must contain at most 40 characters."
                 },
                 "approvedPlan": {
                   "description": "Plan revision a human approved for this task, frozen with the brief; absent when the plan stage ran without an approval.",
@@ -60937,12 +60925,7 @@
             },
             "taskType": {
               "type": "string",
-              "enum": [
-                "feature",
-                "bug",
-                "epic",
-                "maintenance"
-              ],
+              "maxLength": 65536,
               "description": "Classification of work represented by the task record."
             },
             "status": {
@@ -61355,12 +61338,7 @@
             },
             "taskType": {
               "type": "string",
-              "enum": [
-                "feature",
-                "bug",
-                "epic",
-                "maintenance"
-              ],
+              "maxLength": 65536,
               "description": "Classification of work represented by the task record."
             },
             "status": {
@@ -61773,12 +61751,7 @@
             },
             "taskType": {
               "type": "string",
-              "enum": [
-                "feature",
-                "bug",
-                "epic",
-                "maintenance"
-              ],
+              "maxLength": 65536,
               "description": "Classification of work represented by the record."
             },
             "status": {
@@ -84104,6 +84077,21 @@
               "maxLength": 65536,
               "description": "Human-readable principal name safe for authorized attribution displays; it is not an authorization attribute."
             },
+            "createdByPrincipalId": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Principal that created this service account, or null for a human principal or one created before the column existed; a member sees and manages the service accounts they created."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "Principal.createdByPrincipalId may be null in this transport value."
+            },
             "disabledAt": {
               "anyOf": [
                 {
@@ -84142,6 +84130,7 @@
             "id",
             "principalType",
             "displayName",
+            "createdByPrincipalId",
             "disabledAt",
             "createdAt",
             "updatedAt",
@@ -118828,12 +118817,7 @@
                   },
                   "taskType": {
                     "type": "string",
-                    "enum": [
-                      "feature",
-                      "bug",
-                      "epic",
-                      "maintenance"
-                    ],
+                    "maxLength": 65536,
                     "description": "Classification of work represented by the record."
                   },
                   "status": {
@@ -130082,6 +130066,21 @@
                     "maxLength": 65536,
                     "description": "Human-readable principal name safe for authorized attribution displays; it is not an authorization attribute."
                   },
+                  "createdByPrincipalId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "Principal that created this service account, or null for a human principal or one created before the column existed; a member sees and manages the service accounts they created."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "Principal.createdByPrincipalId may be null in this transport value."
+                  },
                   "disabledAt": {
                     "anyOf": [
                       {
@@ -130120,6 +130119,7 @@
                   "id",
                   "principalType",
                   "displayName",
+                  "createdByPrincipalId",
                   "disabledAt",
                   "createdAt",
                   "updatedAt",
@@ -174293,13 +174293,9 @@
                         },
                         "taskType": {
                           "type": "string",
-                          "enum": [
-                            "feature",
-                            "bug",
-                            "epic",
-                            "maintenance"
-                          ],
-                          "description": "Task classification copied from the task row."
+                          "minLength": 1,
+                          "maxLength": 40,
+                          "description": "TaskBrief.taskType must contain at most 40 characters."
                         },
                         "approvedPlan": {
                           "description": "Plan revision a human approved for this task, frozen with the brief; absent when the plan stage ran without an approval.",
@@ -192754,6 +192750,7 @@
                   "connectedClient:read",
                   "connectedClient:write",
                   "principal:read",
+                  "principal:create",
                   "principal:manage",
                   "permissionGrant:read",
                   "permissionGrant:manage",
@@ -212627,7 +212624,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:21bbd4a45eba75ec9063e22df1f5cdba322b89e2054b736320455f1073c8ab93",
+  "compatibilityDigest": "sha256:28ab4d53df81559790a557f119297980945140b954bbb09828759a21e9c5ea0c",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -223177,13 +223174,9 @@
         },
         "taskType": {
           "type": "string",
-          "enum": [
-            "feature",
-            "bug",
-            "epic",
-            "maintenance"
-          ],
-          "description": "Classification of the work: `feature`, `bug`, `maintenance`, or `epic`. An `epic` is a parent task that completes only after its required child tasks complete, not merely when it is decomposed into them."
+          "minLength": 1,
+          "maxLength": 40,
+          "description": "TaskCreate.taskType must contain at most 40 characters."
         },
         "title": {
           "type": "string",
@@ -236248,13 +236241,9 @@
         },
         "taskType": {
           "type": "string",
-          "enum": [
-            "feature",
-            "bug",
-            "epic",
-            "maintenance"
-          ],
-          "description": "Task classification copied from the task row."
+          "minLength": 1,
+          "maxLength": 40,
+          "description": "TaskBrief.taskType must contain at most 40 characters."
         },
         "approvedPlan": {
           "description": "Plan revision a human approved for this task, frozen with the brief; absent when the plan stage ran without an approval.",
@@ -236475,13 +236464,9 @@
             },
             "taskType": {
               "type": "string",
-              "enum": [
-                "feature",
-                "bug",
-                "epic",
-                "maintenance"
-              ],
-              "description": "Task classification copied from the task row."
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "TaskBrief.taskType must contain at most 40 characters."
             },
             "approvedPlan": {
               "description": "Plan revision a human approved for this task, frozen with the brief; absent when the plan stage ran without an approval.",
@@ -239908,12 +239893,7 @@
         },
         "taskType": {
           "type": "string",
-          "enum": [
-            "feature",
-            "bug",
-            "epic",
-            "maintenance"
-          ],
+          "maxLength": 65536,
           "description": "Classification of work represented by the task record."
         },
         "status": {
@@ -240328,12 +240308,7 @@
         },
         "taskType": {
           "type": "string",
-          "enum": [
-            "feature",
-            "bug",
-            "epic",
-            "maintenance"
-          ],
+          "maxLength": 65536,
           "description": "Classification of work represented by the task record."
         },
         "status": {
@@ -240748,12 +240723,7 @@
         },
         "taskType": {
           "type": "string",
-          "enum": [
-            "feature",
-            "bug",
-            "epic",
-            "maintenance"
-          ],
+          "maxLength": 65536,
           "description": "Classification of work represented by the record."
         },
         "status": {
@@ -263163,6 +263133,21 @@
           "maxLength": 65536,
           "description": "Human-readable principal name safe for authorized attribution displays; it is not an authorization attribute."
         },
+        "createdByPrincipalId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Principal that created this service account, or null for a human principal or one created before the column existed; a member sees and manages the service accounts they created."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "Principal.createdByPrincipalId may be null in this transport value."
+        },
         "disabledAt": {
           "anyOf": [
             {
@@ -263201,6 +263186,7 @@
         "id",
         "principalType",
         "displayName",
+        "createdByPrincipalId",
         "disabledAt",
         "createdAt",
         "updatedAt",
@@ -298005,12 +297991,7 @@
               },
               "taskType": {
                 "type": "string",
-                "enum": [
-                  "feature",
-                  "bug",
-                  "epic",
-                  "maintenance"
-                ],
+                "maxLength": 65536,
                 "description": "Classification of work represented by the record."
               },
               "status": {
@@ -309289,6 +309270,21 @@
                 "maxLength": 65536,
                 "description": "Human-readable principal name safe for authorized attribution displays; it is not an authorization attribute."
               },
+              "createdByPrincipalId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Principal that created this service account, or null for a human principal or one created before the column existed; a member sees and manages the service accounts they created."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "Principal.createdByPrincipalId may be null in this transport value."
+              },
               "disabledAt": {
                 "anyOf": [
                   {
@@ -309327,6 +309323,7 @@
               "id",
               "principalType",
               "displayName",
+              "createdByPrincipalId",
               "disabledAt",
               "createdAt",
               "updatedAt",
@@ -353554,13 +353551,9 @@
                     },
                     "taskType": {
                       "type": "string",
-                      "enum": [
-                        "feature",
-                        "bug",
-                        "epic",
-                        "maintenance"
-                      ],
-                      "description": "Task classification copied from the task row."
+                      "minLength": 1,
+                      "maxLength": 40,
+                      "description": "TaskBrief.taskType must contain at most 40 characters."
                     },
                     "approvedPlan": {
                       "description": "Plan revision a human approved for this task, frozen with the brief; absent when the plan stage ran without an approval.",
@@ -372037,6 +372030,7 @@
               "connectedClient:read",
               "connectedClient:write",
               "principal:read",
+              "principal:create",
               "principal:manage",
               "permissionGrant:read",
               "permissionGrant:manage",

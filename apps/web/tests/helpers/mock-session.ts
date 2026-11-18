@@ -150,6 +150,7 @@ export async function mockAuthenticatedSession(page: Page): Promise<void> {
       body: JSON.stringify({
         principalId: MOCK_PRINCIPAL_ID,
         principalType: "human",
+        createdByPrincipalId: null,
         displayName: "Fixture Admin",
         locale: "en",
         timeZone: null,

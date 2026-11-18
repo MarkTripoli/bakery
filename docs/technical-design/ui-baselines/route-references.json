@@ -3726,8 +3726,15 @@
       ]
     },
     {
-      "routeId": "clients",
+      "routeId": "clients-redirect",
       "path": "/settings/clients",
+      "status": "no-mock",
+      "rationale": "Permanent redirect to /settings/organization/integrations/clients, kept so an existing bookmark or emailed link does not dead-end (issue 233 split). It renders no UI of its own, so there is no artboard to match.",
+      "frames": []
+    },
+    {
+      "routeId": "settings-organization-integrations-clients",
+      "path": "/settings/organization/integrations/clients",
       "status": "baselined",
       "manifest": "auth",
       "frames": [
@@ -3841,7 +3848,8 @@
         "clients.default.light.phone",
         "clients.default.dark.desktop",
         "clients.default.dark.phone"
-      ]
+      ],
+      "rationale": "Moved from /settings/clients to sit under Integrations by the issue 233 owner-directed split; the frames and reference clips are unchanged."
     },
     {
       "routeId": "revoke-client",
@@ -5068,6 +5076,20 @@
       "path": "/settings/organization/access",
       "status": "no-mock",
       "rationale": "Organization Access page (E16 phase 13): members with scoped roles, invitations, service accounts and tokens, connected clients. The page renders through the AccessSettings template. Its Paper frames stay owned by the planned organization-access entry (path /organization/access) and are scored locally, not in CI, through the development alias /__fixtures__/organization/access and the access capture recipe in packages/ui/scripts/capture-enterprise.mjs (2026-10-21, compare-paper.mjs --manifest entitlements with those cases temporarily ledgered baselined): members light desktop 0.9586 (passes the 0.95 floor), members dark desktop 0.9395, empty 0.8239 (0.8420 before the empty card gained New service account), error 0.8057, loading 0.7356 as whole frames. Scored on the main content area alone, empty, error, loading and members dark are 0.9878, 1.0, 1.0 and 0.9579. The whole-frame shortfall is the Paper shell, which the frames disagree on (empty, error and loading draw a 38px section-nav pitch and no account actions; members draws 40px and a 32px account circle; the dark members frame draws no account circle). Phone frames are scored with the capture clipped to the frame; their numbers and the shell gap are in the organization-access entry. Binding the cases needs a refreshed Paper source identity and an owner decision on which shell is authoritative, so no golden is claimed here.",
+      "frames": []
+    },
+    {
+      "routeId": "settings-organization-access-invitations",
+      "path": "/settings/organization/access/invitations",
+      "status": "no-mock",
+      "rationale": "Pending invitations tab of the Members page (issue 233 owner-directed split). No Paper artboard exists for it: the split gave invitations their own route, and the tab shares the Members page layout.",
+      "frames": []
+    },
+    {
+      "routeId": "settings-organization-service-accounts",
+      "path": "/settings/organization/service-accounts",
+      "status": "no-mock",
+      "rationale": "Service accounts and tokens page (issue 233 owner-directed split). No Paper artboard depicts it: the surface was split out of Members & access after the artboards were drawn, and it reuses the AccessSettings template the baselined Members page uses.",
       "frames": []
     },
     {

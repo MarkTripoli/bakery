@@ -3203,7 +3203,7 @@ export const clientManifest = {
       "method": "GET",
       "path": "/v1/principals",
       "action": "principals.list",
-      "access": "Admin",
+      "access": "Initiating principal or Admin",
       "permission": "principal:read",
       "input": "CursorQuery",
       "output": "Page<Principal>",
@@ -3230,8 +3230,8 @@ export const clientManifest = {
       "method": "POST",
       "path": "/v1/principals",
       "action": "principals.create",
-      "access": "Admin",
-      "permission": "principal:manage",
+      "access": "Initiating principal or Admin",
+      "permission": "principal:create",
       "input": "PrincipalCreate",
       "output": "Principal",
       "event": "principal.created",
@@ -3381,7 +3381,7 @@ export const clientManifest = {
       "method": "GET",
       "path": "/v1/access-tokens",
       "action": "accessTokens.list",
-      "access": "Admin",
+      "access": "Initiating principal or Admin",
       "permission": "accessToken:read",
       "input": "CursorQuery",
       "output": "Page<AccessToken>",
@@ -3408,7 +3408,7 @@ export const clientManifest = {
       "method": "POST",
       "path": "/v1/access-tokens",
       "action": "accessTokens.create",
-      "access": "Admin",
+      "access": "Initiating principal or Admin",
       "permission": "accessToken:manage",
       "input": "AccessTokenCreate",
       "output": "AccessTokenCreated",
@@ -3438,7 +3438,7 @@ export const clientManifest = {
       "method": "DELETE",
       "path": "/v1/access-tokens/{id}",
       "action": "accessTokens.revoke",
-      "access": "Admin",
+      "access": "Initiating principal or Admin",
       "permission": "accessToken:manage",
       "input": "IdPath",
       "output": "NoContent",
@@ -13765,13 +13765,9 @@ export const clientManifest = {
         },
         "taskType": {
           "type": "string",
-          "enum": [
-            "feature",
-            "bug",
-            "epic",
-            "maintenance"
-          ],
-          "description": "Classification of the work: `feature`, `bug`, `maintenance`, or `epic`. An `epic` is a parent task that completes only after its required child tasks complete, not merely when it is decomposed into them."
+          "minLength": 1,
+          "maxLength": 40,
+          "description": "TaskCreate.taskType must contain at most 40 characters."
         },
         "title": {
           "type": "string",
@@ -22433,12 +22429,7 @@ export const clientManifest = {
               },
               "taskType": {
                 "type": "string",
-                "enum": [
-                  "feature",
-                  "bug",
-                  "epic",
-                  "maintenance"
-                ],
+                "maxLength": 65536,
                 "description": "Classification of work represented by the record."
               },
               "status": {
@@ -31349,6 +31340,21 @@ export const clientManifest = {
                 "maxLength": 65536,
                 "description": "Human-readable principal name safe for authorized attribution displays; it is not an authorization attribute."
               },
+              "createdByPrincipalId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Principal that created this service account, or null for a human principal or one created before the column existed; a member sees and manages the service accounts they created."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "Principal.createdByPrincipalId may be null in this transport value."
+              },
               "disabledAt": {
                 "anyOf": [
                   {
@@ -31387,6 +31393,7 @@ export const clientManifest = {
               "id",
               "principalType",
               "displayName",
+              "createdByPrincipalId",
               "disabledAt",
               "createdAt",
               "updatedAt",
@@ -37774,12 +37781,7 @@ export const clientManifest = {
         },
         "taskType": {
           "type": "string",
-          "enum": [
-            "feature",
-            "bug",
-            "epic",
-            "maintenance"
-          ],
+          "maxLength": 65536,
           "description": "Classification of work represented by the record."
         },
         "status": {
@@ -47329,6 +47331,21 @@ export const clientManifest = {
           "maxLength": 65536,
           "description": "Human-readable principal name safe for authorized attribution displays; it is not an authorization attribute."
         },
+        "createdByPrincipalId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Principal that created this service account, or null for a human principal or one created before the column existed; a member sees and manages the service accounts they created."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "Principal.createdByPrincipalId may be null in this transport value."
+        },
         "disabledAt": {
           "anyOf": [
             {
@@ -47367,6 +47384,7 @@ export const clientManifest = {
         "id",
         "principalType",
         "displayName",
+        "createdByPrincipalId",
         "disabledAt",
         "createdAt",
         "updatedAt",
@@ -54391,6 +54409,7 @@ export const clientManifest = {
               "connectedClient:read",
               "connectedClient:write",
               "principal:read",
+              "principal:create",
               "principal:manage",
               "permissionGrant:read",
               "permissionGrant:manage",

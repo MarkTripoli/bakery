@@ -107,6 +107,7 @@ async function rolesFixture(
       items: [MEMBER_ID, OTHER_ID].map((id, index) => ({
         id,
         principalType: "human",
+        createdByPrincipalId: null,
         displayName: index === 0 ? "Ada Member" : "Grace Member",
         disabledAt: null,
         createdAt: "2026-10-01T00:00:00.000Z",

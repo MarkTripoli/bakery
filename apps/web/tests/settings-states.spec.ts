@@ -1932,7 +1932,7 @@ test.describe("connected clients and consent", () => {
     expect(clientsReads).toBeGreaterThanOrEqual(1);
     await expect.poll(() =>
       page.evaluate(() => sessionStorage.getItem("bakery.auth.returnTo.v1"))
-    ).toBe("/settings/clients");
+    ).toBe("/settings/organization/integrations/clients");
   });
 
   test("the list names each grant's client, organization and scopes", async ({ page }) => {
@@ -1950,14 +1950,15 @@ test.describe("connected clients and consent", () => {
         name: "Revoke access for Local development client in Northstar",
       }),
     ).toBeVisible();
-    // The Settings navigation (a menu on phone, so open at desktop width)
-    // carries the Connected clients item.
+    // Connected clients left the personal Settings navigation for the
+    // organization Integrations group (issue 233 split), so the nav names no
+    // clients item of its own.
     await page.setViewportSize({ width: 1280, height: 960 });
     await expect(
       page.locator(".bakery-section-navigation").getByRole("link", {
         name: "Connected clients",
       }),
-    ).toHaveCount(1);
+    ).toHaveCount(0);
   });
 
   test("revoking walks list, confirmation naming client and organization, revoked list", async ({ page }) => {

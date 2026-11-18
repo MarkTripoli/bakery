@@ -4095,15 +4095,14 @@ const transportSchemas = {
         },
         {
           "name": "taskType",
-          "type": "enum",
+          "type": "string",
           "required": true,
-          "enum": [
-            "feature",
-            "bug",
-            "epic",
-            "maintenance"
-          ],
-          "description": "Classification of the work: `feature`, `bug`, `maintenance`, or `epic`. An `epic` is a parent task that completes only after its required child tasks complete, not merely when it is decomposed into them."
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 40,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          },
+          "description": "Organization work type label, a lowercase kebab-case token of up to 40 characters. The kernel never branches on it: it names the kind of work for people. `feature`, `bug`, `epic` and `maintenance` are the software-delivery defaults, not a closed set."
         },
         {
           "name": "title",
@@ -8943,15 +8942,14 @@ const transportSchemas = {
         },
         {
           "name": "taskType",
-          "type": "enum",
+          "type": "string",
           "required": true,
-          "enum": [
-            "feature",
-            "bug",
-            "epic",
-            "maintenance"
-          ],
-          "description": "Task classification copied from the task row."
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 40,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          },
+          "description": "Organization work type label copied from the task row. The kernel never branches on it, so any organization label travels here unchanged."
         },
         {
           "name": "approvedPlan",
@@ -10551,7 +10549,7 @@ const transportSchemas = {
         "parentTaskId": "uuid|null",
         "title": "string",
         "description": "string",
-        "taskType": "enum(feature|bug|epic|maintenance)",
+        "taskType": "string",
         "status": "enum(draft|queued|active|waiting_input|blocked|completed|failed|canceled)",
         "priority": "integer",
         "createdBy": "uuid",
@@ -17570,7 +17568,7 @@ const transportSchemas = {
         "parentTaskId": "uuid|null",
         "title": "string",
         "description": "string",
-        "taskType": "enum(feature|bug|epic|maintenance)",
+        "taskType": "string",
         "status": "enum(draft|queued|active|waiting_input|blocked|completed|failed|canceled)",
         "priority": "integer",
         "createdBy": "uuid",
@@ -19311,6 +19309,7 @@ const transportSchemas = {
         "id",
         "principalType",
         "displayName",
+        "createdByPrincipalId",
         "disabledAt",
         "createdAt",
         "updatedAt",
@@ -19323,10 +19322,12 @@ const transportSchemas = {
         "disabledAt": "timestamp|null",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "createdByPrincipalId": "uuid|null"
       },
       "nullableFields": [
-        "disabledAt"
+        "disabledAt",
+        "createdByPrincipalId"
       ],
       "description": "Safe principal lifecycle projection with no organization role or capability; organization authority is resolved separately from current membership or grants.",
       "fieldDescriptions": {
@@ -19336,7 +19337,8 @@ const transportSchemas = {
         "disabledAt": "UTC disablement instant, or null while the principal is enabled; enabled state is reloaded before protected work.",
         "createdAt": "UTC timestamp when the principal lifecycle record was created.",
         "updatedAt": "UTC timestamp when principal-owned lifecycle data was last changed.",
-        "version": "Optimistic-concurrency version for mutations of principal-owned lifecycle data."
+        "version": "Optimistic-concurrency version for mutations of principal-owned lifecycle data.",
+        "createdByPrincipalId": "Principal that created this service account, or null for a human principal or one created before the column existed; a member sees and manages the service accounts they created."
       }
     },
     "SecretMetadata": {

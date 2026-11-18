@@ -527,6 +527,7 @@ export type CatalogPermissionKey =
   | "pluginVersion:write"
   | "preview:access"
   | "preview:read"
+  | "principal:create"
   | "principal:manage"
   | "principal:read"
   | "profile:read"

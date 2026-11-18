@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { MessageKey } from "@bakery/i18n";
 import * as UI from "@bakery/ui";
@@ -82,8 +83,16 @@ function shortId(id: string) {
  * audits; this page never decides who is allowed, it shows the server's
  * answer. A person without the Admin role gets a notice and no data.
  */
-export function OrganizationAccessPage() {
+export function OrganizationAccessPage({
+  page = "members",
+  tab = "members",
+}: {
+  /** Which subject this route holds: the Members page or Service accounts. */
+  readonly page?: "members" | "service-accounts";
+  readonly tab?: "members" | "invitations";
+}) {
   const api = useBakeryApi();
+  const navigate = useNavigate();
   const scope = useProtectedScope();
   const queryClient = useQueryClient();
   const { translate, locale, timeZone } = useI18n();
@@ -100,7 +109,14 @@ export function OrganizationAccessPage() {
   });
   const organization = useQuery(organizationQueryOptions(api, scoped));
   const isAdmin = access.data?.role === "admin";
-  const enabled = organizationId !== null && isAdmin;
+  // Any member reads the service accounts and tokens page; the Members page
+  // stays Admin-only (issue 233, owner-directed split).
+  const member = access.data !== undefined;
+  const enabled = organizationId !== null && member;
+  // Members feed the role shown beside a service account, so the
+  // service-accounts page reads them too; the Members page itself stays
+  // Admin-only.
+  const membersEnabled = enabled && (isAdmin || page === "service-accounts");
   const read = <T,>(
     name: string,
     load: (id: string, signal: AbortSignal) => Promise<ApiResult<T>>,
@@ -114,60 +130,67 @@ export function OrganizationAccessPage() {
     enabled,
     retry: false,
   });
-  const members = useQuery(
-    read("members", (id, signal) =>
+  const members = useQuery({
+    ...read("members", (id, signal) =>
       api.access.members.list({
         organizationId: id,
         limit: PAGE_LIMIT,
         signal,
       })),
-  );
-  const invitations = useQuery(
-    read("invitations", (id, signal) =>
+    enabled: membersEnabled,
+  });
+  const invitations = useQuery({
+    ...read("invitations", (id, signal) =>
       api.access.invitations.list({
         organizationId: id,
         limit: PAGE_LIMIT,
         signal,
       })),
-  );
-  const principals = useQuery(
-    read("principals", (id, signal) =>
+    enabled: membersEnabled,
+  });
+  const principals = useQuery({
+    ...read("principals", (id, signal) =>
       api.access.principals.list({
         organizationId: id,
         limit: PAGE_LIMIT,
         signal,
       })),
-  );
-  const tokens = useQuery(
-    read("tokens", (id, signal) =>
+    enabled,
+  });
+  const tokens = useQuery({
+    ...read("tokens", (id, signal) =>
       api.access.tokens.list({
         organizationId: id,
         limit: PAGE_LIMIT,
         signal,
       })),
-  );
-  const bindings = useQuery(
-    read("bindings", (id, signal) =>
+    enabled,
+  });
+  const bindings = useQuery({
+    ...read("bindings", (id, signal) =>
       api.access.bindings.list({
         organizationId: id,
         limit: PAGE_LIMIT,
         signal,
       })),
-  );
-  const applications = useQuery(
-    read(
+    enabled: membersEnabled,
+  });
+  const applications = useQuery({
+    ...read(
       "applications",
       (id, signal) =>
         api.listApplications({ organizationId: id, limit: PAGE_LIMIT, signal }),
     ),
-  );
-  const repositories = useQuery(
-    read(
+    enabled: membersEnabled,
+  });
+  const repositories = useQuery({
+    ...read(
       "repositories",
       (id, signal) =>
         api.listRepositories({ organizationId: id, limit: PAGE_LIMIT, signal }),
     ),
-  );
+    enabled: membersEnabled,
+  });
   const clients = useQuery({
     ...connectedClientsListQueryOptions(api, scoped),
     enabled,
@@ -410,7 +433,11 @@ export function OrganizationAccessPage() {
       const result = await api.access.tokens.create({
         organizationId,
         input: {
-          principalId: tokenDraft.principalId,
+          // A personal token omits principalId: the server binds it to the
+          // caller (issue 233, owner-directed split).
+          ...(tokenDraft.principalId === "self"
+            ? {}
+            : { principalId: tokenDraft.principalId }),
           name,
           scopes: [tokenDraft.scope],
           expiresAt: new Date(Date.now() + tokenDraft.days * 86_400_000)
@@ -523,14 +550,19 @@ export function OrganizationAccessPage() {
     applications,
     repositories,
   ].filter((query) => query.isError);
+
   // Connected clients decide between the empty card and the sections, so an
   // admin's page waits for them too instead of flashing the empty card.
   const loading = organizationId === null ? restoring : access.isPending ||
-    (isAdmin && (members.isPending || invitations.isPending ||
-      principals.isPending || tokens.isPending || bindings.isPending ||
-      clients.isPending));
+    (page === "service-accounts"
+      ? principals.isPending || tokens.isPending || members.isPending
+      : isAdmin &&
+        (members.isPending || invitations.isPending ||
+          principals.isPending || tokens.isPending || bindings.isPending ||
+          clients.isPending));
   const forbidden = !loading && organizationId !== null &&
-    (access.isError || (access.data !== undefined && !isAdmin));
+    (access.isError ||
+      (access.data !== undefined && !isAdmin && page === "members"));
   const pendingInvitations = (invitations.data?.items ?? []).filter((item) =>
     item.status === "pending"
   );
@@ -547,12 +579,6 @@ export function OrganizationAccessPage() {
   const myClients = (clients.data?.items ?? []).filter((item) =>
     item.organizationId === organizationId
   );
-  // The empty card replaces every section, so it only shows when no section
-  // has anything to manage: no other person, invitation, service account,
-  // token or connected client, and no failed client read to report.
-  const onlyYou = humans.length <= 1 && pendingInvitations.length === 0 &&
-    serviceAccounts.length === 0 && liveTokens.length === 0 &&
-    myClients.length === 0 && !clients.isError;
   const bindingsOf = (principalId: string) =>
     (bindings.data?.items ?? []).filter((item) =>
       item.principalId === principalId
@@ -587,6 +613,7 @@ export function OrganizationAccessPage() {
         return {
           title: translate("settings.orgAccess.confirm.removeMember.title", {
             name: confirm.name,
+            organization: organizationName,
           }),
           body: translate("settings.orgAccess.confirm.removeMember.body"),
           action: translate("settings.orgAccess.member.remove"),
@@ -600,7 +627,8 @@ export function OrganizationAccessPage() {
             },
           ),
           body: translate("settings.orgAccess.confirm.cancelInvitation.body"),
-          action: translate("settings.orgAccess.invitation.cancel"),
+          dismiss: translate("settings.orgAccess.invitation.keep"),
+          action: translate("settings.orgAccess.invitation.cancelLong"),
         };
       case "revokeToken":
         return {
@@ -608,7 +636,8 @@ export function OrganizationAccessPage() {
             name: confirm.token.name,
           }),
           body: translate("settings.orgAccess.confirm.revokeToken.body"),
-          action: translate("settings.orgAccess.token.revoke"),
+          dismiss: translate("settings.orgAccess.cancel"),
+          action: translate("settings.orgAccess.token.revokeLong"),
         };
       case "removeBinding":
         return {
@@ -639,17 +668,19 @@ export function OrganizationAccessPage() {
 
   const editBindings = editing === null ? [] : bindingsOf(editing.principalId);
 
-  const showSections = !loading && !forbidden && loadFailures.length === 0 &&
-    isAdmin;
+  const showSections = !loading && !forbidden &&
+    loadFailures.length === 0 &&
+    (isAdmin || page === "service-accounts");
   const pageState = loading
     ? "loading"
     : forbidden
     ? "default"
     : loadFailures.length > 0
     ? "error"
-    : showSections && onlyYou
-    ? "empty"
     : "default";
+  // A token's stored prefix is "bk_…9d2f"; only the last four characters are
+  // worth reading (issue 233, fix 7).
+  const tokenEnding = (prefix: string) => prefix.slice(-4);
   const scopeText = (type: string, role: string) =>
     `${translate(SCOPE_TYPE_KEYS[type as ScopeType])} · ${roleLabel(role)}`;
   const organizationText = (role: string | null, inactive: boolean) =>
@@ -658,23 +689,6 @@ export function OrganizationAccessPage() {
     }${
       inactive ? ` · ${translate("settings.orgAccess.member.inactive")}` : ""
     }`;
-  const removeBindingButton = (binding: AccessBindingRecord) => (
-    <UI.Button
-      aria-label={`${translate("settings.orgAccess.binding.remove")} ${
-        resourceName(binding.scopeType, binding.scopeId)
-      }`}
-      onClick={() =>
-        setConfirm({
-          kind: "removeBinding",
-          binding,
-          name: resourceName(binding.scopeType, binding.scopeId),
-        })}
-      type="button"
-      variant="text"
-    >
-      {translate("settings.orgAccess.binding.remove")}
-    </UI.Button>
-  );
   /**
    * A person with no organization-wide role (a guest) is shown by what a scope
    * grants them: their first scoped role is the row, the rest follow it.
@@ -682,30 +696,71 @@ export function OrganizationAccessPage() {
   const memberRows: UI.AccessSettingsRow[] = humans.flatMap((membership) => {
     const name = nameOf(membership.principalId);
     const own = bindingsOf(membership.principalId);
+    // A guest with scoped roles has no organization role worth showing, so the
+    // scopes lead; everyone else shows their organization role first and then
+    // whatever their scopes add. Either way it is one row per person (fix 2).
     const scopedOnly = membership.role === "guest" && own.length > 0;
-    const lead = scopedOnly ? own[0] : null;
-    const rest = scopedOnly ? own.slice(1) : own;
+    const scoped = own;
     const rows: UI.AccessSettingsRow[] = [{
       id: membership.id,
       testId: `org-access-member-${membership.id}`,
+
       identity: name,
       emphasis: true,
-      cells: lead
-        ? [
-          scopeText(lead.scopeType, lead.roleKey),
-          resourceName(lead.scopeType, lead.scopeId),
-        ]
-        : [
-          organizationText(membership.role, membership.status === "inactive"),
-          membership.role === "guest"
-            ? translate("settings.orgAccess.scope.guestOnly")
-            : translate("settings.orgAccess.scope.all"),
-        ],
-      // Paper's phone rows read "Organization · Admin": an organization-wide
-      // role's reach is implied there, so a phone keeps "All applications"
-      // for assistive technology only. A scoped row keeps its resource, and a
-      // guest keeps the note that only a scope grants anything.
-      phoneHiddenCells: lead || membership.role === "guest" ? undefined : [1],
+      // One person, one row: further scoped roles stack inside the same row
+      // rather than appearing under a nameless duplicate (#233 fix 2).
+      cells: [
+        <UI.Stack gap="compact" key="role">
+          {scopedOnly ? null : (
+            <UI.Text>
+              {organizationText(
+                membership.role,
+                membership.status === "inactive",
+              )}
+            </UI.Text>
+          )}
+          {scoped.map((binding) => (
+            <UI.Text key={binding.id}>
+              {scopeText(binding.scopeType, binding.roleKey)}
+            </UI.Text>
+          ))}
+        </UI.Stack>,
+        <UI.Stack gap="compact" key="resource">
+          {scopedOnly ? null : (
+            <UI.Text>
+              {membership.role === "guest"
+                ? translate("settings.orgAccess.scope.guestOnly")
+                : translate("settings.orgAccess.scope.all")}
+            </UI.Text>
+          )}
+          {scoped.map((binding) => (
+            <UI.Text key={binding.id}>
+              {resourceName(binding.scopeType, binding.scopeId)}
+            </UI.Text>
+          ))}
+        </UI.Stack>,
+      ],
+      // A phone reads each role with the scope it applies to, one line each
+      // (issue 233, fix 1/5).
+      phoneCells: [
+        ...(scopedOnly ? [] : [
+          `${
+            organizationText(
+              membership.role,
+              membership.status === "inactive",
+            )
+          } · ${
+            membership.role === "guest"
+              ? translate("settings.orgAccess.scope.guestOnly")
+              : translate("settings.orgAccess.scope.all")
+          }`,
+        ]),
+        ...scoped.map((binding) =>
+          `${scopeText(binding.scopeType, binding.roleKey)} · ${
+            resourceName(binding.scopeType, binding.scopeId)
+          }`
+        ),
+      ],
       action: (
         <UI.Button
           aria-label={translate("settings.orgAccess.member.editNamed", {
@@ -723,25 +778,12 @@ export function OrganizationAccessPage() {
             });
           }}
           type="button"
-          variant="text"
+          variant="secondary"
         >
           {translate("settings.orgAccess.member.edit")}
         </UI.Button>
       ),
     }];
-    for (const binding of rest) {
-      rows.push({
-        id: binding.id,
-        testId: `org-access-binding-${binding.id}`,
-        identity: <UI.VisuallyHidden>{name}</UI.VisuallyHidden>,
-        cells: [
-          scopeText(binding.scopeType, binding.roleKey),
-          resourceName(binding.scopeType, binding.scopeId),
-        ],
-        action: removeBindingButton(binding),
-        actionTone: "destructive",
-      });
-    }
     return rows;
   });
   const invitationRows: UI.AccessSettingsRow[] = pendingInvitations.map((
@@ -754,10 +796,17 @@ export function OrganizationAccessPage() {
       `${translate("settings.orgAccess.scope.organization")} · ${
         roleLabel(invitation.role)
       }`,
+      whenShort.format(new Date(invitation.expiresAt)),
+    ],
+    phoneCells: [
+      `${translate("settings.orgAccess.scope.organization")} · ${
+        roleLabel(invitation.role)
+      }`,
       translate("settings.orgAccess.invitation.expires", {
         date: whenShort.format(new Date(invitation.expiresAt)),
       }),
     ],
+    actionTone: "destructive",
     action: (
       <UI.Button
         aria-label={`${
@@ -766,13 +815,51 @@ export function OrganizationAccessPage() {
         data-testid={`org-access-cancel-${invitation.id}`}
         onClick={() => setConfirm({ kind: "cancelInvitation", invitation })}
         type="button"
-        variant="text"
+        variant="secondary"
       >
-        {translate("settings.orgAccess.invitation.cancel")}
+        {translate("settings.orgAccess.invitation.cancelLong")}
       </UI.Button>
     ),
-    actionTone: "destructive",
   }));
+  // Tokens that act as the signed-in person rather than as a service account.
+  // They are separated so "what acts for you" is not mixed with "what acts for
+  // a script" (issue 233, owner-directed split).
+  const serviceIds = new Set(serviceAccounts.map((account) => account.id));
+  const personalTokenRows: UI.AccessSettingsRow[] = liveTokens
+    .filter((token) => !serviceIds.has(token.principalId))
+    .map((token) => ({
+      id: token.id,
+      testId: `org-access-personal-token-${token.id}`,
+      identity: token.name,
+      cells: [
+        translate("settings.orgAccess.token.ending", {
+          ending: tokenEnding(token.prefix),
+        }),
+        when.format(new Date(token.expiresAt)),
+      ],
+      phoneCells: [
+        translate("settings.orgAccess.token.ending", {
+          ending: tokenEnding(token.prefix),
+        }),
+        translate("settings.orgAccess.token.expiresOn", {
+          date: when.format(new Date(token.expiresAt)),
+        }),
+      ],
+      actionTone: "destructive",
+      action: (
+        <UI.Button
+          aria-label={`${
+            translate("settings.orgAccess.token.revoke")
+          } ${token.name}`}
+          data-testid={`org-access-revoke-personal-${token.id}`}
+          onClick={() => setConfirm({ kind: "revokeToken", token })}
+          type="button"
+          variant="secondary"
+        >
+          {translate("settings.orgAccess.token.revoke")}
+        </UI.Button>
+      ),
+    }));
   const accountRows: UI.AccessSettingsRow[] = serviceAccounts.flatMap(
     (account) => {
       const membership = memberItems.find((item) =>
@@ -805,12 +892,22 @@ export function OrganizationAccessPage() {
           {account.displayName}
         </span>
       );
+      // An Admin sees who made each service account; a member sees only
+      // their own, so the column would always repeat their name.
+      const createdBy = isAdmin
+        ? people.get(account.createdByPrincipalId ?? "")?.displayName ??
+          translate("settings.orgAccess.account.createdByUnknown")
+        : null;
       if (mine.length === 0) {
         return [{
           id: account.id,
           identity: named,
           emphasis: true,
-          cells: [grantCell, translate("settings.orgAccess.token.none")],
+          cells: [
+            grantCell,
+            ...(isAdmin ? [createdBy ?? ""] : []),
+            translate("settings.orgAccess.token.none"),
+          ],
         }];
       }
       return mine.map((token, index) => ({
@@ -822,6 +919,9 @@ export function OrganizationAccessPage() {
         emphasis: true,
         cells: [
           index === 0 ? grantCell : "",
+          // A token's row shows the same Created by value as its account, so
+          // the two rows keep one grid (issue 233, round 3).
+          ...(isAdmin ? [index === 0 ? createdBy ?? "" : ""] : []),
           <span
             key="prefix"
             title={`${
@@ -836,7 +936,9 @@ export function OrganizationAccessPage() {
               })
             }`}
           >
-            <code>{token.prefix}</code>
+            {translate("settings.orgAccess.token.endingShort", {
+              ending: tokenEnding(token.prefix),
+            })}
             <UI.VisuallyHidden>
               {` · ${
                 token.scopes.map((scopeName) =>
@@ -852,7 +954,13 @@ export function OrganizationAccessPage() {
             </UI.VisuallyHidden>
           </span>,
         ],
-        phoneHiddenCells: [0],
+        phoneCells: [
+          grant,
+          translate("settings.orgAccess.token.ending", {
+            ending: tokenEnding(token.prefix),
+          }),
+        ],
+        actionTone: "destructive",
         action: (
           <UI.Button
             aria-label={`${
@@ -861,23 +969,25 @@ export function OrganizationAccessPage() {
             data-testid={`org-access-revoke-${token.id}`}
             onClick={() => setConfirm({ kind: "revokeToken", token })}
             type="button"
-            variant="text"
+            variant="secondary"
           >
             {translate("settings.orgAccess.token.revoke")}
           </UI.Button>
         ),
-        actionTone: "destructive" as const,
       }));
     },
   );
   const clientRows: UI.AccessSettingsRow[] = myClients.map((client) => ({
     id: client.id,
+    testId: `org-access-client-${client.id}`,
     identity: client.clientName,
-    cells: [
+    cells: [when.format(new Date(client.authorizedAt))],
+    phoneCells: [
       translate("settings.orgAccess.clients.authorized", {
         date: when.format(new Date(client.authorizedAt)),
       }),
     ],
+    actionTone: "destructive",
     action: (
       <UI.Button
         aria-label={`${
@@ -890,12 +1000,11 @@ export function OrganizationAccessPage() {
             name: client.clientName,
           })}
         type="button"
-        variant="text"
+        variant="secondary"
       >
         {translate("settings.orgAccess.client.revoke")}
       </UI.Button>
     ),
-    actionTone: "destructive",
   }));
 
   const accountForm = accountDraft.open
@@ -1092,26 +1201,66 @@ export function OrganizationAccessPage() {
               href: SETTINGS_HOME,
               label: translate("shell.states.settingsTitle"),
             },
-            { label: translate("settings.orgAccess.title") },
+            {
+              label: page === "service-accounts"
+                ? translate("settings.orgAccess.serviceAccounts.title")
+                : translate("settings.orgAccess.title"),
+            },
           ]}
         />
       </ShellSlot>
       <UI.AccessSettings
         data-testid="org-access"
-        title={translate("settings.orgAccess.title")}
+        tabs={showSections && pageState === "default" && page === "members"
+          ? (
+            <UI.Tabs
+              aria-label={translate("settings.orgAccess.title")}
+              onSelect={(id) =>
+                void navigate({
+                  to: id === "invitations"
+                    ? "/settings/organization/access/invitations"
+                    : "/settings/organization/access",
+                })}
+              selectedId={tab}
+              tabs={[
+                {
+                  id: "members",
+                  label: translate("settings.orgAccess.tab.members"),
+                  content: null,
+                },
+                {
+                  id: "invitations",
+                  label: pendingInvitations.length > 0
+                    ? translate("settings.orgAccess.tab.invitationsCount", {
+                      count: pendingInvitations.length,
+                    })
+                    : translate("settings.orgAccess.tab.invitations"),
+                  content: null,
+                },
+              ]}
+              variant="route"
+            />
+          )
+          : null}
+        title={page === "service-accounts"
+          ? translate("settings.orgAccess.serviceAccounts.title")
+          : translate("settings.orgAccess.title")}
         description={pageState === "default"
-          ? translate("settings.orgAccess.description", {
-            organization: organizationName,
-          })
+          ? translate(
+            page === "service-accounts"
+              ? "settings.orgAccess.serviceAccounts.description"
+              : "settings.orgAccess.description",
+            { organization: organizationName },
+          )
           : undefined}
         summary={showSections && pageState === "default"
           ? translate("settings.orgAccess.summary", {
-            people: humans.length + pendingInvitations.length,
-            pending: pendingInvitations.length,
+            people: humans.length,
           })
           : undefined}
-        actions={showSections ? inviteAction : null}
-        hideActionsOnPhone={pageState === "empty"}
+        // Inviting people belongs to Members; the service accounts page has
+        // no people to invite, so the header action would be a lie there.
+        actions={showSections && page === "members" ? inviteAction : null}
         state={pageState}
         status={pageState === "loading"
           ? {
@@ -1136,38 +1285,7 @@ export function OrganizationAccessPage() {
               </UI.Button>
             ),
           }
-          : {
-            testId: "org-access-empty",
-            title: translate("settings.orgAccess.empty.title"),
-            description: translate("settings.orgAccess.empty.description"),
-            descriptionShort: translate("settings.orgAccess.empty.short"),
-            // The card hides the accounts section, so it also offers the first
-            // service account (and through it a token) to a lone admin.
-            action: (
-              <UI.Inline>
-                <UI.Button
-                  data-testid="org-access-invite-first"
-                  onClick={() =>
-                    setInvite((value) => ({ ...value, open: !value.open }))}
-                  type="button"
-                >
-                  {translate("settings.orgAccess.empty.action")}
-                </UI.Button>
-                <UI.Button
-                  data-testid="org-access-new-account-first"
-                  onClick={() =>
-                    setAccountDraft((value) => ({
-                      ...value,
-                      open: !value.open,
-                    }))}
-                  type="button"
-                  variant="text"
-                >
-                  {translate("settings.orgAccess.account.new")}
-                </UI.Button>
-              </UI.Inline>
-            ),
-          }}
+          : undefined}
         notice={
           <>
             {forbidden
@@ -1193,106 +1311,220 @@ export function OrganizationAccessPage() {
               : null}
           </>
         }
-        sections={showSections
-          ? [{
-            id: "org-access-members",
-            testId: "org-access-members",
-            title: translate("settings.orgAccess.members.heading"),
-            titleDetail: translate("settings.orgAccess.members.count", {
-              count: humans.length + pendingInvitations.length,
-            }),
-            aside: translate("settings.orgAccess.members.pending", {
-              count: pendingInvitations.length,
-            }),
-            phoneLayout: "overlay",
-            rows: memberRows,
-            children: inviteForm,
-          }, {
-            id: "org-access-invitations",
-            testId: "org-access-invitations",
-            title: translate("settings.orgAccess.invitations.title"),
-            phoneLayout: "stacked",
-            rows: invitationRows,
-            empty: translate("settings.orgAccess.invitations.none"),
-          }, {
-            id: "org-access-accounts",
-            testId: "org-access-accounts",
-            title: translate("settings.orgAccess.accounts.title"),
-            phoneLayout: "inline",
-            actions: (
-              <>
-                <UI.Button
-                  data-testid="org-access-new-account"
-                  onClick={() =>
-                    setAccountDraft((value) => ({
-                      ...value,
-                      open: !value.open,
-                    }))}
-                  type="button"
-                  variant="text"
-                >
-                  {translate("settings.orgAccess.account.new")}
-                </UI.Button>
-                <UI.Button
-                  data-testid="org-access-new-token-action"
-                  disabled={serviceAccounts.length === 0}
-                  onClick={() =>
-                    setTokenDraft((value) => ({
-                      ...value,
-                      open: !value.open,
-                      principalId: value.principalId ||
-                        serviceAccounts[0]?.id || "",
-                    }))}
-                  type="button"
-                  variant="text"
-                >
-                  {translate("settings.orgAccess.token.new")}
-                </UI.Button>
-              </>
-            ),
-            rows: accountRows,
-            empty: translate("settings.orgAccess.accounts.none"),
-            callout: created
-              ? {
-                testId: "org-access-new-token",
-                text: translate("settings.orgAccess.token.shownOnce"),
-                textShort: translate("settings.orgAccess.token.shownOnceShort"),
-                value: (
-                  <span data-testid="org-access-token-secret">
-                    {created.secret}
-                  </span>
-                ),
-                onDismiss: () => setCreated(null),
-                dismissLabel: translate("settings.orgAccess.dismiss"),
-              }
-              : undefined,
-            children: (
-              <>
-                {accountForm}
-                {tokenForm}
-              </>
-            ),
-          }, {
-            id: "org-access-clients",
-            testId: "org-access-clients",
-            title: translate("settings.orgAccess.clients.title"),
-            columns: "detail",
-            phoneLayout: "stacked",
-            rows: clientRows,
-            empty: clients.isError
-              ? translate("settings.orgAccess.clients.error")
-              : translate("settings.orgAccess.clients.none"),
-          }]
-          : []}
-      >
-        {pageState === "empty"
-          ? (
+        sections={([{
+          id: "org-access-members",
+          testId: "org-access-members",
+          title: translate("settings.orgAccess.members.heading"),
+          columnHeaders: [
+            translate("settings.orgAccess.column.member"),
+            <UI.Inline gap="compact" key="role">
+              {translate("settings.orgAccess.column.role")}
+              <UI.HelpTip
+                label={translate("settings.orgAccess.column.role")}
+              >
+                {translate("settings.orgAccess.help.role")}
+              </UI.HelpTip>
+            </UI.Inline>,
+            translate("settings.orgAccess.column.appliesTo"),
+            "",
+          ],
+          titleHelp: (
+            <UI.HelpTip
+              label={translate("settings.orgAccess.column.role")}
+            >
+              {translate("settings.orgAccess.help.role")}
+            </UI.HelpTip>
+          ),
+          titleHelpPhoneOnly: true,
+          titleDetail: translate("settings.orgAccess.members.count", {
+            count: humans.length,
+          }),
+          // A count that reads like an action should be one: it goes to the
+          // section it counts (#233 fix 8).
+          phoneLayout: "block",
+          rows: memberRows,
+          children: inviteForm,
+        }, {
+          id: "org-access-invitations",
+          testId: "org-access-invitations",
+          title: translate("settings.orgAccess.invitations.title"),
+          columnHeaders: [
+            translate("settings.orgAccess.column.email"),
+            translate("settings.orgAccess.column.role"),
+            translate("settings.orgAccess.column.expires"),
+            "",
+          ],
+          phoneLayout: "block",
+          rows: invitationRows,
+          empty: translate("settings.orgAccess.invitations.none"),
+        }, {
+          id: "org-access-personal-tokens",
+          testId: "org-access-personal-tokens",
+          title: translate("settings.orgAccess.personal.title"),
+          columnHeaders: [
+            translate("settings.orgAccess.column.token"),
+            translate("settings.orgAccess.column.expires"),
+            "",
+          ],
+          titleHelp: (
+            <UI.HelpTip
+              label={translate("settings.orgAccess.personal.title")}
+            >
+              {translate("settings.orgAccess.personal.help")}
+            </UI.HelpTip>
+          ),
+          phoneLayout: "block",
+          columns: "detail",
+          actions: (
+            <UI.Button
+              data-testid="org-access-new-personal-token"
+              onClick={() =>
+                setTokenDraft((value) => ({
+                  ...value,
+                  open: true,
+                  principalId: "self",
+                }))}
+              type="button"
+              variant="secondary"
+            >
+              {translate("settings.orgAccess.personal.new")}
+            </UI.Button>
+          ),
+          rows: personalTokenRows,
+          empty: translate("settings.orgAccess.personal.none"),
+          emptyHelp: translate("settings.orgAccess.personal.emptyHelp"),
+        }, {
+          id: "org-access-accounts",
+          testId: "org-access-accounts",
+          title: translate("settings.orgAccess.accounts.title"),
+          columnHeaders: [
+            translate("settings.orgAccess.column.account"),
+            translate("settings.orgAccess.column.role"),
+            isAdmin ? translate("settings.orgAccess.column.createdBy") : "",
+            translate("settings.orgAccess.column.token"),
+            "",
+          ],
+          titleHelp: (
+            <UI.HelpTip
+              label={translate("settings.orgAccess.accounts.title")}
+            >
+              {translate("settings.orgAccess.help.accounts")}
+            </UI.HelpTip>
+          ),
+          phoneLayout: "block",
+          // A member sees only what they created, and is told so.
+          emptyHelp: isAdmin
+            ? undefined
+            : translate("settings.orgAccess.accounts.memberScope"),
+          actions: (
             <>
-              {inviteForm}
-              {accountForm}
+              <UI.Button
+                data-testid="org-access-new-account"
+                onClick={() =>
+                  setAccountDraft((value) => ({
+                    ...value,
+                    open: !value.open,
+                  }))}
+                type="button"
+                variant="secondary"
+              >
+                {translate("settings.orgAccess.account.new")}
+              </UI.Button>
+              <UI.Button
+                aria-describedby={serviceAccounts.length === 0
+                  ? "org-access-new-token-why"
+                  : undefined}
+                data-testid="org-access-new-token-action"
+                disabled={serviceAccounts.length === 0}
+                title={serviceAccounts.length === 0
+                  ? translate("settings.orgAccess.token.needsAccount")
+                  : undefined}
+                onClick={() =>
+                  setTokenDraft((value) => ({
+                    ...value,
+                    open: !value.open,
+                    principalId: value.principalId ||
+                      serviceAccounts[0]?.id || "",
+                  }))}
+                type="button"
+                variant="secondary"
+              >
+                {translate("settings.orgAccess.token.new")}
+              </UI.Button>
+              {serviceAccounts.length === 0
+                ? (
+                  <UI.VisuallyHidden id="org-access-new-token-why">
+                    {translate("settings.orgAccess.token.needsAccount")}
+                  </UI.VisuallyHidden>
+                )
+                : null}
             </>
-          )
-          : null}
+          ),
+          rows: accountRows,
+          empty: translate("settings.orgAccess.accounts.none"),
+          callout: created
+            ? {
+              testId: "org-access-new-token",
+              text: translate("settings.orgAccess.token.shownOnce"),
+              textShort: translate("settings.orgAccess.token.shownOnceShort"),
+              value: (
+                <span data-testid="org-access-token-secret">
+                  {created.secret}
+                </span>
+              ),
+              onDismiss: () => setCreated(null),
+              dismissLabel: translate("settings.orgAccess.dismiss"),
+            }
+            : undefined,
+          children: (
+            <>
+              {accountForm}
+              {tokenForm}
+            </>
+          ),
+        }, {
+          id: "org-access-clients",
+          testId: "org-access-clients",
+          title: translate("settings.orgAccess.clients.title"),
+          columnHeaders: [
+            translate("settings.orgAccess.column.client"),
+            translate("settings.orgAccess.column.authorized"),
+            "",
+            "",
+          ],
+          titleHelp: (
+            <UI.HelpTip
+              label={translate("settings.orgAccess.clients.title")}
+            >
+              {translate("settings.orgAccess.help.clients")}
+            </UI.HelpTip>
+          ),
+          columns: "detail",
+          phoneLayout: "block",
+          rows: clientRows,
+          empty: clients.isError
+            ? translate("settings.orgAccess.clients.error")
+            : translate("settings.orgAccess.clients.none"),
+          emptyHelp: clients.isError
+            ? undefined
+            : translate("settings.orgAccess.clients.emptyHelp"),
+        }] satisfies UI.AccessSettingsSection[])
+          .filter((section) => {
+            const onServiceAccounts = section.id === "org-access-accounts" ||
+              section.id === "org-access-personal-tokens";
+            // Service accounts and tokens are their own page; Members and
+            // Invitations share one, split by a tab (issue 233, owner-directed
+            // split).
+            // Clients stay on the Members page until 535 merges, then they
+            // become a tab of Integrations (issue 233, owner-directed split).
+            if (section.id === "org-access-clients") return page === "members";
+            if (page === "service-accounts") return onServiceAccounts;
+            if (onServiceAccounts) return false;
+            return tab === "invitations"
+              ? section.id === "org-access-invitations"
+              : section.id !== "org-access-invitations";
+          })}
+      >
       </UI.AccessSettings>
 
       <UI.Dialog
@@ -1453,7 +1685,7 @@ export function OrganizationAccessPage() {
             type="button"
             variant="quiet"
           >
-            {translate("settings.orgAccess.cancel")}
+            {confirmCopy?.dismiss ?? translate("settings.orgAccess.cancel")}
           </UI.Button>
         }
         confirmAction={
