@@ -14,7 +14,7 @@ import {
   OrganizationContextPolicy,
   type OrganizationId,
   organizationId as toOrganizationId,
-  type OrganizationRole,
+  OrganizationRole,
   type PrincipalId,
   principalId as toPrincipalId,
   PrincipalType,
@@ -48,6 +48,7 @@ import {
 } from "../application/bindings.ts";
 import {
   authorizeOrganizationAction,
+  isOrganizationMember,
   permissionForAction,
 } from "../application/authorize.ts";
 import { minimalScopes, scopeAllows } from "../application/scopes.ts";
@@ -391,6 +392,50 @@ function authorizeWithBindings(
   })();
 }
 
+/**
+ * Read-state changes on the caller's OWN inbox. Every one of these handlers
+ * scopes to recipient = the authenticated principal and never accepts a
+ * recipient from the request, so a member whose role lacks
+ * notification:write (a Viewer) may still mark their own items read or
+ * unread. This is a principal-equals-recipient rule, not a role grant: it
+ * reaches no other action and no other person's notifications.
+ */
+const OWN_INBOX_WRITE_ACTIONS: ReadonlySet<string> = new Set([
+  "notifications.setRead",
+  "notifications.markAllRead",
+  "notifications.undoMarkAllRead",
+]);
+
+function isPermissionMiss(error: unknown): boolean {
+  return error instanceof StandardError &&
+    (error.code === "AUTH_FORBIDDEN" || error.code === "RESOURCE_NOT_FOUND");
+}
+
+export function authorizeOwnInboxWrite(
+  action: ActionDefinition,
+  actor: OrganizationActor,
+  denied: unknown,
+): OrganizationActor {
+  // Only a permission miss falls back to the own-inbox rule. A scope miss, a
+  // binding fault or any other error is the real answer and is passed on.
+  if (
+    !isPermissionMiss(denied) ||
+    !OWN_INBOX_WRITE_ACTIONS.has(action.name) ||
+    !isOrganizationMember(actor)
+  ) throw denied;
+  const permission = permissionForAction(action.name as CatalogActionName);
+  if (
+    actor.tokenScopes !== undefined &&
+    !scopeAllows(permission, actor.tokenScopes)
+  ) {
+    throw new StandardError({
+      code: "INSUFFICIENT_SCOPE",
+      params: { requiredScopes: minimalScopes(permission) },
+    });
+  }
+  return actor;
+}
+
 export async function resolveOrganizationActor(
   transaction: PgTransactionClient,
   principalId: PrincipalId,
@@ -550,7 +595,7 @@ export class PostgresAuthorityRunner implements ActionAuthorityRunner {
                 id: context.params.id,
                 input,
               }),
-          );
+          ).catch((denied) => authorizeOwnInboxWrite(action, actor, denied));
           subject = permitted.subject;
           authority = permitted;
         } else {

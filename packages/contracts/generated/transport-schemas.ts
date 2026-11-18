@@ -4026,9 +4026,10 @@ const transportSchemas = {
             "task",
             "conversation",
             "worker_enrollment",
-            "worker"
+            "worker",
+            "inbox"
           ],
-          "description": "Kind of resource the snapshot is scoped to: an organization-wide application feed, one repository, one task, one conversation, one worker enrollment (Admin status feed), or one worker machine (safe status feed)."
+          "description": "Kind of resource the snapshot is scoped to: an organization-wide application feed, one repository, one task, one conversation, one worker enrollment (Admin status feed), or one worker machine (safe status feed). \"inbox\" is events-only: its id must be the caller's own principal id, any member may subscribe to their own, and it carries only notifications.inbox_changed signals; snapshots reject it."
         },
         {
           "name": "scopeId",
@@ -10705,6 +10706,20 @@ const transportSchemas = {
         }
       ],
       "description": "Lists the agent sessions that belong to one run step, so a client can reach a session by run rather than by an id it already knows."
+    },
+    "NotificationUndoMarkAllRead": {
+      "fields": [
+        {
+          "name": "batchId",
+          "type": "uuid",
+          "required": true,
+          "description": "The batchId a mark-all-read call returned. Only that press of the authenticated recipient can be undone, once, within 10 minutes."
+        }
+      ],
+      "rules": [
+        "Restores unread only on rows that press marked and nothing has changed since; a row read or unread again in the meantime keeps its newer state. A second undo or an expired batch fails with STATE_CONFLICT; another recipient's or an unknown batch is RESOURCE_NOT_FOUND."
+      ],
+      "description": "Undoes the recipient's last mark-all-read press within its bound, so the Undo toast can restore exactly what was marked."
     }
   },
   "projections": {
@@ -22701,12 +22716,12 @@ const transportSchemas = {
         "id"
       ],
       "fieldTypes": {
-        "type": "enum(application|repository|task|conversation)",
+        "type": "enum(application|repository|task|conversation|inbox)",
         "id": "uuid"
       },
-      "description": "One of up to four resource scopes a WebSocket client names on subscribe, pairing a resource kind (application, repository, task, or conversation) with its ID; events for that scope are intersected with the connection's live access on every delivery, not just at subscribe time.",
+      "description": "One of up to four resource scopes a WebSocket client names on subscribe, pairing a resource kind (application, repository, task, conversation, or the caller's own inbox) with its ID; events for that scope are intersected with the connection's live access on every delivery, not just at subscribe time.",
       "fieldDescriptions": {
-        "type": "Resource kind the subscription follows: application, repository, task or conversation; each scope is intersected with live access before delivery.",
+        "type": "Resource kind the subscription follows: application, repository, task or conversation, each intersected with live access before delivery; or inbox, whose id must be the caller's own principal id and which carries only notifications.inbox_changed signals.",
         "id": "Stable UUID identifying the scope record."
       }
     },
@@ -27143,14 +27158,21 @@ const transportSchemas = {
       "fields": [
         "marked",
         "remainingUnread",
-        "revision"
+        "revision",
+        "batchId"
+      ],
+      "optionalFields": [
+        "batchId"
       ],
       "fieldTypes": {
         "marked": "integer",
         "remainingUnread": "integer",
-        "revision": "integer"
+        "revision": "integer",
+        "batchId": "uuid|null"
       },
-      "nullableFields": [],
+      "nullableFields": [
+        "batchId"
+      ],
       "fieldBounds": {
         "marked": {
           "min": 0
@@ -27162,7 +27184,8 @@ const transportSchemas = {
       "fieldDescriptions": {
         "marked": "How many items this call actually marked read, for the toast's count.",
         "remainingUnread": "How many items are still unread for the recipient after the call, which is above zero when arrivals landed after the cutoff.",
-        "revision": "The inbox revision after the change, so the client can order it against other responses."
+        "revision": "The inbox revision after the change, so the client can order it against other responses.",
+        "batchId": "Identifier of this mark-all-read press for notifications.undoMarkAllRead, or null when nothing was marked. Undo is accepted for 10 minutes."
       },
       "rules": [
         "Only rows created at or before readBefore are marked, so arrivals during the action stay unread."
@@ -27432,6 +27455,33 @@ const transportSchemas = {
         "nextCursor": "Opaque continuation after the last emitted session, or null when traversal is complete."
       },
       "description": "One page of the agent sessions that belong to a run step, newest page last."
+    },
+    "NotificationUndoMarkAllReadResult": {
+      "fields": [
+        "restored",
+        "unread",
+        "revision"
+      ],
+      "fieldTypes": {
+        "restored": "integer",
+        "unread": "integer",
+        "revision": "integer"
+      },
+      "nullableFields": [],
+      "fieldBounds": {
+        "restored": {
+          "min": 0
+        },
+        "unread": {
+          "min": 0
+        }
+      },
+      "fieldDescriptions": {
+        "restored": "How many items became unread again.",
+        "unread": "The unread total after the undo.",
+        "revision": "The newest inbox revision after the undo, for ordering against other responses and events."
+      },
+      "description": "Outcome of undoing one mark-all-read press."
     }
   },
   "pageEnvelope": {
@@ -28712,6 +28762,15 @@ const transportSchemas = {
       },
       "inngestTrigger": null,
       "description": "Authorized invalidation notification that a draft comment was edited, resolved, reopened, deleted or restored; resourceId is the comment. Fetch it through draftComments.list."
+    },
+    "notifications.inbox_changed": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Content-free signal that one recipient's notification list or unread count changed (an item arrived, was read or unread, or a mark-all ran or was undone). resourceId is the recipient principal and resourceVersion the newest inbox revision. It is delivered only to that principal's own inbox subscription; clients re-read notifications.count and notifications.list."
     }
   },
   "workerActions": {
