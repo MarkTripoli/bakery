@@ -33,8 +33,10 @@ create table bakery.mcp_capability_snapshots (
     foreign key (organization_id, connection_id)
     references bakery.mcp_connections (organization_id, id)
     on delete cascade,
-  constraint mcp_capability_snapshots_connection_digest_unique
-    unique (connection_id, digest),
+  -- No uniqueness on (connection_id, digest): a server whose schema goes
+  -- A, then B, then A again is a real sequence, and the second A is a new
+  -- observation that a pinned snapshot must be comparable against. Snapshots are
+  -- append-only, so the history keeps every observation in order.
   constraint mcp_capability_snapshots_organization_id_unique
     unique (organization_id, id)
 );

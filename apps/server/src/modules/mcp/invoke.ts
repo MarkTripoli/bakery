@@ -57,6 +57,8 @@ export type McpPinnedState = Readonly<{
   workerHostId: string | null;
   /** Operations the caller's binding admits; empty admits nothing. */
   allowedOperations: readonly string[];
+  /** Whether the host dispatching this call may currently run MCP work. */
+  dispatchingHostEligible: boolean;
 }>;
 
 /** Reads the pinned state for one invocation. Server-side; never caller-supplied. */
@@ -65,6 +67,19 @@ export type McpPinnedStatePort = {
     organizationId: string;
     connectionId: string;
     actorRef: string;
+    /**
+     * The host dispatching this call. Its eligibility is read from the host's
+     * own row inside the store; the caller only says which host it is.
+     */
+    hostId: string;
+    /**
+     * The ownership the caller is invoking as. A binding owned by a different
+     * workflow, agent or step must not match, so the slots are part of the read
+     * rather than something the check layer could forget to apply.
+     */
+    workflowVersionId?: string | null;
+    agentVersionId?: string | null;
+    stepKey?: string | null;
   }): Promise<McpPinnedState | null>;
 };
 
@@ -88,12 +103,19 @@ export type McpInvokeInput =
     organizationId: string;
     actorRef: string;
     /**
-     * The worker host dispatching this call, and whether it can run MCP work.
-     * Supplied by the caller because only the dispatch path knows which host it
-     * is; the connection's bound host comes from its row, so the two are
-     * compared rather than trusted to agree.
+     * The worker host dispatching this call. Only the dispatch path knows which
+     * host it is, so it is supplied; whether that host may run MCP work is NOT
+     * taken from the caller and is read from `worker_hosts` instead.
      */
-    host: Readonly<{ hostId: string; eligible: boolean }>;
+    hostId: string;
+    /**
+     * The ownership the call is made for, when it is made for one. A binding
+     * owned by a different workflow, agent or step does not match, which is why
+     * these travel with the call rather than being looked up later.
+     */
+    workflowVersionId?: string | null;
+    agentVersionId?: string | null;
+    stepKey?: string | null;
   }>;
 
 export type McpInvokeResult = Readonly<{
@@ -142,7 +164,7 @@ export function operationAllowed(
  * rather than a set of early returns scattered through the transport.
  */
 export function mcpInvocationDenial(
-  input: Pick<McpInvokeInput, "toolName" | "pinnedDigest" | "host">,
+  input: Pick<McpInvokeInput, "toolName" | "pinnedDigest" | "hostId">,
   state: McpPinnedState,
 ): { denial: McpInvocationDenial; detail: string } | null {
   // A revoked or disabled connection is refused before anything else: the
@@ -182,7 +204,10 @@ export function mcpInvocationDenial(
   if (
     !mcpHostEligible(
       { transport: state.transport, boundHostId: state.workerHostId },
-      { hostId: input.host.hostId, eligible: input.host.eligible },
+      {
+        hostId: input.hostId,
+        eligible: state.dispatchingHostEligible,
+      },
     )
   ) {
     return {
@@ -224,10 +249,17 @@ export function mcpInvocationDenial(
         "The invocation's pinned digest does not match the bound snapshot.",
     };
   }
-  if (
-    state.currentSnapshot !== null &&
-    state.currentSnapshot.digest !== state.pinnedSnapshot.digest
-  ) {
+  // A binding whose snapshot is not the connection's current one is drift, and
+  // no current snapshot at all is worse: nothing can be compared, and treating
+  // that as "no drift" would let an unverifiable call through.
+  if (state.currentSnapshot === null) {
+    return {
+      denial: "schema_drift",
+      detail:
+        "The connection has no current snapshot, so drift cannot be ruled out.",
+    };
+  }
+  if (state.currentSnapshot.digest !== state.pinnedSnapshot.digest) {
     return {
       denial: "schema_drift",
       detail:
@@ -258,12 +290,16 @@ export async function invokeMcpTool(
   }
   // The contract schema covers only what travels on the wire, so the caller
   // context parsed alongside it is merged back here rather than being dropped.
-  const input = { ...parsed.data, host: rawInput.host };
+  const input = { ...parsed.data, hostId: rawInput.hostId };
 
   const state = await deps.pinnedState.load({
     organizationId: rawInput.organizationId,
     connectionId: input.connectionId,
     actorRef: rawInput.actorRef,
+    hostId: rawInput.hostId,
+    workflowVersionId: rawInput.workflowVersionId ?? null,
+    agentVersionId: rawInput.agentVersionId ?? null,
+    stepKey: rawInput.stepKey ?? null,
   });
   if (state === null) {
     // An unknown connection is a denial, not an empty pass. Falling through to

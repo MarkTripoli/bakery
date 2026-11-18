@@ -41,7 +41,8 @@ export function createPostgresMcpPinnedStatePort(
         current_digest: string | null;
         grant_live: boolean;
         allowed_operations: unknown;
-      }[]>` 
+        dispatching_host_eligible: boolean;
+      }[]>`
           select
             connection.status as connection_status,
             server.transport as transport,
@@ -63,7 +64,16 @@ export function createPostgresMcpPinnedStatePort(
                  and (binding_any.actor_ref is null
                       or binding_any.actor_ref = ${input.actorRef})
             ) as grant_live,
-            binding.allowed_operations
+            binding.allowed_operations,
+            -- The dispatching host's eligibility is read from the worker's own
+            -- row, not taken from the caller: a caller that asserts it is
+            -- eligible would otherwise be believed.
+            coalesce((
+              select host.status = 'online' and host.desired_mode = 'accepting'
+                from bakery.worker_hosts host
+               where host.organization_id = connection.organization_id
+                 and host.id = ${input.hostId}
+            ), false) as dispatching_host_eligible
           from bakery.mcp_connections connection
           join bakery.mcp_servers server
             on server.organization_id = connection.organization_id
@@ -81,6 +91,22 @@ export function createPostgresMcpPinnedStatePort(
                -- another actor's binding is not a candidate at all: selecting it
                -- would let a stranger's operation list stand in for this one.
                and (b.actor_ref = ${input.actorRef} or b.actor_ref is null)
+               -- A binding owned by a workflow, agent, skill or automation is
+               -- for that owner, not for anyone with a connection id. A caller
+               -- matching none of the supplied ownership slots may use only an
+               -- unowned binding, so a step-scoped grant cannot stand in for an
+               -- organization-wide one.
+               and (
+                 (b.workflow_version_id is null
+                   or b.workflow_version_id = ${
+        input.workflowVersionId ?? null
+      })
+                 and (b.agent_version_id is null
+                   or b.agent_version_id = ${input.agentVersionId ?? null})
+                 and (b.step_key is null or b.step_key = ${
+        input.stepKey ?? null
+      })
+               )
              order by (b.actor_ref = ${input.actorRef}) desc nulls last,
                       b.created_at desc
              limit 1
@@ -88,6 +114,10 @@ export function createPostgresMcpPinnedStatePort(
           left join bakery.mcp_capability_snapshots pinned
             on pinned.organization_id = connection.organization_id
            and pinned.id = binding.mcp_snapshot_id
+           -- The snapshot must belong to this same connection. Matching only on
+           -- organization would let a binding name another connection's
+           -- snapshot, which has a different remote behind it.
+           and pinned.connection_id = connection.id
           left join lateral (
             select s.id, s.digest
               from bakery.mcp_capability_snapshots s
@@ -113,6 +143,7 @@ export function createPostgresMcpPinnedStatePort(
         // or names nobody. A binding for someone else is not this caller's.
         grantLive: row.grant_live === true &&
           (row.allowed_operations !== null),
+        dispatchingHostEligible: row.dispatching_host_eligible === true,
         pinnedSnapshot: row.pinned_id && row.pinned_digest
           ? {
             id: row.pinned_id,
