@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { githubIntegration } from "./integration-providers/github.ts";
 import {
   PROVIDER_IDENTITIES,
@@ -67,8 +68,17 @@ export function deployedIntegrationsDefects(): string[] {
  * that helper skips objects that are already frozen (`!Object.isFrozen(value)`),
  * so called on a frozen array it returns at once and never reaches the manifest -
  * it would look like a fix and change nothing. Descent here is unconditional.
+ *
+ * A zod schema is skipped: it is a library object, not definition data. It carries
+ * internal caches that `z.toJSONSchema` fills on first use, so a schema frozen
+ * before that use cannot be converted at all - `toJSONSchema` then reports the
+ * opaque "Error converting schema to JSON". `computeManifestDigest` converts every
+ * handler input and output, so freezing them here made `createApp` throw on
+ * startup for every integration test. Frozen manifest data still stops a provider
+ * from redefining itself, which is what this helper is for.
  */
 function freezeDeep<T>(value: T): T {
+  if (value instanceof z.ZodType) return value;
   if (value && typeof value === "object" && !Object.isFrozen(value)) {
     Object.freeze(value);
   }
