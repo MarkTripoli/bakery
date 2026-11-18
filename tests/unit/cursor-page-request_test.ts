@@ -1,5 +1,5 @@
 import { assertEquals } from "@std/assert";
-import { runCursorPageRequest } from "../../apps/web/src/pages/projects-onboarding/cursor-page-request.ts";
+import { runCursorPageRequest } from "../../apps/web/src/app/cursor-pages/cursor-page-request.ts";
 
 Deno.test("cursor reset discards stale page results, errors and completion while the new scope is loading", async () => {
   for (const staleOutcome of ["success", "error"] as const) {

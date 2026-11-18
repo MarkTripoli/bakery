@@ -3075,14 +3075,16 @@
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED",
         "RESOURCE_NOT_FOUND",
         "UNPROCESSABLE",
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH"
       ],
-      "organizationContext": "none",
-      "implemented": false
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
     },
     {
       "group": "Extensions",
@@ -5928,12 +5930,13 @@
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
         "RESOURCE_NOT_FOUND",
         "INVALID_CURSOR",
         "MALFORMED_REQUEST"
       ],
-      "organizationContext": "none",
-      "implemented": false
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
     },
     {
       "group": "Memory",
@@ -5950,10 +5953,12 @@
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
-        "RESOURCE_NOT_FOUND"
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
       ],
-      "organizationContext": "none",
-      "implemented": false
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
     },
     {
       "group": "Memory",
@@ -5970,14 +5975,16 @@
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
         "RESOURCE_NOT_FOUND",
         "UNPROCESSABLE",
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
-        "IDEMPOTENCY_PAYLOAD_MISMATCH"
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
       ],
-      "organizationContext": "none",
-      "implemented": false
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
     },
     {
       "group": "Memory",
@@ -5994,14 +6001,16 @@
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
         "RESOURCE_NOT_FOUND",
         "UNPROCESSABLE",
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
-        "IDEMPOTENCY_PAYLOAD_MISMATCH"
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
       ],
-      "organizationContext": "none",
-      "implemented": false
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
     },
     {
       "group": "Memory",
@@ -6018,14 +6027,16 @@
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
         "RESOURCE_NOT_FOUND",
         "UNPROCESSABLE",
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
-        "IDEMPOTENCY_PAYLOAD_MISMATCH"
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
       ],
-      "organizationContext": "none",
-      "implemented": false
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
     },
     {
       "group": "Memory",
@@ -6042,12 +6053,13 @@
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
         "RESOURCE_NOT_FOUND",
         "INVALID_CURSOR",
         "MALFORMED_REQUEST"
       ],
-      "organizationContext": "none",
-      "implemented": false
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
     },
     {
       "group": "Delivery",
@@ -10064,6 +10076,7 @@
     "integrationConnections.remove",
     "integrationResources.update",
     "integrationConnections.check",
+    "integrationConnections.invoke",
     "integrationDiscoveries.create",
     "integrationInstallations.list",
     "integrationInstallations.get",
@@ -10175,7 +10188,13 @@
     "skillStorageSettings.verify",
     "blobUploads.start",
     "blobUploads.part",
-    "blobUploads.complete"
+    "blobUploads.complete",
+    "memories.list",
+    "memories.get",
+    "memories.create",
+    "memories.update",
+    "memoryRevisions.create",
+    "memoryRevisions.list"
   ],
   "openapi": {
     "openapi": "3.1.0",
@@ -18004,6 +18023,18 @@
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
               }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
             }
           ],
           "responses": {
@@ -24824,6 +24855,18 @@
                 "minimum": 1,
                 "maximum": 100
               }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
             }
           ],
           "responses": {
@@ -24853,7 +24896,20 @@
         },
         "post": {
           "operationId": "memories.create",
-          "parameters": [],
+          "parameters": [
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
           "responses": {
             "200": {
               "description": "Successful response",
@@ -24904,6 +24960,18 @@
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
               }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
             }
           ],
           "responses": {
@@ -24943,6 +25011,18 @@
                 "format": "uuid",
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
               }
             }
           ],
@@ -24995,6 +25075,18 @@
                 "format": "uuid",
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
               }
             }
           ],
@@ -25067,6 +25159,18 @@
                 "type": "integer",
                 "minimum": 1,
                 "maximum": 100
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
               }
             }
           ],
@@ -41896,15 +42000,16 @@
               "description": "MemoryRevisionCreate.reason must contain at most 2000 characters."
             },
             "sourceArtifactVersionId": {
-              "description": "Exact artifact version whose evidence justifies this memory revision; promotion requires this to name real evidence and pass a conflict scan before the revision is accepted.",
               "type": "string",
               "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Exact artifact version whose evidence justifies this memory revision. Required: a revision with no evidence is an opinion, not a memory, and promotion refuses it before it is stored."
             }
           },
           "required": [
             "content",
-            "reason"
+            "reason",
+            "sourceArtifactVersionId"
           ],
           "additionalProperties": false,
           "description": "Adds a new revision to an existing memory entry and advances its current-revision pointer through the normal compare-and-swap path."
@@ -41919,12 +42024,11 @@
               "maxLength": 500
             },
             "status": {
-              "description": "Lifecycle state of the memory entry: \"active\" while retrievable, \"superseded\" once replaced by newer learning, or \"retracted\" if withdrawn as incorrect.",
+              "description": "Lifecycle state of the memory entry, using the projection's own vocabulary: \"active\" while retrievable, or \"retired\" once withdrawn. Why it was retired - replaced by newer learning or withdrawn as incorrect - belongs in the next revision's required reason, which is where the history keeps it.",
               "type": "string",
               "enum": [
                 "active",
-                "superseded",
-                "retracted"
+                "retired"
               ]
             }
           },
@@ -57045,15 +57149,8 @@
           "properties": {
             "action": {
               "type": "string",
-              "enum": [
-                "rpi.design",
-                "harness.implement",
-                "harness.repair",
-                "quality.check",
-                "quality.review",
-                "delivery.commit"
-              ],
-              "description": "Identifier of the registered integration action to invoke, for example github.issue.comment.create; the host looks up its exact schema and required grant before validating arguments."
+              "maxLength": 200,
+              "description": "IntegrationAction.action must contain at most 200 characters."
             },
             "arguments": {
               "description": "IntegrationAction.arguments must contain at most 65536 UTF-8 bytes.",
@@ -217075,7 +217172,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:054e947df0cfa35e489c8fa4d9a6ffae8751d25e57b8019a51e8f35e02814e9a",
+  "compatibilityDigest": "sha256:09b09f0f1fac1d0159314e792984f878628b3d34d48218f5793892e72943c4c1",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -224000,15 +224097,16 @@
           "description": "MemoryRevisionCreate.reason must contain at most 2000 characters."
         },
         "sourceArtifactVersionId": {
-          "description": "Exact artifact version whose evidence justifies this memory revision; promotion requires this to name real evidence and pass a conflict scan before the revision is accepted.",
           "type": "string",
           "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Exact artifact version whose evidence justifies this memory revision. Required: a revision with no evidence is an opinion, not a memory, and promotion refuses it before it is stored."
         }
       },
       "required": [
         "content",
-        "reason"
+        "reason",
+        "sourceArtifactVersionId"
       ],
       "additionalProperties": false,
       "description": "Adds a new revision to an existing memory entry and advances its current-revision pointer through the normal compare-and-swap path."
@@ -224023,12 +224121,11 @@
           "maxLength": 500
         },
         "status": {
-          "description": "Lifecycle state of the memory entry: \"active\" while retrievable, \"superseded\" once replaced by newer learning, or \"retracted\" if withdrawn as incorrect.",
+          "description": "Lifecycle state of the memory entry, using the projection's own vocabulary: \"active\" while retrievable, or \"retired\" once withdrawn. Why it was retired - replaced by newer learning or withdrawn as incorrect - belongs in the next revision's required reason, which is where the history keeps it.",
           "type": "string",
           "enum": [
             "active",
-            "superseded",
-            "retracted"
+            "retired"
           ]
         }
       },
@@ -239201,15 +239298,8 @@
       "properties": {
         "action": {
           "type": "string",
-          "enum": [
-            "rpi.design",
-            "harness.implement",
-            "harness.repair",
-            "quality.check",
-            "quality.review",
-            "delivery.commit"
-          ],
-          "description": "Identifier of the registered integration action to invoke, for example github.issue.comment.create; the host looks up its exact schema and required grant before validating arguments."
+          "maxLength": 200,
+          "description": "IntegrationAction.action must contain at most 200 characters."
         },
         "arguments": {
           "description": "IntegrationAction.arguments must contain at most 65536 UTF-8 bytes.",

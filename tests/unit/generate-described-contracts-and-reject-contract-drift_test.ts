@@ -881,29 +881,27 @@ Deno.test("CheckOutput field descriptions say what each field means before they 
 });
 
 Deno.test("compatibility migration approves only its exact generated delta", () => {
+  // The approval currently in force: the base it was bound to, and the digest
+  // of the tree it authorises.
   const approvedBases = [
-    "9fcf4e1adcc02ae09065355a20314fb476f45220",
+    "d51a725b005a7261b1b5b9f6a70b322256485a51",
   ];
   const approvedDigest =
-    "sha256:65049b75d0ce9f83d0abc3d3e42405c13de27df0dccadbc2706a677d7f877f5b";
+    "sha256:09b09f0f1fac1d0159314e792984f878628b3d34d48218f5793892e72943c4c1";
+  // Every approval this one displaced, in order. They are history: none of
+  // them may pass again, or a stale digest would silently re-authorise a delta
+  // nobody reviewed.
   const rejectedPriorDigests = [
-    // The approval displaced by this re-bind (the digest for bases 07135954 and
-    // c4f389bf) is now only a prior approval, so it must not pass again.
+    "sha256:622f0d8afe0eec3d53230a4b5ffe7b365ef882e20baf3832dc82ba93e1921077",
+    "sha256:d02b19736a599905534fcb9b8b98f981b8778f5ee24628ee430fb9134c797f8f",
+    "sha256:1eeaffbfef54aad388017ce455d32e39664ecd49bab7436c55abefb986a5f0bb",
+    "sha256:4ebf063b41c7e0de7863086c2e9105541c97b4d6c7a2c26f57bbd1c192de4e14",
+    "sha256:65049b75d0ce9f83d0abc3d3e42405c13de27df0dccadbc2706a677d7f877f5b",
     "sha256:0ef9bcaa65279e2c611ac87438f9ec7e9b8417274528801e50a0ca66885713ef",
-    // The approval displaced by this re-bind (the estimate for main
-    // 6a94e678) is now only a prior approval, so it must not pass again.
     "sha256:c4f2e0edb6e258b45e83f975b16500b8d9cc45f69d0879d9fb06f236aecce3be",
-    // The approval displaced by this re-bind (the estimate for main
-    // 465e9476) is now only a prior approval, so it must not pass again.
     "sha256:7e4e457c805485ab1f60b08ce27d39ddab856e952ab3a85e23aafc7c8a24607e",
-    // The approval displaced by this re-bind (the estimate for main
-    // 1f1ba04f) is now only a prior approval, so it must not pass again.
     "sha256:4c56e576cd84a373f4e2beb0d3d3bfa9f0e4093a3da28b12bbe5c4cb84dc3934",
-    // The approval displaced by this re-bind (the estimate for main
-    // faa03d56) is now only a prior approval, so it must not pass again.
     "sha256:b46e578adb70220a6bd9d07883733a5a2e0a3ebb2c91284663c4e01657dc025b",
-    // The approval displaced by this re-bind; it was the estimate for main
-    // 9295aee9 and is now only a prior approval, so it must not pass again.
     "sha256:51d027f5eaf15684db3485346558c5842f3f93e44ab1547e0c59ef66c6196c4b",
     "sha256:1761ce543c2948f552e4f84c2070e726bddc93284b7f15890f2eb48de466075e",
     "sha256:6bfc1442f25c54b84101fd9cfac91715878bc3d6e4517147188cfa920f92ca58",

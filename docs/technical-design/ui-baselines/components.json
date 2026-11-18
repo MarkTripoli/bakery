@@ -1,5 +1,5 @@
 {
-  "revision": "3077a7599499857bfaa739bca806368d8fd4901ab7d74d589c733075cad32563",
+  "revision": "ec2470e366aff0a27ed6f2e2de6313138a2a7184072bc62e3006eac1f94fa6cf",
   "schemaVersion": 1,
   "owner": "Mark Tripoli",
   "rules": [
@@ -7423,6 +7423,275 @@
         ]
       },
       "paperAbsentReason": "Designed in the issue 203 UX design comment; no Paper frame names it."
+    },
+    {
+      "id": "ui.presenceRow",
+      "name": "PresenceRow",
+      "description": "Shows who is editing a shared document, what they are doing, and where this person's own changes stand, as avatars, one text line and the save state in words.",
+      "level": "molecule",
+      "owner": "Mark Tripoli",
+      "storyTitle": "Bakery/Molecules/PresenceRow",
+      "usage": {
+        "whenToUse": "Head a shared document with the people here and the save state of this person's changes.",
+        "whenNotToUse": "Do not use it to track attention or prove someone read something; presence is a hint that expires.",
+        "ruleIds": [
+          "ui.semantic-import",
+          "ui.layout-containment",
+          "ui.accessible-control",
+          "ui.translated-copy"
+        ],
+        "alternatives": [],
+        "replacesElements": [],
+        "allowedLevels": [
+          "molecule",
+          "organism",
+          "template",
+          "page",
+          "app"
+        ]
+      },
+      "paper": [],
+      "a11y": {
+        "role": "group",
+        "accessibleName": "aria-label",
+        "keyboard": [
+          "Not focusable; the row is read on demand"
+        ],
+        "targetSize": "No interactive target",
+        "notes": "The save state is a polite live region, announced once when it changes. A person's ring colour matches their caret in the editor; colour is never the only carrier: names and the save state are always in words."
+      },
+      "tokens": [
+        "--border-default",
+        "--color-destructive",
+        "--color-fg",
+        "--color-fg-muted",
+        "--color-presence-1",
+        "--color-presence-2",
+        "--color-presence-3",
+        "--color-presence-4",
+        "--color-presence-5",
+        "--color-presence-6",
+        "--focus-width",
+        "--space-1",
+        "--space-2",
+        "--space-3",
+        "--type-hint"
+      ],
+      "variants": [
+        "default"
+      ],
+      "states": [
+        "saved",
+        "sending",
+        "offline",
+        "catching-up",
+        "refused"
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "layoutProfiles": [
+        "sheet",
+        "pane",
+        "rail"
+      ],
+      "pointerProfiles": [
+        "coarse",
+        "fine"
+      ],
+      "requirementIds": [
+        "theme.paired",
+        "layout.reflow",
+        "pointer.independent",
+        "a11y.semantic-focus",
+        "i18n.translated-logical"
+      ],
+      "requiredCases": [
+        {
+          "id": "contract",
+          "description": "Exercises every save state, a crowd that is counted past five avatars, and a long name.",
+          "variants": [
+            "default"
+          ],
+          "states": [
+            "saved",
+            "sending",
+            "offline",
+            "catching-up",
+            "refused"
+          ],
+          "baselineIds": []
+        }
+      ],
+      "evidenceRefs": [
+        "design.auth"
+      ],
+      "status": "implemented",
+      "coverage": {
+        "automated": {
+          "theme:light": [
+            "runtime:ui.presenceRow.contract.desktop-light-fine"
+          ],
+          "theme:dark": [
+            "suite:storybook.canonical-dark-axe"
+          ],
+          "layout:sheet": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:pane": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:rail": [
+            "runtime:ui.presenceRow.contract.desktop-light-fine"
+          ],
+          "pointer:fine": [
+            "runtime:ui.presenceRow.contract.desktop-light-fine"
+          ],
+          "pointer:coarse": [
+            "suite:storybook.coarse-targets"
+          ]
+        },
+        "notApplicable": {},
+        "visualContexts": [
+          "desktop-light-fine"
+        ]
+      },
+      "paperAbsentReason": "Designed in the #71 UX design comment (2026-11-13); no Paper frame names it."
+    },
+    {
+      "id": "ui.suggestionCard",
+      "name": "SuggestionCard",
+      "description": "One suggestion from an agent beside the text it would change, with Accept and Reject; it says plainly when it no longer fits or when its outcome is not known.",
+      "level": "molecule",
+      "owner": "Mark Tripoli",
+      "storyTitle": "Bakery/Molecules/SuggestionCard",
+      "usage": {
+        "whenToUse": "Offer an agent's edit for a person to accept or reject; the agent never changes shared text itself.",
+        "whenNotToUse": "Do not show an unknown outcome as accepted, and do not apply a suggestion without a person pressing Accept.",
+        "ruleIds": [
+          "ui.semantic-import",
+          "ui.layout-containment",
+          "ui.accessible-control",
+          "ui.translated-copy"
+        ],
+        "alternatives": [],
+        "replacesElements": [],
+        "allowedLevels": [
+          "molecule",
+          "organism",
+          "template",
+          "page",
+          "app"
+        ]
+      },
+      "paper": [],
+      "a11y": {
+        "role": "article",
+        "accessibleName": "aria-labelledby",
+        "keyboard": [
+          "Tab reaches the card, then Accept, Check again and Reject; Enter or Space on the card chooses it, on a button presses it"
+        ],
+        "targetSize": "min 44px (coarse pointer)",
+        "notes": "The card states what it adds and removes in words; colour and strike-through never carry it alone."
+      },
+      "tokens": [
+        "--border-default",
+        "--color-focus",
+        "--focus-offset",
+        "--focus-width",
+        "--color-border",
+        "--color-fg-muted",
+        "--color-surface-raised",
+        "--radius-surface",
+        "--space-0",
+        "--space-2",
+        "--space-3",
+        "--type-body",
+        "--type-hint",
+        "--type-label"
+      ],
+      "variants": [
+        "default",
+        "selected"
+      ],
+      "states": [
+        "default",
+        "outdated",
+        "unknown",
+        "working"
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "layoutProfiles": [
+        "sheet",
+        "pane",
+        "rail"
+      ],
+      "pointerProfiles": [
+        "coarse",
+        "fine"
+      ],
+      "requirementIds": [
+        "theme.paired",
+        "layout.reflow",
+        "pointer.independent",
+        "a11y.semantic-focus",
+        "i18n.translated-logical"
+      ],
+      "requiredCases": [
+        {
+          "id": "contract",
+          "description": "Exercises every documented SuggestionCard state (acceptable, no longer fitting the text, outcome unknown, in flight) and the card the person chose.",
+          "variants": [
+            "default",
+            "selected"
+          ],
+          "states": [
+            "default",
+            "outdated",
+            "unknown",
+            "working"
+          ],
+          "baselineIds": []
+        }
+      ],
+      "evidenceRefs": [
+        "design.auth"
+      ],
+      "status": "implemented",
+      "coverage": {
+        "automated": {
+          "theme:light": [
+            "runtime:ui.suggestionCard.contract.desktop-light-fine"
+          ],
+          "theme:dark": [
+            "suite:storybook.canonical-dark-axe"
+          ],
+          "layout:sheet": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:pane": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:rail": [
+            "runtime:ui.suggestionCard.contract.desktop-light-fine"
+          ],
+          "pointer:fine": [
+            "runtime:ui.suggestionCard.contract.desktop-light-fine"
+          ],
+          "pointer:coarse": [
+            "suite:storybook.coarse-targets"
+          ]
+        },
+        "notApplicable": {},
+        "visualContexts": [
+          "desktop-light-fine"
+        ]
+      },
+      "paperAbsentReason": "Designed in the #71 UX design comment (2026-11-13, section C); no Paper frame names it."
     },
     {
       "id": "ui.disclosure",

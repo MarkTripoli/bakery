@@ -34,7 +34,6 @@ test("committed enterprise manifest parses and phone cases carry device chrome",
   const chromeIds = result.data.cases.filter((entry) => entry.deviceChrome)
     .map((entry) => entry.id).sort();
   assert.deepEqual(chromeIds, [
-    "projects-onboarding.default.light.phone",
     "queue.default.light.phone",
     "task-conversation.default.light.phone",
     "task-coordination.default.light.phone",
