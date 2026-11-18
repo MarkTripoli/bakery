@@ -628,5 +628,10 @@ test(
     await expect(
       page.getByText("This session is long, so the thread shows only"),
     ).toBeVisible();
+    await still(page, "run-section-truncated", undefined, {
+      scrollTo: page.getByText(
+        "This session is long, so the thread shows only",
+      ),
+    });
   },
 );
