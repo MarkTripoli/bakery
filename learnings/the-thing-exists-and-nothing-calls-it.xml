@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="the-thing-exists-and-nothing-calls-it" project="bakery">
+  <title>The thing exists and nothing calls it</title>
+  <trigger>Shipping an exported function, a declared field, an injected dependency, a workflow step, or a new module, and treating its existence as evidence that the feature works.</trigger>
+  <rule>An exported or declared surface with zero production callers is a promise the runtime never collects. The code compiles, the unit tests pass, and the behaviour does not happen. Before claiming a capability, name its production caller - and if there is none, the capability does not exist yet however finished the module looks.</rule>
+  <rule>Unit tests cannot catch this class when they inject the collaborator directly. They then answer "does this work GIVEN a caller", while the open question is "does production GIVE it one"; both questions are real and only one is answerable from inside the module. Test the construction site, not just the callee.</rule>
+  <rule>Name the CALLER of an injected dependency in the same breath as the dependency. The fill-question rule for fields - "when I declare a field, name its WRITER" - applies verbatim to an injected function: declaring the parameter is not wiring it.</rule>
+  <rule>The failure mode is not always inert. A guard that refuses when its collaborator is absent fails CLOSED on exactly the inputs the feature exists for, and a refusal looks like a policy decision rather than a bug. Dead code is better than a guard nobody satisfies: dead code is visibly unused, a closed guard looks like the feature working.</rule>
+  <instances>
+    <instance>
+      <name>The nightly signal never ran</name>
+      <evidence>The `nightly_signal` job in `.github/workflows/ci.yml` called `deno run scripts/ci/nightly-signal.ts` and never installed Deno; thirty other jobs in the same file had a `setup-deno` step and this one had none. Every dispatch exited 127 "deno: command not found" - three dispatches apart. `continue-on-error: true`, correct in itself so a signal bug cannot turn a green nightly red, reported the job as `success`, so a job that could not find its interpreter looked healthy.</evidence>
+      <settled_by>Watching one dispatch to completion and reading its job log, after an earlier run was assumed to have proven the wiring. The issue it created at 23:19Z was written by the old inline shell it replaced.</settled_by>
+    </instance>
+    <instance>
+      <name>The check executor had no context reader</name>
+      <evidence>`createCheckExecutor` refuses any assignment that pins context inputs when built without `readAttemptContext`, and the only production construction site (`apps/worker/src/main.ts`) never passed one. Every assignment that pins an input would have been refused; every assignment that pins nothing ran as before. The seeding adapter was complete, merged, and unreachable.</evidence>
+      <settled_by>Grepping for the callers of the option after the module and its eight tests were green: `grep -rn readAttemptContext apps/` returned only the module and no caller.</settled_by>
+    </instance>
+    <instance>
+      <name>A sentence the code never checked</name>
+      <evidence>`redBody()` hardcoded "The scheduled run on ${stamp} failed" on one code path serving both `schedule` and `workflow_dispatch`. The sentence was written by code that never read the event name, so a dispatched run produced a permanent record calling itself scheduled.</evidence>
+      <settled_by>Reading the issue the dispatch created and comparing its text with the event that created it.</settled_by>
+    </instance>
+  </instances>
+  <rule>The cheapest check is the call-site grep, and it costs one command: `grep -rn &lt;symbol&gt; &lt;dir&gt; --include=*.ts | grep -v _test`. An empty result outside tests is the finding. Run it before reporting a capability, not after someone reports the defect.</rule>
+  <rule>A rail is the durable form of that grep. Assert the construction site names the collaborator, so a later edit that removes it fails in CI rather than exiting silently behind a green tick. State the rail's strength honestly: a textual assertion proves the call site is written, not that a live call succeeds.</rule>
+  <rule>Know what the rail does not cover. A rail born from one defect asserts one construction site, so it catches the instance and not the class: the grep remains the class reflex, and a rail that only covers the site it was born from will not be where the class bites fifth. Write that limit into the rail's own comment, the way an in-source limitation note records what a check cannot see.</rule>
+  <verification>
+    <requirement>For every capability claimed, record the production call site (file and line) and the command that found it. If the only callers are tests, say so and do not claim the behaviour.</requirement>
+    <requirement>When a rail asserts wiring rather than behaviour, say which half it proves and which half is left to another check.</requirement>
+  </verification>
+</learning>

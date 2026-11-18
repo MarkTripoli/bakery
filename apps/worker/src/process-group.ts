@@ -50,11 +50,13 @@ export async function signalProcessGroup(
 export async function killHarnessProcessGroup(
   child: Deno.ChildProcess,
   killExecutable: string = HARNESS_GROUP_KILL_EXECUTABLE,
+  kill: (pid: number, signal: GroupSignal) => void = Deno.kill,
 ): Promise<HarnessGroupTeardown> {
   const teardown = await signalProcessGroup(
     child.pid,
     "SIGKILL",
     killExecutable,
+    kill,
   );
   try {
     child.kill("SIGKILL");
