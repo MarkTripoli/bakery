@@ -276,31 +276,16 @@ Deno.test("AC2: a replayed decision is a conflict and appends nothing", async ()
         traceId: crypto.randomUUID(),
       })
     ) as StandardError;
+    // The reason, not merely that something threw: a raw database error would
+    // also reject, and would tell the caller nothing about what to do next.
+    assertEquals(error.code, "STATE_CONFLICT");
     assertEquals(error.params?.reason, "approval_decided");
-    // The status code being right while a row was appended is the defect; only a
-    // row count can tell the difference.
+    // A conflict that still appended a row would be the defect; only a count can
+    // tell the difference between refusing and refusing after writing.
     assertEquals(
       await appendCounts(run.client, fixture.organizationId),
       before,
     );
-  });
-});
-
-Deno.test("AC2: the ledger refuses a second entry for one approval at the data layer", async () => {
-  await withWorkerFixture(async (fixture) => {
-    const run = await seedRun(fixture, fixture.principalId);
-    const asked = await requestHumanApproval(run.client, {
-      organizationId: fixture.organizationId,
-      runId: run.job.runId,
-      taskId: run.taskId,
-      conversationId: run.conversationId,
-      stepKey: "human.approval",
-      prompt: "Ship it?",
-      ownerPrincipalId: fixture.principalId,
-      applicationId: run.applicationId,
-      repositoryId: run.repositoryId,
-      traceId: crypto.randomUUID(),
-    });
     const entry = {
       organizationId: fixture.organizationId,
       taskId: run.taskId,
@@ -310,9 +295,10 @@ Deno.test("AC2: the ledger refuses a second entry for one approval at the data l
       subjectId: asked.approvalId,
       decidedBy: fixture.principalId,
     };
-    await appendDecision(run.client, entry);
-    // The partial unique index makes a duplicate a database conflict, so a race
-    // between two convergent requests cannot store two entries for one decision.
+    // The decision above already appended its entry, so this is the duplicate a
+    // convergent second request would attempt. The partial unique index makes it
+    // a database conflict, so two requests cannot store two entries for one
+    // decision even if they both get past the status guard.
     await assertRejects(() => appendDecision(run.client, entry));
     const count = await run.client.query<{ n: string }>(
       `select count(*)::text as n from bakery.decisions_ledger

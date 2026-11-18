@@ -289,13 +289,13 @@ export async function decideHumanApproval(
   const row = loaded.rows[0];
   // A foreign or invented id answers identically: no oracle for existence.
   if (!row) throw notFound();
-  if (row.status === "answered") conflict("approval_decided");
-  if (row.status !== "open") conflict(`approval_${row.status}`);
-  if (row.version !== input.expectedVersion) conflict("approval_stale");
+  if (row.status === "answered") throw conflict("approval_decided");
+  if (row.status !== "open") throw conflict(`approval_${row.status}`);
+  if (row.version !== input.expectedVersion) throw conflict("approval_stale");
   if (
     row.expires_at !== null && row.expires_at.getTime() <= Date.now()
   ) {
-    conflict("approval_unavailable");
+    throw conflict("approval_unavailable");
   }
 
   const swapped = await transaction.query<{ version: number }>(
@@ -315,7 +315,7 @@ export async function decideHumanApproval(
       input.expectedVersion,
     ],
   );
-  if (swapped.rows.length !== 1) conflict("approval_unavailable");
+  if (swapped.rows.length !== 1) throw conflict("approval_unavailable");
 
   const outcome = outcomeForDecision(input.decision);
   // The ledger kind is the decision's own word, so a reader filters on the same
