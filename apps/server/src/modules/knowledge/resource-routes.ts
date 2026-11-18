@@ -32,6 +32,8 @@ import {
   assertImplementedActionRegistry,
   BlobUploadImplementedAction,
   blobUploadImplementedActions,
+  ContextPackImplementedAction,
+  contextPackImplementedActions,
 } from "@bakery/contracts/implemented-actions";
 import type { AuthorizedActionContext } from "../auth/application/authority.ts";
 import { authorize } from "../auth/application/authorize.ts";
@@ -60,6 +62,7 @@ import {
 import type { OrganizationBlobStore } from "../catalog/storage-port.ts";
 import { registerCommentActions } from "./comments/routes.ts";
 import { extractArtifactVersion } from "./extraction.ts";
+import { buildContextPack } from "./context-packs.ts";
 import {
   createPreviewGrant,
   previewAvailability,
@@ -115,6 +118,19 @@ const blobWritePolicy = {
       context,
       "artifact:create",
       BlobUploadImplementedAction.BlobUploadStart,
+    );
+  },
+} as const;
+
+const contextPackPolicy = {
+  ...readPolicy,
+  authorize: (context: ActionContext) => {
+    // A pack is built from artifact versions the caller may read, so it needs
+    // exactly that permission and no more: building a pack grants nothing.
+    requireArtifactPermission(
+      context,
+      "artifactVersion:read",
+      ContextPackImplementedAction.ContextPacksBuild,
     );
   },
 } as const;
@@ -412,6 +428,18 @@ export function createArtifactActions(
         ),
     })
     .register({
+      name: ContextPackImplementedAction.ContextPacksBuild,
+      method: HttpMethod.Post,
+      path: "/v1/context-packs",
+      input: contractSchemas.ContextPackBuild,
+      output: contractSchemas.ContextPack,
+      policy: contextPackPolicy,
+      handler: async (context, input) =>
+        contractSchemas.ContextPack.parse(
+          await buildContextPack(context, input as never),
+        ),
+    })
+    .register({
       name: ArtifactImplementedAction.ArtifactPreviewsAvailability,
       method: HttpMethod.Get,
       path: "/v1/artifact-preview-availability",
@@ -494,6 +522,7 @@ export function createArtifactActions(
   assertImplementedActionRegistry(registry, [
     ...artifactImplementedActions,
     ...blobUploadImplementedActions,
+    ...contextPackImplementedActions,
   ]);
   return { registry, authority, handlers };
 }

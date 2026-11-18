@@ -431,6 +431,12 @@ export const ArtifactImplementedAction = Object.freeze(
   } as const satisfies Record<string, CatalogActionName>,
 );
 
+export const ContextPackImplementedAction = Object.freeze(
+  {
+    ContextPacksBuild: "contextPacks.build",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+
 export const DraftImplementedAction = Object.freeze(
   {
     Open: "drafts.open",
@@ -537,6 +543,9 @@ export const projectsImplementedActions = Object.freeze(
 export const artifactImplementedActions = Object.freeze(
   Object.values(ArtifactImplementedAction),
 );
+export const contextPackImplementedActions = Object.freeze(
+  Object.values(ContextPackImplementedAction),
+);
 export const draftImplementedActions = Object.freeze(
   Object.values(DraftImplementedAction),
 );
@@ -563,6 +572,7 @@ export const implementedActions = Object.freeze(
     ...workflowActionDiscoveryImplementedActions,
     ...automationImplementedActions,
     ...artifactImplementedActions,
+    ...contextPackImplementedActions,
     ...draftImplementedActions,
     ...secretsImplementedActions,
     ...catalogImplementedActions,

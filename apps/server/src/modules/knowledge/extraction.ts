@@ -26,7 +26,7 @@ export type ArtifactExtractQuery = ContractInput<"ArtifactExtractQuery">;
 export type ArtifactExtraction = ContractOutput<"ArtifactExtraction">;
 
 /** Authorized metadata of one version, read before any content is touched. */
-type ArtifactExtractIdentityRow = {
+export type ArtifactVersionIdentity = {
   id: string;
   purged_at: Date | null;
   artifact_id: string;
@@ -181,12 +181,12 @@ function extractWindow(
  * so a caller that reaches the cache hit has already been authorized by exactly
  * the query that would have refused it.
  */
-async function loadArtifactExtractIdentity(
+export async function readArtifactVersionIdentity(
   transaction: PgTransactionClient,
   organizationId: string,
   versionId: string,
-): Promise<ArtifactExtractIdentityRow> {
-  const result = await transaction.query<ArtifactExtractIdentityRow>(
+): Promise<ArtifactVersionIdentity> {
+  const result = await transaction.query<ArtifactVersionIdentity>(
     `select v.id,v.purged_at,v.artifact_id,v.media_type,v.size_bytes,v.sha256
        from bakery.artifact_versions v
        join bakery.artifacts a
@@ -300,7 +300,7 @@ export async function extractArtifactVersion(
   try {
     // Authorize and read the metadata first: this is the query that decides the
     // caller may see the version, and it is all a cache hit needs.
-    const identity = await loadArtifactExtractIdentity(
+    const identity = await readArtifactVersionIdentity(
       transaction,
       organizationId,
       versionId,
