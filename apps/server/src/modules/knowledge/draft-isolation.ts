@@ -3,7 +3,12 @@ import {
   SERVER_DRAFT_SYSTEMD_LAUNCHER,
   systemdLauncherArgs,
 } from "../../platform/server-exec.ts";
-import { DRAFT_LIMITS, type DraftCandidate } from "./drafts.ts";
+import {
+  DRAFT_LIMITS,
+  type DraftAnchorCandidateInput,
+  type DraftAnchorPosition,
+  type DraftCandidate,
+} from "./drafts.ts";
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder("utf-8", { fatal: true });
@@ -210,6 +215,18 @@ export type DraftIsolation = {
     signal?: AbortSignal,
     organizationId?: string,
   ): Promise<void>;
+  /**
+   * Resolves draft comment anchors against one committed state (#28). Strict
+   * refuses a stale, collapsed, surrogate-splitting or misquoted anchor with a
+   * `precondition` failure; otherwise such an anchor resolves to null.
+   */
+  anchors(
+    state: Uint8Array,
+    anchors: readonly DraftAnchorCandidateInput[],
+    strict: boolean,
+    signal?: AbortSignal,
+    organizationId?: string,
+  ): Promise<DraftAnchorPosition[]>;
   /** Imports one untrusted collaboration update into the committed state. */
   importUpdate(
     currentState: Uint8Array,
@@ -1578,6 +1595,48 @@ export function createDraftIsolation(
       }
       const metadata = objectMetadata(frames[0]);
       if (metadata.ok !== true) throwWorkerFailure(metadata);
+    },
+    async anchors(state, anchors, strict, signal, organizationId) {
+      if (anchors.length === 0) return [];
+      const frames = await run(
+        [
+          encoder.encode(JSON.stringify({
+            operation: "anchors",
+            strict,
+            count: anchors.length,
+          })),
+          state,
+          ...anchors.flatMap((anchor) => [
+            encoder.encode(anchor.startCursor),
+            encoder.encode(anchor.endCursor),
+            encoder.encode(anchor.quote),
+          ]),
+        ],
+        signal,
+        organizationId,
+      );
+      if (frames.length !== 1) {
+        throw new DraftIsolationError(
+          "unavailable",
+          "WORKER_FRAME_COUNT_INVALID",
+        );
+      }
+      const metadata = objectMetadata(frames[0]);
+      if (metadata.ok !== true) throwWorkerFailure(metadata);
+      const positions = metadata.positions;
+      if (!Array.isArray(positions) || positions.length !== anchors.length) {
+        throw new DraftIsolationError("unavailable", "WORKER_ANCHORS_INVALID");
+      }
+      return positions.map((position): DraftAnchorPosition => {
+        if (position === null) return null;
+        if (
+          Array.isArray(position) && position.length === 2 &&
+          Number.isSafeInteger(position[0]) &&
+          Number.isSafeInteger(position[1]) &&
+          position[0] >= 0 && position[0] < position[1]
+        ) return [position[0], position[1]];
+        throw new DraftIsolationError("unavailable", "WORKER_ANCHORS_INVALID");
+      });
     },
     async importUpdate(currentState, update, signal, organizationId) {
       return parseCandidate(
