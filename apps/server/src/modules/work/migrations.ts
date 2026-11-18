@@ -7,6 +7,7 @@ import { eventClockSeed } from "./migrations/data/0019_event_clock_seed.ts";
 import { frozenExecutionContextBackfill } from "./migrations/data/0049_issue46_frozen_execution_context.ts";
 
 import { artifactRetentionBackfill } from "./migrations/data/0074_artifact_retention.ts";
+import { workflowOriginProvenanceBackfill } from "./migrations/data/0175_workflow_origin_provenance.ts";
 
 export const workBakeryMigrationSource: MigrationSource = {
   owner: MigrationOwner.Bakery,
@@ -21,4 +22,5 @@ export const workDataMigrations = Object.freeze([
   artifactRetentionBackfill,
   eventClockSeed,
   frozenExecutionContextBackfill,
+  workflowOriginProvenanceBackfill,
 ]);

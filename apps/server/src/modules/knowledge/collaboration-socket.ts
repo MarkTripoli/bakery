@@ -56,9 +56,6 @@ type RemovalReason = "left" | "closed" | "expired" | "revoked";
 
 export const COLLABORATION_PROTOCOL_VERSION = 1;
 
-/** Longest time a peer's positive access check is reused for relays. */
-const ACCESS_VERDICT_MS = 1_000;
-
 /** Binary frame kinds; see the CollaborationFrame contract description. */
 export const BinaryFrameKind = Object.freeze(
   {
@@ -892,17 +889,53 @@ export function createCollaborationSocketHandler(
   }
 
   /**
+   * Per-peer relay checks. A verdict is never reused: an update committed at
+   * time T is relayed only after a check that STARTED after T, so a removal
+   * that committed before T is always seen. A burst still costs little: at
+   * most one check runs per peer, and every relay that arrives while it runs
+   * shares the single next check, which starts only after the running one
+   * ends and therefore after all of their commits.
+   */
+  type PeerCheck = {
+    running: Promise<void> | null;
+    queued: Promise<void> | null;
+  };
+  const peerChecks = new WeakMap<Participant, PeerCheck>();
+
+  function verifyPeerAccess(peer: Participant, room: Room): Promise<void> {
+    let state = peerChecks.get(peer);
+    if (!state) {
+      state = { running: null, queued: null };
+      peerChecks.set(peer, state);
+    }
+    const current = state;
+    const start = (): Promise<void> => {
+      const tracked: Promise<void> = (async () => {
+        await assertSession(peer.connection.token);
+        await assertRoomAccess(peer.connection, room);
+      })().finally(() => {
+        if (current.running === tracked) current.running = null;
+      });
+      current.running = tracked;
+      return tracked;
+    };
+    if (current.running === null) return start();
+    if (current.queued === null) {
+      current.queued = current.running
+        .then(() => undefined, () => undefined)
+        .then(() => {
+          current.queued = null;
+          return start();
+        });
+    }
+    return current.queued;
+  }
+
+  /**
    * Draft bytes go only to a peer whose session and read access hold now.
    * Peers are checked in parallel. Lost access evicts the peer; a transient
    * failure tells only that peer to resynchronize, without changing membership.
    */
-  /**
-   * A positive access verdict per participant, reused for at most
-   * ACCESS_VERDICT_MS so a burst of updates costs one recheck per peer, not
-   * one per update. A failed check is never cached.
-   */
-  const accessVerdicts = new WeakMap<Participant, number>();
-
   async function relayCommitted(
     peers: readonly Participant[],
     room: Room,
@@ -913,14 +946,8 @@ export function createCollaborationSocketHandler(
     await Promise.all(peers.map(async (peer) => {
       if (peer.connection.closed) return;
       try {
-        const verified = accessVerdicts.get(peer);
-        if (verified === undefined || now().getTime() >= verified) {
-          await assertSession(peer.connection.token);
-          await assertRoomAccess(peer.connection, room);
-          accessVerdicts.set(peer, now().getTime() + ACCESS_VERDICT_MS);
-        }
+        await verifyPeerAccess(peer, room);
       } catch (error) {
-        accessVerdicts.delete(peer);
         if (accessLost(error)) {
           removeParticipant(peer, "revoked");
           problem(peer.connection, null, error);

@@ -13767,7 +13767,8 @@ export const clientManifest = {
           "type": "string",
           "minLength": 1,
           "maxLength": 40,
-          "description": "TaskCreate.taskType must contain at most 40 characters."
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "description": "TaskCreate.taskType must match the pattern ^[a-z0-9]+(?:-[a-z0-9]+)*$."
         },
         "title": {
           "type": "string",
@@ -37193,7 +37194,8 @@ export const clientManifest = {
           "type": "string",
           "minLength": 40,
           "maxLength": 64,
-          "description": "RepositoryProfileObservation.baseSha must contain at most 64 characters."
+          "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$",
+          "description": "RepositoryProfileObservation.baseSha must match the pattern ^(?:[0-9a-f]{40}|[0-9a-f]{64})$."
         },
         "payload": {
           "type": "object",

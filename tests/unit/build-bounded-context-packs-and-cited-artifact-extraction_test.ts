@@ -595,3 +595,65 @@ Deno.test("verifyCitation parses its input: malformed citations are never valid"
   assertEquals(verifyCitation(missing, live).valid, false);
   assertEquals(verifyCitation(good, live), { valid: true });
 });
+
+Deno.test("verifyCitation fails closed unless authorization is exactly true (#186)", () => {
+  const good = projectArtifactVersion(entry("text/plain"), {
+    startByte: 0,
+    endByteExclusive: 5,
+    text: "hello",
+    hasMore: false,
+  }).citation;
+  // Only an untyped caller can pass these; a gate must still refuse them.
+  for (const authorized of ["yes", "true", 1, {}, [], Symbol.for("x")]) {
+    assertEquals(
+      verifyCitation(good, { authorized, sha256: DIGEST } as never),
+      { valid: false, reason: "not_authorized" },
+      String(authorized),
+    );
+  }
+  for (const authorized of [undefined, null, 0, ""]) {
+    assertEquals(
+      verifyCitation(good, { authorized, sha256: DIGEST } as never),
+      { valid: false, reason: "not_authorized" },
+      String(authorized),
+    );
+  }
+  assertEquals(verifyCitation(good, { authorized: true, sha256: DIGEST }), {
+    valid: true,
+  });
+});
+
+Deno.test("verifyCitation decides authorization before it parses the citation (#186)", () => {
+  // A caller refused for authorization learns nothing about the citation, so a
+  // malformed one is reported as not_authorized, not as a parse failure.
+  for (const authorized of [false, "yes"] as unknown[]) {
+    assertEquals(
+      verifyCitation({ malformed: true }, {
+        authorized,
+        sha256: DIGEST,
+      } as never),
+      { valid: false, reason: "not_authorized" },
+      String(authorized),
+    );
+  }
+  assertEquals(
+    verifyCitation({ malformed: true }, { authorized: true, sha256: DIGEST }),
+    { valid: false, reason: "extractor_changed" },
+  );
+});
+
+Deno.test("verifyCitation accepts an empty window of an authorized version (#186)", () => {
+  const empty = projectArtifactVersion(entry("text/plain"), {
+    startByte: 0,
+    endByteExclusive: 0,
+    text: "",
+    hasMore: false,
+  }).citation;
+  assertEquals(verifyCitation(empty, { authorized: true, sha256: DIGEST }), {
+    valid: true,
+  });
+  assertEquals(verifyCitation(empty, { authorized: false, sha256: DIGEST }), {
+    valid: false,
+    reason: "not_authorized",
+  });
+});
