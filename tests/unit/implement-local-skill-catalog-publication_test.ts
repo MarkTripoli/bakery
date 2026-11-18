@@ -198,6 +198,8 @@ Deno.test("Bakery migrations follow the globally unique migration sequence", asy
       "0177_artifact_draft_comment_publications",
       "0178_artifact_draft_references",
       "0179_workflow_copy_lineage",
+      "0180_mcp_servers_and_connections",
+      "0181_mcp_capability_snapshots_and_bindings",
       "0183_unlisted_definitions_and_definition_proposals",
       "0184_inbox_signal_and_read_batches",
       "0185_event_export",
