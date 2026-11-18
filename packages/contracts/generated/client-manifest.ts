@@ -46975,7 +46975,7 @@ export const clientManifest = {
         "digest": {
           "type": "string",
           "pattern": "^[a-f0-9]{64}$",
-          "description": "Lowercase SHA-256 of the canonical effective entries and organization revision; superseded overrides are excluded."
+          "description": "Rules fingerprint: equals the policyDigest a check of a run admitted under these rules records (effective policy digest over the active profile's fixed policy, its trusted checker and the effective entries; organization revision and superseded overrides are excluded). Without a fixed policy no check records one and the value matches no run."
         },
         "repositoryVersion": {
           "type": "integer",

@@ -12,6 +12,7 @@ import {
 import type { PgTransactionClient } from "../../platform/database.ts";
 import { readLatestRuleVersionRow } from "./postgres.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
+import { rulesPolicyDigest } from "./policy-digest.ts";
 
 const NO_OVERRIDES: RepositoryRuleOverrides = Object.freeze({ entries: [] });
 
@@ -186,6 +187,7 @@ export async function getEffectiveRepositoryRules(
   if (!row) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
   let overrides = NO_OVERRIDES;
   let commandIds: ReadonlySet<string> = new Set();
+  let fixedPolicy: Parameters<typeof rulesPolicyDigest>[0];
   if (row.profile_id !== null) {
     const config = RepositoryVersionedProfileConfigSchema.safeParse(
       row.profile_config,
@@ -198,6 +200,9 @@ export async function getEffectiveRepositoryRules(
       });
     }
     overrides = config.data.repositoryRules ?? NO_OVERRIDES;
+    fixedPolicy = config.data.schemaVersion === 2
+      ? config.data.fixedPolicy
+      : undefined;
     commandIds = new Set(
       (config.data.fixedPolicy?.commands ?? []).map((command) => command.id),
     );
@@ -224,6 +229,7 @@ export async function getEffectiveRepositoryRules(
     organizationRevision: resolved.organizationRevision,
     entries: resolved.entries,
     supersededOverrides: resolved.supersededOverrides,
-    digest: resolved.digest,
+    // The run's own policyDigest over the same pins, never a second formula.
+    digest: await rulesPolicyDigest(fixedPolicy, resolved.entries),
   };
 }

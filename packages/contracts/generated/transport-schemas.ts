@@ -19283,7 +19283,7 @@ const transportSchemas = {
         "organizationRevision": "Organization rules revision resolved against; 0 means no organization revision is published yet.",
         "entries": "Effective rule entries in canonical rule-key order, each with its provenance and source organization revision; a locked entry is the organization entry with provenance locked_by_organization.",
         "supersededOverrides": "Saved repository overrides that are inactive because the organization currently locks the rule; they stay in the profile and take effect again if the lock is dropped.",
-        "digest": "Lowercase SHA-256 of the canonical effective entries and organization revision; superseded overrides are excluded.",
+        "digest": "Rules fingerprint: equals the policyDigest a check of a run admitted under these rules records (effective policy digest over the active profile's fixed policy, its trusted checker and the effective entries; organization revision and superseded overrides are excluded). Without a fixed policy no check records one and the value matches no run.",
         "repositoryVersion": "Current repository version; the response ETag is \"v<version>\", the If-Match value profile activation requires.",
         "checkers": "Bakery checker availability for the effective rules.",
         "providerProtection": "Git provider branch protection state, separate from Bakery enforcement."
