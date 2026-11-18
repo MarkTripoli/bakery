@@ -1813,6 +1813,7 @@
    wraps and the menu never moves. */
 .ui-notification-row {
   align-items: center;
+  container-type: inline-size;
   display: flex;
   gap: var(--space-2);
   list-style: none;
@@ -1885,6 +1886,7 @@
   -webkit-line-clamp: 2;
   line-clamp: 2;
   overflow: hidden;
+  overflow-wrap: anywhere;
 }
 .ui-notification-row[data-unread="true"] .ui-notification-row__headline {
   font-weight: var(--weight-medium);
@@ -1907,6 +1909,22 @@
 .ui-notification-row__menu {
   display: inline-flex;
   flex: none;
+}
+
+/* A row narrower than 240px (a 200% zoom pane) gives the text the width left
+   after the dot and avatar; the time moves onto its own muted line under the
+   text, start-aligned. Wider rows are unchanged. */
+@container (max-width: 240px) {
+  .ui-notification-row__link {
+    grid-template-columns:
+      var(--space-2)
+      var(--size-avatar-small)
+      minmax(0, 1fr);
+  }
+  .ui-notification-row__time {
+    grid-column: 3;
+    justify-self: start;
+  }
 }
 
 /* The 360px panel under the bell: capped to the viewport so the list scrolls

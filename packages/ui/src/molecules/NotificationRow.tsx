@@ -128,12 +128,16 @@ export function NotificationRow(
           : null}
       </span>
       <span className="ui-notification-row__text">
-        <span className="ui-notification-row__headline">
+        <span
+          className="ui-notification-row__headline"
+          data-rail="truncation-allowed"
+        >
           {unread ? <VisuallyHidden>{unreadLabel}</VisuallyHidden> : null}
           {headline}
         </span>
         <span
           className="ui-notification-row__destination"
+          data-rail="truncation-allowed"
           data-ui-part="notificationDestination"
         >
           {destination}
