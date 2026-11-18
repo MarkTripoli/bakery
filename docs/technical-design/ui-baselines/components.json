@@ -1,5 +1,5 @@
 {
-  "revision": "06bc923e951d516df61e210ce6eedc30cfbe8531693ecc7d9ff83d1895a6bd6a",
+  "revision": "7344c49a2abb5a9b928c46e578532a6bfadeb7f08ed6d1f329f9eb201c78393e",
   "schemaVersion": 1,
   "owner": "Mark Tripoli",
   "rules": [
@@ -22404,7 +22404,7 @@
           "Escape closes the panel and returns focus to the trigger",
           "Tab reaches the rows, Mark all read and the view-all link"
         ],
-        "notes": "Mark all read is disabled when nothing is unread, and its reason is visible rather than only a tooltip."
+        "notes": "Mark all read is disabled when nothing is unread, and its reason is carried as the button's tooltip and accessible description."
       },
       "tokens": [
         "--border-default",
