@@ -1678,6 +1678,22 @@
   display: -webkit-box;
   overflow: hidden;
 }
+/* ExpandableText: a clamped summary with a control that shows the whole text.
+   The control sits directly under the text, start-aligned. */
+.ui-expandable-text {
+  align-items: flex-start;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-inline-size: 0;
+}
+.ui-expandable-text .ui-text {
+  inline-size: 100%;
+  overflow-wrap: anywhere;
+}
+.ui-expandable-text .ui-button--text {
+  font: var(--type-hint);
+}
 .ui-list-row__detail[data-tone="warning"] {
   color: var(--color-status-warning);
 }

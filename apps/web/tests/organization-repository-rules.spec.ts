@@ -422,7 +422,11 @@ test.describe("organization repository rules", () => {
     await expect(historyRows(page)).toHaveCount(2);
   });
 
-  test("a rule summary is clamped to two lines with the whole text as its title", async ({ page }) => {
+  test("a long rule summary is clamped, with a control that shows all of it and no title", async ({ page, isMobile }) => {
+    test.skip(
+      isMobile,
+      "a phone row opens the editor instead; see the next test",
+    );
     const sections = Array.from(
       { length: 16 },
       (_, index) => `Required section number ${index + 1}`,
@@ -437,22 +441,74 @@ test.describe("organization repository rules", () => {
     );
     await rulesFixture(page, { entries });
     await page.goto(PAGE_PATH);
-    const summary = ruleRow(page, "Merge descriptions").locator(
-      '[data-lines="2"]',
-    );
-    await expect(summary).toHaveAttribute(
-      "title",
-      /Required section number 16/,
-    );
+    const row = ruleRow(page, "Merge descriptions");
+    const summary = row.locator('[data-lines="2"]');
     const { height, lineHeight } = await summary.evaluate((node) => ({
       height: node.getBoundingClientRect().height,
       lineHeight: parseFloat(getComputedStyle(node).lineHeight),
     }));
     // Two lines and no more: a 16-section list does not grow the row without limit.
     expect(height).toBeLessThanOrEqual(lineHeight * 2 + 1);
+    // No tooltip: the whole text is not hidden behind a hover.
+    await expect(row.locator("[title]")).toHaveCount(0);
+    // The control is reachable by keyboard and names the rule it opens.
+    const show = row.getByRole("button", {
+      name: "Show all of Merge descriptions",
+    });
+    await expect(show).toHaveAttribute("aria-expanded", "false");
+    await expect(show).toHaveText("Show all");
+    await shot(page, "203-org-rules-summary-cut", [], { only: "desktop" });
+    await show.focus();
+    await page.keyboard.press("Enter");
+    const hide = row.getByRole("button", {
+      name: "Show less of Merge descriptions",
+    });
+    await expect(hide).toHaveAttribute("aria-expanded", "true");
+    await expect(hide).toHaveText("Show less");
+    await expect(hide).toBeFocused();
+    await expect(row).toContainText("Required section number 16");
+    await shot(page, "203-org-rules-summary-expanded", [], { only: "desktop" });
+    const open = await row.locator(".ui-expandable-text .ui-text").evaluate((
+      node,
+    ) => node.getBoundingClientRect().height);
+    expect(open).toBeGreaterThan(lineHeight * 2 + 1);
+    await page.keyboard.press("Space");
+    await expect(show).toHaveAttribute("aria-expanded", "false");
+    // A rule whose summary fits has no control and no reserved space.
+    await expect(
+      ruleRow(page, "Semantic commits").getByRole("button", {
+        name: /Show all/,
+      }),
+    ).toHaveCount(0);
     // The rule's name is not clamped.
-    await expect(ruleRow(page, "Merge descriptions")).toContainText(
-      "Merge descriptions",
+    await expect(row).toContainText("Merge descriptions");
+  });
+
+  test("on a phone the long summary is described by the row and carries no title", async ({ page, isMobile }) => {
+    test.skip(!isMobile, "a wide screen shows the control in the table");
+    const sections = Array.from(
+      { length: 16 },
+      (_, index) => `Required section number ${index + 1}`,
+    );
+    const entries = RULE_ENTRIES.map((entry) =>
+      entry.ruleKey === "changeRequest.description"
+        ? {
+          ...entry,
+          options: { ...(entry.options as object), requiredSections: sections },
+        }
+        : entry
+    );
+    await rulesFixture(page, { entries });
+    await page.goto(PAGE_PATH);
+    const row = ruleRow(page, "Merge descriptions");
+    await expect(row.locator("[title]")).toHaveCount(0);
+    await shot(page, "203-org-rules-phone-row", [], { only: "mobile" });
+    // The row's control is described by the summary, so it is announced whole
+    // after "Edit Merge descriptions"; there is no button inside the row button.
+    const control = row.getByRole("button");
+    await expect(control).toHaveCount(1);
+    await expect(control).toHaveAccessibleDescription(
+      /Required section number 16/,
     );
   });
 

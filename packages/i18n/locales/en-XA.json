@@ -4073,5 +4073,9 @@
   "notifications.kind.approvalRequested": "⟦Your approval is needed — ŧëšŧ çôþÿ⟧",
   "notifications.kind.questionAsked": "⟦A question needs your answer — ŧëšŧ çôþÿ⟧",
   "notifications.kind.documentVersion": "Å nëw vërsïön ïs rëädy",
-  "notifications.kind.documentVersion.subtitle": "{document} · Vërsïön {version}"
+  "notifications.kind.documentVersion.subtitle": "{document} · Vërsïön {version}",
+  "core.actions.showAll": "⟦Šĥôŵ àļļ…⟧",
+  "core.actions.showLess": "⟦Šĥôŵ ļëšš ŧ⟧",
+  "repository.rules.summary.show.named": "⟦Šĥôŵ àļļ ôƒ {rule} ŧëšŧ⟧",
+  "repository.rules.summary.hide.named": "⟦Šĥôŵ ļëšš ôƒ {rule} ŧëšŧ⟧"
 }
