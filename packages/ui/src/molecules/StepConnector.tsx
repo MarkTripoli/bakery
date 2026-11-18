@@ -81,7 +81,9 @@ export function StepConnector(
         {...props}
         aria-label={label}
         className="ui-step-connector__button"
+        data-state="default"
         data-ui-component="stepConnector"
+        data-variant="default"
         type="button"
       >
         <span aria-hidden="true">{children ?? "+"}</span>

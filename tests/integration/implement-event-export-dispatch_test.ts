@@ -421,6 +421,7 @@ async function dispatch(
     raw,
     payloadDigest: "digest-1",
     sign,
+    reloadAuthority: () => Promise.resolve(snapshot(options.snapshot)),
     ledger,
     transport,
     now,
@@ -565,7 +566,7 @@ Deno.test("an uncertain acknowledgement keeps the delivery and retries under the
     // the attempt number and so differed on every retry.
     assertEquals(
       rows[0]!.delivery_identity,
-      deliveryIdentity({ subscriptionId, sourceEventId: eventId }),
+      await deliveryIdentity({ subscriptionId, sourceEventId: eventId }),
     );
 
     // The property that actually matters: attempt 2 is the same delivery.
@@ -579,6 +580,7 @@ Deno.test("an uncertain acknowledgement keeps the delivery and retries under the
       raw,
       payloadDigest: "digest-1",
       sign,
+      reloadAuthority: () => Promise.resolve(snapshot()),
       ledger: recordingLedger(app),
       transport: recordingTransport({
         kind: "acknowledged",

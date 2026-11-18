@@ -79,6 +79,11 @@ export type DeliveryOutcome =
   | { readonly kind: "refused"; readonly status: number }
   | { readonly kind: "uncertain"; readonly reason: string };
 
+export type DispatchFailureReason =
+  | ExportRefusal
+  | "signing_failed"
+  | "authority_changed";
+
 export type DispatchResult =
   | {
     readonly ok: true;
@@ -86,7 +91,7 @@ export type DispatchResult =
     readonly deliveryIdentity: string;
     readonly outcome: DeliveryOutcome;
   }
-  | { readonly ok: false; readonly reason: ExportRefusal };
+  | { readonly ok: false; readonly reason: DispatchFailureReason };
 
 /**
  * A stable delivery identity: the same subscription and event always produce the
@@ -94,23 +99,30 @@ export type DispatchResult =
  * to a receiver deduplicating on it.
  *
  * The attempt number is deliberately NOT part of it. Including it was a real bug
- * caught in review, and the reasoning is worth keeping: an identity that changes
- * per attempt makes a retry look like a new delivery, which is the exact thing
- * the identity exists to prevent. A receiver deduplicating on this would store
- * the same event twice under two names. The attempt belongs in the ledger row -
- * it says which try this is - not in the name the receiver sees.
+ * caught in review: an identity that changes per attempt makes a retry look like
+ * a new delivery, which is the exact thing the identity exists to prevent.
  *
- * The parts are joined with `-` after a `bakery-` prefix and the subscription is
- * shortened, keeping it inside the 128-character limit the signature's delivery
- * header accepts. That limit is why the raw values are not simply concatenated.
+ * The pair is hashed rather than concatenated-and-truncated. Truncating the raw
+ * ids to fit the 128-character header limit meant two subscriptions sharing a
+ * prefix produced the same identity for different events, which is a collision in
+ * the one value a receiver is entitled to trust as unique. A 128-bit slice of
+ * SHA-256 over the full pair removes that class entirely and keeps the header
+ * well inside its limit.
  */
-export function deliveryIdentity(input: {
+export async function deliveryIdentity(input: {
   readonly subscriptionId: string;
   readonly sourceEventId: string;
-}): string {
-  const subscription = input.subscriptionId.replace(/-/g, "").slice(0, 16);
-  const event = input.sourceEventId.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 64);
-  return `bakery-${subscription}-${event}`;
+}): Promise<string> {
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(
+      `${input.subscriptionId}\u0000${input.sourceEventId}`,
+    ),
+  );
+  const hex = Array.from(new Uint8Array(digest).subarray(0, 16))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+  return `bakery-${hex}`;
 }
 
 /** Bounded exponential backoff for a retryable attempt, capped at an hour. */
@@ -143,6 +155,17 @@ export async function dispatchEventExport(input: {
   readonly sign: (
     deliveryIdentity: string,
   ) => Promise<Readonly<Record<string, string>>>;
+  /**
+   * Reloads the authority just before the send.
+   *
+   * The snapshot passed in is a value, not a lock: nothing stops a subscription
+   * being revoked or a resource becoming private between authorizing and
+   * connecting. Re-reading here narrows that window to the length of one query
+   * instead of leaving it open for the whole send, and the ledger row created
+   * above is settled as failed rather than silently dropped - an attempt was
+   * prepared, so pretending it never happened would lose that fact.
+   */
+  readonly reloadAuthority: () => Promise<AuthoritySnapshot>;
   readonly ledger: DeliveryLedger;
   readonly transport: DeliveryTransport;
   readonly now: () => Date;
@@ -159,10 +182,22 @@ export async function dispatchEventExport(input: {
 
   // One identity per subscription and event, computed before the row is written
   // so the row and the receiver see the same value on every attempt.
-  const identity = deliveryIdentity({
+  const identity = await deliveryIdentity({
     subscriptionId: input.subscription.id,
     sourceEventId: input.sourceEventId,
   });
+
+  // Signing happens here, before the row exists and outside the send's try. It
+  // was inside that try, which meant a signing failure was recorded as an
+  // "uncertain" delivery and retried forever: uncertain means "the receiver may
+  // or may not have acted", and a failure to sign is neither. A local failure
+  // before anything leaves is terminal, and leaves nothing behind.
+  let headers: Readonly<Record<string, string>>;
+  try {
+    headers = await input.sign(identity);
+  } catch {
+    return { ok: false, reason: "signing_failed" };
+  }
 
   const { deliveryId } = await input.ledger.record({
     organizationId: input.snapshot.organizationId,
@@ -175,13 +210,34 @@ export async function dispatchEventExport(input: {
     payloadDigest: input.payloadDigest,
   });
 
+  // Between authorizing and sending, the authority can change. Re-reading it here
+  // is what makes the earlier check a decision about now rather than about a
+  // moment that has passed.
+  const current = authorizeEventExport({
+    snapshot: await input.reloadAuthority(),
+    subscription: input.subscription,
+    destination: input.destination,
+    eventKind: input.eventKind,
+  });
+  if (!current.ok) {
+    await input.ledger.settle({
+      deliveryId,
+      status: "failed",
+      acknowledgementState: "refused",
+      responseStatus: null,
+      outcomeCode: current.reason,
+      notBefore: null,
+    });
+    return { ok: false, reason: "authority_changed" };
+  }
+
   let outcome: DeliveryOutcome;
   try {
     outcome = await input.transport.send({
       origin: input.destination.origin,
       path: input.destination.path,
       raw: input.raw,
-      headers: await input.sign(identity),
+      headers,
     });
   } catch (error) {
     // A transport that threw after the request left is uncertain, not failed:

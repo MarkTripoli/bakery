@@ -33,6 +33,7 @@ import { repositoryRulesBakeryMigrationSource } from "../../apps/server/src/modu
 import { artifactKindsBakeryMigrationSource } from "../../apps/server/src/modules/artifact-kinds/migrations.ts";
 import { integrationsBakeryMigrationSource } from "../../apps/server/src/modules/integrations/migrations.ts";
 import { deliveryBakeryMigrationSource } from "../../apps/server/src/modules/delivery/migrations.ts";
+import { mcpBakeryMigrationSource } from "../../apps/server/src/modules/mcp/migrations.ts";
 import { migrateData } from "../../apps/server/src/platform/data-migrate.ts";
 import { PostgresAuthorityRunner } from "../../apps/server/src/modules/auth/adapters/authority-postgres.ts";
 import { createTaskActionRegistry } from "../../apps/server/src/task-actions.ts";
@@ -209,10 +210,16 @@ async function seedCoordinationState(
     kind: "workflow",
     name: "coordination-fixed",
     inputs: { taskId: { type: "uuid", required: true } },
+    // One container, so the document is a compiled plan and the engine decides
+    // its step. A bare top-level step list is the flat grammar, which has no
+    // executor to run it.
     steps: [{
-      id: "review",
-      uses: "workflow.noop",
-      with: {},
+      id: "flow",
+      steps: [{
+        id: "review",
+        uses: "workflow.noop",
+        with: {},
+      }],
     }],
   };
   await owner`
@@ -276,6 +283,7 @@ export async function openCoordinationFixture(
     ...await loadMigrations(artifactKindsBakeryMigrationSource),
     ...await loadMigrations(integrationsBakeryMigrationSource),
     ...await loadMigrations(deliveryBakeryMigrationSource),
+    ...await loadMigrations(mcpBakeryMigrationSource),
   ]);
   await migrateData(owner, bakeryDataMigrations);
 

@@ -20,7 +20,10 @@
 
 /** Minimal query surface, so this runs inside the caller's transaction. */
 export type RetentionDatabase = {
-  query(text: string): Promise<{ rowCount: number | null }>;
+  query(
+    text: string,
+    values: readonly unknown[],
+  ): Promise<{ rowCount: number | null }>;
 };
 
 /**
@@ -32,40 +35,45 @@ export type RetentionDatabase = {
  * the permission error that produces is the intended behaviour and a test
  * asserts it, rather than a grant to be widened.
  *
- * Deliveries go first because they reference everything else; subscriptions
- * before destinations and resources because a subscription names both. The
- * connection itself is not removed here - this module only makes that possible.
+ * Every statement is scoped by organization as well as connection. That is not
+ * decoration: a connection id alone is a bare identifier, and an administrative
+ * sweep is exactly the code that should not be able to remove another tenant's
+ * history if it is ever handed a wrong id. The values are bound, never
+ * interpolated - building SQL from an id is how a sweep becomes an injection
+ * point even when the id is validated first.
  */
 export async function deleteEventExportHistory(
   database: RetentionDatabase,
-  connectionId: string,
+  input: { readonly organizationId: string; readonly connectionId: string },
 ): Promise<{
   readonly deliveries: number;
   readonly subscriptions: number;
   readonly destinations: number;
 }> {
-  // Bound as a literal rather than a parameter because these tables are cleaned
-  // by an administrative task, and a parameterised identity is a smaller change
-  // than making every statement here happen to be safe. The identifier is
-  // validated as a UUID below instead.
-  if (!UUID.test(connectionId)) {
-    throw new TypeError("invalid_connection_id");
+  if (!UUID.test(input.organizationId) || !UUID.test(input.connectionId)) {
+    throw new TypeError("invalid_identifier");
   }
+
+  const scope = [input.organizationId, input.connectionId] as const;
 
   const deliveries = await database.query(
     `delete from bakery.integration_deliveries
-       where subscription_id in (
-         select id from bakery.integration_event_subscriptions
-          where connection_id = '${connectionId}'
-       )`,
+       where organization_id = $1
+         and subscription_id in (
+           select id from bakery.integration_event_subscriptions
+            where organization_id = $1 and connection_id = $2
+         )`,
+    scope,
   );
   const subscriptions = await database.query(
     `delete from bakery.integration_event_subscriptions
-       where connection_id = '${connectionId}'`,
+       where organization_id = $1 and connection_id = $2`,
+    scope,
   );
   const destinations = await database.query(
     `delete from bakery.integration_destinations
-       where connection_id = '${connectionId}'`,
+       where organization_id = $1 and connection_id = $2`,
+    scope,
   );
 
   return {

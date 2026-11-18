@@ -34,6 +34,15 @@ import {
 } from "./validation.ts";
 import { assertWorkflowSatisfiesRepositoryRules } from "./rule-guard.ts";
 import { attributeAction } from "../auth/application/action-attribution.ts";
+import {
+  assertMayPublishDefinition,
+  DefinitionKind,
+} from "../auth/application/definition-publish-grants.ts";
+import { supersedeWaitingProposals } from "./proposal-supersession.ts";
+import {
+  createDefinitionPublishGrant,
+  deleteDefinitionPublishGrant,
+} from "./publish-grants.ts";
 import type { WorkflowsActionHandlers } from "./actions.ts";
 import {
   decideWorkflowDefinitionProposal,
@@ -82,15 +91,22 @@ export type WorkflowWriteFacts = Readonly<{
   principalId: string;
   requestId: string;
   traceId: string;
+  /** Whether a person or an agent acted (O50); recorded in the audit row. Unset means a person. */
+  actorKind?: "person" | "agent";
+  /** The access token an agent presented, or null. */
+  accessTokenId?: string | null;
 }>;
 
 function writeFactsOf(context: ActionContext): WorkflowWriteFacts {
   const { organizationId, principalId } = requireWorkTransaction(context);
+  const attribution = attributeAction(context, principalId);
   return {
     organizationId,
     principalId,
     requestId: context.requestId,
     traceId: context.traceId,
+    actorKind: attribution.actorKind,
+    accessTokenId: attribution.accessTokenId,
   };
 }
 
@@ -240,6 +256,9 @@ async function appendWorkflowFacts(
     aggregateVersion?: number;
     requestId: string;
     traceId: string;
+    /** Who acted (O50): every workflow audit row names the actor kind. */
+    actorKind?: "person" | "agent";
+    accessTokenId?: string | null;
   },
 ): Promise<void> {
   await appendAudit(transaction, {
@@ -250,6 +269,10 @@ async function appendWorkflowFacts(
     resourceId: options.resourceId,
     requestId: options.requestId,
     traceId: options.traceId,
+    details: {
+      actorKind: options.actorKind ?? "person",
+      accessTokenId: options.accessTokenId ?? null,
+    },
   });
   await appendDomainEvent(transaction, {
     organizationId: options.organizationId,
@@ -604,6 +627,16 @@ export async function updateWorkflowDefinition(
   const target = locked.rows[0];
   if (!target) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
   requireOrganizationMayEdit(target.origin_kind);
+  // Switching a workflow on or off is an off-by-default power for an agent
+  // (O52), granted with publishing; renaming and describing are authoring.
+  const attribution = value.enabled === undefined
+    ? attributeAction(context, principalId)
+    : await assertMayPublishDefinition(transaction, context, {
+      organizationId,
+      principalId,
+      kind: DefinitionKind.Workflow,
+      definitionId: workflowId,
+    });
   const updated = await boundedMutation(() =>
     transaction.query<WorkflowDefinitionRow>(
       `update bakery.workflow_definitions
@@ -639,6 +672,8 @@ export async function updateWorkflowDefinition(
     resourceVersion: row.version,
     requestId: context.requestId,
     traceId: context.traceId,
+    actorKind: attribution.actorKind,
+    accessTokenId: attribution.accessTokenId,
   });
   return toWorkflowDefinition(row);
 }
@@ -899,6 +934,8 @@ export async function createWorkflowDraft(
     resourceVersion: row.version,
     requestId: facts.requestId,
     traceId: facts.traceId,
+    actorKind: facts.actorKind,
+    accessTokenId: facts.accessTokenId,
   });
   return row;
 }
@@ -992,6 +1029,8 @@ export async function updateWorkflowDraft(
     resourceVersion: row.version,
     requestId: facts.requestId,
     traceId: facts.traceId,
+    actorKind: facts.actorKind,
+    accessTokenId: facts.accessTokenId,
   });
   return row;
 }
@@ -1070,6 +1109,14 @@ export async function publishWorkflowVersion(
     throw new StandardError({ code: "PRECONDITION_REQUIRED" });
   }
   await lockAuthoringDefinition(transaction, organizationId, workflowId);
+  // An agent publishes only under a grant (O52); refused before any read, so
+  // a refusal writes no version, event or audit row.
+  const attribution = await assertMayPublishDefinition(transaction, context, {
+    organizationId,
+    principalId,
+    kind: DefinitionKind.Workflow,
+    definitionId: workflowId,
+  });
   const drafts = await transaction.query<
     {
       id: string;
@@ -1168,9 +1215,21 @@ export async function publishWorkflowVersion(
   );
   const row = inserted.rows[0];
   if (!row) throw new Error("WORKFLOW_VERSION_INSERT_FAILED");
+  // The draft is gone, so a proposal still waiting on it is settled as
+  // superseded by this version, in this transaction (#421 item 4.14).
+  await supersedeWaitingProposals(transaction, {
+    organizationId,
+    workflowId,
+    versionId: draft.id,
+    principalId,
+    requestId: context.requestId,
+    traceId: context.traceId,
+  });
   await appendWorkflowFacts(transaction, {
     organizationId,
     principalId,
+    actorKind: attribution.actorKind,
+    accessTokenId: attribution.accessTokenId,
     operation: "workflowVersions.publish",
     resourceType: "workflow_version",
     resourceId: draft.id,
@@ -1200,6 +1259,13 @@ export async function activateWorkflowVersion(
     throw new StandardError({ code: "PRECONDITION_REQUIRED" });
   }
   await lockAuthoringDefinition(transaction, organizationId, workflowId);
+  // "Use this version" by an agent needs the same grant as publishing (O52).
+  const attribution = await assertMayPublishDefinition(transaction, context, {
+    organizationId,
+    principalId,
+    kind: DefinitionKind.Workflow,
+    definitionId: workflowId,
+  });
   // "Use this version" is a library act: an unlisted definition runs only at
   // an exact published version until a person saves it as a workflow.
   const listed = await transaction.query<{ visibility: string }>(
@@ -1260,6 +1326,8 @@ export async function activateWorkflowVersion(
     organizationId,
     principalId,
     operation: "workflowActivations.create",
+    actorKind: attribution.actorKind,
+    accessTokenId: attribution.accessTokenId,
     resourceType: "workflow_definition",
     resourceId: workflowId,
     eventType: "workflows.updated",
@@ -1444,5 +1512,7 @@ export function createWorkflowsHandlers(
     createListing: createWorkflowListing,
     getProposal: getWorkflowDefinitionProposal,
     decideProposal: decideWorkflowDefinitionProposal,
+    createPublishGrant: createDefinitionPublishGrant,
+    deletePublishGrant: deleteDefinitionPublishGrant,
   };
 }

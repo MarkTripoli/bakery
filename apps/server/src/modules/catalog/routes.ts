@@ -13,6 +13,10 @@ import { PostgresAuthorityRunner } from "../auth/adapters/authority-postgres.ts"
 import { createPostgresCommandRunner } from "../../platform/command-replay.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import {
+  assertMayPublishDefinition,
+  DefinitionKind,
+} from "../auth/application/definition-publish-grants.ts";
+import {
   createCatalogActionRegistry,
   createSkillVersionActionRegistry,
 } from "./actions.ts";
@@ -146,7 +150,16 @@ export function createCatalogRoutes(options: {
     createApiRouter({
       registry: createSkillVersionActionRegistry({
         createSkillVersion: async (context) => {
-          const { transaction } = requireWorkTransaction(context);
+          const { transaction, organizationId, principalId } =
+            requireWorkTransaction(context);
+          // A skill version is published on create: an agent needs a grant
+          // (O52, #421) before anything is finalized.
+          await assertMayPublishDefinition(transaction, context, {
+            organizationId,
+            principalId,
+            kind: DefinitionKind.Skill,
+            definitionId: context.params.id ?? null,
+          });
           const stage = (context as StagedActionContext)[
             publicationExecutionStage
           ];

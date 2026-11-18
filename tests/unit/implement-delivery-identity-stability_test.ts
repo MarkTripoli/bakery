@@ -89,16 +89,36 @@ function ports(): {
   };
 }
 
-Deno.test("the identity does not vary with the attempt number", () => {
+Deno.test("two subscriptions sharing a long prefix do not collide", async () => {
+  // The old identity truncated raw ids to fit the 128-character header, so these
+  // two - identical for the first 40 characters - produced one identity for two
+  // different delivery streams. That is a collision in the single value a
+  // receiver is entitled to trust as unique.
+  const prefix = "1a2b3c4d-".repeat(5);
+  const first = await deliveryIdentity({
+    subscriptionId: `${prefix}aaaa`,
+    sourceEventId: "event-1",
+  });
+  const second = await deliveryIdentity({
+    subscriptionId: `${prefix}bbbb`,
+    sourceEventId: "event-1",
+  });
+  assertEquals(first === second, false, "a shared prefix must not collide");
+
+  // And it still fits the header the verifier accepts.
+  assertEquals(first.length <= 128, true);
+});
+
+Deno.test("the identity does not vary with the attempt number", async () => {
   // The function takes no attempt argument at all, so this asserts the shape of
   // the contract rather than only its behaviour: an identity that cannot see the
   // attempt cannot vary by it.
   assertEquals(
-    deliveryIdentity({
+    await deliveryIdentity({
       subscriptionId: subscription.id,
       sourceEventId: "event-1",
     }),
-    deliveryIdentity({
+    await deliveryIdentity({
       subscriptionId: subscription.id,
       sourceEventId: "event-1",
     }),
@@ -119,6 +139,7 @@ Deno.test("attempt 2 presents the same identity to the receiver as attempt 1", a
       raw,
       payloadDigest: "digest-1",
       sign: (identity) => Promise.resolve({ "x-bakery-delivery": identity }),
+      reloadAuthority: () => Promise.resolve(snapshot()),
       ledger,
       transport,
       now: () => new Date("2026-01-01T00:00:00Z"),
@@ -149,6 +170,7 @@ Deno.test("two different events from one subscription do not share an identity",
       raw,
       payloadDigest: "digest-1",
       sign: (identity) => Promise.resolve({ "x-bakery-delivery": identity }),
+      reloadAuthority: () => Promise.resolve(snapshot()),
       ledger,
       transport,
       now: () => new Date("2026-01-01T00:00:00Z"),

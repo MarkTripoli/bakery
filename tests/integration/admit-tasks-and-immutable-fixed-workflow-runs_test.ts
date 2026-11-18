@@ -37,6 +37,7 @@ import { repositoryRulesBakeryMigrationSource } from "../../apps/server/src/modu
 import { artifactKindsBakeryMigrationSource } from "../../apps/server/src/modules/artifact-kinds/migrations.ts";
 import { integrationsBakeryMigrationSource } from "../../apps/server/src/modules/integrations/migrations.ts";
 import { deliveryBakeryMigrationSource } from "../../apps/server/src/modules/delivery/migrations.ts";
+import { mcpBakeryMigrationSource } from "../../apps/server/src/modules/mcp/migrations.ts";
 import { migrateData } from "../../apps/server/src/platform/data-migrate.ts";
 import { PostgresAuthorityRunner } from "../../apps/server/src/modules/auth/adapters/authority-postgres.ts";
 import { createTaskActionRegistry } from "../../apps/server/src/task-actions.ts";
@@ -93,6 +94,7 @@ Deno.test("admit tasks and keep fixed-workflow run snapshots immutable", async (
       ...await loadMigrations(artifactKindsBakeryMigrationSource),
       ...await loadMigrations(integrationsBakeryMigrationSource),
       ...await loadMigrations(deliveryBakeryMigrationSource),
+      ...await loadMigrations(mcpBakeryMigrationSource),
     ]);
     await migrateData(owner, bakeryDataMigrations);
 
@@ -233,9 +235,18 @@ Deno.test("admit tasks and keep fixed-workflow run snapshots immutable", async (
       ],
     };
     const workflowDigest = await digest(workflowSpec);
+    // #400: every run is admitted as a compiled plan, so the cloud-only
+    // maintenance workflow is a plan too: one container with one worker-free
+    // step. A bare step list is the flat grammar, which #400 retires.
     const cloudOnlyWorkflowSpec = {
-      ...workflowSpec,
+      apiVersion: "bakery.dev/v1",
+      kind: "workflow",
       name: "issue-36-cloud-only-workflow",
+      inputs: { taskId: { type: "uuid", required: true } },
+      steps: [{
+        id: "flow",
+        steps: [{ id: "review", uses: "workflow.noop", with: {} }],
+      }],
     };
     // #400: a repository run is admitted as a compiled plan, so the repository
     // half of this test runs a plan document. A branch is what makes a document
@@ -482,6 +493,7 @@ Deno.test("admit tasks and keep fixed-workflow run snapshots immutable", async (
       blocked: crypto.randomUUID(),
       prerequisite: crypto.randomUUID(),
       noRepository: crypto.randomUUID(),
+      cloudOnlyFeature: crypto.randomUUID(),
       cloudOnlyMaintenance: crypto.randomUUID(),
       cloudOnlyProfile: crypto.randomUUID(),
       disabledWorkflow: crypto.randomUUID(),
@@ -537,6 +549,11 @@ Deno.test("admit tasks and keep fixed-workflow run snapshots immutable", async (
     await insertTask(taskIds.blocked, "Blocked task");
     await insertTask(taskIds.prerequisite, "Prerequisite task");
     await insertTask(taskIds.noRepository, "No repository task", false);
+    await insertTask(
+      taskIds.cloudOnlyFeature,
+      "Cloud-only feature task",
+      false,
+    );
     await insertTask(
       taskIds.cloudOnlyMaintenance,
       "Cloud-only maintenance task",
@@ -790,7 +807,7 @@ Deno.test("admit tasks and keep fixed-workflow run snapshots immutable", async (
 
     const cloudOnlyFeature = await send(
       "POST",
-      `/v1/tasks/${taskIds.noRepository}/runs`,
+      `/v1/tasks/${taskIds.cloudOnlyFeature}/runs`,
       {
         organizationId,
         idempotencyKey: "issue36-cloud-only-feature-run",
@@ -798,12 +815,14 @@ Deno.test("admit tasks and keep fixed-workflow run snapshots immutable", async (
           workflowVersionId: cloudOnlyWorkflowVersionId,
           executionMode: "cloud_only",
           budgetLimitUsd: "0.005000",
-          inputs: { taskId: taskIds.noRepository },
+          inputs: { taskId: taskIds.cloudOnlyFeature },
         },
       },
     );
-    assertEquals(cloudOnlyFeature.status, 409);
-    assertEquals((await cloudOnlyFeature.json()).code, "STATE_CONFLICT");
+    // Work type is an organization label the kernel never branches on (O23): a
+    // feature task with no repository runs cloud-only like a maintenance task.
+    assertEquals(cloudOnlyFeature.status, 201);
+    assertEquals((await cloudOnlyFeature.json()).status, "queued");
     const cloudOnlyWithProfile = await send(
       "POST",
       `/v1/tasks/${taskIds.cloudOnlyProfile}/runs`,

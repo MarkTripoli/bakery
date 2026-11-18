@@ -507,12 +507,12 @@ Deno.test("a connection with history is deleted only after its history is swept"
           {
             // `rowCount` must come from pg: a DELETE without RETURNING yields
             // no rows, so counting rows would report zero for every statement.
-            query: async (text) => {
-              const result = await app.query(text);
+            query: async (text, values) => {
+              const result = await app.query(text, values as unknown[]);
               return { rowCount: result.rowCount };
             },
           },
-          connectionId,
+          { organizationId, connectionId },
         ),
       Error,
       "permission denied",
@@ -524,12 +524,12 @@ Deno.test("a connection with history is deleted only after its history is swept"
     // undeletable.
     const swept = await deleteEventExportHistory(
       {
-        query: async (text) => {
-          const result = await admin.query(text);
+        query: async (text, values) => {
+          const result = await admin.query(text, values as unknown[]);
           return { rowCount: result.rowCount };
         },
       },
-      connectionId,
+      { organizationId, connectionId },
     );
     assertEquals(swept.deliveries, 1);
     assertEquals(swept.subscriptions, 1);
@@ -562,11 +562,76 @@ Deno.test("the sweep refuses an id that is not a uuid", async () => {
             return Promise.resolve({ rowCount: 0 });
           },
         },
-        "1' or '1'='1",
+        { organizationId, connectionId: "1' or '1'='1" },
       ),
     TypeError,
-    "invalid_connection_id",
+    "invalid_identifier",
   );
   // Nothing ran: the identifier is validated before any statement is built.
   assertEquals(calls.length, 0);
+});
+
+Deno.test("the sweep is scoped to its organization and binds its values", async () => {
+  const admin = openPgDatabase(adminUrl);
+  const app = openPgDatabase(appUrl);
+  const deliveryId = crypto.randomUUID();
+  try {
+    await seedParents(admin);
+    await q(app, SUBSCRIPTION_INSERT, [
+      subscriptionId,
+      organizationId,
+      connectionId,
+      installationId,
+      destinationId,
+      resourceId,
+    ]);
+    await q(app, DELIVERY_INSERT, [
+      deliveryId,
+      organizationId,
+      subscriptionId,
+      destinationId,
+      "evt-1",
+      `identity-${deliveryId}`,
+    ]);
+
+    // Same connection id, wrong organization: an administrative sweep handed the
+    // wrong tenant must remove nothing. A bare connection id would have matched.
+    const wrongTenant = await deleteEventExportHistory(
+      {
+        query: async (text, values) => {
+          const result = await admin.query(text, values as unknown[]);
+          return { rowCount: result.rowCount };
+        },
+      },
+      { organizationId: crypto.randomUUID(), connectionId },
+    );
+    assertEquals(wrongTenant.deliveries, 0);
+    assertEquals(wrongTenant.subscriptions, 0);
+    assertEquals(wrongTenant.destinations, 0);
+
+    // The history is still there, so the zero above is scoping and not an
+    // already-empty table.
+    const survived = await q<{ count: number }>(
+      admin,
+      "select count(*)::int as count from bakery.integration_deliveries where organization_id = $1",
+      [organizationId],
+    );
+    assertEquals(survived[0]!.count, 1);
+
+    // And the right tenant still sweeps.
+    const swept = await deleteEventExportHistory(
+      {
+        query: async (text, values) => {
+          const result = await admin.query(text, values as unknown[]);
+          return { rowCount: result.rowCount };
+        },
+      },
+      { organizationId, connectionId },
+    );
+    assertEquals(swept.deliveries, 1);
+  } finally {
+    await cleanup(admin);
+    await admin.end();
+    await app.end();
+  }
 });

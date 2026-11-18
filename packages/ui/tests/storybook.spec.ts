@@ -40,12 +40,21 @@ test.describe("canonical Storybook catalog", () => {
 
   test("renders every approved semantic variant and state", async ({ page }) => {
     test.setTimeout(sweepTimeoutMs());
+    // A coarse context needs a coarse pointer: Playwright's default desktop
+    // page reports a fine one, so touch is switched on for the cases that ask
+    // for it and off again for the rest. The session stays open, because the
+    // override ends with it.
+    const touch = await page.context().newCDPSession(page);
     for (const entry of catalog.entries) {
       const runtimeCase = runtime.cases.find((candidate) =>
         candidate.catalogId === entry.id
       );
       if (!runtimeCase) throw new Error(`missing runtime case for ${entry.id}`);
       const context = runtime.contexts[runtimeCase.context];
+      await touch.send("Emulation.setTouchEmulationEnabled", {
+        enabled: context.pointer === "coarse",
+        maxTouchPoints: 1,
+      });
       await page.setViewportSize(context.viewport);
       await page.goto(storyUrl(baseURL, runtimeCase, context), {
         waitUntil: "networkidle",

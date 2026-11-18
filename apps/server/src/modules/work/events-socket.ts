@@ -24,11 +24,11 @@ import {
   requireOrganizationIdValue,
   resolveOrganizationActor,
 } from "../auth/adapters/authority-postgres.ts";
-import { authorize } from "../auth/application/authorize.ts";
 import {
   type AuthenticatedSubject,
   IdentityResolutionError,
 } from "../auth/application/identity.ts";
+import { authorize } from "../auth/application/authorize.ts";
 import { readSessionToken } from "../auth/middleware.ts";
 import type { SessionStore } from "../auth/adapters/postgres.ts";
 import {
@@ -36,6 +36,8 @@ import {
   SessionAssurance,
 } from "../auth/domain/assurance.ts";
 import {
+  assertEventAccess,
+  assertInboxOnlyScope,
   assertScope,
   type ClockRow,
   isOutsideRetention,
@@ -71,9 +73,10 @@ const FILTER_LETTERS = Object.freeze(
     repository: "r",
     task: "t",
     conversation: "c",
+    inbox: "i",
   } as const,
 );
-const FILTER_ORDER = Object.freeze({ a: 0, r: 1, t: 2, c: 3 });
+const FILTER_ORDER = Object.freeze({ a: 0, r: 1, t: 2, c: 3, i: 4 });
 const LETTER_TYPES: Readonly<Record<string, SyncScopeType>> = Object.freeze({
   a: "application",
   r: "repository",
@@ -81,6 +84,7 @@ const LETTER_TYPES: Readonly<Record<string, SyncScopeType>> = Object.freeze({
   c: "conversation",
   e: "worker_enrollment",
   w: "worker",
+  i: "inbox",
 });
 const CURSOR_ACTION = "events.connect";
 const CURSOR_ORDERING = "sequence:asc";
@@ -232,6 +236,7 @@ const EVENT_SCOPE_TYPES: Record<SyncScopeType, true> = {
   task: true,
   worker_enrollment: true,
   worker: true,
+  inbox: true,
 };
 
 function freezeLimits(
@@ -750,7 +755,7 @@ export function createEventsSocketHandler(
             principalValue,
             organizationValue,
           );
-          authorize(actor, "event:read", { action: "events.connect" });
+          assertEventAccess(actor);
           return await readEventClock(transaction, organizationValue);
         },
         undefined,
@@ -1112,14 +1117,14 @@ export function createEventsSocketHandler(
   async function authorizeMembership(
     transaction: PgTransactionClient,
     state: ConnectionState,
-  ): Promise<void> {
+  ): Promise<boolean> {
     try {
       const actor = await resolveOrganizationActor(
         transaction,
         state.principalId,
         state.organizationId,
       );
-      authorize(actor, "event:read", { action: "events.connect" });
+      return assertEventAccess(actor);
     } catch (error) {
       if (
         error instanceof StandardError && error.code === "RESOURCE_NOT_FOUND"
@@ -1137,10 +1142,16 @@ export function createEventsSocketHandler(
     scopes: readonly SyncScope[],
     clock: ClockRow,
   ): Promise<void> {
-    await authorizeMembership(transaction, state);
+    const fullAccess = await authorizeMembership(transaction, state);
     for (const scope of scopes) {
       try {
-        await assertScope(transaction, state.organizationId, scope);
+        if (!fullAccess) assertInboxOnlyScope(scope);
+        await assertScope(
+          transaction,
+          state.organizationId,
+          scope,
+          state.principalId,
+        );
       } catch (error) {
         if (
           error instanceof StandardError && error.code === "RESOURCE_NOT_FOUND"
@@ -1326,9 +1337,15 @@ export function createEventsSocketHandler(
     const outcome = await withPgTransaction<SubscriptionOutcome>(
       options.database,
       async (transaction) => {
-        await authorizeMembership(transaction, state);
+        const fullAccess = await authorizeMembership(transaction, state);
         for (const scope of normalizedScopes) {
-          await assertScope(transaction, state.organizationId, scope);
+          if (!fullAccess) assertInboxOnlyScope(scope);
+          await assertScope(
+            transaction,
+            state.organizationId,
+            scope,
+            state.principalId,
+          );
         }
         const clock = await readEventClock(transaction, state.organizationId);
         const after = start === CURRENT_HIGHWATER
