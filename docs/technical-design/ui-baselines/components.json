@@ -7343,7 +7343,8 @@
         "--space-0",
         "--space-1",
         "--space-5",
-        "--target-min",
+        "--space-6",
+        "--target-coarse",
         "--type-hint",
         "--type-label"
       ],

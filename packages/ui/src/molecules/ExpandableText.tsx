@@ -87,6 +87,7 @@ export function ExpandableText(
       className="ui-expandable-text"
       ref={root}
       {...props}
+      data-cut={cut ? "true" : undefined}
       data-state={expanded ? "expanded" : "collapsed"}
       data-ui-component="expandableText"
       data-variant="default"
