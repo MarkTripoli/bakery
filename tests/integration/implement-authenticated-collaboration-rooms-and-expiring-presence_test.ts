@@ -1192,6 +1192,46 @@ Deno.test("a peer revoked right after a relayed update receives no later draft b
   }
 });
 
+Deno.test("a no-op update acks without a receipt and does not reserve its mutation id (#161)", async () => {
+  const harness = await openHarness();
+  try {
+    const a = await open(harness, harness.owner);
+    const synced = await joinAndSync(a, harness);
+    keepPresent(harness, a);
+    const update = localEdit(synced.doc, 0, "Hello ");
+    await a.sendRaw(
+      0x2,
+      updateFrame(harness, synced.epoch, crypto.randomUUID(), update),
+    );
+    assertEquals((await until(a, "ack", ACK_WAIT_MS)).type, "ack");
+    assertEquals(await receiptCount(harness), 1);
+
+    // Already-committed bytes add nothing: a null receipt, nothing stored.
+    const noOpId = crypto.randomUUID();
+    await a.sendRaw(0x2, updateFrame(harness, synced.epoch, noOpId, update));
+    assertEquals((await until(a, "ack", ACK_WAIT_MS)).receipt, null);
+    assertEquals(await receiptCount(harness), 1);
+
+    // The id was not reserved: the same id with different bytes is a new
+    // mutation, committed with its own receipt, not IDEMPOTENCY_PAYLOAD_MISMATCH.
+    await a.sendRaw(
+      0x2,
+      updateFrame(
+        harness,
+        synced.epoch,
+        noOpId,
+        localEdit(synced.doc, 0, "World "),
+      ),
+    );
+    const ack = await until(a, "ack", ACK_WAIT_MS);
+    assertEquals(ack.mutationId, noOpId);
+    assert(ack.receipt !== null);
+    assertEquals(await receiptCount(harness), 2);
+  } finally {
+    await closeHarness(harness);
+  }
+});
+
 Deno.test("frames queued behind a slow join are bounded and the connection is closed (AC3)", async () => {
   // The rate limit is set out of reach so only the pending-frame cap applies.
   const harness = await openHarness({
