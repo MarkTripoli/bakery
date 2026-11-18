@@ -21,19 +21,19 @@ const VIEWPORTS = [
 const STATES = [
   {
     name: "running",
-    marker: '[data-ui-component="sessionNow"][data-tone="active"]',
+    marker: '[data-ui-component="sessionNowLine"][data-tone="active"]',
   },
   {
     name: "waiting",
-    marker: '[data-ui-component="sessionNow"][data-tone="idle"]',
+    marker: '[data-ui-component="sessionNowLine"][data-tone="idle"]',
   },
   {
     name: "failed",
-    marker: '[data-ui-component="sessionNow"][data-tone="danger"]',
+    marker: '[data-ui-component="sessionNowLine"][data-tone="danger"]',
   },
   {
     name: "lost",
-    marker: '[data-ui-component="sessionNow"][data-tone="warning"]',
+    marker: '[data-ui-component="sessionNowLine"][data-tone="warning"]',
   },
   { name: "finished", marker: ".ui-session-thread__turn" },
   { name: "empty", marker: '[data-ui-component="emptyState"]' },
@@ -95,7 +95,7 @@ test("session thread stills running tall light", async ({ page }) => {
   await mockAuthenticatedSession(page);
   await mkdir(OUT, { recursive: true });
   await page.goto("/__fixtures__/session-thread/running");
-  const now = page.locator('[data-ui-component="sessionNow"]').first();
+  const now = page.locator('[data-ui-component="sessionNowLine"]').first();
   await expect(now).toBeVisible({ timeout: 15_000 });
   await expect(now).toBeInViewport();
   await page.waitForTimeout(250);

@@ -1851,6 +1851,7 @@
 .ui-activity-line__row {
   align-items: center;
   background: none;
+  box-sizing: border-box;
   border: 0;
   border-radius: var(--radius-control);
   color: var(--color-fg-muted);

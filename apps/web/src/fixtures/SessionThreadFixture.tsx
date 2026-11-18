@@ -203,6 +203,49 @@ const longThread: readonly SessionFeedItem[] = Array.from(
   },
 );
 
+/** One long turn: past the 30-line cap, with every kind of line in it. */
+const wideThread: readonly SessionFeedItem[] = [
+  said(1, 20, "person", "Update every caller of the upload retry."),
+  delivered(2, 20),
+  said(3, 19, "agent", "Working through the callers one at a time."),
+  ...Array.from({ length: 40 }, (_, index): SessionFeedItem => {
+    const sequence = 4 + index;
+    return index % 2 === 0
+      ? {
+        ...base(sequence, "tool", at(18 - Math.floor(index / 3))),
+        tool: {
+          callId: `wide-${sequence}`,
+          name: "read_file",
+          phase: "completed",
+          ok: true,
+        },
+      }
+      : {
+        ...base(sequence, "file_change", at(18 - Math.floor(index / 3))),
+        fileChange: {
+          path: `apps/server/src/modules/upload/callers/caller-${index}.ts`,
+          change: "modified",
+        },
+      };
+  }),
+  {
+    ...base(44, "artifact", at(2)),
+    artifact: {
+      artifactId: "55555555-5555-4555-8555-555555555555",
+      name: "retry-report.html",
+      version: 3,
+    },
+  },
+  {
+    ...base(45, "file_change", at(2)),
+    redacted: true,
+  },
+  {
+    ...base(46, "usage", at(1)),
+    usage: { inputTokens: "52100", outputTokens: "9020", costUsd: "0.1534" },
+  },
+];
+
 const ended = (
   sequence: number,
   toStatus: "finished" | "failed" | "interrupted",
@@ -223,6 +266,11 @@ const STATE: Record<string, {
   running: {
     items: sessionThreadRunning,
     now: { kind: "working", toolName: "run_tests", since: at(1) },
+    running: true,
+  },
+  wide: {
+    items: wideThread,
+    now: { kind: "working", toolName: "read_file", since: at(1) },
     running: true,
   },
   loading: { items: [], now: { kind: "idle" }, loading: true },
@@ -247,7 +295,12 @@ const STATE: Record<string, {
     running: true,
   },
   finished: {
-    items: [...sessionThreadRunning, ended(15, "finished")],
+    items: [
+      ...sessionThreadRunning.filter((entry) =>
+        entry.sequence !== "7" && entry.sequence !== "8"
+      ),
+      ended(15, "finished"),
+    ],
     now: { kind: "idle" },
   },
   empty: {
