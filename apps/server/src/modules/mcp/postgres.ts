@@ -107,7 +107,16 @@ export function createPostgresMcpPinnedStatePort(
         input.stepKey ?? null
       })
                )
-             order by (b.actor_ref = ${input.actorRef}) desc nulls last,
+             -- A binding that names more of this caller's ownership slots is
+             -- more specific and wins, so a step-scoped grant is preferred over
+             -- an organization-wide one that also matches. Recency only breaks
+             -- ties between equally specific grants.
+             order by (
+                        (b.workflow_version_id is not null)::int
+                        + (b.agent_version_id is not null)::int
+                        + (b.step_key is not null)::int
+                      ) desc,
+                      (b.actor_ref = ${input.actorRef}) desc nulls last,
                       b.created_at desc
              limit 1
           ) binding on true

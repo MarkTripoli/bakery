@@ -969,3 +969,56 @@ Deno.test("a connection with no current snapshot is refused, not waved through",
   );
   assertEquals(denial?.denial, "schema_drift");
 });
+
+Deno.test("LOW: a step-scoped grant outranks a newer organization-wide one", async () => {
+  const db = openDatabase(databaseConfig.databaseUrl);
+  const world = await seedWorld(db, "specific-wins");
+  const worker = world.worker;
+  try {
+    const seeded = await seedPinnedConnection(db, {
+      organizationId: world.organizationId,
+      principalId: world.principalId,
+      hostId: world.hostId,
+      stepKey: "my-step",
+    });
+    // A later binding for the SAME actor but with no step admits a different
+    // operation. Both match on actor, so recency alone would pick this one and
+    // dispatch `fetch`; specificity must pick the step grant, which admits only
+    // `search`.
+    const now = new Date();
+    await db`insert into bakery.capability_bindings (id, organization_id, mcp_connection_id, mcp_snapshot_id, mcp_snapshot_digest, actor_ref, step_key, allowed_operations, required, created_at, updated_at, version)
+      values (${crypto.randomUUID()}, ${world.organizationId}, ${seeded.connectionId}, ${seeded.snapshotId}, ${seeded.digest}, ${world.principalId}, null, ${
+      db.json(["fetch"])
+    }, false, ${new Date(now.getTime() + 5000)}, ${now}, 1)`;
+
+    const transport = recordingTransport();
+    let denial: string | undefined;
+    try {
+      await invokeMcpTool(
+        { pinnedState: createPostgresMcpPinnedStatePort(db), transport },
+        {
+          organizationId: world.organizationId,
+          actorRef: world.principalId,
+          connectionId: seeded.connectionId,
+          toolName: "fetch",
+          pinnedDigest: seeded.digest,
+          arguments: {},
+          hostId: world.hostId,
+          stepKey: "my-step",
+        },
+      );
+    } catch (error) {
+      denial = (error as { params?: { reason?: string } }).params?.reason;
+    }
+    // The step grant is the one that matched, and it admits only `search`, so
+    // `fetch` is refused even though the newer binding named it.
+    assertEquals(denial, "grant_revoked");
+    assertEquals(transport.calls, []);
+  } finally {
+    await removeOrganization(db, world.organizationId, {
+      userIds: [world.userId],
+      principalIds: [world.principalId, worker.principalId],
+    });
+    await closeDatabase(db);
+  }
+});
