@@ -22,7 +22,12 @@ import { createPostgresMcpPinnedStatePort } from "../../apps/server/src/modules/
  * reached, because "refused" means the side effect did not happen.
  */
 
-const databaseConfig = readTestDatabaseConfig();
+// `adminDatabaseUrl` is only present when the config is asked for it. The seed
+// below needs it: disabling reference checks is a superuser operation, and the
+// runtime role a lane supplies is not a superuser.
+const databaseConfig = readTestDatabaseConfig(Deno.env.toObject(), {
+  requireAdmin: true,
+});
 const DIGEST_A = "a".repeat(64);
 const DIGEST_B = "b".repeat(64);
 
@@ -711,12 +716,17 @@ async function seedPinnedConnection(
       where organization_id = ${options.organizationId} and id = ${connectionId}`;
   }
   // The owner columns are real foreign keys, so an id that names no row cannot
-  // be inserted normally. The reference triggers are deferred for this one
-  // statement: the test is about which binding the read selects, and building a
-  // workflow, agent, skill and automation version would bury that.
-  await db`set session_replication_role = replica`;
+  // be inserted normally. The test is about which binding the read selects, and
+  // building a repository, workflow, agent, skill and automation version for
+  // each case would bury that.
+  //
+  // Deferring the reference checks needs a superuser, so this insert runs over
+  // the admin connection rather than the runtime one. The read under test still
+  // runs as the runtime role, which is what the assertions are about.
+  const admin = openDatabase(databaseConfig.adminDatabaseUrl);
   try {
-    await db`insert into bakery.capability_bindings (id, organization_id, mcp_connection_id, mcp_snapshot_id, mcp_snapshot_digest, actor_ref, step_key, workflow_version_id, agent_version_id, repository_id, skill_version_owner_id, automation_version_id, allowed_operations, required, created_at, updated_at, version)
+    await admin`set session_replication_role = replica`;
+    await admin`insert into bakery.capability_bindings (id, organization_id, mcp_connection_id, mcp_snapshot_id, mcp_snapshot_digest, actor_ref, step_key, workflow_version_id, agent_version_id, repository_id, skill_version_owner_id, automation_version_id, allowed_operations, required, created_at, updated_at, version)
       values (${crypto.randomUUID()}, ${options.organizationId}, ${connectionId}, ${snapshotId}, ${digest}, ${options.principalId}, ${
       options.stepKey ?? null
     }, ${options.workflowVersionId ?? null}, ${
@@ -724,10 +734,11 @@ async function seedPinnedConnection(
     }, ${options.repositoryId ?? null}, ${
       options.skillVersionOwnerId ?? null
     }, ${options.automationVersionId ?? null}, ${
-      db.json(["search"])
+      admin.json(["search"])
     }, false, ${now}, ${now}, 1)`;
+    await admin`set session_replication_role = origin`;
   } finally {
-    await db`set session_replication_role = origin`;
+    await closeDatabase(admin);
   }
   return { connectionId, snapshotId, digest };
 }
