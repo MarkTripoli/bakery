@@ -2999,6 +2999,7 @@
       "method": "POST",
       "path": "/v1/integration-connections/{id}/actions",
       "action": "integrationConnections.invoke",
+      "organizationContext": "required_authenticated_context",
       "access": "Developer+action grant",
       "permission": "integrationConnection:invoke",
       "input": "IntegrationAction",
@@ -3009,6 +3010,8 @@
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED",
         "RESOURCE_NOT_FOUND",
         "UNPROCESSABLE",
         "STATE_CONFLICT",
