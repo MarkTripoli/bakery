@@ -5699,6 +5699,46 @@ const transportSchemas = {
       ],
       "description": "Activates one published version of a workflow definition under the definition's optimistic-concurrency version. The version is re-checked against the latest organization rules like a publication, so a version published before a `require` rule existed is refused with the same typed UNPROCESSABLE issue and the active version stays unchanged."
     },
+    "WorkflowListingCreate": {
+      "fields": [
+        {
+          "name": "versionId",
+          "type": "uuid",
+          "required": true,
+          "description": "Published version of the unlisted source definition to copy; a draft or unknown version is refused."
+        },
+        {
+          "name": "slug",
+          "type": "slug",
+          "required": false,
+          "bounds": {
+            "maxLength": 100
+          },
+          "description": "Slug for the new library definition; omitted generates copy-<uuid>. A slug already used in the organization fails with STATE_CONFLICT."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 200
+          },
+          "description": "Library name for the new definition; omitted keeps the source definition's name."
+        }
+      ],
+      "description": "Save as workflow: copies one published version of an unlisted definition into a new listed definition with its own draft, through the same copy writer as Make a copy, whose origin is copy naming the source definition, version and digest. The unlisted source and its runs are unchanged. If-Match is the source definition's version (stale: PRECONDITION_FAILED). Only a person may save; an agent is refused with AUTH_FORBIDDEN, a listed source is STATE_CONFLICT workflow_already_listed, and a source version already copied is STATE_CONFLICT workflow_copy_exists with existingResourceId naming that copy. An Idempotency-Key replay returns the original 201."
+    },
+    "WorkflowDefinitionProposalDecision": {
+      "fields": [
+        {
+          "name": "decision",
+          "type": "enum(accept|reject)",
+          "required": true,
+          "description": "accept writes the proposed definition into its unlisted draft through the editor's draft operations (creating the unlisted definition for a first proposal); reject records the decision and writes nothing."
+        }
+      ],
+      "description": "A person decides one waiting definition proposal under its If-Match version. An agent is refused with AUTH_FORBIDDEN; a decided proposal is STATE_CONFLICT; a draft changed since the proposal is PRECONDITION_FAILED and the proposal stays waiting."
+    },
     "SkillVersionPath": {
       "fields": [
         {
@@ -18524,7 +18564,8 @@ const transportSchemas = {
         "createdAt",
         "updatedAt",
         "version",
-        "origin"
+        "origin",
+        "visibility"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -18536,7 +18577,8 @@ const transportSchemas = {
         "updatedAt": "timestamp",
         "version": "integer",
         "description": "string|null",
-        "origin": "WorkflowOrigin"
+        "origin": "WorkflowOrigin",
+        "visibility": "enum(listed|unlisted)"
       },
       "nullableFields": [
         "activeVersionId",
@@ -18553,10 +18595,12 @@ const transportSchemas = {
         "updatedAt": "UTC timestamp when the record was last updated.",
         "version": "Optimistic-concurrency version used when updating the record.",
         "description": "Free-text summary of what the workflow does, shown in pickers and the catalog; null when the author left it blank. Set on create and replaced wholesale on update.",
-        "origin": "Where this definition came from, as {kind, catalogKey, catalogVersion}: kind is authored (written in this organization), catalog (installed from the code-owned catalog; system managed and locked against organization edits) or copy; catalogKey and catalogVersion name the catalog item and release revision for a catalog origin and are null otherwise. Set when the definition is created and never changed."
+        "origin": "Where this definition came from, as {kind, catalogKey, catalogVersion}: kind is authored (written in this organization), catalog (installed from the code-owned catalog; system managed and locked against organization edits) or copy; catalogKey and catalogVersion name the catalog item and release revision for a catalog origin and are null otherwise. Set when the definition is created and never changed.",
+        "visibility": "listed definitions appear in the library list and can be made the active version; unlisted ones (coordinator proposals a person accepted) are readable by id and runnable only at an exact published version. Save as workflow copies one into a new listed definition and leaves the unlisted source unchanged. Outside every digest. Omitted by servers that predate it."
       },
       "optionalFields": [
-        "description"
+        "description",
+        "visibility"
       ]
     },
     "WorkflowOrigin": {
@@ -18566,31 +18610,100 @@ const transportSchemas = {
         "catalogVersion",
         "sourceWorkflowId",
         "sourceVersionId",
-        "sourceDigest"
+        "sourceDigest",
+        "conversationId",
+        "turnId"
       ],
       "fieldTypes": {
-        "kind": "authored|catalog|copy",
+        "kind": "authored|catalog|copy|coordinator",
         "catalogKey": "string|null",
         "catalogVersion": "integer|null",
         "sourceWorkflowId": "uuid|null",
         "sourceVersionId": "uuid|null",
-        "sourceDigest": "string|null"
+        "sourceDigest": "string|null",
+        "conversationId": "uuid|null",
+        "turnId": "uuid|null"
       },
       "nullableFields": [
         "catalogKey",
         "catalogVersion",
         "sourceWorkflowId",
         "sourceVersionId",
-        "sourceDigest"
+        "sourceDigest",
+        "conversationId",
+        "turnId"
       ],
       "description": "Where a workflow definition came from: written in the organization (authored), installed from the code-owned catalog (catalog, system managed and locked against organization edits) or copied from another definition (copy). A catalog origin names the catalog item and release revision it was installed from; the other kinds carry nulls. Set when the definition is created and never changed.",
       "fieldDescriptions": {
-        "kind": "Origin kind: authored, catalog or copy.",
+        "kind": "Origin kind: authored, catalog or copy. coordinator: a coordinator proposal a person accepted in a conversation, which also names conversationId and turnId.",
         "catalogKey": "Stable key of the catalog item a catalog definition was installed from; null for authored and copied definitions.",
         "catalogVersion": "Release revision of the catalog item the definition was installed from; null for authored and copied definitions.",
         "sourceWorkflowId": "Stable UUID of the workflow definition a copy was taken from; null unless the kind is copy.",
         "sourceVersionId": "Stable UUID of the version (published, or a draft) the copy was taken from; null unless the kind is copy.",
-        "sourceDigest": "Digest of the source version at the moment of the copy, so a later source update can be compared with the fork; null unless the kind is copy."
+        "sourceDigest": "Digest of the source version at the moment of the copy, so a later source update can be compared with the fork; null unless the kind is copy.",
+        "conversationId": "Conversation whose coordinator proposed this definition; null unless kind is coordinator. Omitted by servers that predate it.",
+        "turnId": "Coordinator turn that proposed this definition; null unless kind is coordinator. Omitted by servers that predate it."
+      },
+      "optionalFields": [
+        "conversationId",
+        "turnId"
+      ]
+    },
+    "WorkflowDefinitionProposal": {
+      "fields": [
+        "id",
+        "conversationId",
+        "turnId",
+        "workflowId",
+        "baseDraftVersion",
+        "name",
+        "definition",
+        "digest",
+        "state",
+        "decidedBy",
+        "decidedAt",
+        "createdAt",
+        "updatedAt",
+        "version"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "conversationId": "uuid",
+        "turnId": "uuid",
+        "workflowId": "uuid|null",
+        "baseDraftVersion": "integer|null",
+        "name": "string",
+        "definition": "json",
+        "digest": "string",
+        "state": "enum(waiting|accepted|rejected)",
+        "decidedBy": "uuid|null",
+        "decidedAt": "timestamp|null",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp",
+        "version": "integer"
+      },
+      "nullableFields": [
+        "workflowId",
+        "baseDraftVersion",
+        "decidedBy",
+        "decidedAt"
+      ],
+      "description": "One workflow definition a coordinator turn proposed, waiting for a person to accept or reject it whole. Accepting writes it through the editor's own draft operations into an unlisted definition; nothing runs, publishes or activates.",
+      "fieldDescriptions": {
+        "id": "Stable UUID identifying the proposal.",
+        "conversationId": "Conversation whose coordinator made the proposal.",
+        "turnId": "Coordinator turn that emitted the definitionProposal effect.",
+        "workflowId": "Unlisted definition the proposal edits, or that accepting it created; null for a new-definition proposal not yet accepted.",
+        "baseDraftVersion": "Draft version the proposal was made against; accepting refuses with PRECONDITION_FAILED when the draft has moved on. Null when the target had no draft.",
+        "name": "Plain-language name the coordinator gave the proposed workflow.",
+        "definition": "Complete proposed workflow definition document, stored as canonical JSON.",
+        "digest": "SHA-256 of the canonical proposed definition.",
+        "state": "waiting until a person decides; then accepted or rejected, never changed again.",
+        "decidedBy": "Person who decided the proposal; null while waiting.",
+        "decidedAt": "When the proposal was decided; null while waiting.",
+        "createdAt": "When the proposal was recorded.",
+        "updatedAt": "When the proposal last changed.",
+        "version": "Optimistic-concurrency version a decision must name in If-Match."
       }
     },
     "WorkflowVersion": {
@@ -22614,7 +22727,8 @@ const transportSchemas = {
         "resetRequired",
         "retainedFrom",
         "retryWithoutAfter",
-        "reason"
+        "reason",
+        "existingResourceId"
       ],
       "fieldTypes": {
         "type": "uri",
@@ -22633,7 +22747,8 @@ const transportSchemas = {
         "resetRequired": "boolean",
         "retainedFrom": "decimalString",
         "retryWithoutAfter": "boolean",
-        "reason": "string"
+        "reason": "string",
+        "existingResourceId": "uuid"
       },
       "bounds": {
         "additionalMembersMaxBytes": 8000,
@@ -22651,7 +22766,8 @@ const transportSchemas = {
         "resetRequired",
         "retainedFrom",
         "retryWithoutAfter",
-        "reason"
+        "reason",
+        "existingResourceId"
       ],
       "additionalProperties": "bounded JSON extension members; server allowlists by problem type, client ignores unknown members",
       "rules": [
@@ -22680,7 +22796,8 @@ const transportSchemas = {
         "resetRequired": "Whether the client must discard its local state and request a fresh snapshot.",
         "retainedFrom": "Earliest retained event sequence that can be used to establish a fresh sync position.",
         "retryWithoutAfter": "Whether the client should retry the sync request without its after cursor.",
-        "reason": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; for a refused draft edit, why: text_changed or draft_moved_on on a 412, or for a refused draft comment anchor comment_quote_mismatch, comment_anchor_stale or comment_anchor_splits_character on a 412; agent_edit_requires_suggestion or suggestion_decision_requires_person on a 403. Absent when the problem has no named rule."
+        "reason": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; for a refused draft edit, why: text_changed or draft_moved_on on a 412, or for a refused draft comment anchor comment_quote_mismatch, comment_anchor_stale or comment_anchor_splits_character on a 412; agent_edit_requires_suggestion, suggestion_decision_requires_person, definition_proposal_decision_requires_person or workflow_listing_requires_person on a 403. Absent when the problem has no named rule.",
+        "existingResourceId": "Identifier of the existing resource a 409 STATE_CONFLICT points the caller to instead of creating another: for reason workflow_copy_exists, the listed definition already copied from that source version. Absent for every other problem."
       }
     },
     "ProviderUsageSummary": {
@@ -28153,6 +28270,24 @@ const transportSchemas = {
       "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
     },
     "workflows.updated": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "workflowDefinitionProposal.proposed": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "workflowDefinitionProposal.decided": {
       "schemaVersion": 1,
       "payloadFields": {
         "resourceId": "uuid",
