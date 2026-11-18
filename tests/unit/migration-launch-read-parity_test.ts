@@ -67,6 +67,25 @@ function allowReadEntries(command: string): string[] {
  * `apps/server/src/platform/migrations` in the other; each caller passes the
  * prefix its own launch uses.
  */
+/**
+ * One top-level compose service's text, bounded by the next service.
+ *
+ * Slicing from `migrate:` to the end of the file would also read every service
+ * after it, so a `--allow-read` line belonging to `server` or `worker` could
+ * satisfy this assertion while `migrate` itself could not read the directory.
+ * That cannot produce a false pass on its own — the list-agreement assertion
+ * still compares both launch paths — but it would blame drift for a missing
+ * migration line, so the slice stops at the next service header.
+ */
+function serviceBlock(compose: string, name: string): string {
+  const header = `\n  ${name}:`;
+  const start = compose.indexOf(header);
+  if (start === -1) return "";
+  const rest = compose.slice(start + header.length);
+  const next = rest.search(/\n\s{2}[a-z][a-z-]*:\s*$/m);
+  return next === -1 ? rest : rest.slice(0, next);
+}
+
 function expectedEntries(roots: string[], prefix: string): string[] {
   return roots.map((root) => `${prefix}${root}`);
 }
@@ -90,7 +109,7 @@ Deno.test("every launch path may read every registered migration root", async ()
   }
 
   const compose = await Deno.readTextFile(COMPOSE);
-  const migrateService = compose.slice(compose.indexOf("\n  migrate:"));
+  const migrateService = serviceBlock(compose, "migrate");
   assert(
     migrateService.length > 0,
     "infra/compose.yaml has no migrate service",
