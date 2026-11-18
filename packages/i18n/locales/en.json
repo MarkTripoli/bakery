@@ -2000,6 +2000,7 @@
   "settings.roles.thing.accessToken": "access tokens",
   "settings.roles.thing.permissionGrant": "individual permissions",
   "settings.roles.thing.projectRole": "project roles",
+  "settings.roles.thing.scopeProfile": "project step defaults",
   "settings.roles.thing.scimConnection": "user provisioning",
   "settings.roles.thing.connectedClient": "connected apps",
   "settings.roles.thing.identity": "identities",
