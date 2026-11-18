@@ -33,6 +33,9 @@ export function OrganizationRolesPage() {
   const forbidden = !loading && organizationId !== null &&
     (access.isError || (access.data !== undefined && !isAdmin));
 
+  const showPanel = !loading && !forbidden && organizationId !== null &&
+    isAdmin;
+
   return (
     <>
       <ShellActiveNavigation id="settings" />
@@ -49,9 +52,12 @@ export function OrganizationRolesPage() {
         />
       </ShellSlot>
       <UI.SettingsContent data-testid="org-roles">
-        <UI.Heading level="page">
-          {translate("shell.navigation.customRoles")}
-        </UI.Heading>
+        {showPanel ? null : (
+          <UI.AccessSettings
+            description={translate("settings.roles.description")}
+            title={translate("settings.roles.title")}
+          />
+        )}
         {loading
           ? (
             <UI.AlertBanner tone="information" data-testid="org-roles-loading">
@@ -66,13 +72,8 @@ export function OrganizationRolesPage() {
             </UI.AlertBanner>
           )
           : null}
-        {!loading && !forbidden && organizationId !== null && isAdmin
-          ? (
-            <CustomRolesPanel
-              organizationId={organizationId}
-              title={translate("settings.roles.listTitle")}
-            />
-          )
+        {showPanel && organizationId !== null
+          ? <CustomRolesPanel organizationId={organizationId} />
           : null}
       </UI.SettingsContent>
     </>

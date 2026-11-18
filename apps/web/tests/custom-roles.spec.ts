@@ -3,6 +3,7 @@ import {
   MOCK_ORGANIZATION_ID,
   mockAuthenticatedSession,
 } from "./helpers/mock-session.ts";
+import { shot } from "./helpers/real-api.ts";
 
 const MEMBER_ID = "00000000-0000-4000-8000-0000000000a1";
 const OTHER_ID = "00000000-0000-4000-8000-0000000000a2";
@@ -259,6 +260,18 @@ for (
       await row.getByRole("button", { name: "Remove Ada Member" }).click();
       await expect(panel.getByText("Role removed.")).toBeVisible();
       await row.getByRole("button", { name: "Delete" }).click();
+      // Delete asks first and says what it does.
+      const confirm = page.getByRole("alertdialog", {
+        name: "Delete Auditors EU?",
+      });
+      await expect(confirm).toContainText(
+        "No members have this role, so nobody's access changes.",
+      );
+      const writesBefore = state.writes.length;
+      await confirm.getByRole("button", { name: "Cancel" }).click();
+      expect(state.writes).toHaveLength(writesBefore);
+      await row.getByRole("button", { name: "Delete" }).click();
+      await confirm.getByRole("button", { name: "Delete role" }).click();
       await expect(panel.getByText("Role deleted.")).toBeVisible();
       await expect(panel.getByText("No custom roles yet")).toBeVisible();
       expect(state.writes.map((write) => write.method)).toEqual([
@@ -268,6 +281,103 @@ for (
         "DELETE",
         "DELETE",
       ]);
+    });
+
+    test("the page has one heading and one primary action, which moves into the empty state", async ({ page }) => {
+      await rolesFixture(page);
+      await page.goto("/settings/organization/roles");
+      const panel = page.getByTestId("custom-roles");
+      await expect(panel.getByText("No custom roles yet")).toBeVisible();
+      await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
+      await expect(page.getByRole("heading", { name: "Roles", exact: true }))
+        .toHaveCount(0);
+      await expect(
+        panel.getByText(
+          "Build a role with exactly the permissions you choose, then give it to members in Members & access.",
+        ),
+      ).toBeVisible();
+      await expect(
+        panel.getByText(
+          "A member has either a built-in role or one custom role. Custom roles cannot manage the organization.",
+        ),
+      ).toBeVisible();
+      // No roles: the only Create button is the empty state's.
+      const create = panel.getByRole("button", { name: "Create custom role" });
+      await expect(create).toHaveCount(1);
+      await expect(
+        panel.getByTestId("custom-roles-empty").getByRole("button", {
+          name: "Create custom role",
+        }),
+      ).toHaveCount(1);
+      await expect(
+        panel.getByText(
+          "Create one when the built-in roles give too much or too little.",
+        ),
+      ).toBeVisible();
+      await shot(page, "custom-roles-empty");
+    });
+
+    test("with roles the one Create button sits in the page header", async ({ page }) => {
+      await rolesFixture(page, { roles: [existing()] });
+      await page.goto("/settings/organization/roles");
+      const panel = page.getByTestId("custom-roles");
+      await expect(panel.getByTestId("custom-role-auditors")).toBeVisible();
+      const create = panel.getByRole("button", { name: "Create custom role" });
+      await expect(create).toHaveCount(1);
+      await expect(
+        panel.locator(".ui-access-settings__header").getByRole("button", {
+          name: "Create custom role",
+        }),
+      ).toHaveCount(1);
+      await shot(page, "custom-roles-list");
+    });
+
+    test("a saved role is confirmed in the success tone and can be dismissed", async ({ page }) => {
+      await rolesFixture(page);
+      await page.goto("/settings/organization/roles");
+      const panel = page.getByTestId("custom-roles");
+      await panel.getByRole("button", { name: "Create custom role" }).click();
+      await panel.getByLabel("Role name").fill("Auditors");
+      await panel.getByLabel("Role key").fill("auditors");
+      await panel.getByLabel("principal:read").check();
+      await panel.getByRole("button", { name: "Save role" }).click();
+      const notice = panel.locator('[data-ui-component="inlineNotice"]');
+      await expect(notice).toContainText("Role saved.");
+      await expect(notice).toHaveAttribute("data-variant", "success");
+      await shot(page, "custom-roles-saved");
+      await notice.getByRole("button", { name: "Dismiss notice" }).click();
+      await expect(panel.getByText("Role saved.")).toHaveCount(0);
+    });
+
+    test("permissions are grouped under named areas, each with a sentence", async ({ page }) => {
+      await rolesFixture(page);
+      await page.goto("/settings/organization/roles");
+      const panel = page.getByTestId("custom-roles");
+      await panel.getByRole("button", { name: "Create custom role" }).click();
+      const access = panel.getByTestId("permission-area-access");
+      await expect(access).toContainText("Members and access");
+      await expect(access.getByLabel("principal:read")).toBeVisible();
+      await expect(access).toContainText("See members and service accounts");
+      await expect(panel.getByTestId("permission-area-work")).toContainText(
+        "Start, stop and steer runs",
+      );
+      // Every permission has a sentence; none shows only its key.
+      expect(
+        await panel.locator("[data-testid^='permission-area-'] label").count(),
+      ).toBeGreaterThan(150);
+      await shot(page, "custom-roles-form");
+    });
+
+    test("a role with members cannot be deleted and says why", async ({ page }) => {
+      await rolesFixture(page, {
+        roles: [existing({ memberCount: 2, memberIds: [MEMBER_ID, OTHER_ID] })],
+      });
+      await page.goto("/settings/organization/roles");
+      const row = page.getByTestId("custom-role-auditors");
+      await expect(row.getByRole("button", { name: "Delete" })).toBeDisabled();
+      await expect(row).toContainText(
+        "Remove its 2 members first to delete this role.",
+      );
     });
 
     test("a refused write names the reason and keeps the form open", async ({ page }) => {
