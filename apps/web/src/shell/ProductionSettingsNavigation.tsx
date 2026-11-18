@@ -141,15 +141,21 @@ export function ProductionSettingsNavigation({
   const scope = useProtectedScope();
   const session = useSession();
   // Organization settings change things for everyone in the organization, so a
-  // member without administrator rights does not see the group. While the role
-  // is not known (or cannot be read) the group stays, as the design allows.
+  // member without administrator rights sees only the items they may open
+  // there: Service accounts & tokens (a member manages the accounts they
+  // created, and the phone index lists it for them too). While the role is not
+  // known (or cannot be read) the whole group stays, as the design allows.
   const access = useQuery({
     ...effectiveAccessQueryOptions(api, scope),
     enabled: session.status === "authenticated" &&
       scope.organizationId !== null,
   });
-  const showOrganization = access.data === undefined ||
-    access.data.role === "admin";
+  const organizationItems = access.data === undefined ||
+      access.data.role === "admin"
+    ? productionOrganizationRoutes
+    : productionOrganizationRoutes.filter((item) =>
+      item.id === "settings-organization-service-accounts"
+    );
   return (
     <UI.SectionNavigation
       currentPath={owningSettingsHref(currentPath)}
@@ -159,13 +165,11 @@ export function ProductionSettingsNavigation({
           heading: translate("shell.navigation.group.account"),
           items: productionAccountRoutes,
         },
-        ...(showOrganization
-          ? [{
-            id: "organization",
-            heading: translate("shell.navigation.group.organization"),
-            items: productionOrganizationRoutes,
-          }]
-          : []),
+        {
+          id: "organization",
+          heading: translate("shell.navigation.group.organization"),
+          items: organizationItems,
+        },
       ]}
       label={translate("shell.navigation.settingsSections")}
       narrowMode="menu"

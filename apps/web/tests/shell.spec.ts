@@ -542,7 +542,7 @@ test.describe("settings routes and navigation", () => {
     );
   }
 
-  test("a member without administrator rights does not see the Organization group", async ({ page }) => {
+  test("a member without administrator rights sees only Service accounts & tokens in the Organization group", async ({ page }) => {
     await mockAuthenticatedSession(page);
     await stubRole(page, "developer");
     await page.setViewportSize({ width: 1280, height: 960 });
@@ -553,8 +553,11 @@ test.describe("settings routes and navigation", () => {
     }).first();
     await expect(navigation.getByRole("list", { name: "Your account" }))
       .toBeVisible();
-    await expect(navigation.getByRole("list", { name: "Organization" }))
-      .toHaveCount(0);
+    // The phone index lists Service accounts & tokens for a member, so the
+    // desktop group offers it too, and nothing a member may not open.
+    await expect(
+      navigation.getByRole("list", { name: "Organization" }).getByRole("link"),
+    ).toHaveText(["Service accounts & tokens"]);
     await expect(navigation.getByRole("link", { name: "Members & access" }))
       .toHaveCount(0);
     await shot(page, "settings-navigation-member");
