@@ -110,12 +110,17 @@ function send(
   method: string,
   path: string,
   body?: unknown,
+  version?: number,
 ): Promise<Response> | Response {
   return seeded.fixture.send(method, path, {
     cookie: seeded.fixture.cookies.adminA,
     organizationId: seeded.organizationId,
     body,
     idempotencyKey: body === undefined ? undefined : crypto.randomUUID(),
+    // If-Match carries an ETag, so the version is quoted.
+    ...(version === undefined
+      ? {}
+      : { headers: { "If-Match": `"${version}"` } }),
   });
 }
 
@@ -370,6 +375,152 @@ Deno.test("AC3: memory text is returned as data with its citation", async () => 
       return Number(rows[0].n);
     });
     assertEquals(grants, 0);
+  } finally {
+    await seeded.fixture.fixture.close();
+  }
+});
+
+Deno.test("AC1: weak confidence is refused through the route, not just the helper", async () => {
+  const seeded = await seed();
+  try {
+    // The unit tests exercise memoryPromotionRefusal, which the recovery path is
+    // free to stop calling. Only a route test proves the check is wired.
+    const response = await send(seeded, "POST", "/v1/memories", {
+      repositoryId: seeded.repositoryId,
+      subject: "weak claim",
+      content: "Something we are not sure about.",
+      provenance: proven(seeded, { confidence: 0.3 }),
+    });
+    assertEquals(response.status, 409);
+    const body = await response.json();
+    assertEquals(body.reason ?? body.params?.reason, "evidence_weak");
+
+    // A refusal that wrote a row would leave memory nobody accepted.
+    const stored = await rowsFor(seeded.organizationId, async (db) => {
+      const result = await db<{ n: string }[]>`
+        select count(*)::text as n from bakery.memory_entries
+         where organization_id = ${seeded.organizationId}
+           and lower(topic) = lower('weak claim')`;
+      return result[0].n;
+    });
+    assertEquals(Number(stored), 0);
+  } finally {
+    await seeded.fixture.fixture.close();
+  }
+});
+
+Deno.test("AC1: a real conflict is refused even when the caller reports it clean", async () => {
+  const seeded = await seed();
+  try {
+    const first = await send(seeded, "POST", "/v1/memories", {
+      repositoryId: seeded.repositoryId,
+      subject: "release cadence",
+      content: "We release weekly.",
+      provenance: proven(seeded),
+    });
+    assertEquals(first.status, 201);
+
+    // The caller says the scan was clean; the database says otherwise. The scan
+    // over accepted memory is the authority, so the report must not win.
+    const second = await send(seeded, "POST", "/v1/memories", {
+      repositoryId: seeded.repositoryId,
+      subject: "release cadence",
+      content: "We release daily.",
+      provenance: proven(seeded, {
+        conflictScan: { verdict: "clean", conflictingMemoryIds: [] },
+      }),
+    });
+    assertEquals(second.status, 409);
+    const body = await second.json();
+    assertEquals(body.reason ?? body.params?.reason, "conflict_detected");
+  } finally {
+    await seeded.fixture.fixture.close();
+  }
+});
+
+Deno.test("AC1: reactivating a retired entry cannot put two active entries on one topic", async () => {
+  const seeded = await seed();
+  try {
+    const original = await (await send(seeded, "POST", "/v1/memories", {
+      repositoryId: seeded.repositoryId,
+      subject: "branch naming",
+      content: "Branch names start with the ticket id.",
+      provenance: proven(seeded),
+    })).json();
+
+    // Retire it, then promote a different claim on the same topic.
+    const retiredResponse = await send(
+      seeded,
+      "PATCH",
+      `/v1/memories/${original.id}`,
+      { status: "retired" },
+      original.version,
+    );
+    assertEquals(retiredResponse.status, 200);
+    const retired = await retiredResponse.json();
+
+    const replacement = await (await send(seeded, "POST", "/v1/memories", {
+      repositoryId: seeded.repositoryId,
+      subject: "branch naming",
+      content: "Branch names start with the author initials.",
+      provenance: proven(seeded),
+    })).json();
+    assertEquals(replacement.status, "active");
+
+    // Reactivating the retired entry would leave two active entries on one topic,
+    // which is the state AC1 exists to prevent. status=active is a promotion
+    // claim, so it faces the same checks.
+    const reactivated = await send(
+      seeded,
+      "PATCH",
+      `/v1/memories/${original.id}`,
+      { status: "active" },
+      retired.version,
+    );
+    assertEquals(reactivated.status, 409);
+    const body = await reactivated.json();
+    assertEquals(body.reason ?? body.params?.reason, "conflict_detected");
+
+    const active = await rowsFor(seeded.organizationId, async (db) => {
+      const result = await db<{ n: string }[]>`
+        select count(*)::text as n from bakery.memory_entries
+         where organization_id = ${seeded.organizationId}
+           and lower(topic) = lower('branch naming')
+           and status = 'active'`;
+      return result[0].n;
+    });
+    assertEquals(Number(active), 1);
+  } finally {
+    await seeded.fixture.fixture.close();
+  }
+});
+
+Deno.test("AC2: a correction keeps the entry's real confidence instead of resetting it", async () => {
+  const seeded = await seed();
+  try {
+    const created = await (await send(seeded, "POST", "/v1/memories", {
+      repositoryId: seeded.repositoryId,
+      subject: "review policy",
+      content: "Two reviewers on core files.",
+      provenance: proven(seeded, { confidence: 0.7 }),
+    })).json();
+
+    const revised = await send(
+      seeded,
+      "POST",
+      `/v1/memories/${created.id}/revisions`,
+      {
+        content: "Two reviewers on core files, one elsewhere.",
+        reason: "scope clarified after the incident review",
+        sourceArtifactVersionId: seeded.artifactVersionId,
+      },
+    );
+    assertEquals(revised.status, 201);
+    const revision = await revised.json();
+    // The old code stored the accepting minimum regardless, so a correction
+    // silently rewrote how well evidenced the memory was. The column is numeric,
+    // so it arrives as a string.
+    assertEquals(Number(revision.confidence), 0.7);
   } finally {
     await seeded.fixture.fixture.close();
   }

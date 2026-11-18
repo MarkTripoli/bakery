@@ -124,19 +124,9 @@ function toRevision(row: RevisionRow): MemoryRevision {
  * another repository is not a conflict for this learning, and cross-repository
  * comparison is what the design forbids by default.
  */
-async function assertPromotable(
+async function assertSourceArtifactHeld(
   transaction: PgTransactionClient,
-  input: {
-    organizationId: string;
-    repositoryId: string;
-    sourceArtifactVersionId: string;
-    confidence: number;
-    conflictScan: {
-      verdict: MemoryConflictVerdict;
-      conflictingMemoryIds: readonly string[];
-    };
-    topic: string;
-  },
+  input: { organizationId: string; sourceArtifactVersionId: string },
 ): Promise<void> {
   const source = await transaction.query<{ id: string }>(
     `select a.id
@@ -152,7 +142,12 @@ async function assertPromotable(
       "The source artifact version does not name evidence this organization holds.",
     );
   }
+}
 
+async function assertRepositoryInScope(
+  transaction: PgTransactionClient,
+  input: { organizationId: string; repositoryId: string },
+): Promise<void> {
   const repository = await transaction.query<{ id: string }>(
     `select r.id
        from bakery.repositories r
@@ -165,6 +160,76 @@ async function assertPromotable(
       "The repository is not one this organization holds.",
     );
   }
+}
+
+/**
+ * Refuse when accepted memory already covers this topic in this repository.
+ *
+ * `excludeMemoryId` is what makes the check usable for a correction or a
+ * reactivation: the entry being changed is active and shares its own topic, so
+ * without the exclusion every correction would conflict with the thing it is
+ * correcting. It never weakens the check - any *other* active entry still
+ * refuses.
+ */
+async function assertNoConflictingActiveEntry(
+  transaction: PgTransactionClient,
+  input: {
+    organizationId: string;
+    repositoryId: string;
+    topic: string;
+    excludeMemoryId?: string;
+  },
+): Promise<void> {
+  const conflicts = await transaction.query<{ id: string }>(
+    `select m.id
+       from bakery.memory_entries m
+      where m.organization_id = $1
+        and m.repository_id = $2
+        and m.status = 'active'
+        and lower(m.topic) = lower($3)
+        and ($4::uuid is null or m.id <> $4)`,
+    [
+      input.organizationId,
+      input.repositoryId,
+      input.topic,
+      input.excludeMemoryId ?? null,
+    ],
+  );
+  if (conflicts.rows.length > 0) {
+    throw new MemoryPromotionRefused(
+      "conflict_detected",
+      "Accepted memory already covers this topic in the repository.",
+    );
+  }
+}
+
+function assertConfidenceAcceptable(confidence: number): void {
+  if (confidence < MEMORY_MINIMUM_ACCEPTING_CONFIDENCE) {
+    throw new MemoryPromotionRefused(
+      "evidence_weak",
+      "The evidence does not support accepting this as repository memory.",
+    );
+  }
+}
+
+async function assertPromotable(
+  transaction: PgTransactionClient,
+  input: {
+    organizationId: string;
+    repositoryId: string;
+    sourceArtifactVersionId: string;
+    confidence: number;
+    conflictScan: {
+      verdict: MemoryConflictVerdict;
+      conflictingMemoryIds: readonly string[];
+    };
+    topic: string;
+    /** Set when the entry being changed is itself active and shares the topic. */
+    excludeMemoryId?: string;
+  },
+): Promise<void> {
+  await assertSourceArtifactHeld(transaction, input);
+  await assertRepositoryInScope(transaction, input);
 
   if (input.conflictScan.verdict === "absent") {
     // Never default to clean: silence is not a scan.
@@ -177,31 +242,18 @@ async function assertPromotable(
   // The scan the caller reported, then the scan over this repository's accepted
   // memory. The second one is the authority: a caller-supplied verdict of
   // clean cannot make an actual conflict disappear.
-  const conflicts = await transaction.query<{ id: string }>(
-    `select m.id
-       from bakery.memory_entries m
-      where m.organization_id = $1
-        and m.repository_id = $2
-        and m.status = 'active'
-        and lower(m.topic) = lower($3)`,
-    [input.organizationId, input.repositoryId, input.topic],
-  );
-  const detected = conflicts.rows.length > 0 ||
+  if (
     input.conflictScan.verdict === "conflict" ||
-    input.conflictScan.conflictingMemoryIds.length > 0;
-  if (detected) {
+    input.conflictScan.conflictingMemoryIds.length > 0
+  ) {
     throw new MemoryPromotionRefused(
       "conflict_detected",
       "Accepted memory already covers this topic in the repository.",
     );
   }
+  await assertNoConflictingActiveEntry(transaction, input);
 
-  if (input.confidence < MEMORY_MINIMUM_ACCEPTING_CONFIDENCE) {
-    throw new MemoryPromotionRefused(
-      "evidence_weak",
-      "The evidence does not support accepting this as repository memory.",
-    );
-  }
+  assertConfidenceAcceptable(input.confidence);
 }
 
 /**
@@ -349,17 +401,35 @@ export async function addMemoryRevision(
     });
   }
 
-  const source = await transaction.query<{ id: string }>(
-    `select a.id from bakery.artifact_versions a
-      where a.organization_id = $1 and a.id = $2`,
-    [organizationId, input.sourceArtifactVersionId],
+  // A correction is new evidence about the same topic, so it faces the same
+  // checks a promotion does, excluding the entry it corrects.
+  await assertSourceArtifactHeld(transaction, {
+    organizationId,
+    sourceArtifactVersionId: input.sourceArtifactVersionId,
+  });
+  await assertRepositoryInScope(transaction, {
+    organizationId,
+    repositoryId: entry.repository_id,
+  });
+  await assertNoConflictingActiveEntry(transaction, {
+    organizationId,
+    repositoryId: entry.repository_id,
+    topic: entry.topic,
+    excludeMemoryId: memoryId,
+  });
+
+  // The entry's own standing confidence, not the accepting minimum. Storing the
+  // constant silently rewrote how well evidenced the memory was every time a
+  // correction landed.
+  const standing = await transaction.query<{ confidence: string | null }>(
+    `select confidence from bakery.memory_revisions
+      where organization_id = $1 and id = $2`,
+    [organizationId, entry.current_revision_id],
   );
-  if (source.rows.length === 0) {
-    throw new MemoryPromotionRefused(
-      "source_artifact_unknown",
-      "The source artifact version does not name evidence this organization holds.",
-    );
-  }
+  const inheritedConfidence = Number(
+    standing.rows[0]?.confidence ?? MEMORY_MINIMUM_ACCEPTING_CONFIDENCE,
+  );
+  assertConfidenceAcceptable(inheritedConfidence);
 
   const next = await transaction.query<{ next: number }>(
     `select coalesce(max(revision), 0) + 1 as next
@@ -382,10 +452,8 @@ export async function addMemoryRevision(
       input.reason,
       input.sourceArtifactVersionId,
       entry.current_revision_id,
-      // A correction inherits the entry's standing confidence: the scan that
-      // accepted the entry is what the correction is judged by, and a
-      // correction cannot raise its own confidence into acceptance.
-      MEMORY_MINIMUM_ACCEPTING_CONFIDENCE,
+      // The entry's own standing confidence, carried forward unchanged.
+      inheritedConfidence,
       principalId,
     ],
   );
@@ -471,6 +539,57 @@ export async function updateMemory(
       code: "PRECONDITION_REQUIRED",
       params: { reason: "if_match_required" },
     });
+  }
+
+  // Reactivation is a promotion claim, not a flag flip. Setting status back to
+  // active would otherwise put a second active entry on a topic that already has
+  // one, which is the exact state AC1 exists to prevent. It faces the same
+  // checks a first promotion does, judged by the evidence the entry already
+  // carries.
+  if (input.status === "active") {
+    const existing = await transaction.query<{
+      repository_id: string;
+      topic: string;
+      status: string;
+      source_artifact_version_id: string | null;
+      confidence: string | null;
+    }>(
+      `select m.repository_id, m.topic, m.status,
+              r.source_artifact_version_id, r.confidence
+         from bakery.memory_entries m
+         left join bakery.memory_revisions r
+           on r.organization_id = m.organization_id
+          and r.id = m.current_revision_id
+        where m.organization_id = $1 and m.id = $2`,
+      [organizationId, memoryId],
+    );
+    const current = existing.rows[0];
+    if (current && current.status !== "active") {
+      // An entry with no revision has no evidence, so it cannot be reactivated
+      // by claiming active: there is nothing to judge it by.
+      if (current.source_artifact_version_id === null) {
+        throw new MemoryPromotionRefused(
+          "source_artifact_unknown",
+          "The entry has no revision, so there is no evidence to reactivate it on.",
+        );
+      }
+      const topic = input.subject ?? current.topic;
+      await assertSourceArtifactHeld(transaction, {
+        organizationId,
+        sourceArtifactVersionId: current.source_artifact_version_id,
+      });
+      await assertRepositoryInScope(transaction, {
+        organizationId,
+        repositoryId: current.repository_id,
+      });
+      await assertNoConflictingActiveEntry(transaction, {
+        organizationId,
+        repositoryId: current.repository_id,
+        topic,
+        excludeMemoryId: memoryId,
+      });
+      assertConfidenceAcceptable(Number(current.confidence ?? 0));
+    }
   }
 
   const rows = await transaction.query<MemoryRow>(
