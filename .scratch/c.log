@@ -1,4 +1,0 @@
-
-> bakery@ catalog:literals /home/marktripoli/Development/bakery-wt/rig-542-resolve
-> deno run --allow-read --allow-write scripts/generate-catalog-literals.ts
-
