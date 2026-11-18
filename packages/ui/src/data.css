@@ -137,6 +137,7 @@
   inset-block-start: calc(var(--space-1) * -1);
   inset-inline-end: calc(var(--space-1) * -1);
   justify-content: center;
+  line-height: var(--space-3);
   min-inline-size: var(--space-3);
   padding-block: 0;
   padding-inline: var(--space-1);
@@ -1801,7 +1802,7 @@
 }
 .ui-notification-row[data-highlighted="true"] {
   outline: var(--border-default) solid var(--color-selection);
-  outline-offset: var(--focus-offset);
+  outline-offset: var(--focus-offset-inset);
 }
 .ui-notification-row__link {
   align-items: center;
@@ -1891,8 +1892,8 @@
 .ui-notification-popover {
   display: flex;
   flex-direction: column;
-  max-inline-size: min(var(--layout-dialog), calc(100dvi - var(--space-8)));
-  max-block-size: calc(100dvb - var(--space-8));
+  inline-size: min(var(--layout-menu), calc(100dvi - var(--space-4)));
+  max-block-size: min(70dvb, var(--layout-menu-blocks));
 }
 .ui-notification-popover__header {
   align-items: center;

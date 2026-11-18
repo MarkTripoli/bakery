@@ -8101,16 +8101,17 @@
       ]
     },
     "WorkflowStopInput": {
-      "description": "Input to the workflow.stop action: the named outcome that ends the run on purpose, as opposed to failing, and an optional reason.",
+      "description": "Input to the workflow.stop action: an optional named outcome that ends the run on purpose, as opposed to failing, and an optional reason. A stop that names no outcome still ends the run.",
       "fields": [
         {
           "name": "outcome",
           "type": "string",
-          "required": true,
+          "required": false,
           "bounds": {
+            "minLength": 1,
             "maxLength": 100
           },
-          "description": "Name of the outcome this stop produces, for example cancelled_by_customer or nothing_to_do. It becomes the run's named outcome and is what a later step or a caller branches on; an empty name defaults to stopped."
+          "description": "Name of the outcome this stop produces, for example cancelled_by_customer or nothing_to_do. It becomes the run's named outcome and is what a later step or a caller branches on; omit it to end the run with the neutral outcome stopped, but do not pass an empty name."
         },
         {
           "name": "reason",

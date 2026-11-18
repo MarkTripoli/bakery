@@ -1,4 +1,4 @@
-import { assert, assertEquals, assertThrows } from "@std/assert";
+import { assert, assertEquals, assertFalse, assertThrows } from "@std/assert";
 import {
   DECISION_LEDGER_KINDS,
   decisionKindRequiresReason,
@@ -13,6 +13,7 @@ import {
   WorkflowStopInputSchema,
 } from "../../packages/contracts/src/human-approval.ts";
 import { WORKFLOW_COMPILER_LIMITS } from "../../packages/contracts/src/workflow-compiler/limits.ts";
+import { createWorkflowActionRuntime } from "../../apps/server/src/modules/workflows/action-runtime.ts";
 
 // #411, slice 9 of the one-engine design: human.approval, the decisions ledger,
 // waits up to seven days outside the active clock, named outcomes and
@@ -87,16 +88,55 @@ Deno.test("workflow.stop names its outcome and defaults it when unnamed", () => 
   assertEquals(normalizeWorkflowStop(named.data).outcome, "nothing_to_do");
 
   // A stop still ends the run when it names nothing: the reason often explains
-  // the ending better than a name would.
-  const unnamed = normalizeWorkflowStop({ outcome: "" });
-  assertEquals(unnamed.outcome, DEFAULT_STOP_OUTCOME);
-  assertEquals(unnamed.reason, null);
+  // the ending better than a name would. This goes through the schema first, the
+  // way production does, so the test pins the reachable path rather than an
+  // empty string the schema now refuses.
+  const unnamed = WorkflowStopInputSchema.safeParse({
+    reason: "nothing to do",
+  });
+  assert(unnamed.success);
+  assertEquals(unnamed.data.outcome, undefined);
+  assertEquals(
+    normalizeWorkflowStop(unnamed.data).outcome,
+    DEFAULT_STOP_OUTCOME,
+  );
+  assertEquals(normalizeWorkflowStop(unnamed.data).reason, "nothing to do");
+  // Absent, not null: the output field is optional and the docs say "absent
+  // when the caller gave none".
+  assertEquals("reason" in normalizeWorkflowStop({}), false);
+
+  // An explicitly empty outcome is still refused: omit it, do not blank it.
+  assertFalse(WorkflowStopInputSchema.safeParse({ outcome: "" }).success);
 
   // An unknown key is refused rather than ignored.
   assertEquals(
     WorkflowStopInputSchema.safeParse({ outcome: "x", cause: "y" }).success,
     false,
   );
+});
+
+Deno.test("the production stop handler applies the default, not just the helper", () => {
+  // The whole point of the optional outcome is that a caller can omit it and
+  // still get `DEFAULT_STOP_OUTCOME`. This runs the handler the server actually
+  // calls, so the default branch is proven reachable in production instead of
+  // only in `normalizeWorkflowStop` tests that never crossed the validator.
+  const { handle } = createWorkflowActionRuntime().get("workflow.stop").handler;
+
+  const unnamed = handle({ reason: "the ticket was already fixed upstream" });
+  assertEquals(unnamed, {
+    outcome: DEFAULT_STOP_OUTCOME,
+    reason: "the ticket was already fixed upstream",
+  });
+
+  const named = handle({ outcome: "nothing_to_do" });
+  assertEquals(named, { outcome: "nothing_to_do" });
+
+  // A stop with neither still ends the run, and leaves reason absent rather
+  // than null: the output schema types it as an optional string.
+  assertEquals(handle({}), { outcome: DEFAULT_STOP_OUTCOME });
+
+  // And a blank name is refused before the helper ever sees it.
+  assertThrows(() => handle({ outcome: "" }));
 });
 
 Deno.test("only accept_with_reason and stop must give a reason", () => {

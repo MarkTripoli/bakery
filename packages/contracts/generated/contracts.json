@@ -56327,9 +56327,10 @@
           "type": "object",
           "properties": {
             "outcome": {
+              "description": "WorkflowStopInput.outcome must contain at most 100 characters.",
               "type": "string",
-              "maxLength": 100,
-              "description": "WorkflowStopInput.outcome must contain at most 100 characters."
+              "minLength": 1,
+              "maxLength": 100
             },
             "reason": {
               "description": "WorkflowStopInput.reason must contain at most 2000 characters.",
@@ -56337,11 +56338,8 @@
               "maxLength": 2000
             }
           },
-          "required": [
-            "outcome"
-          ],
           "additionalProperties": false,
-          "description": "Input to the workflow.stop action: the named outcome that ends the run on purpose, as opposed to failing, and an optional reason."
+          "description": "Input to the workflow.stop action: an optional named outcome that ends the run on purpose, as opposed to failing, and an optional reason. A stop that names no outcome still ends the run."
         },
         "MemoryPromoteInput": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -212911,7 +212909,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:159f1b637dae7e361b1fdb71661a285891ade93b3d4b8e036068eb3df0a2b7a6",
+  "compatibilityDigest": "sha256:bae5fb33667796f1ac8c088485f2afa072b65d679b0a3c47b0dc5a1b05f8e4d1",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -235576,9 +235574,10 @@
       "type": "object",
       "properties": {
         "outcome": {
+          "description": "WorkflowStopInput.outcome must contain at most 100 characters.",
           "type": "string",
-          "maxLength": 100,
-          "description": "WorkflowStopInput.outcome must contain at most 100 characters."
+          "minLength": 1,
+          "maxLength": 100
         },
         "reason": {
           "description": "WorkflowStopInput.reason must contain at most 2000 characters.",
@@ -235586,11 +235585,8 @@
           "maxLength": 2000
         }
       },
-      "required": [
-        "outcome"
-      ],
       "additionalProperties": false,
-      "description": "Input to the workflow.stop action: the named outcome that ends the run on purpose, as opposed to failing, and an optional reason."
+      "description": "Input to the workflow.stop action: an optional named outcome that ends the run on purpose, as opposed to failing, and an optional reason. A stop that names no outcome still ends the run."
     },
     "MemoryPromoteInput": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
