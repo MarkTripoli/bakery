@@ -1749,6 +1749,59 @@ export const clientManifest = {
     {
       "group": "Definitions",
       "method": "POST",
+      "path": "/v1/definition-publish-grants",
+      "action": "definitionPublishGrants.create",
+      "access": "Admin",
+      "permission": "accessBinding:manage",
+      "input": "DefinitionPublishGrantCreate",
+      "output": "DefinitionPublishGrant",
+      "event": "definitionPublishGrant.created",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Definitions",
+      "method": "DELETE",
+      "path": "/v1/definition-publish-grants/{id}",
+      "action": "definitionPublishGrants.delete",
+      "access": "Admin",
+      "permission": "accessBinding:manage",
+      "input": "IdPath",
+      "output": "NoContent",
+      "event": "definitionPublishGrant.deleted",
+      "mcp": "",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Definitions",
+      "method": "POST",
       "path": "/v1/workflow-validations",
       "action": "workflows.validate",
       "access": "Developer",
@@ -12054,6 +12107,8 @@ export const clientManifest = {
             "workflowListings.create",
             "workflowDefinitionProposals.get",
             "workflowDefinitionProposalDecisions.create",
+            "definitionPublishGrants.create",
+            "definitionPublishGrants.delete",
             "workflows.validate",
             "workflowActions.list",
             "workflowActions.get",
@@ -19511,6 +19566,57 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Undoes the recipient's last mark-all-read press within its bound, so the Undo toast can restore exactly what was marked."
+    },
+    "DefinitionPublishGrantCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "definitionKind": {
+          "type": "string",
+          "enum": [
+            "workflow",
+            "agent",
+            "artifactKind",
+            "skill"
+          ],
+          "description": "Kind of definition the grant covers: a workflow, an agent, an artifact kind or a skill."
+        },
+        "definitionId": {
+          "description": "DefinitionPublishGrantCreate.definitionId may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Immutable id of the one definition the grant covers: the workflow, agent, skill or artifact kind row id (an artifact kind is named by its id, never its key, so a kind recreated under a reused key does not inherit the grant). Null or absent covers every definition of the kind and then requires accessTokenId, so no grant reaches every agent on every definition."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "accessTokenId": {
+          "description": "DefinitionPublishGrantCreate.accessTokenId may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The one seat (access token) the grant is limited to. Null or absent lets any agent acting on the named definition publish it."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "definitionKind"
+      ],
+      "additionalProperties": false,
+      "description": "Grants agents the off-by-default power to publish versions of, and \"Use this version\" for, one definition or one seat (chapter 25 O52). Agents author drafts without a grant; a grant never lets an agent decide a proposal."
     },
     "UserPreferences": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -31573,6 +31679,8 @@ export const clientManifest = {
                   "workflowListings.create",
                   "workflowDefinitionProposals.get",
                   "workflowDefinitionProposalDecisions.create",
+                  "definitionPublishGrants.create",
+                  "definitionPublishGrants.delete",
                   "workflows.validate",
                   "workflowActions.list",
                   "workflowActions.get",
@@ -41604,9 +41712,10 @@ export const clientManifest = {
           "enum": [
             "waiting",
             "accepted",
-            "rejected"
+            "rejected",
+            "superseded"
           ],
-          "description": "waiting until a person decides; then accepted or rejected, never changed again."
+          "description": "waiting until a person decides; then accepted or rejected, or superseded when the draft it was made against was published first. Never changed again once settled."
         },
         "decidedBy": {
           "anyOf": [
@@ -41629,7 +41738,7 @@ export const clientManifest = {
               "type": "string",
               "format": "date-time",
               "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-              "description": "When the proposal was decided; null while waiting."
+              "description": "When the proposal was decided or superseded; null while waiting."
             },
             {
               "type": "null",
@@ -41637,6 +41746,21 @@ export const clientManifest = {
             }
           ],
           "description": "WorkflowDefinitionProposal.decidedAt may be null in this transport value."
+        },
+        "supersededByVersionId": {
+          "description": "WorkflowDefinitionProposal.supersededByVersionId may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Published workflow version that superseded this proposal: publishing deletes the draft the proposal was made against, so the proposal is settled in the same transaction instead of waiting forever. Null otherwise."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
         },
         "createdAt": {
           "type": "string",
@@ -48063,6 +48187,8 @@ export const clientManifest = {
             "workflowListings.create",
             "workflowDefinitionProposals.get",
             "workflowDefinitionProposalDecisions.create",
+            "definitionPublishGrants.create",
+            "definitionPublishGrants.delete",
             "workflows.validate",
             "workflowActions.list",
             "workflowActions.get",
@@ -55541,6 +55667,7 @@ export const clientManifest = {
               "workflow:manage",
               "workflowVersion:read",
               "workflowVersion:manage",
+              "accessBinding:manage",
               "workflowAction:read",
               "agent:read",
               "agent:manage",
@@ -55598,7 +55725,6 @@ export const clientManifest = {
               "organizationRole:read",
               "organizationRole:manage",
               "accessBinding:read",
-              "accessBinding:manage",
               "secret:read",
               "secret:manage",
               "auditEvent:read",
@@ -69616,6 +69742,87 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Outcome of undoing one mark-all-read press."
+    },
+    "DefinitionPublishGrant": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID identifying the grant."
+        },
+        "definitionKind": {
+          "type": "string",
+          "enum": [
+            "workflow",
+            "agent",
+            "artifactKind",
+            "skill"
+          ],
+          "description": "Kind of definition the grant covers."
+        },
+        "definitionId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Immutable id of the definition the grant covers (for an artifact kind its row id, never its key); null covers every definition of the kind for the named seat."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "DefinitionPublishGrant.definitionId may be null in this transport value."
+        },
+        "accessTokenId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Seat (access token) the grant is limited to; null for any agent acting on the named definition."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "DefinitionPublishGrant.accessTokenId may be null in this transport value."
+        },
+        "grantedBy": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Person who made the grant."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When the grant was made."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Optimistic-concurrency version a revoke must name in If-Match."
+        }
+      },
+      "required": [
+        "id",
+        "definitionKind",
+        "definitionId",
+        "accessTokenId",
+        "grantedBy",
+        "createdAt",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "One grant of the agent publish power (O52): which definition kind and definition it covers, which seat it is limited to, and the person who granted it. Revoking deletes it; the audit log keeps both."
     }
   }
 } as const;

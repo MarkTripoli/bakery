@@ -20,6 +20,10 @@ import {
 } from "../../platform/postgres-errors.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import { lockAndReauthorize } from "../repository-rules/postgres.ts";
+import {
+  assertMayPublishDefinition,
+  DefinitionKind,
+} from "../auth/application/definition-publish-grants.ts";
 
 const KIND_COLUMNS = `k.id,
   k.organization_id as "organizationId",
@@ -295,6 +299,16 @@ export async function publishArtifactKindVersion(
     [organizationId, pathKey],
   );
   const kindId = kind.rows[0]?.id ?? null;
+  // Publishing a kind version is an off-by-default agent power (O52, #421).
+  // The grant names the kind's immutable row id, never its key, so a kind
+  // recreated under a reused key does not inherit a grant. A first publish
+  // (no row yet) is covered only by a seat grant on every kind.
+  await assertMayPublishDefinition(transaction, context, {
+    organizationId,
+    principalId,
+    kind: DefinitionKind.ArtifactKind,
+    definitionId: kindId,
+  });
   // Serialize publishers of one kind with an advisory lock rather than
   // `select ... for update`. The kind tables are insert-only - bakery_app has no
   // UPDATE privilege on them, which is what makes a published revision
