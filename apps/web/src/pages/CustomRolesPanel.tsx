@@ -9,9 +9,23 @@ import { protectedQueryKey } from "../app/query-scope.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useIdempotentIntent } from "../app/use-idempotent-intent.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
+import {
+  isResource,
+  isVerb,
+  PERMISSION_AREAS,
+  RESOURCE_AREAS,
+} from "./permission-areas.ts";
 
-/** Every permission key the catalog declares, grouped by resource. */
-const PERMISSION_GROUPS: ReadonlyMap<string, readonly string[]> = (() => {
+type PermissionAreaId = (typeof PERMISSION_AREAS)[number] | "other";
+
+/**
+ * Every permission key the catalog declares, grouped by the area it belongs to
+ * (see `permission-areas.ts`). A resource nobody has placed lands in "other",
+ * so a new permission is offered rather than hidden.
+ */
+const PERMISSION_AREA_GROUPS: ReadonlyArray<
+  readonly [PermissionAreaId, readonly string[]]
+> = (() => {
   const keys = [
     ...new Set(
       catalogActions.flatMap((action) =>
@@ -19,12 +33,18 @@ const PERMISSION_GROUPS: ReadonlyMap<string, readonly string[]> = (() => {
       ),
     ),
   ].sort();
-  const groups = new Map<string, string[]>();
+  const groups = new Map<PermissionAreaId, string[]>();
   for (const key of keys) {
     const resource = key.slice(0, key.indexOf(":"));
-    groups.set(resource, [...(groups.get(resource) ?? []), key]);
+    const area: PermissionAreaId = isResource(resource)
+      ? RESOURCE_AREAS[resource]
+      : "other";
+    groups.set(area, [...(groups.get(area) ?? []), key]);
   }
-  return groups;
+  return [...PERMISSION_AREAS, "other" as const].flatMap((area) => {
+    const found = groups.get(area);
+    return found ? [[area, found] as const] : [];
+  });
 })();
 
 const KEY_PATTERN = /^[a-z][a-z0-9-]{1,39}$/;
@@ -50,14 +70,14 @@ function failureMessage(error: ApiFailure): MessageKey {
 }
 
 /**
- * Custom roles of one organization: list, create, edit, delete, and hand a
- * role to (or take it from) a member. The server enforces the permission cap and the last-admin rule; this panel
- * only reports its refusals.
+ * The custom roles page body: its header (title, sentence, the one primary
+ * action), the list, and the create and edit form. The server enforces the
+ * permission cap and the last-admin rule; this panel only reports its
+ * refusals. The header's "Create custom role" is hidden while there are no
+ * roles, because the empty state carries the same action.
  */
-export function CustomRolesPanel({ organizationId, title }: {
+export function CustomRolesPanel({ organizationId }: {
   readonly organizationId: string;
-  /** The panel's own heading, when the page above already names the page. */
-  readonly title?: string;
 }) {
   const api = useBakeryApi();
   const scope = useProtectedScope();
@@ -103,9 +123,12 @@ export function CustomRolesPanel({ organizationId, title }: {
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [assignTo, setAssignTo] = useState<Record<string, string>>({});
   const [notice, setNotice] = useState<
-    { readonly tone: "error" | "information"; readonly key: MessageKey } | null
+    { readonly tone: "error" | "success"; readonly key: MessageKey } | null
   >(null);
   const [invalid, setInvalid] = useState(false);
+  const [deleting, setDeleting] = useState<OrganizationRoleItem | null>(null);
+  /** Changes each time the form opens, so every area picks its open state afresh. */
+  const [editorKey, setEditorKey] = useState(0);
   const intent = useIdempotentIntent();
 
   const inFlight = useRef(false);
@@ -127,12 +150,13 @@ export function CustomRolesPanel({ organizationId, title }: {
   const report = (failure: ApiFailure) =>
     setNotice({ tone: "error", key: failureMessage(failure) });
   const done = (messageKey: MessageKey) => {
-    setNotice({ tone: "information", key: messageKey });
+    setNotice({ tone: "success", key: messageKey });
     intent.reset();
     return refresh();
   };
 
   const open = (next: Editor) => {
+    setEditorKey((current) => current + 1);
     setNotice(null);
     setInvalid(false);
     setEditor(next);
@@ -198,6 +222,7 @@ export function CustomRolesPanel({ organizationId, title }: {
         version: role.version,
         idempotencyKey: intent.keyFor(`delete:${role.id}:${role.version}`),
       });
+      setDeleting(null);
       if (!result.ok) return report(result.error);
       await done("settings.roles.deleted");
     });
@@ -232,23 +257,58 @@ export function CustomRolesPanel({ organizationId, title }: {
     });
 
   const items = roles.data?.items ?? [];
+  /** "See tasks" for `task:read`; the key itself for one this page cannot word. */
+  const sentence = (permission: string): string => {
+    const [resource = "", verb = ""] = permission.split(":");
+    if (!isResource(resource) || !isVerb(verb)) return permission;
+    return translate(`settings.roles.verb.${verb}`, {
+      things: translate(`settings.roles.thing.${resource}`),
+    });
+  };
+  const createButton = (
+    <UI.Button
+      disabled={busy}
+      onClick={() => open({ mode: "create" })}
+    >
+      {translate("settings.roles.create")}
+    </UI.Button>
+  );
 
   return (
-    <UI.SettingsSection
+    <UI.AccessSettings
+      actions={roles.isSuccess && items.length > 0 && editor === null
+        ? createButton
+        : undefined}
       data-testid="custom-roles"
-      title={title ?? translate("settings.roles.title")}
-      variant="stack"
-    >
-      <UI.Text variant="muted">
-        {translate("settings.roles.description")}
-      </UI.Text>
-      {notice
+      description={translate("settings.roles.description")}
+      notice={notice?.tone === "success"
+        ? (
+          <UI.InlineNotice
+            onDismiss={() => setNotice(null)}
+            tone="success"
+          >
+            {translate(notice.key)}
+          </UI.InlineNotice>
+        )
+        : notice
         ? (
           <UI.AlertBanner tone={notice.tone}>
             {translate(notice.key)}
           </UI.AlertBanner>
         )
-        : null}
+        : undefined}
+      state={roles.isSuccess && items.length === 0 && editor === null
+        ? "empty"
+        : "default"}
+      status={{
+        testId: "custom-roles-empty",
+        title: translate("settings.roles.empty.title"),
+        description: translate("settings.roles.empty.description"),
+        action: editor === null ? createButton : undefined,
+      }}
+      title={translate("settings.roles.title")}
+    >
+      <UI.Text variant="muted">{translate("settings.roles.note")}</UI.Text>
       {roles.isPending
         ? (
           <UI.Text variant="muted">
@@ -272,21 +332,24 @@ export function CustomRolesPanel({ organizationId, title }: {
           </UI.AlertBanner>
         )
         : items.length === 0
-        ? (
-          <UI.EmptyState
-            title={translate("settings.roles.empty.title")}
-            description={translate("settings.roles.empty.description")}
-          />
-        )
+        ? null
         : (
-          <ul aria-label={translate("settings.roles.list")}>
+          <UI.Stack
+            aria-label={translate("settings.roles.list")}
+            gap="compact"
+            role="list"
+          >
             {items.map((role) => {
               const holders = role.memberIds;
               const candidates = [...names].filter(([id]) =>
                 !holders.includes(id)
               );
               return (
-                <li key={role.id} data-testid={`custom-role-${role.key}`}>
+                <div
+                  key={role.id}
+                  data-testid={`custom-role-${role.key}`}
+                  role="listitem"
+                >
                   <UI.ObjectRow
                     identity={
                       <>
@@ -294,23 +357,47 @@ export function CustomRolesPanel({ organizationId, title }: {
                         <UI.DataText>{role.key}</UI.DataText>
                       </>
                     }
-                    metadata={translate("settings.roles.summary", {
-                      permissions: role.permissions.length,
-                      members: role.memberCount,
-                    })}
+                    metadata={
+                      <UI.Stack gap="tight">
+                        <span>
+                          {translate("settings.roles.summary", {
+                            permissions: role.permissions.length,
+                            members: role.memberCount,
+                          })}
+                        </span>
+                        {role.memberCount > 0
+                          ? (
+                            <UI.Text
+                              id={`delete-blocked-${role.id}`}
+                              variant="hint"
+                            >
+                              {translate("settings.roles.delete.blocked", {
+                                count: role.memberCount,
+                              })}
+                            </UI.Text>
+                          )
+                          : null}
+                      </UI.Stack>
+                    }
                     actions={
                       <UI.Inline gap="compact">
                         <UI.Button
+                          aria-label={translate("settings.roles.editRole", {
+                            role: role.name,
+                          })}
                           variant="secondary"
                           disabled={busy}
                           onClick={() => open({ mode: "edit", role })}
                         >
-                          {translate("settings.roles.edit")}
+                          {translate("settings.roles.editAction")}
                         </UI.Button>
                         <UI.Button
+                          aria-describedby={role.memberCount > 0
+                            ? `delete-blocked-${role.id}`
+                            : undefined}
                           variant="destructive"
                           disabled={busy || role.memberCount > 0}
-                          onClick={() => void remove(role)}
+                          onClick={() => setDeleting(role)}
                         >
                           {translate("settings.roles.delete")}
                         </UI.Button>
@@ -319,18 +406,21 @@ export function CustomRolesPanel({ organizationId, title }: {
                   />
                   {holders.length > 0
                     ? (
-                      <ul
+                      <UI.Text variant="strong">
+                        {translate("settings.roles.members.label")}
+                      </UI.Text>
+                    )
+                    : null}
+                  {holders.length > 0
+                    ? (
+                      <UI.DescriptionList
                         aria-label={translate("settings.roles.holders", {
                           role: role.name,
                         })}
                       >
                         {holders.map((id) => (
-                          <li key={id}>
-                            <UI.Inline gap="compact">
-                              <UI.Text>
-                                {names.get(id) ??
-                                  translate("settings.roles.unknownMember")}
-                              </UI.Text>
+                          <UI.DescriptionItem
+                            action={
                               <UI.Button
                                 variant="quiet"
                                 disabled={busy}
@@ -342,10 +432,13 @@ export function CustomRolesPanel({ organizationId, title }: {
                               >
                                 {translate("settings.roles.unassignAction")}
                               </UI.Button>
-                            </UI.Inline>
-                          </li>
+                            }
+                            key={id}
+                            title={names.get(id) ??
+                              translate("settings.roles.unknownMember")}
+                          />
                         ))}
-                      </ul>
+                      </UI.DescriptionList>
                     )
                     : null}
                   {candidates.length > 0
@@ -382,130 +475,207 @@ export function CustomRolesPanel({ organizationId, title }: {
                       </UI.Inline>
                     )
                     : null}
-                </li>
+                </div>
               );
             })}
-          </ul>
+          </UI.Stack>
         )}
       <div>
-        {editor === null
-          ? (
-            <UI.Button
-              disabled={busy}
-              onClick={() => open({ mode: "create" })}
-            >
-              {translate("settings.roles.create")}
-            </UI.Button>
-          )
-          : (
-            <form
-              aria-label={translate(
-                editor.mode === "create"
-                  ? "settings.roles.create"
-                  : "settings.roles.edit",
-              )}
-              onSubmit={(event) => {
-                event.preventDefault();
-                void save();
-              }}
-            >
-              <UI.Stack gap="compact">
-                <UI.Field
-                  htmlFor="custom-role-name"
-                  label={translate("settings.roles.field.name")}
-                  error={invalid && name.trim() === ""
-                    ? translate("settings.roles.error.name")
-                    : undefined}
+        {editor === null ? null : (
+          <form
+            aria-label={translate(
+              editor.mode === "create"
+                ? "settings.roles.create"
+                : "settings.roles.edit",
+            )}
+            onSubmit={(event) => {
+              event.preventDefault();
+              void save();
+            }}
+          >
+            <UI.Stack gap="compact">
+              <UI.Field
+                htmlFor="custom-role-name"
+                label={translate("settings.roles.field.name")}
+                error={invalid && name.trim() === ""
+                  ? translate("settings.roles.error.name")
+                  : undefined}
+              >
+                <UI.TextInput
+                  id="custom-role-name"
+                  name="name"
+                  type="text"
+                  autoComplete="off"
+                  value={name}
+                  onChange={setName}
+                />
+              </UI.Field>
+              <UI.Field
+                htmlFor="custom-role-key"
+                label={translate("settings.roles.field.key")}
+                hint={translate("settings.roles.field.keyHint")}
+                error={invalid && editor.mode === "create" &&
+                    !KEY_PATTERN.test(key)
+                  ? translate("settings.roles.error.key")
+                  : undefined}
+              >
+                <UI.TextInput
+                  id="custom-role-key"
+                  name="key"
+                  type="text"
+                  autoComplete="off"
+                  readOnly={editor.mode === "edit"}
+                  value={key}
+                  onChange={setKey}
+                />
+              </UI.Field>
+              <UI.Field
+                htmlFor="custom-role-description"
+                label={translate("settings.roles.field.description")}
+              >
+                <UI.TextInput
+                  id="custom-role-description"
+                  name="description"
+                  type="text"
+                  autoComplete="off"
+                  value={description}
+                  onChange={setDescription}
+                />
+              </UI.Field>
+              <fieldset
+                data-group="plain"
+                data-testid="custom-role-permissions"
+              >
+                <legend>
+                  {translate("settings.roles.field.permissions")}
+                </legend>
+                {invalid && selected.size === 0
+                  ? (
+                    <UI.Text variant="hint">
+                      {translate("settings.roles.error.permissions")}
+                    </UI.Text>
+                  )
+                  : null}
+                {PERMISSION_AREA_GROUPS.map(([area, keys]) => {
+                  const chosen = keys.filter((key) => selected.has(key)).length;
+                  const needsChoice = invalid && selected.size === 0;
+                  return (
+                    <UI.Disclosure
+                      key={`${editorKey}-${area}-${needsChoice}`}
+                      data-testid={`permission-area-${area}`}
+                      defaultOpen={chosen > 0 || needsChoice}
+                      summary={
+                        <span>
+                          {translate(`settings.roles.area.${area}`)} ·{" "}
+                          {translate("settings.roles.area.chosen", {
+                            chosen,
+                            total: keys.length,
+                          })}
+                        </span>
+                      }
+                    >
+                      <fieldset
+                        aria-label={translate(`settings.roles.area.${area}`)}
+                        data-group="plain"
+                      >
+                        <UI.Stack gap="compact">
+                          <UI.Inline gap="compact">
+                            <UI.Button
+                              type="button"
+                              variant="quiet"
+                              onClick={() =>
+                                setSelected((current) =>
+                                  new Set([...current, ...keys])
+                                )}
+                            >
+                              {translate("settings.roles.area.chooseAll")}
+                            </UI.Button>
+                            <UI.Button
+                              type="button"
+                              variant="quiet"
+                              onClick={() =>
+                                setSelected((current) =>
+                                  new Set(
+                                    [...current].filter((key) =>
+                                      !keys.includes(key)
+                                    ),
+                                  )
+                                )}
+                            >
+                              {translate("settings.roles.area.clear")}
+                            </UI.Button>
+                          </UI.Inline>
+                          {keys.map((permission) => (
+                            <UI.Checkbox
+                              key={permission}
+                              checked={selected.has(permission)}
+                              onChange={(event) =>
+                                setSelected((current) => {
+                                  const next = new Set(current);
+                                  if (event.target.checked) {
+                                    next.add(permission);
+                                  } else next.delete(permission);
+                                  return next;
+                                })}
+                            >
+                              <span>
+                                {sentence(permission)}{" "}
+                                <UI.DataText translate="no" variant="code">
+                                  {permission}
+                                </UI.DataText>
+                              </span>
+                            </UI.Checkbox>
+                          ))}
+                        </UI.Stack>
+                      </fieldset>
+                    </UI.Disclosure>
+                  );
+                })}
+              </fieldset>
+              <UI.Inline data-form-actions="" gap="compact">
+                <UI.Button type="submit" loading={busy}>
+                  {translate("settings.roles.save")}
+                </UI.Button>
+                <UI.Button
+                  variant="secondary"
+                  disabled={busy}
+                  onClick={() => setEditor(null)}
                 >
-                  <UI.TextInput
-                    id="custom-role-name"
-                    name="name"
-                    type="text"
-                    autoComplete="off"
-                    value={name}
-                    onChange={setName}
-                  />
-                </UI.Field>
-                <UI.Field
-                  htmlFor="custom-role-key"
-                  label={translate("settings.roles.field.key")}
-                  hint={translate("settings.roles.field.keyHint")}
-                  error={invalid && editor.mode === "create" &&
-                      !KEY_PATTERN.test(key)
-                    ? translate("settings.roles.error.key")
-                    : undefined}
-                >
-                  <UI.TextInput
-                    id="custom-role-key"
-                    name="key"
-                    type="text"
-                    autoComplete="off"
-                    readOnly={editor.mode === "edit"}
-                    value={key}
-                    onChange={setKey}
-                  />
-                </UI.Field>
-                <UI.Field
-                  htmlFor="custom-role-description"
-                  label={translate("settings.roles.field.description")}
-                >
-                  <UI.TextInput
-                    id="custom-role-description"
-                    name="description"
-                    type="text"
-                    autoComplete="off"
-                    value={description}
-                    onChange={setDescription}
-                  />
-                </UI.Field>
-                <fieldset data-testid="custom-role-permissions">
-                  <legend>
-                    {translate("settings.roles.field.permissions")}
-                  </legend>
-                  {invalid && selected.size === 0
-                    ? (
-                      <UI.Text variant="hint">
-                        {translate("settings.roles.error.permissions")}
-                      </UI.Text>
-                    )
-                    : null}
-                  {[...PERMISSION_GROUPS].map(([resource, keys]) => (
-                    <fieldset key={resource}>
-                      <legend>{resource}</legend>
-                      {keys.map((permission) => (
-                        <UI.Checkbox
-                          key={permission}
-                          checked={selected.has(permission)}
-                          onChange={(event) =>
-                            setSelected((current) => {
-                              const next = new Set(current);
-                              if (event.target.checked) next.add(permission);
-                              else next.delete(permission);
-                              return next;
-                            })}
-                        >
-                          {permission}
-                        </UI.Checkbox>
-                      ))}
-                    </fieldset>
-                  ))}
-                </fieldset>
-                <UI.Inline gap="compact">
-                  <UI.Button type="submit" loading={busy}>
-                    {translate("settings.roles.save")}
-                  </UI.Button>
-                  <UI.Button
-                    variant="secondary"
-                    disabled={busy}
-                    onClick={() => setEditor(null)}
-                  >
-                    {translate("settings.roles.cancel")}
-                  </UI.Button>
-                </UI.Inline>
-              </UI.Stack>
-            </form>
-          )}
+                  {translate("settings.roles.cancel")}
+                </UI.Button>
+              </UI.Inline>
+            </UI.Stack>
+          </form>
+        )}
       </div>
-    </UI.SettingsSection>
+      <UI.AlertDialog
+        open={deleting !== null}
+        onOpenChange={(next) => !next && setDeleting(null)}
+        state={busy ? "confirming" : "open"}
+        title={translate("settings.roles.delete.title", {
+          role: deleting?.name ?? "",
+        })}
+        variant="destructive"
+        cancelAction={
+          <UI.Button
+            variant="secondary"
+            onClick={() => setDeleting(null)}
+          >
+            {translate("settings.roles.cancel")}
+          </UI.Button>
+        }
+        confirmAction={
+          <UI.Button
+            variant="destructive"
+            loading={busy}
+            onClick={() => deleting && void remove(deleting)}
+          >
+            {translate("settings.roles.delete.confirm")}
+          </UI.Button>
+        }
+      >
+        <UI.Text>{translate("settings.roles.delete.body")}</UI.Text>
+      </UI.AlertDialog>
+    </UI.AccessSettings>
   );
 }
