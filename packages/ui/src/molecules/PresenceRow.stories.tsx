@@ -46,6 +46,17 @@ export const Contract: StoryObj = {
         </div>
       ))}
       <div>
+        <Text>Typing, viewing and away</Text>
+        <PresenceRow
+          aria-label="People here"
+          overflowLabel="2 more people"
+          people={PEOPLE}
+          saveLabel={SAVE.saved}
+          saveState="saved"
+          status="Ana Reyes is typing · Ben Okafor is viewing · Dana Park is away"
+        />
+      </div>
+      <div>
         <Text>More people than avatars: the rest are counted</Text>
         <PresenceRow
           aria-label="People here"
