@@ -644,14 +644,16 @@ export async function restoreHarnessWorktree(
 /**
  * Runs one restore step. A non-zero exit (including the git deadline, code
  * -1) or a thrown error is reported as a bounded diagnostic, never ignored.
+ * `git` is a test seam for the executable and the deadline.
  */
-async function runRestoreStep(
+export async function runRestoreStep(
   worktree: string,
   args: readonly string[],
+  git: { readonly executable?: string; readonly timeoutMs?: number } = {},
 ): Promise<void> {
   const step = args[0]!;
   try {
-    const result = await runHarnessGit(worktree, args);
+    const result = await runHarnessGit(worktree, args, git);
     if (result.code !== 0) {
       console.error(JSON.stringify({
         event: "harness.restore_failed",
