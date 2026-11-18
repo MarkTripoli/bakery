@@ -56,15 +56,27 @@ export type Job = {
 };
 
 /**
+ * The signal's own job, as `ci.yml` names it. It is reading the run while it is
+ * itself running, so its conclusion has not arrived, and "a conclusion that
+ * never arrived counts as failing" would list it. That put the signal in its own
+ * tracking issue and, worse, left every green run with one job that can never
+ * succeed, so the issue could never close. A rail test pins the name to the
+ * workflow.
+ */
+export const SIGNAL_JOB_NAME = "nightly / red signal";
+
+/**
  * A job counts as failing when it neither succeeded nor was skipped. Anything
  * else - failure, cancelled, timed out, action_required, a conclusion that never
- * arrived - is a red the tracking issue must carry. Sorted and unique so two
- * runs that fail the same way produce a byte-identical body.
+ * arrived - is a red the tracking issue must carry. The signal's own job is not
+ * a red of the run it reports on. Sorted and unique so two runs that fail the
+ * same way produce a byte-identical body.
  */
 export function failingJobs(jobs: readonly Job[]): readonly string[] {
   const failing = jobs
     .filter((job) =>
-      job.conclusion !== "success" && job.conclusion !== "skipped"
+      job.name !== SIGNAL_JOB_NAME && job.conclusion !== "success" &&
+      job.conclusion !== "skipped"
     )
     .map((job) => job.name);
   return [...new Set(failing)].sort();
