@@ -637,25 +637,38 @@ export async function restoreHarnessWorktree(
 ): Promise<void> {
   if (!target.worktree || !target.baseSha) return;
   for (const args of [["reset", "--hard", target.baseSha], ["clean", "-fd"]]) {
-    const step = args[0]!;
-    try {
-      const result = await runHarnessGit(target.worktree, args);
-      if (result.code !== 0) {
-        console.error(JSON.stringify({
-          event: "harness.restore_failed",
-          step,
-          exitCode: result.code,
-          detail: boundedNativeDiagnostic(result.stderr),
-        }));
-      }
-    } catch (error) {
+    await runRestoreStep(target.worktree, args);
+  }
+}
+
+/**
+ * Runs one restore step. A non-zero exit (including the git deadline, code
+ * -1) or a thrown error is reported as a bounded diagnostic, never ignored.
+ * `git` is a test seam for the executable and the deadline.
+ */
+export async function runRestoreStep(
+  worktree: string,
+  args: readonly string[],
+  git: { readonly executable?: string; readonly timeoutMs?: number } = {},
+): Promise<void> {
+  const step = args[0]!;
+  try {
+    const result = await runHarnessGit(worktree, args, git);
+    if (result.code !== 0) {
       console.error(JSON.stringify({
         event: "harness.restore_failed",
         step,
-        detail: String(error instanceof Error ? error.message : error)
-          .slice(0, 256),
+        exitCode: result.code,
+        detail: boundedNativeDiagnostic(result.stderr),
       }));
     }
+  } catch (error) {
+    console.error(JSON.stringify({
+      event: "harness.restore_failed",
+      step,
+      detail: String(error instanceof Error ? error.message : error)
+        .slice(0, 256),
+    }));
   }
 }
 
@@ -1105,11 +1118,11 @@ export async function publishHarnessPatch(
     );
     if (scan !== "clean") {
       // Drop the harness commit and files so the next run starts from base.
-      await runHarnessGit(options.repository, [
+      await runRestoreStep(options.repository, [
         "reset",
         "--hard",
         options.baseSha,
-      ]).catch(() => undefined);
+      ]);
       return scan === "too-large"
         ? harnessFault(
           `${prefix}_PATCH_TOO_LARGE`,
