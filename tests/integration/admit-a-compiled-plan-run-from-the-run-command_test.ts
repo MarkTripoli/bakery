@@ -857,14 +857,20 @@ Deno.test("a cloud-only plan run with a model agent admits a real job that carri
         kind: "workflow",
         name: "plan-cloud-only",
         description: "A model step with no repository.",
-        agents: { "rpi.plan": agent },
-        inputs: { designArtifact: { type: "uuid", required: true } },
+        agents: { "agent.freeform": agent },
+        inputs: { prompt: { type: "string", required: true } },
         steps: [{
           id: "flow",
           steps: [{
             id: "draft",
-            uses: "rpi.plan",
-            with: { designArtifact: "$input.designArtifact" },
+            uses: "agent.freeform",
+            with: {
+              prompt: "$input.prompt",
+              maxTurns: 3,
+              timeout: "5m",
+              maxCostUsd: 1,
+              allowedTools: [],
+            },
           }],
         }],
       },
@@ -879,7 +885,7 @@ Deno.test("a cloud-only plan run with a model agent admits a real job that carri
           workflowVersionId: versionId,
           executionMode: "cloud_only",
           budgetLimitUsd: "5.00",
-          inputs: { designArtifact: crypto.randomUUID() },
+          inputs: { prompt: "Summarise the open maintenance work." },
         },
       },
     );
@@ -922,7 +928,7 @@ Deno.test("a cloud-only plan run with a model agent admits a real job that carri
       observation_id: null,
       observation_digest: null,
       base_sha: null,
-      action: "rpi.plan",
+      action: "agent.freeform",
       status: "queued",
       agent_version_id: agent,
     });
