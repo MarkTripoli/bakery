@@ -589,3 +589,55 @@ Deno.test("an artifact kind grant names the kind's row id, so a new kind under t
     // The grant still covers exactly the kind it named.
     assertEquals((await check(kindA)).actorKind, "agent");
   }));
+
+Deno.test("an agent's first publish of a kind with no row yet needs a seat grant on every kind", () =>
+  withFixture(async (fixture) => {
+    const seed = await seedOrganization(fixture, "kind-new", { role: "admin" });
+    const agent = await agentToken(fixture, seed);
+    const asAgent = {
+      principal: { principalType: "service" },
+      accessToken: { id: agent.tokenId },
+    } as never;
+    // A brand-new kind has no row, so the guard is asked with no id.
+    const firstPublish = () =>
+      withPgTransaction(
+        fixture.runtimePgDatabase,
+        (transaction) =>
+          assertMayPublishDefinition(transaction, asAgent, {
+            organizationId: seed.organizationId,
+            principalId: agent.principalId,
+            kind: "artifactKind",
+            definitionId: null,
+          }),
+      );
+    const reasonOf = async () => {
+      try {
+        await firstPublish();
+        return "allowed";
+      } catch (error) {
+        assert(error instanceof StandardError, String(error));
+        assertEquals(error.code, "AUTH_FORBIDDEN");
+        return String((error.params as { reason?: string }).reason);
+      }
+    };
+    // (a) No grant at all: refused.
+    assertEquals(await reasonOf(), "definition_publish_requires_grant");
+    // (b) A grant on a different kind's id does not cover a new kind.
+    const other = (await fixture.pgDatabase.query<{ id: string }>(
+      `insert into bakery.artifact_kinds (organization_id, key, created_by)
+       values ($1, 'other-kind', $2) returning id`,
+      [seed.organizationId, seed.principalId],
+    )).rows[0].id;
+    await grant(fixture, { seed }, {
+      definitionKind: "artifactKind",
+      definitionId: other,
+      accessTokenId: agent.tokenId,
+    });
+    assertEquals(await reasonOf(), "definition_publish_requires_grant");
+    // (c) A seat grant on every artifact kind covers the first publish.
+    await grant(fixture, { seed }, {
+      definitionKind: "artifactKind",
+      accessTokenId: agent.tokenId,
+    });
+    assertEquals(await reasonOf(), "allowed");
+  }));
