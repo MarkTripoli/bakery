@@ -35,7 +35,7 @@ import { repositoryRulesBakeryMigrationSource } from "../../apps/server/src/modu
 import { artifactKindsBakeryMigrationSource } from "../../apps/server/src/modules/artifact-kinds/migrations.ts";
 import { integrationsBakeryMigrationSource } from "../../apps/server/src/modules/integrations/migrations.ts";
 import { deliveryBakeryMigrationSource } from "../../apps/server/src/modules/delivery/migrations.ts";
-import { knowledgeBakeryMigrationSource } from "../../apps/server/src/modules/knowledge/migrations.ts";
+import { mcpBakeryMigrationSource } from "../../apps/server/src/modules/mcp/migrations.ts";
 import { resolveRepositoryBinding } from "../../apps/server/src/modules/projects/binding.ts";
 import { migrateData } from "../../apps/server/src/platform/data-migrate.ts";
 import { PostgresAuthorityRunner } from "../../apps/server/src/modules/auth/adapters/authority-postgres.ts";
@@ -240,7 +240,7 @@ async function migrateTestDatabase(
       ...await loadMigrations(artifactKindsBakeryMigrationSource),
       ...await loadMigrations(integrationsBakeryMigrationSource),
       ...await loadMigrations(deliveryBakeryMigrationSource),
-      ...await loadMigrations(knowledgeBakeryMigrationSource),
+      ...await loadMigrations(mcpBakeryMigrationSource),
     ];
     await migrate(owner, allMigrations, {
       through: "0031_issue42_execution_control_replay",

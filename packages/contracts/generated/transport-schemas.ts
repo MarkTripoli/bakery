@@ -10719,6 +10719,34 @@ const transportSchemas = {
         "Restores unread only on rows that press marked and nothing has changed since; a row read or unread again in the meantime keeps its newer state. A second undo or an expired batch fails with STATE_CONFLICT; another recipient's or an unknown batch is RESOURCE_NOT_FOUND."
       ],
       "description": "Undoes the recipient's last mark-all-read press within its bound, so the Undo toast can restore exactly what was marked."
+    },
+    "DefinitionPublishGrantCreate": {
+      "fields": [
+        {
+          "name": "definitionKind",
+          "type": "enum(workflow|agent|artifactKind|skill)",
+          "required": true,
+          "description": "Kind of definition the grant covers: a workflow, an agent, an artifact kind or a skill."
+        },
+        {
+          "name": "definitionId",
+          "type": "uuid|null",
+          "required": false,
+          "description": "Immutable id of the one definition the grant covers: the workflow, agent, skill or artifact kind row id (an artifact kind is named by its id, never its key, so a kind recreated under a reused key does not inherit the grant). Null or absent covers every definition of the kind and then requires accessTokenId, so no grant reaches every agent on every definition."
+        },
+        {
+          "name": "accessTokenId",
+          "type": "uuid|null",
+          "required": false,
+          "description": "The one seat (access token) the grant is limited to. Null or absent lets any agent acting on the named definition publish it."
+        }
+      ],
+      "rules": [
+        "A person with a browser session only; an agent is refused (O51: delegating authority is never an agent's act).",
+        "An unknown or foreign definition and an unknown, revoked or foreign token both answer RESOURCE_NOT_FOUND.",
+        "A second grant for the same kind, definition and seat is STATE_CONFLICT with reason publish_grant_exists."
+      ],
+      "description": "Grants agents the off-by-default power to publish versions of, and \"Use this version\" for, one definition or one seat (chapter 25 O52). Agents author drafts without a grant; a grant never lets an agent decide a proposal."
     }
   },
   "projections": {
@@ -18677,9 +18705,13 @@ const transportSchemas = {
         "state",
         "decidedBy",
         "decidedAt",
+        "supersededByVersionId",
         "createdAt",
         "updatedAt",
         "version"
+      ],
+      "optionalFields": [
+        "supersededByVersionId"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -18690,18 +18722,20 @@ const transportSchemas = {
         "name": "string",
         "definition": "json",
         "digest": "string",
-        "state": "enum(waiting|accepted|rejected)",
+        "state": "enum(waiting|accepted|rejected|superseded)",
         "decidedBy": "uuid|null",
         "decidedAt": "timestamp|null",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "supersededByVersionId": "uuid|null"
       },
       "nullableFields": [
         "workflowId",
         "baseDraftVersion",
         "decidedBy",
-        "decidedAt"
+        "decidedAt",
+        "supersededByVersionId"
       ],
       "description": "One workflow definition a coordinator turn proposed, waiting for a person to accept or reject it whole. Accepting writes it through the editor's own draft operations into an unlisted definition; nothing runs, publishes or activates.",
       "fieldDescriptions": {
@@ -18713,12 +18747,13 @@ const transportSchemas = {
         "name": "Plain-language name the coordinator gave the proposed workflow.",
         "definition": "Complete proposed workflow definition document, stored as canonical JSON.",
         "digest": "SHA-256 of the canonical proposed definition.",
-        "state": "waiting until a person decides; then accepted or rejected, never changed again.",
+        "state": "waiting until a person decides; then accepted or rejected, or superseded when the draft it was made against was published first. Never changed again once settled.",
         "decidedBy": "Person who decided the proposal; null while waiting.",
-        "decidedAt": "When the proposal was decided; null while waiting.",
+        "decidedAt": "When the proposal was decided or superseded; null while waiting.",
         "createdAt": "When the proposal was recorded.",
         "updatedAt": "When the proposal last changed.",
-        "version": "Optimistic-concurrency version a decision must name in If-Match."
+        "version": "Optimistic-concurrency version a decision must name in If-Match.",
+        "supersededByVersionId": "Published workflow version that superseded this proposal: publishing deletes the draft the proposal was made against, so the proposal is settled in the same transaction instead of waiting forever. Null otherwise."
       }
     },
     "WorkflowVersion": {
@@ -27481,6 +27516,40 @@ const transportSchemas = {
         "revision": "The newest inbox revision after the undo, for ordering against other responses and events."
       },
       "description": "Outcome of undoing one mark-all-read press."
+    },
+    "DefinitionPublishGrant": {
+      "fields": [
+        "id",
+        "definitionKind",
+        "definitionId",
+        "accessTokenId",
+        "grantedBy",
+        "createdAt",
+        "version"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "definitionKind": "enum(workflow|agent|artifactKind|skill)",
+        "definitionId": "uuid|null",
+        "accessTokenId": "uuid|null",
+        "grantedBy": "uuid",
+        "createdAt": "timestamp",
+        "version": "integer"
+      },
+      "nullableFields": [
+        "definitionId",
+        "accessTokenId"
+      ],
+      "description": "One grant of the agent publish power (O52): which definition kind and definition it covers, which seat it is limited to, and the person who granted it. Revoking deletes it; the audit log keeps both.",
+      "fieldDescriptions": {
+        "id": "Stable UUID identifying the grant.",
+        "definitionKind": "Kind of definition the grant covers.",
+        "definitionId": "Immutable id of the definition the grant covers (for an artifact kind its row id, never its key); null covers every definition of the kind for the named seat.",
+        "accessTokenId": "Seat (access token) the grant is limited to; null for any agent acting on the named definition.",
+        "grantedBy": "Person who made the grant.",
+        "createdAt": "When the grant was made.",
+        "version": "Optimistic-concurrency version a revoke must name in If-Match."
+      }
     }
   },
   "pageEnvelope": {
@@ -28752,6 +28821,33 @@ const transportSchemas = {
       },
       "inngestTrigger": null,
       "description": "Content-free signal that one recipient's notification list or unread count changed (an item arrived, was read or unread, or a mark-all ran or was undone). resourceId is the recipient principal and resourceVersion the newest inbox revision. It is delivered only to that principal's own inbox subscription; clients re-read notifications.count and notifications.list."
+    },
+    "workflowDefinitionProposal.superseded": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "definitionPublishGrant.created": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "definitionPublishGrant.deleted": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
     }
   },
   "workerActions": {

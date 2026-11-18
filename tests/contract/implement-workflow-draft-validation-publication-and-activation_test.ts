@@ -285,6 +285,8 @@ Deno.test("ValidationReport parses with and without the optional analysis fields
 });
 
 const implementedWorkflowActions = [
+  "definitionPublishGrants.create",
+  "definitionPublishGrants.delete",
   "workflowActivations.create",
   "workflowDefinitionProposalDecisions.create",
   "workflowDefinitionProposals.get",
@@ -302,7 +304,7 @@ const implementedWorkflowActions = [
   "workflows.validate",
 ];
 
-Deno.test("workflows registry implements exactly the fifteen definition, read, draft, publish, activate, validate, copy, listing and proposal actions", () => {
+Deno.test("workflows registry implements exactly the seventeen definition, read, draft, publish, activate, validate, copy, listing, proposal and publish-grant actions", () => {
   const unavailable = () => Promise.reject(new Error("not called"));
   const registry = createWorkflowsActionRegistry(
     {} as PgDatabase,
@@ -322,6 +324,8 @@ Deno.test("workflows registry implements exactly the fifteen definition, read, d
       createListing: unavailable,
       getProposal: unavailable,
       decideProposal: unavailable,
+      createPublishGrant: unavailable,
+      deletePublishGrant: unavailable,
     } as unknown as WorkflowsActionHandlers,
   );
   assertEquals(

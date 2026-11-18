@@ -81,6 +81,14 @@ export type WorkflowsActionHandlers = {
     context: ActionContext,
     input: z.output<typeof contractSchemas.WorkflowDefinitionProposalDecision>,
   ) => Promise<z.output<typeof contractSchemas.WorkflowDefinitionProposal>>;
+  createPublishGrant: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.DefinitionPublishGrantCreate>,
+  ) => Promise<z.output<typeof contractSchemas.DefinitionPublishGrant>>;
+  deletePublishGrant: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.IdPath>,
+  ) => Promise<null>;
 };
 
 export function createWorkflowsActionRegistry(
@@ -254,6 +262,28 @@ export function createWorkflowsActionRegistry(
     explicitIdempotency: "key-and-if-match",
     successStatus: 200,
     handler: handlers.decideProposal,
+  });
+  // Granting an agent the publish power is a person's act (O51), so these
+  // need a browser session; a token never reaches them.
+  registry.register({
+    name: WorkflowImplementedAction.DefinitionPublishGrantsCreate,
+    method: HttpMethod.Post,
+    path: "/v1/definition-publish-grants",
+    input: contractSchemas.DefinitionPublishGrantCreate,
+    output: contractSchemas.DefinitionPublishGrant,
+    policy: { ...commandPolicy, sessionOnly: true },
+    successStatus: 201,
+    handler: handlers.createPublishGrant,
+  });
+  registry.register({
+    name: WorkflowImplementedAction.DefinitionPublishGrantsDelete,
+    method: HttpMethod.Delete,
+    path: "/v1/definition-publish-grants/:id",
+    input: contractSchemas.IdPath,
+    output: contractSchemas.NoContent,
+    policy: { ...commandPolicy, sessionOnly: true },
+    explicitIdempotency: "key-and-if-match",
+    handler: handlers.deletePublishGrant,
   });
 
   assertRegisteredActions(registry);
