@@ -445,14 +445,23 @@ export function createBoundedExporter<T>(
 
   const run = async () => {
     try {
+      let sentOne = false;
       while (ring.size > 0 && !shutdown.signal.aborted) {
         // A synchronous sink never yields, so the close deadline cannot arrive
         // by timer: it is read here, between batches, and the loop stops of its
         // own accord (issue 199). The cost is at most the batch already in
         // flight — at most `batchSize` sink calls — which is the bound the
         // header states.
-        if (closing && performance.now() >= closeDeadlineAt) break;
+        //
+        // Never before the first batch, though. `close(1)` arms a 1 ms deadline
+        // and the pump starts on the next microtask, so on a busy runner the
+        // budget can already be spent when the loop is first reached: breaking
+        // there shed the entire queue having offered nothing to the sink, which
+        // is a shutdown deadline that cancels the flush instead of bounding it.
+        // One batch is always attempted, and the header's bound still holds.
+        if (sentOne && closing && performance.now() >= closeDeadlineAt) break;
         const batch = ring.take(batchSize);
+        sentOne = true;
         // Counted once, before any sink sees anything.
         const size = batch.length;
         inFlight = size;
