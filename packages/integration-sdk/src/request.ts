@@ -58,6 +58,34 @@ const strictObjectSchema = z.custom<z.ZodObject>(isStrictObject, {
 
 const PATH_PARAM_SOURCE = /^(?:input|binding:[a-zA-Z][a-zA-Z0-9_]*)$/;
 
+/** The static query text a graphql template declares, or null when it has none. */
+function graphqlDocumentOf(template: {
+  body?: z.ZodType;
+  graphqlQuery?: string;
+}): string | null {
+  return template.graphqlQuery ?? null;
+}
+
+/** A document may open with a query or an anonymous selection, nothing else. */
+const GRAPHQL_OPERATION = /^\s*(?:query\b|\{)/;
+/**
+ * A mutation anywhere in the document blocks a read. Anchoring this at the
+ * start would let `query Q { a } mutation M { ... }` through, and a document
+ * chains operations, so the keyword is searched for at any depth.
+ */
+const GRAPHQL_MUTATION = /(?:^|[}\s])mutation\b/;
+
+/**
+ * A GraphQL request is a POST whose body is a document. It is a `read` only
+ * when the document is verifiably a query: the first keyword must be `query`
+ * (or `subscription` is refused here too, since it streams) and the text must
+ * not open a `mutation` anywhere, because a document can chain operations and
+ * an alias or fragment can hide one further down.
+ */
+export function isGraphqlRead(query: string): boolean {
+  return GRAPHQL_OPERATION.test(query) && !GRAPHQL_MUTATION.test(query);
+}
+
 export const requestTemplateSchema = z.strictObject({
   id: z.string().regex(/^[a-z][a-z0-9]*(?:\.[a-z][a-z0-9_]*)+$/).max(128)
     .describe(
@@ -69,8 +97,13 @@ export const requestTemplateSchema = z.strictObject({
   method: z.enum(["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"]).describe(
     "HTTP method the host broker sends; the integration cannot choose another at call time.",
   ),
+  kind: z.enum(["rest", "graphql"]).describe(
+    "Request kind: rest is a path-and-query request, graphql is a POST whose body is a query document on the provider's single endpoint.",
+  ).default("rest").describe(
+    "Request kind: rest is a path-and-query request, graphql is a POST whose body is a query document on the provider's single endpoint.",
+  ),
   effect: z.enum(["read", "write"]).describe(
-    "Declared provider effect; read is allowed only for GET and HEAD, so read-only metadata cannot hide a mutation.",
+    "Declared provider effect. read is allowed for GET, HEAD, and a graphql POST whose document is verifiably a query, so read-only metadata cannot hide a mutation.",
   ),
   idempotent: z.boolean().describe(
     "True when repeating the request leaves provider state unchanged; GET and HEAD must be idempotent.",
@@ -100,6 +133,11 @@ export const requestTemplateSchema = z.strictObject({
   body: zodSchema.optional().describe(
     "Optional request body schema; omitted for bodiless requests.",
   ),
+  graphqlQuery: z.string().min(1).max(65_536).describe(
+    "Static GraphQL document sent as the request body's query field; required for kind graphql and never assembled from caller input.",
+  ).optional().describe(
+    "Static GraphQL document sent as the request body's query field; required for kind graphql and never assembled from caller input.",
+  ),
   response: zodSchema,
   maxResponseBytes: z.number().int().min(1).max(MAX_RESPONSE_BYTES).describe(
     "Hard cap on the response bytes the broker reads, between 1 and 8 MiB.",
@@ -116,11 +154,40 @@ export const requestTemplateSchema = z.strictObject({
   const issue = (message: string, path: (string | number)[] = []) =>
     ctx.addIssue({ code: "custom", message, path });
   const readMethod = t.method === "GET" || t.method === "HEAD";
-  if ((t.effect === "read") !== readMethod) {
-    issue("effect read is allowed only for GET and HEAD", ["effect"]);
+  const graphql = t.kind === "graphql";
+  if (graphql) {
+    // A GraphQL template is exactly one POST to one endpoint with a document
+    // body. Path placeholders and query parameters would let the caller steer
+    // the request away from the provider's single endpoint.
+    if (t.method !== "POST") {
+      issue("a graphql request must be POST", ["method"]);
+    }
+    if (t.query.length > 0) {
+      issue("a graphql request carries no query parameters", ["query"]);
+    }
+    if (t.pathTemplate !== "/" && t.pathTemplate !== "/graphql") {
+      issue("a graphql request targets the provider's graphql endpoint", [
+        "pathTemplate",
+      ]);
+    }
+    if (!t.body) issue("a graphql request must declare a body", ["body"]);
+    const document = graphqlDocumentOf(t);
+    if (document === null) {
+      issue("a graphql body must carry a query string", ["body"]);
+    } else if (t.effect === "read" && !isGraphqlRead(document)) {
+      issue(
+        "effect read needs a query document; a mutation cannot be read",
+        ["effect"],
+      );
+    }
+  } else if ((t.effect === "read") !== readMethod) {
+    issue(
+      "effect read is allowed only for GET and HEAD, or a graphql POST",
+      ["effect"],
+    );
   }
-  if (readMethod && !t.idempotent) {
-    issue("GET and HEAD requests must be idempotent", ["idempotent"]);
+  if ((readMethod || graphql) && !t.idempotent) {
+    issue("GET, HEAD and graphql requests must be idempotent", ["idempotent"]);
   }
   if (readMethod && t.body) issue("GET and HEAD cannot carry a body", ["body"]);
   const parsed = parsePathTemplate(t.pathTemplate);

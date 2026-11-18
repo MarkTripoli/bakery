@@ -264,11 +264,69 @@ Deno.test("request template effect, method and idempotency parity", () => {
       ),
   };
   assert(parse(post).success);
+  // A plain REST POST cannot claim to be a read: only a verified graphql
+  // document may, so read-only metadata still cannot hide a mutation.
   assert(!parse({ ...post, effect: "read" }).success);
   assert(!parse({ ...template(), effect: "write" }).success);
   assert(!parse({ ...template(), idempotent: false }).success);
   assert(!parse({ ...template(), method: "HEAD", effect: "write" }).success);
   assert(!parse({ ...template(), body: post.body }).success);
+});
+
+Deno.test("a graphql request may be a read only when its document is a query", () => {
+  const parse = (value: unknown) => requestTemplateSchema.safeParse(value);
+  const graphql = (patch: Record<string, unknown> = {}) => ({
+    ...template(),
+    kind: "graphql" as const,
+    method: "POST" as const,
+    idempotent: true,
+    pathTemplate: "/graphql",
+    pathParams: {},
+    query: [],
+    graphqlQuery: "query Issue($id: String!) { issue(id: $id) { id } }",
+    input: (z.strictObject({
+      variables: (z.strictObject({
+        id: z.string().describe(FIXTURE_DESCRIPTION),
+      })).describe(FIXTURE_DESCRIPTION),
+    })).describe(FIXTURE_DESCRIPTION),
+    body: (z.strictObject({
+      variables: (z.strictObject({
+        id: z.string().describe(FIXTURE_DESCRIPTION),
+      })).describe(FIXTURE_DESCRIPTION),
+    })).describe(FIXTURE_DESCRIPTION),
+    effect: "read" as const,
+    ...patch,
+  });
+
+  assert(parse(graphql()).success);
+  assert(parse(graphql({ effect: "write" })).success);
+
+  // A mutation is never a read, whichever way it is spelled.
+  for (
+    const document of [
+      "mutation Close($id: String!) { issueClose(id: $id) { ok } }",
+      '  mutation { issueClose(id: "1") { ok } }',
+      // A document can chain operations; the alias must not smuggle a mutation.
+      'query Q { a } mutation M { issueClose(id: "1") { ok } }',
+    ]
+  ) {
+    assert(
+      !parse(graphql({ graphqlQuery: document })).success,
+      `a read accepted a mutation document: ${document}`,
+    );
+  }
+
+  // The endpoint, method and body are fixed, so the caller cannot steer it.
+  assert(!parse(graphql({ method: "GET" })).success);
+  assert(
+    !parse(graphql({ pathTemplate: "/v1/graphql" })).success,
+    "a graphql request reached a non-endpoint path",
+  );
+  assert(!parse(graphql({ query: ["id"] })).success);
+  assert(!parse(graphql({ body: undefined })).success);
+  assert(!parse(graphql({ graphqlQuery: undefined })).success);
+  // graphql reads must still be idempotent, like GET.
+  assert(!parse(graphql({ idempotent: false })).success);
 });
 
 Deno.test("request template bounds response bytes", () => {
