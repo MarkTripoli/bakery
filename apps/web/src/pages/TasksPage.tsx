@@ -1094,6 +1094,7 @@ export function WorkQueueFilters(
             </UI.DataText>
           </>
         }
+        triggerLabel={t("tasks.queue.filter.applications")}
         triggerTitle={search ? t("tasks.queue.filter.applications") : undefined}
       >
         <UI.Field
