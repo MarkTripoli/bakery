@@ -914,6 +914,64 @@ export async function runAuditMatrix(
       }),
     },
     {
+      operation: "definitionPublishGrants.create",
+      failure: async () => {
+        // A real workflow, so only authorization can refuse the developer.
+        const workflow = await adminCall("POST", "/v1/workflows", {
+          body: {
+            slug: `matrix-flow-${suffix}`,
+            name: `Matrix flow ${suffix}`,
+            description: "",
+          },
+        });
+        state.grantWorkflow = String((await json(workflow)).id);
+        return developerCall("POST", "/v1/definition-publish-grants", {
+          body: {
+            definitionKind: "workflow",
+            definitionId: state.grantWorkflow,
+          },
+        });
+      },
+      success: async () => {
+        const response = await adminCall(
+          "POST",
+          "/v1/definition-publish-grants",
+          {
+            body: {
+              definitionKind: "workflow",
+              definitionId: state.grantWorkflow,
+            },
+          },
+        );
+        const created = await json(response.clone());
+        state.publishGrant = String(created.id);
+        state.publishGrantVersion = String(created.version);
+        return {
+          response,
+          organizationId: f.organizationId,
+          resourceId: state.publishGrant,
+        };
+      },
+    },
+    {
+      operation: "definitionPublishGrants.delete",
+      failure: () =>
+        developerCall(
+          "DELETE",
+          `/v1/definition-publish-grants/${state.publishGrant}`,
+          { headers: { "If-Match": `"${state.publishGrantVersion}"` } },
+        ),
+      success: async () => ({
+        response: await adminCall(
+          "DELETE",
+          `/v1/definition-publish-grants/${state.publishGrant}`,
+          { headers: { "If-Match": `"${state.publishGrantVersion}"` } },
+        ),
+        organizationId: f.organizationId,
+        resourceId: state.publishGrant,
+      }),
+    },
+    {
       operation: "applicationRepositoryRoles.set",
       failure: async () => {
         state.roleRepository = crypto.randomUUID();
