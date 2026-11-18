@@ -138,6 +138,7 @@
   <entry file="compare-the-region-not-the-image.xml" scope="project" />
   <entry file="first-lawful-path-exercise-updates-its-expected-value.xml" scope="process" />
   <entry file="destructive-red-proof-pollutes-test-db.xml" scope="project" />
+  <entry file="measure-the-right-tree-and-the-mutation.xml" scope="process" />
   <entry file="deno-check-is-the-gate-for-test-files.xml" scope="project" />
   <entry file="resolved-blocker-resumes-on-owner-action.xml" scope="project" />
   <entry file="now-is-the-transaction-start.xml" scope="project" />
