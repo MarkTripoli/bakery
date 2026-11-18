@@ -661,6 +661,13 @@ class Run {
  * answer, which includes any large payload the step references, and the host
  * calls this once per step. The answer is counted with every reference
  * expanded; past `MAX_CLONE_NODES` values this throws `state_too_large`.
+ *
+ * Prototypes are part of the answer's frozen shape (pinned in
+ * tests/unit/workflow-interpreter-state-boundary_test.ts). An object the
+ * interpreter builds from a mapping, such as a dispatch's `input`, has no
+ * prototype, so a key named `toString` or `constructor` is only data. An object
+ * it copies from recorded state keeps the ordinary prototype it had. The copy
+ * keeps each object's prototype and never substitutes one.
  */
 export function nextStep(
   document: WorkflowSemanticDocument,
@@ -673,7 +680,8 @@ export function nextStep(
  * Interpreter revision 2: revision 1 plus bounded parallel groups. A plan
  * without a parallel group gets the answers revision 1 gives; inside a group
  * the answer is a set of steps (`dispatch_many`), see `NextStep`. Everything
- * said of `nextStep` holds, and `state.inFlight` is read.
+ * said of `nextStep` holds, including the prototypes of the objects it builds
+ * and copies, and `state.inFlight` is read.
  */
 export function nextStepWithGroups(
   document: WorkflowSemanticDocument,
