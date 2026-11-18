@@ -2,12 +2,13 @@ import { expect, test } from "@playwright/test";
 import {
   canonicalStories,
   storyPath,
+  sweepTimeoutMs,
   waitForSpecimen,
 } from "./storybook-harness.ts";
 
 test.describe("Storybook context contracts", () => {
   test("renders every canonical story under RTL without a document direction leak", async ({ page }) => {
-    test.setTimeout(240_000);
+    test.setTimeout(sweepTimeoutMs());
     await page.setViewportSize({ width: 744, height: 900 });
     for (const story of await canonicalStories(page)) {
       await page.goto(
@@ -33,7 +34,7 @@ test.describe("Storybook context contracts", () => {
   });
 
   test("expands every copy-bearing canonical story under the deterministic pseudo-locale", async ({ page }) => {
-    test.setTimeout(240_000);
+    test.setTimeout(sweepTimeoutMs());
     await page.setViewportSize({ width: 744, height: 900 });
     for (const story of await canonicalStories(page)) {
       await page.goto(
@@ -75,7 +76,7 @@ test.describe("Storybook context contracts", () => {
   });
 
   test("applies the reduced-motion contract to every canonical story", async ({ page }) => {
-    test.setTimeout(240_000);
+    test.setTimeout(sweepTimeoutMs());
     await page.emulateMedia({ reducedMotion: "reduce" });
     for (const story of await canonicalStories(page)) {
       await page.goto(

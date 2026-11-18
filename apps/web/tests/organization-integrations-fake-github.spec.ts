@@ -2,6 +2,7 @@ import { type ChildProcess, spawn } from "node:child_process";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import { expect, type Page, type Route, test } from "@playwright/test";
+import { laneBudgetMs } from "./helpers/lane-budget.ts";
 
 /**
  * Browser proof of the whole GitHub setup against the real API: a Deno child
@@ -45,7 +46,7 @@ test.describe("GitHub setup against the real API and the fake GitHub App", () =>
   const manifests: { name: string }[] = [];
 
   test.beforeAll(async () => {
-    test.setTimeout(180_000);
+    test.setTimeout(laneBudgetMs(180_000));
     const root = new URL("../../../", import.meta.url);
     child = spawn("deno", [
       "run",
@@ -168,7 +169,7 @@ test.describe("GitHub setup against the real API and the fake GitHub App", () =>
   }
 
   test("the App name the administrator types is the name GitHub registers", async ({ page, baseURL }) => {
-    test.setTimeout(60_000);
+    test.setTimeout(laneBudgetMs(60_000));
     await connect(page, baseURL!);
     await page.goto(INSTALLATION_PAGE);
     const name = page.getByRole("textbox", { name: "App name" });
@@ -186,7 +187,7 @@ test.describe("GitHub setup against the real API and the fake GitHub App", () =>
   });
 
   test("Connect GitHub installs, authorizes and lands on a pending connection's page; choose, save, turn on and check make it healthy", async ({ page, baseURL }) => {
-    test.setTimeout(90_000);
+    test.setTimeout(laneBudgetMs(90_000));
     await connect(page, baseURL!);
     await page.goto(CONNECT_PAGE);
     await expect(page.getByText("Nothing is connected yet")).toBeVisible();
@@ -266,7 +267,7 @@ test.describe("GitHub setup against the real API and the fake GitHub App", () =>
   });
 
   test("every outcome the callbacks can send shows its message", async ({ page, baseURL }) => {
-    test.setTimeout(120_000);
+    test.setTimeout(laneBudgetMs(120_000));
     await connect(page, baseURL!);
     for (
       const outcome of [

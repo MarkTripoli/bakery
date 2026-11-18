@@ -68,7 +68,13 @@ export function StepCard(
       ].filter(Boolean).join(" ")}
       data-needs-setup={needsSetup ? "true" : undefined}
       data-selected={selected ? "true" : undefined}
+      data-state={needsSetup
+        ? "needs-setup"
+        : selected
+        ? "selected"
+        : "default"}
       data-ui-component="stepCard"
+      data-variant="card"
       type="button"
     >
       <span aria-hidden="true" className="ui-step-card__icon">

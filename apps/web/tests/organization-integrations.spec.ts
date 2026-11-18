@@ -4,6 +4,7 @@ import {
   MOCK_ORGANIZATION_ID,
   mockAuthenticatedSession,
 } from "./helpers/mock-session.ts";
+import { laneBudgetMs } from "./helpers/lane-budget.ts";
 
 /**
  * Mocked proof of the organization Integrations pages: the list that every
@@ -349,7 +350,7 @@ test("Connect GitHub creates an attempt and opens the App's install page with it
 });
 
 test("after the install, awaiting_authorization continues to GitHub authorization on its own, once", async ({ page }) => {
-  test.setTimeout(45_000);
+  test.setTimeout(laneBudgetMs(45_000));
   const world = newWorld();
   await fixture(page, world);
   await page.goto(PAGE_PATH);
@@ -377,7 +378,7 @@ test("after the install, awaiting_authorization continues to GitHub authorizatio
 });
 
 test("an OAuth callback that finds no installation continues to the install page on its own, once", async ({ page }) => {
-  test.setTimeout(45_000);
+  test.setTimeout(laneBudgetMs(45_000));
   const world = newWorld();
   await fixture(page, world);
   await page.goto(PAGE_PATH);
@@ -875,7 +876,7 @@ const OUTCOME_MESSAGES: Readonly<Record<string, string>> = {
 };
 
 test("every GitHub connection outcome shows its message", async ({ page }) => {
-  test.setTimeout(90_000);
+  test.setTimeout(laneBudgetMs(90_000));
   const world = newWorld();
   await fixture(page, world);
   for (const [outcome, message] of Object.entries(OUTCOME_MESSAGES)) {

@@ -28,6 +28,7 @@ import { repositoryRulesBakeryMigrationSource } from "../../apps/server/src/modu
 import { artifactKindsBakeryMigrationSource } from "../../apps/server/src/modules/artifact-kinds/migrations.ts";
 import { integrationsBakeryMigrationSource } from "../../apps/server/src/modules/integrations/migrations.ts";
 import { deliveryBakeryMigrationSource } from "../../apps/server/src/modules/delivery/migrations.ts";
+import { mcpBakeryMigrationSource } from "../../apps/server/src/modules/mcp/migrations.ts";
 import { createInngestHttpHandler } from "../../apps/server/src/modules/execution/inngest-http.ts";
 import { appendDomainEvent, withPgTransaction } from "@bakery/persistence";
 import { createBakeryPostgresWorkflowRepository } from "../../apps/server/src/modules/workflow-adapter/bakery-postgres-store.ts";
@@ -196,6 +197,7 @@ Deno.test("Postgres admission and concurrent delivery are durable", async () => 
       ...await loadMigrations(artifactKindsBakeryMigrationSource),
       ...await loadMigrations(integrationsBakeryMigrationSource),
       ...await loadMigrations(deliveryBakeryMigrationSource),
+      ...await loadMigrations(mcpBakeryMigrationSource),
     ]);
     await migrateData(owner, bakeryDataMigrations);
     await owner`

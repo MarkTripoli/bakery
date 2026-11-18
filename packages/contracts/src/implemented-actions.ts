@@ -223,6 +223,8 @@ export const ProjectsImplementedAction = Object.freeze(
     RolesList: "projects.roles.list",
     RolesResolve: "projects.roles.resolve",
     RolesUpdate: "projects.roles.update",
+    ScopeProfilesGet: "scopeProfiles.get",
+    ScopeProfilesPut: "scopeProfiles.put",
   } as const satisfies Record<string, CatalogActionName>,
 );
 
@@ -374,6 +376,8 @@ export const WorkflowImplementedAction = Object.freeze(
     WorkflowDefinitionProposalsGet: "workflowDefinitionProposals.get",
     WorkflowDefinitionProposalDecisionsCreate:
       "workflowDefinitionProposalDecisions.create",
+    DefinitionPublishGrantsCreate: "definitionPublishGrants.create",
+    DefinitionPublishGrantsDelete: "definitionPublishGrants.delete",
   } as const satisfies Record<string, CatalogActionName>,
 );
 export const workflowImplementedActions = Object.freeze(
