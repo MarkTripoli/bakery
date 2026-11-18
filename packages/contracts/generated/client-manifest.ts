@@ -45978,7 +45978,7 @@ export const clientManifest = {
                 "digest": {
                   "type": "string",
                   "pattern": "^[a-f0-9]{64}$",
-                  "description": "Lowercase SHA-256 of the canonical effective entries and organization revision."
+                  "description": "Rules fingerprint the proposed rules would have: computed exactly as the effective-rules read's digest and a run check's policyDigest, over the active profile's fixed policy and these entries."
                 }
               },
               "required": [
@@ -47171,7 +47171,7 @@ export const clientManifest = {
         "digest": {
           "type": "string",
           "pattern": "^[a-f0-9]{64}$",
-          "description": "Lowercase SHA-256 of the canonical effective entries and organization revision; superseded overrides are excluded."
+          "description": "Rules fingerprint: equals the policyDigest a check of a run admitted under these rules records (effective policy digest over the active profile's fixed policy, its trusted checker and the effective entries; organization revision and superseded overrides are excluded). Without a fixed policy no check records one and the value matches no run."
         },
         "repositoryVersion": {
           "type": "integer",
@@ -47244,6 +47244,10 @@ export const clientManifest = {
           ],
           "additionalProperties": false,
           "description": "Git provider branch protection state, separate from Bakery enforcement."
+        },
+        "hasFixedPolicy": {
+          "description": "True when the active profile has a fixed policy, so runs admitted under these rules record a check policyDigest equal to digest. When false, runs admitted under these rules record no check, so no run will match digest.",
+          "type": "boolean"
         }
       },
       "required": [

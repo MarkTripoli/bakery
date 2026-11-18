@@ -19162,7 +19162,7 @@ const transportSchemas = {
         "organizationRevision": "Organization rules revision resolved against; 0 means no organization revision is published yet.",
         "entries": "Effective rule entries in canonical rule-key order, each with its provenance and source organization revision.",
         "supersededOverrides": "Proposed overrides that would be inactive under an organization lock; always empty when the preview has no lock conflicts.",
-        "digest": "Lowercase SHA-256 of the canonical effective entries and organization revision."
+        "digest": "Rules fingerprint the proposed rules would have: computed exactly as the effective-rules read's digest and a run check's policyDigest, over the active profile's fixed policy and these entries."
       }
     },
     "RuleSampleFinding": {
@@ -19257,7 +19257,8 @@ const transportSchemas = {
         "digest",
         "repositoryVersion",
         "checkers",
-        "providerProtection"
+        "providerProtection",
+        "hasFixedPolicy"
       ],
       "fieldTypes": {
         "repositoryId": "uuid",
@@ -19269,11 +19270,15 @@ const transportSchemas = {
         "digest": "sha256",
         "repositoryVersion": "positiveInteger",
         "checkers": "RepositoryRuleCheckers",
-        "providerProtection": "RepositoryProviderProtection"
+        "providerProtection": "RepositoryProviderProtection",
+        "hasFixedPolicy": "boolean"
       },
       "nullableFields": [
         "profileId",
         "profileRevision"
+      ],
+      "optionalFields": [
+        "hasFixedPolicy"
       ],
       "description": "The rules in force for one repository: the organization's latest published baseline layered with the overrides of the repository's active profile, one entry per applicable rule with its provenance, plus overrides inactive under an organization lock. Resolved in one snapshot, so every entry's organization revision equals the response's organizationRevision. A repository with no active profile resolves with no overrides.",
       "fieldDescriptions": {
@@ -19283,10 +19288,11 @@ const transportSchemas = {
         "organizationRevision": "Organization rules revision resolved against; 0 means no organization revision is published yet.",
         "entries": "Effective rule entries in canonical rule-key order, each with its provenance and source organization revision; a locked entry is the organization entry with provenance locked_by_organization.",
         "supersededOverrides": "Saved repository overrides that are inactive because the organization currently locks the rule; they stay in the profile and take effect again if the lock is dropped.",
-        "digest": "Lowercase SHA-256 of the canonical effective entries and organization revision; superseded overrides are excluded.",
+        "digest": "Rules fingerprint: equals the policyDigest a check of a run admitted under these rules records (effective policy digest over the active profile's fixed policy, its trusted checker and the effective entries; organization revision and superseded overrides are excluded). Without a fixed policy no check records one and the value matches no run.",
         "repositoryVersion": "Current repository version; the response ETag is \"v<version>\", the If-Match value profile activation requires.",
         "checkers": "Bakery checker availability for the effective rules.",
-        "providerProtection": "Git provider branch protection state, separate from Bakery enforcement."
+        "providerProtection": "Git provider branch protection state, separate from Bakery enforcement.",
+        "hasFixedPolicy": "True when the active profile has a fixed policy, so runs admitted under these rules record a check policyDigest equal to digest. When false, runs admitted under these rules record no check, so no run will match digest."
       }
     },
     "RepositoryRuleCheckers": {

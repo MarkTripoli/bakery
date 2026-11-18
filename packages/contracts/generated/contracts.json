@@ -146358,7 +146358,7 @@
             "digest": {
               "type": "string",
               "pattern": "^[a-f0-9]{64}$",
-              "description": "Lowercase SHA-256 of the canonical effective entries and organization revision."
+              "description": "Rules fingerprint the proposed rules would have: computed exactly as the effective-rules read's digest and a run check's policyDigest, over the active profile's fixed policy and these entries."
             }
           },
           "required": [
@@ -147595,7 +147595,7 @@
                     "digest": {
                       "type": "string",
                       "pattern": "^[a-f0-9]{64}$",
-                      "description": "Lowercase SHA-256 of the canonical effective entries and organization revision."
+                      "description": "Rules fingerprint the proposed rules would have: computed exactly as the effective-rules read's digest and a run check's policyDigest, over the active profile's fixed policy and these entries."
                     }
                   },
                   "required": [
@@ -148788,7 +148788,7 @@
             "digest": {
               "type": "string",
               "pattern": "^[a-f0-9]{64}$",
-              "description": "Lowercase SHA-256 of the canonical effective entries and organization revision; superseded overrides are excluded."
+              "description": "Rules fingerprint: equals the policyDigest a check of a run admitted under these rules records (effective policy digest over the active profile's fixed policy, its trusted checker and the effective entries; organization revision and superseded overrides are excluded). Without a fixed policy no check records one and the value matches no run."
             },
             "repositoryVersion": {
               "type": "integer",
@@ -148861,6 +148861,10 @@
               ],
               "additionalProperties": false,
               "description": "Git provider branch protection state, separate from Bakery enforcement."
+            },
+            "hasFixedPolicy": {
+              "description": "True when the active profile has a fixed policy, so runs admitted under these rules record a check policyDigest equal to digest. When false, runs admitted under these rules record no check, so no run will match digest.",
+              "type": "boolean"
             }
           },
           "required": [
@@ -217174,7 +217178,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:3c4f9aa0ee8eebe74514e6b9ed525c766df95ea798eb4c019057831ea0bd4c50",
+  "compatibilityDigest": "sha256:9a39c76d8a5cc76606931f6d73bc5e8ae2134cdb1ef5e8f2d8cfdb890c1d21a2",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -328785,7 +328789,7 @@
         "digest": {
           "type": "string",
           "pattern": "^[a-f0-9]{64}$",
-          "description": "Lowercase SHA-256 of the canonical effective entries and organization revision."
+          "description": "Rules fingerprint the proposed rules would have: computed exactly as the effective-rules read's digest and a run check's policyDigest, over the active profile's fixed policy and these entries."
         }
       },
       "required": [
@@ -330022,7 +330026,7 @@
                 "digest": {
                   "type": "string",
                   "pattern": "^[a-f0-9]{64}$",
-                  "description": "Lowercase SHA-256 of the canonical effective entries and organization revision."
+                  "description": "Rules fingerprint the proposed rules would have: computed exactly as the effective-rules read's digest and a run check's policyDigest, over the active profile's fixed policy and these entries."
                 }
               },
               "required": [
@@ -331215,7 +331219,7 @@
         "digest": {
           "type": "string",
           "pattern": "^[a-f0-9]{64}$",
-          "description": "Lowercase SHA-256 of the canonical effective entries and organization revision; superseded overrides are excluded."
+          "description": "Rules fingerprint: equals the policyDigest a check of a run admitted under these rules records (effective policy digest over the active profile's fixed policy, its trusted checker and the effective entries; organization revision and superseded overrides are excluded). Without a fixed policy no check records one and the value matches no run."
         },
         "repositoryVersion": {
           "type": "integer",
@@ -331288,6 +331292,10 @@
           ],
           "additionalProperties": false,
           "description": "Git provider branch protection state, separate from Bakery enforcement."
+        },
+        "hasFixedPolicy": {
+          "description": "True when the active profile has a fixed policy, so runs admitted under these rules record a check policyDigest equal to digest. When false, runs admitted under these rules record no check, so no run will match digest.",
+          "type": "boolean"
         }
       },
       "required": [
