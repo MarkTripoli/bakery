@@ -1,5 +1,6 @@
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import { openPgDatabase } from "../../apps/server/src/platform/database.ts";
+import { deleteEventExportHistory } from "../../apps/server/src/modules/integrations/event-export-retention.ts";
 
 /**
  * Event export history and tenant pinning, proved against a real database
@@ -433,4 +434,111 @@ Deno.test("a subscription cannot reach another connection's destination or sourc
     await admin.end();
     await app.end();
   }
+});
+
+Deno.test("a connection with history is deleted only after its history is swept", async () => {
+  const admin = openPgDatabase(adminUrl);
+  const app = openPgDatabase(appUrl);
+  const deliveryId = crypto.randomUUID();
+  try {
+    await seedParents(admin);
+    await q(app, SUBSCRIPTION_INSERT, [
+      subscriptionId,
+      organizationId,
+      connectionId,
+      installationId,
+      destinationId,
+      resourceId,
+    ]);
+    await q(app, DELIVERY_INSERT, [
+      deliveryId,
+      organizationId,
+      subscriptionId,
+      destinationId,
+      "evt-1",
+      `identity-${deliveryId}`,
+    ]);
+
+    // RESTRICT is doing its job: the connection cannot be deleted while it owns
+    // a delivery, and that failure is the property we want, not the bug.
+    await assertRejects(
+      () =>
+        q(admin, "delete from bakery.integration_connections where id = $1", [
+          connectionId,
+        ]),
+      Error,
+      "violates foreign key constraint",
+    );
+
+    // The application role cannot sweep history, and that is the point: it holds
+    // no DELETE on deliveries, so erasing what was sent is an administrative act
+    // rather than something the serving path can do.
+    await assertRejects(
+      () =>
+        deleteEventExportHistory(
+          {
+            // `rowCount` must come from pg: a DELETE without RETURNING yields
+            // no rows, so counting rows would report zero for every statement.
+            query: async (text) => {
+              const result = await app.query(text);
+              return { rowCount: result.rowCount };
+            },
+          },
+          connectionId,
+        ),
+      Error,
+      "permission denied",
+    );
+
+    // The named sweep removes history first, in the documented order, as the
+    // administrative role, after which the connection can be deleted. Without
+    // this the RESTRICT keys would make a connection with history permanently
+    // undeletable.
+    const swept = await deleteEventExportHistory(
+      {
+        query: async (text) => {
+          const result = await admin.query(text);
+          return { rowCount: result.rowCount };
+        },
+      },
+      connectionId,
+    );
+    assertEquals(swept.deliveries, 1);
+    assertEquals(swept.subscriptions, 1);
+    assertEquals(swept.destinations, 1);
+
+    await q(admin, "delete from bakery.integration_connections where id = $1", [
+      connectionId,
+    ]);
+    const remaining = await q<{ count: number }>(
+      admin,
+      "select count(*)::int as count from bakery.integration_connections where id = $1",
+      [connectionId],
+    );
+    assertEquals(remaining[0]!.count, 0);
+  } finally {
+    await cleanup(admin);
+    await admin.end();
+    await app.end();
+  }
+});
+
+Deno.test("the sweep refuses an id that is not a uuid", async () => {
+  const calls: string[] = [];
+  await assertRejects(
+    () =>
+      deleteEventExportHistory(
+        {
+          query: (text) => {
+            calls.push(text);
+            return Promise.resolve({ rowCount: 0 });
+          },
+        },
+        "1' or '1'='1",
+      ),
+    TypeError,
+    "invalid_connection_id",
+  );
+  // Nothing ran: the identifier is validated before any statement is built.
+  assertEquals(calls.length, 0);
 });
