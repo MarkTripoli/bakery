@@ -188,6 +188,7 @@ export default defineConfig({
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
+  globalSetup: "./tests/helpers/stack-preflight.ts",
   globalTeardown: "./tests/helpers/preview-teardown.ts",
   webServer: process.env.BASE_URL ? undefined : {
     command: webServerCommand,

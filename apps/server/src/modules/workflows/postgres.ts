@@ -37,7 +37,7 @@ import type { WorkflowsActionHandlers } from "./actions.ts";
 const DEFINITIONS_ORDERING = "createdAt:desc,id:desc";
 const VERSIONS_ORDERING = "revision:desc,id:desc";
 const DEFINITION_COLUMNS =
-  "id, slug, name, description, active_version_id, enabled, created_at, updated_at, version";
+  "id, slug, name, description, active_version_id, enabled, created_at, updated_at, version, origin_kind, origin_catalog_key, origin_catalog_version";
 const PRESET_SLUG_PREFIX = "preset:";
 
 type WorkflowDefinitionRow = {
@@ -50,6 +50,9 @@ type WorkflowDefinitionRow = {
   created_at: Date | string;
   updated_at: Date | string;
   version: number;
+  origin_kind: string;
+  origin_catalog_key: string | null;
+  origin_catalog_version: number | null;
 };
 
 type WorkflowVersionRow = {
@@ -91,6 +94,19 @@ export function toWorkflowDefinition(row: WorkflowDefinitionRow) {
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),
     version: row.version,
+    // Provenance is part of the read shape so a caller can tell an installed
+    // definition from an authored or copied one without parsing the slug.
+    // `catalog` origins carry the key and version they were installed from;
+    // the other kinds carry nulls rather than invented values.
+    origin: originOf(row),
+  };
+}
+
+function originOf(row: WorkflowDefinitionRow) {
+  return {
+    kind: row.origin_kind,
+    catalogKey: row.origin_catalog_key,
+    catalogVersion: row.origin_catalog_version,
   };
 }
 
