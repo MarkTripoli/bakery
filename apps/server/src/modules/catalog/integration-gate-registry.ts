@@ -68,6 +68,17 @@ export function deployedIntegrationsDefects(): string[] {
  * so called on a frozen array it returns at once and never reaches the manifest -
  * it would look like a fix and change nothing. Descent here is unconditional.
  *
+ * Zod schemas are the one thing it must not touch. A handler carries its input and
+ * output schemas as Zod instances, and Zod 4 fills in `.shape` lazily by defining a
+ * property on the instance itself; freezing the instance makes that define throw, so
+ * the schema can no longer be converted to JSON Schema. Startup converts every
+ * handler schema to hash the manifest digest, so freezing them does not harden the
+ * deployment, it prevents it: the server exited before it listened.
+ *
+ * A schema is code, not data. The manifest is what this freeze exists to protect,
+ * and the surrounding handler object is still frozen, so `input` and `output` cannot
+ * be swapped out at runtime; only the instance's internal cache stays writable.
+ *
  * A zod schema is skipped: it is a library object, not definition data. It carries
  * internal caches that `z.toJSONSchema` fills on first use, so a schema frozen
  * before that use cannot be converted at all - `toJSONSchema` then reports the
