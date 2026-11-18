@@ -246,22 +246,40 @@ export async function startPresetTaskRun(
   );
   const runId = run.id;
   assert(typeof runId === "string" && UUID.test(runId));
-  const steps = await stack.psql<{ id: string; step_key: string }>(
-    `select id, step_key from bakery.run_steps
-      where organization_id = $1 and run_id = $2`,
-    [world.organizationId, runId],
+  return { taskId, runId, ...await presetStepIds(stack, world, runId) };
+}
+
+/**
+ * The run's brief and implement step ids, once the engine has appended both.
+ *
+ * The preset is a compiled plan: it creates no step rows with the run. The
+ * engine appends each as it decides it, under the plan's container key
+ * (`flow.brief`, then `flow.implement` once the brief completes), so the rows
+ * are waited for here, not read straight after the run is created.
+ */
+export async function presetStepIds(
+  stack: DurableCoreStack,
+  world: PresetWorld,
+  runId: string,
+): Promise<{ briefStepId: string; implementStepId: string }> {
+  return await until(
+    "the engine appended the preset steps",
+    150_000,
+    async () => {
+      const rows = await stack.psql<{ id: string; step_key: string }>(
+        `select id, step_key from bakery.run_steps
+        where organization_id = $1 and run_id = $2`,
+        [world.organizationId, runId],
+      );
+      const idOf = (name: string) =>
+        rows.find((row) => row.step_key.replace(/^flow\./, "") === name)?.id;
+      const briefStepId = idOf("brief");
+      const implementStepId = idOf("implement");
+      return briefStepId !== undefined && implementStepId !== undefined
+        ? { briefStepId, implementStepId }
+        : undefined;
+    },
   );
-  const stepId = (key: string): string => {
-    const found = steps.find((step) => step.step_key === key)?.id;
-    assert(found, `step ${key} missing`);
-    return found;
-  };
-  return {
-    taskId,
-    runId,
-    briefStepId: stepId("brief"),
-    implementStepId: stepId("implement"),
-  };
 }
 
 export async function until<T>(

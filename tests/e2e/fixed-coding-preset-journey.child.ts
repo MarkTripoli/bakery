@@ -10,6 +10,7 @@ import {
   implementJobId,
   launchPresetWorker,
   type PresetRun,
+  presetStepIds,
   type PresetWorld,
   provisionDelegatedCgroupV2,
   removePaths,
@@ -152,22 +153,7 @@ async function presetRun(
   taskId: string,
   runId: string,
 ): Promise<PresetRun> {
-  const rows = await stack.psql<{ id: string; step_key: string }>(
-    `select id, step_key from bakery.run_steps
-      where organization_id = $1 and run_id = $2`,
-    [world.organizationId, runId],
-  );
-  const stepId = (key: string): string => {
-    const found = rows.find((row) => row.step_key === key)?.id;
-    assert(found, `step ${key} missing`);
-    return found;
-  };
-  return {
-    taskId,
-    runId,
-    briefStepId: stepId("brief"),
-    implementStepId: stepId("implement"),
-  };
+  return { taskId, runId, ...await presetStepIds(stack, world, runId) };
 }
 
 async function main() {

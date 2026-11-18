@@ -39,7 +39,8 @@ async function steps(
       where organization_id = $1 and run_id = $2`,
     [world.organizationId, run.runId],
   );
-  return new Map(rows.map((row) => [row.step_key, row]));
+  // The preset is a compiled plan: its steps are keyed under the container.
+  return new Map(rows.map((row) => [row.step_key.replace(/^flow\./, ""), row]));
 }
 
 async function sha256Hex(bytes: Uint8Array): Promise<string> {
