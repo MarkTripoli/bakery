@@ -83,6 +83,17 @@ export const OPERATIONAL_METRIC_SPECS = Object.freeze(
      * one was broken. The sink already counts them; nothing could publish them
      * from inside its own call tree, which is why this lives here.
      */
+    /**
+     * Samples that could not read the ledger.
+     *
+     * A skipped sample is a gap in every other metric on this page, and a gap
+     * nobody counts is indistinguishable from a quiet system. This is the number
+     * that says "these readings are missing", so the absence is visible.
+     */
+    bakery_metric_sample_failures_total: {
+      kind: "counter",
+      help: "Operational metric samples that could not read the ledger.",
+    },
     bakery_export_destination_failures_total: {
       kind: "counter",
       help: "Telemetry batches a destination failed to accept.",
@@ -100,7 +111,10 @@ export type OperationalMetricSpecs = typeof OPERATIONAL_METRIC_SPECS;
  * status/count pair, so the server never pulls a row per job into memory to count
  * it.
  */
-const SNAPSHOT_SQL = `
+/**
+ * Exported so a test reads the query production runs, not a copy of it.
+ */
+export const SNAPSHOT_SQL = `
 with job_states as (
   select status, count(*)::bigint as count
   from bakery.jobs
@@ -116,9 +130,15 @@ queue_age as (
 ),
 leases as (
   select
-    count(*) filter (where lease_expires_at > now())::bigint as live,
+    -- A live lease is one an attempt still holds: the attempt is leased and the
+    -- lease has not lapsed. Counting every attempt with a future expiry included
+    -- completed and failed attempts, whose expiry is simply a leftover timestamp,
+    -- which on a real ledger reported 3 live leases where 1 was held.
     count(*) filter (
-      where lease_expires_at <= now() and status = 'leased'
+      where status = 'leased' and lease_expires_at > now()
+    )::bigint as live,
+    count(*) filter (
+      where status = 'leased' and lease_expires_at <= now()
     )::bigint as expired
   from bakery.job_attempts
 ),
@@ -147,6 +167,14 @@ select
 /** What a sample needs. Everything is injected so the sampler is testable. */
 export type OperationalMetricSamplerDeps = {
   readonly database: Pick<PgDatabase, "query">;
+  /**
+   * Told of a failed sample, by classification only.
+   *
+   * Injected so a test can assert a failure is reported rather than swallowed,
+   * and so the caller decides where it goes. The value carries a code, never the
+   * database's message.
+   */
+  readonly onSampleError?: (failure: "query_failed") => void;
   readonly telemetry: Pick<Telemetry, "metrics" | "flushMetrics">;
   /** Per-destination batch failures, read from the sink's own counters. */
   readonly sink?: { stats(): Readonly<Record<string, { failed: number }>> };
@@ -183,10 +211,19 @@ export function createOperationalMetricSampler(
           status_open_bytes: string | number | null;
           retries: string | number | null;
         }>(SNAPSHOT_SQL);
-      } catch {
-        // A failed sample is a gap in the metrics, not a failed server. The next
-        // tick tries again and the exporter's own loss counter keeps the gap
-        // visible.
+      } catch (error) {
+        // A failed sample is a gap, not a failed server: the next tick tries
+        // again. But the gap must not be silent - QA found this swallowed, which
+        // made "the database is unavailable" look exactly like "nothing is
+        // happening". Count it, and log without the error text, which can carry
+        // a statement or a row value.
+        deps.telemetry.metrics.inc(
+          "bakery_metric_sample_failures_total",
+          {},
+          1,
+        );
+        deps.telemetry.flushMetrics();
+        deps.onSampleError?.(classify(error));
         return;
       }
       const row = result.rows[0];
@@ -307,6 +344,33 @@ export function startOperationalMetricSampling(
     stop: () => (options.clearInterval ?? clearInterval)(handle),
     sample: () => sampler.sample(),
   };
+}
+
+/**
+ * Which kind of failure this was, in words a log may carry.
+ *
+ * The driver's message can quote a statement or a value from the row it choked
+ * on, so only the classification leaves this function.
+ */
+function classify(_error: unknown): "query_failed" {
+  return "query_failed";
+}
+
+/**
+ * Shuts the sampler down and then closes telemetry, in that order.
+ *
+ * Named, exported and injected so a test can prove the order rather than read
+ * it: the last record written should be the last sample, not a reading of a
+ * database that is closing, and a shutdown that flushed first would lose that
+ * sample silently. QA found the previous inline version untested - a mutant that
+ * swapped the order survived.
+ */
+export async function stopSamplingThenCloseTelemetry(options: {
+  readonly sampling: { stop(): void };
+  readonly closeTelemetry: () => Promise<void>;
+}): Promise<void> {
+  options.sampling.stop();
+  await options.closeTelemetry();
 }
 
 /** Postgres returns bigint as a string; a null aggregate means zero, not NaN. */

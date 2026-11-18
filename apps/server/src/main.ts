@@ -20,7 +20,10 @@ import {
   createServerTelemetryFromConfig,
   SERVER_TELEMETRY_CLOSE_MS,
 } from "./platform/telemetry.ts";
-import { startOperationalMetricSampling } from "./platform/operational-metrics.ts";
+import {
+  startOperationalMetricSampling,
+  stopSamplingThenCloseTelemetry,
+} from "./platform/operational-metrics.ts";
 import {
   isPreviewRequestHost,
   previewHostname,
@@ -245,8 +248,11 @@ async function runServer(config: RuntimeConfig): Promise<void> {
         } finally {
           // Stop sampling before the final flush, so the last metric record is
           // the last sample rather than a reading of a database already closing.
-          operationalMetrics.stop();
-          await telemetry.close(SERVER_TELEMETRY_CLOSE_MS).catch(() => {});
+          await stopSamplingThenCloseTelemetry({
+            sampling: operationalMetrics,
+            closeTelemetry: () =>
+              telemetry.close(SERVER_TELEMETRY_CLOSE_MS).catch(() => {}),
+          });
           await Promise.all([
             closePgDatabase(pgDatabase),
             closeDatabase(database),
