@@ -23,6 +23,10 @@ import {
 } from "../../platform/postgres-errors.ts";
 import { resolveAgentSkillBindings } from "../catalog/agent-skill-bindings.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
+import {
+  assertMayPublishDefinition,
+  DefinitionKind,
+} from "../auth/application/definition-publish-grants.ts";
 
 const DEFINITIONS_ORDERING = "createdAt:desc,id:desc";
 const VERSIONS_ORDERING = "revision:desc,id:desc";
@@ -385,6 +389,13 @@ export async function activateAgentVersion(
   );
   const current = locked.rows[0];
   if (!current) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  // "Use this version" by an agent needs a publish grant (O52, #421).
+  await assertMayPublishDefinition(transaction, context, {
+    organizationId,
+    principalId,
+    kind: DefinitionKind.Agent,
+    definitionId: agentId,
+  });
   if (current.version !== expectedVersion) {
     throw new StandardError({ code: "PRECONDITION_FAILED" });
   }
@@ -521,6 +532,13 @@ export async function createAgentVersion(
   if (!locked.rows[0]) {
     throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
   }
+  // An agent version is published on create, so an agent needs a grant (O52).
+  await assertMayPublishDefinition(transaction, context, {
+    organizationId,
+    principalId,
+    kind: DefinitionKind.Agent,
+    definitionId: agentId,
+  });
   const max = await transaction.query<{ max: number }>(
     `select coalesce(max(revision), 0) as max
        from bakery.agent_versions
