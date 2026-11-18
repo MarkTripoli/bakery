@@ -16,7 +16,10 @@ concurrency:
 
 jobs:
   issue:
-    if: github.event_name == 'issues'
+    # Maintainers only: nobody outside the repository's collaborators triggers CI.
+    if: >-
+      github.event_name == 'issues' &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association)
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -37,7 +40,9 @@ jobs:
         run: deno run --no-config --allow-read=scripts/authoring --allow-env=GITHUB_REPOSITORY,GITHUB_TOKEN --allow-net=api.github.com scripts/authoring/github.ts check issue "$ISSUE_NUMBER"
 
   pull-request:
-    if: github.event_name == 'pull_request_target'
+    if: >-
+      github.event_name == 'pull_request_target' &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association)
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
