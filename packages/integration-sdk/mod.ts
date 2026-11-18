@@ -5,6 +5,9 @@ export {
 } from "./src/descriptions.ts";
 export type { SchemaDescriptionDefect } from "./src/descriptions.ts";
 export {
+  graphqlBody,
+  graphqlBodyCarriesDocument,
+  isGraphqlRead,
   isStrictObject,
   MAX_RESPONSE_BYTES,
   parsePathTemplate,

@@ -67,14 +67,13 @@ function graphqlDocumentOf(template: {
 }
 
 /**
- * Removes everything in a document that is not structure: comments (`#` to end
- * of line), string and block-string literals, and commas.
+ * Removes everything in a document that is not structure: comments and string
+ * and block-string literals. What is left is tokenised, so a field or an
+ * argument that merely contains the word `mutation` cannot confuse the read.
  *
- * Commas are insignificant whitespace in GraphQL, so `},mutation` chains a
- * second operation on the same line. A regex that requires whitespace before
- * the keyword therefore reads `query Q { a },mutation M { b }` as a query.
- * A field or argument may also contain the word `mutation` inside a string,
- * which must not count.
+ * Commas need no handling here. They are insignificant whitespace in GraphQL,
+ * which is why `},mutation` chains a second operation on the same line, but a
+ * comma is not an identifier character, so the tokeniser skips it already.
  */
 function graphqlStructure(document: string): string {
   let out = "";
@@ -117,7 +116,7 @@ function graphqlStructure(document: string): string {
     out += char;
     index++;
   }
-  return out.replaceAll(",", " ");
+  return out;
 }
 
 const GRAPHQL_TOKEN = /[A-Za-z_][A-Za-z0-9_]*|[{}]/g;
@@ -135,6 +134,44 @@ const GRAPHQL_WRITE_OPERATIONS = new Set(["mutation", "subscription"]);
  * two are separated. A field named `mutation` inside a selection is a field,
  * not an operation, and is allowed.
  */
+/**
+ * The GraphQL request body for a template: the declared document, with the
+ * caller's values only as variables.
+ *
+ * The broker must build the body with this rather than sending the caller's
+ * body through, or `effect: read` would be a claim about a document nobody
+ * sends: a template could declare a harmless query and post a mutation in the
+ * body, which would skip the write and approval gates that read bypasses.
+ * A body key that tries to carry a document is refused, so the document can
+ * only ever come from the template.
+ */
+export function graphqlBody(
+  document: string,
+  variables: Record<string, unknown>,
+): { query: string; variables: Record<string, unknown> } {
+  if (graphqlBodyCarriesDocument(variables)) {
+    throw new Error("GRAPHQL_BODY_CARRIES_DOCUMENT: a body may not carry one");
+  }
+  return { query: document, variables };
+}
+
+/** Envelope keys a caller's values may never fill, whichever template it is. */
+const GRAPHQL_ENVELOPE_KEYS: readonly string[] = [
+  "query",
+  "mutation",
+  "document",
+  "operationName",
+];
+
+/**
+ * True when a caller's values try to fill an envelope key, so the document
+ * could come from the caller rather than the template.
+ */
+export function graphqlBodyCarriesDocument(values: unknown): boolean {
+  return typeof values === "object" && values !== null &&
+    GRAPHQL_ENVELOPE_KEYS.some((key) => Object.hasOwn(values, key));
+}
+
 export function isGraphqlRead(query: string): boolean {
   const tokens = graphqlStructure(query).match(GRAPHQL_TOKEN);
   if (!tokens || tokens.length === 0) return false;

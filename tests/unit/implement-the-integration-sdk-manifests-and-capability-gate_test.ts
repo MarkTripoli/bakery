@@ -17,9 +17,12 @@ import {
 import {
   defineAction,
   defineIntegration,
+  graphqlBody,
+  graphqlBodyCarriesDocument,
   IntegrationActivationError,
   IntegrationContractError,
   isDefinedIntegration,
+  isGraphqlRead,
   validateIntegration,
 } from "@bakery/integration-sdk";
 import type { DefinedAction } from "@bakery/integration-sdk";
@@ -368,6 +371,46 @@ Deno.test("a graphql request may be a read only when its document is a query", (
     assert(
       parse(graphql({ graphqlQuery: document })).success,
       `a read document was refused: ${document}`,
+    );
+  }
+
+  // The broker must build the body from the template, not from the caller. If
+  // the caller's body were sent through, `effect: read` would be a claim about
+  // a document nobody sends: a template could declare a query and post a
+  // mutation in the body, skipping the write and approval gates reads bypass.
+  {
+    const sent = JSON.parse(
+      JSON.stringify(
+        graphqlBody("query Q($n: Int!) { issues(first: $n) { id } }", {
+          n: 5,
+        }),
+      ),
+    ) as { query: string; variables: Record<string, unknown> };
+    assertEquals(sent.query, "query Q($n: Int!) { issues(first: $n) { id } }");
+    assertEquals(sent.variables, { n: 5 });
+    // The document sent is the one that was checked as a read.
+    assert(isGraphqlRead(sent.query), "the sent document must be the query");
+
+    for (const key of ["query", "mutation", "document", "operationName"]) {
+      assert(
+        graphqlBodyCarriesDocument({ [key]: "mutation M { b }" }),
+        `a body key ${key} must be refused`,
+      );
+      assertThrows(
+        () => graphqlBody("query Q { a }", { [key]: "mutation M { b }" }),
+        Error,
+        "GRAPHQL_BODY_CARRIES_DOCUMENT",
+      );
+    }
+    // Only the envelope keys are refused; an ordinary variable name is fine.
+    assert(!graphqlBodyCarriesDocument({ first: 5, filter: "open" }));
+    assert(!graphqlBodyCarriesDocument(null));
+    assert(!graphqlBodyCarriesDocument("query Q { a }"));
+    // A variable that is innocently named still cannot smuggle one in: only
+    // these four names are refused, so the check is on the envelope keys.
+    assertEquals(
+      Object.keys(graphqlBody("query Q { a }", { first: 1 })),
+      ["query", "variables"],
     );
   }
 
