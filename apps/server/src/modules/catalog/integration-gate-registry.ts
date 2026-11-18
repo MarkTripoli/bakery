@@ -78,6 +78,19 @@ export function deployedIntegrationsDefects(): string[] {
  * A schema is code, not data. The manifest is what this freeze exists to protect,
  * and the surrounding handler object is still frozen, so `input` and `output` cannot
  * be swapped out at runtime; only the instance's internal cache stays writable.
+ *
+ * A zod schema is skipped: it is a library object, not definition data. It carries
+ * internal caches that `z.toJSONSchema` fills on first use, so a schema frozen
+ * before that use cannot be converted at all - `toJSONSchema` then reports the
+ * opaque "Error converting schema to JSON". `computeManifestDigest` converts every
+ * handler input and output, so freezing them here made `createApp` throw on
+ * startup for every integration test. Frozen manifest data still stops a provider
+ * from redefining itself, which is what this helper is for.
+ */
+/**
+ * Whether a value is a zod schema, recognised by its own shape rather than by
+ * importing zod: this module holds the definitions' data and must not pull the
+ * schema library in to describe it.
  */
 function isZodSchema(value: unknown): boolean {
   return typeof (value as { _zod?: { def?: unknown } } | null)?._zod?.def ===

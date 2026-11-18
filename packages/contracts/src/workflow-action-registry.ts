@@ -246,7 +246,7 @@ export const WORKFLOW_ACTION_METADATA = Object.freeze(
       capabilities: [],
       cancel: "immediate",
       retry: { maxAttempts: 1, backoff: "0s", faults: [] },
-      effectPolicy: "projection_only",
+      effectPolicy: "none",
     }),
     "human.approval": metadata({
       input: "HumanApprovalInput",

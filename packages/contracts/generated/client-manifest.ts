@@ -965,6 +965,52 @@ export const clientManifest = {
     },
     {
       "group": "Work",
+      "method": "GET",
+      "path": "/v1/sessions",
+      "action": "sessions.list",
+      "access": "Developer",
+      "permission": "session:read",
+      "input": "SessionList",
+      "output": "AgentSessionPage",
+      "event": "",
+      "mcp": "bakery_sessions_list",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Work",
+      "method": "GET",
+      "path": "/v1/sessions/{id}/feed",
+      "action": "sessions.feed",
+      "access": "Developer",
+      "permission": "session:read",
+      "input": "SessionFeedList",
+      "output": "SessionFeed",
+      "event": "",
+      "mcp": "bakery_sessions_feed",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Work",
       "method": "POST",
       "path": "/v1/sessions/{id}/messages",
       "action": "sessions.steer",
@@ -11677,6 +11723,8 @@ export const clientManifest = {
             "runs.control",
             "runs.retry",
             "sessions.get",
+            "sessions.list",
+            "sessions.feed",
             "sessions.steer",
             "conversations.list",
             "conversations.get",
@@ -18838,6 +18886,69 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Snapshot-bounded bulk mark-all-read for the recipient's own inbox: arrivals after the cutoff are deliberately left unread."
+    },
+    "SessionFeedList": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Session whose live feed is being read; also the session path parameter."
+        },
+        "cursor": {
+          "description": "SessionFeedList.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "sequenceAfter": {
+          "description": "Internal forward marker used by the server's event stream to ask for items after a sequence it already sent; clients use cursor instead and never set this.",
+          "type": "string",
+          "pattern": "^(?:0|[1-9][0-9]*)$"
+        },
+        "limit": {
+          "description": "SessionFeedList.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false,
+      "description": "Reads one page of a session's typed, ordered, redacted live feed forward from an optional cursor."
+    },
+    "SessionList": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "runStepId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Run step whose agent sessions are being listed; every returned session belongs to it."
+        },
+        "cursor": {
+          "description": "SessionList.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "limit": {
+          "description": "SessionList.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "runStepId"
+      ],
+      "additionalProperties": false,
+      "description": "Lists the agent sessions that belong to one run step, so a client can reach a session by run rather than by an id it already knows."
     },
     "UserPreferences": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -30730,6 +30841,8 @@ export const clientManifest = {
                   "runs.control",
                   "runs.retry",
                   "sessions.get",
+                  "sessions.list",
+                  "sessions.feed",
                   "sessions.steer",
                   "conversations.list",
                   "conversations.get",
@@ -46779,6 +46892,8 @@ export const clientManifest = {
             "runs.control",
             "runs.retry",
             "sessions.get",
+            "sessions.list",
+            "sessions.feed",
             "sessions.steer",
             "conversations.list",
             "conversations.get",
@@ -66426,6 +66541,950 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Outcome of a snapshot-bounded mark-all-read: how many items were marked, how many are still unread, and the resulting revision."
+    },
+    "SessionFeed": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID identifying the feed item, used as the keyset tie-breaker when two items share a sequence."
+              },
+              "sessionId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID of the agent session this feed item belongs to; every item is keyed by session."
+              },
+              "sequence": {
+                "type": "string",
+                "pattern": "^(?:0|[1-9][0-9]*)$",
+                "description": "Monotonic per-session sequence number; the feed is ordered by sequence ascending, then id, and a client resumes from the last sequence it saw."
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "message",
+                  "terminal",
+                  "status",
+                  "tool",
+                  "file_change",
+                  "artifact",
+                  "usage",
+                  "delivered_input"
+                ],
+                "description": "Which typed payload this item carries; exactly the one payload field named by kind is non-null."
+              },
+              "occurredAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the underlying fact happened, never when it was read."
+              },
+              "redacted": {
+                "type": "boolean",
+                "description": "True when secret or credential material was removed from this item's payload before it reached the feed; the item is still present so the sequence stays gapless."
+              },
+              "message": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "messageId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "Stable UUID of the conversation message this item mirrors."
+                      },
+                      "authorId": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                            "description": "Stable UUID of the author, null when the author is the system."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "SessionFeedMessage.authorId may be null in this transport value."
+                      },
+                      "authorKind": {
+                        "type": "string",
+                        "enum": [
+                          "person",
+                          "agent",
+                          "system"
+                        ],
+                        "description": "Who produced the message, so a client can render attribution without a second lookup."
+                      },
+                      "messageType": {
+                        "type": "string",
+                        "enum": [
+                          "user",
+                          "assistant",
+                          "system",
+                          "tool_summary"
+                        ],
+                        "description": "Stored message classification."
+                      },
+                      "body": {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "Message body after redaction."
+                      }
+                    },
+                    "required": [
+                      "messageId",
+                      "authorId",
+                      "authorKind",
+                      "messageType",
+                      "body"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Present when kind is message."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "SessionFeedItem.message may be null in this transport value."
+              },
+              "terminal": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "stream": {
+                        "type": "string",
+                        "enum": [
+                          "stdout",
+                          "stderr"
+                        ],
+                        "description": "Which terminal stream the text came from."
+                      },
+                      "text": {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "Terminal text after redaction, chunked by the producer."
+                      }
+                    },
+                    "required": [
+                      "stream",
+                      "text"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Present when kind is terminal."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "SessionFeedItem.terminal may be null in this transport value."
+              },
+              "status": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "fromStatus": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "starting",
+                              "active",
+                              "waiting",
+                              "finished",
+                              "failed",
+                              "interrupted"
+                            ],
+                            "description": "Session status before the transition, null for the first status event."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "SessionFeedStatus.fromStatus may be null in this transport value."
+                      },
+                      "toStatus": {
+                        "type": "string",
+                        "enum": [
+                          "starting",
+                          "active",
+                          "waiting",
+                          "finished",
+                          "failed",
+                          "interrupted"
+                        ],
+                        "description": "Session status after the transition."
+                      },
+                      "reason": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 65536,
+                            "description": "Bounded machine reason for the transition when one was recorded."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "SessionFeedStatus.reason may be null in this transport value."
+                      }
+                    },
+                    "required": [
+                      "fromStatus",
+                      "toStatus",
+                      "reason"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Present when kind is status."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "SessionFeedItem.status may be null in this transport value."
+              },
+              "tool": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "callId": {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "Harness-scoped identifier for one tool invocation."
+                      },
+                      "name": {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "Tool name as the harness reported it."
+                      },
+                      "phase": {
+                        "type": "string",
+                        "enum": [
+                          "started",
+                          "completed",
+                          "failed"
+                        ],
+                        "description": "Which part of the tool's life this item records."
+                      },
+                      "ok": {
+                        "anyOf": [
+                          {
+                            "type": "boolean",
+                            "description": "Outcome once known; null while the call is still open."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "SessionFeedTool.ok may be null in this transport value."
+                      }
+                    },
+                    "required": [
+                      "callId",
+                      "name",
+                      "phase",
+                      "ok"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Present when kind is tool."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "SessionFeedItem.tool may be null in this transport value."
+              },
+              "fileChange": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "Workspace-relative path, bounded by the workspace revision."
+                      },
+                      "change": {
+                        "type": "string",
+                        "enum": [
+                          "created",
+                          "modified",
+                          "deleted",
+                          "renamed"
+                        ],
+                        "description": "What happened to the file."
+                      }
+                    },
+                    "required": [
+                      "path",
+                      "change"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Present when kind is file_change."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "SessionFeedItem.fileChange may be null in this transport value."
+              },
+              "artifact": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "artifactId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "Stable UUID of the artifact version that was published."
+                      },
+                      "name": {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "Artifact name within the run."
+                      },
+                      "version": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991,
+                            "description": "Artifact version number when the artifact is versioned, else null."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "SessionFeedArtifact.version may be null in this transport value."
+                      }
+                    },
+                    "required": [
+                      "artifactId",
+                      "name",
+                      "version"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Present when kind is artifact."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "SessionFeedItem.artifact may be null in this transport value."
+              },
+              "usage": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "inputTokens": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "pattern": "^(?:0|[1-9][0-9]*)$",
+                            "description": "Provider-reported input tokens when known."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "SessionFeedUsage.inputTokens may be null in this transport value."
+                      },
+                      "outputTokens": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "pattern": "^(?:0|[1-9][0-9]*)$",
+                            "description": "Provider-reported output tokens when known."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "SessionFeedUsage.outputTokens may be null in this transport value."
+                      },
+                      "costUsd": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 65536,
+                            "description": "Provider-reported USD cost when known."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "SessionFeedUsage.costUsd may be null in this transport value."
+                      }
+                    },
+                    "required": [
+                      "inputTokens",
+                      "outputTokens",
+                      "costUsd"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Present when kind is usage."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "SessionFeedItem.usage may be null in this transport value."
+              },
+              "deliveredInput": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "messageId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "Stable UUID of the steering message that was delivered."
+                      },
+                      "body": {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "Delivered steering text after redaction."
+                      }
+                    },
+                    "required": [
+                      "messageId",
+                      "body"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Present when kind is delivered_input."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "SessionFeedItem.deliveredInput may be null in this transport value."
+              }
+            },
+            "required": [
+              "id",
+              "sessionId",
+              "sequence",
+              "kind",
+              "occurredAt",
+              "redacted",
+              "message",
+              "terminal",
+              "status",
+              "tool",
+              "fileChange",
+              "artifact",
+              "usage",
+              "deliveredInput"
+            ],
+            "additionalProperties": false,
+            "description": "Feed items in ascending sequence order, at most 100 per page. Each array item follows this format."
+          },
+          "description": "Feed items in ascending sequence order, at most 100 per page."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque cursor to pass back to read the next page; null when the feed has no more items."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "SessionFeed.nextCursor may be null in this transport value."
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "One page of a session's typed, ordered, redacted live feed, keyed by session and read forward from a sequence cursor."
+    },
+    "AgentSessionPage": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID identifying the agent session record."
+              },
+              "runStepId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Stable UUID linking this record to the related run step entity."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "AgentSession.runStepId may be null in this transport value."
+              },
+              "conversationId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID linking this record to the related conversation entity."
+              },
+              "agentVersionId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID linking this record to the related agent version entity."
+              },
+              "harness": {
+                "type": "string",
+                "enum": [
+                  "mastra",
+                  "pi",
+                  "claude_code",
+                  "codex"
+                ],
+                "description": "Execution harness that owns the session."
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "starting",
+                  "active",
+                  "waiting",
+                  "finished",
+                  "failed",
+                  "interrupted"
+                ],
+                "description": "Current lifecycle status of the record."
+              },
+              "resumeRef": {
+                "anyOf": [
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "description": "JSON string value."
+                      },
+                      {
+                        "type": "number",
+                        "description": "JSON number value."
+                      },
+                      {
+                        "type": "boolean",
+                        "description": "JSON boolean value."
+                      },
+                      {
+                        "type": "null",
+                        "description": "JSON null value."
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "$ref": "#/$defs/__schema0"
+                        },
+                        "description": "JSON array value."
+                      },
+                      {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string",
+                          "description": "JSON object key."
+                        },
+                        "additionalProperties": {
+                          "$ref": "#/$defs/__schema0"
+                        },
+                        "description": "JSON object value."
+                      }
+                    ],
+                    "description": "Opaque provider reference used to resume the session."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "AgentSession.resumeRef may be null in this transport value."
+              },
+              "parentSessionId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Stable UUID linking this record to the related parent session entity."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "AgentSession.parentSessionId may be null in this transport value."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the record was created."
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the record was last updated."
+              },
+              "version": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Optimistic-concurrency version used when updating the record."
+              },
+              "adapterCapabilities": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "Steering capabilities advertised by the worker session currently running this agent session, empty when none or when no worker is attached."
+              }
+            },
+            "required": [
+              "id",
+              "runStepId",
+              "conversationId",
+              "agentVersionId",
+              "harness",
+              "status",
+              "resumeRef",
+              "parentSessionId",
+              "createdAt",
+              "updatedAt",
+              "version"
+            ],
+            "additionalProperties": false,
+            "description": "Authorized agent sessions in stable createdAt then id ascending order. Each array item follows this format."
+          },
+          "description": "AgentSessionPage.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "AgentSessionPage.nextCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "AgentSessionPage.nextCursor may be null in this transport value."
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "One page of the agent sessions that belong to a run step, newest page last.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        },
+        "__schema1": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
     }
   }
 } as const;
