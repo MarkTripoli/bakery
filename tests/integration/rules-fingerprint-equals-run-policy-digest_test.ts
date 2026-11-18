@@ -144,6 +144,19 @@ Deno.test("#65 AC1: the rules fingerprint equals the policyDigest a run records,
     assertEquals(rulesAfter.digest, after);
     assertEquals(rulesAfter.hasFixedPolicy, true);
 
+    // A preview of the current rules carries the same fingerprint.
+    const preview = await expectJson<{ effective: { digest: string } }>(
+      await apiCall(
+        fixture,
+        fixture,
+        "POST",
+        `/v1/repositories/${repository.repositoryId}/rule-previews`,
+        { body: { overrides: { entries: [] } } },
+      ),
+      200,
+    );
+    assertEquals(preview.effective.digest, after);
+
     // A profile without a fixed policy admits runs that record no check.
     const plain = await seedPresetRepository(fixture.pgDatabase, fixture, {});
     const plainRules = await expectJson<{ hasFixedPolicy?: boolean }>(

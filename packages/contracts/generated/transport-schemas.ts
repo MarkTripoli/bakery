@@ -19162,7 +19162,7 @@ const transportSchemas = {
         "organizationRevision": "Organization rules revision resolved against; 0 means no organization revision is published yet.",
         "entries": "Effective rule entries in canonical rule-key order, each with its provenance and source organization revision.",
         "supersededOverrides": "Proposed overrides that would be inactive under an organization lock; always empty when the preview has no lock conflicts.",
-        "digest": "Lowercase SHA-256 of the canonical effective entries and organization revision."
+        "digest": "Rules fingerprint the proposed rules would have: computed exactly as the effective-rules read's digest and a run check's policyDigest, over the active profile's fixed policy and these entries."
       }
     },
     "RuleSampleFinding": {

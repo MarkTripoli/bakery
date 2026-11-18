@@ -45978,7 +45978,7 @@ export const clientManifest = {
                 "digest": {
                   "type": "string",
                   "pattern": "^[a-f0-9]{64}$",
-                  "description": "Lowercase SHA-256 of the canonical effective entries and organization revision."
+                  "description": "Rules fingerprint the proposed rules would have: computed exactly as the effective-rules read's digest and a run check's policyDigest, over the active profile's fixed policy and these entries."
                 }
               },
               "required": [

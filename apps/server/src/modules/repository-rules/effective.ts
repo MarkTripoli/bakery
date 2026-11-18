@@ -127,6 +127,21 @@ export function checkerAvailability(
   };
 }
 
+/**
+ * The fixed policy of an active profile config, or undefined when it has none
+ * (schema v1, no fixed policy, or a config that does not parse). The read and
+ * the preview fingerprint the same profile with this one helper.
+ */
+export function activeFixedPolicy(
+  profileConfig: unknown,
+): Parameters<typeof rulesPolicyDigest>[0] {
+  const config = RepositoryVersionedProfileConfigSchema.safeParse(
+    profileConfig,
+  );
+  if (!config.success || config.data.schemaVersion !== 2) return undefined;
+  return config.data.fixedPolicy;
+}
+
 type EffectiveRow = {
   repository_id: string;
   repository_version: number;
@@ -200,9 +215,7 @@ export async function getEffectiveRepositoryRules(
       });
     }
     overrides = config.data.repositoryRules ?? NO_OVERRIDES;
-    fixedPolicy = config.data.schemaVersion === 2
-      ? config.data.fixedPolicy
-      : undefined;
+    fixedPolicy = activeFixedPolicy(config.data);
     commandIds = new Set(
       (config.data.fixedPolicy?.commands ?? []).map((command) => command.id),
     );
