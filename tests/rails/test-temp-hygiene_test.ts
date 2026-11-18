@@ -378,3 +378,143 @@ Deno.test("the runner reports a lane root it could not remove, and fails a stric
     "a lenient run still reports it",
   );
 });
+
+/** Whether a process with this pid is still there. */
+function alive(pid: number): boolean {
+  try {
+    Deno.kill(pid, "SIGCONT");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+for (const signal of ["SIGTERM", "SIGINT"] as const) {
+  Deno.test(`a ${signal} to the runner is forwarded to the test process and the lane root is still swept (#254)`, async () => {
+    const base = await Deno.makeTempDir({ prefix: "bkl-" });
+    let pid = 0;
+    try {
+      const runner = new Deno.Command(Deno.execPath(), {
+        args: [
+          "run",
+          "--allow-env",
+          "--allow-read",
+          "--allow-run",
+          "scripts/run-tests.ts",
+          "unit",
+          "tests/unit/fixtures/wait-for-signal.fixture.ts",
+        ],
+        env: { TMPDIR: base, BAKERY_TEST_TMP_STRICT: "0" },
+        stdin: "null",
+        stdout: "piped",
+        stderr: "piped",
+      }).spawn();
+      const output = runner.output();
+      // The fixture says it is running by writing its pid into the lane root.
+      const ready = async () => {
+        for (let attempt = 0; attempt < 300; attempt += 1) {
+          for (const entry of entriesOf(base)) {
+            try {
+              return Number(
+                await Deno.readTextFile(`${base}/${entry}/ready`),
+              );
+            } catch {
+              // Not there yet.
+            }
+          }
+          await new Promise((resolve) => setTimeout(resolve, 200));
+        }
+        return 0;
+      };
+      pid = await ready();
+      assertEquals(pid > 0, true, "the fixture never started");
+      runner.kill(signal);
+      // With the signal forwarded the run ends at once; without it the runner
+      // waits for the fixture's own 60 s, so a bound here is the failure.
+      const finished = await Promise.race([
+        output,
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 30_000)),
+      ]);
+      if (finished === null) {
+        runner.kill("SIGKILL");
+        throw new Error(`the runner did not end after a ${signal}`);
+      }
+      const text = new TextDecoder().decode(finished.stdout) +
+        new TextDecoder().decode(finished.stderr);
+      assertEquals(
+        finished.code,
+        signal === "SIGINT" ? 130 : 143,
+        text.slice(-1200),
+      );
+      assertEquals(alive(pid), false, "the test process was left running");
+      assertEquals(entriesOf(base), [], "the lane root was not swept");
+      assertEquals(
+        text.includes("bakery-fixture-signal"),
+        true,
+        `the sweep did not report what was left: ${text.slice(-800)}`,
+      );
+    } finally {
+      if (pid > 0 && alive(pid)) Deno.kill(pid, "SIGKILL");
+      removeTreeSync(base);
+    }
+  });
+}
+
+Deno.test("the root tool refuses a lane root named only by its prefix (#254)", async () => {
+  const base = await Deno.makeTempDir({ prefix: "bkl-" });
+  try {
+    for (const name of ["bakery-lane-", "bakery-lane-a-b", "bakery-lane-.."]) {
+      const root = `${base}/${name}`;
+      await Deno.mkdir(root, { recursive: true }).catch(() => {});
+      for (const command of ["sweep", "skeleton"]) {
+        const run = await new Deno.Command(Deno.execPath(), {
+          args: [
+            "run",
+            "--allow-read",
+            `--allow-write=${base}`,
+            "scripts/ci/test-temp-root.ts",
+            command,
+            base,
+            root,
+          ],
+          stdin: "null",
+          stdout: "piped",
+          stderr: "piped",
+        }).output();
+        assertEquals(run.code, 2, `${command} ${name} was not refused`);
+      }
+    }
+    // The prefix alone is a directory this tool never made: it is left in place.
+    assertEquals(entriesOf(base).includes("bakery-lane-"), true);
+  } finally {
+    removeTreeSync(base);
+  }
+});
+
+Deno.test("the preload's wrappers keep their names and run after a test's own unload handler (#253)", async () => {
+  const run = await runUnitLane(
+    ["tests/unit/fixtures/temp-preload-fidelity.fixture.ts"],
+    true,
+  );
+  assertEquals(run.code, 0, run.text.slice(-1200));
+  assertEquals(
+    run.text.includes("NotFound"),
+    false,
+    "the preload removed the directory before the test's own unload handler",
+  );
+  assertEquals(run.left, [], "the lane left temp entries behind");
+});
+
+Deno.test("a temp dir made inside a Worker is caught by the sweep, which says so (#253)", async () => {
+  const strict = await runUnitLane(
+    ["tests/unit/fixtures/temp-in-worker.fixture.ts"],
+    true,
+  );
+  assertEquals(strict.code, 3, strict.text.slice(-1200));
+  assertEquals(
+    strict.text.includes("bakery-fixture-worker"),
+    true,
+    strict.text.slice(-800),
+  );
+  assertEquals(strict.left, [], "the swept root was left in the temp dir");
+});

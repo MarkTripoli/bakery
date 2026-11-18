@@ -25,6 +25,15 @@ import { entriesOf, kindOf, removeTreeSync } from "./temp-tree.ts";
 export const LANE_ROOT_PREFIX = "bakery-lane-";
 
 /**
+ * Whether `name` is the basename of a lane root this tool makes: the prefix
+ * and the random suffix `makeTempDir` adds. The prefix alone, with no suffix,
+ * is not one (#254): it would name a directory a person or another tool made.
+ */
+export function isLaneRootName(name: string): boolean {
+  return new RegExp(`^${LANE_ROOT_PREFIX}[A-Za-z0-9]+$`).test(name);
+}
+
+/**
  * What the pinned mise writes into any HOME it runs under (#246): the settings
  * file of the Rust tool the operator's global configuration pins, as
  * `.rustup/settings.toml` and nothing else. It is not a test that depended on a
@@ -97,7 +106,7 @@ if (import.meta.main) {
     // Only ever a root this tool made, directly under the base it was given.
     if (
       !root || dirname(root) !== base.replace(/\/+$/, "") ||
-      !basename(root).startsWith(LANE_ROOT_PREFIX)
+      !isLaneRootName(basename(root))
     ) {
       console.error(
         `test-temp-root: refusing to ${command} a path that is not a lane root`,

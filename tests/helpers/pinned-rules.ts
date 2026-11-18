@@ -279,7 +279,13 @@ export function planDefinition(definition: {
     name: "fixture-plan",
     ...(definition.inputs === undefined ? {} : { inputs: definition.inputs }),
     ...(definition.agents === undefined ? {} : { agents: definition.agents }),
-    steps: definition.steps,
+    // A bare list of action steps is the flat grammar, which has no executor.
+    // Wrapping it in one container makes it a compiled plan, the engine
+    // decides each step, and a caller that already passes containers is left
+    // alone.
+    steps: definition.steps.some((step) => Array.isArray(step.steps))
+      ? definition.steps
+      : [{ id: "flow", steps: definition.steps }],
   };
 }
 
