@@ -1095,3 +1095,42 @@ Deno.test("a non-retryable 4xx refuses only the oldest unanswered piece; the res
   assertEquals(snapshot.refused.map((piece) => piece.text), ["one"]);
   assertEquals(snapshot.pendingCount, 1);
 });
+
+const problemFrame = (status: number, retryable: boolean) => ({
+  type: "problem",
+  requestId: null,
+  problem: {
+    type: "https://bakery.dev/problems/some_problem",
+    title: "Problem",
+    status,
+    detail: "d",
+    code: "SOME_PROBLEM",
+    requestId: "11111111-1111-4111-8111-111111111111",
+    retryable,
+  },
+});
+
+for (
+  const [status, retryable] of [[429, true], [503, true], [500, false]] as const
+) {
+  Deno.test(`a ${status} problem keeps what was typed: it is the server's trouble, not a refusal`, () => {
+    const h = harness();
+    const { socket } = connect(h, "Intro");
+    type(h, "keep", 5);
+    socket.receive(problemFrame(status, retryable));
+    const snapshot = h.session.getSnapshot();
+    assertEquals(snapshot.refused.length, 0);
+    assertEquals(snapshot.pendingCount, 1);
+  });
+}
+
+Deno.test("after a refused non-retryable 4xx the document is rebuilt, so the refused text is not left in the editor", () => {
+  const h = harness();
+  const { socket } = connect(h, "Intro");
+  const before = h.session.getSnapshot().documentVersion;
+  type(h, "refused", 5);
+  assertEquals(h.session.document.getText("body").toString(), "Introrefused");
+  socket.receive(problemFrame(413, false));
+  assertEquals(h.session.getSnapshot().documentVersion, before + 1);
+  assertEquals(h.session.document.getText("body").toString(), "");
+});
