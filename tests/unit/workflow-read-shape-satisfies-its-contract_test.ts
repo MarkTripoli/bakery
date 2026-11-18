@@ -24,6 +24,9 @@ const row = {
   origin_source_workflow_id: null,
   origin_source_version_id: null,
   origin_source_digest: null,
+  visibility: "listed",
+  origin_conversation_id: null,
+  origin_turn_id: null,
 };
 
 Deno.test("an authored definition's read shape satisfies the Workflow contract", () => {
@@ -76,6 +79,19 @@ Deno.test("a copy's read shape names its source and satisfies the contract", () 
     sourceVersionId: "33333333-3333-4333-8333-333333333333",
     sourceDigest: "a".repeat(64),
   });
+  const parsed = contractSchemas.Workflow.safeParse(shape);
+  assertEquals(parsed.success, true, JSON.stringify(parsed.error?.issues));
+});
+
+Deno.test("an unlisted coordinator definition's read shape satisfies the contract", () => {
+  const shape = toWorkflowDefinition({
+    ...row,
+    origin_kind: "coordinator",
+    visibility: "unlisted",
+    origin_conversation_id: "22222222-2222-4222-8222-222222222222",
+    origin_turn_id: "33333333-3333-4333-8333-333333333333",
+  });
+  assertEquals(shape.visibility, "unlisted");
   const parsed = contractSchemas.Workflow.safeParse(shape);
   assertEquals(parsed.success, true, JSON.stringify(parsed.error?.issues));
 });
