@@ -1,6 +1,6 @@
 import type { WebhookIngress } from "@bakery/integration-sdk";
 import { INTAKE_MAX_BODY_BYTES } from "../../integrations/intake-body.ts";
-import { equalDigests, hmacSha256 } from "./hmac-sha256.ts";
+import { equalDigests, hmacSha256 } from "./webhook-signature.ts";
 
 /**
  * The GitHub App delivery ingress, as the SDK's port (chapter 09 section 12.2).

@@ -1,17 +1,16 @@
 import { assert, assertEquals } from "@std/assert";
 import type { IntakeIntent } from "@bakery/integration-sdk";
 import { githubIngress } from "../../apps/server/src/modules/catalog/integration-providers/github-ingress.ts";
-import { hmacSha256 } from "../../apps/server/src/modules/catalog/integration-providers/hmac-sha256.ts";
+import { hmacSha256 } from "../../apps/server/src/modules/catalog/integration-providers/webhook-signature.ts";
 import { INTAKE_MAX_BODY_BYTES } from "../../apps/server/src/modules/integrations/intake-body.ts";
 
 /**
  * #408 slice 5: the GitHub delivery ingress behind the SDK's `WebhookIngress`.
  *
- * These tests exist because the verification primitive here is the one
- * hand-written hash in the repository. The first test pins it against Web
- * Crypto, so a mistake in the arithmetic fails the suite rather than a delivery;
- * everything after it tests the port's decisions, which is what the core relies
- * on when it hands the provider exact bytes.
+ * The first test pins the HMAC wrapper against Web Crypto, so the port cannot
+ * drift from the primitive it claims to use; everything after it tests the
+ * port's decisions, which is what the core relies on when it hands the provider
+ * exact bytes.
  */
 
 const enc = (value: string): Uint8Array<ArrayBuffer> =>
@@ -29,7 +28,7 @@ const installation = (action: string, extra: Record<string, unknown> = {}) => ({
   ...extra,
 });
 
-Deno.test("the hand-written HMAC agrees with Web Crypto", async () => {
+Deno.test("the signature primitive agrees with Web Crypto", async () => {
   const cases: Array<[string, string]> = [
     ["key", "The quick brown fox jumps over the lazy dog"],
     ["secret", "x".repeat(1_000)],
@@ -58,7 +57,7 @@ Deno.test("the hand-written HMAC agrees with Web Crypto", async () => {
 
 Deno.test("digest comparison is length-checked and constant-shape", async () => {
   const { equalDigests } = await import(
-    "../../apps/server/src/modules/catalog/integration-providers/hmac-sha256.ts"
+    "../../apps/server/src/modules/catalog/integration-providers/webhook-signature.ts"
   );
   const left = hmacSha256(secret, enc("a"));
   assertEquals(equalDigests(left, hmacSha256(secret, enc("a"))), true);
