@@ -32,15 +32,20 @@ import {
   type WorkflowValidationIssue,
 } from "./validation.ts";
 import { assertWorkflowSatisfiesRepositoryRules } from "./rule-guard.ts";
+import { attributeAction } from "../auth/application/action-attribution.ts";
 import type { WorkflowsActionHandlers } from "./actions.ts";
+import {
+  decideWorkflowDefinitionProposal,
+  getWorkflowDefinitionProposal,
+} from "./definition-proposals.ts";
 
 const DEFINITIONS_ORDERING = "createdAt:desc,id:desc";
 const VERSIONS_ORDERING = "revision:desc,id:desc";
 const DEFINITION_COLUMNS =
-  "id, slug, name, description, active_version_id, enabled, created_at, updated_at, version, origin_kind, origin_catalog_key, origin_catalog_version";
+  "id, slug, name, description, active_version_id, enabled, created_at, updated_at, version, origin_kind, origin_catalog_key, origin_catalog_version, visibility, origin_conversation_id, origin_turn_id";
 const PRESET_SLUG_PREFIX = "preset:";
 
-type WorkflowDefinitionRow = {
+export type WorkflowDefinitionRow = {
   id: string;
   slug: string;
   name: string;
@@ -53,9 +58,40 @@ type WorkflowDefinitionRow = {
   origin_kind: string;
   origin_catalog_key: string | null;
   origin_catalog_version: number | null;
+  visibility: string;
+  origin_conversation_id: string | null;
+  origin_turn_id: string | null;
 };
 
-type WorkflowVersionRow = {
+/** Library visibility of a definition (chapter 25 primitive 2). */
+export const WorkflowVisibility = Object.freeze(
+  { Listed: "listed", Unlisted: "unlisted" } as const,
+);
+export type WorkflowVisibility =
+  typeof WorkflowVisibility[keyof typeof WorkflowVisibility];
+
+/** Origin kind written for a definition a coordinator proposal created. */
+export const COORDINATOR_ORIGIN_KIND = "coordinator";
+
+/** Who and what a write is attributed to; the handlers' and proposals' shared facts. */
+export type WorkflowWriteFacts = Readonly<{
+  organizationId: string;
+  principalId: string;
+  requestId: string;
+  traceId: string;
+}>;
+
+function writeFactsOf(context: ActionContext): WorkflowWriteFacts {
+  const { organizationId, principalId } = requireWorkTransaction(context);
+  return {
+    organizationId,
+    principalId,
+    requestId: context.requestId,
+    traceId: context.traceId,
+  };
+}
+
+export type WorkflowVersionRow = {
   id: string;
   workflow_id: string;
   revision: number;
@@ -70,7 +106,11 @@ type WorkflowVersionRow = {
 };
 
 type CursorQueryInput = { cursor?: string; limit?: number };
-type WorkflowCreateInput = { slug: string; name: string; description: string };
+export type WorkflowCreateInput = {
+  slug: string;
+  name: string;
+  description: string;
+};
 type WorkflowUpdateInput = {
   name?: string;
   description?: string | null;
@@ -99,14 +139,37 @@ export function toWorkflowDefinition(row: WorkflowDefinitionRow) {
     // `catalog` origins carry the key and version they were installed from;
     // the other kinds carry nulls rather than invented values.
     origin: originOf(row),
+    // Unlisted definitions are readable by id and runnable at an exact
+    // published version, but absent from the library list (#420).
+    visibility: visibilityOf(row.visibility),
   };
+}
+
+/** Origin kinds a definition row may carry (0175 and #420). */
+export const WorkflowOriginKinds = Object.freeze(
+  ["authored", "catalog", "copy", "coordinator"] as const,
+);
+type WorkflowOriginKind = typeof WorkflowOriginKinds[number];
+
+function originKindOf(value: string): WorkflowOriginKind {
+  const kind = WorkflowOriginKinds.find((entry) => entry === value);
+  if (!kind) throw new Error("WORKFLOW_ORIGIN_KIND_INVALID");
+  return kind;
+}
+
+function visibilityOf(value: string): WorkflowVisibility {
+  if (value === WorkflowVisibility.Listed) return WorkflowVisibility.Listed;
+  if (value === WorkflowVisibility.Unlisted) return WorkflowVisibility.Unlisted;
+  throw new Error("WORKFLOW_VISIBILITY_INVALID");
 }
 
 function originOf(row: WorkflowDefinitionRow) {
   return {
-    kind: row.origin_kind,
+    kind: originKindOf(row.origin_kind),
     catalogKey: row.origin_catalog_key,
     catalogVersion: row.origin_catalog_version,
+    conversationId: row.origin_conversation_id,
+    turnId: row.origin_turn_id,
   };
 }
 
@@ -213,6 +276,7 @@ export function createWorkflowDefinitionsListHandler(secret: string) {
           ) as cursor_created_at
          from bakery.workflow_definitions
         where organization_id = $1
+          and visibility = 'listed'
           and ($2::timestamptz is null or (created_at, id) < ($2, $3::uuid))
         order by created_at desc, id desc
         limit $4`,
@@ -256,34 +320,83 @@ export async function createWorkflowDefinition(
   context: ActionContext,
   input: unknown,
 ) {
-  const { transaction, organizationId, principalId } = requireWorkTransaction(
-    context,
+  const { transaction } = requireWorkTransaction(context);
+  return toWorkflowDefinition(
+    await insertWorkflowDefinition(
+      transaction,
+      writeFactsOf(context),
+      input as WorkflowCreateInput,
+    ),
   );
-  const value = input as WorkflowCreateInput;
+}
+
+/** Where an unlisted definition came from; absent for an editor create. */
+export type WorkflowDefinitionProvenance = Readonly<{
+  visibility: WorkflowVisibility;
+  originKind: string;
+  originConversationId: string;
+  originTurnId: string;
+}>;
+
+/**
+ * The one statement that creates a definition, for the editor's create and a
+ * person accepting a coordinator proposal alike. An editor create keeps the
+ * column defaults (listed, authored, no conversation).
+ */
+export async function insertWorkflowDefinition(
+  transaction: PgTransactionClient,
+  facts: WorkflowWriteFacts,
+  value: WorkflowCreateInput,
+  provenance?: WorkflowDefinitionProvenance,
+): Promise<WorkflowDefinitionRow> {
   const id = crypto.randomUUID();
   const inserted = await boundedMutation(() =>
     transaction.query<WorkflowDefinitionRow>(
-      `insert into bakery.workflow_definitions (
-         id, organization_id, slug, name, description
-       ) values ($1, $2, $3, $4, $5)
-       returning ${DEFINITION_COLUMNS}`,
-      [id, organizationId, value.slug, value.name, value.description],
+      provenance
+        ? `insert into bakery.workflow_definitions (
+             id, organization_id, slug, name, description, visibility,
+             origin_kind, origin_conversation_id, origin_turn_id
+           ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+           returning ${DEFINITION_COLUMNS}`
+        : `insert into bakery.workflow_definitions (
+             id, organization_id, slug, name, description
+           ) values ($1, $2, $3, $4, $5)
+           returning ${DEFINITION_COLUMNS}`,
+      provenance
+        ? [
+          id,
+          facts.organizationId,
+          value.slug,
+          value.name,
+          value.description,
+          provenance.visibility,
+          provenance.originKind,
+          provenance.originConversationId,
+          provenance.originTurnId,
+        ]
+        : [
+          id,
+          facts.organizationId,
+          value.slug,
+          value.name,
+          value.description,
+        ],
     )
   );
   const row = inserted.rows[0];
   if (!row) throw new Error("WORKFLOW_DEFINITION_INSERT_FAILED");
   await appendWorkflowFacts(transaction, {
-    organizationId,
-    principalId,
+    organizationId: facts.organizationId,
+    principalId: facts.principalId,
     operation: "workflows.create",
     resourceType: "workflow_definition",
     resourceId: id,
     eventType: "workflows.created",
     resourceVersion: row.version,
-    requestId: context.requestId,
-    traceId: context.traceId,
+    requestId: facts.requestId,
+    traceId: facts.traceId,
   });
-  return toWorkflowDefinition(row);
+  return row;
 }
 
 export async function updateWorkflowDefinition(
@@ -451,7 +564,7 @@ export async function getWorkflowVersion(context: ActionContext) {
   return toWorkflowVersion(row);
 }
 
-type DraftContentInput = {
+export type DraftContentInput = {
   definition: JsonValue;
   sourceYaml?: string;
   revision?: number;
@@ -511,12 +624,31 @@ export async function createWorkflowVersion(
   context: ActionContext,
   input: unknown,
 ) {
-  const { transaction, organizationId, principalId } = requireWorkTransaction(
-    context,
-  );
-  const value = input as DraftContentInput;
+  const { transaction } = requireWorkTransaction(context);
   const workflowId = context.params.id;
   if (!workflowId) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  return toWorkflowVersion(
+    await createWorkflowDraft(
+      transaction,
+      writeFactsOf(context),
+      workflowId,
+      input as DraftContentInput,
+    ),
+  );
+}
+
+/**
+ * Opens a workflow's one draft. The editor's create and an accepted
+ * coordinator proposal both write a draft through this, so there is one
+ * draft writer (#420).
+ */
+export async function createWorkflowDraft(
+  transaction: PgTransactionClient,
+  facts: WorkflowWriteFacts,
+  workflowId: string,
+  value: DraftContentInput,
+): Promise<WorkflowVersionRow> {
+  const { organizationId, principalId } = facts;
   const canonical = requireDraftDefinition(value.definition);
   await lockAuthoringDefinition(transaction, organizationId, workflowId);
   const existing = await transaction.query(
@@ -576,20 +708,17 @@ export async function createWorkflowVersion(
     resourceId: id,
     eventType: "workflow.version_created",
     resourceVersion: row.version,
-    requestId: context.requestId,
-    traceId: context.traceId,
+    requestId: facts.requestId,
+    traceId: facts.traceId,
   });
-  return toWorkflowVersion(row);
+  return row;
 }
 
 export async function updateWorkflowVersion(
   context: ActionContext,
   input: unknown,
 ) {
-  const { transaction, organizationId, principalId } = requireWorkTransaction(
-    context,
-  );
-  const value = input as DraftContentInput;
+  const { transaction } = requireWorkTransaction(context);
   const workflowId = context.params.id;
   const versionId = context.params.versionId;
   if (!workflowId || !versionId) {
@@ -599,6 +728,27 @@ export async function updateWorkflowVersion(
   if (expectedVersion === undefined) {
     throw new StandardError({ code: "PRECONDITION_REQUIRED" });
   }
+  return toWorkflowVersion(
+    await updateWorkflowDraft(
+      transaction,
+      writeFactsOf(context),
+      { workflowId, versionId, expectedVersion },
+      input as DraftContentInput,
+    ),
+  );
+}
+
+/** Replaces a draft's content under its compare-and-set version; the one draft update writer. */
+export async function updateWorkflowDraft(
+  transaction: PgTransactionClient,
+  facts: WorkflowWriteFacts,
+  target: Readonly<
+    { workflowId: string; versionId: string; expectedVersion: number }
+  >,
+  value: DraftContentInput,
+): Promise<WorkflowVersionRow> {
+  const { organizationId, principalId } = facts;
+  const { workflowId, versionId, expectedVersion } = target;
   const canonical = requireDraftDefinition(value.definition);
   await lockAuthoringDefinition(transaction, organizationId, workflowId);
   const draft = await transaction.query(
@@ -651,10 +801,10 @@ export async function updateWorkflowVersion(
     resourceId: versionId,
     eventType: "workflow.version_updated",
     resourceVersion: row.version,
-    requestId: context.requestId,
-    traceId: context.traceId,
+    requestId: facts.requestId,
+    traceId: facts.traceId,
   });
-  return toWorkflowVersion(row);
+  return row;
 }
 
 /** The columns of one published workflow version, as the single insert binds them. */
@@ -855,6 +1005,19 @@ export async function activateWorkflowVersion(
     throw new StandardError({ code: "PRECONDITION_REQUIRED" });
   }
   await lockAuthoringDefinition(transaction, organizationId, workflowId);
+  // "Use this version" is a library act: an unlisted definition runs only at
+  // an exact published version until a person saves it as a workflow.
+  const listed = await transaction.query<{ visibility: string }>(
+    `select visibility from bakery.workflow_definitions
+      where organization_id = $1 and id = $2`,
+    [organizationId, workflowId],
+  );
+  if (listed.rows[0]?.visibility !== WorkflowVisibility.Listed) {
+    throw new StandardError({
+      code: "STATE_CONFLICT",
+      params: { reason: "workflow_unlisted" },
+    });
+  }
   const published = await transaction.query<
     { status: string; normalized_spec: JsonValue }
   >(
@@ -912,6 +1075,89 @@ export async function activateWorkflowVersion(
   return toWorkflowDefinition(row);
 }
 
+/**
+ * Save as workflow: a person moves an unlisted definition into the library
+ * under the definition's compare-and-set version. Its origin is kept, so the
+ * library entry still says which conversation and turn proposed it. Only a
+ * person saves (chapter 25 O52); an agent's request is refused.
+ */
+export async function createWorkflowListing(
+  context: ActionContext,
+  input: unknown,
+) {
+  const { transaction, organizationId, principalId } = requireWorkTransaction(
+    context,
+  );
+  assertPersonActs(context, principalId, "workflow_listing_requires_person");
+  const value = input as { name?: string };
+  const workflowId = context.params.id;
+  if (!workflowId) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  const expectedVersion = requireCommandMetadata(context).expectedVersion;
+  if (expectedVersion === undefined) {
+    throw new StandardError({ code: "PRECONDITION_REQUIRED" });
+  }
+  await lockAuthoringDefinition(transaction, organizationId, workflowId);
+  const current = await transaction.query<
+    { visibility: string; version: number }
+  >(
+    `select visibility, version from bakery.workflow_definitions
+      where organization_id = $1 and id = $2`,
+    [organizationId, workflowId],
+  );
+  const target = current.rows[0];
+  if (!target) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  if (target.version !== expectedVersion) {
+    throw new StandardError({ code: "PRECONDITION_FAILED" });
+  }
+  if (target.visibility !== WorkflowVisibility.Unlisted) {
+    throw new StandardError({
+      code: "STATE_CONFLICT",
+      params: { reason: "workflow_already_listed" },
+    });
+  }
+  const updated = await boundedMutation(() =>
+    transaction.query<WorkflowDefinitionRow>(
+      `update bakery.workflow_definitions
+          set visibility = $4,
+              name = coalesce($5, name),
+              updated_at = now(), version = version + 1
+        where organization_id = $1 and id = $2 and version = $3
+        returning ${DEFINITION_COLUMNS}`,
+      [
+        organizationId,
+        workflowId,
+        expectedVersion,
+        WorkflowVisibility.Listed,
+        value.name ?? null,
+      ],
+    )
+  );
+  const row = updated.rows[0];
+  if (!row) throw new StandardError({ code: "PRECONDITION_FAILED" });
+  await appendWorkflowFacts(transaction, {
+    organizationId,
+    principalId,
+    operation: "workflowListings.create",
+    resourceType: "workflow_definition",
+    resourceId: workflowId,
+    eventType: "workflows.updated",
+    resourceVersion: row.version,
+    requestId: context.requestId,
+    traceId: context.traceId,
+  });
+  return toWorkflowDefinition(row);
+}
+
+/** Refuses an agent's request where chapter 25 reserves the act for a person. */
+export function assertPersonActs(
+  context: ActionContext,
+  principalId: string,
+  reason: string,
+): void {
+  if (attributeAction(context, principalId).actorKind === "person") return;
+  throw new StandardError({ code: "AUTH_FORBIDDEN", params: { reason } });
+}
+
 export async function validateWorkflow(
   context: ActionContext,
   input: unknown,
@@ -965,5 +1211,8 @@ export function createWorkflowsHandlers(
     publishVersion: publishWorkflowVersion,
     activate: activateWorkflowVersion,
     validate: validateWorkflow,
+    createListing: createWorkflowListing,
+    getProposal: getWorkflowDefinitionProposal,
+    decideProposal: decideWorkflowDefinitionProposal,
   };
 }

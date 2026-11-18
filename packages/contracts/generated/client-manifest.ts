@@ -1648,6 +1648,82 @@ export const clientManifest = {
     {
       "group": "Definitions",
       "method": "POST",
+      "path": "/v1/workflows/{id}/listings",
+      "action": "workflowListings.create",
+      "access": "Admin",
+      "permission": "workflow:manage",
+      "input": "WorkflowListingCreate",
+      "output": "Workflow",
+      "event": "workflows.updated",
+      "mcp": "bakery_workflowListings_create",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Definitions",
+      "method": "GET",
+      "path": "/v1/workflow-definition-proposals/{id}",
+      "action": "workflowDefinitionProposals.get",
+      "access": "Developer",
+      "permission": "workflow:read",
+      "input": "IdPath",
+      "output": "WorkflowDefinitionProposal",
+      "event": "",
+      "mcp": "bakery_workflowDefinitionProposals_get",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Definitions",
+      "method": "POST",
+      "path": "/v1/workflow-definition-proposals/{id}/decisions",
+      "action": "workflowDefinitionProposalDecisions.create",
+      "access": "Admin",
+      "permission": "workflow:manage",
+      "input": "WorkflowDefinitionProposalDecision",
+      "output": "WorkflowDefinitionProposal",
+      "event": "workflowDefinitionProposal.decided",
+      "mcp": "bakery_workflowDefinitionProposalDecisions_create",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Definitions",
+      "method": "POST",
       "path": "/v1/workflow-validations",
       "action": "workflows.validate",
       "access": "Developer",
@@ -11752,6 +11828,9 @@ export const clientManifest = {
             "workflowVersions.update",
             "workflowVersions.publish",
             "workflowActivations.create",
+            "workflowListings.create",
+            "workflowDefinitionProposals.get",
+            "workflowDefinitionProposalDecisions.create",
             "workflows.validate",
             "workflowActions.list",
             "workflowActions.get",
@@ -15922,6 +16001,38 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Activates one published version of a workflow definition under the definition's optimistic-concurrency version. The version is re-checked against the latest organization rules like a publication, so a version published before a `require` rule existed is refused with the same typed UNPROCESSABLE issue and the active version stays unchanged."
+    },
+    "WorkflowListingCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "WorkflowListingCreate.name must contain at most 200 characters.",
+          "type": "string",
+          "maxLength": 200
+        }
+      },
+      "additionalProperties": false,
+      "description": "Save as workflow: moves an unlisted definition into the library under its If-Match version, keeping its origin. Only a person may save; an agent is refused with AUTH_FORBIDDEN, an already listed definition with STATE_CONFLICT workflow_already_listed."
+    },
+    "WorkflowDefinitionProposalDecision": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "decision": {
+          "type": "string",
+          "enum": [
+            "accept",
+            "reject"
+          ],
+          "description": "accept writes the proposed definition into its unlisted draft through the editor's draft operations (creating the unlisted definition for a first proposal); reject records the decision and writes nothing."
+        }
+      },
+      "required": [
+        "decision"
+      ],
+      "additionalProperties": false,
+      "description": "A person decides one waiting definition proposal under its If-Match version. An agent is refused with AUTH_FORBIDDEN; a decided proposal is STATE_CONFLICT; a draft changed since the proposal is PRECONDITION_FAILED and the proposal stays waiting."
     },
     "CommentQuery": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -26933,6 +27044,97 @@ export const clientManifest = {
                 "minimum": -9007199254740991,
                 "maximum": 9007199254740991,
                 "description": "Optimistic-concurrency version used when updating the record."
+              },
+              "origin": {
+                "description": "Where the definition came from: authored in the editor, installed from the catalog, copied, or proposed by the coordinator in a conversation. Fixed at creation and kept when an unlisted definition is saved as a workflow. Omitted by servers that predate it.",
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "authored",
+                      "catalog",
+                      "copy",
+                      "coordinator"
+                    ],
+                    "description": "authored by a person in the editor, catalog when installed from the code-owned catalog, copy when copied from another definition, or coordinator when a person accepted a coordinator proposal in a conversation."
+                  },
+                  "catalogKey": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "Catalog item an installed definition came from; null for every other kind."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "WorkflowOrigin.catalogKey may be null in this transport value."
+                  },
+                  "catalogVersion": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "Catalog revision an installed definition came from; null for every other kind."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "WorkflowOrigin.catalogVersion may be null in this transport value."
+                  },
+                  "conversationId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "Conversation whose coordinator proposed this definition; null unless kind is coordinator."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "WorkflowOrigin.conversationId may be null in this transport value."
+                  },
+                  "turnId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "Coordinator turn that proposed this definition; null unless kind is coordinator."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "WorkflowOrigin.turnId may be null in this transport value."
+                  }
+                },
+                "required": [
+                  "kind",
+                  "catalogKey",
+                  "catalogVersion",
+                  "conversationId",
+                  "turnId"
+                ],
+                "additionalProperties": false
+              },
+              "visibility": {
+                "description": "listed definitions appear in the library list and can be made the active version; unlisted ones (coordinator proposals a person accepted) are readable by id and runnable only at an exact published version until a person saves them as a workflow. Outside every digest. Omitted by servers that predate it.",
+                "type": "string",
+                "enum": [
+                  "listed",
+                  "unlisted"
+                ]
               }
             },
             "required": [
@@ -30871,6 +31073,9 @@ export const clientManifest = {
                   "workflowVersions.update",
                   "workflowVersions.publish",
                   "workflowActivations.create",
+                  "workflowListings.create",
+                  "workflowDefinitionProposals.get",
+                  "workflowDefinitionProposalDecisions.create",
                   "workflows.validate",
                   "workflowActions.list",
                   "workflowActions.get",
@@ -40638,6 +40843,97 @@ export const clientManifest = {
           "minimum": -9007199254740991,
           "maximum": 9007199254740991,
           "description": "Optimistic-concurrency version used when updating the record."
+        },
+        "origin": {
+          "description": "Where the definition came from: authored in the editor, installed from the catalog, copied, or proposed by the coordinator in a conversation. Fixed at creation and kept when an unlisted definition is saved as a workflow. Omitted by servers that predate it.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "authored",
+                "catalog",
+                "copy",
+                "coordinator"
+              ],
+              "description": "authored by a person in the editor, catalog when installed from the code-owned catalog, copy when copied from another definition, or coordinator when a person accepted a coordinator proposal in a conversation."
+            },
+            "catalogKey": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Catalog item an installed definition came from; null for every other kind."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "WorkflowOrigin.catalogKey may be null in this transport value."
+            },
+            "catalogVersion": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "Catalog revision an installed definition came from; null for every other kind."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "WorkflowOrigin.catalogVersion may be null in this transport value."
+            },
+            "conversationId": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Conversation whose coordinator proposed this definition; null unless kind is coordinator."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "WorkflowOrigin.conversationId may be null in this transport value."
+            },
+            "turnId": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Coordinator turn that proposed this definition; null unless kind is coordinator."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "WorkflowOrigin.turnId may be null in this transport value."
+            }
+          },
+          "required": [
+            "kind",
+            "catalogKey",
+            "catalogVersion",
+            "conversationId",
+            "turnId"
+          ],
+          "additionalProperties": false
+        },
+        "visibility": {
+          "description": "listed definitions appear in the library list and can be made the active version; unlisted ones (coordinator proposals a person accepted) are readable by id and runnable only at an exact published version until a person saves them as a workflow. Outside every digest. Omitted by servers that predate it.",
+          "type": "string",
+          "enum": [
+            "listed",
+            "unlisted"
+          ]
         }
       },
       "required": [
@@ -40652,6 +40948,297 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "A named, organization-owned workflow definition: its stable slug, display name, and which published WorkflowVersion, if any, is currently active. Disabling it blocks new kickoffs without canceling an already-running instance, which follows its own separate cancellation policy."
+    },
+    "WorkflowDefinitionProposal": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID identifying the proposal."
+        },
+        "conversationId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Conversation whose coordinator made the proposal."
+        },
+        "turnId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Coordinator turn that emitted the definitionProposal effect."
+        },
+        "workflowId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Unlisted definition the proposal edits, or that accepting it created; null for a new-definition proposal not yet accepted."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "WorkflowDefinitionProposal.workflowId may be null in this transport value."
+        },
+        "baseDraftVersion": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Draft version the proposal was made against; accepting refuses with PRECONDITION_FAILED when the draft has moved on. Null when the target had no draft."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "WorkflowDefinitionProposal.baseDraftVersion may be null in this transport value."
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Plain-language name the coordinator gave the proposed workflow."
+        },
+        "definition": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "Complete proposed workflow definition document, stored as canonical JSON."
+        },
+        "digest": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "SHA-256 of the canonical proposed definition."
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "waiting",
+            "accepted",
+            "rejected"
+          ],
+          "description": "waiting until a person decides; then accepted or rejected, never changed again."
+        },
+        "decidedBy": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Person who decided the proposal; null while waiting."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "WorkflowDefinitionProposal.decidedBy may be null in this transport value."
+        },
+        "decidedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the proposal was decided; null while waiting."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "WorkflowDefinitionProposal.decidedAt may be null in this transport value."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When the proposal was recorded."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When the proposal last changed."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Optimistic-concurrency version a decision must name in If-Match."
+        }
+      },
+      "required": [
+        "id",
+        "conversationId",
+        "turnId",
+        "workflowId",
+        "baseDraftVersion",
+        "name",
+        "definition",
+        "digest",
+        "state",
+        "decidedBy",
+        "decidedAt",
+        "createdAt",
+        "updatedAt",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "One workflow definition a coordinator turn proposed, waiting for a person to accept or reject it whole. Accepting writes it through the editor's own draft operations into an unlisted definition; nothing runs, publishes or activates.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
     },
     "WorkflowVersion": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -46923,6 +47510,9 @@ export const clientManifest = {
             "workflowVersions.update",
             "workflowVersions.publish",
             "workflowActivations.create",
+            "workflowListings.create",
+            "workflowDefinitionProposals.get",
+            "workflowDefinitionProposalDecisions.create",
             "workflows.validate",
             "workflowActions.list",
             "workflowActions.get",

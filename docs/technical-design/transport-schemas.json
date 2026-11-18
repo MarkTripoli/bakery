@@ -5642,6 +5642,31 @@
       ],
       "description": "Activates one published version of a workflow definition under the definition's optimistic-concurrency version. The version is re-checked against the latest organization rules like a publication, so a version published before a `require` rule existed is refused with the same typed UNPROCESSABLE issue and the active version stays unchanged."
     },
+    "WorkflowListingCreate": {
+      "fields": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 200
+          },
+          "description": "Library name for the saved workflow; omitted keeps the name the definition already has."
+        }
+      ],
+      "description": "Save as workflow: moves an unlisted definition into the library under its If-Match version, keeping its origin. Only a person may save; an agent is refused with AUTH_FORBIDDEN, an already listed definition with STATE_CONFLICT workflow_already_listed."
+    },
+    "WorkflowDefinitionProposalDecision": {
+      "fields": [
+        {
+          "name": "decision",
+          "type": "enum(accept|reject)",
+          "required": true,
+          "description": "accept writes the proposed definition into its unlisted draft through the editor's draft operations (creating the unlisted definition for a first proposal); reject records the decision and writes nothing."
+        }
+      ],
+      "description": "A person decides one waiting definition proposal under its If-Match version. An agent is refused with AUTH_FORBIDDEN; a decided proposal is STATE_CONFLICT; a draft changed since the proposal is PRECONDITION_FAILED and the proposal stays waiting."
+    },
     "SkillVersionPath": {
       "fields": [
         {
@@ -18137,7 +18162,9 @@
         "enabled",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "origin",
+        "visibility"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -18148,7 +18175,9 @@
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
         "version": "integer",
-        "description": "string|null"
+        "description": "string|null",
+        "origin": "WorkflowOrigin",
+        "visibility": "enum(listed|unlisted)"
       },
       "nullableFields": [
         "activeVersionId",
@@ -18164,11 +18193,102 @@
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
         "version": "Optimistic-concurrency version used when updating the record.",
-        "description": "Free-text summary of what the workflow does, shown in pickers and the catalog; null when the author left it blank. Set on create and replaced wholesale on update."
+        "description": "Free-text summary of what the workflow does, shown in pickers and the catalog; null when the author left it blank. Set on create and replaced wholesale on update.",
+        "origin": "Where the definition came from: authored in the editor, installed from the catalog, copied, or proposed by the coordinator in a conversation. Fixed at creation and kept when an unlisted definition is saved as a workflow. Omitted by servers that predate it.",
+        "visibility": "listed definitions appear in the library list and can be made the active version; unlisted ones (coordinator proposals a person accepted) are readable by id and runnable only at an exact published version until a person saves them as a workflow. Outside every digest. Omitted by servers that predate it."
       },
       "optionalFields": [
-        "description"
+        "description",
+        "origin",
+        "visibility"
       ]
+    },
+    "WorkflowOrigin": {
+      "fields": [
+        "kind",
+        "catalogKey",
+        "catalogVersion",
+        "conversationId",
+        "turnId"
+      ],
+      "fieldTypes": {
+        "kind": "enum(authored|catalog|copy|coordinator)",
+        "catalogKey": "string|null",
+        "catalogVersion": "integer|null",
+        "conversationId": "uuid|null",
+        "turnId": "uuid|null"
+      },
+      "nullableFields": [
+        "catalogKey",
+        "catalogVersion",
+        "conversationId",
+        "turnId"
+      ],
+      "description": "Provenance of one workflow definition, fixed when it is created.",
+      "fieldDescriptions": {
+        "kind": "authored by a person in the editor, catalog when installed from the code-owned catalog, copy when copied from another definition, or coordinator when a person accepted a coordinator proposal in a conversation.",
+        "catalogKey": "Catalog item an installed definition came from; null for every other kind.",
+        "catalogVersion": "Catalog revision an installed definition came from; null for every other kind.",
+        "conversationId": "Conversation whose coordinator proposed this definition; null unless kind is coordinator.",
+        "turnId": "Coordinator turn that proposed this definition; null unless kind is coordinator."
+      }
+    },
+    "WorkflowDefinitionProposal": {
+      "fields": [
+        "id",
+        "conversationId",
+        "turnId",
+        "workflowId",
+        "baseDraftVersion",
+        "name",
+        "definition",
+        "digest",
+        "state",
+        "decidedBy",
+        "decidedAt",
+        "createdAt",
+        "updatedAt",
+        "version"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "conversationId": "uuid",
+        "turnId": "uuid",
+        "workflowId": "uuid|null",
+        "baseDraftVersion": "integer|null",
+        "name": "string",
+        "definition": "json",
+        "digest": "string",
+        "state": "enum(waiting|accepted|rejected)",
+        "decidedBy": "uuid|null",
+        "decidedAt": "timestamp|null",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp",
+        "version": "integer"
+      },
+      "nullableFields": [
+        "workflowId",
+        "baseDraftVersion",
+        "decidedBy",
+        "decidedAt"
+      ],
+      "description": "One workflow definition a coordinator turn proposed, waiting for a person to accept or reject it whole. Accepting writes it through the editor's own draft operations into an unlisted definition; nothing runs, publishes or activates.",
+      "fieldDescriptions": {
+        "id": "Stable UUID identifying the proposal.",
+        "conversationId": "Conversation whose coordinator made the proposal.",
+        "turnId": "Coordinator turn that emitted the definitionProposal effect.",
+        "workflowId": "Unlisted definition the proposal edits, or that accepting it created; null for a new-definition proposal not yet accepted.",
+        "baseDraftVersion": "Draft version the proposal was made against; accepting refuses with PRECONDITION_FAILED when the draft has moved on. Null when the target had no draft.",
+        "name": "Plain-language name the coordinator gave the proposed workflow.",
+        "definition": "Complete proposed workflow definition document, stored as canonical JSON.",
+        "digest": "SHA-256 of the canonical proposed definition.",
+        "state": "waiting until a person decides; then accepted or rejected, never changed again.",
+        "decidedBy": "Person who decided the proposal; null while waiting.",
+        "decidedAt": "When the proposal was decided; null while waiting.",
+        "createdAt": "When the proposal was recorded.",
+        "updatedAt": "When the proposal last changed.",
+        "version": "Optimistic-concurrency version a decision must name in If-Match."
+      }
     },
     "WorkflowVersion": {
       "projection": "workflow_versions",
@@ -27583,6 +27703,24 @@
       "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
     },
     "workflows.updated": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "workflowDefinitionProposal.proposed": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "workflowDefinitionProposal.decided": {
       "schemaVersion": 1,
       "payloadFields": {
         "resourceId": "uuid",
