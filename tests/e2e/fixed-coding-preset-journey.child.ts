@@ -10,7 +10,7 @@ import {
   implementJobId,
   launchPresetWorker,
   type PresetRun,
-  presetStepIds,
+  presetStepId,
   type PresetWorld,
   provisionDelegatedCgroupV2,
   removePaths,
@@ -153,7 +153,11 @@ async function presetRun(
   taskId: string,
   runId: string,
 ): Promise<PresetRun> {
-  return { taskId, runId, ...await presetStepIds(stack, world, runId) };
+  return {
+    taskId,
+    runId,
+    briefStepId: await presetStepId(stack, world, runId, "brief"),
+  };
 }
 
 async function main() {
