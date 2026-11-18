@@ -8693,7 +8693,7 @@
         "SCOPE_REQUIRED"
       ],
       "organizationContext": "required_authenticated_context",
-      "implemented": false
+      "implemented": true
     },
     {
       "group": "Plugins",
@@ -8719,7 +8719,7 @@
         "SCOPE_REQUIRED"
       ],
       "organizationContext": "required_authenticated_context",
-      "implemented": false
+      "implemented": true
     },
     {
       "group": "Plugins",
@@ -8742,7 +8742,7 @@
         "SCOPE_REQUIRED"
       ],
       "organizationContext": "required_authenticated_context",
-      "implemented": false
+      "implemented": true
     },
     {
       "group": "Plugins",
@@ -8765,7 +8765,7 @@
         "SCOPE_REQUIRED"
       ],
       "organizationContext": "required_authenticated_context",
-      "implemented": false
+      "implemented": true
     },
     {
       "group": "Plugins",
@@ -8791,7 +8791,7 @@
         "SCOPE_REQUIRED"
       ],
       "organizationContext": "required_authenticated_context",
-      "implemented": false
+      "implemented": true
     },
     {
       "group": "Plugins",
@@ -10183,6 +10183,11 @@
     "skills.create",
     "skills.update",
     "skillVersions.create",
+    "pluginPackages.list",
+    "pluginPackages.create",
+    "pluginPackages.get",
+    "pluginVersions.list",
+    "pluginVersions.create",
     "skillStorageSettings.get",
     "skillStorageSettings.put",
     "skillStorageSettings.verify",
@@ -55916,13 +55921,17 @@
           "properties": {
             "name": {
               "type": "string",
+              "minLength": 1,
               "maxLength": 200,
-              "description": "PluginPackageCreate.name must contain at most 200 characters."
+              "pattern": "^(?!\\s)(?=.*\\S)",
+              "description": "PluginPackageCreate.name must match the pattern ^(?!\\s)(?=.*\\S)."
             },
             "displayName": {
               "type": "string",
+              "minLength": 1,
               "maxLength": 200,
-              "description": "PluginPackageCreate.displayName must contain at most 200 characters."
+              "pattern": "^(?!\\s)(?=.*\\S)",
+              "description": "PluginPackageCreate.displayName must match the pattern ^(?!\\s)(?=.*\\S)."
             },
             "license": {
               "type": "string",
@@ -56096,13 +56105,17 @@
           "properties": {
             "versionName": {
               "type": "string",
+              "minLength": 1,
               "maxLength": 200,
-              "description": "PluginVersionCreate.versionName must contain at most 200 characters."
+              "pattern": "^(?!\\s)(?=.*\\S)",
+              "description": "PluginVersionCreate.versionName must match the pattern ^(?!\\s)(?=.*\\S)."
             },
             "sdkRange": {
               "type": "string",
+              "minLength": 1,
               "maxLength": 200,
-              "description": "PluginVersionCreate.sdkRange must contain at most 200 characters."
+              "pattern": "^(?!\\s)(?=.*\\S)",
+              "description": "PluginVersionCreate.sdkRange must match the pattern ^(?!\\s)(?=.*\\S)."
             },
             "manifest": {
               "description": "PluginVersionCreate.manifest must contain at most 131072 UTF-8 bytes.",
@@ -56146,13 +56159,17 @@
             },
             "bundleObjectRef": {
               "type": "string",
+              "minLength": 1,
               "maxLength": 2000,
-              "description": "PluginVersionCreate.bundleObjectRef must contain at most 2000 characters."
+              "pattern": "^(?!\\s)(?=.*\\S)",
+              "description": "PluginVersionCreate.bundleObjectRef must match the pattern ^(?!\\s)(?=.*\\S)."
             },
             "bundleDigest": {
               "type": "string",
+              "minLength": 64,
               "maxLength": 64,
-              "description": "PluginVersionCreate.bundleDigest must contain at most 64 characters."
+              "pattern": "^[0-9a-f]{64}$",
+              "description": "PluginVersionCreate.bundleDigest must match the pattern ^[0-9a-f]{64}$."
             },
             "sourceEvidence": {
               "description": "PluginVersionCreate.sourceEvidence must contain at most 32000 UTF-8 bytes.",
@@ -146358,7 +146375,7 @@
             "digest": {
               "type": "string",
               "pattern": "^[a-f0-9]{64}$",
-              "description": "Lowercase SHA-256 of the canonical effective entries and organization revision."
+              "description": "Rules fingerprint the proposed rules would have: computed exactly as the effective-rules read's digest and a run check's policyDigest, over the active profile's fixed policy and these entries."
             }
           },
           "required": [
@@ -147595,7 +147612,7 @@
                     "digest": {
                       "type": "string",
                       "pattern": "^[a-f0-9]{64}$",
-                      "description": "Lowercase SHA-256 of the canonical effective entries and organization revision."
+                      "description": "Rules fingerprint the proposed rules would have: computed exactly as the effective-rules read's digest and a run check's policyDigest, over the active profile's fixed policy and these entries."
                     }
                   },
                   "required": [
@@ -148788,7 +148805,7 @@
             "digest": {
               "type": "string",
               "pattern": "^[a-f0-9]{64}$",
-              "description": "Lowercase SHA-256 of the canonical effective entries and organization revision; superseded overrides are excluded."
+              "description": "Rules fingerprint: equals the policyDigest a check of a run admitted under these rules records (effective policy digest over the active profile's fixed policy, its trusted checker and the effective entries; organization revision and superseded overrides are excluded). Without a fixed policy no check records one and the value matches no run."
             },
             "repositoryVersion": {
               "type": "integer",
@@ -148861,6 +148878,10 @@
               ],
               "additionalProperties": false,
               "description": "Git provider branch protection state, separate from Bakery enforcement."
+            },
+            "hasFixedPolicy": {
+              "description": "True when the active profile has a fixed policy, so runs admitted under these rules record a check policyDigest equal to digest. When false, runs admitted under these rules record no check, so no run will match digest.",
+              "type": "boolean"
             }
           },
           "required": [
@@ -208545,9 +208566,10 @@
                 "run_stage",
                 "merge",
                 "deploy",
-                "human_approval"
+                "human_approval",
+                "run_step"
               ],
-              "description": "What the approval authorizes: plan_revision today; merge and deploy are unsupported."
+              "description": "What the approval authorizes: a plan revision, a run stage, or a run step (human.approval); merge and deploy are unsupported."
             },
             "subjectId": {
               "type": "string",
@@ -209311,9 +209333,10 @@
                       "run_stage",
                       "merge",
                       "deploy",
-                      "human_approval"
+                      "human_approval",
+                      "run_step"
                     ],
-                    "description": "What the approval authorizes: plan_revision today; merge and deploy are unsupported."
+                    "description": "What the approval authorizes: a plan revision, a run stage, or a run step (human.approval); merge and deploy are unsupported."
                   },
                   "subjectId": {
                     "type": "string",
@@ -217172,7 +217195,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:09b09f0f1fac1d0159314e792984f878628b3d34d48218f5793892e72943c4c1",
+  "compatibilityDigest": "sha256:c2ea1145b2b35476f0f1f55b7034d2e12ad9df0a5ed876f7221e90fe1d5ddd1f",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -238059,13 +238082,17 @@
       "properties": {
         "name": {
           "type": "string",
+          "minLength": 1,
           "maxLength": 200,
-          "description": "PluginPackageCreate.name must contain at most 200 characters."
+          "pattern": "^(?!\\s)(?=.*\\S)",
+          "description": "PluginPackageCreate.name must match the pattern ^(?!\\s)(?=.*\\S)."
         },
         "displayName": {
           "type": "string",
+          "minLength": 1,
           "maxLength": 200,
-          "description": "PluginPackageCreate.displayName must contain at most 200 characters."
+          "pattern": "^(?!\\s)(?=.*\\S)",
+          "description": "PluginPackageCreate.displayName must match the pattern ^(?!\\s)(?=.*\\S)."
         },
         "license": {
           "type": "string",
@@ -238241,13 +238268,17 @@
       "properties": {
         "versionName": {
           "type": "string",
+          "minLength": 1,
           "maxLength": 200,
-          "description": "PluginVersionCreate.versionName must contain at most 200 characters."
+          "pattern": "^(?!\\s)(?=.*\\S)",
+          "description": "PluginVersionCreate.versionName must match the pattern ^(?!\\s)(?=.*\\S)."
         },
         "sdkRange": {
           "type": "string",
+          "minLength": 1,
           "maxLength": 200,
-          "description": "PluginVersionCreate.sdkRange must contain at most 200 characters."
+          "pattern": "^(?!\\s)(?=.*\\S)",
+          "description": "PluginVersionCreate.sdkRange must match the pattern ^(?!\\s)(?=.*\\S)."
         },
         "manifest": {
           "description": "PluginVersionCreate.manifest must contain at most 131072 UTF-8 bytes.",
@@ -238291,13 +238322,17 @@
         },
         "bundleObjectRef": {
           "type": "string",
+          "minLength": 1,
           "maxLength": 2000,
-          "description": "PluginVersionCreate.bundleObjectRef must contain at most 2000 characters."
+          "pattern": "^(?!\\s)(?=.*\\S)",
+          "description": "PluginVersionCreate.bundleObjectRef must match the pattern ^(?!\\s)(?=.*\\S)."
         },
         "bundleDigest": {
           "type": "string",
+          "minLength": 64,
           "maxLength": 64,
-          "description": "PluginVersionCreate.bundleDigest must contain at most 64 characters."
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "PluginVersionCreate.bundleDigest must match the pattern ^[0-9a-f]{64}$."
         },
         "sourceEvidence": {
           "description": "PluginVersionCreate.sourceEvidence must contain at most 32000 UTF-8 bytes.",
@@ -328783,7 +328818,7 @@
         "digest": {
           "type": "string",
           "pattern": "^[a-f0-9]{64}$",
-          "description": "Lowercase SHA-256 of the canonical effective entries and organization revision."
+          "description": "Rules fingerprint the proposed rules would have: computed exactly as the effective-rules read's digest and a run check's policyDigest, over the active profile's fixed policy and these entries."
         }
       },
       "required": [
@@ -330020,7 +330055,7 @@
                 "digest": {
                   "type": "string",
                   "pattern": "^[a-f0-9]{64}$",
-                  "description": "Lowercase SHA-256 of the canonical effective entries and organization revision."
+                  "description": "Rules fingerprint the proposed rules would have: computed exactly as the effective-rules read's digest and a run check's policyDigest, over the active profile's fixed policy and these entries."
                 }
               },
               "required": [
@@ -331213,7 +331248,7 @@
         "digest": {
           "type": "string",
           "pattern": "^[a-f0-9]{64}$",
-          "description": "Lowercase SHA-256 of the canonical effective entries and organization revision; superseded overrides are excluded."
+          "description": "Rules fingerprint: equals the policyDigest a check of a run admitted under these rules records (effective policy digest over the active profile's fixed policy, its trusted checker and the effective entries; organization revision and superseded overrides are excluded). Without a fixed policy no check records one and the value matches no run."
         },
         "repositoryVersion": {
           "type": "integer",
@@ -331286,6 +331321,10 @@
           ],
           "additionalProperties": false,
           "description": "Git provider branch protection state, separate from Bakery enforcement."
+        },
+        "hasFixedPolicy": {
+          "description": "True when the active profile has a fixed policy, so runs admitted under these rules record a check policyDigest equal to digest. When false, runs admitted under these rules record no check, so no run will match digest.",
+          "type": "boolean"
         }
       },
       "required": [
@@ -391046,9 +391085,10 @@
             "run_stage",
             "merge",
             "deploy",
-            "human_approval"
+            "human_approval",
+            "run_step"
           ],
-          "description": "What the approval authorizes: plan_revision today; merge and deploy are unsupported."
+          "description": "What the approval authorizes: a plan revision, a run stage, or a run step (human.approval); merge and deploy are unsupported."
         },
         "subjectId": {
           "type": "string",
@@ -391816,9 +391856,10 @@
                   "run_stage",
                   "merge",
                   "deploy",
-                  "human_approval"
+                  "human_approval",
+                  "run_step"
                 ],
-                "description": "What the approval authorizes: plan_revision today; merge and deploy are unsupported."
+                "description": "What the approval authorizes: a plan revision, a run stage, or a run step (human.approval); merge and deploy are unsupported."
               },
               "subjectId": {
                 "type": "string",

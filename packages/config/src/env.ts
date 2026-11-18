@@ -1,6 +1,10 @@
 import { z } from "zod";
 import { readSentryConfig, type SentryConfig } from "./sentry.ts";
 import {
+  readTelemetrySinkConfig,
+  type TelemetrySinkConfig,
+} from "./telemetry-sink.ts";
+import {
   readTrustedProxyCidrs,
   type TrustedProxies,
 } from "./trusted-proxies.ts";
@@ -281,6 +285,11 @@ export type RuntimeConfig = {
    * reads the environment itself (#306).
    */
   draftIsolationLauncher?: DraftIsolationLauncher;
+  /**
+   * Where telemetry goes (`BAKERY_TELEMETRY_LOG_DIR`, `BAKERY_OTLP_ENDPOINT`);
+   * server only. Absent means export stays disabled, which is the default.
+   */
+  telemetry?: TelemetrySinkConfig;
 };
 
 const BUDGET_INSTALLATION_LIMIT =
@@ -896,6 +905,13 @@ export function readRuntimeConfig(
     !invalidConfig.includes("BAKERY_INNGEST_PRIVATE_HOST_SUFFIX")
   ) {
     config.inngest = readInngestRuntimeConfig(env);
+  }
+  if (kind === "server") {
+    // Read here with the rest of the configuration, so the app never reads the
+    // environment itself (#306). A malformed value throws at boot rather than
+    // silently disabling export.
+    const telemetry = readTelemetrySinkConfig(env);
+    if (telemetry !== undefined) config.telemetry = telemetry;
   }
   return config;
 }

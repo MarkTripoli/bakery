@@ -9,8 +9,20 @@ export type ConversationMessageProps =
     author: ReactNode;
     children: ReactNode;
     state?: "sending" | "sent" | "failed" | "edited";
+    /** Short label the reader sees, usually a relative time. */
     timestamp?: string;
+    /**
+     * Exact timestamp behind `timestamp`, used for `datetime` and the title, so
+     * a shortened label never hides when the message actually happened.
+     */
+    timestampTitle?: string;
     variant?: "person" | "agent" | "system";
+    /**
+     * How the message sits on the page: a `card` is boxed (the default), a
+     * `plain` one has no border, fill or padding, so an agent can speak in
+     * text on the page while a person's message stays the only boxed thing.
+     */
+    appearance?: "card" | "plain";
   };
 
 /** A single authored message in a conversation transcript. */
@@ -21,7 +33,9 @@ export function ConversationMessage(
     children,
     state = "sent",
     timestamp,
+    timestampTitle,
     variant = "person",
+    appearance = "card",
     ...props
   }: ConversationMessageProps,
 ) {
@@ -36,11 +50,18 @@ export function ConversationMessage(
       {...props}
       data-state={state}
       data-variant={variant}
+      data-appearance={appearance}
       data-ui-component="conversationMessage"
     >
       <header>
         <strong>{author}</strong>
-        {timestamp ? <time dateTime={timestamp}>{timestamp}</time> : null}
+        {timestamp
+          ? (
+            <time dateTime={timestampTitle ?? timestamp} title={timestampTitle}>
+              {timestamp}
+            </time>
+          )
+          : null}
       </header>
       <div className="ui-conversation-message__body">{children}</div>
       {actions ? <footer>{actions}</footer> : null}
