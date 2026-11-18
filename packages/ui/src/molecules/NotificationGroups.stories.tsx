@@ -1,8 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import {
+  Button,
   NotificationGroup,
   NotificationGroups,
   NotificationRow,
+  Stack,
+  Text,
 } from "@bakery/ui";
 
 const meta = {
@@ -32,13 +35,29 @@ function Row({ id }: { id: string }) {
 
 export const Contract: StoryObj = {
   render: () => (
-    <NotificationGroups>
-      <NotificationGroup heading="Today">
-        <Row id="a" />
-      </NotificationGroup>
-      <NotificationGroup heading="Yesterday">
-        <Row id="b" />
-      </NotificationGroup>
-    </NotificationGroups>
+    <Stack gap="standard">
+      <Text>Ready, with two days:</Text>
+      <NotificationGroups>
+        <NotificationGroup heading="Today">
+          <Row id="a" />
+        </NotificationGroup>
+        <NotificationGroup heading="Yesterday">
+          <Row id="b" />
+        </NotificationGroup>
+      </NotificationGroups>
+      <Text>Empty:</Text>
+      <NotificationGroups state="empty">
+        <Text>No notifications yet</Text>
+      </NotificationGroups>
+      <Text>Loading:</Text>
+      <NotificationGroups state="loading">
+        <Text>Loading notifications</Text>
+      </NotificationGroups>
+      <Text>Failed, with a retry:</Text>
+      <NotificationGroups state="error">
+        <Text>Notifications could not load.</Text>
+        <Button variant="quiet">Try again</Button>
+      </NotificationGroups>
+    </Stack>
   ),
 };
