@@ -130,10 +130,11 @@ export type BoundedExporterOptions<T> = {
    * reporting: an offer refused after `close` returns is counted in
    * `stats().dropped.shutdown` and never reaches this callback, so an
    * export-loss metric reads `stats()` once after `close` for the final total.
-   * May throw, or be async and reject; neither changes anything, and what it returns is never waited for, so a slow async reporter
-   * can overlap the next report. An item offered by code the reporter started,
-   * synchronously or later (after an `await`, in a timer or a microtask), is
-   * refused and counted as `dropped.reentrant`.
+   * May throw, or be async and reject; neither changes anything, and what it
+   * returns is never waited for, so a slow async reporter can overlap the next
+   * report. An item offered by code the reporter started, synchronously or
+   * later (after an `await`, in a timer or a microtask), is refused and counted
+   * as `dropped.reentrant`.
    */
   readonly onLoss?: (loss: ExportLoss) => void | PromiseLike<unknown>;
 };
