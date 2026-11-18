@@ -322,6 +322,26 @@ Deno.test("a checkpoint from an earlier epoch is refused as draft_moved_on with 
   }
 });
 
+Deno.test("a draft on an archived task cannot be sent, with nothing written", async () => {
+  const fixture = await openDraftFixture("alpha target omega");
+  try {
+    const draft = await openDraft(fixture);
+    await fixture.pgDatabase.query(
+      `update bakery.tasks set archived_at=now() where id=$1`,
+      [fixture.ids.taskId],
+    );
+    const refused = await send(fixture, draft, []);
+    assertEquals(refused.status, 404, await refused.clone().text());
+    assertEquals((await refused.json()).code, "RESOURCE_NOT_FOUND");
+    assertEquals(await referenceCounts(fixture, draft.id), {
+      references: 0,
+      comments: 0,
+    });
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
 Deno.test("a thread over the comment-context bound is refused", async () => {
   const fixture = await openDraftFixture("alpha target omega");
   try {
