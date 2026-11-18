@@ -11,40 +11,19 @@
 -- and a copied one must never be confused, because only the installed one is
 -- system-managed and locked against edits.
 --
--- The pairing constraint is structural rather than a business rule: a catalog
--- origin without a key and a version is not a catalog origin, so the three
--- columns cannot disagree. Immutability after install is enforced in code, not
--- here - the engineering rules forbid triggers, and a refusal has to be
--- nameable in an error response.
+-- There is deliberately no CHECK constraint here. The PostgreSQL boundary rail
+-- forbids them, and 0172 dropped one for the same reason: a rule the kernel
+-- branches on belongs in the described contract, where it can be named in an
+-- error response, not in a constraint nobody can report. The invariant that
+-- `catalog` origins carry a key and a version is therefore a property of the
+-- one statement that writes these columns, and a test pins it.
+--
+-- Existing preset rows predate these columns and default to 'authored'. They
+-- are not backfilled here, because migrations are structural only and a data
+-- repair is not structure. The install path repairs them instead, once a preset
+-- is used again - see ensurePresetWorkflowVersion, whose insert fills in an
+-- origin that is still 'authored' and never rewrites one already set.
 alter table bakery.workflow_definitions
   add column origin_kind text not null default 'authored',
   add column origin_catalog_key text,
   add column origin_catalog_version integer;
-
-alter table bakery.workflow_definitions
-  add constraint workflow_definitions_origin_kind_check
-    check (origin_kind in ('authored', 'catalog', 'copy')),
-  add constraint workflow_definitions_origin_catalog_pairing_check
-    check (
-      (origin_kind = 'catalog') =
-      (origin_catalog_key is not null and origin_catalog_version is not null)
-    );
-
--- Existing preset rows are catalog installs that predate the columns. The slug
--- is `preset:<id>`, so the key is the slug without its prefix. The version is
--- the preset revision the row's active version was materialized from; where no
--- active version exists the row was never installed and 1 is the only honest
--- value, since the catalog has no revision 0.
-update bakery.workflow_definitions as definition
-   set origin_kind = 'catalog',
-       origin_catalog_key = substring(definition.slug from 8),
-       origin_catalog_version = coalesce(
-         (
-           select version.revision
-             from bakery.workflow_versions as version
-            where version.organization_id = definition.organization_id
-              and version.id = definition.active_version_id
-         ),
-         1
-       )
- where definition.slug like 'preset:%';

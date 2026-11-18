@@ -127,6 +127,50 @@ Deno.test("installing a catalog workflow records its origin once", async () => {
   }
 });
 
+Deno.test("a preset row that predates the columns has its origin filled in", async () => {
+  // The migration is structural only, so existing preset rows default to
+  // 'authored' and are repaired by the install path the next time the preset is
+  // used. Without that repair the read shape would report a catalog install as
+  // an authored workflow, which is the one thing provenance exists to prevent.
+  const db = openPgDatabase(databaseUrl, 2);
+  try {
+    const { organizationId, principalId } = await seedOrganization(
+      db,
+      "origin-legacy",
+    );
+    await db.query(
+      `insert into bakery.workflow_definitions
+         (organization_id, slug, name, description, enabled)
+       values ($1,$2,'legacy','legacy row',true)`,
+      [organizationId, FIXED_CODING_PRESET.slug],
+    );
+    const legacy = await originOf(db, organizationId, FIXED_CODING_PRESET.slug);
+    assertEquals(legacy[0]!.origin_kind, "authored");
+
+    await withPgTransaction(db, (transaction) =>
+      ensurePresetWorkflowVersion(
+        transaction,
+        organizationId,
+        principalId,
+        FIXED_CODING_PRESET,
+      ));
+
+    const repaired = await originOf(
+      db,
+      organizationId,
+      FIXED_CODING_PRESET.slug,
+    );
+    assertEquals(repaired[0]!.origin_kind, "catalog");
+    assertEquals(repaired[0]!.origin_catalog_key, FIXED_CODING_PRESET.id);
+    assertEquals(
+      repaired[0]!.origin_catalog_version,
+      FIXED_CODING_PRESET.revision,
+    );
+  } finally {
+    await closePgDatabase(db);
+  }
+});
+
 Deno.test("two organizations installing one catalog item get independent rows", async () => {
   const db = openPgDatabase(databaseUrl, 2);
   try {
