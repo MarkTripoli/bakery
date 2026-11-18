@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <learnings version="1">
   <entry file="contract-migration-check-flag.xml" scope="project" />
+  <entry file="cited-artifact-downstream-of-the-claim.xml" scope="project" />
+  <entry file="css-rail-scans-comments.xml" scope="project" />
   <entry file="deno-fixed-read-capability.xml" scope="project" />
   <entry file="ephemeral-worktree-stack.xml" scope="project" />
   <entry file="local-services-before-test-blocker.xml" scope="project" />
@@ -141,6 +143,16 @@
   <entry file="now-is-the-transaction-start.xml" scope="project" />
   <entry file="route-paths-are-invisible-to-the-type-checker.xml" scope="project" />
   <entry file="assert-the-row-by-id-not-by-position.xml" scope="project" />
+  <entry file="a-derived-expectation-needs-a-swap-test.xml" scope="project" />
+  <entry file="read-the-isolation-default-of-the-writer.xml" scope="project" />
+  <entry file="an-observation-is-not-an-invariant.xml" scope="project" />
   <entry file="database-name-is-not-database-identity.xml" scope="project" />
+  <entry file="nullable-dedupe-key-nulls-distinct.xml" scope="project" />
   <entry file="generated-file-without-its-source.xml" scope="project" />
+  <entry file="a-rail-that-only-passed-is-untested.xml" scope="process" />
+  <entry file="name-the-writer-when-declaring-the-field.xml" scope="project" />
+  <entry file="a-flag-accepted-is-not-a-state-stored.xml" scope="process" />
+  <entry file="three-checks-that-answer-a-different-question.xml" scope="process" />
+  <entry file="count-against-both-parents-before-unioning-a-conflict.xml" scope="process" />
+  <entry file="a-pr-reference-is-not-a-work-item.xml" scope="process" />
 </learnings>

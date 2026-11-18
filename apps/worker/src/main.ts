@@ -228,6 +228,14 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
         commandTimeLimitMs: codingHarness.timeLimitMs,
         redactionSecrets: config.outputRedactionSecrets,
         credentialPaths,
+        // The check executor seeds the attempt's context from the assignment's
+        // pins. Without this the executor refuses every assignment that pins
+        // inputs, so the reader is not an optimisation: it is the only way a
+        // check with declared inputs can run at all.
+        readAttemptContext: async (attemptId) => {
+          const served = await client.attemptContext(attemptId);
+          return served.value;
+        },
       });
     const harnessExecutor = codingHarness?.name === "claude"
       ? createClaudeHarnessExecutor({

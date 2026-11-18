@@ -29,6 +29,13 @@ export type DescriptionItemProps =
      */
     actionPlacement?: "end" | "below";
     /**
+     * Opt-in, with `actionPlacement: "below"`: the row's single button fills
+     * the line under the text instead of sitting at its natural width, the
+     * same phone pattern the access-settings rows use. Leave it off for a row
+     * whose action is two labelled buttons side by side.
+     */
+    actionFill?: boolean;
+    /**
      * Makes the whole row the control (Paper's `.item.selectable`): the row
      * becomes a `<button>` and `action` is reserved for the affordance that
      * shows where it leads, e.g. `<UI.IconGlyph name="arrow" size="large" />`.
@@ -49,6 +56,7 @@ export function DescriptionItem(
   {
     action,
     actionPlacement = "end",
+    actionFill = false,
     description,
     icon,
     initial,
@@ -89,6 +97,7 @@ export function DescriptionItem(
         className="ui-description-item ui-description-item--selectable"
         {...props}
         onClick={onSelect}
+        data-action-fill={actionFill ? "true" : undefined}
         data-action-placement={actionPlacement}
         data-state="default"
         data-ui-component="descriptionItem"
@@ -103,6 +112,7 @@ export function DescriptionItem(
     <div
       className="ui-description-item"
       {...props}
+      data-action-fill={actionFill ? "true" : undefined}
       data-action-placement={actionPlacement}
       data-state="default"
       data-ui-component="descriptionItem"

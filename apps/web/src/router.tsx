@@ -98,6 +98,8 @@ import { AddPasskeyPage } from "./pages/AddPasskeyPage.tsx";
 import { ReauthPage } from "./pages/ReauthPage.tsx";
 import { ConnectedClientsPage } from "./pages/ConnectedClientsPage.tsx";
 import { RevokeClientPage } from "./pages/RevokeClientPage.tsx";
+import { NotificationsPage } from "./notifications/NotificationsPage.tsx";
+import { isNotificationView } from "./notifications/presentation.ts";
 import { OAuthConsentPage } from "./pages/OAuthConsentPage.tsx";
 import { createConsentGateway } from "./app/consent-gateway.ts";
 import { ProjectsOnboardingPage } from "./pages/ProjectsOnboardingPage.tsx";
@@ -368,6 +370,19 @@ export const routeCoverage = [
     ],
   },
   {
+    id: "notifications",
+    path: "/notifications",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "empty",
+      "error",
+      "offline",
+      "long-copy",
+    ],
+  },
+  {
     id: "status",
     path: "/",
     classification: "production",
@@ -580,6 +595,18 @@ export const routeCoverage = [
     states: ["loading", "default", "empty", "error", "forbidden"],
   },
   {
+    id: "settings-organization-access-invitations",
+    path: "/settings/organization/access/invitations",
+    classification: "production",
+    states: ["loading", "default", "empty", "error", "forbidden"],
+  },
+  {
+    id: "settings-organization-service-accounts",
+    path: "/settings/organization/service-accounts",
+    classification: "production",
+    states: ["loading", "default", "empty", "error"],
+  },
+  {
     id: "settings-organization-roles",
     path: "/settings/organization/roles",
     classification: "production",
@@ -690,8 +717,14 @@ export const routeCoverage = [
     states: ["default", "invalid", "loading"],
   },
   {
-    id: "clients",
+    id: "clients-redirect",
     path: "/settings/clients",
+    classification: "production",
+    states: ["redirect"],
+  },
+  {
+    id: "settings-organization-integrations-clients",
+    path: "/settings/organization/integrations/clients",
     classification: "production",
     states: ["default", "empty", "revoked"],
   },
@@ -1450,7 +1483,25 @@ const organizationAccessRoute = createRoute({
   path: "/settings/organization/access",
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
-  component: OrganizationAccessPage,
+  component: () => <OrganizationAccessPage tab="members" />,
+  errorComponent: ProtectedRouteError,
+});
+
+const organizationServiceAccountsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/settings/organization/service-accounts",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => <OrganizationAccessPage page="service-accounts" />,
+  errorComponent: ProtectedRouteError,
+});
+
+const organizationInvitationsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/settings/organization/access/invitations",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => <OrganizationAccessPage tab="invitations" />,
   errorComponent: ProtectedRouteError,
 });
 
@@ -1826,9 +1877,56 @@ const reauthRoute = createRoute({
   errorComponent: ProtectedRouteError,
 });
 
-const clientsRoute = createRoute({
+// Connected clients now live under Integrations (issue 233 split). The old
+// path keeps working as a redirect so a bookmark or a link in an email does
+// not dead-end.
+const clientsRedirectRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/settings/clients",
+  beforeLoad: ({ context, location }) => {
+    requireSession(context.session, location);
+    throw redirect({ to: "/settings/organization/integrations/clients" });
+  },
+  errorComponent: ProtectedRouteError,
+});
+
+const NOTIFICATIONS_PATH = "/notifications";
+
+const notificationsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/notifications",
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { view?: "all" | "unread" | "mentions"; item?: string } => ({
+    view: isNotificationView(search.view) ? search.view : undefined,
+    item: typeof search.item === "string" && isUuid(search.item)
+      ? search.item
+      : undefined,
+  }),
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => {
+    const { view, item } = notificationsRoute.useSearch();
+    const navigate = notificationsRoute.useNavigate();
+    return (
+      <NotificationsPage
+        item={item ?? null}
+        view={view ?? "all"}
+        onViewChange={(next) =>
+          void navigate({
+            to: NOTIFICATIONS_PATH,
+            search: { view: next === "all" ? undefined : next },
+            replace: true,
+          })}
+      />
+    );
+  },
+  errorComponent: ProtectedRouteError,
+});
+
+const clientsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/settings/organization/integrations/clients",
   validateSearch: (
     search: Record<string, unknown>,
   ): { revoked?: boolean } => ({
@@ -2127,6 +2225,8 @@ const routeTree = rootRoute.addChildren([
   installationAuditRoute,
   installationIntegrationsRoute,
   organizationAccessRoute,
+  organizationInvitationsRoute,
+  organizationServiceAccountsRoute,
   organizationIntegrationsRoute,
   organizationIntegrationConnectionRoute,
   organizationRolesRoute,
@@ -2151,6 +2251,8 @@ const routeTree = rootRoute.addChildren([
   passkeysRoute,
   passkeyAddRoute,
   reauthRoute,
+  clientsRedirectRoute,
+  notificationsRoute,
   clientsRoute,
   revokeClientRoute,
   oauthConsentRoute,

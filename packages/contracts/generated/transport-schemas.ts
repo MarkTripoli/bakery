@@ -414,6 +414,17 @@ const transportSchemas = {
     }
   },
   "inputs": {
+    "SecretIdentityToolRequest": {
+      "fields": [
+        {
+          "name": "preparedOperationId",
+          "type": "uuid",
+          "required": true,
+          "description": "Opaque prepared-operation identifier from the encrypted assignment replay."
+        }
+      ],
+      "description": "Bounded daemon-only request for the one server-selected fixed identity operation. The whole serialized request must stay within 128 bytes, so a caller cannot widen it into a general-purpose secret read."
+    },
     "CoordinationPlanCreate": {
       "fields": [
         {
@@ -685,6 +696,48 @@ const transportSchemas = {
         "Idempotency-Key and If-Match required; If-Match is the agent definition's current version. A missing If-Match is a PRECONDITION_REQUIRED and a stale one a PRECONDITION_FAILED. Admin only. A version that does not belong to this agent in this organization is UNPROCESSABLE with path versionId and code agent_version_unknown. Activating the already active version changes nothing and returns the current definition. The change is audited as agents.activateVersion and announced as agents.updated."
       ],
       "description": "Makes one published version of an agent definition the active version that new conversations, tasks and runs resolve to. Versions stay immutable and earlier versions stay readable; running work keeps the version it was admitted with."
+    },
+    "ArtifactKindKeyPath": {
+      "fields": [
+        {
+          "name": "key",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "description": "Lowercase kebab-case key of the kind addressed by this route, such as brief or render-cut. It is unique among the organization's kinds, so the key names exactly one kind; an unknown key is RESOURCE_NOT_FOUND and never another organization's kind."
+        }
+      ],
+      "description": "Shared path-parameter body addressing one of the organization's kinds by its stable key rather than its UUID, because the key is what a workflow author writes and what a template names."
+    },
+    "ArtifactKindVersionCreate": {
+      "fields": [
+        {
+          "name": "expectedRevision",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 0
+          },
+          "description": "Revision of the addressed kind the caller built this definition on; 0 when the kind has no published version yet. Publication fails with PRECONDITION_FAILED when the latest published revision of that kind differs, so two authors editing the same kind one after the other cannot silently overwrite each other."
+        },
+        {
+          "name": "definition",
+          "type": "json",
+          "required": true,
+          "bounds": {
+            "maxBytes": 65536
+          },
+          "description": "Complete definition of the new kind version: its key, name, description, whether it is text, the facts the engine may read and the platform rule types it composes. It contains declarations only; there is no field that accepts code, a script or a URL, which is what keeps customer logic out of the publication path."
+        }
+      ],
+      "configSchema": "definition: { key: lowercase kebab-case <=64, name: <=120, description: <=1000, text: boolean, facts: [{ name: lowerCamelCase <=64, type: string|integer|number|boolean|timestamp, required: boolean, description: <=500 }] <=50, rules: [{ type: maxLength|nonEmpty|mediaType|maxBytes|linesAtMost, severity: require|warn, options: { value?: integer >= 0, mediaTypes?: string[] <=20 } }] <=20 }. The strict ArtifactKindDefinitionSchema in @bakery/contracts/artifact-kinds enforces it; unknown keys, unknown rule types, duplicate fact names and duplicate rule types are refused.",
+      "rules": [
+        "Idempotency-Key required. Admin only. The server assigns revision = expectedRevision + 1 and never accepts a client revision. The path organization and kind key must be the caller's own, otherwise the answer is RESOURCE_NOT_FOUND; a key that does not exist yet is created by the first publication at revision 1. A stale expectedRevision is PRECONDITION_FAILED and writes nothing. Publication is audited as artifactKindVersions.create and announced as artifactKinds.published. A definition must stay within 65,536 canonical bytes so every publisher reports the same digest for the same definition."
+      ],
+      "description": "Publishes a new immutable version of an organization's artifact kind. A version states what a document of that kind must contain and which facts the engine may read from it; history stays immutable, so restoring an earlier definition publishes a new version rather than rewriting an old one."
     },
     "RepositoryRuleVersionCreate": {
       "fields": [
@@ -4042,15 +4095,14 @@ const transportSchemas = {
         },
         {
           "name": "taskType",
-          "type": "enum",
+          "type": "string",
           "required": true,
-          "enum": [
-            "feature",
-            "bug",
-            "epic",
-            "maintenance"
-          ],
-          "description": "Classification of the work: `feature`, `bug`, `maintenance`, or `epic`. An `epic` is a parent task that completes only after its required child tasks complete, not merely when it is decomposed into them."
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 40,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          },
+          "description": "Organization work type label, a lowercase kebab-case token of up to 40 characters. The kernel never branches on it: it names the kind of work for people. `feature`, `bug`, `epic` and `maintenance` are the software-delivery defaults, not a closed set."
         },
         {
           "name": "title",
@@ -8009,6 +8061,79 @@ const transportSchemas = {
         }
       ]
     },
+    "HumanApprovalInput": {
+      "description": "Input to the human.approval workflow action: what the approver is asked, who may answer, and how the choices are labelled. The step waits for one person's decision, at most seven days, and never approves by silence.",
+      "fields": [
+        {
+          "name": "prompt",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "description": "Question put to the approver, shown in the inbox and on the approval page. Plain text: the decision is typed, never inferred from this text."
+        },
+        {
+          "name": "audience",
+          "type": "json",
+          "required": false,
+          "bounds": {
+            "maxBytes": 8192
+          },
+          "description": "Who may decide: a list of one to 50 member, group or role references. Absent means the workflow's owner, which is the default approver; an empty list is refused because a step nobody can answer could only expire."
+        },
+        {
+          "name": "approveLabel",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "description": "Optional label for the approving choice, so a workflow can say Release instead of Approve."
+        },
+        {
+          "name": "rejectLabel",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "description": "Optional label for the rejecting choice, paired with approveLabel."
+        },
+        {
+          "name": "allowRequestChanges",
+          "type": "boolean",
+          "required": false,
+          "description": "Whether the step also offers request changes. Defaults to true, matching the three shipped approval decisions."
+        }
+      ]
+    },
+    "WorkflowStopInput": {
+      "description": "Input to the workflow.stop action: the named outcome that ends the run on purpose, as opposed to failing, and an optional reason.",
+      "fields": [
+        {
+          "name": "outcome",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 100
+          },
+          "description": "Name of the outcome this stop produces, for example cancelled_by_customer or nothing_to_do. It becomes the run's named outcome and is what a later step or a caller branches on; an empty name defaults to stopped."
+        },
+        {
+          "name": "reason",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 2000
+          },
+          "description": "Optional human explanation recorded with the outcome, for whoever reads the run later."
+        }
+      ]
+    },
     "MemoryPromoteInput": {
       "description": "Input to the memory.promote workflow action: the artifact version to promote into project memory and the repository revision that evidence was drawn from.",
       "fields": [
@@ -8083,7 +8208,7 @@ const transportSchemas = {
       "fields": [
         {
           "name": "actionId",
-          "type": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|integration.action|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|artifact.publish|memory.promote|evaluation.sample|task.brief)",
+          "type": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|integration.action|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|task.brief)",
           "required": true,
           "description": "Registered workflow action name, for example harness.implement or delivery.candidate_evidence; an unknown name answers not found."
         },
@@ -8890,15 +9015,14 @@ const transportSchemas = {
         },
         {
           "name": "taskType",
-          "type": "enum",
+          "type": "string",
           "required": true,
-          "enum": [
-            "feature",
-            "bug",
-            "epic",
-            "maintenance"
-          ],
-          "description": "Task classification copied from the task row."
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 40,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          },
+          "description": "Organization work type label copied from the task row. The kernel never branches on it, so any organization label travels here unchanged."
         },
         {
           "name": "approvedPlan",
@@ -10018,6 +10142,84 @@ const transportSchemas = {
     "BlobUploadComplete": {
       "fields": [],
       "description": "Completes a session with no body: the session already carries the declared digest, size and media type. Completing is idempotent, so a client that never saw the first response can retry without storing a second blob."
+    },
+    "NotificationCursorQuery": {
+      "fields": [
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token for the same notification filter, ordering, recipient and organization scope."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum number of notifications returned in this page; defaults to 25 and cannot exceed 100."
+        },
+        {
+          "name": "filter",
+          "type": "enum",
+          "required": false,
+          "enum": [
+            "all",
+            "unread",
+            "mentions"
+          ],
+          "description": "Local view of the one inbox: all notifications, only unread ones, or only items where someone mentioned the recipient. Omitted means all."
+        }
+      ],
+      "pagination": "pagination",
+      "rules": [
+        "Cursor pagination only: reject page, offset and skip; bind continuation to every supplied filter and the authenticated organization and recipient principal.",
+        "Rows are ordered newest first by an immutable created_at with an id tie-breaker, so a new arrival at the top never shifts or duplicates a row on a later page."
+      ],
+      "description": "Bounded filters over the authenticated recipient's own notification inbox, with cursor pagination and the three local views (all, unread, mentions)."
+    },
+    "NotificationReadUpdate": {
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "UUID of the notification to change; it must belong to the authenticated recipient in the current organization, else the call is refused as not found."
+        },
+        {
+          "name": "read",
+          "type": "boolean",
+          "required": true,
+          "description": "True marks the item read, false marks it unread again. Marking read is idempotent; marking unread clears read_at so the row is unread exactly as it was before."
+        },
+        {
+          "name": "expectedCasVersion",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1
+          },
+          "description": "The revision the caller last saw for this notification; a stale revision is rejected as a version conflict so an older cross-device response cannot overwrite a newer one."
+        }
+      ],
+      "description": "Explicit read or unread mutation for one notification the recipient owns, guarded by the revision the client last saw."
+    },
+    "NotificationMarkAllRead": {
+      "fields": [
+        {
+          "name": "readBefore",
+          "type": "timestamp",
+          "required": true,
+          "description": "The snapshot cutoff the client is marking up to, normally the newest item in the list it showed when the action was pressed. Only rows created at or before this instant are marked read, so anything arriving during the action stays unread."
+        }
+      ],
+      "description": "Snapshot-bounded bulk mark-all-read for the recipient's own inbox: arrivals after the cutoff are deliberately left unread."
     }
   },
   "projections": {
@@ -10352,7 +10554,7 @@ const transportSchemas = {
         "parentTaskId": "uuid|null",
         "title": "string",
         "description": "string",
-        "taskType": "enum(feature|bug|epic|maintenance)",
+        "taskType": "string",
         "status": "enum(draft|queued|active|waiting_input|blocked|completed|failed|canceled)",
         "priority": "integer",
         "createdBy": "uuid",
@@ -15196,6 +15398,84 @@ const transportSchemas = {
     }
   },
   "outputs": {
+    "RepositoryInspectionSourceChunk": {
+      "fields": [
+        "receipt",
+        "offset",
+        "totalBytes",
+        "chunkDigest",
+        "bytesBase64",
+        "done"
+      ],
+      "fieldTypes": {
+        "receipt": "json",
+        "offset": "integer",
+        "totalBytes": "integer",
+        "chunkDigest": "sha256",
+        "bytesBase64": "string",
+        "done": "boolean"
+      },
+      "description": "Strict RepositoryInspectionSourceChunkSchema result: one bounded authenticated source chunk carrying the unchanged receipt, so a worker reads a large repository source without the whole envelope ever being held at once.",
+      "fieldDescriptions": {
+        "receipt": "The unchanged inspection receipt this chunk belongs to.",
+        "offset": "Exact contiguous decoded envelope byte offset this chunk starts at.",
+        "totalBytes": "Stable exact canonical envelope transfer length.",
+        "chunkDigest": "Digest of this chunk's transfer bytes.",
+        "bytesBase64": "Canonical base64 of at most 32 KiB transfer bytes.",
+        "done": "True only when this chunk reaches the exact final byte."
+      }
+    },
+    "PinnedContextInput": {
+      "fields": [
+        "slot",
+        "path",
+        "digest",
+        "sizeBytes",
+        "mediaType",
+        "content"
+      ],
+      "fieldTypes": {
+        "slot": "slug",
+        "path": "safeRelativePath",
+        "digest": "sha256",
+        "sizeBytes": "nonnegativeInteger",
+        "mediaType": "string",
+        "content": "bytes"
+      },
+      "bounds": {
+        "sizeBytesMax": 1073741824
+      },
+      "description": "One input slot as the worker's attempt context read returns it: the declared slot name, the path inside the attempt context directory, and the bytes together with the digest the server computed from those same bytes.",
+      "fieldDescriptions": {
+        "slot": "The name the workflow declared for this input, such as `brief`.",
+        "path": "Path of the input's bytes relative to the attempt context directory; it never starts with `/` and never climbs.",
+        "digest": "Digest the server computed from the bytes in this same response. It is authoritative: a worker verifies its written file against this value, never against a digest it supplied on the way in.",
+        "sizeBytes": "Size of these bytes, so the worker can bound the read and detect a truncated response.",
+        "mediaType": "Media type of the bytes, so the step knows how to read the file without guessing.",
+        "content": "The exact bytes pinned at admission."
+      }
+    },
+    "PinnedContextRead": {
+      "fields": [
+        "attemptId",
+        "runId",
+        "inputs"
+      ],
+      "fieldTypes": {
+        "attemptId": "uuid",
+        "runId": "uuid",
+        "inputs": "PinnedContextInput[]"
+      },
+      "bounds": {
+        "inputsMaxItems": 32
+      },
+      "description": "The pinned input context of the attempt that asked for it, fenced by the lease it presented: every declared input with its bytes and the server-computed digest, so a worker materializes exactly what admission pinned without re-fetching an artifact.",
+      "fieldDescriptions": {
+        "attemptId": "The attempt whose lease proof was presented; the read answers only while that lease still holds.",
+        "runId": "The run the attempt belongs to, so the worker can correlate the context with its job.",
+        "inputs": "Every input pinned for this attempt's run, ordered as the pins were created."
+      }
+    },
     "CoordinationPlan": {
       "projection": "coordination_plans",
       "fields": [
@@ -15728,6 +16008,14 @@ const transportSchemas = {
     "Page<AgentVersion>": {
       "pageOf": "AgentVersion",
       "description": "Cursor page of one agent's pinned version history: prompts, harness, model and constraints frozen at each revision, with credentials held only as references. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers or offsets."
+    },
+    "Page<ArtifactKind>": {
+      "pageOf": "ArtifactKind",
+      "description": "Cursor page of the organization's artifact kinds, each resolved to its latest published version. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers or offsets."
+    },
+    "Page<ArtifactKindVersion>": {
+      "pageOf": "ArtifactKindVersion",
+      "description": "Cursor page of one kind's published versions, newest revision first. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers or offsets."
     },
     "Page<OrganizationRepositoryRuleVersion>": {
       "pageOf": "OrganizationRepositoryRuleVersion",
@@ -17285,7 +17573,7 @@ const transportSchemas = {
         "parentTaskId": "uuid|null",
         "title": "string",
         "description": "string",
-        "taskType": "enum(feature|bug|epic|maintenance)",
+        "taskType": "string",
         "status": "enum(draft|queued|active|waiting_input|blocked|completed|failed|canceled)",
         "priority": "integer",
         "createdBy": "uuid",
@@ -17948,6 +18236,83 @@ const transportSchemas = {
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
         "version": "Optimistic-concurrency version used when updating the record."
+      }
+    },
+    "ArtifactKind": {
+      "projection": "artifact_kinds",
+      "fields": [
+        "id",
+        "organizationId",
+        "key",
+        "revision",
+        "definition",
+        "digest",
+        "createdAt",
+        "createdBy"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "organizationId": "uuid",
+        "key": "string",
+        "revision": "integer",
+        "definition": "json",
+        "digest": "string",
+        "createdAt": "timestamp",
+        "createdBy": "uuid|null"
+      },
+      "nullableFields": [
+        "createdBy"
+      ],
+      "description": "One of an organization's artifact kinds, resolved to its latest published version: the stable key, plus the definition, revision and digest of the newest version of that kind. The kind's identity is the UUID; the key is what workflow authors and templates name.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of the kind; it never changes across versions, renames of the definition or restores of an earlier revision.",
+        "organizationId": "Organization that owns the kind; kinds never cross organizations.",
+        "key": "Lowercase kebab-case key of the kind, unique among this organization's kinds.",
+        "revision": "Revision number of the latest published version of this kind, which orders its history.",
+        "definition": "Complete definition of the latest published version, exactly as it was published.",
+        "digest": "SHA-256 hex of the canonical JSON of {key, revision, definition}; recompute it from the returned fields to verify the content.",
+        "createdAt": "UTC timestamp when the latest published version was created.",
+        "createdBy": "Principal who published the latest version of this kind."
+      }
+    },
+    "ArtifactKindVersion": {
+      "projection": "artifact_kind_versions",
+      "fields": [
+        "id",
+        "organizationId",
+        "kindId",
+        "key",
+        "revision",
+        "definition",
+        "digest",
+        "createdAt",
+        "createdBy"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "organizationId": "uuid",
+        "kindId": "uuid",
+        "key": "string",
+        "revision": "integer",
+        "definition": "json",
+        "digest": "string",
+        "createdAt": "timestamp",
+        "createdBy": "uuid|null"
+      },
+      "nullableFields": [
+        "createdBy"
+      ],
+      "description": "One immutable published version of an artifact kind: the complete definition, its revision and digest, and the principal who published it. A run or a published document pins a version, so the rules it was validated against keep meaning what they meant.",
+      "fieldDescriptions": {
+        "id": "Stable UUID identifying this published kind version.",
+        "organizationId": "Organization that owns the kind this version belongs to.",
+        "kindId": "UUID of the kind identity these versions belong to.",
+        "key": "Lowercase kebab-case key of the kind at this revision.",
+        "revision": "Positive revision number of this version within the kind; revisions are dense and never reused.",
+        "definition": "Complete definition published at this revision: name, description, text flag, facts and rules.",
+        "digest": "SHA-256 hex of the canonical JSON of {key, revision, definition}; recompute it from the returned fields to verify the content.",
+        "createdAt": "UTC timestamp when this version was published.",
+        "createdBy": "Principal who published this version."
       }
     },
     "OrganizationRepositoryRuleVersion": {
@@ -18949,6 +19314,7 @@ const transportSchemas = {
         "id",
         "principalType",
         "displayName",
+        "createdByPrincipalId",
         "disabledAt",
         "createdAt",
         "updatedAt",
@@ -18961,10 +19327,12 @@ const transportSchemas = {
         "disabledAt": "timestamp|null",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "createdByPrincipalId": "uuid|null"
       },
       "nullableFields": [
-        "disabledAt"
+        "disabledAt",
+        "createdByPrincipalId"
       ],
       "description": "Safe principal lifecycle projection with no organization role or capability; organization authority is resolved separately from current membership or grants.",
       "fieldDescriptions": {
@@ -18974,7 +19342,8 @@ const transportSchemas = {
         "disabledAt": "UTC disablement instant, or null while the principal is enabled; enabled state is reloaded before protected work.",
         "createdAt": "UTC timestamp when the principal lifecycle record was created.",
         "updatedAt": "UTC timestamp when principal-owned lifecycle data was last changed.",
-        "version": "Optimistic-concurrency version for mutations of principal-owned lifecycle data."
+        "version": "Optimistic-concurrency version for mutations of principal-owned lifecycle data.",
+        "createdByPrincipalId": "Principal that created this service account, or null for a human principal or one created before the column existed; a member sees and manages the service accounts they created."
       }
     },
     "SecretMetadata": {
@@ -19820,7 +20189,7 @@ const transportSchemas = {
         "modelBillingRequired"
       ],
       "fieldTypes": {
-        "actionId": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|integration.action|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|artifact.publish|memory.promote|evaluation.sample|task.brief)",
+        "actionId": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|integration.action|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|task.brief)",
         "version": "integer",
         "input": "string",
         "output": "string",
@@ -19865,7 +20234,7 @@ const transportSchemas = {
       ],
       "fieldTypes": {
         "stepId": "string",
-        "action": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|integration.action|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|artifact.publish|memory.promote|evaluation.sample|task.brief)",
+        "action": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|integration.action|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|task.brief)",
         "source": "enum(step|workflow|profile|none)",
         "agentVersionId": "uuid|null",
         "revision": "integer|null",
@@ -25117,7 +25486,7 @@ const transportSchemas = {
         "runId": "uuid|null",
         "prompt": "string",
         "status": "enum(open|answered|expired|withdrawn|superseded|revoked|consumed)",
-        "subjectType": "enum(plan_revision|run_stage|merge|deploy)",
+        "subjectType": "enum(plan_revision|run_stage|merge|deploy|human_approval)",
         "subjectId": "uuid",
         "subjectDigest": "sha256",
         "scope": "json",
@@ -25837,6 +26206,222 @@ const transportSchemas = {
         "mediaType": "IANA media type recorded for the stored bytes.",
         "createdAt": "When this blob was first stored. A later upload of the same bytes does not change it."
       }
+    },
+    "Notification": {
+      "projection": "notifications",
+      "fields": [
+        "id",
+        "organizationId",
+        "recipientId",
+        "kind",
+        "targetKind",
+        "targetId",
+        "targetAnchor",
+        "conversationId",
+        "runId",
+        "taskId",
+        "actor",
+        "destination",
+        "read",
+        "revision",
+        "createdAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "organizationId": "uuid",
+        "recipientId": "uuid",
+        "kind": "enum(mention|comment_mention|comment|run_completed|run_failed|step_failed|approval_requested|question_asked|document_version)",
+        "targetKind": "enum(conversation_message|run|run_step|approval|question|document_version|comment)",
+        "targetId": "uuid",
+        "targetAnchor": "string|null",
+        "conversationId": "uuid|null",
+        "runId": "uuid|null",
+        "taskId": "uuid|null",
+        "actor": "NotificationActor|null",
+        "destination": "NotificationDestination",
+        "read": "boolean",
+        "revision": "integer",
+        "createdAt": "timestamp"
+      },
+      "nullableFields": [
+        "targetAnchor",
+        "conversationId",
+        "runId",
+        "taskId",
+        "actor"
+      ],
+      "fieldDescriptions": {
+        "id": "Stable UUID identifying this notification; it addresses the item inside the recipient's own inbox and never grants access to the destination.",
+        "organizationId": "UUID of the organization whose inbox holds this item.",
+        "recipientId": "UUID of the one principal whose inbox this item is in; always the authenticated caller on every response.",
+        "kind": "Stable event code that selects the wording; never a rendered sentence and never an internal workflow action name.",
+        "targetKind": "The typed kind of destination this row opens: a conversation message, run, run step, approval, question, document version or comment.",
+        "targetId": "UUID of the destination in targetKind; it is reauthorized when the item is opened and never carries access by itself.",
+        "targetAnchor": "Optional exact anchor inside the destination, such as a message sequence or step key, so the row opens at the exact place; null means open at the top.",
+        "conversationId": "UUID of the conversation the destination lives in, or null when the destination is not in a conversation.",
+        "runId": "UUID of the run the destination lives in, or null, so a run guard can reauthorize before anything about the run is shown.",
+        "taskId": "UUID of the task the destination lives in, or null.",
+        "actor": "Who caused the event, for an avatar and a name in the sentence; null when no person caused it, such as a run that failed on its own.",
+        "destination": "Safe destination summary: the title for the row's second line and whether it is still reachable, without exposing a protected title for an unavailable target.",
+        "read": "Whether the item has been marked read; opening a row marks it read once its destination opens, and a manual choice always sticks.",
+        "revision": "Monotonic revision of this item's read state; clients discard an older response or event than the revision they already hold.",
+        "createdAt": "UTC timestamp when the item entered the inbox, which is also its place in the newest-first order."
+      },
+      "rules": [
+        "Recipient-only: a row is returned only to the principal in recipient_id, and one recipient never sees another's item.",
+        "Bounded safe arguments only. Never a message body, pre-rendered English, or protected bytes; copy is composed in the client from kind and these fields.",
+        "An unavailable destination keeps its row but hides the protected title, so the client shows the no-longer-available state instead."
+      ],
+      "description": "One item in a person's notification inbox: a stable kind, a typed destination that is reauthorized on open, a safe destination title, read state and a revision."
+    },
+    "NotificationActor": {
+      "fields": [
+        "principalId",
+        "displayName",
+        "avatarUrl"
+      ],
+      "fieldTypes": {
+        "principalId": "uuid",
+        "displayName": "string",
+        "avatarUrl": "string|null"
+      },
+      "nullableFields": [
+        "avatarUrl"
+      ],
+      "fieldBounds": {
+        "displayName": {
+          "maxLength": 200
+        },
+        "avatarUrl": {
+          "maxLength": 2048
+        }
+      },
+      "fieldDescriptions": {
+        "principalId": "UUID of the person who caused the event; identity stays stable even if their display name changes.",
+        "displayName": "The person's current display name, or a neutral stand-in when the account is gone; never an email address.",
+        "avatarUrl": "Absolute HTTPS URL of the person's avatar, or null to draw initials."
+      },
+      "description": "The person who caused a notification, reduced to the safe identity the directory already exposes: principal, display name and avatar."
+    },
+    "NotificationDestination": {
+      "fields": [
+        "title",
+        "available"
+      ],
+      "fieldTypes": {
+        "title": "string|null",
+        "available": "boolean"
+      },
+      "nullableFields": [
+        "title"
+      ],
+      "fieldBounds": {
+        "title": {
+          "maxLength": 500
+        }
+      },
+      "fieldDescriptions": {
+        "title": "The destination's own title for the row's second line, or null when it is unavailable or untitled; a protected title is never sent for a target the recipient cannot reach.",
+        "available": "Whether the destination still resolves for this recipient. When false the title is withheld and the client shows the no-longer-available state with the way back."
+      },
+      "description": "Safe summary of where a notification points: its title for the second line and whether the recipient can still reach it, without promising access."
+    },
+    "Page<Notification>": {
+      "pageOf": "Notification",
+      "description": "Cursor page of the recipient's notifications, newest first. `nextCursor: null` marks the last page; there are no page numbers or offsets."
+    },
+    "NotificationCount": {
+      "fields": [
+        "unread",
+        "revision"
+      ],
+      "fieldTypes": {
+        "unread": "integer|null",
+        "revision": "integer|null"
+      },
+      "nullableFields": [
+        "unread",
+        "revision"
+      ],
+      "fieldBounds": {
+        "unread": {
+          "min": 0
+        }
+      },
+      "fieldDescriptions": {
+        "unread": "The authoritative number of unread items for this recipient in this organization, or null when no count is available yet; null is never drawn as zero.",
+        "revision": "Revision of the inbox snapshot this count was read at, or null alongside an unavailable count; clients discard an older count than the revision they hold."
+      },
+      "rules": [
+        "Recipient-only. A null count means unknown (not yet loaded or failed), never \"zero unread\"."
+      ],
+      "description": "The authenticated recipient's unread total in one organization, with the revision it was read at; unread and revision are null when no authoritative count is available."
+    },
+    "NotificationTarget": {
+      "fields": [
+        "status",
+        "targetKind",
+        "path",
+        "anchor"
+      ],
+      "fieldTypes": {
+        "status": "enum(available|unavailable)",
+        "targetKind": "enum(conversation_message|run|run_step|approval|question|document_version|comment)",
+        "path": "string|null",
+        "anchor": "string|null"
+      },
+      "nullableFields": [
+        "path",
+        "anchor"
+      ],
+      "fieldBounds": {
+        "path": {
+          "maxLength": 2048
+        },
+        "anchor": {
+          "maxLength": 200
+        }
+      },
+      "fieldDescriptions": {
+        "status": "Whether the stored destination still resolves and the recipient is still authorized to open it; unavailable means the client shows the no-longer-available state.",
+        "targetKind": "The typed kind of the resolved destination, echoed so the client can pick the right view.",
+        "path": "A validated relative internal route to open when available, or null when the destination is gone or no longer accessible.",
+        "anchor": "Optional exact anchor inside the destination to scroll to, or null."
+      },
+      "rules": [
+        "Recipient-only, and reauthorizes the destination on every call. A notification ID never grants access; an unauthorized target returns unavailable, not its title."
+      ],
+      "description": "The authoritative answer to \"can I still open this notification's destination\": a validated internal route and anchor when reachable, or an unavailable status."
+    },
+    "NotificationMarkAllReadResult": {
+      "fields": [
+        "marked",
+        "remainingUnread",
+        "revision"
+      ],
+      "fieldTypes": {
+        "marked": "integer",
+        "remainingUnread": "integer",
+        "revision": "integer"
+      },
+      "nullableFields": [],
+      "fieldBounds": {
+        "marked": {
+          "min": 0
+        },
+        "remainingUnread": {
+          "min": 0
+        }
+      },
+      "fieldDescriptions": {
+        "marked": "How many items this call actually marked read, for the toast's count.",
+        "remainingUnread": "How many items are still unread for the recipient after the call, which is above zero when arrivals landed after the cutoff.",
+        "revision": "The inbox revision after the change, so the client can order it against other responses."
+      },
+      "rules": [
+        "Only rows created at or before readBefore are marked, so arrivals during the action stay unread."
+      ],
+      "description": "Outcome of a snapshot-bounded mark-all-read: how many items were marked, how many are still unread, and the resulting revision."
     }
   },
   "pageEnvelope": {
@@ -25888,6 +26473,17 @@ const transportSchemas = {
     "description": "Cursor page envelope shared by paginated transport outputs."
   },
   "events": {
+    "artifactKinds.published": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer",
+        "kindId": "uuid",
+        "key": "string"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification that a new version of an artifact kind was published; fetch the authoritative kind through its REST operation. Trigger consumers always re-read durable state, so a consumer that misses this event still sees the new revision."
+    },
     "coordinationPlan.created": {
       "schemaVersion": 1,
       "payloadFields": {
@@ -27155,7 +27751,7 @@ const transportSchemas = {
     "task.brief": {
       "inputSchema": "TaskBriefInput",
       "outputSchema": "ArtifactOutput",
-      "schemaSource": "docs/technical-design/transport-schemas.json",
+      "schemaSource": "packages/contracts/src/contracts.ts",
       "capabilities": [],
       "description": "Deterministic, model-free action that renders the frozen task brief to canonical JSON and publishes it as an immutable artifact through the worker byte boundary."
     },

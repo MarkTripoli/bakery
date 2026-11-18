@@ -1022,19 +1022,15 @@ export async function createRunCommand(
       task,
       input.repositoryProfileId,
     );
-  } else {
-    if (task.task_type !== "maintenance") {
-      throw new StandardError({
-        code: "STATE_CONFLICT",
-        params: { reason: "cloud_only_requires_maintenance" },
-      });
-    }
-    if (input.repositoryProfileId !== undefined) {
-      throw unprocessable(
-        ["repositoryProfileId"],
-        "repository_profile_not_allowed",
-      );
-    }
+  } else if (input.repositoryProfileId !== undefined) {
+    // A repository profile is the code form of a scope profile, so it has no
+    // meaning on a run that mounts no repository. The maintenance-only rule is
+    // gone (O23): any work type may run without a repository, because work type
+    // is an organization label the kernel never branches on.
+    throw unprocessable(
+      ["repositoryProfileId"],
+      "repository_profile_not_allowed",
+    );
   }
 
   let repositoryRequired: boolean;

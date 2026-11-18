@@ -367,6 +367,13 @@
   padding: var(--space-0);
 }
 
+/* A trigger at the far end of a bar lines its content up with its own end
+   edge, so a panel wider than the trigger still fits inside the viewport. */
+.ui-popover[data-align="end"] > .ui-popover__content {
+  inset-inline-end: 0;
+  inset-inline-start: auto;
+}
+
 .ui-popover__content {
   background: var(--color-surface-raised);
   border: var(--border-default) solid var(--color-border);

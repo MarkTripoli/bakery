@@ -118,27 +118,61 @@
   background: transparent;
   border: var(--border-default) solid var(--color-control-border);
   border-radius: var(--radius-circle);
+  inline-size: max(var(--size-control), var(--target-min));
   min-block-size: max(var(--size-control), var(--target-min));
   min-inline-size: max(var(--size-control), var(--target-min));
+  position: relative;
 }
-.ui-notification-bell button > span {
+/* The badge sits at the bell's top end; in a right-to-left page `inline-end`
+   mirrors it to the top left, which is where the design asks it to be. */
+.ui-notification-bell__badge {
+  align-items: center;
   background: var(--color-selection);
+  block-size: var(--space-3);
   border-radius: var(--radius-pill);
   color: var(--color-surface);
+  display: inline-flex;
   font: var(--type-notification);
+  inline-size: auto;
+  inset-block-start: calc(var(--space-1) * -1);
+  inset-inline-end: calc(var(--space-1) * -1);
+  justify-content: center;
+  min-inline-size: var(--space-3);
+  padding-block: 0;
   padding-inline: var(--space-1);
-}
-.ui-notification-bell__panel {
-  background: var(--color-surface);
-  border: var(--border-default) solid var(--color-border);
-  box-sizing: border-box;
-  inset-block-start: calc(100% + var(--space-1));
-  inset-inline-end: 0;
-  max-inline-size: 100%;
-  min-inline-size: 0;
-  padding: var(--space-3);
   position: absolute;
-  z-index: var(--layer-tooltip);
+  text-align: center;
+}
+/* An unknown count is a hollow ring, never a zero: the ring says "not known
+   yet", which is true, where a 0 would be a confident lie. It takes the
+   emphasis width and the muted stroke, not the hairline default: at 1px in
+   `--color-border` the ring reads as an empty bell in both themes, which
+   loses the distinction the state exists to draw. This is the same pair the
+   repaired notification surfaces carry. */
+.ui-notification-bell__badge--unknown {
+  background: transparent;
+  border: var(--border-emphasis) solid var(--color-fg-muted);
+  block-size: var(--space-3);
+  box-sizing: border-box;
+  inline-size: var(--space-3);
+  min-inline-size: 0;
+  padding: 0;
+}
+/* A new arrival updates the badge without moving focus. The design allows a
+   single opacity fade of 150ms or less, and nothing else; reduced motion drops
+   even that and keeps the update. The fade is the default and `reduce` removes
+   it, because `no-preference` is not one of the media queries this stylesheet
+   may name. */
+.ui-notification-bell__badge,
+.ui-notification-bell__badge--unknown {
+  transition: opacity 150ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-notification-bell__badge,
+  .ui-notification-bell__badge--unknown {
+    transition: none;
+  }
 }
 .ui-cursor-controls {
   display: flex;
@@ -476,6 +510,14 @@
   }
   .ui-description-item[data-action-placement="below"] .ui-description-item__action .ui-button {
     white-space: nowrap;
+  }
+  /* Opt-in: a row with one button fills the line the way the access-settings
+     phone rows do, instead of sitting at its label's width. */
+  .ui-description-item[data-action-fill="true"] .ui-description-item__action .ui-inline,
+  .ui-description-item[data-action-fill="true"] .ui-description-item__action .ui-button {
+    inline-size: 100%;
+    justify-content: center;
+    min-block-size: var(--target-coarse);
   }
 }
 /* A value beside a button in an item's action takes the room it needs, not a line to itself. */
@@ -1744,4 +1786,180 @@
 }
 .ui-stacked-row[data-inset="none"] {
   padding-inline: var(--space-0);
+}
+
+/* Notification row: fixed lanes for the unread dot, the actor, the time and
+   the menu. Because every lane but the text is a fixed width, line 1 can wrap
+   to two lines and line 2 can be cut with an ellipsis while the time never
+   wraps and the menu never moves. */
+.ui-notification-row {
+  align-items: center;
+  display: flex;
+  gap: var(--space-2);
+  list-style: none;
+  position: relative;
+}
+.ui-notification-row[data-highlighted="true"] {
+  outline: var(--border-default) solid var(--color-selection);
+  outline-offset: calc(var(--space-1) * -1);
+}
+.ui-notification-row__link {
+  align-items: center;
+  color: inherit;
+  display: grid;
+  flex: 1;
+  gap: var(--space-2);
+  grid-template-columns:
+    var(--space-2)
+    var(--size-avatar-small)
+    minmax(0, 1fr)
+    max-content;
+  min-inline-size: 0;
+  padding-block: var(--space-2);
+  padding-inline: var(--space-2);
+  text-decoration: none;
+}
+.ui-notification-row__link:hover {
+  background: var(--color-surface-raised);
+}
+.ui-notification-row__dot {
+  background: transparent;
+  block-size: var(--space-2);
+  border-radius: var(--radius-circle);
+  inline-size: var(--space-2);
+}
+.ui-notification-row[data-unread="true"] .ui-notification-row__dot {
+  background: var(--color-selection);
+}
+.ui-notification-row__actor {
+  align-items: center;
+  block-size: var(--size-avatar-small);
+  display: inline-flex;
+  inline-size: var(--size-avatar-small);
+  justify-content: center;
+}
+.ui-notification-row__tile {
+  align-items: center;
+  block-size: var(--size-avatar-small);
+  border-radius: var(--radius-circle);
+  display: inline-flex;
+  inline-size: var(--size-avatar-small);
+  justify-content: center;
+}
+.ui-notification-row__tile--error {
+  background: var(--color-destructive-surface);
+  color: var(--color-destructive);
+}
+.ui-notification-row__tile--neutral {
+  background: var(--color-surface-raised);
+  color: var(--color-fg-muted);
+}
+.ui-notification-row__text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-inline-size: 0;
+}
+.ui-notification-row__headline {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+.ui-notification-row[data-unread="true"] .ui-notification-row__headline {
+  font-weight: var(--weight-medium);
+}
+.ui-notification-row__destination {
+  color: var(--color-fg-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-notification-row__time {
+  color: var(--color-fg-muted);
+  font: var(--type-caption);
+  white-space: nowrap;
+}
+.ui-notification-row__menu {
+  display: inline-flex;
+  flex: none;
+}
+
+/* The 360px panel under the bell: capped to the viewport so the list scrolls
+   inside it and the footer stays reachable. */
+.ui-notification-popover {
+  display: flex;
+  flex-direction: column;
+  inline-size: min(360px, calc(100vw - var(--space-4)));
+  max-block-size: min(70vh, 560px);
+}
+.ui-notification-popover__header {
+  align-items: center;
+  display: flex;
+  gap: var(--space-2);
+  /* The action keeps its whole label; the heading gives up its width first,
+     so "Mark all read" never clips against the panel edge. */
+  justify-content: space-between;
+  padding-block-end: var(--space-2);
+}
+.ui-notification-popover__header > .ui-notification-popover__title {
+  min-inline-size: 0;
+}
+.ui-notification-popover__header > .ui-notification-popover__action {
+  white-space: nowrap;
+}
+.ui-notification-popover__title {
+  font: var(--type-heading-subsection);
+  margin: 0;
+}
+.ui-notification-popover__action {
+  flex: none;
+}
+.ui-notification-popover__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-block-size: 0;
+  overflow-y: auto;
+}
+.ui-notification-popover__message {
+  color: var(--color-fg-muted);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-block: var(--space-3);
+}
+.ui-notification-popover__footer {
+  border-block-start: var(--border-default) solid var(--color-border);
+  margin-block-start: var(--space-2);
+  padding-block-start: var(--space-2);
+}
+
+/* The page header: the title and the one page-level action, spread apart. */
+.ui-notification-page-header {
+  align-items: center;
+  display: flex;
+  gap: var(--space-2);
+  justify-content: space-between;
+}
+
+/* The page's list and day groups. */
+.ui-notification-groups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.ui-notification-group__title {
+  color: var(--color-fg-muted);
+  font: var(--type-caption);
+  margin: 0;
+  padding-block: var(--space-2);
+}
+.ui-notification-group__rows {
+  display: flex;
+  flex-direction: column;
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }

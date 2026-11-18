@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="name-the-writer-when-declaring-the-field" project="bakery">
+  <title>Absence is only evidence when the surface is known to be exhaustive; name a field's writer at declaration</title>
+  <trigger>Declaring a field on a contract, a schema, or a catalogue; or concluding something does not exist because a documented surface does not list it.</trigger>
+  <rule>A hand-maintained surface that is complete for every item it lists can still omit one, and a reader navigating by it will conclude the omitted thing does not exist. A seat reported "no worker-scoped read route exists" - true of the catalogue, false of the system, since the route had shipped. Grep the code that DECIDES, not only the surface that DESCRIBES.</rule>
+  <rule>When declaring a field, name its writer in the same breath. If no writer can be named, the field is a promise not yet kept. `StepContextInput` carried a slot, path, digest and size that nothing populated, and it was found only because a different seat tried to fill it - a completeness check cannot see it, because the surface is exhaustive and the world is short a writer.</rule>
+  <rule>Omission and promise-without-writer are different defects with different detectors. Omission is diffable against the generator and belongs in a rail. Promise-without-writer is only caught by the fill-question, which is why the seat that declares a field and the seat that fills it should not be the same seat: a same-hand surface reports a contract gap as a silent agreement.</rule>
+  <verification>
+    <requirement>For each field added to a contract, record the file and function that writes it, or record that no writer exists and why the field is nevertheless declared. For each claim that something is absent, record which surface was searched and how that surface's completeness was established.</requirement>
+  </verification>
+</learning>

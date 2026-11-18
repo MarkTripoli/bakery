@@ -27,6 +27,7 @@ import {
 import { projectsBakeryMigrationSource } from "../../apps/server/src/modules/projects/migrations.ts";
 import { agentsBakeryMigrationSource } from "../../apps/server/src/modules/agents/migrations.ts";
 import { repositoryRulesBakeryMigrationSource } from "../../apps/server/src/modules/repository-rules/migrations.ts";
+import { artifactKindsBakeryMigrationSource } from "../../apps/server/src/modules/artifact-kinds/migrations.ts";
 import { integrationsBakeryMigrationSource } from "../../apps/server/src/modules/integrations/migrations.ts";
 import { deliveryBakeryMigrationSource } from "../../apps/server/src/modules/delivery/migrations.ts";
 import { withPgTransaction } from "../../apps/server/src/platform/database.ts";
@@ -78,6 +79,7 @@ Deno.test("checksum migrations and tenant context use real Postgres", async () =
       ...await loadMigrations(projectsBakeryMigrationSource),
       ...await loadMigrations(agentsBakeryMigrationSource),
       ...await loadMigrations(repositoryRulesBakeryMigrationSource),
+      ...await loadMigrations(artifactKindsBakeryMigrationSource),
       ...await loadMigrations(integrationsBakeryMigrationSource),
       ...await loadMigrations(deliveryBakeryMigrationSource),
     ];
@@ -450,6 +452,7 @@ Deno.test("canonical lifecycle preserves populated upgrades and rolls back mappi
       ...await loadMigrations(projectsBakeryMigrationSource),
       ...await loadMigrations(agentsBakeryMigrationSource),
       ...await loadMigrations(repositoryRulesBakeryMigrationSource),
+      ...await loadMigrations(artifactKindsBakeryMigrationSource),
       ...await loadMigrations(integrationsBakeryMigrationSource),
       ...await loadMigrations(deliveryBakeryMigrationSource),
     ].sort((left, right) => left.version.localeCompare(right.version));
@@ -782,6 +785,7 @@ Deno.test("provider migration preserves pending inviter state for canonical cuto
       ...await loadMigrations(projectsBakeryMigrationSource),
       ...await loadMigrations(agentsBakeryMigrationSource),
       ...await loadMigrations(repositoryRulesBakeryMigrationSource),
+      ...await loadMigrations(artifactKindsBakeryMigrationSource),
       ...await loadMigrations(integrationsBakeryMigrationSource),
       ...await loadMigrations(deliveryBakeryMigrationSource),
     ].sort((left, right) => left.version.localeCompare(right.version));
@@ -895,6 +899,7 @@ Deno.test("confirmed reset removes provider and Bakery state", async () => {
       ...await loadMigrations(projectsBakeryMigrationSource),
       ...await loadMigrations(agentsBakeryMigrationSource),
       ...await loadMigrations(repositoryRulesBakeryMigrationSource),
+      ...await loadMigrations(artifactKindsBakeryMigrationSource),
       ...await loadMigrations(integrationsBakeryMigrationSource),
       ...await loadMigrations(deliveryBakeryMigrationSource),
     ];
@@ -957,6 +962,7 @@ Deno.test("budget provenance upgrade preserves legacy measurements and their res
       ...await loadMigrations(projectsBakeryMigrationSource),
       ...await loadMigrations(agentsBakeryMigrationSource),
       ...await loadMigrations(repositoryRulesBakeryMigrationSource),
+      ...await loadMigrations(artifactKindsBakeryMigrationSource),
       ...await loadMigrations(integrationsBakeryMigrationSource),
       ...await loadMigrations(deliveryBakeryMigrationSource),
     ];

@@ -3726,8 +3726,15 @@
       ]
     },
     {
-      "routeId": "clients",
+      "routeId": "clients-redirect",
       "path": "/settings/clients",
+      "status": "no-mock",
+      "rationale": "Permanent redirect to /settings/organization/integrations/clients, kept so an existing bookmark or emailed link does not dead-end (issue 233 split). It renders no UI of its own, so there is no artboard to match.",
+      "frames": []
+    },
+    {
+      "routeId": "settings-organization-integrations-clients",
+      "path": "/settings/organization/integrations/clients",
       "status": "baselined",
       "manifest": "auth",
       "frames": [
@@ -3841,7 +3848,8 @@
         "clients.default.light.phone",
         "clients.default.dark.desktop",
         "clients.default.dark.phone"
-      ]
+      ],
+      "rationale": "Moved from /settings/clients to sit under Integrations by the issue 233 owner-directed split; the frames and reference clips are unchanged."
     },
     {
       "routeId": "revoke-client",
@@ -5071,6 +5079,20 @@
       "frames": []
     },
     {
+      "routeId": "settings-organization-access-invitations",
+      "path": "/settings/organization/access/invitations",
+      "status": "no-mock",
+      "rationale": "Pending invitations tab of the Members page (issue 233 owner-directed split). No Paper artboard exists for it: the split gave invitations their own route, and the tab shares the Members page layout.",
+      "frames": []
+    },
+    {
+      "routeId": "settings-organization-service-accounts",
+      "path": "/settings/organization/service-accounts",
+      "status": "no-mock",
+      "rationale": "Service accounts and tokens page (issue 233 owner-directed split). No Paper artboard depicts it: the surface was split out of Members & access after the artboards were drawn, and it reuses the AccessSettings template the baselined Members page uses.",
+      "frames": []
+    },
+    {
       "routeId": "settings-organization-roles",
       "path": "/settings/organization/roles",
       "status": "no-mock",
@@ -5201,6 +5223,13 @@
       "path": "/library/agents/$agentId",
       "status": "no-mock",
       "rationale": "One agent of the organization (its version in use, its versions) is designed by design-ux on #66; Paper has no frame for it.",
+      "frames": []
+    },
+    {
+      "routeId": "notifications",
+      "path": "/notifications",
+      "status": "no-mock",
+      "rationale": "Notification inbox page (NotificationsPage). No Paper artboard depicts a notifications list: the shipped design is design-ux's UX design comment on issue #455 (comment 6961347054), which specifies the bell, the popover and this page, and supersedes Paper as the source of truth for this surface.",
       "frames": []
     }
   ]

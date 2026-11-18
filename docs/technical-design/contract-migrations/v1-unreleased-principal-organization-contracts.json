@@ -1,13 +1,31 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "faa03d56e99e036c0d3271f1028c18086a5cce45"
+    "465e9476c657f880d1b4057040d661a4ade1d10c"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:b46e578adb70220a6bd9d07883733a5a2e0a3ebb2c91284663c4e01657dc025b",
-  "reason": "#401 session tool gateway re-bind by dev-server on 2026-11-17 under the owner's standing breaking-change authorization (2026-10-09), main faa03d56e99e036c0d3271f1028c18086a5cce45: two worker actions are added (session.tools, session.call), which extends the worker-action capability union and the WorkerResult.refineScope reference set. Additive to the action surface; the drift is the derived union growing, not an existing shape changing.",
+  "targetCompatibilityDigest": "sha256:7e4e457c805485ab1f60b08ce27d39ddab856e952ab3a85e23aafc7c8a24607e",
+  "reason": "#233 owner-directed split of Members & access, rebind by dev-web on 2026-11-17 under the owner's standing breaking-change authorization. Two changes ride together: five actions move from Admin to 'Initiating principal or Admin' so a member can create and manage their own service accounts and tokens (principals.list, principals.create, accessTokens.list, accessTokens.create, accessTokens.revoke), and Principal gains a required nullable createdByPrincipalId so an Admin can see who created a service account. principals.create also takes a distinct principal:create permission so it no longer collides with the Admin-only principals.update. The projection is additive by value but the field is required like its neighbour disabledAt, which is what moves the digest.",
   "priorApprovals": [
+    {
+      "fromBaseRefs": [
+        "1f1ba04f2d66d2783516ac1c46b42743c7331ea9"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:4c56e576cd84a373f4e2beb0d3d3bfa9f0e4093a3da28b12bbe5c4cb84dc3934",
+      "reason": "#233 owner-directed split of Members & access, rebind by dev-web on 2026-11-17 under the owner's standing breaking-change authorization: five actions move from Admin to 'Initiating principal or Admin' so a member can create and manage their own service accounts and tokens while an Admin still sees the whole organization (principals.list, principals.create, accessTokens.list, accessTokens.create, accessTokens.revoke). principals.create also takes a distinct principal:create permission so it no longer collides with the Admin-only principals.update. The drift is the access policy and permission of existing actions changing, not a request or response shape."
+    },
+    {
+      "fromBaseRefs": [
+        "faa03d56e99e036c0d3271f1028c18086a5cce45"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:b46e578adb70220a6bd9d07883733a5a2e0a3ebb2c91284663c4e01657dc025b",
+      "reason": "#401 session tool gateway re-bind by dev-server on 2026-11-17 under the owner's standing breaking-change authorization (2026-10-09), main faa03d56e99e036c0d3271f1028c18086a5cce45: two worker actions are added (session.tools, session.call), which extends the worker-action capability union and the WorkerResult.refineScope reference set. Additive to the action surface; the drift is the derived union growing, not an existing shape changing."
+    },
     {
       "fromBaseRefs": [
         "9295aee9bc938dd6eaa9e02396a6a2e8659ef008"

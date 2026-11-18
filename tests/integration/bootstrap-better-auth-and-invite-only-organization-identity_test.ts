@@ -9,6 +9,7 @@ import { workBakeryMigrationSource } from "../../apps/server/src/modules/work/mi
 import { projectsBakeryMigrationSource } from "../../apps/server/src/modules/projects/migrations.ts";
 import { agentsBakeryMigrationSource } from "../../apps/server/src/modules/agents/migrations.ts";
 import { repositoryRulesBakeryMigrationSource } from "../../apps/server/src/modules/repository-rules/migrations.ts";
+import { artifactKindsBakeryMigrationSource } from "../../apps/server/src/modules/artifact-kinds/migrations.ts";
 import { integrationsBakeryMigrationSource } from "../../apps/server/src/modules/integrations/migrations.ts";
 import { deliveryBakeryMigrationSource } from "../../apps/server/src/modules/delivery/migrations.ts";
 import { OrganizationRole } from "../../apps/server/src/modules/auth/domain/authorization.ts";
@@ -69,6 +70,7 @@ Deno.test("registration decisions use live invitations and enabled principals", 
       ...await loadMigrations(projectsBakeryMigrationSource),
       ...await loadMigrations(agentsBakeryMigrationSource),
       ...await loadMigrations(repositoryRulesBakeryMigrationSource),
+      ...await loadMigrations(artifactKindsBakeryMigrationSource),
       ...await loadMigrations(integrationsBakeryMigrationSource),
       ...await loadMigrations(deliveryBakeryMigrationSource),
     ]);
@@ -251,6 +253,7 @@ Deno.test("createsuperuser converges a fresh and compatible partial bootstrap", 
       ...await loadMigrations(projectsBakeryMigrationSource),
       ...await loadMigrations(agentsBakeryMigrationSource),
       ...await loadMigrations(repositoryRulesBakeryMigrationSource),
+      ...await loadMigrations(artifactKindsBakeryMigrationSource),
       ...await loadMigrations(integrationsBakeryMigrationSource),
       ...await loadMigrations(deliveryBakeryMigrationSource),
     ]);
