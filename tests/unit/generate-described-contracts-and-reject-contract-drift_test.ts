@@ -882,16 +882,21 @@ Deno.test("CheckOutput field descriptions say what each field means before they 
 
 Deno.test("compatibility migration approves only its exact generated delta", () => {
   const approvedBases = [
+    "96db6b75573b136101ebc956f6788079c9947a15",
     "28ee02548fddfc0972bfc3c4621949b8d9c4535b",
     "84b2d7667a897c1a66ce57a39de9d4311117c268",
     "9fcf4e1adcc02ae09065355a20314fb476f45220",
   ];
   const approvedDigest =
-    "sha256:a6d37979ea284d4b214795712d8c0045c09b766e9020398bcdd5de1d367cc061";
+    "sha256:b5ed16ad473004f4b87e4285204dfa32a93d15ea846c1569a435cf8b4dfc86ea";
   const rejectedPriorDigests = [
     // The approval displaced by THIS re-bind (the digest generated against
-    // main 84b2d766 and 9fcf4e1a, before the base moved to 28ee0254) is now
-    // only a prior approval, so it must not pass again.
+    // main 28ee0254, before the base moved to 96db6b75) is now only a prior
+    // approval, so it must not pass again.
+    "sha256:a6d37979ea284d4b214795712d8c0045c09b766e9020398bcdd5de1d367cc061",
+    // The approval displaced by the previous re-bind (the digest generated
+    // against main 84b2d766 and 9fcf4e1a, before the base moved to 28ee0254)
+    // is now only a prior approval, so it must not pass again.
     "sha256:7d5c92d9eb319e9179f08de17ad6f46cbed9d9ecb03c9383d981b13a7744ffee",
     // The approval displaced by THIS re-bind (the digest before
     // integrationConnections.invoke declared SCOPE_REQUIRED and

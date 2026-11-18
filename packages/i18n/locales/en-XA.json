@@ -4285,5 +4285,6 @@
   "settings.audit.kind.agent_definition": "⟦Àĝëñŧ⟧",
   "settings.audit.kind.agent_version": "⟦Àĝëñŧ ṽëŕšïôñ ŧë⟧",
   "settings.audit.description.organization": "⟦Çĥàñĝëš ŧô ɱëɱƀëŕš, ŕôļëš àñð šëŧŧïñĝš ïñ {organization}, ñëŵëšŧ ƒïŕšŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
-  "settings.audit.outcome.denied": "⟦Ŕëƒûšëð…⟧"
+  "settings.audit.outcome.denied": "⟦Ŕëƒûšëð…⟧",
+  "settings.roles.thing.scopeProfile": "⟦þŕôĵëçŧ šŧëþ ðëƒàûļŧš ŧëšŧŧ⟧"
 }
