@@ -51,6 +51,7 @@ type JsonSchema = {
   enum?: string[];
   anyOf?: JsonSchema[];
   format?: string;
+  pattern?: string;
   description?: string;
 };
 
@@ -60,6 +61,21 @@ type JsonSchema = {
 const schemas = ((await Deno.readTextFile(
   new URL("../../packages/contracts/generated/contracts.json", import.meta.url),
 ).then(JSON.parse)) as { schemas: Record<string, JsonSchema> }).schemas;
+
+function schemaOf(name: string): JsonSchema {
+  const schema = schemas[name];
+  assert(schema, `${name} is missing from the contract`);
+  return schema;
+}
+
+/**
+ * The fields a caller may omit. A fence that is merely present is not a fence:
+ * absent reads as "no generation", which is the one answer that must never be
+ * available to a decision that has to be ordered against one.
+ */
+function requiredOf(name: string): string[] {
+  return [...(schemaOf(name).required ?? [])].sort();
+}
 
 function propertiesOf(name: string): Record<string, JsonSchema> {
   const schema = schemas[name];
@@ -117,6 +133,12 @@ Deno.test("a route carries the fence a paused decision is judged against", () =>
   // offered while generation N was current cannot commit a switch after the
   // route recovered and generation advanced.
   assertEquals(route.incidentGeneration?.type, "integer");
+  // Present is not the same as required: an optional fence can be omitted, and
+  // a decision with no generation has nothing to be judged stale against.
+  assert(
+    requiredOf("ProviderRoute").includes("incidentGeneration"),
+    "ProviderRoute.incidentGeneration must be required, not optional",
+  );
   // Reachable is not usable. These two are separate on purpose: a status page
   // and a health read prove reachability, and only an already-authorized
   // request proves the inference path.
@@ -125,6 +147,39 @@ Deno.test("a route carries the fence a paused decision is judged against", () =>
   assert(route.lastProbeAt, "lastProbeAt is missing");
   // A route is the unit an outage is scoped to, so it must name its provider
   // endpoint, model, harness and credential location together.
+  // An endpoint that promises it carries no credential is only true if a
+  // credential-bearing form cannot be written into it: `user:secret@host`,
+  // `?token=`, `?access_token=` and a fragment are all refused by the pattern.
+  assertEquals(route.endpoint?.pattern !== undefined, true);
+  const endpoint = new RegExp(route.endpoint!.pattern!);
+  for (
+    const forbidden of [
+      "https://user:secret@api.example.com/v1",
+      "https://api.example.com/v1?token=abc",
+      "https://api.example.com/v1?access_token=abc",
+      "https://api.example.com/v1#secret",
+      "https://api.example.com/v1?api_key=abc",
+    ]
+  ) {
+    assertEquals(
+      endpoint.test(forbidden),
+      false,
+      `${forbidden} must not be an acceptable endpoint`,
+    );
+  }
+  for (
+    const allowed of [
+      "https://api.example.com/v1",
+      "https://api.example.com/v1/models?page=2",
+      "http://127.0.0.1:11434/v1/chat/completions",
+    ]
+  ) {
+    assertEquals(
+      endpoint.test(allowed),
+      true,
+      `${allowed} must be an acceptable endpoint`,
+    );
+  }
   for (
     const field of [
       "provider",
@@ -152,6 +207,10 @@ Deno.test("route health separates the probe schedule from the evidence", () => {
   assert(health.evidenceWatermark, "evidenceWatermark is missing");
   assert(health.consecutiveFailures, "consecutiveFailures is missing");
   assertEquals(health.incidentGeneration?.type, "integer");
+  assert(
+    requiredOf("RouteHealth").includes("incidentGeneration"),
+    "RouteHealth.incidentGeneration must be required, not optional",
+  );
   assertEquals(
     enumOf(health.corroboration!, "RouteHealth.corroboration"),
     ["none", "status_page"],
@@ -162,6 +221,10 @@ Deno.test("an incident is one record per generation, not one per failure", () =>
   const incident = propertiesOf("ProviderIncident");
 
   assertEquals(incident.generation?.type, "integer");
+  assert(
+    requiredOf("ProviderIncident").includes("generation"),
+    "ProviderIncident.generation must be required, not optional",
+  );
   assertEquals(
     enumOf(incident.status!, "ProviderIncident.status"),
     ["open", "recovered", "superseded"],

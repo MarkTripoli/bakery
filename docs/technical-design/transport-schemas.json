@@ -27836,7 +27836,6 @@
       "fieldTypes": {
         "id": "uuid",
         "provider": "string",
-        "endpoint": "string",
         "region": "string",
         "model": "string",
         "harness": "enum(pi|claude_code|codex|mastra)",
@@ -27853,7 +27852,11 @@
         "inferenceVerifiedAt": "timestamp",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "endpoint": "string"
+      },
+      "bounds": {
+        "endpointMaxBytes": 2048
       },
       "description": "One organization-scoped provider route: the provider endpoint, region, model, harness and credential binding that outbound work is admitted against. A route is the unit an outage is scoped to, so one expired credential, one 429 or one broken network never declares the organization down. Health and the current incident generation are projected here so a listing needs no per-route health read; the incident's own evidence and probe schedule live in RouteHealth and ProviderIncident. Credentials are never returned, only where they are kept.",
       "fieldDescriptions": {
@@ -27877,6 +27880,11 @@
         "createdAt": "UTC timestamp when the route record was created.",
         "updatedAt": "UTC timestamp of the last change to the route record.",
         "version": "Optimistic concurrency version, incremented on every write to the route record."
+      },
+      "fieldBounds": {
+        "endpoint": {
+          "pattern": "^(?!.*[@#])(?!.*[?&][^\\s]*(?:token|secret|key|signature|credential|password)=)[a-z][a-z0-9+.-]*://[^\\s]+$"
+        }
       }
     },
     "RouteHealth": {

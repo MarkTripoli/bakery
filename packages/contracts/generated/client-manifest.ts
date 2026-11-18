@@ -7805,7 +7805,7 @@ export const clientManifest = {
           "description": "Parent task whose work the plan coordinates across repositories; it must belong to the plan's application and may omit its own repository."
         },
         "spec": {
-          "description": "CoordinationPlanCreate.spec must contain at most 100000 UTF-8 bytes.",
+          "description": "Ad hoc split, stored as a `coordination-plans` revision: lanes with repository aliases, prerequisites, typed outputs and inputs, plus maxConcurrency, join `all-required` and failurePolicy `stop-dependent`. It is validated, stored immutably and identified by a canonical digest. CoordinationPlanCreate.spec must contain at most 100000 UTF-8 bytes.",
           "anyOf": [
             {
               "type": "string",
@@ -7845,7 +7845,7 @@ export const clientManifest = {
           "x-utf8-max-bytes": 100000
         },
         "origin": {
-          "description": "CoordinationPlanCreate.origin must contain at most 4096 UTF-8 bytes.",
+          "description": "Where the request came from: `{\"kind\":\"ad_hoc\"}` (default) or `{\"kind\":\"ticket\",\"provider\",\"reference\",\"url\"?}` with an https `url` of at most 2048 characters. Ticket fields are claims by the caller and are not verified. The `saved_workflow` origin is server-set by `coordinationPlans.createFromWorkflow` and is refused here. Origin labels the plan and is excluded from the plan and lane digests. CoordinationPlanCreate.origin must contain at most 4096 UTF-8 bytes.",
           "anyOf": [
             {
               "type": "string",
@@ -8141,7 +8141,7 @@ export const clientManifest = {
           "type": "string",
           "minLength": 1,
           "maxLength": 64,
-          "description": "CoordinationPlanCreateFromWorkflow.nodeId must contain at most 64 characters."
+          "description": "Identifier of the `parallel` node in the workflow version. A node that is missing or is not a parallel node is refused with `workflow_node_not_parallel`. CoordinationPlanCreateFromWorkflow.nodeId must contain at least 1 characters. CoordinationPlanCreateFromWorkflow.nodeId must contain at most 64 characters."
         },
         "budgetLimitUsd": {
           "description": "Shared ceiling in USD across every child run of the plan, with up to six decimal places; omit for no plan-scoped ceiling.",
@@ -8168,13 +8168,13 @@ export const clientManifest = {
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
         },
         "cursor": {
-          "description": "CoordinationPlanListQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "description": "Opaque continuation token from a prior page of the same list, bound to the principal and the parentTaskId filter. CoordinationPlanListQuery.cursor must contain at most 512 UTF-8 bytes.",
           "type": "string",
           "maxLength": 65536,
           "x-utf8-max-bytes": 512
         },
         "limit": {
-          "description": "CoordinationPlanListQuery.limit must be at most 100.",
+          "description": "Maximum number of plan revisions returned per page; defaults to 25 and cannot exceed 100. CoordinationPlanListQuery.limit must be at least 1. CoordinationPlanListQuery.limit must be at most 100.",
           "type": "integer",
           "minimum": 1,
           "maximum": 100
@@ -8197,7 +8197,7 @@ export const clientManifest = {
           "type": "string",
           "maxLength": 63,
           "pattern": "^[a-z0-9]+(?:[-_][a-z0-9]+)*$",
-          "description": "TaskRepositorySet.role must contain at most 63 characters."
+          "description": "Descriptive role of the repository for this task, such as frontend or backend; roles are annotations, never authority. TaskRepositorySet.role must contain at most 63 characters."
         },
         "required": {
           "type": "boolean",
@@ -8229,13 +8229,13 @@ export const clientManifest = {
           "type": "string",
           "maxLength": 63,
           "pattern": "^[a-z0-9]+(?:[-_][a-z0-9]+)*$",
-          "description": "ApplicationRepositoryRoleSet.alias must contain at most 63 characters."
+          "description": "Stable alias a split's lanes use to name the repository inside this application. ApplicationRepositoryRoleSet.alias must contain at most 63 characters."
         },
         "role": {
           "type": "string",
           "maxLength": 63,
           "pattern": "^[a-z0-9]+(?:[-_][a-z0-9]+)*$",
-          "description": "ApplicationRepositoryRoleSet.role must contain at most 63 characters."
+          "description": "Descriptive role the alias plays, such as frontend, backend, mobile or shared; one alias may serve several roles. ApplicationRepositoryRoleSet.role must contain at most 63 characters."
         },
         "repositoryId": {
           "type": "string",
@@ -8263,13 +8263,13 @@ export const clientManifest = {
           "description": "Current task that must own the requested job through its run step."
         },
         "cursor": {
-          "description": "JobAttemptListQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "description": "Opaque continuation token from a prior page of the same list operation; rejected if replayed against a different operation, principal, or scope. JobAttemptListQuery.cursor must contain at most 512 UTF-8 bytes.",
           "type": "string",
           "maxLength": 65536,
           "x-utf8-max-bytes": 512
         },
         "limit": {
-          "description": "JobAttemptListQuery.limit must be at most 100.",
+          "description": "Maximum rows returned per page for whichever list operation this shared query is used with; defaults to 25 and cannot exceed 100. JobAttemptListQuery.limit must be at least 1. JobAttemptListQuery.limit must be at most 100.",
           "type": "integer",
           "minimum": 1,
           "maximum": 100
@@ -8289,7 +8289,7 @@ export const clientManifest = {
           "type": "integer",
           "minimum": 1,
           "maximum": 9007199254740991,
-          "description": "AgentVersionCreate.revision must be at least 1."
+          "description": "Monotonic immutable revision number used to order agent versions. AgentVersionCreate.revision must be at least 1."
         },
         "config": {
           "type": "object",
@@ -8408,7 +8408,7 @@ export const clientManifest = {
             "harness"
           ],
           "additionalProperties": false,
-          "description": "AgentVersionCreate.config must contain at most 65536 UTF-8 bytes.",
+          "description": "Immutable execution policy containing the harness, optional billing policy, and validated capability bindings. AgentVersionCreate.config must contain at most 65536 UTF-8 bytes.",
           "x-utf8-max-bytes": 65536
         },
         "digest": {
@@ -8450,7 +8450,7 @@ export const clientManifest = {
           "type": "string",
           "minLength": 1,
           "maxLength": 64,
-          "description": "ArtifactKindKeyPath.key must contain at most 64 characters."
+          "description": "Lowercase kebab-case key of the kind addressed by this route, such as brief or render-cut. It is unique among the organization's kinds, so the key names exactly one kind; an unknown key is RESOURCE_NOT_FOUND and never another organization's kind. ArtifactKindKeyPath.key must contain at least 1 characters. ArtifactKindKeyPath.key must contain at most 64 characters."
         }
       },
       "required": [
@@ -8467,10 +8467,10 @@ export const clientManifest = {
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991,
-          "description": "ArtifactKindVersionCreate.expectedRevision must be at least 0."
+          "description": "Revision of the addressed kind the caller built this definition on; 0 when the kind has no published version yet. Publication fails with PRECONDITION_FAILED when the latest published revision of that kind differs, so two authors editing the same kind one after the other cannot silently overwrite each other. ArtifactKindVersionCreate.expectedRevision must be at least 0."
         },
         "definition": {
-          "description": "ArtifactKindVersionCreate.definition must contain at most 65536 UTF-8 bytes.",
+          "description": "Complete definition of the new kind version: its key, name, description, whether it is text, the facts the engine may read and the platform rule types it composes. It contains declarations only; there is no field that accepts code, a script or a URL, which is what keeps customer logic out of the publication path. ArtifactKindVersionCreate.definition must contain at most 65536 UTF-8 bytes.",
           "anyOf": [
             {
               "type": "string",
@@ -8638,7 +8638,7 @@ export const clientManifest = {
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991,
-          "description": "RepositoryRuleVersionCreate.expectedRevision must be at least 0."
+          "description": "Organization revision the caller built this draft on; 0 when no revision is published yet. Publication fails with PRECONDITION_FAILED when the latest published revision differs. RepositoryRuleVersionCreate.expectedRevision must be at least 0."
         },
         "entries": {
           "maxItems": 5,
@@ -9084,7 +9084,7 @@ export const clientManifest = {
             ],
             "description": "One organization rule entry, including its lock flag."
           },
-          "description": "RepositoryRuleVersionCreate.entries must contain at most 262144 UTF-8 bytes.",
+          "description": "Complete organization rule entries for the new revision, at most one per rule key; the list replaces the previous revision whole. RepositoryRuleVersionCreate.entries must contain at most 262144 UTF-8 bytes.",
           "x-utf8-max-bytes": 262144
         }
       },
@@ -9103,7 +9103,7 @@ export const clientManifest = {
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991,
-          "description": "RepositoryRulePreviewOrganizationCreate.expectedRevision must be at least 0."
+          "description": "Organization rules revision the caller built this draft on; 0 when no revision is published yet. The preview fails with PRECONDITION_FAILED when the latest published revision differs, so a preview always describes the revision publication would extend. RepositoryRulePreviewOrganizationCreate.expectedRevision must be at least 0."
         },
         "entries": {
           "maxItems": 5,
@@ -9549,17 +9549,17 @@ export const clientManifest = {
             ],
             "description": "One organization rule entry, including its lock flag."
           },
-          "description": "RepositoryRulePreviewOrganizationCreate.entries must contain at most 262144 UTF-8 bytes.",
+          "description": "Complete draft organization rule entries, at most one per rule key, exactly as the publish operation takes them; the draft is validated but never stored. RepositoryRulePreviewOrganizationCreate.entries must contain at most 262144 UTF-8 bytes.",
           "x-utf8-max-bytes": 262144
         },
         "cursor": {
-          "description": "RepositoryRulePreviewOrganizationCreate.cursor must contain at most 512 UTF-8 bytes.",
+          "description": "Opaque continuation token from a prior page of this same preview; bound to the organization, the principal and the draft digest, so a token from another organization, principal or draft is rejected with INVALID_CURSOR. RepositoryRulePreviewOrganizationCreate.cursor must contain at most 512 UTF-8 bytes.",
           "type": "string",
           "maxLength": 65536,
           "x-utf8-max-bytes": 512
         },
         "limit": {
-          "description": "RepositoryRulePreviewOrganizationCreate.limit must be at most 100.",
+          "description": "Maximum affected repositories returned in this page; defaults to 25 and cannot exceed 100. Counts always cover every qualifying repository, not just the page. RepositoryRulePreviewOrganizationCreate.limit must be at least 1. RepositoryRulePreviewOrganizationCreate.limit must be at most 100.",
           "type": "integer",
           "minimum": 1,
           "maximum": 100
@@ -10005,7 +10005,7 @@ export const clientManifest = {
             "entries"
           ],
           "additionalProperties": false,
-          "description": "RepositoryRulePreviewRepositoryCreate.overrides must contain at most 262144 UTF-8 bytes.",
+          "description": "Proposed repository rule overrides, at most one per rule key, in the shape a profile's repositoryRules carries; validated against the latest organization rules but never stored. RepositoryRulePreviewRepositoryCreate.overrides must contain at most 262144 UTF-8 bytes.",
           "x-utf8-max-bytes": 262144
         },
         "sample": {
@@ -10013,7 +10013,7 @@ export const clientManifest = {
           "type": "object",
           "properties": {
             "commitMessages": {
-              "description": "RepositoryRulePreviewSample.commitMessages must contain at most 20 items.",
+              "description": "Sample commit messages, at most 20 of at most 2000 characters each; only the first line of each is validated against the commit rule. RepositoryRulePreviewSample.commitMessages must contain at most 20 items.",
               "maxItems": 20,
               "type": "array",
               "items": {
@@ -10023,12 +10023,12 @@ export const clientManifest = {
               }
             },
             "pullRequestTitle": {
-              "description": "RepositoryRulePreviewSample.pullRequestTitle must contain at most 300 characters.",
+              "description": "Sample pull or merge request title of at most 300 characters, validated against the title rule. RepositoryRulePreviewSample.pullRequestTitle must contain at most 300 characters.",
               "type": "string",
               "maxLength": 300
             },
             "pullRequestDescription": {
-              "description": "RepositoryRulePreviewSample.pullRequestDescription must contain at most 8000 characters.",
+              "description": "Sample pull or merge request description of at most 8000 characters, checked for the required sections of the description rule. RepositoryRulePreviewSample.pullRequestDescription must contain at most 8000 characters.",
               "type": "string",
               "maxLength": 8000
             }
@@ -10050,17 +10050,17 @@ export const clientManifest = {
           "type": "string",
           "maxLength": 100,
           "pattern": "^[a-z0-9]+(?:[-_][a-z0-9]+)*$",
-          "description": "ApplicationCreate.slug must contain at most 100 characters."
+          "description": "URL-safe identifier for the application, unique within its organization and used in application-scoped routes. ApplicationCreate.slug must contain at most 100 characters."
         },
         "name": {
           "type": "string",
           "maxLength": 200,
-          "description": "ApplicationCreate.name must contain at most 200 characters."
+          "description": "Display name for the application shown throughout the product, independent of its organization-scoped slug. ApplicationCreate.name must contain at most 200 characters."
         },
         "description": {
           "type": "string",
           "maxLength": 2000,
-          "description": "ApplicationCreate.description must contain at most 2000 characters."
+          "description": "Free-text description of the application shown to organization members; purely informational and has no effect on routing or access. ApplicationCreate.description must contain at most 2000 characters."
         }
       },
       "required": [
@@ -10076,18 +10076,18 @@ export const clientManifest = {
       "type": "object",
       "properties": {
         "slug": {
-          "description": "ApplicationUpdate.slug must contain at most 100 characters.",
+          "description": "Replacement URL-safe application identifier, unique within its organization; optimistic concurrency protects identity edits. ApplicationUpdate.slug must contain at most 100 characters.",
           "type": "string",
           "maxLength": 100,
           "pattern": "^[a-z0-9]+(?:[-_][a-z0-9]+)*$"
         },
         "name": {
-          "description": "ApplicationUpdate.name must contain at most 200 characters.",
+          "description": "Replaces the application's display name; omit to leave the current name unchanged. ApplicationUpdate.name must contain at most 200 characters.",
           "type": "string",
           "maxLength": 200
         },
         "description": {
-          "description": "ApplicationUpdate.description must contain at most 2000 characters.",
+          "description": "Replaces the application's free-text description; omit to leave the current description unchanged. ApplicationUpdate.description must contain at most 2000 characters.",
           "type": "string",
           "maxLength": 2000
         },
@@ -10142,13 +10142,13 @@ export const clientManifest = {
           ]
         },
         "cursor": {
-          "description": "ArtifactQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "description": "Opaque continuation token from a prior ArtifactQuery page; bound to this operation, the caller's organization scope, and the same task, repository, and artifact-type filters, so it is rejected if the query context changes. ArtifactQuery.cursor must contain at most 512 UTF-8 bytes.",
           "type": "string",
           "maxLength": 65536,
           "x-utf8-max-bytes": 512
         },
         "limit": {
-          "description": "ArtifactQuery.limit must be at most 100.",
+          "description": "Maximum number of artifacts returned per page for this listing; defaults to 25 and cannot exceed 100. ArtifactQuery.limit must be at least 1. ArtifactQuery.limit must be at most 100.",
           "type": "integer",
           "minimum": 1,
           "maximum": 100
@@ -10165,7 +10165,7 @@ export const clientManifest = {
           "type": "string",
           "minLength": 1,
           "maxLength": 65536,
-          "description": "ArtifactCommentCreate.body must contain at most 10240 UTF-8 bytes.",
+          "description": "Comment text rendered as sanitized Markdown; bounded to 10 KiB so review threads stay bounded for storage and agent context. ArtifactCommentCreate.body must contain at least 1 characters. ArtifactCommentCreate.body must contain at most 10240 UTF-8 bytes.",
           "x-utf8-max-bytes": 10240
         },
         "rootId": {
@@ -10194,7 +10194,7 @@ export const clientManifest = {
                 "selectedText": {
                   "type": "string",
                   "maxLength": 65536,
-                  "description": "CommentAnchor.markdown.selectedText must contain at most 8192 UTF-8 bytes.",
+                  "description": "Exact quoted text the comment refers to within the anchored block; the start/end offsets are validated against this text. CommentAnchor.markdown.selectedText must contain at most 8192 UTF-8 bytes.",
                   "x-utf8-max-bytes": 8192
                 },
                 "start": {
@@ -10212,7 +10212,7 @@ export const clientManifest = {
                 "blockText": {
                   "type": "string",
                   "maxLength": 65536,
-                  "description": "CommentAnchor.markdown.blockText must contain at most 16384 UTF-8 bytes.",
+                  "description": "Snapshot of the anchored block's text at comment time, used to re-locate the anchor by exact content match if the document changes. CommentAnchor.markdown.blockText must contain at most 16384 UTF-8 bytes.",
                   "x-utf8-max-bytes": 16384
                 },
                 "previousBlock": {
@@ -10220,7 +10220,7 @@ export const clientManifest = {
                     {
                       "type": "string",
                       "maxLength": 65536,
-                      "description": "CommentAnchor.markdown.previousBlock must contain at most 4096 UTF-8 bytes.",
+                      "description": "Snapshot of the block immediately preceding the anchored one, used as disambiguating context when relocating this anchor in a changed document. CommentAnchor.markdown.previousBlock must contain at most 4096 UTF-8 bytes.",
                       "x-utf8-max-bytes": 4096
                     },
                     {
@@ -10235,7 +10235,7 @@ export const clientManifest = {
                     {
                       "type": "string",
                       "maxLength": 65536,
-                      "description": "CommentAnchor.markdown.nextBlock must contain at most 4096 UTF-8 bytes.",
+                      "description": "Snapshot of the block immediately following the anchored one, used as disambiguating context when relocating this anchor in a changed document. CommentAnchor.markdown.nextBlock must contain at most 4096 UTF-8 bytes.",
                       "x-utf8-max-bytes": 4096
                     },
                     {
@@ -10282,7 +10282,7 @@ export const clientManifest = {
                 "quote": {
                   "type": "string",
                   "maxLength": 65536,
-                  "description": "CommentAnchor.text.quote must contain at most 8192 UTF-8 bytes.",
+                  "description": "Exact quoted text expected at the anchored line range; validated against the artifact's immutable bytes so a changed quote marks the anchor outdated. CommentAnchor.text.quote must contain at most 8192 UTF-8 bytes.",
                   "x-utf8-max-bytes": 8192
                 }
               },
@@ -10307,13 +10307,13 @@ export const clientManifest = {
                   "type": "number",
                   "minimum": 0,
                   "maximum": 1,
-                  "description": "CommentAnchor.image.x must be at most 1."
+                  "description": "Left edge of the anchor rectangle as a fraction of image width, in [0, 1]; {x:0,y:0,width:1,height:1} selects the whole image. CommentAnchor.image.x must be at least 0. CommentAnchor.image.x must be at most 1."
                 },
                 "y": {
                   "type": "number",
                   "minimum": 0,
                   "maximum": 1,
-                  "description": "CommentAnchor.image.y must be at most 1."
+                  "description": "Top edge of the anchor rectangle as a fraction of image height, in [0, 1], measured from the top of the image. CommentAnchor.image.y must be at least 0. CommentAnchor.image.y must be at most 1."
                 },
                 "width": {
                   "type": "number",
@@ -10409,7 +10409,7 @@ export const clientManifest = {
       "type": "object",
       "properties": {
         "body": {
-          "description": "ArtifactCommentUpdate.body must contain at most 10240 UTF-8 bytes.",
+          "description": "Replacement comment text, requiring its author and a nondeleted comment; Admin moderation does not permit editing another author's body. ArtifactCommentUpdate.body must contain at least 1 characters. ArtifactCommentUpdate.body must contain at most 10240 UTF-8 bytes.",
           "type": "string",
           "minLength": 1,
           "maxLength": 65536,
@@ -10435,7 +10435,7 @@ export const clientManifest = {
           "type": "string",
           "minLength": 1,
           "maxLength": 500,
-          "description": "ArtifactVersionImport.path must contain at most 500 characters."
+          "description": "Canonical safe repository-relative path to import from the trusted source; traversal, dot components, control characters, symlinks and non-regular entries are rejected. ArtifactVersionImport.path must contain at most 500 characters."
         },
         "commitSha": {
           "type": "string",
@@ -10461,12 +10461,12 @@ export const clientManifest = {
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
         },
         "operation": {
-          "description": "AuditQuery.operation must contain at most 200 characters.",
+          "description": "Restricts results to audit events whose operation name matches exactly, e.g. `secrets.rotate`. AuditQuery.operation must contain at most 200 characters.",
           "type": "string",
           "maxLength": 200
         },
         "outcome": {
-          "description": "AuditQuery.outcome must contain at most 80 characters.",
+          "description": "Restricts results to one outcome: allowed, denied, succeeded, or failed, matching the audit_events outcome enum. AuditQuery.outcome must contain at most 80 characters.",
           "type": "string",
           "maxLength": 80
         },
@@ -10483,13 +10483,13 @@ export const clientManifest = {
           "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
         },
         "cursor": {
-          "description": "AuditQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "description": "Opaque continuation token issued as a previous page's nextCursor; the server binds it to this operation, the current principal/scope and the request's filters and ordering, rejecting any cursor that no longer matches. AuditQuery.cursor must contain at most 512 UTF-8 bytes.",
           "type": "string",
           "maxLength": 65536,
           "x-utf8-max-bytes": 512
         },
         "limit": {
-          "description": "AuditQuery.limit must be at most 100.",
+          "description": "Maximum number of audit events returned in one page; defaults to 25 and is capped at 100 regardless of the requested value. AuditQuery.limit must be at least 1. AuditQuery.limit must be at most 100.",
           "type": "integer",
           "minimum": 1,
           "maximum": 100
@@ -10503,7 +10503,7 @@ export const clientManifest = {
       "type": "object",
       "properties": {
         "name": {
-          "description": "AutomationUpdate.name must contain at most 200 characters.",
+          "description": "Display name for the automation shown in the automations list; independent of its immutable slug. AutomationUpdate.name must contain at most 200 characters.",
           "type": "string",
           "maxLength": 200
         },
@@ -10535,7 +10535,7 @@ export const clientManifest = {
       "type": "object",
       "properties": {
         "trigger": {
-          "description": "AutomationVersionCreate.trigger must contain at most 16000 UTF-8 bytes.",
+          "description": "Schedule or event definition for this automation version: a cron expression with its IANA timezone, or a registered event predicate; never an executable expression. AutomationVersionCreate.trigger must contain at most 16000 UTF-8 bytes.",
           "anyOf": [
             {
               "type": "string",
@@ -10581,7 +10581,7 @@ export const clientManifest = {
           "description": "Pinned workflow version this automation version starts each time it fires."
         },
         "inputs": {
-          "description": "AutomationVersionCreate.inputs must contain at most 64000 UTF-8 bytes.",
+          "description": "Input values passed to the run created each time this automation version fires; a manual firing (ManualAutomationRun.inputs) can override them for that run only. AutomationVersionCreate.inputs must contain at most 64000 UTF-8 bytes.",
           "anyOf": [
             {
               "type": "string",
@@ -10663,7 +10663,7 @@ export const clientManifest = {
           "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$"
         },
         "brief": {
-          "description": "AutomationVersionCreate.brief must contain at most 20000 characters.",
+          "description": "Text that becomes the description of the task each firing creates; the task title is the automation name and the scheduled instant. AutomationVersionCreate.brief must contain at most 20000 characters.",
           "type": "string",
           "maxLength": 20000
         }
@@ -10908,13 +10908,13 @@ export const clientManifest = {
       "type": "object",
       "properties": {
         "startByte": {
-          "description": "ArtifactExtractQuery.startByte must be at most 10485760.",
+          "description": "Canonical UTF-8 byte offset at which extraction begins; offsets inside a code point are rejected. ArtifactExtractQuery.startByte must be at least 0. ArtifactExtractQuery.startByte must be at most 10485760.",
           "type": "integer",
           "minimum": 0,
           "maximum": 10485760
         },
         "maxBytes": {
-          "description": "ArtifactExtractQuery.maxBytes must be at most 65536.",
+          "description": "Maximum UTF-8 encoded bytes to return, bounded to 65536 and never ending in a partial code point. ArtifactExtractQuery.maxBytes must be at least 1. ArtifactExtractQuery.maxBytes must be at most 65536.",
           "type": "integer",
           "minimum": 1,
           "maximum": 65536
@@ -10928,7 +10928,7 @@ export const clientManifest = {
       "type": "object",
       "properties": {
         "range": {
-          "description": "ContentRangeQuery.range must contain at most 100 UTF-8 bytes.",
+          "description": "Standard HTTP Range header value selecting a single byte range of the content; multiple ranges are rejected, and an unsatisfiable range returns 416 with the total size. ContentRangeQuery.range must contain at most 100 UTF-8 bytes.",
           "type": "string",
           "maxLength": 200,
           "pattern": "^bytes=(?:\\d+-\\d*|-\\d+)$",
@@ -10976,7 +10976,7 @@ export const clientManifest = {
           "type": "string",
           "minLength": 1,
           "maxLength": 300,
-          "description": "ConversationCreate.title must contain at most 300 characters."
+          "description": "Display title shown for this conversation in conversation lists. ConversationCreate.title must contain at least 1 characters. ConversationCreate.title must contain at most 300 characters."
         }
       },
       "required": [
@@ -10990,7 +10990,7 @@ export const clientManifest = {
       "type": "object",
       "properties": {
         "title": {
-          "description": "ConversationUpdate.title must contain at most 300 characters.",
+          "description": "Replaces the conversation's current display title; membership and access boundary are unaffected. ConversationUpdate.title must contain at most 300 characters.",
           "type": "string",
           "maxLength": 300
         },
@@ -11018,13 +11018,13 @@ export const clientManifest = {
       "type": "object",
       "properties": {
         "cursor": {
-          "description": "CursorQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "description": "Opaque continuation token from a prior page of the same list operation; rejected if replayed against a different operation, principal, or scope. CursorQuery.cursor must contain at most 512 UTF-8 bytes.",
           "type": "string",
           "maxLength": 65536,
           "x-utf8-max-bytes": 512
         },
         "limit": {
-          "description": "CursorQuery.limit must be at most 100.",
+          "description": "Maximum rows returned per page for whichever list operation this shared query is used with; defaults to 25 and cannot exceed 100. CursorQuery.limit must be at least 1. CursorQuery.limit must be at most 100.",
           "type": "integer",
           "minimum": 1,
           "maximum": 100
@@ -11038,7 +11038,7 @@ export const clientManifest = {
       "type": "object",
       "properties": {
         "name": {
-          "description": "DefinitionUpdate.name must contain at most 200 characters.",
+          "description": "New display name for the workflow, agent, or skill shown in its catalog listing; independent of its immutable slug. DefinitionUpdate.name must contain at most 200 characters.",
           "type": "string",
           "maxLength": 200
         },
@@ -11048,7 +11048,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 2000,
-              "description": "DefinitionUpdate.description must contain at most 2000 characters."
+              "description": "Replaces the definition's free-text summary shown in pickers and the catalog; send null to clear it. Omitting the field leaves the current summary unchanged. DefinitionUpdate.description must contain at most 2000 characters."
             },
             {
               "type": "null",
@@ -11102,15 +11102,15 @@ export const clientManifest = {
         "deliveryId": {
           "type": "string",
           "maxLength": 255,
-          "description": "GitHubWebhook.deliveryId must contain at most 255 characters."
+          "description": "GitHub's X-GitHub-Delivery ID for this webhook attempt, scoped to the configured GitHub App registration; combined with the raw-body digest it deduplicates redelivery, so an identical retry returns the original receipt instead of reprocessing. GitHubWebhook.deliveryId must contain at most 255 characters."
         },
         "eventType": {
           "type": "string",
           "maxLength": 100,
-          "description": "GitHubWebhook.eventType must contain at most 100 characters."
+          "description": "GitHub's webhook event name, for example issues.labeled; applying a label and editing a label's definition are different event shapes, and only accepted events reach Tickets admission. GitHubWebhook.eventType must contain at most 100 characters."
         },
         "payload": {
-          "description": "GitHubWebhook.payload must contain at most 262144 UTF-8 bytes.",
+          "description": "Raw verified GitHub event body, capped at 256 KiB and streamed before JSON parsing; an oversized delivery is rejected rather than truncated. GitHubWebhook.payload must contain at most 262144 UTF-8 bytes.",
           "anyOf": [
             {
               "type": "string",
@@ -11301,10 +11301,10 @@ export const clientManifest = {
         "name": {
           "type": "string",
           "maxLength": 200,
-          "description": "IntegrationConnectionCreate.name must contain at most 200 characters."
+          "description": "Admin-chosen display label for the connection, shown in the UI; distinct from the external account identity, which the server derives during setup and cannot be set here. IntegrationConnectionCreate.name must contain at most 200 characters."
         },
         "settings": {
-          "description": "IntegrationConnectionCreate.settings must contain at most 32000 UTF-8 bytes.",
+          "description": "Provider-specific configuration for this connection, validated against the provider's declared config schema version. IntegrationConnectionCreate.settings must contain at most 32000 UTF-8 bytes.",
           "anyOf": [
             {
               "type": "string",
@@ -11344,7 +11344,7 @@ export const clientManifest = {
           "x-utf8-max-bytes": 32000
         },
         "secretRef": {
-          "description": "IntegrationConnectionCreate.secretRef must contain at most 500 characters.",
+          "description": "Reference to a previously stored secret version supplying this connection's credential; never the raw credential value itself. IntegrationConnectionCreate.secretRef must contain at most 500 characters.",
           "type": "string",
           "maxLength": 500
         }
@@ -11475,12 +11475,12 @@ export const clientManifest = {
       "type": "object",
       "properties": {
         "name": {
-          "description": "IntegrationConnectionUpdate.name must contain at most 200 characters.",
+          "description": "Renames the connection's display label; does not change its immutable external account identity. IntegrationConnectionUpdate.name must contain at most 200 characters.",
           "type": "string",
           "maxLength": 200
         },
         "settings": {
-          "description": "IntegrationConnectionUpdate.settings must contain at most 32000 UTF-8 bytes.",
+          "description": "Replaces the connection's provider-specific configuration, re-validated against the provider's current config schema. IntegrationConnectionUpdate.settings must contain at most 32000 UTF-8 bytes.",
           "anyOf": [
             {
               "type": "string",
@@ -11654,7 +11654,7 @@ export const clientManifest = {
           "type": "integer",
           "minimum": 1,
           "maximum": 9007199254740991,
-          "description": "LocalSkillVersion.revision must be at least 1."
+          "description": "Ordinal position of this version in its skill's immutable revision history; skill_versions are append-only, so this establishes which manifest and files this call publishes. LocalSkillVersion.revision must be at least 1."
         },
         "digest": {
           "type": "string",
@@ -11665,10 +11665,10 @@ export const clientManifest = {
           "type": "string",
           "minLength": 1,
           "maxLength": 500,
-          "description": "LocalSkillVersion.entryPath must contain at most 500 characters."
+          "description": "Relative path to this skill's entry point (typically SKILL.md) among the uploaded files; must match one of the paths in files and is where a worker begins materializing and using the skill. LocalSkillVersion.entryPath must contain at most 500 characters."
         },
         "manifest": {
-          "description": "LocalSkillVersion.manifest must contain at most 262144 UTF-8 bytes.",
+          "description": "Canonical skill manifest describing the input/output contract, license, required tools, MCP requirements, compatibility, limits, and the exact file inventory (path, media type, size, SHA-256, executable bit); its digest is checked against digest. LocalSkillVersion.manifest must contain at most 262144 UTF-8 bytes.",
           "anyOf": [
             {
               "type": "string",
@@ -11717,7 +11717,7 @@ export const clientManifest = {
                 "type": "string",
                 "minLength": 1,
                 "maxLength": 500,
-                "description": "SkillFileUpload.path must contain at most 500 characters."
+                "description": "Relative path this file occupies inside the skill version's directory tree, such as SKILL.md or scripts/build.sh; rejected if absolute or containing backslashes, NUL, or .. segments, and must be unique after Unicode NFC normalization and case folding against every other file in the same upload. SkillFileUpload.path must contain at most 500 characters."
               },
               "mediaType": {
                 "type": "string",
@@ -11743,7 +11743,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "Complete set of this version's files — SKILL.md, scripts, templates and references — each base64-encoded with its path and executable bit; must exactly match the manifest's file inventory and total at most 10MiB decoded. Each array item follows this format."
           },
-          "description": "LocalSkillVersion.files must contain at most 256 items."
+          "description": "Complete set of this version's files — SKILL.md, scripts, templates and references — each base64-encoded with its path and executable bit; must exactly match the manifest's file inventory and total at most 10MiB decoded. LocalSkillVersion.files must contain at most 256 items."
         }
       },
       "required": [
@@ -11875,7 +11875,7 @@ export const clientManifest = {
       "type": "object",
       "properties": {
         "inputs": {
-          "description": "ManualAutomationRun.inputs must contain at most 64000 UTF-8 bytes.",
+          "description": "Input values for this manual firing; when supplied they override the active automation version's stored default inputs for this run only. ManualAutomationRun.inputs must contain at most 64000 UTF-8 bytes.",
           "anyOf": [
             {
               "type": "string",
@@ -12044,15 +12044,15 @@ export const clientManifest = {
         "subject": {
           "type": "string",
           "maxLength": 500,
-          "description": "MemoryCreate.subject must contain at most 500 characters."
+          "description": "Short topic label for this memory entry, used to search and group related learning for the repository. MemoryCreate.subject must contain at most 500 characters."
         },
         "content": {
           "type": "string",
           "maxLength": 20000,
-          "description": "MemoryCreate.content must contain at most 20000 characters."
+          "description": "Body text of the memory's first revision: the learned fact, decision, or recurring pattern being recorded. MemoryCreate.content must contain at most 20000 characters."
         },
         "provenance": {
-          "description": "MemoryCreate.provenance must contain at most 8000 UTF-8 bytes.",
+          "description": "Promotion evidence for the first revision: the source artifact version, repository scope, author or run, conflict-scan result and expiry/review policy. Validated against the promotion schema and persisted as the revision's sourceArtifactVersionId, confidence, expiresAt and createdBy; a memory with weak or conflicting provenance is created as proposed, not accepted. MemoryCreate.provenance must contain at most 8000 UTF-8 bytes.",
           "anyOf": [
             {
               "type": "string",
@@ -12221,12 +12221,12 @@ export const clientManifest = {
         "content": {
           "type": "string",
           "maxLength": 20000,
-          "description": "MemoryRevisionCreate.content must contain at most 20000 characters."
+          "description": "Body text of this memory revision, replacing what future reads of the memory entry return once it becomes current. MemoryRevisionCreate.content must contain at most 20000 characters."
         },
         "reason": {
           "type": "string",
           "maxLength": 2000,
-          "description": "MemoryRevisionCreate.reason must contain at most 2000 characters."
+          "description": "Why this revision supersedes the current one, written by the submitting person. Stored on the revision and shown in its history; it does not affect confidence or retrieval ranking. MemoryRevisionCreate.reason must contain at most 2000 characters."
         },
         "sourceArtifactVersionId": {
           "type": "string",
@@ -12248,7 +12248,7 @@ export const clientManifest = {
       "type": "object",
       "properties": {
         "subject": {
-          "description": "MemoryUpdate.subject must contain at most 500 characters.",
+          "description": "Replaces the memory entry's short topic label used for search and grouping. MemoryUpdate.subject must contain at most 500 characters.",
           "type": "string",
           "maxLength": 500
         },
@@ -12283,7 +12283,7 @@ export const clientManifest = {
         "targetBranch": {
           "type": "string",
           "maxLength": 255,
-          "description": "MergeEntryCreate.targetBranch must contain at most 255 characters."
+          "description": "Branch the pull request is being merged into; the server serializes at most one active merge entry per repository/target-branch pair. MergeEntryCreate.targetBranch must contain at most 255 characters."
         },
         "expectedHeadSha": {
           "type": "string",
@@ -12322,7 +12322,7 @@ export const clientManifest = {
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
             "description": "Check runs supplying the required-checks-passed evidence for this merge entry; each linked run must share this entry's exact head, base and policy digest. Each array item follows this format."
           },
-          "description": "MergeEntryCreate.checkRunIds must contain at most 100 items."
+          "description": "Check runs supplying the required-checks-passed evidence for this merge entry; each linked run must share this entry's exact head, base and policy digest. MergeEntryCreate.checkRunIds must contain at least 1 items. MergeEntryCreate.checkRunIds must contain at most 100 items."
         }
       },
       "required": [
@@ -12347,7 +12347,7 @@ export const clientManifest = {
           "type": "string",
           "minLength": 1,
           "maxLength": 65536,
-          "description": "MessageCreate.body must contain at most 32768 UTF-8 bytes.",
+          "description": "Message text shown in the conversation transcript, bounded to 32 KiB; when commentRefs are attached, body plus the captured comment context together stay within the 64 KiB send limit. MessageCreate.body must contain at least 1 characters. MessageCreate.body must contain at most 32768 UTF-8 bytes.",
           "x-utf8-max-bytes": 32768
         },
         "clientMessageId": {
@@ -12371,7 +12371,7 @@ export const clientManifest = {
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
         },
         "commentRefs": {
-          "description": "MessageCreate.commentRefs must contain at most 100 items.",
+          "description": "Root comments being sent to the agent as reviewed feedback, each with its expected version; the server snapshots their current root plus replies atomically and rejects the whole send if any reference is stale, out of scope, or deleted. MessageCreate.commentRefs must contain at most 100 items.",
           "maxItems": 100,
           "type": "array",
           "items": {
@@ -12387,7 +12387,7 @@ export const clientManifest = {
                 "type": "integer",
                 "minimum": 1,
                 "maximum": 9007199254740991,
-                "description": "CommentReference.expectedVersion must be at least 1."
+                "description": "Root comment version the caller last observed; the reference is rejected if the root has since changed, so stale feedback cannot be silently resolved or overwritten. CommentReference.expectedVersion must be at least 1."
               }
             },
             "required": [
@@ -12415,17 +12415,17 @@ export const clientManifest = {
           "type": "string",
           "maxLength": 100,
           "pattern": "^[a-z0-9]+(?:[-_][a-z0-9]+)*$",
-          "description": "NamedDefinitionCreate.slug must contain at most 100 characters."
+          "description": "URL-safe unique identifier for this definition within the organization, used to reference it through the API; cannot be changed after creation. NamedDefinitionCreate.slug must contain at most 100 characters."
         },
         "name": {
           "type": "string",
           "maxLength": 200,
-          "description": "NamedDefinitionCreate.name must contain at most 200 characters."
+          "description": "Display name shown for this workflow, agent, or automation wherever it is listed for selection. NamedDefinitionCreate.name must contain at most 200 characters."
         },
         "description": {
           "type": "string",
           "maxLength": 2000,
-          "description": "NamedDefinitionCreate.description must contain at most 2000 characters."
+          "description": "Free-text summary of the definition's purpose, shown in pickers and the catalog; stored on the definition record and returned by its projection. NamedDefinitionCreate.description must contain at most 2000 characters."
         }
       },
       "required": [
@@ -12444,17 +12444,17 @@ export const clientManifest = {
           "type": "string",
           "maxLength": 100,
           "pattern": "^[a-z0-9]+(?:[-_][a-z0-9]+)*$",
-          "description": "WorkflowCopy.slug must contain at most 100 characters."
+          "description": "URL-safe unique identifier for the copy within the organization; the copy is a new definition, so it cannot reuse the source's slug. WorkflowCopy.slug must contain at most 100 characters."
         },
         "name": {
           "type": "string",
           "maxLength": 200,
-          "description": "WorkflowCopy.name must contain at most 200 characters."
+          "description": "Display name shown for the copy wherever workflows are listed for selection. WorkflowCopy.name must contain at most 200 characters."
         },
         "description": {
           "type": "string",
           "maxLength": 2000,
-          "description": "WorkflowCopy.description must contain at most 2000 characters."
+          "description": "Free-text summary of the copy's purpose, shown in pickers and the catalog. WorkflowCopy.description must contain at most 2000 characters."
         },
         "sourceVersionId": {
           "description": "The version of the source workflow to copy: a published version or a draft of that workflow. Defaults to the source's active version; a source with no active version and no version named is refused.",
@@ -12463,7 +12463,7 @@ export const clientManifest = {
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
         },
         "expectedDigest": {
-          "description": "WorkflowCopy.expectedDigest must contain at most 128 characters.",
+          "description": "Digest of the source version the caller read; the copy is refused with STATE_CONFLICT digest_mismatch if the version's digest differs, so a changed draft is never copied as something else. WorkflowCopy.expectedDigest must contain at most 128 characters.",
           "type": "string",
           "maxLength": 128
         }
@@ -12925,7 +12925,7 @@ export const clientManifest = {
         "displayName": {
           "type": "string",
           "maxLength": 200,
-          "description": "PrincipalCreate.displayName must contain at most 200 characters."
+          "description": "Human-readable label for the new service account, shown in the access list and audit history. PrincipalCreate.displayName must contain at most 200 characters."
         },
         "role": {
           "anyOf": [
@@ -12959,7 +12959,7 @@ export const clientManifest = {
       "type": "object",
       "properties": {
         "displayName": {
-          "description": "PrincipalUpdate.displayName must contain at most 200 characters.",
+          "description": "Replaces the service account's display name shown throughout the product. PrincipalUpdate.displayName must contain at most 200 characters.",
           "type": "string",
           "maxLength": 200
         },
@@ -12994,7 +12994,7 @@ export const clientManifest = {
       "type": "object",
       "properties": {
         "answer": {
-          "description": "QuestionAnswer.answer must contain at most 32000 UTF-8 bytes.",
+          "description": "Answer payload: an object with optionId naming one of the question's options and/or text when the question allows free text; stored as the permanent answer once accepted. QuestionAnswer.answer must contain at most 32000 UTF-8 bytes.",
           "anyOf": [
             {
               "type": "string",
@@ -13181,13 +13181,13 @@ export const clientManifest = {
           ]
         },
         "cursor": {
-          "description": "QuestionQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "description": "Opaque continuation token from a prior QuestionQuery page, bound to the same task/status filter. QuestionQuery.cursor must contain at most 512 UTF-8 bytes.",
           "type": "string",
           "maxLength": 65536,
           "x-utf8-max-bytes": 512
         },
         "limit": {
-          "description": "QuestionQuery.limit must be at most 100.",
+          "description": "Maximum number of questions returned per page; defaults to 25 and cannot exceed 100. QuestionQuery.limit must be at least 1. QuestionQuery.limit must be at most 100.",
           "type": "integer",
           "minimum": 1,
           "maximum": 100
@@ -13220,22 +13220,22 @@ export const clientManifest = {
         "providerRepoId": {
           "type": "string",
           "maxLength": 255,
-          "description": "RepositoryCreate.providerRepoId must contain at most 255 characters."
+          "description": "The Git provider's stable repository identifier; this, not `name`, is the identity Bakery uses to detect the same repository again, and it is unique per integration connection. RepositoryCreate.providerRepoId must contain at most 255 characters."
         },
         "owner": {
           "type": "string",
           "maxLength": 200,
-          "description": "RepositoryCreate.owner must contain at most 200 characters."
+          "description": "Provider-side namespace that owns the repository, such as a GitHub organization or user login. RepositoryCreate.owner must contain at most 200 characters."
         },
         "name": {
           "type": "string",
           "maxLength": 200,
-          "description": "RepositoryCreate.name must contain at most 200 characters."
+          "description": "Display name for the repository; `providerRepoId`, not this name, is used to detect the same repository again. RepositoryCreate.name must contain at most 200 characters."
         },
         "defaultBranch": {
           "type": "string",
           "maxLength": 255,
-          "description": "RepositoryCreate.defaultBranch must contain at most 255 characters."
+          "description": "Branch Bakery treats as the repository's mainline for cloning, diff comparisons, and merge targets. RepositoryCreate.defaultBranch must contain at most 255 characters."
         }
       },
       "required": [
@@ -13258,10 +13258,10 @@ export const clientManifest = {
           "type": "integer",
           "minimum": 1,
           "maximum": 9007199254740991,
-          "description": "RepositoryProfileCreate.revision must be at least 1."
+          "description": "Monotonic revision number for this repository's profile; each revision's content is immutable once published. RepositoryProfileCreate.revision must be at least 1."
         },
         "config": {
-          "description": "RepositoryProfileCreate.config must contain at most 100000 UTF-8 bytes.",
+          "description": "Repository runtime, checks, delivery, and budget-cap configuration validated against the `RepositoryProfile` schema, including any repository rule overrides; becomes immutable once this revision is published. RepositoryProfileCreate.config must contain at most 100000 UTF-8 bytes.",
           "anyOf": [
             {
               "type": "string",
@@ -13301,7 +13301,7 @@ export const clientManifest = {
           "x-utf8-max-bytes": 100000
         },
         "budgetCaps": {
-          "description": "RepositoryProfileCreate.budgetCaps must contain at most 8000 UTF-8 bytes.",
+          "description": "per-run and concurrency caps; copied into the immutable profile RepositoryProfileCreate.budgetCaps must contain at most 8000 UTF-8 bytes.",
           "anyOf": [
             {
               "type": "string",
@@ -13346,7 +13346,7 @@ export const clientManifest = {
           "description": "Content digest of `config`, used to verify the published profile revision was not altered in transit."
         },
         "expectedOrganizationRulesRevision": {
-          "description": "RepositoryProfileCreate.expectedOrganizationRulesRevision must be at least 0.",
+          "description": "Organization repository rules revision the caller validated the `config.repositoryRules` overrides against; 0 when none is published. Required when `config.repositoryRules` is present; publication fails with PRECONDITION_FAILED when the latest organization revision differs. RepositoryProfileCreate.expectedOrganizationRulesRevision must be at least 0.",
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991
@@ -13608,13 +13608,13 @@ export const clientManifest = {
           ]
         },
         "cursor": {
-          "description": "RepositoryQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "description": "Opaque pagination cursor from a previous response's `nextCursor` for this list; omit for the first page and never parse or construct it directly. RepositoryQuery.cursor must contain at most 512 UTF-8 bytes.",
           "type": "string",
           "maxLength": 65536,
           "x-utf8-max-bytes": 512
         },
         "limit": {
-          "description": "RepositoryQuery.limit must be at most 100.",
+          "description": "Maximum number of records returned per page; defaults to 25, capped at 100. RepositoryQuery.limit must be at least 1. RepositoryQuery.limit must be at most 100.",
           "type": "integer",
           "minimum": 1,
           "maximum": 100
@@ -13646,13 +13646,13 @@ export const clientManifest = {
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
         },
         "cursor": {
-          "description": "PullRequestQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "description": "Opaque pagination cursor from a previous response's `nextCursor` for this list; omit for the first page and never parse or construct it directly. PullRequestQuery.cursor must contain at most 512 UTF-8 bytes.",
           "type": "string",
           "maxLength": 65536,
           "x-utf8-max-bytes": 512
         },
         "limit": {
-          "description": "PullRequestQuery.limit must be at most 100.",
+          "description": "Maximum number of records returned per page; defaults to 25, capped at 100. PullRequestQuery.limit must be at least 1. PullRequestQuery.limit must be at most 100.",
           "type": "integer",
           "minimum": 1,
           "maximum": 100
@@ -13666,12 +13666,12 @@ export const clientManifest = {
       "type": "object",
       "properties": {
         "name": {
-          "description": "RepositoryUpdate.name must contain at most 200 characters.",
+          "description": "Replacement display name for the repository; does not affect the provider identity used to detect duplicates. RepositoryUpdate.name must contain at most 200 characters.",
           "type": "string",
           "maxLength": 200
         },
         "defaultBranch": {
-          "description": "RepositoryUpdate.defaultBranch must contain at most 255 characters.",
+          "description": "New mainline branch for cloning, diff comparisons, and merge targets, replacing the branch set at creation. RepositoryUpdate.defaultBranch must contain at most 255 characters.",
           "type": "string",
           "maxLength": 255
         },
@@ -13711,13 +13711,13 @@ export const clientManifest = {
           "description": "Application scope for the role-binding list; it is also the application path parameter."
         },
         "cursor": {
-          "description": "RepositoryRoleList.cursor must contain at most 512 UTF-8 bytes.",
+          "description": "Opaque continuation cursor from a prior role-binding page; omit for the first page and never construct it directly. RepositoryRoleList.cursor must contain at most 512 UTF-8 bytes.",
           "type": "string",
           "maxLength": 65536,
           "x-utf8-max-bytes": 512
         },
         "limit": {
-          "description": "RepositoryRoleList.limit must be at most 100.",
+          "description": "Maximum number of role bindings returned; defaults to 25 and cannot exceed 100. RepositoryRoleList.limit must be at least 1. RepositoryRoleList.limit must be at most 100.",
           "type": "integer",
           "minimum": 1,
           "maximum": 100
@@ -13743,7 +13743,7 @@ export const clientManifest = {
           "type": "string",
           "maxLength": 200,
           "pattern": "\\S",
-          "description": "RoleBindingCreate.role must contain at most 200 characters."
+          "description": "Descriptive role key for this application-scoped repository binding; it grants no authority by itself. RoleBindingCreate.role must contain at most 200 characters."
         },
         "alias": {
           "description": "RoleBindingCreate.alias may be null in this transport value.",
@@ -13752,7 +13752,7 @@ export const clientManifest = {
               "type": "string",
               "maxLength": 200,
               "pattern": "\\S",
-              "description": "RoleBindingCreate.alias must contain at most 200 characters."
+              "description": "Optional descriptive alias used by bounded resolution selectors; it grants no authority by itself. RoleBindingCreate.alias must contain at most 200 characters."
             },
             {
               "type": "null",
@@ -13772,7 +13772,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 200,
-              "description": "RoleBindingCreate.provenance must contain at most 200 characters."
+              "description": "Optional caller-supplied provenance note retained as descriptive metadata. RoleBindingCreate.provenance must contain at most 200 characters."
             },
             {
               "type": "null",
@@ -13794,7 +13794,7 @@ export const clientManifest = {
       "type": "object",
       "properties": {
         "role": {
-          "description": "RoleBindingUpdate.role must contain at most 200 characters.",
+          "description": "Replacement descriptive role key; it grants no authority by itself. RoleBindingUpdate.role must contain at most 200 characters.",
           "type": "string",
           "maxLength": 200,
           "pattern": "\\S"
@@ -13806,7 +13806,7 @@ export const clientManifest = {
               "type": "string",
               "maxLength": 200,
               "pattern": "\\S",
-              "description": "RoleBindingUpdate.alias must contain at most 200 characters."
+              "description": "Replacement descriptive alias, or null to clear it. RoleBindingUpdate.alias must contain at most 200 characters."
             },
             {
               "type": "null",
@@ -13826,7 +13826,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 200,
-              "description": "RoleBindingUpdate.provenance must contain at most 200 characters."
+              "description": "Replacement provenance note, or null to clear it. RoleBindingUpdate.provenance must contain at most 200 characters."
             },
             {
               "type": "null",
@@ -13853,7 +13853,7 @@ export const clientManifest = {
           "type": "integer",
           "minimum": 1,
           "maximum": 9007199254740991,
-          "description": "RoleBindingUpdate.expectedVersion must be at least 1."
+          "description": "Observed role-binding version required for compare-and-swap; stale versions fail with the existing precondition semantics. RoleBindingUpdate.expectedVersion must be at least 1."
         }
       },
       "required": [
@@ -13888,7 +13888,7 @@ export const clientManifest = {
               "type": "string",
               "maxLength": 200,
               "pattern": "\\S",
-              "description": "RepositoryBindingSelector variant 2.role must contain at most 200 characters."
+              "description": "Descriptive role selector. RepositoryBindingSelector variant 2.role must contain at most 200 characters."
             },
             "alias": {
               "description": "RepositoryBindingSelector variant 2.alias may be null in this transport value.",
@@ -13897,7 +13897,7 @@ export const clientManifest = {
                   "type": "string",
                   "maxLength": 200,
                   "pattern": "\\S",
-                  "description": "RepositoryBindingSelector variant 2.alias must contain at most 200 characters."
+                  "description": "Optional descriptive alias selector. RepositoryBindingSelector variant 2.alias must contain at most 200 characters."
                 },
                 {
                   "type": "null",
@@ -13924,7 +13924,7 @@ export const clientManifest = {
                 "pattern": "\\S",
                 "description": "Bounded unique alias set; aliases are an OR-set, not an ordered preference list. Each array item follows this format."
               },
-              "description": "RepositoryBindingSelector variant 3.aliases must contain unique items."
+              "description": "Bounded unique alias set; aliases are an OR-set, not an ordered preference list. RepositoryBindingSelector variant 3.aliases must contain at least 1 items. RepositoryBindingSelector variant 3.aliases must contain at most 32 items. RepositoryBindingSelector variant 3.aliases must contain unique items."
             }
           },
           "required": [
@@ -13951,7 +13951,7 @@ export const clientManifest = {
           "description": "Control action to apply to the run: `pause` suspends it into the `paused` state; `resume` returns a paused run to `running`; `cancel` requests authoritative cancellation, a best-effort process signal that a late result cannot undo once settled; `interrupt` stops the harness's current in-flight step without ending the run, where the adapter supports interruption."
         },
         "reason": {
-          "description": "RunControl.reason must contain at most 2000 characters.",
+          "description": "Optional operator-supplied explanation for this pause, resume, cancel, or interrupt request, kept for audit history. RunControl.reason must contain at most 2000 characters.",
           "type": "string",
           "maxLength": 2000
         }
@@ -14006,7 +14006,7 @@ export const clientManifest = {
           "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$"
         },
         "inputs": {
-          "description": "RunCreate.inputs must contain at most 100000 UTF-8 bytes.",
+          "description": "Initial input values for the pinned workflow version's entry step, recorded immutably in the run's snapshot alongside its pinned config and skill references. RunCreate.inputs must contain at most 100000 UTF-8 bytes.",
           "anyOf": [
             {
               "type": "string",
@@ -14193,13 +14193,13 @@ export const clientManifest = {
           "minLength": 1,
           "maxLength": 200,
           "pattern": "^[A-Za-z0-9][A-Za-z0-9 ._-]*$",
-          "description": "SecretCreate.name must contain at most 200 characters."
+          "description": "Human-readable name identifying this secret when referencing it from automation or action configuration and when auditing access to it. SecretCreate.name must contain at most 200 characters."
         },
         "value": {
           "type": "string",
           "minLength": 1,
           "maxLength": 4096,
-          "description": "SecretCreate.value must contain between 1 and 4096 UTF-8 bytes.",
+          "description": "Plaintext credential value to store; encrypted at rest (AES-GCM) as the secret's first version and never returned by any subsequent read. SecretCreate.value must contain at most 4096 characters. SecretCreate.value must contain between 1 and 4096 UTF-8 bytes.",
           "x-utf8-min-bytes": 1,
           "x-utf8-max-bytes": 4096
         },
@@ -14270,7 +14270,7 @@ export const clientManifest = {
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
             "description": "Complete list of principal IDs permitted to use this secret, replacing the previous list in full; an empty list denies every principal until explicitly granted again. Each array item follows this format."
           },
-          "description": "SecretPolicyUpdate.allowedPrincipalIds must contain at most 100 items."
+          "description": "Complete list of principal IDs permitted to use this secret, replacing the previous list in full; an empty list denies every principal until explicitly granted again. SecretPolicyUpdate.allowedPrincipalIds must contain at most 100 items."
         },
         "allowedActions": {
           "maxItems": 100,
@@ -14280,7 +14280,7 @@ export const clientManifest = {
             "maxLength": 65536,
             "description": "Complete list of action names permitted to use this secret, replacing the previous list in full; an empty list denies every action until explicitly granted again. Each array item follows this format."
           },
-          "description": "SecretPolicyUpdate.allowedActions must contain at most 100 items."
+          "description": "Complete list of action names permitted to use this secret, replacing the previous list in full; an empty list denies every action until explicitly granted again. SecretPolicyUpdate.allowedActions must contain at most 100 items."
         }
       },
       "required": [
@@ -14305,7 +14305,7 @@ export const clientManifest = {
           "type": "string",
           "minLength": 1,
           "maxLength": 65536,
-          "description": "SecretRotation.value must contain at most 100000 characters."
+          "description": "New plaintext credential value for this rotation; encrypted at rest and stored as the secret's next version. SecretRotation.value must contain at most 100000 characters."
         },
         "expiresAt": {
           "description": "SecretRotation.expiresAt may be null in this transport value.",
@@ -14338,12 +14338,12 @@ export const clientManifest = {
           "type": "string",
           "maxLength": 100,
           "pattern": "^[a-z0-9]+(?:[-_][a-z0-9]+)*$",
-          "description": "SkillCreate.slug must contain at most 100 characters."
+          "description": "URL-safe identity for a skill, unique within the caller organization and stable across all immutable published revisions. SkillCreate.slug must contain at most 100 characters."
         },
         "name": {
           "type": "string",
           "maxLength": 200,
-          "description": "SkillCreate.name must contain at most 200 characters."
+          "description": "Organization-facing display name for the skill created with its private local-bundle source. SkillCreate.name must contain at most 200 characters."
         }
       },
       "required": [
@@ -14366,10 +14366,10 @@ export const clientManifest = {
         "revision": {
           "type": "string",
           "maxLength": 255,
-          "description": "SkillImport.revision must contain at most 255 characters."
+          "description": "Upstream revision to import — a Git commit/tag or the source's exact version identifier — pinned so the imported skill version is reproducible rather than tracking a floating branch head. SkillImport.revision must contain at most 255 characters."
         },
         "path": {
-          "description": "SkillImport.path must contain at most 500 characters.",
+          "description": "Path within the source's repository or archive that the skill's manifest and files live under, for a source that bundles more than the skill at its root; omit to import from the source's root. SkillImport.path must contain at most 500 characters.",
           "type": "string",
           "minLength": 1,
           "maxLength": 500
@@ -14398,17 +14398,17 @@ export const clientManifest = {
           "type": "string",
           "maxLength": 2000,
           "format": "uri",
-          "description": "SkillSourceCreate.url must contain at most 2000 characters."
+          "description": "Locator this skill source is fetched from; normalized and validated against permitted origins before any import runs, since an executable or mutable URL is rejected. SkillSourceCreate.url must contain at most 2000 characters."
         },
         "name": {
           "type": "string",
           "maxLength": 200,
-          "description": "SkillSourceCreate.name must contain at most 200 characters."
+          "description": "Organization-facing display name for this skill source, shown when selecting a source to import a skill version from. SkillSourceCreate.name must contain at most 200 characters."
         },
         "license": {
           "type": "string",
           "maxLength": 200,
-          "description": "SkillSourceCreate.license must contain at most 200 characters."
+          "description": "License identifier declared for content imported from this source, recorded for compliance and surfaced wherever the resulting skill is listed. SkillSourceCreate.license must contain at most 200 characters."
         }
       },
       "required": [
@@ -14425,7 +14425,7 @@ export const clientManifest = {
       "type": "object",
       "properties": {
         "name": {
-          "description": "SkillSourceUpdate.name must contain at most 200 characters.",
+          "description": "Replaces this skill source's display name. SkillSourceUpdate.name must contain at most 200 characters.",
           "type": "string",
           "maxLength": 200
         },
@@ -14445,7 +14445,7 @@ export const clientManifest = {
           "type": "string",
           "minLength": 1,
           "maxLength": 20000,
-          "description": "SteeringMessage.body must contain at most 20000 characters."
+          "description": "Text delivered to the running harness as guidance. SteeringMessage.body must contain at least 1 characters. SteeringMessage.body must contain at most 20000 characters."
         },
         "clientMessageId": {
           "description": "Caller-generated identifier that binds the steering message to exactly one worker delivery: replaying it returns the original result without a second command. Defaults to the request Idempotency-Key.",
@@ -14494,13 +14494,13 @@ export const clientManifest = {
           "description": "Identifier of the specific resource named by scopeType that this snapshot is scoped to."
         },
         "after": {
-          "description": "SyncQuery.after must contain at most 512 UTF-8 bytes.",
+          "description": "Opaque cursor from a previous snapshot or event stream; when present, the response includes only changes after this point instead of a full snapshot. SyncQuery.after must contain at most 512 UTF-8 bytes.",
           "type": "string",
           "maxLength": 65536,
           "x-utf8-max-bytes": 512
         },
         "limit": {
-          "description": "SyncQuery.limit must be at most 500.",
+          "description": "Maximum number of items returned in the snapshot page; the response's own cursor lets the caller page through the rest. SyncQuery.limit must be at least 1. SyncQuery.limit must be at most 500.",
           "type": "integer",
           "minimum": 1,
           "maximum": 500
@@ -14518,13 +14518,13 @@ export const clientManifest = {
       "type": "object",
       "properties": {
         "cursor": {
-          "description": "TaskCursorQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "description": "Opaque continuation token for the same task filter, ordering, principal, and organization scope. TaskCursorQuery.cursor must contain at most 512 UTF-8 bytes.",
           "type": "string",
           "maxLength": 65536,
           "x-utf8-max-bytes": 512
         },
         "limit": {
-          "description": "TaskCursorQuery.limit must be at most 100.",
+          "description": "Maximum number of tasks returned in this page; defaults to 25 and cannot exceed 100. TaskCursorQuery.limit must be at least 1. TaskCursorQuery.limit must be at most 100.",
           "type": "integer",
           "minimum": 1,
           "maximum": 100
@@ -14550,7 +14550,7 @@ export const clientManifest = {
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
         },
         "search": {
-          "description": "TaskCursorQuery.search must contain at most 200 characters.",
+          "description": "Case-insensitive bounded text matched against task titles and descriptions. TaskCursorQuery.search must contain at most 200 characters.",
           "type": "string",
           "maxLength": 200
         }
@@ -14594,22 +14594,22 @@ export const clientManifest = {
           "minLength": 1,
           "maxLength": 40,
           "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
-          "description": "TaskCreate.taskType must match the pattern ^[a-z0-9]+(?:-[a-z0-9]+)*$."
+          "description": "Organization work type label, a lowercase kebab-case token of up to 40 characters. The kernel never branches on it: it names the kind of work for people. `feature`, `bug`, `epic` and `maintenance` are the software-delivery defaults, not a closed set. TaskCreate.taskType must contain at least 1 characters. TaskCreate.taskType must contain at most 40 characters. TaskCreate.taskType must match the pattern ^[a-z0-9]+(?:-[a-z0-9]+)*$."
         },
         "title": {
           "type": "string",
           "minLength": 1,
           "maxLength": 500,
           "pattern": "\\S",
-          "description": "TaskCreate.title must contain at most 500 characters."
+          "description": "Short human-readable label for the task, shown in task lists and links. TaskCreate.title must contain at least 1 characters. TaskCreate.title must contain at most 500 characters."
         },
         "description": {
-          "description": "TaskCreate.description must contain at most 20000 characters.",
+          "description": "Longer explanation of the work to be done, shown to whoever picks up the task. TaskCreate.description must contain at most 20000 characters.",
           "type": "string",
           "maxLength": 20000
         },
         "priority": {
-          "description": "TaskCreate.priority must be at most 100.",
+          "description": "Scheduling priority used when a worker selects among eligible queued jobs for this task's runs; higher values are preferred. Defaults to 50. TaskCreate.priority must be at least 0. TaskCreate.priority must be at most 100.",
           "type": "integer",
           "minimum": 0,
           "maximum": 100
@@ -14630,7 +14630,7 @@ export const clientManifest = {
           ]
         },
         "approvalPolicy": {
-          "description": "TaskCreate.approvalPolicy must contain at most 1000 UTF-8 bytes.",
+          "description": "Stage policy snapshot for the task, an object with `plan` set to `automatic` or `human_approval`, and optionally `review` set to `automatic` or `human_approval`. Omitted means `{\"plan\":\"automatic\"}`; plan `human_approval` makes runs.create require a valid approvalId for the approved plan revision, and review `human_approval` makes a clean reviewed candidate wait for an approved run_stage approval before it may merge. TaskCreate.approvalPolicy must contain at most 1000 UTF-8 bytes.",
           "anyOf": [
             {
               "type": "string",
@@ -14825,18 +14825,18 @@ export const clientManifest = {
       "type": "object",
       "properties": {
         "title": {
-          "description": "TaskUpdate.title must contain at most 500 characters.",
+          "description": "Replacement short label for the task; shown in the same lists and links as the label set at creation. TaskUpdate.title must contain at most 500 characters.",
           "type": "string",
           "maxLength": 500,
           "pattern": "\\S"
         },
         "description": {
-          "description": "TaskUpdate.description must contain at most 20000 characters.",
+          "description": "Replacement explanation of the work to be done, overwriting the description set at creation. TaskUpdate.description must contain at most 20000 characters.",
           "type": "string",
           "maxLength": 20000
         },
         "priority": {
-          "description": "TaskUpdate.priority must be at most 100.",
+          "description": "New scheduling priority for the task's future runs; higher values are still preferred when a worker selects among eligible queued jobs. TaskUpdate.priority must be at least 0. TaskUpdate.priority must be at most 100.",
           "type": "integer",
           "minimum": 0,
           "maximum": 100
@@ -14881,7 +14881,7 @@ export const clientManifest = {
           "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
         },
         "provider": {
-          "description": "UsageQuery.provider must contain at most 100 characters.",
+          "description": "Restricts results to usage records billed through this provider, matching usage_records.provider. UsageQuery.provider must contain at most 100 characters.",
           "type": "string",
           "maxLength": 100
         }
@@ -14896,7 +14896,7 @@ export const clientManifest = {
         "name": {
           "type": "string",
           "maxLength": 200,
-          "description": "WorkerEnrollmentCreate.name must contain at most 200 characters."
+          "description": "Display name for the machine being enrolled, shown throughout the Machines views. WorkerEnrollmentCreate.name must contain at most 200 characters."
         },
         "os": {
           "type": "string",
@@ -14909,10 +14909,10 @@ export const clientManifest = {
         "architecture": {
           "type": "string",
           "maxLength": 100,
-          "description": "WorkerEnrollmentCreate.architecture must contain at most 100 characters."
+          "description": "Intended CPU architecture of the machine being enrolled; a mismatch discovered during setup requires an explicit Admin correction rather than a silently broader capability grant. WorkerEnrollmentCreate.architecture must contain at most 100 characters."
         },
         "capabilities": {
-          "description": "WorkerEnrollmentCreate.capabilities must contain at most 32000 UTF-8 bytes.",
+          "description": "Ceiling of capability names this machine is allowed to run; a later worker registration's requested capabilities must be a subset of this set. WorkerEnrollmentCreate.capabilities must contain at most 32000 UTF-8 bytes.",
           "anyOf": [
             {
               "type": "string",
@@ -14955,7 +14955,7 @@ export const clientManifest = {
           "type": "integer",
           "minimum": 1,
           "maximum": 100,
-          "description": "WorkerEnrollmentCreate.slots must be at most 100."
+          "description": "Task-slot ceiling for the machine being enrolled; registration cannot request more concurrent attempts than this. WorkerEnrollmentCreate.slots must be at least 1. WorkerEnrollmentCreate.slots must be at most 100."
         }
       },
       "required": [
@@ -15089,7 +15089,7 @@ export const clientManifest = {
           "type": "string",
           "minLength": 1,
           "maxLength": 500,
-          "description": "WorkerEnrollmentInspect.enrollmentToken must contain at most 500 characters."
+          "description": "One-use, short-lived enrollment token presented as proof of pairing intent; inspection neither consumes it nor grants any additional authority. WorkerEnrollmentInspect.enrollmentToken must contain at most 500 characters."
         }
       },
       "required": [
@@ -15126,13 +15126,13 @@ export const clientManifest = {
           "type": "integer",
           "minimum": 1,
           "maximum": 9007199254740991,
-          "description": "WorkerInventoryReport.expectedInventoryRevision must be at least 1."
+          "description": "Inventory revision the worker based this report on; a mismatch returns STATE_CONFLICT so the host re-bases instead of overwriting newer server state. WorkerInventoryReport.expectedInventoryRevision must be at least 1."
         },
         "hostGeneration": {
           "type": "integer",
           "minimum": 1,
           "maximum": 9007199254740991,
-          "description": "WorkerInventoryReport.hostGeneration must be at least 1."
+          "description": "Credential generation this report was produced under; a report from a superseded generation is rejected and can never restore readiness or advertise capacity. WorkerInventoryReport.hostGeneration must be at least 1."
         },
         "components": {
           "maxItems": 100,
@@ -15143,7 +15143,7 @@ export const clientManifest = {
               "componentKey": {
                 "type": "string",
                 "maxLength": 255,
-                "description": "WorkerInventoryComponent.componentKey must contain at most 255 characters."
+                "description": "Stable adapter/component key; unique per host. WorkerInventoryComponent.componentKey must contain at most 255 characters."
               },
               "kind": {
                 "type": "string",
@@ -15157,7 +15157,7 @@ export const clientManifest = {
               "actualVersion": {
                 "type": "string",
                 "maxLength": 128,
-                "description": "WorkerInventoryComponent.actualVersion must contain at most 128 characters."
+                "description": "Actually installed version inspected by the adapter. WorkerInventoryComponent.actualVersion must contain at most 128 characters."
               },
               "actualDigest": {
                 "description": "Digest of the installed binary when the adapter verified one.",
@@ -15175,15 +15175,15 @@ export const clientManifest = {
               "adapterVersion": {
                 "type": "string",
                 "maxLength": 128,
-                "description": "WorkerInventoryComponent.adapterVersion must contain at most 128 characters."
+                "description": "Version of the host adapter that produced this entry. WorkerInventoryComponent.adapterVersion must contain at most 128 characters."
               },
               "availableVersion": {
-                "description": "WorkerInventoryComponent.availableVersion must contain at most 128 characters.",
+                "description": "Compatible available version from the last release check, when known. WorkerInventoryComponent.availableVersion must contain at most 128 characters.",
                 "type": "string",
                 "maxLength": 128
               },
               "channel": {
-                "description": "WorkerInventoryComponent.channel must contain at most 64 characters.",
+                "description": "Update channel of the component, when managed. WorkerInventoryComponent.channel must contain at most 64 characters.",
                 "type": "string",
                 "maxLength": 64
               },
@@ -15194,7 +15194,7 @@ export const clientManifest = {
                 "description": "When the adapter observed this component state."
               },
               "capabilities": {
-                "description": "WorkerInventoryComponent.capabilities must contain at most 8000 UTF-8 bytes.",
+                "description": "Bounded capability list this component serves; must stay within the host's granted capability set. WorkerInventoryComponent.capabilities must contain at most 8000 UTF-8 bytes.",
                 "anyOf": [
                   {
                     "type": "string",
@@ -15234,7 +15234,7 @@ export const clientManifest = {
                 "x-utf8-max-bytes": 8000
               },
               "maintenanceSupport": {
-                "description": "WorkerInventoryComponent.maintenanceSupport must contain at most 8000 UTF-8 bytes.",
+                "description": "Structured adapter support flags, including the remoteLogin capability (device, browser or none) used to decide remote provider-login support. WorkerInventoryComponent.maintenanceSupport must contain at most 8000 UTF-8 bytes.",
                 "anyOf": [
                   {
                     "type": "string",
@@ -15287,7 +15287,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "Full replace-set of installed/known components discovered through versioned host adapters. Each array item follows this format."
           },
-          "description": "WorkerInventoryReport.components must contain at most 100 items.",
+          "description": "Full replace-set of installed/known components discovered through versioned host adapters. WorkerInventoryReport.components must contain at most 262144 UTF-8 bytes. WorkerInventoryReport.components must contain at most 100 items.",
           "x-utf8-max-bytes": 262144
         },
         "checks": {
@@ -15299,15 +15299,15 @@ export const clientManifest = {
               "checkId": {
                 "type": "string",
                 "maxLength": 128,
-                "description": "WorkerInventoryCheck.checkId must contain at most 128 characters."
+                "description": "Required check identifier: a global readiness check or capability:<capability> for one granted capability. WorkerInventoryCheck.checkId must contain at most 128 characters."
               },
               "checkVersion": {
                 "type": "string",
                 "maxLength": 64,
-                "description": "WorkerInventoryCheck.checkVersion must contain at most 64 characters."
+                "description": "Checker implementation version that produced the result. WorkerInventoryCheck.checkVersion must contain at most 64 characters."
               },
               "componentKey": {
-                "description": "WorkerInventoryCheck.componentKey must contain at most 255 characters.",
+                "description": "Component the check applies to, when one exists. WorkerInventoryCheck.componentKey must contain at most 255 characters.",
                 "type": "string",
                 "maxLength": 255
               },
@@ -15322,7 +15322,7 @@ export const clientManifest = {
                 "description": "Check outcome; unknown required checks block their capability."
               },
               "reason": {
-                "description": "WorkerInventoryCheck.reason must contain at most 8192 characters.",
+                "description": "Safe bounded reason for the result; never raw tool output or secret material. WorkerInventoryCheck.reason must contain at most 8192 characters.",
                 "type": "string",
                 "maxLength": 8192
               },
@@ -15342,7 +15342,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "Current check results; each is stored with the server receipt time and a five-minute initial expiry. Each array item follows this format."
           },
-          "description": "WorkerInventoryReport.checks must contain at most 100 items.",
+          "description": "Current check results; each is stored with the server receipt time and a five-minute initial expiry. WorkerInventoryReport.checks must contain at most 262144 UTF-8 bytes. WorkerInventoryReport.checks must contain at most 100 items.",
           "x-utf8-max-bytes": 262144
         }
       },
@@ -15587,12 +15587,12 @@ export const clientManifest = {
         "componentKey": {
           "type": "string",
           "maxLength": 255,
-          "description": "WorkerProviderBindingCreate.componentKey must contain at most 255 characters."
+          "description": "Harness component key from the host's reported inventory that this binding authorizes; the component must already exist in the host's inventory. WorkerProviderBindingCreate.componentKey must contain at most 255 characters."
         },
         "provider": {
           "type": "string",
           "maxLength": 64,
-          "description": "WorkerProviderBindingCreate.provider must contain at most 64 characters."
+          "description": "Provider key the binding routes work toward; provider identity is not mutable freeform configuration. WorkerProviderBindingCreate.provider must contain at most 64 characters."
         },
         "billingRoute": {
           "type": "string",
@@ -15694,7 +15694,7 @@ export const clientManifest = {
           "description": "Protocol phase the worker reports for the attempt."
         },
         "result": {
-          "description": "WorkerProviderAuthAttemptReport.result must contain at most 32000 UTF-8 bytes.",
+          "description": "Strictly redacted protocol result: completion carries the verified billing identity and optional quota observation; credentials are never accepted or stored. WorkerProviderAuthAttemptReport.result must contain at most 32000 UTF-8 bytes.",
           "anyOf": [
             {
               "type": "string",
@@ -15859,7 +15859,7 @@ export const clientManifest = {
       "type": "object",
       "properties": {
         "capabilities": {
-          "description": "WorkerUpdate.capabilities must contain at most 32000 UTF-8 bytes.",
+          "description": "Replaces the capabilities this worker is allowed to run; does not itself change what its currently installed toolchains actually support. WorkerUpdate.capabilities must contain at most 32000 UTF-8 bytes.",
           "anyOf": [
             {
               "type": "string",
@@ -15899,7 +15899,7 @@ export const clientManifest = {
           "x-utf8-max-bytes": 32000
         },
         "toolchainVersions": {
-          "description": "WorkerUpdate.toolchainVersions must contain at most 16000 UTF-8 bytes.",
+          "description": "Replaces the recorded toolchain-version inventory for this worker; an Admin correction distinct from the worker's own self-reported inventory. WorkerUpdate.toolchainVersions must contain at most 16000 UTF-8 bytes.",
           "anyOf": [
             {
               "type": "string",
@@ -15939,7 +15939,7 @@ export const clientManifest = {
           "x-utf8-max-bytes": 16000
         },
         "slots": {
-          "description": "WorkerUpdate.slots must be at most 100.",
+          "description": "Replaces this worker's task-slot ceiling; lowering it does not interrupt attempts already claimed above the new limit. WorkerUpdate.slots must be at least 1. WorkerUpdate.slots must be at most 100.",
           "type": "integer",
           "minimum": 1,
           "maximum": 100
@@ -16187,7 +16187,7 @@ export const clientManifest = {
       "type": "object",
       "properties": {
         "definition": {
-          "description": "WorkflowValidation.definition must contain at most 100000 UTF-8 bytes.",
+          "description": "Candidate workflow specification to validate; the same shape a draft saves, but not persisted by this check. WorkflowValidation.definition must contain at most 100000 UTF-8 bytes.",
           "anyOf": [
             {
               "type": "string",
@@ -16351,13 +16351,13 @@ export const clientManifest = {
       "type": "object",
       "properties": {
         "revision": {
-          "description": "WorkflowVersionCreate.revision must be at least 1.",
+          "description": "Optional check only: the server allocates the draft revision as the next number after the highest published revision, and a supplied value that differs fails with STATE_CONFLICT revision_not_next. WorkflowVersionCreate.revision must be at least 1.",
           "type": "integer",
           "minimum": 1,
           "maximum": 9007199254740991
         },
         "definition": {
-          "description": "WorkflowVersionCreate.definition must contain at most 100000 UTF-8 bytes.",
+          "description": "Initial draft specification describing steps, registered actions, and bindings; saved even when it has semantic errors, and validated on validate and on publish. WorkflowVersionCreate.definition must contain at most 100000 UTF-8 bytes.",
           "anyOf": [
             {
               "type": "string",
@@ -16402,7 +16402,7 @@ export const clientManifest = {
           "pattern": "^[a-f0-9]{64}$"
         },
         "sourceYaml": {
-          "description": "WorkflowVersionCreate.sourceYaml must contain at most 100000 characters.",
+          "description": "Optional author-written source text for the draft; when omitted the server stores the canonical JSON text of `definition`, which is valid YAML 1.2. WorkflowVersionCreate.sourceYaml must contain at most 100000 characters.",
           "type": "string",
           "maxLength": 65536
         }
@@ -16555,7 +16555,7 @@ export const clientManifest = {
       "type": "object",
       "properties": {
         "definition": {
-          "description": "WorkflowDraftUpdate.definition must contain at most 100000 UTF-8 bytes.",
+          "description": "Replacement draft specification; saved even with semantic errors and validated on validate and on publish. WorkflowDraftUpdate.definition must contain at most 100000 UTF-8 bytes.",
           "anyOf": [
             {
               "type": "string",
@@ -16595,7 +16595,7 @@ export const clientManifest = {
           "x-utf8-max-bytes": 100000
         },
         "sourceYaml": {
-          "description": "WorkflowDraftUpdate.sourceYaml must contain at most 100000 characters.",
+          "description": "Optional author-written source text; when omitted the server stores the canonical JSON text of `definition`. WorkflowDraftUpdate.sourceYaml must contain at most 100000 characters.",
           "type": "string",
           "maxLength": 65536
         }
@@ -16760,13 +16760,13 @@ export const clientManifest = {
           "description": "Published version of the unlisted source definition to copy; a draft or unknown version is refused."
         },
         "slug": {
-          "description": "WorkflowListingCreate.slug must contain at most 100 characters.",
+          "description": "Slug for the new library definition; omitted generates copy-<uuid>. A slug already used in the organization fails with STATE_CONFLICT. WorkflowListingCreate.slug must contain at most 100 characters.",
           "type": "string",
           "maxLength": 100,
           "pattern": "^[a-z0-9]+(?:[-_][a-z0-9]+)*$"
         },
         "name": {
-          "description": "WorkflowListingCreate.name must contain at most 200 characters.",
+          "description": "Library name for the new definition; omitted keeps the source definition's name. WorkflowListingCreate.name must contain at most 200 characters.",
           "type": "string",
           "maxLength": 200
         }
@@ -16801,13 +16801,13 @@ export const clientManifest = {
       "type": "object",
       "properties": {
         "cursor": {
-          "description": "CommentQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "description": "Opaque continuation token from a prior CommentQuery page; bound to the same root/status filter and view version, so it cannot be replayed against a different query. CommentQuery.cursor must contain at most 512 UTF-8 bytes.",
           "type": "string",
           "maxLength": 65536,
           "x-utf8-max-bytes": 512
         },
         "limit": {
-          "description": "CommentQuery.limit must be at most 100.",
+          "description": "Maximum number of comment rows returned per page; defaults to 25 and cannot exceed 100. CommentQuery.limit must be at least 1. CommentQuery.limit must be at most 100.",
           "type": "integer",
           "minimum": 1,
           "maximum": 100
@@ -16841,13 +16841,13 @@ export const clientManifest = {
       "type": "object",
       "properties": {
         "cursor": {
-          "description": "MessageQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "description": "Opaque continuation token from a prior MessageQuery page, bound to this conversation and the current principal. MessageQuery.cursor must contain at most 512 UTF-8 bytes.",
           "type": "string",
           "maxLength": 65536,
           "x-utf8-max-bytes": 512
         },
         "limit": {
-          "description": "MessageQuery.limit must be at most 100.",
+          "description": "Maximum number of messages returned per page; defaults to 25 and cannot exceed 100. MessageQuery.limit must be at least 1. MessageQuery.limit must be at most 100.",
           "type": "integer",
           "minimum": 1,
           "maximum": 100
@@ -16861,13 +16861,13 @@ export const clientManifest = {
       "type": "object",
       "properties": {
         "cursor": {
-          "description": "ConversationTurnQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "description": "Opaque continuation token from a prior ConversationTurnQuery page, bound to this conversation and the current principal. ConversationTurnQuery.cursor must contain at most 512 UTF-8 bytes.",
           "type": "string",
           "maxLength": 65536,
           "x-utf8-max-bytes": 512
         },
         "limit": {
-          "description": "ConversationTurnQuery.limit must be at most 100.",
+          "description": "Maximum number of turns returned per page; defaults to 25 and cannot exceed 100. ConversationTurnQuery.limit must be at least 1. ConversationTurnQuery.limit must be at most 100.",
           "type": "integer",
           "minimum": 1,
           "maximum": 100
@@ -16890,12 +16890,12 @@ export const clientManifest = {
         "name": {
           "type": "string",
           "maxLength": 200,
-          "description": "OrganizationCreate.name must contain at most 200 characters."
+          "description": "Display name for the new organization, shown throughout the product. OrganizationCreate.name must contain at most 200 characters."
         },
         "slug": {
           "type": "string",
           "maxLength": 200,
-          "description": "OrganizationCreate.slug must contain at most 200 characters."
+          "description": "URL-safe identifier for the organization, unique across the installation and used in its routes; it can never be changed after creation. OrganizationCreate.slug must contain at most 200 characters."
         }
       },
       "required": [
@@ -16955,17 +16955,17 @@ export const clientManifest = {
       "type": "object",
       "properties": {
         "name": {
-          "description": "OrganizationUpdate.name must contain at most 200 characters.",
+          "description": "Replaces the organization's display name shown throughout the product. OrganizationUpdate.name must contain at most 200 characters.",
           "type": "string",
           "maxLength": 200
         },
         "logo": {
-          "description": "OrganizationUpdate.logo must contain at most 2000 characters.",
+          "description": "Replaces the URL of the organization's logo image shown in the product. OrganizationUpdate.logo must contain at most 2000 characters.",
           "type": "string",
           "maxLength": 2000
         },
         "metadata": {
-          "description": "OrganizationUpdate.metadata must contain at most 16000 UTF-8 bytes.",
+          "description": "Complete replacement for the organization's bounded JSON metadata object. Omit the field to leave metadata unchanged; when present the whole object is replaced, with no deep merge. OrganizationUpdate.metadata must contain at most 16000 UTF-8 bytes.",
           "anyOf": [
             {
               "type": "string",
@@ -17011,7 +17011,7 @@ export const clientManifest = {
               "type": "string",
               "minLength": 2,
               "maxLength": 35,
-              "description": "OrganizationUpdate.defaultLocale must contain at most 35 characters."
+              "description": "Replaces the organization's default language (BCP 47 tag) used for members who have not chosen a personal language; must be one of the server's available locales, or null to clear it so Accept-Language applies. OrganizationUpdate.defaultLocale must contain at least 2 characters. OrganizationUpdate.defaultLocale must contain at most 35 characters."
             },
             {
               "type": "null",
@@ -17216,7 +17216,7 @@ export const clientManifest = {
           "type": "string",
           "minLength": 3,
           "maxLength": 320,
-          "description": "OrganizationInvitationCreate.email must contain at most 320 characters."
+          "description": "Normalized email address to invite into the selected organization; it identifies the recipient but grants no access before Bakery-owned recipient acceptance. OrganizationInvitationCreate.email must contain at least 3 characters. OrganizationInvitationCreate.email must contain at most 320 characters."
         },
         "role": {
           "type": "string",
@@ -17305,7 +17305,7 @@ export const clientManifest = {
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
         },
         "returnPath": {
-          "description": "IntegrationAuthAttemptCreate.returnPath must contain at most 500 characters.",
+          "description": "Bakery path beginning with a single slash that the browser returns to once this authorization attempt's flow completes; absolute URLs, protocol-relative paths and backslashes are refused. IntegrationAuthAttemptCreate.returnPath must contain at most 500 characters.",
           "type": "string",
           "maxLength": 500
         }
@@ -17334,13 +17334,13 @@ export const clientManifest = {
           "type": "boolean"
         },
         "cursor": {
-          "description": "IntegrationResourceQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "description": "Opaque keyset cursor for the next page of discovered resources, or registered destinations, under this connection. IntegrationResourceQuery.cursor must contain at most 512 UTF-8 bytes.",
           "type": "string",
           "maxLength": 65536,
           "x-utf8-max-bytes": 512
         },
         "limit": {
-          "description": "IntegrationResourceQuery.limit must be at most 100.",
+          "description": "Page size for the resource or destination listing, capped at 100 and defaulting to 25. IntegrationResourceQuery.limit must be at least 1. IntegrationResourceQuery.limit must be at most 100.",
           "type": "integer",
           "minimum": 1,
           "maximum": 100
@@ -17362,7 +17362,7 @@ export const clientManifest = {
           "type": "boolean"
         },
         "displayName": {
-          "description": "IntegrationResourceUpdate.displayName must contain at most 200 characters.",
+          "description": "Renames the resource's presentation label without touching its external identity; a repository or channel keeps its actual provider name and only appears differently in Bakery's UI. IntegrationResourceUpdate.displayName must contain at most 200 characters.",
           "type": "string",
           "maxLength": 200
         }
@@ -17423,10 +17423,10 @@ export const clientManifest = {
         "capability": {
           "type": "string",
           "maxLength": 200,
-          "description": "IntegrationGrantCreate.capability must contain at most 200 characters."
+          "description": "The exact scope or action identifier being granted, a bakery:* operation scope for into_bakery, or a versioned external action ID for out_of_bakery; there is no prefix or wildcard match. IntegrationGrantCreate.capability must contain at most 200 characters."
         },
         "actionVersion": {
-          "description": "IntegrationGrantCreate.actionVersion must be at least 1.",
+          "description": "Pins the exact version of the external action being granted; required when capability names an out-of-bakery action, since grants are version-specific and never auto-extend to a newer release. IntegrationGrantCreate.actionVersion must be at least 1.",
           "type": "integer",
           "minimum": 1,
           "maximum": 9007199254740991
@@ -17492,13 +17492,13 @@ export const clientManifest = {
           ]
         },
         "cursor": {
-          "description": "IntegrationEffectQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "description": "Opaque keyset cursor for the next page of this connection's external effects, bound to organization, connection, resource and the active filters. IntegrationEffectQuery.cursor must contain at most 512 UTF-8 bytes.",
           "type": "string",
           "maxLength": 65536,
           "x-utf8-max-bytes": 512
         },
         "limit": {
-          "description": "IntegrationEffectQuery.limit must be at most 100.",
+          "description": "Page size for this connection's external effects, capped at 100 and defaulting to 25. IntegrationEffectQuery.limit must be at least 1. IntegrationEffectQuery.limit must be at most 100.",
           "type": "integer",
           "minimum": 1,
           "maximum": 100
@@ -17522,13 +17522,13 @@ export const clientManifest = {
           "type": "boolean"
         },
         "cursor": {
-          "description": "TicketSourceQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "description": "Opaque continuation token from a previous page's response; pass it back verbatim to fetch the next page of ticket sources. TicketSourceQuery.cursor must contain at most 512 UTF-8 bytes.",
           "type": "string",
           "maxLength": 65536,
           "x-utf8-max-bytes": 512
         },
         "limit": {
-          "description": "TicketSourceQuery.limit must be at most 100.",
+          "description": "Maximum number of ticket sources to return in one page, capped at 100; defaults to 25 when omitted. TicketSourceQuery.limit must be at least 1. TicketSourceQuery.limit must be at most 100.",
           "type": "integer",
           "minimum": 1,
           "maximum": 100
@@ -17568,10 +17568,10 @@ export const clientManifest = {
         "externalContainerId": {
           "type": "string",
           "maxLength": 200,
-          "description": "TicketSourceCreate.externalContainerId must contain at most 200 characters."
+          "description": "Immutable identifier of the external container this source observes (for example, the GitHub repository's stable ID); only one authoritative source per external container is permitted within an organization. TicketSourceCreate.externalContainerId must contain at most 200 characters."
         },
         "policy": {
-          "description": "TicketSourceCreate.policy must contain at most 65536 UTF-8 bytes.",
+          "description": "Schema-validated automation policy for this source, a TicketSourcePolicy version 1 document covering request, planning-only and hold labels, optional delegation to allowlisted GitHub users, the automatic admission switch, readiness options and plan approval; automatic.since is stamped by the server and ignored on input. Published with a revision so already-admitted requests keep their original pinned snapshot. TicketSourceCreate.policy must contain at most 65536 UTF-8 bytes.",
           "anyOf": [
             {
               "type": "string",
@@ -17743,7 +17743,7 @@ export const clientManifest = {
           "type": "boolean"
         },
         "policy": {
-          "description": "TicketSourceUpdate.policy must contain at most 65536 UTF-8 bytes.",
+          "description": "Replacement TicketSourcePolicy version 1 document for this source (labels, delegation, automatic admission, readiness options, plan approval); automatic.since is stamped by the server on a false-to-true flip of automatic.enabled or when a disabled source is enabled again, and ignored on input. Publishing advances its pinned revision through a diff and impact preview, while requests already admitted under the prior policy keep their original pinned snapshot. TicketSourceUpdate.policy must contain at most 65536 UTF-8 bytes.",
           "anyOf": [
             {
               "type": "string",
@@ -17904,7 +17904,7 @@ export const clientManifest = {
       "type": "object",
       "properties": {
         "filters": {
-          "description": "TicketPreviewCreate.filters must contain at most 16000 UTF-8 bytes.",
+          "description": "Optional filter criteria, such as labels or repositories, narrowing which candidate tickets the preview evaluates, without changing the source's saved policy. TicketPreviewCreate.filters must contain at most 16000 UTF-8 bytes.",
           "anyOf": [
             {
               "type": "string",
@@ -18093,13 +18093,13 @@ export const clientManifest = {
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
         },
         "cursor": {
-          "description": "ExternalTicketQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "description": "Opaque continuation token from a previous page's response; pass it back verbatim to fetch the next page of the organization-scoped cached ticket list. ExternalTicketQuery.cursor must contain at most 512 UTF-8 bytes.",
           "type": "string",
           "maxLength": 65536,
           "x-utf8-max-bytes": 512
         },
         "limit": {
-          "description": "ExternalTicketQuery.limit must be at most 100.",
+          "description": "Maximum number of cached ticket snapshots to return in one page, capped at 100; defaults to 25 when omitted. ExternalTicketQuery.limit must be at least 1. ExternalTicketQuery.limit must be at most 100.",
           "type": "integer",
           "minimum": 1,
           "maximum": 100
@@ -18116,7 +18116,7 @@ export const clientManifest = {
           "type": "integer",
           "minimum": 1,
           "maximum": 9007199254740991,
-          "description": "TicketReadinessCreate.expectedSourcePolicyRevision must be at least 1."
+          "description": "The ticket source policy revision the caller last observed; the assessment is rejected if the source's policy has changed since, so it can't run against a stale policy snapshot. TicketReadinessCreate.expectedSourcePolicyRevision must be at least 1."
         }
       },
       "required": [
@@ -18167,12 +18167,12 @@ export const clientManifest = {
           "type": "integer",
           "minimum": 1,
           "maximum": 9007199254740991,
-          "description": "TicketRequestCreate.expectedSourcePolicyRevision must be at least 1."
+          "description": "The ticket source policy revision the caller last observed; admission is rejected if the source's policy has changed since, preventing evaluation against stale routing or authority rules. TicketRequestCreate.expectedSourcePolicyRevision must be at least 1."
         },
         "requirementsDigest": {
           "type": "string",
           "maxLength": 200,
-          "description": "TicketRequestCreate.requirementsDigest must contain at most 200 characters."
+          "description": "Digest of the ticket's requirements (title, body, acceptance criteria) as observed by the caller; admission is rejected if it no longer matches the ticket's current requirements, so a stale request can't admit work against since-changed criteria. TicketRequestCreate.requirementsDigest must contain at most 200 characters."
         }
       },
       "required": [
@@ -18202,7 +18202,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 35,
-              "description": "UserPreferencesUpdate.locale must contain at most 35 characters."
+              "description": "The person's account-wide language as a BCP 47 tag from the server's available locales; null clears the choice so the organization default and browser language apply. Omit to leave it unchanged. UserPreferencesUpdate.locale must contain at most 35 characters."
             },
             {
               "type": "null",
@@ -18216,7 +18216,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 64,
-              "description": "UserPreferencesUpdate.timeZone must contain at most 64 characters."
+              "description": "The member's preferred IANA time zone identifier (for example Europe/Berlin) for this organization; null clears the choice so the browser zone applies. Omit to leave it unchanged. UserPreferencesUpdate.timeZone must contain at most 64 characters."
             },
             {
               "type": "null",
@@ -18228,7 +18228,7 @@ export const clientManifest = {
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991,
-          "description": "UserPreferencesUpdate.expectedCasVersion must be at least 0."
+          "description": "Version the caller last read for this member's preferences (0 when none has been saved yet); the update is rejected with a version conflict if the stored version has since changed, preventing a stale write from overwriting a concurrent change. UserPreferencesUpdate.expectedCasVersion must be at least 0."
         }
       },
       "required": [
@@ -18242,7 +18242,7 @@ export const clientManifest = {
       "type": "object",
       "properties": {
         "name": {
-          "description": "UserProfileUpdate.name must contain at most 200 characters.",
+          "description": "Chosen display name, trimmed and independently editable. Omission preserves it; blank or null is rejected. Never derive name parts by splitting it. UserProfileUpdate.name must contain at least 1 characters. UserProfileUpdate.name must contain at most 200 characters.",
           "type": "string",
           "minLength": 1,
           "maxLength": 200
@@ -18253,7 +18253,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 100,
-              "description": "UserProfileUpdate.firstName must contain at most 100 characters."
+              "description": "Optional user-supplied given name; trim Unicode text. Omission preserves the value, while null or blank clears it. UserProfileUpdate.firstName must contain at most 100 characters."
             },
             {
               "type": "null",
@@ -18267,7 +18267,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 100,
-              "description": "UserProfileUpdate.lastName must contain at most 100 characters."
+              "description": "Optional user-supplied family name; trim Unicode text. Omission preserves the value, while null or blank clears it. A family name is never mandatory. UserProfileUpdate.lastName must contain at most 100 characters."
             },
             {
               "type": "null",
@@ -18281,7 +18281,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 120,
-              "description": "UserProfileUpdate.title must contain at most 120 characters."
+              "description": "Optional self-described job title. Omission preserves it; null or trimmed blank clears it. This field grants no role, credential or permission. UserProfileUpdate.title must contain at most 120 characters."
             },
             {
               "type": "null",
@@ -18295,7 +18295,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 2048,
-              "description": "UserProfileUpdate.image must contain at most 2048 characters."
+              "description": "Existing profile-image URL. Omission preserves the photo; null or blank removes it. Reject data URLs, embedded credentials and signed credential URLs; do not server-fetch arbitrary URLs. UserProfileUpdate.image must contain at most 2048 characters."
             },
             {
               "type": "null",
@@ -18343,13 +18343,13 @@ export const clientManifest = {
           ]
         },
         "cursor": {
-          "description": "IntegrationInstallationQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "description": "Opaque keyset cursor for the next page of installations visible to this administrator. IntegrationInstallationQuery.cursor must contain at most 512 UTF-8 bytes.",
           "type": "string",
           "maxLength": 65536,
           "x-utf8-max-bytes": 512
         },
         "limit": {
-          "description": "IntegrationInstallationQuery.limit must be at most 100.",
+          "description": "Page size for the installation listing, capped at 100 and defaulting to 25. IntegrationInstallationQuery.limit must be at least 1. IntegrationInstallationQuery.limit must be at most 100.",
           "type": "integer",
           "minimum": 1,
           "maximum": 100
@@ -18369,7 +18369,7 @@ export const clientManifest = {
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
         },
         "capability": {
-          "description": "IntegrationGrantQuery.capability must contain at most 200 characters.",
+          "description": "Restricts results to grants for one scope or action identifier. IntegrationGrantQuery.capability must contain at most 200 characters.",
           "type": "string",
           "maxLength": 200
         },
@@ -18382,13 +18382,13 @@ export const clientManifest = {
           ]
         },
         "cursor": {
-          "description": "IntegrationGrantQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "description": "Opaque keyset cursor for the next page of grants on this connection; bound to the organization so it can never surface another organization's grants. IntegrationGrantQuery.cursor must contain at most 512 UTF-8 bytes.",
           "type": "string",
           "maxLength": 65536,
           "x-utf8-max-bytes": 512
         },
         "limit": {
-          "description": "IntegrationGrantQuery.limit must be at most 100.",
+          "description": "Page size for this connection's grant listing, capped at 100 and defaulting to 25. IntegrationGrantQuery.limit must be at least 1. IntegrationGrantQuery.limit must be at most 100.",
           "type": "integer",
           "minimum": 1,
           "maximum": 100
@@ -18402,22 +18402,22 @@ export const clientManifest = {
       "type": "object",
       "properties": {
         "code": {
-          "description": "OAuthCallback.code must contain at most 4096 characters.",
+          "description": "Provider-issued authorization code to exchange for the pending auth attempt's result; absent when the provider instead returned error. OAuthCallback.code must contain at most 4096 characters.",
           "type": "string",
           "maxLength": 4096
         },
         "state": {
           "type": "string",
           "maxLength": 4096,
-          "description": "OAuthCallback.state must contain at most 4096 characters."
+          "description": "Single-use, session-bound state value matching the auth or identity-link attempt that started this flow; claimed atomically before exchange to reject replay. OAuthCallback.state must contain at most 4096 characters."
         },
         "error": {
-          "description": "OAuthCallback.error must contain at most 200 characters.",
+          "description": "Provider-reported error code returned when the user denied authorization or the flow failed before a code was issued. OAuthCallback.error must contain at most 200 characters.",
           "type": "string",
           "maxLength": 200
         },
         "errorDescription": {
-          "description": "OAuthCallback.errorDescription must contain at most 1000 characters.",
+          "description": "Provider-supplied human-readable detail accompanying error; both fields are diagnostic only and never authorize a connection or grant. OAuthCallback.errorDescription must contain at most 1000 characters.",
           "type": "string",
           "maxLength": 1000
         }
@@ -18435,10 +18435,10 @@ export const clientManifest = {
         "state": {
           "type": "string",
           "maxLength": 4096,
-          "description": "GitHubSetupCallback.state must contain at most 4096 characters."
+          "description": "Single-use state token binding this setup redirect to the auth attempt that started it; claimed atomically before verification so it cannot be replayed. GitHubSetupCallback.state must contain at most 4096 characters."
         },
         "installationId": {
-          "description": "GitHubSetupCallback.installationId must contain at most 200 characters.",
+          "description": "GitHub's candidate installation ID for this setup event. Treat as spoofable: the host must verify it against every page of installations accessible to the connecting user's token before it can identify a real installation. GitHubSetupCallback.installationId must contain at most 200 characters.",
           "type": "string",
           "maxLength": 200
         },
@@ -18464,10 +18464,10 @@ export const clientManifest = {
         "action": {
           "type": "string",
           "maxLength": 200,
-          "description": "IntegrationAction.action must contain at most 200 characters."
+          "description": "Identifier of the registered integration action to invoke, for example github.issue.comment.create; the host looks up its exact schema and required grant before validating arguments. IntegrationAction.action must contain at most 200 characters."
         },
         "arguments": {
-          "description": "IntegrationAction.arguments must contain at most 65536 UTF-8 bytes.",
+          "description": "Action-specific input payload, validated against the exact schema registered for the named action; the caller cannot use it to supply credentials, host, authority or budget overrides. IntegrationAction.arguments must contain at most 65536 UTF-8 bytes.",
           "anyOf": [
             {
               "type": "string",
@@ -18632,13 +18632,13 @@ export const clientManifest = {
       "type": "object",
       "properties": {
         "cursor": {
-          "description": "WorkflowActionsListQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "description": "Opaque continuation token from a prior page of the workflow action list; it is bound to this operation and the registry version, not to a principal, because the registry is installation-global. WorkflowActionsListQuery.cursor must contain at most 512 UTF-8 bytes.",
           "type": "string",
           "maxLength": 65536,
           "x-utf8-max-bytes": 512
         },
         "limit": {
-          "description": "WorkflowActionsListQuery.limit must be at most 100.",
+          "description": "Maximum number of action declarations returned per page; defaults to 25 and cannot exceed 100. WorkflowActionsListQuery.limit must be at least 1. WorkflowActionsListQuery.limit must be at most 100.",
           "type": "integer",
           "minimum": 1,
           "maximum": 100
@@ -18682,7 +18682,7 @@ export const clientManifest = {
           "type": "integer",
           "minimum": 1,
           "maximum": 9007199254740991,
-          "description": "WorkflowActionVersionPath.version must be at least 1."
+          "description": "Registry version of the declaration; only the current registry version exists, and any other value, including a non-integer, answers not found rather than malformed. WorkflowActionVersionPath.version must be at least 1."
         }
       },
       "required": [
@@ -18703,13 +18703,13 @@ export const clientManifest = {
           "description": "Selected application owned by the authenticated organization."
         },
         "cursor": {
-          "description": "SecretList.cursor must contain at most 512 UTF-8 bytes.",
+          "description": "Opaque continuation token from a prior page of the same list operation; rejected if replayed against a different operation, principal, or scope. SecretList.cursor must contain at most 512 UTF-8 bytes.",
           "type": "string",
           "maxLength": 65536,
           "x-utf8-max-bytes": 512
         },
         "limit": {
-          "description": "SecretList.limit must be at most 100.",
+          "description": "Maximum rows returned per page for whichever list operation this shared query is used with; defaults to 25 and cannot exceed 100. SecretList.limit must be at least 1. SecretList.limit must be at most 100.",
           "type": "integer",
           "minimum": 1,
           "maximum": 100
@@ -18774,19 +18774,19 @@ export const clientManifest = {
       "type": "object",
       "properties": {
         "cursor": {
-          "description": "OutputStreamListQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "description": "Opaque discovery continuation bound to caller, organization, filters, order, operation, and schema version. OutputStreamListQuery.cursor must contain at most 512 UTF-8 bytes.",
           "type": "string",
           "maxLength": 65536,
           "x-utf8-max-bytes": 512
         },
         "limit": {
-          "description": "OutputStreamListQuery.limit must be at most 64.",
+          "description": "Maximum stream metadata records requested; defaults to 32 and cannot exceed 64. OutputStreamListQuery.limit must be at most 64.",
           "type": "integer",
           "exclusiveMinimum": 0,
           "maximum": 64
         },
         "maxBytes": {
-          "description": "OutputStreamListQuery.maxBytes must be at most 262144.",
+          "description": "Maximum UTF-8 bytes for the complete encoded discovery response; defaults to 131072 and cannot exceed 262144. OutputStreamListQuery.maxBytes must be at most 262144.",
           "type": "integer",
           "exclusiveMinimum": 0,
           "maximum": 262144
@@ -18822,7 +18822,7 @@ export const clientManifest = {
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
         },
         "logicalActor": {
-          "description": "OutputStreamListQuery.logicalActor must contain at most 256 UTF-8 bytes.",
+          "description": "Exact frozen logical actor filter; worker or session identity is never accepted as an actor. OutputStreamListQuery.logicalActor must contain at least 1 characters. OutputStreamListQuery.logicalActor must contain at most 256 UTF-8 bytes.",
           "type": "string",
           "minLength": 1,
           "maxLength": 65536,
@@ -18843,19 +18843,19 @@ export const clientManifest = {
           "description": "Stable logical output stream UUID selected for authorized replay."
         },
         "cursor": {
-          "description": "OutputStreamReadQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "description": "Opaque exclusive continuation bound to caller, organization, stream, filters, order, operation, and schema version. OutputStreamReadQuery.cursor must contain at most 512 UTF-8 bytes.",
           "type": "string",
           "maxLength": 65536,
           "x-utf8-max-bytes": 512
         },
         "limit": {
-          "description": "OutputStreamReadQuery.limit must be at most 64.",
+          "description": "Maximum committed batches requested; defaults to 32 and cannot exceed 64. OutputStreamReadQuery.limit must be at most 64.",
           "type": "integer",
           "exclusiveMinimum": 0,
           "maximum": 64
         },
         "maxBytes": {
-          "description": "OutputStreamReadQuery.maxBytes must be at most 262144.",
+          "description": "Maximum UTF-8 bytes for the complete encoded page; defaults to 131072 and cannot exceed 262144. OutputStreamReadQuery.maxBytes must be at most 262144.",
           "type": "integer",
           "exclusiveMinimum": 0,
           "maximum": 262144
@@ -18905,13 +18905,13 @@ export const clientManifest = {
           "type": "integer",
           "minimum": 0,
           "maximum": 1048576,
-          "description": "DraftSliceQuery.startUtf16 must be at most 1048576."
+          "description": "Inclusive UTF-16 code-unit offset in the checkpoint body; a surrogate pair cannot be split. DraftSliceQuery.startUtf16 must be at least 0. DraftSliceQuery.startUtf16 must be at most 1048576."
         },
         "endUtf16": {
           "type": "integer",
           "minimum": 0,
           "maximum": 1048576,
-          "description": "DraftSliceQuery.endUtf16 must be at most 1048576."
+          "description": "Exclusive UTF-16 code-unit offset in the checkpoint body, at or after startUtf16; a surrogate pair cannot be split. DraftSliceQuery.endUtf16 must be at least 0. DraftSliceQuery.endUtf16 must be at most 1048576."
         }
       },
       "required": [
@@ -18930,7 +18930,7 @@ export const clientManifest = {
           "type": "integer",
           "minimum": 1,
           "maximum": 2147483647,
-          "description": "DraftEdit.epoch must be at most 2147483647."
+          "description": "Draft epoch observed with the source checkpoint; edits from any other epoch fail without persistence. DraftEdit.epoch must be at least 1. DraftEdit.epoch must be at most 2147483647."
         },
         "sourceCheckpointId": {
           "type": "string",
@@ -18940,18 +18940,18 @@ export const clientManifest = {
         },
         "startCursor": {
           "type": "string",
-          "description": "DraftEdit.startCursor must contain at most 1024 UTF-8 bytes.",
+          "description": "Opaque encoded Loro cursor for the inclusive start of the guarded body range; it must resolve in the source and current full snapshots. DraftEdit.startCursor must contain at most 1024 UTF-8 bytes.",
           "x-utf8-max-bytes": 1024
         },
         "endCursor": {
           "type": "string",
-          "description": "DraftEdit.endCursor must contain at most 1024 UTF-8 bytes.",
+          "description": "Opaque encoded Loro cursor for the exclusive end of the guarded body range; it must resolve in the source and current full snapshots. DraftEdit.endCursor must contain at most 1024 UTF-8 bytes.",
           "x-utf8-max-bytes": 1024
         },
         "expectedText": {
           "type": "string",
           "maxLength": 65536,
-          "description": "DraftEdit.expectedText must contain at most 65536 UTF-8 bytes.",
+          "description": "Exact UTF-16 range text observed at source; changed, deleted, reversed, or ambiguous targets fail before mutation. DraftEdit.expectedText must contain at most 65536 UTF-8 bytes.",
           "x-utf8-max-bytes": 65536
         },
         "expectedDigest": {
@@ -18962,7 +18962,7 @@ export const clientManifest = {
         "replacement": {
           "type": "string",
           "maxLength": 65536,
-          "description": "DraftEdit.replacement must contain at most 65536 UTF-8 bytes.",
+          "description": "Replacement plain text generated into a server-owned Loro update; unpaired UTF-16 surrogates and payloads over 65536 UTF-8 bytes are rejected. DraftEdit.replacement must contain at most 65536 UTF-8 bytes.",
           "x-utf8-max-bytes": 65536
         },
         "mutationId": {
@@ -19058,12 +19058,12 @@ export const clientManifest = {
           "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
         },
         "operation": {
-          "description": "AuditExportQuery.operation must contain at most 200 characters.",
+          "description": "Restricts the export to audit events whose operation name matches exactly, e.g. `secrets.rotate`. AuditExportQuery.operation must contain at most 200 characters.",
           "type": "string",
           "maxLength": 200
         },
         "outcome": {
-          "description": "AuditExportQuery.outcome must contain at most 80 characters.",
+          "description": "Restricts the export to one outcome: allowed, denied, succeeded, or failed, matching the audit_events outcome enum. AuditExportQuery.outcome must contain at most 80 characters.",
           "type": "string",
           "maxLength": 80
         }
@@ -19079,24 +19079,24 @@ export const clientManifest = {
       "type": "object",
       "properties": {
         "cursor": {
-          "description": "AuditStreamQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "description": "Opaque resume position: the nextCursor of the previous batch. Omit it to start at the oldest retained event. The server binds it to this operation, the current principal and organization and the filters, and rejects any cursor that no longer matches. AuditStreamQuery.cursor must contain at most 512 UTF-8 bytes.",
           "type": "string",
           "maxLength": 65536,
           "x-utf8-max-bytes": 512
         },
         "limit": {
-          "description": "AuditStreamQuery.limit must be at most 1000.",
+          "description": "Maximum number of audit events in one batch; defaults to 500 and is capped at 1000. AuditStreamQuery.limit must be at least 1. AuditStreamQuery.limit must be at most 1000.",
           "type": "integer",
           "minimum": 1,
           "maximum": 1000
         },
         "operation": {
-          "description": "AuditStreamQuery.operation must contain at most 200 characters.",
+          "description": "Restricts the export to audit events whose operation name matches exactly, e.g. `secrets.rotate`. AuditStreamQuery.operation must contain at most 200 characters.",
           "type": "string",
           "maxLength": 200
         },
         "outcome": {
-          "description": "AuditStreamQuery.outcome must contain at most 80 characters.",
+          "description": "Restricts the export to one outcome: allowed, denied, succeeded, or failed, matching the audit_events outcome enum. AuditStreamQuery.outcome must contain at most 80 characters.",
           "type": "string",
           "maxLength": 80
         }
@@ -19114,7 +19114,7 @@ export const clientManifest = {
               "type": "integer",
               "minimum": 30,
               "maximum": 3650,
-              "description": "AuditRetentionUpdate.retentionDays must be at most 3650."
+              "description": "Days an audit event is kept before the scheduled purge may delete it; null keeps audit events forever. AuditRetentionUpdate.retentionDays must be at least 30. AuditRetentionUpdate.retentionDays must be at most 3650."
             },
             {
               "type": "null",
@@ -19143,7 +19143,7 @@ export const clientManifest = {
         "name": {
           "type": "string",
           "maxLength": 120,
-          "description": "AccessTokenCreate.name must contain at most 120 characters."
+          "description": "Label that identifies this token in the access list and audit history. AccessTokenCreate.name must contain at most 120 characters."
         },
         "scopes": {
           "minItems": 1,
@@ -19154,7 +19154,7 @@ export const clientManifest = {
             "maxLength": 65536,
             "description": "Scope bundles the token carries, from bakery:read, bakery:operate and bakery:admin; a scope only restricts the principal's live permissions and never adds authority. Each array item follows this format."
           },
-          "description": "AccessTokenCreate.scopes must contain at most 3 items."
+          "description": "Scope bundles the token carries, from bakery:read, bakery:operate and bakery:admin; a scope only restricts the principal's live permissions and never adds authority. AccessTokenCreate.scopes must contain at least 1 items. AccessTokenCreate.scopes must contain at most 3 items."
         },
         "expiresAt": {
           "type": "string",
@@ -19179,15 +19179,15 @@ export const clientManifest = {
           "type": "string",
           "minLength": 2,
           "maxLength": 40,
-          "description": "OrganizationRoleCreate.key must contain at most 40 characters."
+          "description": "Stable lowercase handle for the custom role, unique within the organization and never one of the system roles admin, developer, viewer or guest. OrganizationRoleCreate.key must contain at least 2 characters. OrganizationRoleCreate.key must contain at most 40 characters."
         },
         "name": {
           "type": "string",
           "maxLength": 120,
-          "description": "OrganizationRoleCreate.name must contain at most 120 characters."
+          "description": "Human-readable role name shown in the access list and audit history. OrganizationRoleCreate.name must contain at most 120 characters."
         },
         "description": {
-          "description": "OrganizationRoleCreate.description must contain at most 500 characters.",
+          "description": "Optional free text explaining what the role is for. OrganizationRoleCreate.description must contain at most 500 characters.",
           "type": "string",
           "maxLength": 500
         },
@@ -19200,7 +19200,7 @@ export const clientManifest = {
             "maxLength": 65536,
             "description": "Catalog permission keys the role grants; every key must be a known permission the creator already holds, so a role can never exceed its author's own authority. Each array item follows this format."
           },
-          "description": "OrganizationRoleCreate.permissions must contain at most 300 items."
+          "description": "Catalog permission keys the role grants; every key must be a known permission the creator already holds, so a role can never exceed its author's own authority. OrganizationRoleCreate.permissions must contain at least 1 items. OrganizationRoleCreate.permissions must contain at most 300 items."
         }
       },
       "required": [
@@ -19216,17 +19216,17 @@ export const clientManifest = {
       "type": "object",
       "properties": {
         "name": {
-          "description": "OrganizationRoleUpdate.name must contain at most 120 characters.",
+          "description": "Replaces the role's display name. OrganizationRoleUpdate.name must contain at most 120 characters.",
           "type": "string",
           "maxLength": 120
         },
         "description": {
-          "description": "OrganizationRoleUpdate.description must contain at most 500 characters.",
+          "description": "Replaces the role's description. OrganizationRoleUpdate.description must contain at most 500 characters.",
           "type": "string",
           "maxLength": 500
         },
         "permissions": {
-          "description": "OrganizationRoleUpdate.permissions must contain at most 300 items.",
+          "description": "Replaces the permission set; the whole resulting set must stay within the editor's own live permissions. OrganizationRoleUpdate.permissions must contain at least 1 items. OrganizationRoleUpdate.permissions must contain at most 300 items.",
           "minItems": 1,
           "maxItems": 300,
           "type": "array",
@@ -19289,7 +19289,7 @@ export const clientManifest = {
           "type": "integer",
           "minimum": 1,
           "maximum": 730,
-          "description": "ScimConnectionCreate.expiresInDays must be at most 730."
+          "description": "Lifetime in days of the first SCIM bearer credential issued with the connection; the identity provider must be given a new credential before it lapses. ScimConnectionCreate.expiresInDays must be at least 1. ScimConnectionCreate.expiresInDays must be at most 730."
         }
       },
       "required": [
@@ -19306,10 +19306,10 @@ export const clientManifest = {
           "type": "integer",
           "minimum": 1,
           "maximum": 730,
-          "description": "ScimConnectionRotate.expiresInDays must be at most 730."
+          "description": "Lifetime in days of the replacement SCIM bearer credential. ScimConnectionRotate.expiresInDays must be at least 1. ScimConnectionRotate.expiresInDays must be at most 730."
         },
         "previousCredentialsExpireInMinutes": {
-          "description": "ScimConnectionRotate.previousCredentialsExpireInMinutes must be at most 10080.",
+          "description": "Minutes the credentials that were active before the rotation keep working so the identity provider can switch over; omit or 0 retires them immediately. ScimConnectionRotate.previousCredentialsExpireInMinutes must be at least 0. ScimConnectionRotate.previousCredentialsExpireInMinutes must be at most 10080.",
           "type": "integer",
           "minimum": 0,
           "maximum": 10080
@@ -19332,13 +19332,13 @@ export const clientManifest = {
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
         },
         "cursor": {
-          "description": "PlanRevisionQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "description": "Opaque continuation token from a prior page of the same list, bound to the principal and the filters. PlanRevisionQuery.cursor must contain at most 512 UTF-8 bytes.",
           "type": "string",
           "maxLength": 65536,
           "x-utf8-max-bytes": 512
         },
         "limit": {
-          "description": "PlanRevisionQuery.limit must be at most 100.",
+          "description": "Maximum number of plan revisions returned per page; defaults to 25 and cannot exceed 100. PlanRevisionQuery.limit must be at least 1. PlanRevisionQuery.limit must be at most 100.",
           "type": "integer",
           "minimum": 1,
           "maximum": 100
@@ -19377,13 +19377,13 @@ export const clientManifest = {
           ]
         },
         "cursor": {
-          "description": "ApprovalQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "description": "Opaque continuation token from a prior page of the same list, bound to the principal and the filters. ApprovalQuery.cursor must contain at most 512 UTF-8 bytes.",
           "type": "string",
           "maxLength": 65536,
           "x-utf8-max-bytes": 512
         },
         "limit": {
-          "description": "ApprovalQuery.limit must be at most 100.",
+          "description": "Maximum number of approvals returned per page; defaults to 25 and cannot exceed 100. ApprovalQuery.limit must be at least 1. ApprovalQuery.limit must be at most 100.",
           "type": "integer",
           "minimum": 1,
           "maximum": 100
@@ -19406,7 +19406,7 @@ export const clientManifest = {
           "description": "The human decision: `approve` authorizes exactly the bound plan revision once, `request_changes` returns the comment to the coordinator for a new revision, and `reject` closes the revision without authorizing anything."
         },
         "comment": {
-          "description": "ApprovalDecision.comment must contain at most 4000 characters.",
+          "description": "Reviewer comment. For `request_changes` it is appended to the conversation as an agent request and starts a new coordinator turn. ApprovalDecision.comment must contain at most 4000 characters.",
           "type": "string",
           "maxLength": 4000
         },
@@ -19414,7 +19414,7 @@ export const clientManifest = {
           "type": "integer",
           "minimum": 1,
           "maximum": 9007199254740991,
-          "description": "ApprovalDecision.expectedVersion must be at least 1."
+          "description": "Approval version the decision was made against; a stale version is refused with a state conflict and no effect. ApprovalDecision.expectedVersion must be at least 1."
         }
       },
       "required": [
@@ -19429,7 +19429,7 @@ export const clientManifest = {
       "type": "object",
       "properties": {
         "reason": {
-          "description": "ApprovalRevoke.reason must contain at most 4000 characters.",
+          "description": "Optional explanation recorded with the revocation. ApprovalRevoke.reason must contain at most 4000 characters.",
           "type": "string",
           "maxLength": 4000
         }
@@ -19459,7 +19459,7 @@ export const clientManifest = {
       "type": "object",
       "properties": {
         "name": {
-          "description": "IntegrationAppRegistrationBegin.name must contain at most 34 characters.",
+          "description": "Display name GitHub gives the new App; defaults to Bakery. GitHub requires it to be unique across github.com and at most 34 characters. IntegrationAppRegistrationBegin.name must contain at least 1 characters. IntegrationAppRegistrationBegin.name must contain at most 34 characters.",
           "type": "string",
           "minLength": 1,
           "maxLength": 34
@@ -19487,13 +19487,13 @@ export const clientManifest = {
           "type": "string",
           "minLength": 1,
           "maxLength": 4096,
-          "description": "GitHubManifestCallback.code must contain at most 4096 characters."
+          "description": "Temporary code GitHub appends to the manifest redirect; valid for one hour and convertible exactly once into the new App's credentials. Never logged or stored. GitHubManifestCallback.code must contain at least 1 characters. GitHubManifestCallback.code must contain at most 4096 characters."
         },
         "state": {
           "type": "string",
           "minLength": 1,
           "maxLength": 4096,
-          "description": "GitHubManifestCallback.state must contain at most 4096 characters."
+          "description": "Single-use state issued by integrationAppRegistrations.begin to the same administrator session; claimed atomically by its hash before the code is converted. GitHubManifestCallback.state must contain at least 1 characters. GitHubManifestCallback.state must contain at most 4096 characters."
         }
       },
       "required": [
@@ -19517,10 +19517,10 @@ export const clientManifest = {
           "type": "string",
           "minLength": 1,
           "maxLength": 100,
-          "description": "IntegrationAppRegistrationPut.clientId must contain at most 100 characters."
+          "description": "Public OAuth client id of the App, such as Iv23li…; not a secret. GitHub must report the same client id for the App. IntegrationAppRegistrationPut.clientId must contain at least 1 characters. IntegrationAppRegistrationPut.clientId must contain at most 100 characters."
         },
         "clientSecret": {
-          "description": "IntegrationAppRegistrationPut.clientSecret must contain at most 4096 characters.",
+          "description": "OAuth client secret of the App. Write-only: stored as installation-owned AES-GCM ciphertext and never returned. Required for a new registration; omit on a replacement to keep the stored version. IntegrationAppRegistrationPut.clientSecret must contain at most 4096 characters.",
           "type": "string",
           "minLength": 1,
           "maxLength": 4096
@@ -19529,10 +19529,10 @@ export const clientManifest = {
           "type": "string",
           "minLength": 1,
           "maxLength": 16384,
-          "description": "IntegrationAppRegistrationPut.privateKey must contain at most 16384 characters."
+          "description": "PEM private key of the App (PKCS#1 RSA PRIVATE KEY or PKCS#8 PRIVATE KEY). Write-only: Bakery signs a short-lived App JWT with it and calls GitHub GET /app to prove it belongs to appId before storing it; never returned or echoed. IntegrationAppRegistrationPut.privateKey must contain at most 16384 characters."
         },
         "webhookSecret": {
-          "description": "IntegrationAppRegistrationPut.webhookSecret must contain at most 4096 characters.",
+          "description": "Webhook signing secret of the App. Write-only and optional: omit when the App has none, or on a replacement to keep the stored version. IntegrationAppRegistrationPut.webhookSecret must contain at most 4096 characters.",
           "type": "string",
           "minLength": 1,
           "maxLength": 4096
@@ -19554,22 +19554,22 @@ export const clientManifest = {
           "type": "string",
           "minLength": 32,
           "maxLength": 32,
-          "description": "SkillStorageSettingsPut.accountId must contain at most 32 characters."
+          "description": "Cloudflare account id that owns the private R2 bucket: exactly 32 lowercase hexadecimal characters. It selects the fixed endpoint https://<accountId>.r2.cloudflarestorage.com; no caller-supplied endpoint exists. Not a secret. SkillStorageSettingsPut.accountId must contain at least 32 characters. SkillStorageSettingsPut.accountId must contain at most 32 characters."
         },
         "bucket": {
           "type": "string",
           "minLength": 3,
           "maxLength": 63,
-          "description": "SkillStorageSettingsPut.bucket must contain at most 63 characters."
+          "description": "Name of the private R2 bucket that holds immutable skill bundle objects: lowercase letters, digits, dots and hyphens, starting and ending with a letter or digit. Not a secret. SkillStorageSettingsPut.bucket must contain at least 3 characters. SkillStorageSettingsPut.bucket must contain at most 63 characters."
         },
         "accessKeyId": {
-          "description": "SkillStorageSettingsPut.accessKeyId must contain at most 256 characters.",
+          "description": "R2 API token access key id. Write-only: stored with the secret access key as one installation-owned AES-GCM ciphertext and never returned. Supply it together with secretAccessKey; required for the first save, omit both on a later save to keep the stored credentials. SkillStorageSettingsPut.accessKeyId must contain at most 256 characters.",
           "type": "string",
           "minLength": 1,
           "maxLength": 256
         },
         "secretAccessKey": {
-          "description": "SkillStorageSettingsPut.secretAccessKey must contain at most 1024 characters.",
+          "description": "R2 API token secret access key. Write-only: stored encrypted next to the access key id and never returned, echoed, logged or audited. Supply it together with accessKeyId. SkillStorageSettingsPut.secretAccessKey must contain at most 1024 characters.",
           "type": "string",
           "minLength": 1,
           "maxLength": 1024
@@ -19596,7 +19596,7 @@ export const clientManifest = {
           "type": "string",
           "minLength": 1,
           "maxLength": 39,
-          "description": "TicketSourcePersonPath.login must contain at most 39 characters."
+          "description": "The person's username on the ticket source's provider, as typed; supplied via the request's {login} path segment. TicketSourcePersonPath.login must contain at least 1 characters. TicketSourcePersonPath.login must contain at most 39 characters."
         }
       },
       "required": [
@@ -19622,7 +19622,7 @@ export const clientManifest = {
           "description": "Lowercase SHA-256 of the checkpoint's UTF-8 body text as the publisher previewed it; a different digest fails without publishing."
         },
         "projectThreads": {
-          "description": "DraftPublicationCreate.projectThreads must contain at most 50 items.",
+          "description": "Open root draft comments of this draft to copy, with their retained replies, onto the new version as version-pinned comments. Each anchor is resolved against the published checkpoint, not the live draft; a thread that is not open, unknown or outdated at that cutoff fails the whole publish with nothing written. Omit or send an empty list to project nothing. A replay of the same publication never copies a thread twice. DraftPublicationCreate.projectThreads must contain at most 50 items.",
           "maxItems": 50,
           "type": "array",
           "items": {
@@ -19648,7 +19648,7 @@ export const clientManifest = {
           "type": "integer",
           "minimum": 1,
           "maximum": 2147483647,
-          "description": "DraftSuggestionCreate.epoch must be at most 2147483647."
+          "description": "Draft epoch observed with the source checkpoint; a suggestion from any other epoch is refused with reason draft_moved_on. DraftSuggestionCreate.epoch must be at least 1. DraftSuggestionCreate.epoch must be at most 2147483647."
         },
         "sourceCheckpointId": {
           "type": "string",
@@ -19658,18 +19658,18 @@ export const clientManifest = {
         },
         "startCursor": {
           "type": "string",
-          "description": "DraftSuggestionCreate.startCursor must contain at most 1024 UTF-8 bytes.",
+          "description": "Opaque encoded Loro cursor for the inclusive start of the range the suggestion replaces, read from draftSlices.get. DraftSuggestionCreate.startCursor must contain at most 1024 UTF-8 bytes.",
           "x-utf8-max-bytes": 1024
         },
         "endCursor": {
           "type": "string",
-          "description": "DraftSuggestionCreate.endCursor must contain at most 1024 UTF-8 bytes.",
+          "description": "Opaque encoded Loro cursor for the exclusive end of the range the suggestion replaces, read from draftSlices.get. DraftSuggestionCreate.endCursor must contain at most 1024 UTF-8 bytes.",
           "x-utf8-max-bytes": 1024
         },
         "expectedText": {
           "type": "string",
           "maxLength": 65536,
-          "description": "DraftSuggestionCreate.expectedText must contain at most 65536 UTF-8 bytes.",
+          "description": "Exact text the suggestion replaces, as read at the source checkpoint; if it no longer matches the current draft the request is refused with reason text_changed and nothing is recorded. DraftSuggestionCreate.expectedText must contain at most 65536 UTF-8 bytes.",
           "x-utf8-max-bytes": 65536
         },
         "expectedDigest": {
@@ -19680,7 +19680,7 @@ export const clientManifest = {
         "replacement": {
           "type": "string",
           "maxLength": 65536,
-          "description": "DraftSuggestionCreate.replacement must contain at most 65536 UTF-8 bytes.",
+          "description": "Proposed plain text; it changes the draft only when a person accepts the suggestion. Unpaired UTF-16 surrogates and payloads over 65536 UTF-8 bytes are rejected. DraftSuggestionCreate.replacement must contain at most 65536 UTF-8 bytes.",
           "x-utf8-max-bytes": 65536
         },
         "mutationId": {
@@ -19708,13 +19708,13 @@ export const clientManifest = {
       "type": "object",
       "properties": {
         "cursor": {
-          "description": "DraftSuggestionQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "description": "Opaque continuation token from a prior DraftSuggestionQuery page; bound to the same draft, state filter and principal. DraftSuggestionQuery.cursor must contain at most 512 UTF-8 bytes.",
           "type": "string",
           "maxLength": 65536,
           "x-utf8-max-bytes": 512
         },
         "limit": {
-          "description": "DraftSuggestionQuery.limit must be at most 100.",
+          "description": "Maximum number of suggestions returned per page; defaults to 25 and cannot exceed 100. DraftSuggestionQuery.limit must be at least 1. DraftSuggestionQuery.limit must be at most 100.",
           "type": "integer",
           "minimum": 1,
           "maximum": 100
@@ -19765,7 +19765,7 @@ export const clientManifest = {
           "type": "string",
           "minLength": 1,
           "maxLength": 65536,
-          "description": "DraftCommentCreate.body must contain at most 10240 UTF-8 bytes.",
+          "description": "Comment text rendered as sanitized Markdown; bounded to 10 KiB. It is stored only in Postgres, never in the editable Loro text, so a document edit cannot change it. DraftCommentCreate.body must contain at least 1 characters. DraftCommentCreate.body must contain at most 10240 UTF-8 bytes.",
           "x-utf8-max-bytes": 10240
         },
         "rootId": {
@@ -19775,23 +19775,23 @@ export const clientManifest = {
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
         },
         "epoch": {
-          "description": "DraftCommentCreate.epoch must be at most 2147483647.",
+          "description": "Draft epoch the cursors were read in; required for a new root and refused with reason draft_moved_on when the draft is in another epoch. Not permitted on replies. DraftCommentCreate.epoch must be at least 1. DraftCommentCreate.epoch must be at most 2147483647.",
           "type": "integer",
           "minimum": 1,
           "maximum": 2147483647
         },
         "startCursor": {
-          "description": "DraftCommentCreate.startCursor must contain at most 1024 UTF-8 bytes.",
+          "description": "Opaque encoded Loro cursor for the inclusive start of the commented range, read from draftSlices.get; required for a new root and not permitted on replies. DraftCommentCreate.startCursor must contain at most 1024 UTF-8 bytes.",
           "type": "string",
           "x-utf8-max-bytes": 1024
         },
         "endCursor": {
-          "description": "DraftCommentCreate.endCursor must contain at most 1024 UTF-8 bytes.",
+          "description": "Opaque encoded Loro cursor for the exclusive end of the commented range, read from draftSlices.get; required for a new root and not permitted on replies. DraftCommentCreate.endCursor must contain at most 1024 UTF-8 bytes.",
           "type": "string",
           "x-utf8-max-bytes": 1024
         },
         "quote": {
-          "description": "DraftCommentCreate.quote must contain at most 65536 UTF-8 bytes.",
+          "description": "Exact text between the two cursors as the commenter selected it; required for a new root. It must equal the current draft text between the cursors, or the request is refused with reason comment_quote_mismatch, comment_anchor_stale or comment_anchor_splits_character and nothing is recorded. DraftCommentCreate.quote must contain at least 1 characters. DraftCommentCreate.quote must contain at most 65536 UTF-8 bytes.",
           "type": "string",
           "minLength": 1,
           "maxLength": 65536,
@@ -19816,13 +19816,13 @@ export const clientManifest = {
       "type": "object",
       "properties": {
         "cursor": {
-          "description": "DraftCommentQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "description": "Opaque continuation token from a prior DraftCommentQuery page; bound to the same draft, root and status filter and principal. DraftCommentQuery.cursor must contain at most 512 UTF-8 bytes.",
           "type": "string",
           "maxLength": 65536,
           "x-utf8-max-bytes": 512
         },
         "limit": {
-          "description": "DraftCommentQuery.limit must be at most 100.",
+          "description": "Maximum number of comments returned per page; defaults to 25 and cannot exceed 100. DraftCommentQuery.limit must be at least 1. DraftCommentQuery.limit must be at most 100.",
           "type": "integer",
           "minimum": 1,
           "maximum": 100
@@ -19850,7 +19850,7 @@ export const clientManifest = {
       "type": "object",
       "properties": {
         "body": {
-          "description": "DraftCommentUpdate.body must contain at most 10240 UTF-8 bytes.",
+          "description": "Replacement comment text; only the author may edit it, and never on a deleted comment. DraftCommentUpdate.body must contain at least 1 characters. DraftCommentUpdate.body must contain at most 10240 UTF-8 bytes.",
           "type": "string",
           "minLength": 1,
           "maxLength": 65536,
@@ -19876,7 +19876,7 @@ export const clientManifest = {
           "type": "integer",
           "minimum": 1,
           "maximum": 9007199254740991,
-          "description": "DraftReferenceCreate.expectedEpoch must be at least 1."
+          "description": "Draft epoch the caller read; a draft or checkpoint in another epoch fails with PRECONDITION_FAILED reason draft_moved_on and nothing is recorded. DraftReferenceCreate.expectedEpoch must be at least 1."
         },
         "checkpointId": {
           "type": "string",
@@ -19905,7 +19905,7 @@ export const clientManifest = {
                 "type": "integer",
                 "minimum": 1,
                 "maximum": 9007199254740991,
-                "description": "CommentReference.expectedVersion must be at least 1."
+                "description": "Root comment version the caller last observed; the reference is rejected if the root has since changed, so stale feedback cannot be silently resolved or overwritten. CommentReference.expectedVersion must be at least 1."
               }
             },
             "required": [
@@ -19915,7 +19915,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "Root draft comments sent with the revision, each with the version the caller last observed. Every root and its retained replies are captured exactly; a changed root version fails the whole send with PRECONDITION_FAILED reason thread_version_changed, and an empty list sends the revision alone. Each array item follows this format."
           },
-          "description": "DraftReferenceCreate.threads must contain at most 100 items."
+          "description": "Root draft comments sent with the revision, each with the version the caller last observed. Every root and its retained replies are captured exactly; a changed root version fails the whole send with PRECONDITION_FAILED reason thread_version_changed, and an empty list sends the revision alone. DraftReferenceCreate.threads must contain at most 100 items."
         },
         "mutationId": {
           "type": "string",
@@ -19990,7 +19990,7 @@ export const clientManifest = {
           "type": "string",
           "minLength": 64,
           "maxLength": 64,
-          "description": "BlobUploadStart.sha256 must contain at most 64 characters."
+          "description": "Lowercase hexadecimal SHA-256 of the whole file, declared before any byte is sent. The server compares the assembled bytes against it, so a wrong declaration is refused rather than stored under a digest the content does not have. BlobUploadStart.sha256 must contain at least 64 characters. BlobUploadStart.sha256 must contain at most 64 characters."
         },
         "sizeBytes": {
           "type": "integer",
@@ -20002,7 +20002,7 @@ export const clientManifest = {
           "type": "string",
           "minLength": 1,
           "maxLength": 255,
-          "description": "BlobUploadStart.mediaType must contain at most 255 characters."
+          "description": "IANA media type of the content, such as application/octet-stream. It is served back on download and used to decide whether the bytes may be read inline as text. BlobUploadStart.mediaType must contain at least 1 characters. BlobUploadStart.mediaType must contain at most 255 characters."
         }
       },
       "required": [
@@ -20021,13 +20021,13 @@ export const clientManifest = {
           "type": "string",
           "minLength": 1,
           "maxLength": 65536,
-          "description": "BlobUploadPart.content must contain at most 5242880 characters."
+          "description": "Raw bytes of this part, base64 in JSON and raw in a binary request. A part is bounded at 5 MiB so one request cannot exhaust the server's memory. BlobUploadPart.content must contain at least 1 characters. BlobUploadPart.content must contain at most 5242880 characters."
         },
         "sha256": {
           "type": "string",
           "minLength": 64,
           "maxLength": 64,
-          "description": "BlobUploadPart.sha256 must contain at most 64 characters."
+          "description": "Lowercase hexadecimal SHA-256 of this part's bytes. It lets a resume detect a part that arrived corrupt without re-sending the whole file. BlobUploadPart.sha256 must contain at least 64 characters. BlobUploadPart.sha256 must contain at most 64 characters."
         }
       },
       "required": [
@@ -20049,13 +20049,13 @@ export const clientManifest = {
       "type": "object",
       "properties": {
         "cursor": {
-          "description": "NotificationCursorQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "description": "Opaque continuation token for the same notification filter, ordering, recipient and organization scope. NotificationCursorQuery.cursor must contain at most 512 UTF-8 bytes.",
           "type": "string",
           "maxLength": 65536,
           "x-utf8-max-bytes": 512
         },
         "limit": {
-          "description": "NotificationCursorQuery.limit must be at most 100.",
+          "description": "Maximum number of notifications returned in this page; defaults to 25 and cannot exceed 100. NotificationCursorQuery.limit must be at least 1. NotificationCursorQuery.limit must be at most 100.",
           "type": "integer",
           "minimum": 1,
           "maximum": 100
@@ -20091,7 +20091,7 @@ export const clientManifest = {
           "type": "integer",
           "minimum": 1,
           "maximum": 9007199254740991,
-          "description": "NotificationReadUpdate.expectedCasVersion must be at least 1."
+          "description": "The revision the caller last saw for this notification; a stale revision is rejected as a version conflict so an older cross-device response cannot overwrite a newer one. NotificationReadUpdate.expectedCasVersion must be at least 1."
         }
       },
       "required": [
@@ -20130,7 +20130,7 @@ export const clientManifest = {
           "description": "Session whose live feed is being read; also the session path parameter."
         },
         "cursor": {
-          "description": "SessionFeedList.cursor must contain at most 512 UTF-8 bytes.",
+          "description": "Opaque continuation cursor from a prior session feed page; omit for the first page and never construct it directly. SessionFeedList.cursor must contain at most 512 UTF-8 bytes.",
           "type": "string",
           "maxLength": 65536,
           "x-utf8-max-bytes": 512
@@ -20141,7 +20141,7 @@ export const clientManifest = {
           "pattern": "^(?:0|[1-9][0-9]*)$"
         },
         "limit": {
-          "description": "SessionFeedList.limit must be at most 100.",
+          "description": "Maximum number of feed items returned; defaults to 25 and cannot exceed 100. SessionFeedList.limit must be at least 1. SessionFeedList.limit must be at most 100.",
           "type": "integer",
           "minimum": 1,
           "maximum": 100
@@ -20164,13 +20164,13 @@ export const clientManifest = {
           "description": "Run step whose agent sessions are being listed; every returned session belongs to it."
         },
         "cursor": {
-          "description": "SessionList.cursor must contain at most 512 UTF-8 bytes.",
+          "description": "Opaque continuation cursor from a prior session list page; omit for the first page and never construct it directly. SessionList.cursor must contain at most 512 UTF-8 bytes.",
           "type": "string",
           "maxLength": 65536,
           "x-utf8-max-bytes": 512
         },
         "limit": {
-          "description": "SessionList.limit must be at most 100.",
+          "description": "Maximum number of sessions returned; defaults to 25 and cannot exceed 100. SessionList.limit must be at least 1. SessionList.limit must be at most 100.",
           "type": "integer",
           "minimum": 1,
           "maximum": 100
@@ -20264,13 +20264,13 @@ export const clientManifest = {
                 "type": "string",
                 "minLength": 1,
                 "maxLength": 40,
-                "description": "ScopeProfileCheckCommand.id must contain at most 40 characters."
+                "description": "Stable lowercase kebab-case identifier of the check, unique within the profile. ScopeProfileCheckCommand.id must contain at least 1 characters. ScopeProfileCheckCommand.id must contain at most 40 characters."
               },
               "command": {
                 "type": "string",
                 "minLength": 1,
                 "maxLength": 2000,
-                "description": "ScopeProfileCheckCommand.command must contain at most 2000 characters."
+                "description": "Shell command text the check runs. The profile owns the policy; the kernel never interprets the text. ScopeProfileCheckCommand.command must contain at least 1 characters. ScopeProfileCheckCommand.command must contain at most 2000 characters."
               }
             },
             "required": [
@@ -20280,7 +20280,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "Every check command the profile offers to steps as a default, in profile order; the list replaces the published one, and an empty list publishes no checks. Each array item follows this format."
           },
-          "description": "ProjectScopeProfilePut.checkCommands must contain at most 64 items."
+          "description": "Every check command the profile offers to steps as a default, in profile order; the list replaces the published one, and an empty list publishes no checks. ProjectScopeProfilePut.checkCommands must contain at most 64 items."
         },
         "rules": {
           "type": "array",
@@ -20491,7 +20491,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 35,
-              "description": "UserPreferences.locale must contain at most 35 characters."
+              "description": "The person's saved account-wide language, or null when none is saved. UserPreferences.locale must contain at most 35 characters."
             },
             {
               "type": "null",
@@ -20505,7 +20505,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 64,
-              "description": "UserPreferences.timeZone must contain at most 64 characters."
+              "description": "The member's saved IANA time zone, or null when none is saved. UserPreferences.timeZone must contain at most 64 characters."
             },
             {
               "type": "null",
@@ -20517,7 +20517,7 @@ export const clientManifest = {
         "effectiveLocale": {
           "type": "string",
           "maxLength": 35,
-          "description": "UserPreferences.effectiveLocale must contain at most 35 characters."
+          "description": "BCP 47 locale in effect for this person now: saved language, else organization default, else Accept-Language, else English. UserPreferences.effectiveLocale must contain at most 35 characters."
         },
         "direction": {
           "type": "string",
@@ -20535,7 +20535,7 @@ export const clientManifest = {
             "maxLength": 65536,
             "description": "Bounded list of BCP 47 locales the server currently offers for selection. Each array item follows this format."
           },
-          "description": "UserPreferences.availableLocales must contain at most 16 items."
+          "description": "Bounded list of BCP 47 locales the server currently offers for selection. UserPreferences.availableLocales must contain at most 16 items."
         },
         "casVersion": {
           "type": "integer",
@@ -21518,7 +21518,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "Split revision (a `coordination-plans` resource) with its immutable spec, shared budget ceiling, parent projection and per-lane child bindings."
           },
-          "description": "Page<CoordinationPlan>.items must contain at most 100 items."
+          "description": "CoordinationPlan items in this cursor page. Page<CoordinationPlan>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -21540,7 +21540,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<CoordinationPlan>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<CoordinationPlan>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -21993,7 +21993,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "Explicit repository link of a task, with role, required flag and selection provenance."
           },
-          "description": "Page<TaskRepository>.items must contain at most 100 items."
+          "description": "TaskRepository items in this cursor page. Page<TaskRepository>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -22015,7 +22015,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<TaskRepository>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<TaskRepository>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -22086,7 +22086,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "Display attribution of one principal that took part in a conversation: it authored a message, created the task, answered a question or decided an approval. It carries no role, capability or contact data."
           },
-          "description": "Page<ConversationParticipant>.items must contain at most 100 items."
+          "description": "ConversationParticipant items in this cursor page. Page<ConversationParticipant>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -22108,7 +22108,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<ConversationParticipant>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<ConversationParticipant>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -22210,7 +22210,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "Application-scoped alias and role mapping to one repository."
           },
-          "description": "Page<ApplicationRepositoryRole>.items must contain at most 100 items."
+          "description": "ApplicationRepositoryRole items in this cursor page. Page<ApplicationRepositoryRole>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -22232,7 +22232,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<ApplicationRepositoryRole>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<ApplicationRepositoryRole>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -22601,7 +22601,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "Task-scoped trusted attempt projection without credentials, lease tokens, fencing values or arbitrary raw results."
           },
-          "description": "Page<JobAttemptRead>.items must contain at most 100 items."
+          "description": "JobAttemptRead items in this cursor page. Page<JobAttemptRead>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -22623,7 +22623,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<JobAttemptRead>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<JobAttemptRead>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -22850,7 +22850,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "A managed product boundary that repositories and tasks belong to, including Bakery itself; archivedAt marks it retired without deleting its history."
           },
-          "description": "Page<Application>.items must contain at most 100 items."
+          "description": "Application items in this cursor page. Page<Application>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -22872,7 +22872,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<Application>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<Application>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -23050,7 +23050,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "Bakery's registration of one Git repository under an application, bound to the integration connection used to reach its provider account; activeProfileId points at the currently pinned RepositoryProfile revision, and archivedAt marks it retired without deleting its history."
           },
-          "description": "Page<Repository>.items must contain at most 100 items."
+          "description": "Repository items in this cursor page. Page<Repository>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -23072,7 +23072,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<Repository>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<Repository>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -23222,7 +23222,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "Exact organization/application-scoped repository role binding output, including archived bindings for lifecycle management; role and alias are descriptive selectors, never authority."
           },
-          "description": "Page<RoleBinding>.items must contain at most 100 items."
+          "description": "RoleBinding items in this cursor page. Page<RoleBinding>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -23244,7 +23244,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<RoleBinding>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<RoleBinding>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -23535,7 +23535,7 @@ export const clientManifest = {
                 "additionalProperties": false,
                 "description": "Bounded deterministic distinct-repository candidate list; callers must not treat order as preference. Each array item follows this format."
               },
-              "description": "RepositoryBindingResolution.ambiguous.candidates must contain at most 32 items."
+              "description": "Bounded deterministic distinct-repository candidate list; callers must not treat order as preference. RepositoryBindingResolution.ambiguous.candidates must contain at least 2 items. RepositoryBindingResolution.ambiguous.candidates must contain at most 32 items."
             },
             "truncated": {
               "type": "boolean",
@@ -23690,7 +23690,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "One immutable, digest-verified revision of a repository's runtime, test and delivery policy configuration; a repository points at the currently active revision by ID, and publishing a new revision never mutates a prior one."
           },
-          "description": "Page<RepositoryProfile>.items must contain at most 100 items."
+          "description": "RepositoryProfile items in this cursor page. Page<RepositoryProfile>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -23712,7 +23712,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<RepositoryProfile>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<RepositoryProfile>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -24165,7 +24165,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "The user-visible unit of work and its optional parent epic, returned by tasks.get/create/update. A repositoryId is required before it can drive executable kickoff (it may otherwise be null); priority ranges 0-100, and version supports optimistic-concurrency updates. Creating or reading a task never widens access to its conversation or artifacts beyond the caller's existing grants."
           },
-          "description": "Page<Task>.items must contain at most 100 items."
+          "description": "Task items in this cursor page. Page<Task>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -24187,7 +24187,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<Task>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<Task>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -24451,7 +24451,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "The stable, task-owned identity of one artifact: its type and display name, and a pointer to its current version, which is null before the first version is published."
           },
-          "description": "Page<Artifact>.items must contain at most 100 items."
+          "description": "Artifact items in this cursor page. Page<Artifact>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -24473,7 +24473,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<Artifact>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<Artifact>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -24568,7 +24568,7 @@ export const clientManifest = {
                           "selectedText": {
                             "type": "string",
                             "maxLength": 65536,
-                            "description": "CommentAnchor.markdown.selectedText must contain at most 8192 UTF-8 bytes.",
+                            "description": "Exact quoted text the comment refers to within the anchored block; the start/end offsets are validated against this text. CommentAnchor.markdown.selectedText must contain at most 8192 UTF-8 bytes.",
                             "x-utf8-max-bytes": 8192
                           },
                           "start": {
@@ -24586,7 +24586,7 @@ export const clientManifest = {
                           "blockText": {
                             "type": "string",
                             "maxLength": 65536,
-                            "description": "CommentAnchor.markdown.blockText must contain at most 16384 UTF-8 bytes.",
+                            "description": "Snapshot of the anchored block's text at comment time, used to re-locate the anchor by exact content match if the document changes. CommentAnchor.markdown.blockText must contain at most 16384 UTF-8 bytes.",
                             "x-utf8-max-bytes": 16384
                           },
                           "previousBlock": {
@@ -24594,7 +24594,7 @@ export const clientManifest = {
                               {
                                 "type": "string",
                                 "maxLength": 65536,
-                                "description": "CommentAnchor.markdown.previousBlock must contain at most 4096 UTF-8 bytes.",
+                                "description": "Snapshot of the block immediately preceding the anchored one, used as disambiguating context when relocating this anchor in a changed document. CommentAnchor.markdown.previousBlock must contain at most 4096 UTF-8 bytes.",
                                 "x-utf8-max-bytes": 4096
                               },
                               {
@@ -24609,7 +24609,7 @@ export const clientManifest = {
                               {
                                 "type": "string",
                                 "maxLength": 65536,
-                                "description": "CommentAnchor.markdown.nextBlock must contain at most 4096 UTF-8 bytes.",
+                                "description": "Snapshot of the block immediately following the anchored one, used as disambiguating context when relocating this anchor in a changed document. CommentAnchor.markdown.nextBlock must contain at most 4096 UTF-8 bytes.",
                                 "x-utf8-max-bytes": 4096
                               },
                               {
@@ -24656,7 +24656,7 @@ export const clientManifest = {
                           "quote": {
                             "type": "string",
                             "maxLength": 65536,
-                            "description": "CommentAnchor.text.quote must contain at most 8192 UTF-8 bytes.",
+                            "description": "Exact quoted text expected at the anchored line range; validated against the artifact's immutable bytes so a changed quote marks the anchor outdated. CommentAnchor.text.quote must contain at most 8192 UTF-8 bytes.",
                             "x-utf8-max-bytes": 8192
                           }
                         },
@@ -24681,13 +24681,13 @@ export const clientManifest = {
                             "type": "number",
                             "minimum": 0,
                             "maximum": 1,
-                            "description": "CommentAnchor.image.x must be at most 1."
+                            "description": "Left edge of the anchor rectangle as a fraction of image width, in [0, 1]; {x:0,y:0,width:1,height:1} selects the whole image. CommentAnchor.image.x must be at least 0. CommentAnchor.image.x must be at most 1."
                           },
                           "y": {
                             "type": "number",
                             "minimum": 0,
                             "maximum": 1,
-                            "description": "CommentAnchor.image.y must be at most 1."
+                            "description": "Top edge of the anchor rectangle as a fraction of image height, in [0, 1], measured from the top of the image. CommentAnchor.image.y must be at least 0. CommentAnchor.image.y must be at most 1."
                           },
                           "width": {
                             "type": "number",
@@ -24915,7 +24915,7 @@ export const clientManifest = {
                               "selectedText": {
                                 "type": "string",
                                 "maxLength": 65536,
-                                "description": "CommentAnchor.markdown.selectedText must contain at most 8192 UTF-8 bytes.",
+                                "description": "Exact quoted text the comment refers to within the anchored block; the start/end offsets are validated against this text. CommentAnchor.markdown.selectedText must contain at most 8192 UTF-8 bytes.",
                                 "x-utf8-max-bytes": 8192
                               },
                               "start": {
@@ -24933,7 +24933,7 @@ export const clientManifest = {
                               "blockText": {
                                 "type": "string",
                                 "maxLength": 65536,
-                                "description": "CommentAnchor.markdown.blockText must contain at most 16384 UTF-8 bytes.",
+                                "description": "Snapshot of the anchored block's text at comment time, used to re-locate the anchor by exact content match if the document changes. CommentAnchor.markdown.blockText must contain at most 16384 UTF-8 bytes.",
                                 "x-utf8-max-bytes": 16384
                               },
                               "previousBlock": {
@@ -24941,7 +24941,7 @@ export const clientManifest = {
                                   {
                                     "type": "string",
                                     "maxLength": 65536,
-                                    "description": "CommentAnchor.markdown.previousBlock must contain at most 4096 UTF-8 bytes.",
+                                    "description": "Snapshot of the block immediately preceding the anchored one, used as disambiguating context when relocating this anchor in a changed document. CommentAnchor.markdown.previousBlock must contain at most 4096 UTF-8 bytes.",
                                     "x-utf8-max-bytes": 4096
                                   },
                                   {
@@ -24956,7 +24956,7 @@ export const clientManifest = {
                                   {
                                     "type": "string",
                                     "maxLength": 65536,
-                                    "description": "CommentAnchor.markdown.nextBlock must contain at most 4096 UTF-8 bytes.",
+                                    "description": "Snapshot of the block immediately following the anchored one, used as disambiguating context when relocating this anchor in a changed document. CommentAnchor.markdown.nextBlock must contain at most 4096 UTF-8 bytes.",
                                     "x-utf8-max-bytes": 4096
                                   },
                                   {
@@ -25003,7 +25003,7 @@ export const clientManifest = {
                               "quote": {
                                 "type": "string",
                                 "maxLength": 65536,
-                                "description": "CommentAnchor.text.quote must contain at most 8192 UTF-8 bytes.",
+                                "description": "Exact quoted text expected at the anchored line range; validated against the artifact's immutable bytes so a changed quote marks the anchor outdated. CommentAnchor.text.quote must contain at most 8192 UTF-8 bytes.",
                                 "x-utf8-max-bytes": 8192
                               }
                             },
@@ -25028,13 +25028,13 @@ export const clientManifest = {
                                 "type": "number",
                                 "minimum": 0,
                                 "maximum": 1,
-                                "description": "CommentAnchor.image.x must be at most 1."
+                                "description": "Left edge of the anchor rectangle as a fraction of image width, in [0, 1]; {x:0,y:0,width:1,height:1} selects the whole image. CommentAnchor.image.x must be at least 0. CommentAnchor.image.x must be at most 1."
                               },
                               "y": {
                                 "type": "number",
                                 "minimum": 0,
                                 "maximum": 1,
-                                "description": "CommentAnchor.image.y must be at most 1."
+                                "description": "Top edge of the anchor rectangle as a fraction of image height, in [0, 1], measured from the top of the image. CommentAnchor.image.y must be at least 0. CommentAnchor.image.y must be at most 1."
                               },
                               "width": {
                                 "type": "number",
@@ -25153,7 +25153,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "placement is derived only when viewVersionId is requested and never changes the stored anchor. Deleted rows expose body:null and redact quote/context text from both original and placement anchors, retaining their kind and position."
           },
-          "description": "Page<ArtifactComment>.items must contain at most 100 items."
+          "description": "ArtifactComment items in this cursor page. Page<ArtifactComment>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -25175,7 +25175,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<ArtifactComment>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<ArtifactComment>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -25415,7 +25415,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "Metadata for one immutable artifact version returned to the developer after artifactVersions.create or artifactVersions.import: digest, size, media type, and server-verified provenance without content bytes."
           },
-          "description": "Page<ArtifactVersionMetadata>.items must contain at most 100 items."
+          "description": "ArtifactVersionMetadata items in this cursor page. Page<ArtifactVersionMetadata>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -25437,7 +25437,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<ArtifactVersionMetadata>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<ArtifactVersionMetadata>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -26070,7 +26070,7 @@ export const clientManifest = {
                 ]
               },
               "blockingTasks": {
-                "description": "Run.blockingTasks must contain at most 25 items.",
+                "description": "For a run blocked with dependency_incomplete, the dependency tasks of the run's task that have not completed, read live and limited to the run's organization, oldest dependency first, at most 25; empty otherwise. Served by runs.get and runs.list; omitted by other run responses. Run.blockingTasks must contain at most 25 items.",
                 "maxItems": 25,
                 "type": "array",
                 "items": {
@@ -26086,7 +26086,7 @@ export const clientManifest = {
                       "type": "string",
                       "minLength": 1,
                       "maxLength": 500,
-                      "description": "RunBlockingTask.title must contain at most 500 characters."
+                      "description": "Current title of the dependency task, for a line such as \"Waiting for <title> to finish\". RunBlockingTask.title must contain at least 1 characters. RunBlockingTask.title must contain at most 500 characters."
                     },
                     "status": {
                       "type": "string",
@@ -26137,7 +26137,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "Kind-aware safe run projection. Workflow runs retain task and workflow ownership; skill imports expose null workflow owners and one registered source owner."
           },
-          "description": "Page<Run>.items must contain at most 100 items."
+          "description": "Run items in this cursor page. Page<Run>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -26159,7 +26159,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<Run>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<Run>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -26439,7 +26439,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "One attempt at a named semantic node in a workflow run's DAG, keyed by (runId, stepKey, iteration) so an Inngest retry reuses the same logical node instead of creating a new one; output stores references or small typed summaries, never a duplicate artifact body."
           },
-          "description": "Page<RunStep>.items must contain at most 100 items."
+          "description": "RunStep items in this cursor page. Page<RunStep>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -26461,7 +26461,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<RunStep>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<RunStep>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -26933,7 +26933,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "A shared discussion thread scoped to an organization and, optionally, one application or repository: a null `repositoryId` with a set `applicationId` is an application-wide conversation, and both null is an organization-wide one. A single conversation may originate more than one task."
           },
-          "description": "Page<Conversation>.items must contain at most 100 items."
+          "description": "Conversation items in this cursor page. Page<Conversation>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -26955,7 +26955,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<Conversation>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<Conversation>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -27181,7 +27181,7 @@ export const clientManifest = {
                                         "selectedText": {
                                           "type": "string",
                                           "maxLength": 65536,
-                                          "description": "CommentAnchor.markdown.selectedText must contain at most 8192 UTF-8 bytes.",
+                                          "description": "Exact quoted text the comment refers to within the anchored block; the start/end offsets are validated against this text. CommentAnchor.markdown.selectedText must contain at most 8192 UTF-8 bytes.",
                                           "x-utf8-max-bytes": 8192
                                         },
                                         "start": {
@@ -27199,7 +27199,7 @@ export const clientManifest = {
                                         "blockText": {
                                           "type": "string",
                                           "maxLength": 65536,
-                                          "description": "CommentAnchor.markdown.blockText must contain at most 16384 UTF-8 bytes.",
+                                          "description": "Snapshot of the anchored block's text at comment time, used to re-locate the anchor by exact content match if the document changes. CommentAnchor.markdown.blockText must contain at most 16384 UTF-8 bytes.",
                                           "x-utf8-max-bytes": 16384
                                         },
                                         "previousBlock": {
@@ -27207,7 +27207,7 @@ export const clientManifest = {
                                             {
                                               "type": "string",
                                               "maxLength": 65536,
-                                              "description": "CommentAnchor.markdown.previousBlock must contain at most 4096 UTF-8 bytes.",
+                                              "description": "Snapshot of the block immediately preceding the anchored one, used as disambiguating context when relocating this anchor in a changed document. CommentAnchor.markdown.previousBlock must contain at most 4096 UTF-8 bytes.",
                                               "x-utf8-max-bytes": 4096
                                             },
                                             {
@@ -27222,7 +27222,7 @@ export const clientManifest = {
                                             {
                                               "type": "string",
                                               "maxLength": 65536,
-                                              "description": "CommentAnchor.markdown.nextBlock must contain at most 4096 UTF-8 bytes.",
+                                              "description": "Snapshot of the block immediately following the anchored one, used as disambiguating context when relocating this anchor in a changed document. CommentAnchor.markdown.nextBlock must contain at most 4096 UTF-8 bytes.",
                                               "x-utf8-max-bytes": 4096
                                             },
                                             {
@@ -27269,7 +27269,7 @@ export const clientManifest = {
                                         "quote": {
                                           "type": "string",
                                           "maxLength": 65536,
-                                          "description": "CommentAnchor.text.quote must contain at most 8192 UTF-8 bytes.",
+                                          "description": "Exact quoted text expected at the anchored line range; validated against the artifact's immutable bytes so a changed quote marks the anchor outdated. CommentAnchor.text.quote must contain at most 8192 UTF-8 bytes.",
                                           "x-utf8-max-bytes": 8192
                                         }
                                       },
@@ -27294,13 +27294,13 @@ export const clientManifest = {
                                           "type": "number",
                                           "minimum": 0,
                                           "maximum": 1,
-                                          "description": "CommentAnchor.image.x must be at most 1."
+                                          "description": "Left edge of the anchor rectangle as a fraction of image width, in [0, 1]; {x:0,y:0,width:1,height:1} selects the whole image. CommentAnchor.image.x must be at least 0. CommentAnchor.image.x must be at most 1."
                                         },
                                         "y": {
                                           "type": "number",
                                           "minimum": 0,
                                           "maximum": 1,
-                                          "description": "CommentAnchor.image.y must be at most 1."
+                                          "description": "Top edge of the anchor rectangle as a fraction of image height, in [0, 1], measured from the top of the image. CommentAnchor.image.y must be at least 0. CommentAnchor.image.y must be at most 1."
                                         },
                                         "width": {
                                           "type": "number",
@@ -27441,7 +27441,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "One attributed message in a shared conversation transcript, visible to every participant with access; intent selects whether sending it also enqueues an agent turn or stays a plain discussion, and commentContext carries the exact comment roots and versions snapshotted at send time when replying to review feedback."
           },
-          "description": "Page<Message>.items must contain at most 100 items."
+          "description": "Message items in this cursor page. Page<Message>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -27463,7 +27463,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<Message>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<Message>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -27852,7 +27852,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "An agent-raised question awaiting a first answer; status moves open to answered by compare-and-swap, so only the first accepted answer sticks, an identical replay acknowledges it, and a conflicting answer is rejected. Free-text chat never answers a question."
           },
-          "description": "Page<Question>.items must contain at most 100 items."
+          "description": "Question items in this cursor page. Page<Question>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -27874,7 +27874,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<Question>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<Question>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -28580,7 +28580,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "A named, organization-owned workflow definition: its stable slug, display name, where it came from, and which published WorkflowVersion, if any, is currently active. Disabling it blocks new kickoffs without canceling an already-running instance, which follows its own separate cancellation policy."
           },
-          "description": "Page<Workflow>.items must contain at most 100 items."
+          "description": "Workflow items in this cursor page. Page<Workflow>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -28602,7 +28602,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<Workflow>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<Workflow>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -28761,7 +28761,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "A draft (mutable, with a compare-and-set version) or a published or retired revision (immutable content) of a workflow's executable definition: the author-submitted sourceYaml, its normalizedSpec and content digest, and a draft/published/retired lifecycle status. Publishing validates registered actions, step structure, and agent and skill bindings, and the content cannot change again once published."
           },
-          "description": "Page<WorkflowVersion>.items must contain at most 100 items."
+          "description": "WorkflowVersion items in this cursor page. Page<WorkflowVersion>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -28783,7 +28783,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<WorkflowVersion>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<WorkflowVersion>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -29019,7 +29019,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "An agent's stable identity: its slug, display name, whether it is currently enabled for new work, and which pinned version is active. Defining an agent implies no always-running process; the record only exists to be resolved and pinned when a run starts."
           },
-          "description": "Page<AgentDefinition>.items must contain at most 100 items."
+          "description": "AgentDefinition items in this cursor page. Page<AgentDefinition>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -29041,7 +29041,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<AgentDefinition>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<AgentDefinition>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -29184,7 +29184,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "One immutable, pinned agent definition: its validated configuration and content digest, with the revision number and creating principal that identify exactly which instructions and tool policy a run used."
           },
-          "description": "Page<AgentVersion>.items must contain at most 100 items."
+          "description": "AgentVersion items in this cursor page. Page<AgentVersion>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -29206,7 +29206,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<AgentVersion>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<AgentVersion>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -29463,7 +29463,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "One of an organization's artifact kinds, resolved to its latest published version: the stable key, plus the definition, revision and digest of the newest version of that kind. The kind's identity is the UUID; the key is what workflow authors and templates name."
           },
-          "description": "Page<ArtifactKind>.items must contain at most 100 items."
+          "description": "ArtifactKind items in this cursor page. Page<ArtifactKind>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -29485,7 +29485,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<ArtifactKind>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<ArtifactKind>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -29749,7 +29749,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "One immutable published version of an artifact kind: the complete definition, its revision and digest, and the principal who published it. A run or a published document pins a version, so the rules it was validated against keep meaning what they meant."
           },
-          "description": "Page<ArtifactKindVersion>.items must contain at most 100 items."
+          "description": "ArtifactKindVersion items in this cursor page. Page<ArtifactKindVersion>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -29771,7 +29771,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<ArtifactKindVersion>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<ArtifactKindVersion>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -30429,7 +30429,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "One immutable published revision of an organization's repository rules: the complete entries, the revision number, a content digest and the publishing principal."
           },
-          "description": "Page<OrganizationRepositoryRuleVersion>.items must contain at most 100 items."
+          "description": "OrganizationRepositoryRuleVersion items in this cursor page. Page<OrganizationRepositoryRuleVersion>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -30451,7 +30451,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<OrganizationRepositoryRuleVersion>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<OrganizationRepositoryRuleVersion>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -30590,7 +30590,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "An automation's stable identity: its slug, display name, whether it is enabled, its next scheduled fire time, and which pinned version is currently active."
           },
-          "description": "Page<Automation>.items must contain at most 100 items."
+          "description": "Automation items in this cursor page. Page<Automation>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -30612,7 +30612,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<Automation>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<Automation>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -30873,7 +30873,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "One pinned, immutable automation configuration: its trigger (schedule or event predicate), the workflow version and inputs it starts, and its misfire policy (\"coalesce\" runs one queued catch-up firing per missed outage window, \"skip\" records the miss without running) plus overlap policy (\"skip\" or \"queue_one\") for a firing that starts while a previous one is still active."
           },
-          "description": "Page<AutomationVersion>.items must contain at most 100 items."
+          "description": "AutomationVersion items in this cursor page. Page<AutomationVersion>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -30895,7 +30895,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<AutomationVersion>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<AutomationVersion>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -31279,7 +31279,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "One deduplicated scheduled or event-triggered occurrence of an automation version: when it was due, the inbound event that triggered it when event-based, its outcome (queued, skipped, started, or failed), and the run it started, if any. A queued firing is pending until its run starts; a coalesced catch-up carries the count of missed occurrences it did not queue."
           },
-          "description": "Page<AutomationFiring>.items must contain at most 100 items."
+          "description": "AutomationFiring items in this cursor page. Page<AutomationFiring>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -31301,7 +31301,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<AutomationFiring>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<AutomationFiring>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -31444,7 +31444,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "An external origin a skill was imported from: a Git repository, a URL, or a local bundle, with its normalized locator and optional publisher/license metadata; the importer only follows permitted origin kinds and checked archive paths, never an executable mutable URL."
           },
-          "description": "Page<SkillSource>.items must contain at most 100 items."
+          "description": "SkillSource items in this cursor page. Page<SkillSource>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -31466,7 +31466,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<SkillSource>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<SkillSource>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -31591,7 +31591,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "Stable identity for one organization skill: slug and name for discovery, an optional link back to the SkillSource it was imported from (null for built-ins), the currently active published SkillVersion, and whether it is enabled for use."
           },
-          "description": "Page<Skill>.items must contain at most 100 items."
+          "description": "Skill items in this cursor page. Page<Skill>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -31613,7 +31613,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<Skill>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<Skill>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -31840,7 +31840,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "An organization's binding to one host-verified provider installation, such as a GitHub App installation or Slack workspace: label, validated config, granted provider permissions, and lifecycle status (`pending`/`enabled`/`disabled`/`degraded`/`revoked`), where `degraded` reflects a failed health check rather than an Admin action. Read via GET /v1/integration-connections/{id}; Admins create and update it."
           },
-          "description": "Page<IntegrationConnection>.items must contain at most 100 items."
+          "description": "IntegrationConnection items in this cursor page. Page<IntegrationConnection>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -31862,7 +31862,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<IntegrationConnection>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<IntegrationConnection>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -32349,7 +32349,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "One exact integration grant: which subject may use which provider capability, in which direction, through one connection and optionally only on one resource, application or repository. Returned by the integrationGrants operations; revoked grants stay readable."
           },
-          "description": "Page<IntegrationGrant>.items must contain at most 100 items."
+          "description": "IntegrationGrant items in this cursor page. Page<IntegrationGrant>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -32371,7 +32371,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<IntegrationGrant>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<IntegrationGrant>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -32910,7 +32910,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "Current organization-owned grant of one exact Bakery action capability to a principal; it conveys no authority outside its organization or after expiry or revocation."
           },
-          "description": "Page<PermissionGrant>.items must contain at most 100 items."
+          "description": "PermissionGrant items in this cursor page. Page<PermissionGrant>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -32932,7 +32932,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<PermissionGrant>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<PermissionGrant>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -33056,7 +33056,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "Safe principal lifecycle projection with no organization role or capability; organization authority is resolved separately from current membership or grants."
           },
-          "description": "Page<Principal>.items must contain at most 100 items."
+          "description": "Principal items in this cursor page. Page<Principal>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -33078,7 +33078,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<Principal>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<Principal>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -33286,7 +33286,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "A secret's identity and access policy without its value: name, the active-version pointer, the allowed-principals/allowed-actions lists (both default-deny), and revokedAt; returned by create, rotate and policy-update so a caller can confirm the change without ever seeing ciphertext."
           },
-          "description": "Page<SecretMetadata>.items must contain at most 100 items."
+          "description": "SecretMetadata items in this cursor page. Page<SecretMetadata>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -33308,7 +33308,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<SecretMetadata>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<SecretMetadata>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -33463,7 +33463,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "Stable repository-scoped learning topic; its currentRevisionId points at the latest accepted memory_revisions row and advances only through the normal compare-and-swap update path, never by editing content in place."
           },
-          "description": "Page<MemoryEntry>.items must contain at most 100 items."
+          "description": "MemoryEntry items in this cursor page. Page<MemoryEntry>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -33485,7 +33485,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<MemoryEntry>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<MemoryEntry>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -33760,7 +33760,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "One versioned, confidence-scored statement belonging to a memory entry, created by memoryRevisions.create; confidence reflects model judgment rather than verified fact, and a revision can supersede an earlier one or carry its own expiry after which it stops being offered as active context."
           },
-          "description": "Page<MemoryRevision>.items must contain at most 100 items."
+          "description": "MemoryRevision items in this cursor page. Page<MemoryRevision>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -33782,7 +33782,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<MemoryRevision>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<MemoryRevision>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -34088,7 +34088,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "A registered worker machine's identity, derived operating state and declared capacity: OS/architecture, advertised capabilities and toolchain versions, concurrent execution slots, lifecycle status, and the server-derived desired mode, connectivity and readiness dimensions. desiredMode is Admin intent (accepting, paused, draining, revoked); connectivity derives only from authenticated heartbeat receipt times (stale after 30 seconds, offline after 60); readiness derives from current-generation checks, protocol compatibility, credential state and scheduling policy — never from a client-writable flag. Old inventory/check generations, unsafe secret isolation or offline capability cannot advertise usable capacity: readinessReason explains a needs_attention state. credentialGeneration increments on rotation or revocation, invalidating any bearer credential from an earlier generation; the credential itself is never returned in a response."
           },
-          "description": "Page<WorkerHost>.items must contain at most 100 items."
+          "description": "WorkerHost items in this cursor page. Page<WorkerHost>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -34110,7 +34110,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<WorkerHost>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<WorkerHost>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -34673,7 +34673,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "Safe organization-scoped enrollment inventory entry with derived lifecycle state, intended machine capacity and replacement/re-pair lineage. Token material, token hashes and credentials are never projected."
           },
-          "description": "Page<WorkerEnrollmentSummary>.items must contain at most 100 items."
+          "description": "WorkerEnrollmentSummary items in this cursor page. Page<WorkerEnrollmentSummary>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -34695,7 +34695,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<WorkerEnrollmentSummary>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<WorkerEnrollmentSummary>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -35006,7 +35006,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "One installed/known component on a machine, projected from the worker's latest inventory report: discovered installs, versions, install owner and structured adapter support. Externally managed installations are read-only until an Admin explicitly adopts them; paths stay host-local."
           },
-          "description": "Page<WorkerComponent>.items must contain at most 100 items."
+          "description": "WorkerComponent items in this cursor page. Page<WorkerComponent>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -35028,7 +35028,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<WorkerComponent>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<WorkerComponent>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -35307,7 +35307,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "One organization-owned provider account with its verified billing identity and account-level quota observation. Many machines sharing an account share this row and its single observation — remaining usage is never multiplied. Unverifiable quota stays null with its source and observation time; a display email alone never proves the same billing account. The raw billing identity value is never returned; different organizations never discover each other's accounts through deduplication."
           },
-          "description": "Page<ModelProviderAccount>.items must contain at most 100 items."
+          "description": "ModelProviderAccount items in this cursor page. Page<ModelProviderAccount>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -35329,7 +35329,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<ModelProviderAccount>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<ModelProviderAccount>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -35495,7 +35495,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "One explicit authorized account placement binding a provider/billing route to a machine's harness component. Auth generation increments on each authentication so stale host reports are fenced; safeProblem carries a bounded safe Problem reference. Provider identity is not mutable freeform config, secret references never imply unrestricted access, and no response contains credential material."
           },
-          "description": "Page<WorkerProviderBinding>.items must contain at most 100 items."
+          "description": "WorkerProviderBinding items in this cursor page. Page<WorkerProviderBinding>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -35517,7 +35517,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<WorkerProviderBinding>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<WorkerProviderBinding>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -35673,7 +35673,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "Bakery's mirror of a provider pull request's identity and latest known SHAs for a task's repository; provider webhooks reconcile status, mergedSha and the head/base SHAs against the provider's current state, so this record can lag briefly behind Git history."
           },
-          "description": "Page<PullRequest>.items must contain at most 100 items."
+          "description": "PullRequest items in this cursor page. Page<PullRequest>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -35695,7 +35695,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<PullRequest>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<PullRequest>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -35759,7 +35759,7 @@ export const clientManifest = {
                 "type": "integer",
                 "minimum": 0,
                 "maximum": 9007199254740991,
-                "description": "ReviewCycle.ordinal must be at least 0."
+                "description": "Zero-based position of this cycle among the run's cycles; the first review of a candidate is 0. ReviewCycle.ordinal must be at least 0."
               },
               "pullRequestId": {
                 "anyOf": [
@@ -35829,13 +35829,13 @@ export const clientManifest = {
                 "type": "integer",
                 "minimum": 0,
                 "maximum": 25,
-                "description": "ReviewCycle.findingCount must be at most 25."
+                "description": "Number of findings the review reported, including non-blocking ones. ReviewCycle.findingCount must be at least 0. ReviewCycle.findingCount must be at most 25."
               },
               "blockingCount": {
                 "type": "integer",
                 "minimum": 0,
                 "maximum": 25,
-                "description": "ReviewCycle.blockingCount must be at most 25."
+                "description": "Number of reported findings with severity blocker or major. ReviewCycle.blockingCount must be at least 0. ReviewCycle.blockingCount must be at most 25."
               },
               "artifactVersionId": {
                 "anyOf": [
@@ -35868,7 +35868,7 @@ export const clientManifest = {
                 "type": "integer",
                 "minimum": 1,
                 "maximum": 9007199254740991,
-                "description": "ReviewCycle.version must be at least 1."
+                "description": "Always 1 because review cycle rows are immutable. ReviewCycle.version must be at least 1."
               }
             },
             "required": [
@@ -35895,7 +35895,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "One immutable independent automated review of one exact candidate of a run: the head and base commits and the effective policy digest it judged, the reviewer's fresh server-created agent session and worker principal, and the implementing session and principal it reviewed. A cycle is recorded only after the server verified the report against its own pins and the independence rules, so its approval is evidence for that exact candidate and is invalid once the head, base or policy digest changes. Only approved and changes_requested are written; running and failed are never stored because a review that did not complete leaves no cycle. Rows are never updated, so updatedAt equals createdAt and version is always 1."
           },
-          "description": "Page<ReviewCycle>.items must contain at most 100 items."
+          "description": "ReviewCycle items in this cursor page. Page<ReviewCycle>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -35917,7 +35917,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<ReviewCycle>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<ReviewCycle>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -35975,7 +35975,7 @@ export const clientManifest = {
                 "type": "integer",
                 "minimum": 0,
                 "maximum": 9007199254740991,
-                "description": "DeliveryDecision.ordinal must be at least 0."
+                "description": "Zero-based position of this decision among the run's decisions; the latest ordinal is the one that governs delivery. DeliveryDecision.ordinal must be at least 0."
               },
               "reviewCycleId": {
                 "anyOf": [
@@ -36067,7 +36067,7 @@ export const clientManifest = {
                       "type": "string",
                       "minLength": 1,
                       "maxLength": 100,
-                      "description": "FailedCheck.checkId must contain at most 100 characters."
+                      "description": "Fixed policy command id of the check that did not pass, as pinned in the repository profile. FailedCheck.checkId must contain at least 1 characters. FailedCheck.checkId must contain at most 100 characters."
                     },
                     "result": {
                       "type": "string",
@@ -36108,7 +36108,7 @@ export const clientManifest = {
                           "type": "integer",
                           "minimum": 0,
                           "maximum": 255,
-                          "description": "FailedCheck.exitCode must be at most 255."
+                          "description": "Process exit code the check produced, or null when it produced no exit status. FailedCheck.exitCode must be at least 0. FailedCheck.exitCode must be at most 255."
                         },
                         {
                           "type": "null",
@@ -36128,7 +36128,7 @@ export const clientManifest = {
                   "additionalProperties": false,
                   "description": "Required checks that did not pass on the candidate when the decision was taken, with their check run ids; the evidence a repair acts on. Each array item follows this format."
                 },
-                "description": "DeliveryDecision.failedChecks must contain at most 32 items."
+                "description": "Required checks that did not pass on the candidate when the decision was taken, with their check run ids; the evidence a repair acts on. DeliveryDecision.failedChecks must contain at most 32 items."
               },
               "blockingFingerprints": {
                 "maxItems": 25,
@@ -36138,7 +36138,7 @@ export const clientManifest = {
                   "pattern": "^[a-f0-9]{64}$",
                   "description": "Fingerprints of the blocking findings of the reviewed cycle, which the loop compares across cycles to recognize an unchanged blocker. Each array item follows this format."
                 },
-                "description": "DeliveryDecision.blockingFingerprints must contain at most 25 items."
+                "description": "Fingerprints of the blocking findings of the reviewed cycle, which the loop compares across cycles to recognize an unchanged blocker. DeliveryDecision.blockingFingerprints must contain at most 25 items."
               },
               "limits": {
                 "type": "object",
@@ -36147,19 +36147,19 @@ export const clientManifest = {
                     "type": "integer",
                     "minimum": 0,
                     "maximum": 8,
-                    "description": "DeliveryLoopLimits.maxRepairCycles must be at most 8."
+                    "description": "Most repair iterations the run may spend; the loop stops with repair_cycles_exhausted once that many repairs were used and a blocker remains. DeliveryLoopLimits.maxRepairCycles must be at least 0. DeliveryLoopLimits.maxRepairCycles must be at most 8."
                   },
                   "maxLoopDurationMs": {
                     "type": "integer",
                     "minimum": 1,
                     "maximum": 86400000,
-                    "description": "DeliveryLoopLimits.maxLoopDurationMs must be at most 86400000."
+                    "description": "Longest time in milliseconds from the first review cycle to the latest decision; the loop stops with repair_time_exhausted once it is reached. DeliveryLoopLimits.maxLoopDurationMs must be at least 1. DeliveryLoopLimits.maxLoopDurationMs must be at most 86400000."
                   },
                   "maxFindings": {
                     "type": "integer",
                     "minimum": 1,
                     "maximum": 25,
-                    "description": "DeliveryLoopLimits.maxFindings must be at most 25."
+                    "description": "Most findings one review report may carry; the server rejects a longer report. DeliveryLoopLimits.maxFindings must be at least 1. DeliveryLoopLimits.maxFindings must be at most 25."
                   }
                 },
                 "required": [
@@ -36186,7 +36186,7 @@ export const clientManifest = {
                 "type": "integer",
                 "minimum": 1,
                 "maximum": 9007199254740991,
-                "description": "DeliveryDecision.version must be at least 1."
+                "description": "Always 1 because delivery decision rows are immutable. DeliveryDecision.version must be at least 1."
               }
             },
             "required": [
@@ -36209,7 +36209,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "One immutable decision the review and repair loop took for a run: proceed, repair or stop, with the reason, the candidate it was taken for, the failed checks and blocking fingerprints it acted on, and the limits it was bound by. A stop ends the run with this record as its durable explanation and never approves a candidate; proceed is not an approval either, because a merge still requires the candidate evidence to be current. Rows are never updated, so updatedAt equals createdAt and version is always 1."
           },
-          "description": "Page<DeliveryDecision>.items must contain at most 100 items."
+          "description": "DeliveryDecision items in this cursor page. Page<DeliveryDecision>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -36231,7 +36231,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<DeliveryDecision>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<DeliveryDecision>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -36400,7 +36400,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "One deduplicated issue raised during a review cycle, keyed by a stable fingerprint so repeated review passes over unchanged code do not create duplicates; unresolved blocker or major findings block delivery, and an implementer cannot dismiss their own findings to pass. Rows are never updated: status is derived when read, so a finding is open exactly when the run's latest review cycle reports the same fingerprint, and resolved otherwise. resolutionArtifactId and remoteCommentId read null until remote review comments exist."
           },
-          "description": "Page<ReviewFinding>.items must contain at most 100 items."
+          "description": "ReviewFinding items in this cursor page. Page<ReviewFinding>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -36422,7 +36422,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<ReviewFinding>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<ReviewFinding>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -36510,13 +36510,13 @@ export const clientManifest = {
                 "type": "string",
                 "minLength": 1,
                 "maxLength": 100,
-                "description": "CheckRun.checkId must contain at most 100 characters."
+                "description": "Fixed policy command id for a command check, or the repository rule key for a metadata check. CheckRun.checkId must contain at least 1 characters. CheckRun.checkId must contain at most 100 characters."
               },
               "checkName": {
                 "type": "string",
                 "minLength": 1,
                 "maxLength": 100,
-                "description": "CheckRun.checkName must contain at most 100 characters."
+                "description": "Display name of the check; equals checkId because the check is identified by its fixed command id or rule key. CheckRun.checkName must contain at least 1 characters. CheckRun.checkName must contain at most 100 characters."
               },
               "kind": {
                 "type": "string",
@@ -36703,7 +36703,7 @@ export const clientManifest = {
                     "type": "integer",
                     "minimum": 0,
                     "maximum": 255,
-                    "description": "CheckRun.exitCode must be at most 255."
+                    "description": "Process exit code observed for a command check, or null when no process exit was observed. CheckRun.exitCode must be at least 0. CheckRun.exitCode must be at most 255."
                   },
                   {
                     "type": "null",
@@ -36718,7 +36718,7 @@ export const clientManifest = {
                     "type": "integer",
                     "minimum": 0,
                     "maximum": 86400000,
-                    "description": "CheckRun.durationMs must be at most 86400000."
+                    "description": "Wall-clock milliseconds the check took, or null when it did not run. CheckRun.durationMs must be at least 0. CheckRun.durationMs must be at most 86400000."
                   },
                   {
                     "type": "null",
@@ -36786,7 +36786,7 @@ export const clientManifest = {
                 "type": "integer",
                 "minimum": 1,
                 "maximum": 9007199254740991,
-                "description": "CheckRun.version must be at least 1."
+                "description": "Always 1 because check run rows are immutable. CheckRun.version must be at least 1."
               }
             },
             "required": [
@@ -36822,7 +36822,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "One immutable deterministic check outcome for a run: a fixed policy command run against the candidate head, or a commit, title, description or merge-message rule evaluated against trusted metadata. Each row binds the head, base, profile, effective policy, subject, checker, title, body, merge-message and commit-selection identities it was observed under, so a changed identity makes the affected row stale without re-running it. `result` is `passed` only for a verified process exit or a satisfied rule; `failed` means the check ran and did not pass; `unavailable` means no trustworthy observation exists (missing tool, checker or metadata, an unsupported checker, an unbound rule, an unavailable revision or a skipped check) and blocks a required check exactly like `failed`; `pending` and `canceled` never satisfy a required check. `reason` carries the machine code. Rows are never updated, so `updatedAt` equals `createdAt` and `version` is always 1."
           },
-          "description": "Page<CheckRun>.items must contain at most 100 items."
+          "description": "CheckRun items in this cursor page. Page<CheckRun>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -36844,7 +36844,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<CheckRun>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<CheckRun>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -37001,7 +37001,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "One serialized merge-queue attempt for a pull request; the server allows at most one active entry per repository/target branch and requires its linked review cycle and check runs to still match this entry's exact head, base and policy digest before merging proceeds."
           },
-          "description": "Page<MergeEntry>.items must contain at most 100 items."
+          "description": "MergeEntry items in this cursor page. Page<MergeEntry>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -37023,7 +37023,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<MergeEntry>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<MergeEntry>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -37268,7 +37268,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "Response and requestDigest are intentionally omitted from the default projection; any reconciliation detail is a separately authorized bounded view."
           },
-          "description": "Page<ExternalEffect>.items must contain at most 100 items."
+          "description": "ExternalEffect items in this cursor page. Page<ExternalEffect>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -37290,7 +37290,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<ExternalEffect>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<ExternalEffect>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -37465,7 +37465,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "One redacted entry in the actor/action outcome audit trail: the acting principal when known, the operation performed, the resource type and ID affected, whether it was allowed, denied, succeeded, or failed, correlating request/trace IDs, and bounded structured details safe for audit review."
           },
-          "description": "Page<AuditEvent>.items must contain at most 100 items."
+          "description": "AuditEvent items in this cursor page. Page<AuditEvent>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -37487,7 +37487,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<AuditEvent>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<AuditEvent>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -37802,7 +37802,7 @@ export const clientManifest = {
                     "selectedText": {
                       "type": "string",
                       "maxLength": 65536,
-                      "description": "CommentAnchor.markdown.selectedText must contain at most 8192 UTF-8 bytes.",
+                      "description": "Exact quoted text the comment refers to within the anchored block; the start/end offsets are validated against this text. CommentAnchor.markdown.selectedText must contain at most 8192 UTF-8 bytes.",
                       "x-utf8-max-bytes": 8192
                     },
                     "start": {
@@ -37820,7 +37820,7 @@ export const clientManifest = {
                     "blockText": {
                       "type": "string",
                       "maxLength": 65536,
-                      "description": "CommentAnchor.markdown.blockText must contain at most 16384 UTF-8 bytes.",
+                      "description": "Snapshot of the anchored block's text at comment time, used to re-locate the anchor by exact content match if the document changes. CommentAnchor.markdown.blockText must contain at most 16384 UTF-8 bytes.",
                       "x-utf8-max-bytes": 16384
                     },
                     "previousBlock": {
@@ -37828,7 +37828,7 @@ export const clientManifest = {
                         {
                           "type": "string",
                           "maxLength": 65536,
-                          "description": "CommentAnchor.markdown.previousBlock must contain at most 4096 UTF-8 bytes.",
+                          "description": "Snapshot of the block immediately preceding the anchored one, used as disambiguating context when relocating this anchor in a changed document. CommentAnchor.markdown.previousBlock must contain at most 4096 UTF-8 bytes.",
                           "x-utf8-max-bytes": 4096
                         },
                         {
@@ -37843,7 +37843,7 @@ export const clientManifest = {
                         {
                           "type": "string",
                           "maxLength": 65536,
-                          "description": "CommentAnchor.markdown.nextBlock must contain at most 4096 UTF-8 bytes.",
+                          "description": "Snapshot of the block immediately following the anchored one, used as disambiguating context when relocating this anchor in a changed document. CommentAnchor.markdown.nextBlock must contain at most 4096 UTF-8 bytes.",
                           "x-utf8-max-bytes": 4096
                         },
                         {
@@ -37890,7 +37890,7 @@ export const clientManifest = {
                     "quote": {
                       "type": "string",
                       "maxLength": 65536,
-                      "description": "CommentAnchor.text.quote must contain at most 8192 UTF-8 bytes.",
+                      "description": "Exact quoted text expected at the anchored line range; validated against the artifact's immutable bytes so a changed quote marks the anchor outdated. CommentAnchor.text.quote must contain at most 8192 UTF-8 bytes.",
                       "x-utf8-max-bytes": 8192
                     }
                   },
@@ -37915,13 +37915,13 @@ export const clientManifest = {
                       "type": "number",
                       "minimum": 0,
                       "maximum": 1,
-                      "description": "CommentAnchor.image.x must be at most 1."
+                      "description": "Left edge of the anchor rectangle as a fraction of image width, in [0, 1]; {x:0,y:0,width:1,height:1} selects the whole image. CommentAnchor.image.x must be at least 0. CommentAnchor.image.x must be at most 1."
                     },
                     "y": {
                       "type": "number",
                       "minimum": 0,
                       "maximum": 1,
-                      "description": "CommentAnchor.image.y must be at most 1."
+                      "description": "Top edge of the anchor rectangle as a fraction of image height, in [0, 1], measured from the top of the image. CommentAnchor.image.y must be at least 0. CommentAnchor.image.y must be at most 1."
                     },
                     "width": {
                       "type": "number",
@@ -38149,7 +38149,7 @@ export const clientManifest = {
                         "selectedText": {
                           "type": "string",
                           "maxLength": 65536,
-                          "description": "CommentAnchor.markdown.selectedText must contain at most 8192 UTF-8 bytes.",
+                          "description": "Exact quoted text the comment refers to within the anchored block; the start/end offsets are validated against this text. CommentAnchor.markdown.selectedText must contain at most 8192 UTF-8 bytes.",
                           "x-utf8-max-bytes": 8192
                         },
                         "start": {
@@ -38167,7 +38167,7 @@ export const clientManifest = {
                         "blockText": {
                           "type": "string",
                           "maxLength": 65536,
-                          "description": "CommentAnchor.markdown.blockText must contain at most 16384 UTF-8 bytes.",
+                          "description": "Snapshot of the anchored block's text at comment time, used to re-locate the anchor by exact content match if the document changes. CommentAnchor.markdown.blockText must contain at most 16384 UTF-8 bytes.",
                           "x-utf8-max-bytes": 16384
                         },
                         "previousBlock": {
@@ -38175,7 +38175,7 @@ export const clientManifest = {
                             {
                               "type": "string",
                               "maxLength": 65536,
-                              "description": "CommentAnchor.markdown.previousBlock must contain at most 4096 UTF-8 bytes.",
+                              "description": "Snapshot of the block immediately preceding the anchored one, used as disambiguating context when relocating this anchor in a changed document. CommentAnchor.markdown.previousBlock must contain at most 4096 UTF-8 bytes.",
                               "x-utf8-max-bytes": 4096
                             },
                             {
@@ -38190,7 +38190,7 @@ export const clientManifest = {
                             {
                               "type": "string",
                               "maxLength": 65536,
-                              "description": "CommentAnchor.markdown.nextBlock must contain at most 4096 UTF-8 bytes.",
+                              "description": "Snapshot of the block immediately following the anchored one, used as disambiguating context when relocating this anchor in a changed document. CommentAnchor.markdown.nextBlock must contain at most 4096 UTF-8 bytes.",
                               "x-utf8-max-bytes": 4096
                             },
                             {
@@ -38237,7 +38237,7 @@ export const clientManifest = {
                         "quote": {
                           "type": "string",
                           "maxLength": 65536,
-                          "description": "CommentAnchor.text.quote must contain at most 8192 UTF-8 bytes.",
+                          "description": "Exact quoted text expected at the anchored line range; validated against the artifact's immutable bytes so a changed quote marks the anchor outdated. CommentAnchor.text.quote must contain at most 8192 UTF-8 bytes.",
                           "x-utf8-max-bytes": 8192
                         }
                       },
@@ -38262,13 +38262,13 @@ export const clientManifest = {
                           "type": "number",
                           "minimum": 0,
                           "maximum": 1,
-                          "description": "CommentAnchor.image.x must be at most 1."
+                          "description": "Left edge of the anchor rectangle as a fraction of image width, in [0, 1]; {x:0,y:0,width:1,height:1} selects the whole image. CommentAnchor.image.x must be at least 0. CommentAnchor.image.x must be at most 1."
                         },
                         "y": {
                           "type": "number",
                           "minimum": 0,
                           "maximum": 1,
-                          "description": "CommentAnchor.image.y must be at most 1."
+                          "description": "Top edge of the anchor rectangle as a fraction of image height, in [0, 1], measured from the top of the image. CommentAnchor.image.y must be at least 0. CommentAnchor.image.y must be at most 1."
                         },
                         "width": {
                           "type": "number",
@@ -38423,7 +38423,7 @@ export const clientManifest = {
         "text": {
           "type": "string",
           "maxLength": 65536,
-          "description": "ArtifactExtraction.text must contain at most 65536 UTF-8 bytes.",
+          "description": "UTF-8 text whose encoded byte length is at most 65536 and which contains no partial code point. ArtifactExtraction.text must contain at most 65536 UTF-8 bytes.",
           "x-utf8-max-bytes": 65536
         },
         "hasMore": {
@@ -39303,7 +39303,7 @@ export const clientManifest = {
           "type": "integer",
           "minimum": 1,
           "maximum": 9007199254740991,
-          "description": "RepositoryProfileObservation.profileRevision must be at least 1."
+          "description": "Exact positive revision of the observed profile. RepositoryProfileObservation.profileRevision must be at least 1."
         },
         "profileDigest": {
           "type": "string",
@@ -39320,7 +39320,7 @@ export const clientManifest = {
           "minLength": 40,
           "maxLength": 64,
           "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$",
-          "description": "RepositoryProfileObservation.baseSha must match the pattern ^(?:[0-9a-f]{40}|[0-9a-f]{64})$."
+          "description": "Exact trusted Git commit whose bytes were inspected. RepositoryProfileObservation.baseSha must contain at least 40 characters. RepositoryProfileObservation.baseSha must contain at most 64 characters. RepositoryProfileObservation.baseSha must match the pattern ^(?:[0-9a-f]{40}|[0-9a-f]{64})$."
         },
         "payload": {
           "type": "object",
@@ -40862,7 +40862,7 @@ export const clientManifest = {
           ]
         },
         "blockingTasks": {
-          "description": "Run.blockingTasks must contain at most 25 items.",
+          "description": "For a run blocked with dependency_incomplete, the dependency tasks of the run's task that have not completed, read live and limited to the run's organization, oldest dependency first, at most 25; empty otherwise. Served by runs.get and runs.list; omitted by other run responses. Run.blockingTasks must contain at most 25 items.",
           "maxItems": 25,
           "type": "array",
           "items": {
@@ -40878,7 +40878,7 @@ export const clientManifest = {
                 "type": "string",
                 "minLength": 1,
                 "maxLength": 500,
-                "description": "RunBlockingTask.title must contain at most 500 characters."
+                "description": "Current title of the dependency task, for a line such as \"Waiting for <title> to finish\". RunBlockingTask.title must contain at least 1 characters. RunBlockingTask.title must contain at most 500 characters."
               },
               "status": {
                 "type": "string",
@@ -41636,7 +41636,7 @@ export const clientManifest = {
                                   "selectedText": {
                                     "type": "string",
                                     "maxLength": 65536,
-                                    "description": "CommentAnchor.markdown.selectedText must contain at most 8192 UTF-8 bytes.",
+                                    "description": "Exact quoted text the comment refers to within the anchored block; the start/end offsets are validated against this text. CommentAnchor.markdown.selectedText must contain at most 8192 UTF-8 bytes.",
                                     "x-utf8-max-bytes": 8192
                                   },
                                   "start": {
@@ -41654,7 +41654,7 @@ export const clientManifest = {
                                   "blockText": {
                                     "type": "string",
                                     "maxLength": 65536,
-                                    "description": "CommentAnchor.markdown.blockText must contain at most 16384 UTF-8 bytes.",
+                                    "description": "Snapshot of the anchored block's text at comment time, used to re-locate the anchor by exact content match if the document changes. CommentAnchor.markdown.blockText must contain at most 16384 UTF-8 bytes.",
                                     "x-utf8-max-bytes": 16384
                                   },
                                   "previousBlock": {
@@ -41662,7 +41662,7 @@ export const clientManifest = {
                                       {
                                         "type": "string",
                                         "maxLength": 65536,
-                                        "description": "CommentAnchor.markdown.previousBlock must contain at most 4096 UTF-8 bytes.",
+                                        "description": "Snapshot of the block immediately preceding the anchored one, used as disambiguating context when relocating this anchor in a changed document. CommentAnchor.markdown.previousBlock must contain at most 4096 UTF-8 bytes.",
                                         "x-utf8-max-bytes": 4096
                                       },
                                       {
@@ -41677,7 +41677,7 @@ export const clientManifest = {
                                       {
                                         "type": "string",
                                         "maxLength": 65536,
-                                        "description": "CommentAnchor.markdown.nextBlock must contain at most 4096 UTF-8 bytes.",
+                                        "description": "Snapshot of the block immediately following the anchored one, used as disambiguating context when relocating this anchor in a changed document. CommentAnchor.markdown.nextBlock must contain at most 4096 UTF-8 bytes.",
                                         "x-utf8-max-bytes": 4096
                                       },
                                       {
@@ -41724,7 +41724,7 @@ export const clientManifest = {
                                   "quote": {
                                     "type": "string",
                                     "maxLength": 65536,
-                                    "description": "CommentAnchor.text.quote must contain at most 8192 UTF-8 bytes.",
+                                    "description": "Exact quoted text expected at the anchored line range; validated against the artifact's immutable bytes so a changed quote marks the anchor outdated. CommentAnchor.text.quote must contain at most 8192 UTF-8 bytes.",
                                     "x-utf8-max-bytes": 8192
                                   }
                                 },
@@ -41749,13 +41749,13 @@ export const clientManifest = {
                                     "type": "number",
                                     "minimum": 0,
                                     "maximum": 1,
-                                    "description": "CommentAnchor.image.x must be at most 1."
+                                    "description": "Left edge of the anchor rectangle as a fraction of image width, in [0, 1]; {x:0,y:0,width:1,height:1} selects the whole image. CommentAnchor.image.x must be at least 0. CommentAnchor.image.x must be at most 1."
                                   },
                                   "y": {
                                     "type": "number",
                                     "minimum": 0,
                                     "maximum": 1,
-                                    "description": "CommentAnchor.image.y must be at most 1."
+                                    "description": "Top edge of the anchor rectangle as a fraction of image height, in [0, 1], measured from the top of the image. CommentAnchor.image.y must be at least 0. CommentAnchor.image.y must be at most 1."
                                   },
                                   "width": {
                                     "type": "number",
@@ -51737,7 +51737,7 @@ export const clientManifest = {
           "type": "integer",
           "minimum": 1,
           "maximum": 9007199254740991,
-          "description": "WorkflowActionDeclaration.version must be at least 1."
+          "description": "Registry version this declaration belongs to. WorkflowActionDeclaration.version must be at least 1."
         },
         "input": {
           "type": "string",
@@ -51785,7 +51785,7 @@ export const clientManifest = {
               "type": "integer",
               "minimum": 1,
               "maximum": 9007199254740991,
-              "description": "WorkflowActionRetry.maxAttempts must be at least 1."
+              "description": "Maximum number of attempts the action may make, including the first. WorkflowActionRetry.maxAttempts must be at least 1."
             },
             "backoff": {
               "type": "string",
@@ -51896,7 +51896,7 @@ export const clientManifest = {
                 "type": "integer",
                 "minimum": 1,
                 "maximum": 9007199254740991,
-                "description": "WorkflowActionDeclaration.version must be at least 1."
+                "description": "Registry version this declaration belongs to. WorkflowActionDeclaration.version must be at least 1."
               },
               "input": {
                 "type": "string",
@@ -51944,7 +51944,7 @@ export const clientManifest = {
                     "type": "integer",
                     "minimum": 1,
                     "maximum": 9007199254740991,
-                    "description": "WorkflowActionRetry.maxAttempts must be at least 1."
+                    "description": "Maximum number of attempts the action may make, including the first. WorkflowActionRetry.maxAttempts must be at least 1."
                   },
                   "backoff": {
                     "type": "string",
@@ -52014,7 +52014,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "Declaration of one registered workflow action at one registry version: its input and output schema names, the capabilities it needs, how it cancels, its retry policy, its effect policy, and whether it needs a billed model agent."
           },
-          "description": "Page<WorkflowActionDeclaration>.items must contain at most 100 items."
+          "description": "WorkflowActionDeclaration items in this cursor page. Page<WorkflowActionDeclaration>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -52036,7 +52036,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<WorkflowActionDeclaration>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<WorkflowActionDeclaration>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -52106,7 +52106,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "Contract-defined errors associated with the validation report record. Each array item follows this format."
           },
-          "description": "ValidationReport.errors must contain at most 100 items."
+          "description": "Contract-defined errors associated with the validation report record. ValidationReport.errors must contain at most 100 items."
         },
         "warnings": {
           "maxItems": 100,
@@ -52138,7 +52138,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "Non-blocking validation findings. Each array item follows this format."
           },
-          "description": "ValidationReport.warnings must contain at most 100 items."
+          "description": "Non-blocking validation findings. ValidationReport.warnings must contain at most 100 items."
         },
         "normalizedDigest": {
           "anyOf": [
@@ -52209,7 +52209,7 @@ export const clientManifest = {
           "pattern": "^[a-f0-9]{64}$"
         },
         "stepBindings": {
-          "description": "ValidationReport.stepBindings must contain at most 100 items.",
+          "description": "Effective agent binding of each top-level workflow step: the level that supplied the agent version, its revision and digest, and the capabilities the step requires; omitted when the definition is invalid. ValidationReport.stepBindings must contain at most 100 items.",
           "maxItems": 100,
           "type": "array",
           "items": {
@@ -52278,7 +52278,7 @@ export const clientManifest = {
                     "type": "integer",
                     "minimum": 1,
                     "maximum": 9007199254740991,
-                    "description": "WorkflowStepBinding.revision must be at least 1."
+                    "description": "Revision number of the bound agent version, or null when unbound. WorkflowStepBinding.revision must be at least 1."
                   },
                   {
                     "type": "null",
@@ -52360,7 +52360,7 @@ export const clientManifest = {
           ]
         },
         "compilerDiagnostics": {
-          "description": "ValidationReport.compilerDiagnostics must contain at most 100 items.",
+          "description": "Compiler findings with JSON Pointer path, stable code and catalogued message, never a submitted value. Advisory: they do not change valid. ValidationReport.compilerDiagnostics must contain at most 100 items.",
           "maxItems": 100,
           "type": "array",
           "items": {
@@ -52545,7 +52545,7 @@ export const clientManifest = {
         "result": {
           "anyOf": [
             {
-              "description": "ActionResult.result must contain at most 32000 UTF-8 bytes.",
+              "description": "Result produced by processing the record. ActionResult.result must contain at most 32000 UTF-8 bytes.",
               "anyOf": [
                 {
                   "type": "string",
@@ -52736,7 +52736,7 @@ export const clientManifest = {
             "maxLength": 65536,
             "description": "Capabilities advertised by the worker host. Each array item follows this format."
           },
-          "description": "ConnectionCheck.capabilities must contain at most 100 items."
+          "description": "Capabilities advertised by the worker host. ConnectionCheck.capabilities must contain at most 100 items."
         },
         "fault": {
           "anyOf": [
@@ -52790,7 +52790,7 @@ export const clientManifest = {
                   "description": "Whether retrying the failed operation may succeed."
                 },
                 "issues": {
-                  "description": "Problem.issues must contain at most 50 items.",
+                  "description": "Structured validation issues returned with the response. Problem.issues must contain at most 50 items.",
                   "maxItems": 50,
                   "type": "array",
                   "items": {
@@ -53205,7 +53205,7 @@ export const clientManifest = {
                   {
                     "type": "string",
                     "maxLength": 65536,
-                    "description": "DispatchBlocker.reason must contain at most 8192 UTF-8 bytes.",
+                    "description": "Bounded safe explanation for the blocking result, or null when the check supplied no reason. DispatchBlocker.reason must contain at most 8192 UTF-8 bytes.",
                     "x-utf8-max-bytes": 8192
                   },
                   {
@@ -54966,7 +54966,7 @@ export const clientManifest = {
         "locale": {
           "type": "string",
           "maxLength": 35,
-          "description": "PrincipalIdentity.locale must contain at most 35 characters."
+          "description": "Effective BCP 47 locale resolved for this response: the person's saved language, else the organization default, else Accept-Language, else English; it has no authorization meaning. PrincipalIdentity.locale must contain at most 35 characters."
         },
         "direction": {
           "type": "string",
@@ -54979,7 +54979,7 @@ export const clientManifest = {
         "catalogVersion": {
           "type": "string",
           "maxLength": 32,
-          "description": "PrincipalIdentity.catalogVersion must contain at most 32 characters."
+          "description": "Version of the built-in message catalog the client should format against. PrincipalIdentity.catalogVersion must contain at most 32 characters."
         },
         "twoFactorEnabled": {
           "type": "boolean",
@@ -54989,7 +54989,7 @@ export const clientManifest = {
           "type": "string",
           "minLength": 3,
           "maxLength": 320,
-          "description": "PrincipalIdentity.email must contain at most 320 characters."
+          "description": "Sign-in email of the authenticated person as held by the identity provider; shown for account context only and grants nothing. PrincipalIdentity.email must contain at least 3 characters. PrincipalIdentity.email must contain at most 320 characters."
         },
         "backupCodesRemaining": {
           "anyOf": [
@@ -55011,7 +55011,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 64,
-              "description": "PrincipalIdentity.timeZone must contain at most 64 characters."
+              "description": "IANA time zone the person chose in their preferences, or null when none is saved so clients fall back to the browser zone; it has no authorization meaning. PrincipalIdentity.timeZone must contain at most 64 characters."
             },
             {
               "type": "null",
@@ -55303,7 +55303,7 @@ export const clientManifest = {
       "type": "object",
       "properties": {
         "resourceState": {
-          "description": "SyncSnapshot.resourceState must contain at most 524288 UTF-8 bytes.",
+          "description": "Projected external resource state for a no-cursor snapshot; an empty object for cursor delta responses. SyncSnapshot.resourceState must contain at most 524288 UTF-8 bytes.",
           "anyOf": [
             {
               "type": "string",
@@ -55412,7 +55412,7 @@ export const clientManifest = {
                 "description": "Event.repositoryId may be null in this transport value."
               },
               "payload": {
-                "description": "Event.payload must contain at most 32000 UTF-8 bytes.",
+                "description": "Structured event payload delivered to the consumer. Event.payload must contain at most 32000 UTF-8 bytes.",
                 "anyOf": [
                   {
                     "type": "string",
@@ -55511,7 +55511,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "Event definitions emitted by the provider. Each array item follows this format."
           },
-          "description": "SyncSnapshot.events must contain at most 500 items."
+          "description": "Event definitions emitted by the provider. SyncSnapshot.events must contain at most 500 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -55817,7 +55817,7 @@ export const clientManifest = {
           "description": "Whether retrying the failed operation may succeed."
         },
         "issues": {
-          "description": "Problem.issues must contain at most 50 items.",
+          "description": "Structured validation issues returned with the response. Problem.issues must contain at most 50 items.",
           "maxItems": 50,
           "type": "array",
           "items": {
@@ -56179,7 +56179,7 @@ export const clientManifest = {
                   "description": "Whether retrying the failed operation may succeed."
                 },
                 "issues": {
-                  "description": "Problem.issues must contain at most 50 items.",
+                  "description": "Structured validation issues returned with the response. Problem.issues must contain at most 50 items.",
                   "maxItems": 50,
                   "type": "array",
                   "items": {
@@ -56589,7 +56589,7 @@ export const clientManifest = {
                         "description": "Whether retrying the failed operation may succeed."
                       },
                       "issues": {
-                        "description": "Problem.issues must contain at most 50 items.",
+                        "description": "Structured validation issues returned with the response. Problem.issues must contain at most 50 items.",
                         "maxItems": 50,
                         "type": "array",
                         "items": {
@@ -56750,7 +56750,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "Stored redacted Fault is projected through the shared StandardError/toProblem mapper as failure:Problem|null. No raw exception or credentials."
           },
-          "description": "Page<ConversationTurn>.items must contain at most 100 items."
+          "description": "ConversationTurn items in this cursor page. Page<ConversationTurn>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -56772,7 +56772,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<ConversationTurn>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<ConversationTurn>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -56995,7 +56995,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 35,
-              "description": "Organization.defaultLocale must contain at most 35 characters."
+              "description": "Default language (BCP 47 tag) for members of this organization who have not chosen a personal language, or null when the Admin has set none so Accept-Language applies. Organization.defaultLocale must contain at most 35 characters."
             },
             {
               "type": "null",
@@ -57234,7 +57234,7 @@ export const clientManifest = {
                   {
                     "type": "string",
                     "maxLength": 35,
-                    "description": "OrganizationAccess.defaultLocale must contain at most 35 characters."
+                    "description": "Default language (BCP 47 tag) for members of this organization who have not chosen a personal language, or null when the Admin has set none so Accept-Language applies. OrganizationAccess.defaultLocale must contain at most 35 characters."
                   },
                   {
                     "type": "null",
@@ -57296,7 +57296,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "Safe organization summary paired with the authenticated principal's live relationship to that organization; role is null for an exact-grant-only service or worker and is never global."
           },
-          "description": "Page<OrganizationAccess>.items must contain at most 100 items."
+          "description": "OrganizationAccess items in this cursor page. Page<OrganizationAccess>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -57318,7 +57318,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<OrganizationAccess>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<OrganizationAccess>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -57706,7 +57706,7 @@ export const clientManifest = {
             ],
             "description": "Bounded set of exact Bakery permission keys currently effective in this organization; entries never imply wildcard or prefix matching. Each array item follows this format."
           },
-          "description": "EffectiveAccess.capabilities must contain at most 256 items."
+          "description": "Bounded set of exact Bakery permission keys currently effective in this organization; entries never imply wildcard or prefix matching. EffectiveAccess.capabilities must contain at most 256 items."
         }
       },
       "required": [
@@ -57899,7 +57899,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "Bakery-owned organization membership projection; human memberships carry a shared role bundle, while service or worker memberships may expose role null for grant-only access."
           },
-          "description": "Page<OrganizationMembership>.items must contain at most 100 items."
+          "description": "OrganizationMembership items in this cursor page. Page<OrganizationMembership>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -57921,7 +57921,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<OrganizationMembership>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<OrganizationMembership>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -57973,7 +57973,7 @@ export const clientManifest = {
           "type": "string",
           "minLength": 3,
           "maxLength": 320,
-          "description": "OrganizationInvitation.email must contain at most 320 characters."
+          "description": "Normalized invited email address visible only through authorized organization administration. OrganizationInvitation.email must contain at least 3 characters. OrganizationInvitation.email must contain at most 320 characters."
         },
         "role": {
           "type": "string",
@@ -58062,7 +58062,7 @@ export const clientManifest = {
                 "type": "string",
                 "minLength": 3,
                 "maxLength": 320,
-                "description": "OrganizationInvitation.email must contain at most 320 characters."
+                "description": "Normalized invited email address visible only through authorized organization administration. OrganizationInvitation.email must contain at least 3 characters. OrganizationInvitation.email must contain at most 320 characters."
               },
               "role": {
                 "type": "string",
@@ -58125,7 +58125,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "Safe administrative projection of a Bakery-owned organization invitation; Better Auth remains the authentication provider and compatibility routes do not own a second invitation state."
           },
-          "description": "Page<OrganizationInvitation>.items must contain at most 100 items."
+          "description": "OrganizationInvitation items in this cursor page. Page<OrganizationInvitation>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -58147,7 +58147,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<OrganizationInvitation>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<OrganizationInvitation>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -58193,7 +58193,7 @@ export const clientManifest = {
           "type": "string",
           "minLength": 3,
           "maxLength": 320,
-          "description": "OrganizationInvitationRecipient.email must contain at most 320 characters."
+          "description": "Normalized recipient email matched against the current authenticated human provider identity. OrganizationInvitationRecipient.email must contain at least 3 characters. OrganizationInvitationRecipient.email must contain at most 320 characters."
         },
         "role": {
           "type": "string",
@@ -58245,12 +58245,12 @@ export const clientManifest = {
         "organizationName": {
           "type": "string",
           "maxLength": 200,
-          "description": "OrganizationInvitationRecipient.organizationName must contain at most 200 characters."
+          "description": "Bounded organization display name resolved from the invitation's organization. OrganizationInvitationRecipient.organizationName must contain at most 200 characters."
         },
         "organizationSlug": {
           "type": "string",
           "maxLength": 200,
-          "description": "OrganizationInvitationRecipient.organizationSlug must contain at most 200 characters."
+          "description": "Bounded organization slug resolved from the invitation's organization. OrganizationInvitationRecipient.organizationSlug must contain at most 200 characters."
         },
         "inviterEmail": {
           "anyOf": [
@@ -58258,7 +58258,7 @@ export const clientManifest = {
               "type": "string",
               "minLength": 3,
               "maxLength": 320,
-              "description": "OrganizationInvitationRecipient.inviterEmail must contain at most 320 characters."
+              "description": "Provider email for a human inviter, or null when a Bakery service or worker inviter has no provider email; never invent an email. OrganizationInvitationRecipient.inviterEmail must contain at least 3 characters. OrganizationInvitationRecipient.inviterEmail must contain at most 320 characters."
             },
             {
               "type": "null",
@@ -58306,7 +58306,7 @@ export const clientManifest = {
               "type": "string",
               "minLength": 3,
               "maxLength": 320,
-              "description": "OrganizationInvitationRecipientInvitation.email must contain at most 320 characters."
+              "description": "Normalized recipient email bound to the authenticated human recipient. OrganizationInvitationRecipientInvitation.email must contain at least 3 characters. OrganizationInvitationRecipientInvitation.email must contain at most 320 characters."
             },
             "role": {
               "type": "string",
@@ -58447,14 +58447,14 @@ export const clientManifest = {
         "organizationName": {
           "type": "string",
           "maxLength": 200,
-          "description": "OrganizationInvitationPreview.organizationName must contain at most 200 characters."
+          "description": "Bounded display name of the inviting organization; the organization identifier is withheld until the recipient authenticates. OrganizationInvitationPreview.organizationName must contain at most 200 characters."
         },
         "inviterDisplayName": {
           "anyOf": [
             {
               "type": "string",
               "maxLength": 200,
-              "description": "OrganizationInvitationPreview.inviterDisplayName must contain at most 200 characters."
+              "description": "Bounded display name of the Bakery principal that created the invitation, or null when the inviter has no Bakery principal; never an email or provider identifier. OrganizationInvitationPreview.inviterDisplayName must contain at most 200 characters."
             },
             {
               "type": "null",
@@ -58477,7 +58477,7 @@ export const clientManifest = {
           "type": "string",
           "minLength": 3,
           "maxLength": 320,
-          "description": "OrganizationInvitationPreview.email must contain at most 320 characters."
+          "description": "Normalized recipient email the invitation was addressed to, shown so the recipient signs in or signs up with the matching account. OrganizationInvitationPreview.email must contain at least 3 characters. OrganizationInvitationPreview.email must contain at most 320 characters."
         },
         "expiresAt": {
           "type": "string",
@@ -58926,7 +58926,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "Host-owned record of one provider app installation, such as a shared GitHub App installation, that may back several organization connections; returned only to an installation administrator and never exposes credentials or the organization's resource directory."
           },
-          "description": "Page<IntegrationInstallation>.items must contain at most 100 items."
+          "description": "IntegrationInstallation items in this cursor page. Page<IntegrationInstallation>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -58948,7 +58948,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<IntegrationInstallation>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<IntegrationInstallation>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -59844,7 +59844,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "One resource discovered or registered on a connection, such as a repository, team, project, channel, thread, or a registered webhook-destination endpoint; its selected/available/enabled flags and capability snapshot drive which grants and subscriptions it can back, while identity and authorization rely on externalId rather than the display label."
           },
-          "description": "Page<IntegrationResource>.items must contain at most 100 items."
+          "description": "IntegrationResource items in this cursor page. Page<IntegrationResource>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -59866,7 +59866,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<IntegrationResource>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<IntegrationResource>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -60494,7 +60494,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "An organization's authorized mapping from one external ticket container, such as a repository's issue tracker, to a Bakery application/repository, with its intake policy, sync checkpoint, and health. Returned by ticketSources.create/get/update; only one authoritative source is allowed per external container per organization, and policy is strict configuration data, never executable code."
           },
-          "description": "Page<TicketSource>.items must contain at most 100 items."
+          "description": "TicketSource items in this cursor page. Page<TicketSource>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -60516,7 +60516,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<TicketSource>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<TicketSource>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -60877,7 +60877,7 @@ export const clientManifest = {
           ]
         },
         "linkedTaskIds": {
-          "description": "ExternalTicket.linkedTaskIds must contain at most 25 items.",
+          "description": "Bakery tasks linked to this ticket through ticket_task_links (primary and reference links), most recently linked first, at most 25; linkedTaskCount tells whether more exist. Empty when no task is linked. Omitted by servers that predate it. ExternalTicket.linkedTaskIds must contain at most 25 items.",
           "maxItems": 25,
           "type": "array",
           "items": {
@@ -60888,7 +60888,7 @@ export const clientManifest = {
           }
         },
         "linkedTaskCount": {
-          "description": "ExternalTicket.linkedTaskCount must be at least 0.",
+          "description": "Total number of tasks linked to this ticket; larger than the length of linkedTaskIds when the list was cut at 25. Omitted by servers that predate it. ExternalTicket.linkedTaskCount must be at least 0.",
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991
@@ -61490,7 +61490,7 @@ export const clientManifest = {
                 ]
               },
               "linkedTaskIds": {
-                "description": "ExternalTicket.linkedTaskIds must contain at most 25 items.",
+                "description": "Bakery tasks linked to this ticket through ticket_task_links (primary and reference links), most recently linked first, at most 25; linkedTaskCount tells whether more exist. Empty when no task is linked. Omitted by servers that predate it. ExternalTicket.linkedTaskIds must contain at most 25 items.",
                 "maxItems": 25,
                 "type": "array",
                 "items": {
@@ -61501,7 +61501,7 @@ export const clientManifest = {
                 }
               },
               "linkedTaskCount": {
-                "description": "ExternalTicket.linkedTaskCount must be at least 0.",
+                "description": "Total number of tasks linked to this ticket; larger than the length of linkedTaskIds when the list was cut at 25. Omitted by servers that predate it. ExternalTicket.linkedTaskCount must be at least 0.",
                 "type": "integer",
                 "minimum": 0,
                 "maximum": 9007199254740991
@@ -61546,7 +61546,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "Bounded, current snapshot of one provider-owned ticket synced into Bakery: its key/number/URL, normalized content, requirement digest, provider change marker, visibility, and last-observed time. Deduplicates on the provider's immutable ticket identity, independent of a changed URL or reconnected credential. Read via GET /v1/external-tickets/{id}."
           },
-          "description": "Page<ExternalTicket>.items must contain at most 100 items."
+          "description": "ExternalTicket items in this cursor page. Page<ExternalTicket>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -61568,7 +61568,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<ExternalTicket>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<ExternalTicket>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -62448,14 +62448,14 @@ export const clientManifest = {
           "type": "string",
           "minLength": 1,
           "maxLength": 200,
-          "description": "UserProfile.name must contain at most 200 characters."
+          "description": "Canonical display name, 1 to 200 trimmed characters; independent of the name parts. UserProfile.name must contain at least 1 characters. UserProfile.name must contain at most 200 characters."
         },
         "firstName": {
           "anyOf": [
             {
               "type": "string",
               "maxLength": 100,
-              "description": "UserProfile.firstName must contain at most 100 characters."
+              "description": "Optional given name, or null when not set. UserProfile.firstName must contain at most 100 characters."
             },
             {
               "type": "null",
@@ -62469,7 +62469,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 100,
-              "description": "UserProfile.lastName must contain at most 100 characters."
+              "description": "Optional family name, or null when not set; a family name is never required. UserProfile.lastName must contain at most 100 characters."
             },
             {
               "type": "null",
@@ -62483,7 +62483,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 120,
-              "description": "UserProfile.title must contain at most 120 characters."
+              "description": "Optional self-described job title, or null; it grants no role or permission. UserProfile.title must contain at most 120 characters."
             },
             {
               "type": "null",
@@ -62497,7 +62497,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 2048,
-              "description": "UserProfile.image must contain at most 2048 characters."
+              "description": "Optional absolute HTTPS profile image URL without credentials, or null; Bakery never fetches or stores image bytes. UserProfile.image must contain at most 2048 characters."
             },
             {
               "type": "null",
@@ -62510,7 +62510,7 @@ export const clientManifest = {
           "type": "string",
           "minLength": 3,
           "maxLength": 320,
-          "description": "UserProfile.email must contain at most 320 characters."
+          "description": "Sign-in email held by the identity provider; read-only here and changed only through its own verified flow. UserProfile.email must contain at least 3 characters. UserProfile.email must contain at most 320 characters."
         },
         "emailVerified": {
           "type": "boolean",
@@ -62771,7 +62771,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "Installation administrator grant for one human principal; returned only to a live installation administrator."
           },
-          "description": "Page<InstallationAdministrator>.items must contain at most 100 items."
+          "description": "InstallationAdministrator items in this cursor page. Page<InstallationAdministrator>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -62793,7 +62793,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<InstallationAdministrator>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<InstallationAdministrator>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -63096,7 +63096,7 @@ export const clientManifest = {
                   {
                     "type": "string",
                     "maxLength": 64,
-                    "description": "OutputStream.archiveFailure must contain at most 64 characters."
+                    "description": "Bounded archive failure or not-required reason code; no transcript bytes or internal error details. OutputStream.archiveFailure must contain at most 64 characters."
                   },
                   {
                     "type": "null",
@@ -63145,7 +63145,7 @@ export const clientManifest = {
                       "type": "integer",
                       "minimum": 0,
                       "maximum": 63,
-                      "description": "OutputTranscriptSegment.segmentIndex must be at most 63."
+                      "description": "Zero-based segment order within the stream. OutputTranscriptSegment.segmentIndex must be at least 0. OutputTranscriptSegment.segmentIndex must be at most 63."
                     },
                     "firstSequence": {
                       "type": "string",
@@ -63161,12 +63161,12 @@ export const clientManifest = {
                       "type": "integer",
                       "exclusiveMinimum": 0,
                       "maximum": 1048576,
-                      "description": "OutputTranscriptSegment.sizeBytes must be at most 1048576."
+                      "description": "UTF-8 transcript byte length, at most one MiB. OutputTranscriptSegment.sizeBytes must be at most 1048576."
                     },
                     "sha256": {
                       "type": "string",
                       "maxLength": 64,
-                      "description": "OutputTranscriptSegment.sha256 must contain at most 64 characters."
+                      "description": "SHA-256 digest of the exact immutable transcript bytes. OutputTranscriptSegment.sha256 must contain at most 64 characters."
                     },
                     "completeness": {
                       "type": "string",
@@ -63196,10 +63196,10 @@ export const clientManifest = {
                   "additionalProperties": false,
                   "description": "Ordered immutable transcript references for this authorized stream; completeness describes captured output, not job success. Each array item follows this format."
                 },
-                "description": "OutputStream.segments must contain at most 64 items."
+                "description": "Ordered immutable transcript references for this authorized stream; completeness describes captured output, not job success. OutputStream.segments must contain at most 64 items."
               },
               "producers": {
-                "description": "OutputStream.producers must contain at most 64 items.",
+                "description": "Producer bindings in ascending writer generation; each batch's writerGeneration names exactly one. The latest 64 are listed. OutputStream.producers must contain at most 64 items.",
                 "maxItems": 64,
                 "type": "array",
                 "items": {
@@ -63257,14 +63257,14 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "Authorized stream records in stable createdAt then streamId ascending order. Each array item follows this format."
           },
-          "description": "OutputStreamPage.items must contain at most 64 items."
+          "description": "Authorized stream records in stable createdAt then streamId ascending order. OutputStreamPage.items must contain at most 64 items."
         },
         "nextCursor": {
           "anyOf": [
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "OutputStreamPage.nextCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque continuation after the last emitted stream, or null when traversal is complete. OutputStreamPage.nextCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -63278,7 +63278,7 @@ export const clientManifest = {
           "type": "integer",
           "exclusiveMinimum": 0,
           "maximum": 262144,
-          "description": "OutputStreamPage.encodedBytes must be at most 262144."
+          "description": "UTF-8 byte length of this complete JSON response. OutputStreamPage.encodedBytes must be at most 262144."
         }
       },
       "required": [
@@ -63453,7 +63453,7 @@ export const clientManifest = {
                 {
                   "type": "string",
                   "maxLength": 64,
-                  "description": "OutputStream.archiveFailure must contain at most 64 characters."
+                  "description": "Bounded archive failure or not-required reason code; no transcript bytes or internal error details. OutputStream.archiveFailure must contain at most 64 characters."
                 },
                 {
                   "type": "null",
@@ -63502,7 +63502,7 @@ export const clientManifest = {
                     "type": "integer",
                     "minimum": 0,
                     "maximum": 63,
-                    "description": "OutputTranscriptSegment.segmentIndex must be at most 63."
+                    "description": "Zero-based segment order within the stream. OutputTranscriptSegment.segmentIndex must be at least 0. OutputTranscriptSegment.segmentIndex must be at most 63."
                   },
                   "firstSequence": {
                     "type": "string",
@@ -63518,12 +63518,12 @@ export const clientManifest = {
                     "type": "integer",
                     "exclusiveMinimum": 0,
                     "maximum": 1048576,
-                    "description": "OutputTranscriptSegment.sizeBytes must be at most 1048576."
+                    "description": "UTF-8 transcript byte length, at most one MiB. OutputTranscriptSegment.sizeBytes must be at most 1048576."
                   },
                   "sha256": {
                     "type": "string",
                     "maxLength": 64,
-                    "description": "OutputTranscriptSegment.sha256 must contain at most 64 characters."
+                    "description": "SHA-256 digest of the exact immutable transcript bytes. OutputTranscriptSegment.sha256 must contain at most 64 characters."
                   },
                   "completeness": {
                     "type": "string",
@@ -63553,10 +63553,10 @@ export const clientManifest = {
                 "additionalProperties": false,
                 "description": "Ordered immutable transcript references for this authorized stream; completeness describes captured output, not job success. Each array item follows this format."
               },
-              "description": "OutputStream.segments must contain at most 64 items."
+              "description": "Ordered immutable transcript references for this authorized stream; completeness describes captured output, not job success. OutputStream.segments must contain at most 64 items."
             },
             "producers": {
-              "description": "OutputStream.producers must contain at most 64 items.",
+              "description": "Producer bindings in ascending writer generation; each batch's writerGeneration names exactly one. The latest 64 are listed. OutputStream.producers must contain at most 64 items.",
               "maxItems": 64,
               "type": "array",
               "items": {
@@ -63729,12 +63729,12 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "Contiguous immutable committed batches strictly after the exclusive cursor. Each array item follows this format."
           },
-          "description": "OutputReadPage.batches must contain at most 64 items."
+          "description": "Contiguous immutable committed batches strictly after the exclusive cursor. OutputReadPage.batches must contain at most 64 items."
         },
         "cursor": {
           "type": "string",
           "maxLength": 65536,
-          "description": "OutputReadPage.cursor must contain at most 512 UTF-8 bytes.",
+          "description": "Opaque exclusive continuation after the last emitted batch or at the reset recovery position; clients never construct it. OutputReadPage.cursor must contain at most 512 UTF-8 bytes.",
           "x-utf8-max-bytes": 512
         },
         "highwater": {
@@ -63774,7 +63774,7 @@ export const clientManifest = {
           "type": "integer",
           "exclusiveMinimum": 0,
           "maximum": 262144,
-          "description": "OutputReadPage.encodedBytes must be at most 262144."
+          "description": "UTF-8 byte length of this complete JSON response. OutputReadPage.encodedBytes must be at most 262144."
         }
       },
       "required": [
@@ -63913,7 +63913,7 @@ export const clientManifest = {
         "text": {
           "type": "string",
           "maxLength": 65536,
-          "description": "Draft.text must contain at most 1048576 UTF-8 bytes.",
+          "description": "Complete committed body text, bounded to 1048576 UTF-8 bytes. Draft.text must contain at most 1048576 UTF-8 bytes.",
           "x-utf8-max-bytes": 1048576
         },
         "receipts": {
@@ -63994,7 +63994,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "Retained authenticated mutation receipts ordered by server sequence; at most 100 are returned. Each array item follows this format."
           },
-          "description": "Draft.receipts must contain at most 100 items."
+          "description": "Retained authenticated mutation receipts ordered by server sequence; at most 100 are returned. Draft.receipts must contain at most 100 items."
         },
         "canPublish": {
           "type": "boolean",
@@ -64051,7 +64051,7 @@ export const clientManifest = {
         "text": {
           "type": "string",
           "maxLength": 65536,
-          "description": "DraftCheckpoint.text must contain at most 1048576 UTF-8 bytes.",
+          "description": "Complete checkpoint body text, bounded to 1048576 UTF-8 bytes. DraftCheckpoint.text must contain at most 1048576 UTF-8 bytes.",
           "x-utf8-max-bytes": 1048576
         }
       },
@@ -64108,7 +64108,7 @@ export const clientManifest = {
         "text": {
           "type": "string",
           "maxLength": 65536,
-          "description": "DraftSlice.text must contain at most 65536 UTF-8 bytes.",
+          "description": "Exact source-checkpoint text between the returned UTF-16 offsets. DraftSlice.text must contain at most 65536 UTF-8 bytes.",
           "x-utf8-max-bytes": 65536
         },
         "textDigest": {
@@ -64118,12 +64118,12 @@ export const clientManifest = {
         },
         "startCursor": {
           "type": "string",
-          "description": "DraftSlice.startCursor must contain at most 1024 UTF-8 bytes.",
+          "description": "Opaque encoded Loro cursor resolving to startUtf16 in the source checkpoint. DraftSlice.startCursor must contain at most 1024 UTF-8 bytes.",
           "x-utf8-max-bytes": 1024
         },
         "endCursor": {
           "type": "string",
-          "description": "DraftSlice.endCursor must contain at most 1024 UTF-8 bytes.",
+          "description": "Opaque encoded Loro cursor resolving to endUtf16 in the source checkpoint. DraftSlice.endCursor must contain at most 1024 UTF-8 bytes.",
           "x-utf8-max-bytes": 1024
         }
       },
@@ -64200,7 +64200,7 @@ export const clientManifest = {
                   "additionalProperties": false,
                   "description": "Ordered steps the preset runs. Each array item follows this format."
                 },
-                "description": "WorkflowPreset.steps must contain at most 100 items."
+                "description": "Ordered steps the preset runs. WorkflowPreset.steps must contain at most 100 items."
               },
               "defaultBudgetLimitUsd": {
                 "type": "string",
@@ -64243,7 +64243,7 @@ export const clientManifest = {
                           ],
                           "description": "Every admission rule currently failing; empty when status is ready. review_agent_unavailable and repair_agent_unavailable name a missing, disabled, unbilled, unpriced or capability-denied agent for the independent review or repair step of a review and repair preset. Each array item follows this format."
                         },
-                        "description": "WorkflowPresetAvailability.reasons must contain at most 14 items."
+                        "description": "Every admission rule currently failing; empty when status is ready. review_agent_unavailable and repair_agent_unavailable name a missing, disabled, unbilled, unpriced or capability-denied agent for the independent review or repair step of a review and repair preset. WorkflowPresetAvailability.reasons must contain at most 14 items."
                       },
                       "minimumBudgetLimitUsd": {
                         "description": "WorkflowPresetAvailability.minimumBudgetLimitUsd may be null in this transport value.",
@@ -64287,7 +64287,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "One code-owned workflow preset: its pinned revision and digest, ordered steps, default run budget, and, when a repository was supplied, its availability for that repository."
           },
-          "description": "Page<WorkflowPreset>.items must contain at most 100 items."
+          "description": "WorkflowPreset items in this cursor page. Page<WorkflowPreset>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -64309,7 +64309,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<WorkflowPreset>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<WorkflowPreset>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -64903,7 +64903,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "Safe projection of a resource role binding: who holds which system role on which application or repository, and who granted it."
           },
-          "description": "Page<AccessBinding>.items must contain at most 100 items."
+          "description": "AccessBinding items in this cursor page. Page<AccessBinding>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -64925,7 +64925,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<AccessBinding>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<AccessBinding>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -65083,7 +65083,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "Safe projection of an organization-bound access token: identity, owner, scopes and lifecycle, never the secret or its digest."
           },
-          "description": "Page<AccessToken>.items must contain at most 100 items."
+          "description": "AccessToken items in this cursor page. Page<AccessToken>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -65105,7 +65105,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<AccessToken>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<AccessToken>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -65311,7 +65311,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "Safe projection of a custom organization role: identity, permission set and holder count."
           },
-          "description": "Page<OrganizationRole>.items must contain at most 100 items."
+          "description": "OrganizationRole items in this cursor page. Page<OrganizationRole>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -65333,7 +65333,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<OrganizationRole>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<OrganizationRole>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -66540,7 +66540,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "Immutable plan revision proposed by the coordinator for a task, identified by a SHA-256 digest over the task id, revision number and body."
           },
-          "description": "Page<PlanRevision>.items must contain at most 100 items."
+          "description": "PlanRevision items in this cursor page. Page<PlanRevision>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -66562,7 +66562,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<PlanRevision>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<PlanRevision>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -67042,7 +67042,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "Typed approval request bound to an exact subject digest, stage scope, policy digest and expiry; it authorizes one action once and never carries forward to another revision."
           },
-          "description": "Page<Approval>.items must contain at most 100 items."
+          "description": "Approval items in this cursor page. Page<Approval>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -67064,7 +67064,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<Approval>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<Approval>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -68298,7 +68298,7 @@ export const clientManifest = {
         "publishedByName": {
           "type": "string",
           "maxLength": 65536,
-          "description": "DraftPublication.publishedByName must contain at most 1024 UTF-8 bytes.",
+          "description": "Trusted display name of publishedById from the principal record. DraftPublication.publishedByName must contain at most 1024 UTF-8 bytes.",
           "x-utf8-max-bytes": 1024
         },
         "actorKind": {
@@ -68373,13 +68373,13 @@ export const clientManifest = {
         "expectedText": {
           "type": "string",
           "maxLength": 65536,
-          "description": "DraftSuggestion.expectedText must contain at most 65536 UTF-8 bytes.",
+          "description": "The text the suggestion replaces, as the requester read it. DraftSuggestion.expectedText must contain at most 65536 UTF-8 bytes.",
           "x-utf8-max-bytes": 65536
         },
         "replacement": {
           "type": "string",
           "maxLength": 65536,
-          "description": "DraftSuggestion.replacement must contain at most 65536 UTF-8 bytes.",
+          "description": "The proposed text. DraftSuggestion.replacement must contain at most 65536 UTF-8 bytes.",
           "x-utf8-max-bytes": 65536
         },
         "state": {
@@ -68419,7 +68419,7 @@ export const clientManifest = {
         "requestedByName": {
           "type": "string",
           "maxLength": 65536,
-          "description": "DraftSuggestion.requestedByName must contain at most 1024 UTF-8 bytes.",
+          "description": "Trusted display name of requestedById from the principal record. DraftSuggestion.requestedByName must contain at most 1024 UTF-8 bytes.",
           "x-utf8-max-bytes": 1024
         },
         "actorKind": {
@@ -68435,7 +68435,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "DraftSuggestion.agentName must contain at most 1024 UTF-8 bytes.",
+              "description": "Name of the access token the agent presented, as the agent label; null for a person or a service identity without a token. DraftSuggestion.agentName must contain at most 1024 UTF-8 bytes.",
               "x-utf8-max-bytes": 1024
             },
             {
@@ -68470,7 +68470,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "DraftSuggestion.decidedByName must contain at most 1024 UTF-8 bytes.",
+              "description": "Trusted display name of decidedById; null while waiting. DraftSuggestion.decidedByName must contain at most 1024 UTF-8 bytes.",
               "x-utf8-max-bytes": 1024
             },
             {
@@ -68586,13 +68586,13 @@ export const clientManifest = {
               "expectedText": {
                 "type": "string",
                 "maxLength": 65536,
-                "description": "DraftSuggestion.expectedText must contain at most 65536 UTF-8 bytes.",
+                "description": "The text the suggestion replaces, as the requester read it. DraftSuggestion.expectedText must contain at most 65536 UTF-8 bytes.",
                 "x-utf8-max-bytes": 65536
               },
               "replacement": {
                 "type": "string",
                 "maxLength": 65536,
-                "description": "DraftSuggestion.replacement must contain at most 65536 UTF-8 bytes.",
+                "description": "The proposed text. DraftSuggestion.replacement must contain at most 65536 UTF-8 bytes.",
                 "x-utf8-max-bytes": 65536
               },
               "state": {
@@ -68632,7 +68632,7 @@ export const clientManifest = {
               "requestedByName": {
                 "type": "string",
                 "maxLength": 65536,
-                "description": "DraftSuggestion.requestedByName must contain at most 1024 UTF-8 bytes.",
+                "description": "Trusted display name of requestedById from the principal record. DraftSuggestion.requestedByName must contain at most 1024 UTF-8 bytes.",
                 "x-utf8-max-bytes": 1024
               },
               "actorKind": {
@@ -68648,7 +68648,7 @@ export const clientManifest = {
                   {
                     "type": "string",
                     "maxLength": 65536,
-                    "description": "DraftSuggestion.agentName must contain at most 1024 UTF-8 bytes.",
+                    "description": "Name of the access token the agent presented, as the agent label; null for a person or a service identity without a token. DraftSuggestion.agentName must contain at most 1024 UTF-8 bytes.",
                     "x-utf8-max-bytes": 1024
                   },
                   {
@@ -68683,7 +68683,7 @@ export const clientManifest = {
                   {
                     "type": "string",
                     "maxLength": 65536,
-                    "description": "DraftSuggestion.decidedByName must contain at most 1024 UTF-8 bytes.",
+                    "description": "Trusted display name of decidedById; null while waiting. DraftSuggestion.decidedByName must contain at most 1024 UTF-8 bytes.",
                     "x-utf8-max-bytes": 1024
                   },
                   {
@@ -68754,7 +68754,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "One proposed replacement in a collaborative draft: what it replaces, the proposed text, who asked and from which request, and whether it is waiting, accepted, rejected or no longer fits. Accepting applies it through the same guarded edit as drafts.edit."
           },
-          "description": "Page<DraftSuggestion>.items must contain at most 100 items."
+          "description": "DraftSuggestion items in this cursor page. Page<DraftSuggestion>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -68776,7 +68776,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<DraftSuggestion>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<DraftSuggestion>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -68854,7 +68854,7 @@ export const clientManifest = {
         "authorName": {
           "type": "string",
           "maxLength": 65536,
-          "description": "DraftComment.authorName must contain at most 1024 UTF-8 bytes.",
+          "description": "Trusted display name of authorId from the principal record. DraftComment.authorName must contain at most 1024 UTF-8 bytes.",
           "x-utf8-max-bytes": 1024
         },
         "actorKind": {
@@ -68870,7 +68870,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "DraftComment.agentName must contain at most 1024 UTF-8 bytes.",
+              "description": "Name of the access token the agent presented; null for a person or a service identity without a token. DraftComment.agentName must contain at most 1024 UTF-8 bytes.",
               "x-utf8-max-bytes": 1024
             },
             {
@@ -68885,7 +68885,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "DraftComment.body must contain at most 10240 UTF-8 bytes.",
+              "description": "Comment text; null once the comment is deleted. DraftComment.body must contain at most 10240 UTF-8 bytes.",
               "x-utf8-max-bytes": 10240
             },
             {
@@ -68926,7 +68926,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "DraftComment.coordinateEncoding must contain at most 64 UTF-8 bytes.",
+              "description": "Version of the cursor encoding and offset unit the anchor was made with, such as loro-1.16-cursor-utf16; null for a reply. DraftComment.coordinateEncoding must contain at most 64 UTF-8 bytes.",
               "x-utf8-max-bytes": 64
             },
             {
@@ -68941,7 +68941,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "DraftComment.quote must contain at most 65536 UTF-8 bytes.",
+              "description": "Text the commenter selected when the root was created; null for a reply and once the comment is deleted. DraftComment.quote must contain at most 65536 UTF-8 bytes.",
               "x-utf8-max-bytes": 65536
             },
             {
@@ -69200,7 +69200,7 @@ export const clientManifest = {
               "authorName": {
                 "type": "string",
                 "maxLength": 65536,
-                "description": "DraftComment.authorName must contain at most 1024 UTF-8 bytes.",
+                "description": "Trusted display name of authorId from the principal record. DraftComment.authorName must contain at most 1024 UTF-8 bytes.",
                 "x-utf8-max-bytes": 1024
               },
               "actorKind": {
@@ -69216,7 +69216,7 @@ export const clientManifest = {
                   {
                     "type": "string",
                     "maxLength": 65536,
-                    "description": "DraftComment.agentName must contain at most 1024 UTF-8 bytes.",
+                    "description": "Name of the access token the agent presented; null for a person or a service identity without a token. DraftComment.agentName must contain at most 1024 UTF-8 bytes.",
                     "x-utf8-max-bytes": 1024
                   },
                   {
@@ -69231,7 +69231,7 @@ export const clientManifest = {
                   {
                     "type": "string",
                     "maxLength": 65536,
-                    "description": "DraftComment.body must contain at most 10240 UTF-8 bytes.",
+                    "description": "Comment text; null once the comment is deleted. DraftComment.body must contain at most 10240 UTF-8 bytes.",
                     "x-utf8-max-bytes": 10240
                   },
                   {
@@ -69272,7 +69272,7 @@ export const clientManifest = {
                   {
                     "type": "string",
                     "maxLength": 65536,
-                    "description": "DraftComment.coordinateEncoding must contain at most 64 UTF-8 bytes.",
+                    "description": "Version of the cursor encoding and offset unit the anchor was made with, such as loro-1.16-cursor-utf16; null for a reply. DraftComment.coordinateEncoding must contain at most 64 UTF-8 bytes.",
                     "x-utf8-max-bytes": 64
                   },
                   {
@@ -69287,7 +69287,7 @@ export const clientManifest = {
                   {
                     "type": "string",
                     "maxLength": 65536,
-                    "description": "DraftComment.quote must contain at most 65536 UTF-8 bytes.",
+                    "description": "Text the commenter selected when the root was created; null for a reply and once the comment is deleted. DraftComment.quote must contain at most 65536 UTF-8 bytes.",
                     "x-utf8-max-bytes": 65536
                   },
                   {
@@ -69494,7 +69494,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "One comment on a collaborative draft: an anchored root thread or a flat reply. A root carries its relative Loro cursors, quote and creation checkpoint, and reads resolve them against the current draft. Body and resolution are stored apart from the document text."
           },
-          "description": "Page<DraftComment>.items must contain at most 100 items."
+          "description": "DraftComment items in this cursor page. Page<DraftComment>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -69516,7 +69516,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<DraftComment>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<DraftComment>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -69627,7 +69627,7 @@ export const clientManifest = {
                 "type": "integer",
                 "minimum": 1,
                 "maximum": 9007199254740991,
-                "description": "DraftReferenceComment.version must be at least 1."
+                "description": "The comment's optimistic-concurrency version at capture. DraftReferenceComment.version must be at least 1."
               },
               "authorId": {
                 "type": "string",
@@ -69646,7 +69646,7 @@ export const clientManifest = {
               "body": {
                 "type": "string",
                 "maxLength": 65536,
-                "description": "DraftReferenceComment.body must contain at most 10240 UTF-8 bytes.",
+                "description": "Comment text exactly as it was at capture; later edits of the live comment do not change it. DraftReferenceComment.body must contain at most 10240 UTF-8 bytes.",
                 "x-utf8-max-bytes": 10240
               },
               "bodyDigest": {
@@ -69655,23 +69655,23 @@ export const clientManifest = {
                 "description": "SHA-256 of the captured body's UTF-8 bytes."
               },
               "startCursor": {
-                "description": "DraftReferenceComment.startCursor must contain at most 1024 UTF-8 bytes.",
+                "description": "Encoded Loro cursor of the root's range start at capture; absent for a reply. DraftReferenceComment.startCursor must contain at most 1024 UTF-8 bytes.",
                 "type": "string",
                 "x-utf8-max-bytes": 1024
               },
               "endCursor": {
-                "description": "DraftReferenceComment.endCursor must contain at most 1024 UTF-8 bytes.",
+                "description": "Encoded Loro cursor of the root's range end at capture; absent for a reply. DraftReferenceComment.endCursor must contain at most 1024 UTF-8 bytes.",
                 "type": "string",
                 "x-utf8-max-bytes": 1024
               },
               "coordinateEncoding": {
-                "description": "DraftReferenceComment.coordinateEncoding must contain at most 64 UTF-8 bytes.",
+                "description": "Cursor encoding and offset unit of the root's anchor, such as loro-1.16-cursor-utf16; absent for a reply. DraftReferenceComment.coordinateEncoding must contain at most 64 UTF-8 bytes.",
                 "type": "string",
                 "maxLength": 65536,
                 "x-utf8-max-bytes": 64
               },
               "quote": {
-                "description": "DraftReferenceComment.quote must contain at most 65536 UTF-8 bytes.",
+                "description": "Text the commenter selected for the root; absent for a reply. DraftReferenceComment.quote must contain at most 65536 UTF-8 bytes.",
                 "type": "string",
                 "maxLength": 65536,
                 "x-utf8-max-bytes": 65536
@@ -70106,14 +70106,14 @@ export const clientManifest = {
                 "displayName": {
                   "type": "string",
                   "maxLength": 200,
-                  "description": "NotificationActor.displayName must contain at most 200 characters."
+                  "description": "The person's current display name, or a neutral stand-in when the account is gone; never an email address. NotificationActor.displayName must contain at most 200 characters."
                 },
                 "avatarUrl": {
                   "anyOf": [
                     {
                       "type": "string",
                       "maxLength": 2048,
-                      "description": "NotificationActor.avatarUrl must contain at most 2048 characters."
+                      "description": "Absolute HTTPS URL of the person's avatar, or null to draw initials. NotificationActor.avatarUrl must contain at most 2048 characters."
                     },
                     {
                       "type": "null",
@@ -70146,7 +70146,7 @@ export const clientManifest = {
                 {
                   "type": "string",
                   "maxLength": 500,
-                  "description": "NotificationDestination.title must contain at most 500 characters."
+                  "description": "The destination's own title for the row's second line, or null when it is unavailable or untitled; a protected title is never sent for a target the recipient cannot reach. NotificationDestination.title must contain at most 500 characters."
                 },
                 {
                   "type": "null",
@@ -70339,14 +70339,14 @@ export const clientManifest = {
                       "displayName": {
                         "type": "string",
                         "maxLength": 200,
-                        "description": "NotificationActor.displayName must contain at most 200 characters."
+                        "description": "The person's current display name, or a neutral stand-in when the account is gone; never an email address. NotificationActor.displayName must contain at most 200 characters."
                       },
                       "avatarUrl": {
                         "anyOf": [
                           {
                             "type": "string",
                             "maxLength": 2048,
-                            "description": "NotificationActor.avatarUrl must contain at most 2048 characters."
+                            "description": "Absolute HTTPS URL of the person's avatar, or null to draw initials. NotificationActor.avatarUrl must contain at most 2048 characters."
                           },
                           {
                             "type": "null",
@@ -70379,7 +70379,7 @@ export const clientManifest = {
                       {
                         "type": "string",
                         "maxLength": 500,
-                        "description": "NotificationDestination.title must contain at most 500 characters."
+                        "description": "The destination's own title for the row's second line, or null when it is unavailable or untitled; a protected title is never sent for a target the recipient cannot reach. NotificationDestination.title must contain at most 500 characters."
                       },
                       {
                         "type": "null",
@@ -70437,7 +70437,7 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "One item in a person's notification inbox: a stable kind, a typed destination that is reauthorized on open, a safe destination title, read state and a revision."
           },
-          "description": "Page<Notification>.items must contain at most 100 items."
+          "description": "Notification items in this cursor page. Page<Notification>.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
@@ -70459,7 +70459,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Page<Notification>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<Notification>.prevCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -70501,7 +70501,7 @@ export const clientManifest = {
               "type": "integer",
               "minimum": 0,
               "maximum": 9007199254740991,
-              "description": "NotificationCount.unread must be at least 0."
+              "description": "The authoritative number of unread items for this recipient in this organization, or null when no count is available yet; null is never drawn as zero. NotificationCount.unread must be at least 0."
             },
             {
               "type": "null",
@@ -70563,7 +70563,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 2048,
-              "description": "NotificationTarget.path must contain at most 2048 characters."
+              "description": "A validated relative internal route to open when available, or null when the destination is gone or no longer accessible. NotificationTarget.path must contain at most 2048 characters."
             },
             {
               "type": "null",
@@ -70577,7 +70577,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 200,
-              "description": "NotificationTarget.anchor must contain at most 200 characters."
+              "description": "Optional exact anchor inside the destination to scroll to, or null. NotificationTarget.anchor must contain at most 200 characters."
             },
             {
               "type": "null",
@@ -70604,13 +70604,13 @@ export const clientManifest = {
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991,
-          "description": "NotificationMarkAllReadResult.marked must be at least 0."
+          "description": "How many items this call actually marked read, for the toast's count. NotificationMarkAllReadResult.marked must be at least 0."
         },
         "remainingUnread": {
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991,
-          "description": "NotificationMarkAllReadResult.remainingUnread must be at least 0."
+          "description": "How many items are still unread for the recipient after the call, which is above zero when arrivals landed after the cutoff. NotificationMarkAllReadResult.remainingUnread must be at least 0."
         },
         "revision": {
           "type": "integer",
@@ -71337,14 +71337,14 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "Authorized agent sessions in stable createdAt then id ascending order. Each array item follows this format."
           },
-          "description": "AgentSessionPage.items must contain at most 100 items."
+          "description": "Authorized agent sessions in stable createdAt then id ascending order. AgentSessionPage.items must contain at most 100 items."
         },
         "nextCursor": {
           "anyOf": [
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "AgentSessionPage.nextCursor must contain at most 512 UTF-8 bytes.",
+              "description": "Opaque continuation after the last emitted session, or null when traversal is complete. AgentSessionPage.nextCursor must contain at most 512 UTF-8 bytes.",
               "x-utf8-max-bytes": 512
             },
             {
@@ -71594,13 +71594,13 @@ export const clientManifest = {
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991,
-          "description": "NotificationUndoMarkAllReadResult.restored must be at least 0."
+          "description": "How many items became unread again. NotificationUndoMarkAllReadResult.restored must be at least 0."
         },
         "unread": {
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991,
-          "description": "NotificationUndoMarkAllReadResult.unread must be at least 0."
+          "description": "The unread total after the undo. NotificationUndoMarkAllReadResult.unread must be at least 0."
         },
         "revision": {
           "type": "integer",
@@ -71737,13 +71737,13 @@ export const clientManifest = {
                 "type": "string",
                 "minLength": 1,
                 "maxLength": 40,
-                "description": "ScopeProfileCheckCommand.id must contain at most 40 characters."
+                "description": "Stable lowercase kebab-case identifier of the check, unique within the profile. ScopeProfileCheckCommand.id must contain at least 1 characters. ScopeProfileCheckCommand.id must contain at most 40 characters."
               },
               "command": {
                 "type": "string",
                 "minLength": 1,
                 "maxLength": 2000,
-                "description": "ScopeProfileCheckCommand.command must contain at most 2000 characters."
+                "description": "Shell command text the check runs. The profile owns the policy; the kernel never interprets the text. ScopeProfileCheckCommand.command must contain at least 1 characters. ScopeProfileCheckCommand.command must contain at most 2000 characters."
               }
             },
             "required": [
