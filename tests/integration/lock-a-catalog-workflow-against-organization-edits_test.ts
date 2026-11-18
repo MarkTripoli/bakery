@@ -110,10 +110,11 @@ Deno.test("an organization cannot edit, draft or publish a catalog definition, a
       assertEquals(response.status, 409);
       const problem = await response.json() as {
         code: string;
+        reason?: string;
         params?: { reason?: string };
       };
       assertEquals(problem.code, "STATE_CONFLICT");
-      assertEquals(problem.params?.reason, "workflow_locked");
+      assertEquals(problem.reason ?? problem.params?.reason, "workflow_locked");
     };
     await refused(
       await send(
@@ -144,6 +145,19 @@ Deno.test("an organization cannot edit, draft or publish a catalog definition, a
         { "If-Match": '"1"' },
       ),
     );
+
+    // The slug is not the lock in either direction: a person's own definition
+    // whose slug merely starts with "preset:" is theirs to edit.
+    const typed = await create("typed-by-a-person");
+    await owner`update bakery.workflow_definitions set slug = 'preset:typed-by-a-person'
+      where id = ${typed.id}`;
+    const typedEdit = await send(
+      "PATCH",
+      `/v1/workflows/${typed.id}`,
+      { name: "Still mine" },
+      { "If-Match": `"${typed.version}"` },
+    );
+    assertEquals(typedEdit.status, 200);
 
     // Nothing was written, and reading it is still allowed.
     const after =
