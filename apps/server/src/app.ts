@@ -18,6 +18,10 @@ import {
   type GitHubAppClient,
   type InstallationTokenBroker,
 } from "./modules/integrations/index.ts";
+import { createProviderRequestPort } from "./modules/integrations/credential-port.ts";
+import { readAppCredentials } from "./modules/integrations/callbacks.ts";
+import { loadSnapshot } from "./modules/catalog/authority-snapshot-postgres.ts";
+import { withPgTransaction } from "./platform/database.ts";
 import { createWorkflowsRoutes } from "./modules/workflows/index.ts";
 import { createAutomationsRoutes } from "./modules/workflows/automations/routes.ts";
 import {
@@ -213,6 +217,25 @@ export function createApp(options: {
       github: githubAppClient,
       secretsKey: options.config.secretsKey,
     });
+  // The provider request port the invoke door sends through. Assembled here, once
+  // per process, so the door cannot be wired without a credential source: the
+  // store and the sender are created together or not at all.
+  const providerRequests = createProviderRequestPort({
+    database: options.pgDatabase,
+    broker: installationTokenBroker,
+    readAppCredentials,
+    generationOf: (connectionId) =>
+      installationTokenBroker.generation(connectionId),
+    registry: integrationRegistry,
+    fetch: globalThis.fetch,
+    snapshotPort: {
+      load: (key) =>
+        withPgTransaction(
+          options.pgDatabase,
+          (transaction) => loadSnapshot(transaction, integrationRegistry, key),
+        ),
+    },
+  });
   const integrations = {
     github: githubAppClient,
     secretsKey: options.config.secretsKey,
@@ -690,6 +713,7 @@ export function createApp(options: {
       // the invoke door. Every consumer now reads the same set of deployed
       // providers instead of re-deriving one.
       integrationRegistry,
+      providerRequests,
     }),
   );
   app.route(

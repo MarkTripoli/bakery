@@ -305,3 +305,26 @@ Deno.test("createBroker has a production caller", async () => {
     "the production port must not quietly fall back to denying every request",
   );
 });
+
+Deno.test("the assembled port reaches the invoke door", async () => {
+  // The store existing is not enough: the door must receive it. This is the
+  // wiring that was missing - the door defaulted to denying every send, so a
+  // correct credential store would still have changed nothing.
+  const app = await Deno.readTextFile(
+    new URL("../../apps/server/src/app.ts", import.meta.url),
+  );
+  assert(
+    /const providerRequests = createProviderRequestPort\(\{/.test(app),
+    "app.ts must assemble the provider request port once per process",
+  );
+  assert(
+    /createIntegrationsRoutes\(\{[\s\S]{0,900}?providerRequests,/.test(app),
+    "the integrations routes must be handed the assembled port, not the deny-all default",
+  );
+  assert(
+    // Whitespace-tolerant: the assertion is about the wiring, not the wrapping.
+    /generationOf:[\s\S]{0,120}?installationTokenBroker\.generation\(connectionId\)/
+      .test(app),
+    "the generation must come from the process broker, so an edit mid-request refuses",
+  );
+});
