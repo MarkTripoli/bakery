@@ -183,7 +183,7 @@ Deno.test("what the preload cannot see is swept from the run's own temp root, re
   assertEquals(lenient.left, []);
 });
 
-Deno.test("the root tool sweeps a lane root that is a symlink as a link, and never touches what it points at", async () => {
+Deno.test("a swapped lane root is reported, as a link and never followed, and is not a clean sweep (#268)", async () => {
   const base = await Deno.makeTempDir({ prefix: "bkl-" });
   try {
     const outside = `${base}/outside`;
@@ -216,11 +216,13 @@ Deno.test("the root tool sweeps a lane root that is a symlink as a link, and nev
       stderr: "piped",
     }).output();
     assertEquals(run.code, 0, new TextDecoder().decode(run.stderr));
-    assertEquals(
-      JSON.parse(new TextDecoder().decode(run.stdout)).leaked,
-      0,
-      "the link's target was counted as leaked",
-    );
+    const report = JSON.parse(new TextDecoder().decode(run.stdout));
+    // The swap is reported, not a clean 0: the link was there, and says where
+    // it pointed. What it pointed at is not counted, listed or swept.
+    assertEquals(report.leaked, 1, "a swapped lane root reported as clean");
+    assertEquals(report.anomaly, "root_symlink");
+    assertEquals(report.anomalyTarget, outside);
+    assertEquals(report.prefixes, {}, "the link's target was listed");
     assertEquals(
       entriesOf(base),
       ["outside"],
@@ -237,6 +239,77 @@ Deno.test("the root tool sweeps a lane root that is a symlink as a link, and nev
       0o755,
       "a directory below the target was changed",
     );
+  } finally {
+    removeTreeSync(base);
+  }
+});
+
+/** Runs the root tool's `sweep` over `root` with a write grant on `base` only. */
+async function sweepRoot(base: string, root: string) {
+  const run = await new Deno.Command(Deno.execPath(), {
+    args: [
+      "run",
+      "--allow-read",
+      `--allow-write=${base}`,
+      "scripts/ci/test-temp-root.ts",
+      "sweep",
+      base,
+      root,
+    ],
+    stdin: "null",
+    stdout: "piped",
+    stderr: "piped",
+  }).output();
+  return {
+    code: run.code,
+    stderr: new TextDecoder().decode(run.stderr),
+    report: JSON.parse(new TextDecoder().decode(run.stdout) || "null"),
+  };
+}
+
+Deno.test("a lane root that is a file or is gone is reported by kind, not swept as clean (#268)", async () => {
+  const base = await Deno.makeTempDir({ prefix: "bkl-" });
+  try {
+    const file = `${base}/bakery-lane-file`;
+    await Deno.writeTextFile(file, "not a directory");
+    const asFile = await sweepRoot(base, file);
+    assertEquals(asFile.code, 0, asFile.stderr);
+    assertEquals(asFile.report.anomaly, "root_other");
+    assertEquals(asFile.report.leaked, 1);
+    assertEquals(entriesOf(base), [], "the file was left in place");
+    const gone = await sweepRoot(base, `${base}/bakery-lane-gone`);
+    assertEquals(gone.code, 0, gone.stderr);
+    assertEquals(gone.report.anomaly, "root_missing");
+    assertEquals(gone.report.leaked, 0, "nothing was there to leak");
+  } finally {
+    removeTreeSync(base);
+  }
+});
+
+Deno.test("a sweep whose removal fails still prints its report and says why (#268)", async () => {
+  const base = await Deno.makeTempDir({ prefix: "bkl-" });
+  try {
+    const root = `${base}/bakery-lane-stuck`;
+    await Deno.mkdir(root);
+    await Deno.writeTextFile(`${root}/leftover`, "x");
+    // A directory that cannot be written to refuses the removal of what is in
+    // it, which is how a failing removal looks to the tool.
+    await Deno.chmod(base, 0o500);
+    let swept;
+    try {
+      swept = await sweepRoot(base, root);
+    } finally {
+      await Deno.chmod(base, 0o700);
+    }
+    assertEquals(swept.code, 0, swept.stderr);
+    assertEquals(swept.report.leaked, 1, "the report is lost with the removal");
+    assertEquals(
+      typeof swept.report.removeError,
+      "string",
+      "the removal failure is not reported",
+    );
+    // The contents went; the root itself could not be unlinked from `base`.
+    assertEquals(Deno.statSync(root).isDirectory, true, "the root is gone");
   } finally {
     removeTreeSync(base);
   }
