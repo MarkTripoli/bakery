@@ -203,6 +203,9 @@ export const requestTemplateSchema = z.strictObject({
   method: z.enum(["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"]).describe(
     "HTTP method the host broker sends; the integration cannot choose another at call time.",
   ),
+  // The description is on the inner enum as well as the wrapper: the audit
+  // walks both nodes, and `.default()` returns a new node whose inner schema
+  // keeps no description on its own.
   kind: z.enum(["rest", "graphql"]).describe(
     "Request kind: rest is a path-and-query request, graphql is a POST whose body is a query document on the provider's single endpoint.",
   ).default("rest").describe(
