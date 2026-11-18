@@ -44,9 +44,10 @@ export type NotificationBellProps =
     /**
      * Lets a caller own the interactive control instead of the bell's own
      * button. It receives the drawn face and returns the control that wraps
-     * it, so a popover can supply its own trigger button. The bell keeps the
-     * wrapper and the polite live region either way, and the caller is
-     * responsible for giving its control the same accessible name.
+     * it, so a popover can supply its own trigger button. The caller owns the
+     * layout, so the bell does not add its own wrapper around the control; the
+     * bell keeps the polite live region, and the caller is responsible for
+     * giving its control the same accessible name.
      */
     readonly control?: (face: ReactNode) => ReactNode;
   };
