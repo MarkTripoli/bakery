@@ -771,7 +771,7 @@ Deno.test("a second run of the same event is a new attempt, not a new delivery",
   await ensureMigrated();
   try {
     await seed(admin);
-    const run = () =>
+    const run = (options?: { retryExisting?: boolean }) =>
       exportSourceEvent(
         {
           database: app,
@@ -788,10 +788,14 @@ Deno.test("a second run of the same event is a new attempt, not a new delivery",
           sourceResourceId: resourceId,
           payload: '{"event":"issue.opened"}',
         },
+        options,
       );
 
     await run();
-    await run();
+    // A second pass is a retry, and a retry asks for it explicitly: the sweep
+    // otherwise offers an event once, so re-reading the same completed route
+    // cannot export it again.
+    await run({ retryExisting: true });
 
     // Retrying is possible at all only because 0191 keys the unique index on
     // (identity, attempt): the delivery identity is stable across attempts, so a
@@ -888,6 +892,51 @@ Deno.test("the worker does not send to a private address either", async () => {
     assertEquals(transport.sent, 0);
     assertEquals(await deliveryRows(app), 0);
     assertEquals(Object.keys(result.reasons), ["resolves_to_private_address"]);
+  } finally {
+    await cleanup(admin);
+    await admin.end();
+    await app.end();
+  }
+});
+
+Deno.test("the sweep does not export the same event twice", async () => {
+  const admin = openPgDatabase(adminUrl);
+  const app = openPgDatabase(appUrl);
+  await ensureMigrated();
+  try {
+    await seed(admin);
+
+    // The worker reads completed intake routes on a cron, so the same route is
+    // seen on every pass. Without the delivery row as the marker it would export
+    // the event again each time - and a receiver deduplicating on the identity
+    // would see the same delivery repeated rather than one delivery attempted
+    // once.
+    const transport = recordingTransport();
+    const dependencies = {
+      database: app,
+      authority: { load: () => Promise.resolve(snapshot()) },
+      registry: {} as never,
+      transport,
+      resolve: () => Promise.resolve(["93.184.216.34"]),
+      secretFor: () => Promise.resolve("a".repeat(32)),
+    };
+    const event = {
+      organizationId,
+      sourceEventId: "evt-sweep-1",
+      eventKind: "issue.opened",
+      sourceResourceId: resourceId,
+      payload: '{"event":"issue.opened"}',
+    };
+
+    const first = await exportSourceEvent(dependencies, event);
+    assertEquals(first.offered, 1);
+    assertEquals(transport.sent, 1);
+
+    const second = await exportSourceEvent(dependencies, event);
+    assertEquals(second.offered, 0);
+    assertEquals(second.dispatched, 0);
+    assertEquals(transport.sent, 1);
+    assertEquals(await deliveryRows(app), 1);
   } finally {
     await cleanup(admin);
     await admin.end();

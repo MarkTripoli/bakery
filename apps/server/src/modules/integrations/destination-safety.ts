@@ -90,23 +90,120 @@ export function isPrivateIpv4(octets: readonly number[]): boolean {
  * prefix would let it through.
  */
 export function isPrivateIpv6(value: string): boolean {
-  const address = value.toLowerCase().split("%")[0]!;
+  const parsed = parseIpv6(value);
+  // An address that does not parse is treated as private: refusing an export is
+  // recoverable, reaching an address the judge could not read is not.
+  if (parsed === null) return true;
 
-  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(address);
-  if (mapped !== null) {
-    const octets = parseIpv4(mapped[1]!);
-    return octets === null ? true : isPrivateIpv4(octets);
+  // ::ffff:0:0/96 and ::/96 embed an IPv4 address. Checking only the dotted
+  // decimal form of the mapping missed the hex form entirely: `::ffff:7f00:1` is
+  // 127.0.0.1 and `::ffff:a9fe:a9fe` is 169.254.169.254 - the cloud metadata
+  // endpoint - and both were judged public. The IPv4 rules only mean anything
+  // here if the address is read as bytes first.
+  if (isAllZero(parsed, 0, 10) && parsed[10] === 0xff && parsed[11] === 0xff) {
+    return isPrivateIpv4([parsed[12]!, parsed[13]!, parsed[14]!, parsed[15]!]);
+  }
+  if (isAllZero(parsed, 0, 12)) {
+    return isPrivateIpv4([parsed[12]!, parsed[13]!, parsed[14]!, parsed[15]!]);
   }
 
-  if (address === "::" || address === "::1") return true;
-  if (address.startsWith("fe8") || address.startsWith("fe9")) return true;
-  if (address.startsWith("fea") || address.startsWith("feb")) return true;
-  if (address.startsWith("fc") || address.startsWith("fd")) return true; // ULA
-  if (address.startsWith("ff")) return true; // multicast
-  if (address.startsWith("64:ff9b:")) return true; // NAT64
-  if (address.startsWith("2001:db8")) return true; // documentation
-  if (address.startsWith("2002:")) return true; // 6to4, unwrap not attempted
+  // :: and ::1 are the unspecified and loopback addresses.
+  if (isAllZero(parsed, 0, 16)) return true;
+  if (isAllZero(parsed, 0, 15) && parsed[15] === 1) return true;
+
+  // fe80::/10 link-local, fc00::/7 unique-local, ff00::/8 multicast.
+  if (parsed[0] === 0xfe && (parsed[1]! & 0xc0) === 0x80) return true;
+  if ((parsed[0]! & 0xfe) === 0xfc) return true;
+  if (parsed[0] === 0xff) return true;
+
+  // 64:ff9b::/96 NAT64, 2001:db8::/32 documentation, 2002::/16 6to4. A 6to4
+  // address carries a full IPv4 address in bytes 2..6, so it is unwrapped rather
+  // than refused wholesale: the same rule that catches the metadata endpoint
+  // through the mapping catches it here.
+  if (
+    parsed[0] === 0x00 && parsed[1] === 0x64 && parsed[2] === 0xff &&
+    parsed[3] === 0x9b
+  ) {
+    return isPrivateIpv4([parsed[12]!, parsed[13]!, parsed[14]!, parsed[15]!]);
+  }
+  if (
+    parsed[0] === 0x20 && parsed[1] === 0x01 && parsed[2] === 0x0d &&
+    parsed[3] === 0xb8
+  ) {
+    return true;
+  }
+  if (parsed[0] === 0x20 && parsed[1] === 0x02) {
+    return isPrivateIpv4([parsed[2]!, parsed[3]!, parsed[4]!, parsed[5]!]);
+  }
+
   return false;
+}
+
+function isAllZero(
+  bytes: readonly number[],
+  from: number,
+  to: number,
+): boolean {
+  for (let index = from; index < to; index += 1) {
+    if (bytes[index] !== 0) return false;
+  }
+  return true;
+}
+
+/**
+ * Parses an IPv6 literal to its sixteen bytes, or null.
+ *
+ * Written out rather than delegated because the whole point of this module is
+ * to judge the address that will actually be dialled: a parser that disagrees
+ * with the operating system's is an address the judge never sees. Handles the
+ * `::` compression, a trailing embedded IPv4 in dotted form, and zone ids.
+ */
+export function parseIpv6(value: string): number[] | null {
+  const address = value.toLowerCase().replace(/^\[|\]$/g, "").split("%")[0]!;
+  if (!address.includes(":")) return null;
+
+  // A dotted IPv4 tail is rewritten as two hex groups so there is one path.
+  let text = address;
+  const tail = /(\d+\.\d+\.\d+\.\d+)$/.exec(text);
+  if (tail !== null) {
+    const octets = parseIpv4(tail[1]!);
+    if (octets === null) return null;
+    const high = ((octets[0]! << 8) | octets[1]!).toString(16);
+    const low = ((octets[2]! << 8) | octets[3]!).toString(16);
+    text = `${text.slice(0, tail.index)}${high}:${low}`;
+  }
+
+  const halves = text.split("::");
+  if (halves.length > 2) return null;
+
+  const parseGroups = (part: string): number[] | null => {
+    if (part === "") return [];
+    const groups: number[] = [];
+    for (const group of part.split(":")) {
+      if (!/^[0-9a-f]{1,4}$/.test(group)) return null;
+      groups.push(Number.parseInt(group, 16));
+    }
+    return groups;
+  };
+
+  const head = parseGroups(halves[0]!);
+  const tailGroups = halves.length === 2 ? parseGroups(halves[1]!) : [];
+  if (head === null || tailGroups === null) return null;
+
+  const missing = 8 - head.length - tailGroups.length;
+  if (halves.length === 1 ? missing !== 0 : missing < 1) return null;
+  const groups = [
+    ...head,
+    ...Array.from({ length: Math.max(missing, 0) }, () => 0),
+    ...tailGroups,
+  ];
+  if (groups.length !== 8) return null;
+
+  const bytes: number[] = [];
+  for (const group of groups) {
+    bytes.push((group >> 8) & 0xff, group & 0xff);
+  }
+  return bytes;
 }
 
 /** True when `address` is an IP literal in a range that is not publicly routable. */

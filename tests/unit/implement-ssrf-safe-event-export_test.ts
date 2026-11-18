@@ -185,3 +185,51 @@ Deno.test("a reused delivery identity with different bytes is a conflict, not a 
     { kind: "conflict", deliveryId: "d-1" },
   );
 });
+
+Deno.test("an ipv4 address embedded in ipv6 is judged as that ipv4 address", () => {
+  // QA found this: only the dotted form of the mapping was recognised, so the
+  // hex form of the same address was judged public. `::ffff:7f00:1` is 127.0.0.1
+  // and `::ffff:a9fe:a9fe` is 169.254.169.254, the cloud metadata endpoint.
+  for (
+    const address of [
+      "::ffff:7f00:1",
+      "::ffff:a9fe:a9fe",
+      "::7f00:1",
+      "::127.0.0.1",
+      "[::1]",
+      "::1",
+      "::",
+      "::ffff:127.0.0.1",
+      "::ffff:10.0.0.1",
+      "::ffff:192.168.1.1",
+    ]
+  ) {
+    assertEquals(isPrivateAddress(address), true, address);
+  }
+
+  // The same address written as a public IPv4 stays public, so the rule is the
+  // embedded address and not "any mapped address".
+  assertEquals(isPrivateAddress("::ffff:5db8:d822"), false);
+  assertEquals(isPrivateAddress("2606:2800:220:1:248:1893:25c8:1946"), false);
+});
+
+Deno.test("6to4 and NAT64 addresses are unwrapped, not waved through", () => {
+  // 2002::/16 carries a full IPv4 address in bytes 2..6, and 64:ff9b::/96 in the
+  // last four bytes. Refusing them wholesale would be safe but wrong; unwrapping
+  // applies the same rule that catches the metadata endpoint elsewhere.
+  assertEquals(isPrivateAddress("2002:7f00:1::"), true);
+  assertEquals(isPrivateAddress("2002:a9fe:a9fe::"), true);
+  assertEquals(isPrivateAddress("64:ff9b::7f00:1"), true);
+  assertEquals(isPrivateAddress("2002:5db8:d822::"), false);
+});
+
+Deno.test("a resolved ipv6 loopback is refused by the address check", () => {
+  assertEquals(checkResolvedAddresses(["::ffff:7f00:1"]), {
+    ok: false,
+    reason: "resolves_to_private_address",
+  });
+  assertEquals(checkResolvedAddresses(["::1"]), {
+    ok: false,
+    reason: "resolves_to_private_address",
+  });
+});

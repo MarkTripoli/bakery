@@ -16,8 +16,15 @@ import type {
  * verification - both are avoided by pinning the lookup rather than the URL.
  */
 
-/** Most bytes of a receiver's response body this reads before discarding it. */
-const RESPONSE_DRAIN_LIMIT = 8 * 1024;
+/**
+ * Most bytes of a receiver's response body this will read.
+ *
+ * A limit that is declared and never enforced is worse than no limit: the
+ * constant read as if the hazard were handled while `void RESPONSE_DRAIN_LIMIT`
+ * left a receiver streaming forever holding `send()` open. The byte count is now
+ * enforced, and so is total time.
+ */
+export const RESPONSE_DRAIN_LIMIT = 8 * 1024;
 
 /**
  * A `lookup` that answers only from the addresses already checked.
@@ -54,6 +61,75 @@ export function pinnedLookup(addresses: readonly string[]) {
       return;
     }
     callback(null, first, first.includes(":") ? 6 : 4);
+  };
+}
+
+/**
+ * What a response status means.
+ *
+ * A 3xx is refused, not uncertain. The transport does not follow redirects, so a
+ * redirect is a receiver answering "not here" - retrying the same request to the
+ * same place cannot change that, and treating it as uncertain would retry it
+ * forever. Only a 5xx or a lost connection is genuinely unknown.
+ */
+export function outcomeFor(status: number): DeliveryOutcome {
+  if (status >= 200 && status < 300) return { kind: "acknowledged", status };
+  if (status >= 300 && status < 500) return { kind: "refused", status };
+  return { kind: "uncertain", reason: "server_error" };
+}
+
+/** The part of a response this reads, so the cap can be tested without TLS. */
+export type DrainableResponse = {
+  readonly statusCode?: number;
+  on(
+    event: "data",
+    listener: (chunk: { readonly length: number }) => void,
+  ): void;
+  on(event: "end", listener: () => void): void;
+  on(event: "error", listener: () => void): void;
+  on(event: "close", listener: () => void): void;
+  destroy(): void;
+  resume(): void;
+};
+
+/**
+ * The response handler, separated so the byte cap can be proved without TLS.
+ *
+ * A receiver that streams forever is a denial of service dressed as a slow
+ * acknowledgement: the status is known immediately, so the body is drained only
+ * as far as the cap and then the socket is dropped.
+ */
+export function createResponseHandler(
+  status: number,
+  finish: (outcome: DeliveryOutcome) => void,
+): (response: DrainableResponse) => void {
+  return (response) => {
+    let drained = 0;
+    // The exchange has one outcome. Without this guard a chunk that arrives while
+    // the socket is being destroyed reports a second one, and a caller counting
+    // outcomes would see the same attempt settle twice.
+    let done = false;
+    const settle = (outcome: DeliveryOutcome) => {
+      if (done) return;
+      done = true;
+      finish(outcome);
+    };
+    response.on("data", (chunk) => {
+      drained += chunk.length;
+      if (drained > RESPONSE_DRAIN_LIMIT) {
+        response.destroy();
+        settle({ kind: "uncertain", reason: "response_too_large" });
+      }
+    });
+    response.on("end", () => settle(outcomeFor(status)));
+    response.on(
+      "error",
+      () => settle({ kind: "uncertain", reason: "response_failed" }),
+    );
+    response.on("close", () => {
+      if (!response.resume) return;
+    });
+    response.resume();
   };
 }
 
@@ -98,37 +174,21 @@ export function createPinnedHttpsTransport(
             lookup: pinnedLookup(input.addresses) as never,
             timeout: timeoutMs,
           },
-          (response) => {
-            const status = response.statusCode ?? 0;
-            response.on("data", () => {});
-            response.on("end", () => {
-              if (status >= 200 && status < 300) {
-                finish({ kind: "acknowledged", status });
-                return;
-              }
-              if (status >= 400 && status < 500) {
-                finish({ kind: "refused", status });
-                return;
-              }
-              finish({ kind: "uncertain", reason: "response_failed" });
-            });
-            response.on(
-              "error",
-              () => finish({ kind: "uncertain", reason: "response_failed" }),
-            );
-            // A receiver that streams forever must not hold the worker.
-            response.on("close", () => {
-              if (!response.complete) {
-                finish({ kind: "uncertain", reason: "response_failed" });
-              }
-            });
-            response.resume();
-            void RESPONSE_DRAIN_LIMIT;
-          },
+          (response) =>
+            createResponseHandler(response.statusCode ?? 0, finish)(response),
         );
 
+        // Total time, not just socket idleness: a server that dribbles one byte
+        // every few seconds never times out at the socket level. The timer runs
+        // for the whole exchange and is cleared by whichever outcome lands first.
+        const deadline = setTimeout(() => {
+          outgoing.destroy();
+          finish({ kind: "uncertain", reason: "deadline_exceeded" });
+        }, timeoutMs);
+        outgoing.on("close", () => clearTimeout(deadline));
         outgoing.on("timeout", () => {
           outgoing.destroy();
+          clearTimeout(deadline);
           finish({ kind: "uncertain", reason: "no_response" });
         });
         outgoing.on(

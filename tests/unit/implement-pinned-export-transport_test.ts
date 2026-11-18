@@ -1,5 +1,11 @@
 import { assertEquals } from "@std/assert";
-import { pinnedLookup } from "../../apps/server/src/modules/integrations/event-export-transport.ts";
+import {
+  createPinnedHttpsTransport,
+  createResponseHandler,
+  outcomeFor,
+  pinnedLookup,
+  RESPONSE_DRAIN_LIMIT,
+} from "../../apps/server/src/modules/integrations/event-export-transport.ts";
 
 /**
  * The security property of the outbound transport (#21, AC3).
@@ -77,4 +83,96 @@ Deno.test("the lookup reports the family of an ipv6 address", () => {
     },
   );
   assertEquals(family, 6);
+});
+
+Deno.test("a 3xx is refused, not retried", () => {
+  // The transport does not follow redirects, so a redirect is the receiver
+  // answering "not here". Retrying the same request cannot change that, so it is
+  // refused rather than uncertain - uncertain would retry it forever.
+  assertEquals(outcomeFor(301), { kind: "refused", status: 301 });
+  assertEquals(outcomeFor(302), { kind: "refused", status: 302 });
+  assertEquals(outcomeFor(204), { kind: "acknowledged", status: 204 });
+  assertEquals(outcomeFor(400), { kind: "refused", status: 400 });
+  assertEquals(outcomeFor(500), { kind: "uncertain", reason: "server_error" });
+});
+
+Deno.test("a server that never answers cannot hold the send", async () => {
+  // QA probed this: `void RESPONSE_DRAIN_LIMIT` declared a limit and enforced
+  // nothing, so a receiver that never finished held send() open until the socket
+  // died. The total deadline is now real, and this proves it: the listener
+  // accepts the connection and then says nothing at all, so no socket idle
+  // timeout can fire and only the deadline can end the attempt.
+  const listener = Deno.listen({ port: 0, hostname: "127.0.0.1" });
+  const { port } = listener.addr as { port: number };
+  const accepted: Deno.Conn[] = [];
+  const accept = (async () => {
+    try {
+      for await (const connection of listener) accepted.push(connection);
+    } catch {
+      // The listener closes when the test ends.
+    }
+  })();
+
+  try {
+    const started = Date.now();
+    const outcome = await createPinnedHttpsTransport({ timeoutMs: 1_000 }).send(
+      {
+        origin: `https://127.0.0.1:${port}`,
+        path: "/silent",
+        addresses: ["127.0.0.1"],
+        raw: new Uint8Array([123, 125]),
+        headers: {},
+      },
+    );
+    const elapsed = Date.now() - started;
+    assertEquals(outcome.kind, "uncertain");
+    // Bounded by the deadline, not by the server deciding to answer.
+    assertEquals(elapsed < 5_000, true, `took ${elapsed}ms`);
+  } finally {
+    for (const connection of accepted) {
+      try {
+        connection.close();
+      } catch {
+        // Already closed.
+      }
+    }
+    listener.close();
+    await accept;
+  }
+});
+
+Deno.test("a receiver streaming forever is cut off at the byte cap", () => {
+  // QA probed this: `void RESPONSE_DRAIN_LIMIT` declared a limit and enforced
+  // nothing. The handler is now exercised directly, because the cap is the whole
+  // point and a TLS server is not needed to prove it.
+  const outcomes: unknown[] = [];
+  let destroyed = false;
+  const listeners: Record<string, ((chunk?: unknown) => void)[]> = {};
+  const response = {
+    statusCode: 200,
+    on(event: string, listener: (chunk?: unknown) => void) {
+      (listeners[event] ??= []).push(listener);
+    },
+    destroy() {
+      destroyed = true;
+    },
+    resume() {},
+  };
+  createResponseHandler(200, (outcome) => outcomes.push(outcome))(
+    response as never,
+  );
+
+  // A receiver that never ends, one chunk at a time.
+  const chunk = { length: 1_024 };
+  for (let sent = 0; sent < 64; sent += 1) {
+    for (const listener of listeners["data"] ?? []) listener(chunk);
+  }
+
+  assertEquals(destroyed, true);
+  assertEquals(outcomes, [
+    { kind: "uncertain", reason: "response_too_large" },
+  ]);
+  // The cap is a bound, not a comment.
+  assertEquals(RESPONSE_DRAIN_LIMIT > 0, true);
+  assertEquals(RESPONSE_DRAIN_LIMIT <= 64 * 1024, true);
 });

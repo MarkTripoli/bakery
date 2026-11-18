@@ -86,6 +86,17 @@ export async function exportSourceEvent(
     readonly secretFor: (secretVersionId: string) => Promise<string>;
   },
   event: SourceEventRecorded,
+  options?: {
+    /**
+     * Offers the event to subscriptions that already hold an attempt.
+     *
+     * Off by default, and that default is the idempotency: the sweep re-reads
+     * completed routes every couple of minutes, so without this a single event
+     * would be exported again on every pass. A retry is a different act with its
+     * own backoff, so it asks for this explicitly.
+     */
+    readonly retryExisting?: boolean;
+  },
 ): Promise<ExportRunResult> {
   // Only subscriptions that name this exact event kind for this exact resource,
   // and that are still active. A revoked subscription is excluded by the query
@@ -111,6 +122,11 @@ export async function exportSourceEvent(
         and subscription.source_resource_id = $2
         and subscription.status = 'active'
         and $3 = any(subscription.event_kinds)
+        and ($5::boolean or not exists (
+          select 1 from bakery.integration_deliveries as attempt
+           where attempt.subscription_id = subscription.id
+             and attempt.source_event_id = $3
+        ))
       order by subscription.id
       limit $4`,
     [
@@ -118,6 +134,7 @@ export async function exportSourceEvent(
       event.sourceResourceId,
       event.eventKind,
       EXPORT_FAN_OUT_LIMIT,
+      options?.retryExisting === true,
     ],
   );
 
@@ -244,6 +261,68 @@ async function digest(raw: Uint8Array<ArrayBuffer>): Promise<string> {
   return Array.from(new Uint8Array(hashed))
     .map((byte) => byte.toString(16).padStart(2, "0"))
     .join("");
+}
+
+/** Most completed routes one sweep pass exports. */
+export const EXPORT_SWEEP_BATCH = 50;
+
+/**
+ * Exports the completed intake routes that no subscription has been offered yet.
+ *
+ * This is what makes the worker reachable without an emitter in another module:
+ * the source events are already recorded, so the worker reads them rather than
+ * waiting for a second module to remember to tell it. A route is offered once -
+ * the delivery row is the marker - so a pass that overlaps another cannot send
+ * the same event twice.
+ */
+export async function exportPendingIntakeEvents(
+  dependencies: Parameters<typeof exportSourceEvent>[0],
+  limit = EXPORT_SWEEP_BATCH,
+): Promise<{ readonly offered: number; readonly events: number }> {
+  const due = await dependencies.database.query<{
+    organization_id: string;
+    resource_id: string;
+    event_id: string;
+    event_kind: string;
+    payload: string;
+  }>(
+    `select distinct on (receipt.id, subscription.id)
+            route.organization_id,
+            route.resource_id,
+            receipt.id as event_id,
+            receipt.event_kind,
+            coalesce(receipt.normalized_projection::text, '{}') as payload
+       from bakery.inbound_event_routes as route
+       join bakery.inbound_events as receipt
+         on receipt.id = route.inbound_event_id
+       join bakery.integration_event_subscriptions as subscription
+         on subscription.organization_id = route.organization_id
+        and subscription.source_resource_id = route.resource_id
+        and subscription.status = 'active'
+        and receipt.event_kind = any(subscription.event_kinds)
+      where route.status = 'completed'
+        and not exists (
+          select 1 from bakery.integration_deliveries as attempt
+           where attempt.subscription_id = subscription.id
+             and attempt.source_event_id = receipt.id::text
+        )
+      order by receipt.id, subscription.id
+      limit $1`,
+    [limit],
+  );
+
+  let offered = 0;
+  for (const row of due.rows) {
+    const result = await exportSourceEvent(dependencies, {
+      organizationId: row.organization_id,
+      sourceEventId: row.event_id,
+      eventKind: row.event_kind,
+      sourceResourceId: row.resource_id,
+      payload: row.payload,
+    });
+    offered += result.offered;
+  }
+  return { offered, events: due.rows.length };
 }
 
 /**

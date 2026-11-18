@@ -28,6 +28,12 @@ import {
   createIntegrationIntakeRecovery,
   createIntegrationIntakeWorkflow,
 } from "../integrations/intake-workflow.ts";
+import { createIntegrationEventExport } from "../integrations/event-export-worker.ts";
+import { createPostgresAuthorityPort } from "../catalog/authority-snapshot-postgres.ts";
+import { createPinnedHttpsTransport } from "../integrations/event-export-transport.ts";
+import { resolveHostAddresses } from "../integrations/event-export-resolver.ts";
+import { createDestinationSecretReader } from "../integrations/event-export-secret.ts";
+import type { ActiveIntegrationRegistry } from "../catalog/integration-gate.ts";
 import type { ReconcileDependencies } from "../integrations/reconcile.ts";
 import {
   createTicketFactIndex,
@@ -59,10 +65,18 @@ type ServeOptions = Parameters<typeof serve>[0];
  * The GitHub client, AES key and the API's own token broker, so a
  * reconcile in a background function invalidates the tokens the API caches.
  */
-export type IntegrationsBackgroundDependencies = Omit<
-  ReconcileDependencies,
-  "database"
->;
+export type IntegrationsBackgroundDependencies =
+  & Omit<
+    ReconcileDependencies,
+    "database"
+  >
+  & {
+    /**
+     * The activated registry, so a background function that holds a provider name
+     * resolves it instead of re-deriving which providers exist.
+     */
+    readonly registry: ActiveIntegrationRegistry;
+  };
 
 type SkillImportDependencies = Readonly<{
   sourceAdapter: SkillSourceAdapter;
@@ -187,6 +201,25 @@ export function createDefaultInngestFunctions(options: {
         createIntegrationIntakeRetention({
           client: options.client,
           database: options.database,
+        }),
+        // The export worker: reads completed intake routes and dispatches once
+        // per subscriber. Every adapter below is production, which is the point
+        // - the dispatch path's refusals only mean something if something calls
+        // it outside a test.
+        createIntegrationEventExport({
+          client: options.client,
+          database: options.database,
+          authority: createPostgresAuthorityPort(
+            options.database,
+            options.integrations.registry,
+          ),
+          registry: options.integrations.registry,
+          transport: createPinnedHttpsTransport(),
+          resolve: resolveHostAddresses,
+          secretFor: createDestinationSecretReader(
+            options.database,
+            options.integrations.secretsKey,
+          ),
         }),
         createBlobUploadReaper({
           client: options.client,
