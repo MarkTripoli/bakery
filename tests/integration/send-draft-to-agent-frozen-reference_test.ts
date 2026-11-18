@@ -296,6 +296,32 @@ Deno.test("a stale thread version is refused by name with nothing written", asyn
   }
 });
 
+Deno.test("a checkpoint from an earlier epoch is refused as draft_moved_on with nothing written", async () => {
+  const fixture = await openDraftFixture("alpha target omega");
+  try {
+    const draft = await openDraft(fixture);
+    // No route rolls a draft to a new epoch yet; move the stored draft on so
+    // its current epoch differs from the epoch of the checkpoint named.
+    await fixture.pgDatabase.query(
+      `update bakery.artifact_drafts set epoch=epoch+1 where id=$1`,
+      [draft.id],
+    );
+    const refused = await send(
+      fixture,
+      { ...draft, epoch: draft.epoch + 1 },
+      [],
+    );
+    assertEquals(refused.status, 412, await refused.clone().text());
+    assertEquals((await refused.json()).reason, "draft_moved_on");
+    assertEquals(await referenceCounts(fixture, draft.id), {
+      references: 0,
+      comments: 0,
+    });
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
 Deno.test("a thread over the comment-context bound is refused", async () => {
   const fixture = await openDraftFixture("alpha target omega");
   try {
