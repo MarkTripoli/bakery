@@ -52,7 +52,10 @@ export type IconGlyphName =
   | "lanes"
   | "info"
   | "issue"
-  | "close";
+  | "close"
+  | "bell"
+  | "warning"
+  | "question";
 
 // Additional shell glyphs: approved K-0 9VJ-0/9ZB-0 exports; listening bars:
 // AR1-0. Exact paths and viewports, theme-aware ink; never a font substitute.
@@ -480,6 +483,28 @@ const GLYPH_PATHS: Record<IconGlyphName, ReactNode> = {
     <>
       <path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6l8-3Z" />
       <path d="m8 12 3 3 5-6" />
+    </>
+  ),
+  // The notification glyphs: the bell and the five event tiles, drawn to the
+  // same 24-unit stroke grid as the shell set above.
+  bell: (
+    <>
+      <path d="M18 9a6 6 0 1 0-12 0c0 5-2 6-2 6h16s-2-1-2-6" />
+      <path d="M10.3 20a2 2 0 0 0 3.4 0" />
+    </>
+  ),
+  warning: (
+    <>
+      <path d="M12 3.5 22 20H2Z" />
+      <path d="M12 10v4" />
+      <path d="M12 17h.01" />
+    </>
+  ),
+  question: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M9.5 9.5a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.1-2.5 3.6" />
+      <path d="M12 17h.01" />
     </>
   ),
 };

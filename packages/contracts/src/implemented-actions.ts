@@ -339,6 +339,20 @@ export const ticketImplementedActions = Object.freeze(
   Object.values(TicketImplementedAction),
 );
 
+export const NotificationImplementedAction = Object.freeze(
+  {
+    NotificationsList: "notifications.list",
+    NotificationsCount: "notifications.count",
+    NotificationsGet: "notifications.get",
+    NotificationsResolveTarget: "notifications.resolveTarget",
+    NotificationsSetRead: "notifications.setRead",
+    NotificationsMarkAllRead: "notifications.markAllRead",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const notificationImplementedActions = Object.freeze(
+  Object.values(NotificationImplementedAction),
+);
+
 export const WorkflowImplementedAction = Object.freeze(
   {
     WorkflowsList: "workflows.list",
@@ -513,6 +527,7 @@ export const implementedActions = Object.freeze(
     ...integrationsImplementedActions,
     ...deliveryImplementedActions,
     ...ticketImplementedActions,
+    ...notificationImplementedActions,
     ...workflowImplementedActions,
     ...workflowActionDiscoveryImplementedActions,
     ...automationImplementedActions,

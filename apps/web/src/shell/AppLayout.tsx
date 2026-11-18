@@ -24,6 +24,7 @@ import {
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import * as UI from "@bakery/ui";
 import { useI18n } from "../i18n/I18nProvider.tsx";
+import { NotificationBellControl } from "../notifications/NotificationBellControl.tsx";
 import { SettingsNavigation } from "../fixtures/SettingsFixture.tsx";
 import {
   ProductionSettingsNavigation,
@@ -746,17 +747,22 @@ function ShellFrame() {
       state={status === "pending" ? "loading" : "default"}
       topBar={chromeless || pageHeader ? undefined : (
         <UI.TopBar
-          actions={slots?.claimed.has("actions")
-            ? <span ref={slots.target("actions")} />
-            : settingsChrome || organizationSettings
-            ? (
-              <InstallationAccountActions
-                roleLabel={organizationSettings
-                  ? translate("shell.navigation.organizationAdmin")
-                  : undefined}
-              />
-            )
-            : undefined}
+          actions={
+            <>
+              {slots?.claimed.has("actions")
+                ? <span ref={slots.target("actions")} />
+                : settingsChrome || organizationSettings
+                ? (
+                  <InstallationAccountActions
+                    roleLabel={organizationSettings
+                      ? translate("shell.navigation.organizationAdmin")
+                      : undefined}
+                  />
+                )
+                : null}
+              <NotificationBellControl />
+            </>
+          }
           breadcrumbs={slots?.claimed.has("breadcrumbs")
             ? <span ref={slots.target("breadcrumbs")} />
             : (
