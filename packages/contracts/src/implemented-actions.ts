@@ -511,6 +511,20 @@ export const catalogIdentityImplementedActions = Object.freeze(
   ),
 );
 
+export const MemoryImplementedAction = Object.freeze(
+  {
+    MemoriesList: "memories.list",
+    MemoriesGet: "memories.get",
+    MemoriesCreate: "memories.create",
+    MemoriesUpdate: "memories.update",
+    MemoryRevisionsCreate: "memoryRevisions.create",
+    MemoryRevisionsList: "memoryRevisions.list",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const memoryImplementedActions = Object.freeze(
+  Object.values(MemoryImplementedAction),
+);
+
 export const authImplementedActions = Object.freeze(
   Object.values(AuthImplementedAction),
 );
@@ -554,6 +568,7 @@ export const implementedActions = Object.freeze(
     ...catalogImplementedActions,
     ...skillStorageImplementedActions,
     ...blobUploadImplementedActions,
+    ...memoryImplementedActions,
   ] as const,
 );
 
