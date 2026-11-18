@@ -74,14 +74,14 @@ function SelectionDemo() {
     />
   );
   return (
-    <div data-testid="selection-demo">
+    <Stack data-testid="selection-demo" gap="standard">
       {card("one", true)}
       {card("two", true)}
       {card("fixed", false)}
       <Text data-testid="selection-counts">
         {`selects ${selects}, accepts ${accepts}`}
       </Text>
-    </div>
+    </Stack>
   );
 }
 
