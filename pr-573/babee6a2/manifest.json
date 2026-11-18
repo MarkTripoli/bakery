@@ -1,0 +1,190 @@
+{
+  "schema": "bakery.notification-badge-states-evidence/v1",
+  "generatedAt": "2026-11-18T03:54:10.382Z",
+  "distinct": true,
+  "files": [
+    {
+      "path": "b0--dark--desktop--crop.png",
+      "bytes": 2731,
+      "sha256": "4625eb47851edbaf3f0737d87119caeafa6f95bd18d72177ee14ddcc8ccff973"
+    },
+    {
+      "path": "b0--dark--desktop.png",
+      "bytes": 85285,
+      "sha256": "7fbfbb57146c5e7e5e5d6445d5b1133eec308f343b1721028241fe1fa5fc1b34"
+    },
+    {
+      "path": "b0--dark--phone--crop.png",
+      "bytes": 1511,
+      "sha256": "565f8d5e4a77260bba8c4a3ba47f56ba195846294efebaf1b8fc04ad4ddb8a04"
+    },
+    {
+      "path": "b0--dark--phone.png",
+      "bytes": 41666,
+      "sha256": "ab8322c24ff02b9abe4246a2074d19baea58cd21632476e458b36c24f48dcce1"
+    },
+    {
+      "path": "b0--light--desktop--crop.png",
+      "bytes": 2732,
+      "sha256": "01aeb14b405201b6f9bac7a9deac7dc061d294cb11c7445e7f0243e873e619c9"
+    },
+    {
+      "path": "b0--light--desktop.png",
+      "bytes": 84998,
+      "sha256": "70b7358e0d3049c4c1a188b70d524188aaa2ed3c82e59e066a66a28f6cc91a04"
+    },
+    {
+      "path": "b0--light--phone--crop.png",
+      "bytes": 1547,
+      "sha256": "9b7a2eb512c56a945a4ed9fec6788d1c8c6f20236de565ad15ecaa013c6d8e4b"
+    },
+    {
+      "path": "b0--light--phone.png",
+      "bytes": 41431,
+      "sha256": "cb46c9d9fc1a553034d924e71f5d2b42f59f09f4adec155d13fc8cd8bb6b6be8"
+    },
+    {
+      "path": "b1--dark--desktop--crop.png",
+      "bytes": 3181,
+      "sha256": "3390c3be18c5c62c47a660f6b6d0c468464c0056e931ee13c725e2f8b8b251e1"
+    },
+    {
+      "path": "b1--dark--desktop.png",
+      "bytes": 86068,
+      "sha256": "117e66539c39eb49c46da78fc405dcfdaec63366d45ace0f377e077f0c7f6180"
+    },
+    {
+      "path": "b1--dark--phone--crop.png",
+      "bytes": 1805,
+      "sha256": "99a145744ee8cf595c711f1cbfe84e38c2a6dac979bd82b0b9c65eec5bb3244a"
+    },
+    {
+      "path": "b1--dark--phone.png",
+      "bytes": 42434,
+      "sha256": "935e1dedd3e2703ac5f376e6c6d58e2baa607e0cb18a1c7e25abeeedcae013fc"
+    },
+    {
+      "path": "b1--light--desktop--crop.png",
+      "bytes": 3154,
+      "sha256": "cbe9e3f159b8962015ffdb502fa4d8061f4314d6a73307228800c6182fa39000"
+    },
+    {
+      "path": "b1--light--desktop.png",
+      "bytes": 85659,
+      "sha256": "0f8c6d185a2357f002e809205fa86f1486f0efa6ba568e0b431d4b88d961cf4c"
+    },
+    {
+      "path": "b1--light--phone--crop.png",
+      "bytes": 1820,
+      "sha256": "51f2af906824f7a4afccb6f4c6e57bc52f18bbbe304223bb641d527924209268"
+    },
+    {
+      "path": "b1--light--phone.png",
+      "bytes": 41943,
+      "sha256": "3e14907485d22f01c7a9e7e79f186898adcd04e59d80a5ced85896a87c556161"
+    },
+    {
+      "path": "b2--dark--desktop--crop.png",
+      "bytes": 3278,
+      "sha256": "6a9ae722e72d70413998c8773e497db7f7975645b9e6945fe6c8357bf24616a6"
+    },
+    {
+      "path": "b2--dark--desktop.png",
+      "bytes": 86054,
+      "sha256": "59f8bc8966167f76c877a815fe62057deeccd58761d4a54213015f56f87630a6"
+    },
+    {
+      "path": "b2--dark--phone--crop.png",
+      "bytes": 1908,
+      "sha256": "5a2641cf2ea249e3fa82f6bed34d0d578ad07cdb091f3beb16fd1e9106defb2f"
+    },
+    {
+      "path": "b2--dark--phone.png",
+      "bytes": 42367,
+      "sha256": "5da6a74217c94a22811793d265e0255aaf247a5cfdeafacdb73def33413ecc15"
+    },
+    {
+      "path": "b2--light--desktop--crop.png",
+      "bytes": 3299,
+      "sha256": "4d7705fe1fac9a318b42eabc676be172c4221c1dd4e67597a8a046bbea532b51"
+    },
+    {
+      "path": "b2--light--desktop.png",
+      "bytes": 85690,
+      "sha256": "0aad5a800c7cf895ded546cf1bde22f7b0751fde6d8138ed466051f5795b44db"
+    },
+    {
+      "path": "b2--light--phone--crop.png",
+      "bytes": 1955,
+      "sha256": "153aafe1c77dee2c79d3a69e1ca163fa9b0837ab8513049d420e1cf11571e9d6"
+    },
+    {
+      "path": "b2--light--phone.png",
+      "bytes": 41962,
+      "sha256": "46b4ced95f772c2fcf6522bcab3c58f0d6c9787602b803d251c197e5075b8897"
+    },
+    {
+      "path": "b3--dark--desktop--crop.png",
+      "bytes": 3012,
+      "sha256": "d38ea006f70aa396b6b210fe1dcaa1fbe78fadf380fd78333c3cd592cfaac6d4"
+    },
+    {
+      "path": "b3--dark--desktop.png",
+      "bytes": 85459,
+      "sha256": "bf28fa6a3f7e1bd7db602ade3fd22d233d20d81b13fa359c73ef4d410384c321"
+    },
+    {
+      "path": "b3--dark--phone--crop.png",
+      "bytes": 1725,
+      "sha256": "d4119ff9d98929374c79b4993ffdeb7f29db23eba04433bb4b2e6d9833b633f2"
+    },
+    {
+      "path": "b3--dark--phone.png",
+      "bytes": 41992,
+      "sha256": "2bad4c438e20d62d9633dd7006e66c8ae798e0da5bb9cf7363205d203d221051"
+    },
+    {
+      "path": "b3--light--desktop--crop.png",
+      "bytes": 3020,
+      "sha256": "acc956047c4e481c2b5d5f728a06c2d77ce138f34c24ed8dad60fc6f409843f4"
+    },
+    {
+      "path": "b3--light--desktop.png",
+      "bytes": 85071,
+      "sha256": "4dc4cbe7b5aada8b4b6a6e8546b31d9216d3d67855faa2cd27c35e72b4f946b1"
+    },
+    {
+      "path": "b3--light--phone--crop.png",
+      "bytes": 1738,
+      "sha256": "275505e393a0c21c6025a34d6f38b2d36d76c8c460e50210383a87b472999d27"
+    },
+    {
+      "path": "b3--light--phone.png",
+      "bytes": 41512,
+      "sha256": "2ba45b1bc337d3ae58be134827a4f6c612b6510026a7f6bce3443ad82fde5940"
+    }
+  ],
+  "states": [
+    "b1",
+    "b2",
+    "b0",
+    "b3"
+  ],
+  "viewports": [
+    {
+      "label": "desktop",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "label": "phone",
+      "width": 390,
+      "height": 844
+    }
+  ],
+  "themes": [
+    "light",
+    "dark"
+  ],
+  "note": "B3 is the count request aborted at the network layer; the underlying data was a true zero, so the ring is the app refusing to claim a zero it could not confirm."
+}
