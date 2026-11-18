@@ -308,6 +308,10 @@ Deno.test("a REVOKED grant is refused, so revocation is live rather than stored"
     }
   })();
   assert(failure !== null, "a revoked grant must not admit the invocation");
+  assert(
+    failure instanceof StandardError,
+    `expected a standard refusal, got ${String(failure)}`,
+  );
   // The code, not just the refusal: a route that failed for an unrelated reason
   // would satisfy "it threw" while proving nothing about revocation.
   assertEquals(failure.code, "AUTH_FORBIDDEN");
@@ -338,6 +342,10 @@ Deno.test("an EXPIRED grant is refused", async () => {
     }
   })();
   assert(failure !== null, "an expired grant must not admit the invocation");
+  assert(
+    failure instanceof StandardError,
+    `expected a standard refusal, got ${String(failure)}`,
+  );
   assertEquals(failure.code, "AUTH_FORBIDDEN");
 });
 
@@ -369,6 +377,10 @@ Deno.test("a grant for a DIFFERENT action version is refused", async () => {
   assert(
     failure !== null,
     "a grant pinned to another version must not admit this one",
+  );
+  assert(
+    failure instanceof StandardError,
+    `expected a standard refusal, got ${String(failure)}`,
   );
   // A precondition rather than a forbidden: the grant exists and names this
   // action, but not this version, so the caller's request is stale rather than
