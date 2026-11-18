@@ -1,4 +1,4 @@
-import type { MessageKey } from "@bakery/i18n";
+import type { MessageKey, Translator } from "@bakery/i18n";
 import type { NotificationResponse } from "../api/client.ts";
 
 /** The kinds the contract defines, in the order the design's table lists them. */
@@ -175,4 +175,27 @@ export function bellStatusOf(
     return { state: "unknown" };
   }
   return count > 0 ? { state: "unread", count } : { state: "none" };
+}
+
+/**
+ * The bell's accessible name for a status.
+ *
+ * The badge is a drawn cap ("99+"), so the name is where the true count lives.
+ * Both ways the bell reaches the screen — its own button on a phone and a
+ * popover's trigger from 744px up — take the name from here, so a screen reader
+ * hears the same number either way instead of the desktop trigger announcing a
+ * bare "Notifications" while the badge shows a count.
+ */
+export function bellAccessibleName(
+  status: BellStatus,
+  translate: Translator,
+): string {
+  switch (status.state) {
+    case "unread":
+      return translate("notifications.bell.unread", { count: status.count });
+    case "unknown":
+      return translate("notifications.bell.unknown");
+    default:
+      return translate("notifications.bell.label");
+  }
 }
