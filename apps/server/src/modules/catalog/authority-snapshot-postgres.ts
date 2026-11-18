@@ -247,10 +247,12 @@ export async function loadSnapshot(
       kind,
       selected: row.resource_selected,
       available: row.resource_available,
-      // The numeric repository id is part of the resource, not only of its
+      // The provider's numeric id is part of the resource, not only of its
       // binding: a token minted without it has nothing to be narrowed to, and
       // the broker would be handed an empty set and refuse at the last moment.
-      repositoryId: String(repositoryId),
+      // Named for the provider, because a grant's `repositoryId` names a Bakery
+      // repository record and the two must never be confused.
+      providerRepositoryId: String(repositoryId),
       binding: {
         owner,
         repo,

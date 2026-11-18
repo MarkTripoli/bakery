@@ -81,7 +81,22 @@ Deno.test("the snapshot names the repository's numeric id on the resource", asyn
   assert(snapshot !== null, "a well-formed row must produce a snapshot");
   // This is the value the token is narrowed to. Without it a granted send is
   // refused by the GitHub client, after every other check has already passed.
-  assertEquals(snapshot.resource.repositoryId, "900");
+  assertEquals(snapshot.resource.providerRepositoryId, "900");
+});
+
+Deno.test("the snapshot names the id after the provider, not after a grant", async () => {
+  const { transaction } = transactionAnswering(row);
+  const snapshot = await loadSnapshot(transaction, registry, KEY);
+
+  // A grant's `repositoryId` names a Bakery repository record (a uuid). Reusing
+  // that name here would make an inbound grant mismatch every outbound request
+  // the moment the two ids were compared, which is exactly what shipped in the
+  // first version of this fix.
+  assertEquals("providerRepositoryId" in snapshot!.resource, true);
+  assertEquals(
+    (snapshot!.resource as Record<string, unknown>).repositoryId,
+    undefined,
+  );
 });
 
 Deno.test("the binding keeps the same numeric id as an integer", async () => {

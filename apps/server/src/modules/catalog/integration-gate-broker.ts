@@ -377,9 +377,9 @@ export function createBrokerWithProfiles(
         ...(bound.resource.applicationId === undefined
           ? {}
           : { applicationId: bound.resource.applicationId }),
-        ...(bound.resource.repositoryId === undefined
+        ...(bound.resource.providerRepositoryId === undefined
           ? {}
-          : { repositoryId: bound.resource.repositoryId }),
+          : { repositoryId: bound.resource.providerRepositoryId }),
       },
     });
     if (

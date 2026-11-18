@@ -425,7 +425,12 @@ export type AuthoritySnapshot = Readonly<{
     available: boolean;
     binding: Readonly<Record<string, unknown>>;
     applicationId?: string;
-    repositoryId?: string;
+    /**
+     * The provider's own numeric repository id. Distinct from a grant's
+     * `repositoryId`, which names a Bakery repository record: one is what a
+     * token is narrowed to, the other is what an inbound grant targets.
+     */
+    providerRepositoryId?: string;
   }>;
   grants: readonly IntegrationGrantRecord[];
   policyRevision: number;
@@ -803,7 +808,12 @@ export type BoundInvocation = Readonly<{
     kind: string;
     binding: Readonly<Record<string, unknown>>;
     applicationId?: string;
-    repositoryId?: string;
+    /**
+     * The provider's own numeric repository id. Distinct from a grant's
+     * `repositoryId`, which names a Bakery repository record: one is what a
+     * token is narrowed to, the other is what an inbound grant targets.
+     */
+    providerRepositoryId?: string;
   }>;
   grantId: string;
   policyRevision: number;
@@ -984,9 +994,9 @@ export async function authorizeInvocation(
       ...(resource.applicationId === undefined
         ? {}
         : { applicationId: resource.applicationId }),
-      ...(resource.repositoryId === undefined
+      ...(resource.providerRepositoryId === undefined
         ? {}
-        : { repositoryId: resource.repositoryId }),
+        : { providerRepositoryId: resource.providerRepositoryId }),
     },
     grantId: grant.grantId,
     policyRevision: snapshot.policyRevision,
@@ -1217,8 +1227,8 @@ async function bakeryCall(
           parsed.target.applicationId === resource.applicationId
         ) return { applicationId: parsed.target.applicationId };
       } else if (
-        resource.repositoryId !== undefined &&
-        parsed.target.repositoryId === resource.repositoryId
+        resource.providerRepositoryId !== undefined &&
+        parsed.target.repositoryId === resource.providerRepositoryId
       ) return { repositoryId: parsed.target.repositoryId };
     }
     return null;

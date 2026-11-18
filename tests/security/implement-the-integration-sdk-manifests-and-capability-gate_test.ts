@@ -146,7 +146,13 @@ function snapshotFor(over: Overrides = {}): AuthoritySnapshot {
       selected: true,
       available: true,
       binding: { ...BINDING },
-      repositoryId: REPOSITORY,
+      // The provider's own numeric repository id, as the production snapshot
+      // reads it from resource.external_id. It is deliberately its own field:
+      // a grant's `repositoryId` names a Bakery repository record, and sharing
+      // one field for both made every granted call answer AUTH_FORBIDDEN. The
+      // gate only dispatches to the target of the grant that matched, so the
+      // two must name the same repository here.
+      providerRepositoryId: REPOSITORY,
       ...over.resource,
     },
     grants: over.grants ?? [outbound()],
@@ -676,7 +682,10 @@ Deno.test("bakery.call: app target matches only an app-bound resource", async ()
   const { ctx, s } = await scoped({
     snapshot: () =>
       withBakery({
-        resource: { repositoryId: undefined, applicationId: APPLICATION },
+        resource: {
+          providerRepositoryId: undefined,
+          applicationId: APPLICATION,
+        },
         grants: [
           outbound(),
           inbound("tasks:read", {
@@ -1122,6 +1131,13 @@ Deno.test("broker: request goes to the template URL with fixed headers and the b
     resourceId: RESOURCE,
     profileId: "github-app",
     providerPermissions: { issues: "write" },
+    // The subject carries what the token is narrowed to. Without the provider's
+    // numeric id the credential store has nothing to mint against (#640).
+    subject: {
+      installId: "inst-1",
+      resourceKind: "github.repository",
+      repositoryId: REPOSITORY,
+    },
   });
 });
 
@@ -1757,7 +1773,12 @@ Deno.test("bakery.call: resource with both ids dispatches only the matched grant
   const { ctx, s } = await scoped({
     snapshot: () =>
       withBakery({
-        resource: { applicationId: APPLICATION, repositoryId: REPOSITORY },
+        resource: {
+          applicationId: APPLICATION,
+          // Both ids present: the app grant matches on the application id, and
+          // the repository id is there for the repository-bound grant.
+          providerRepositoryId: REPOSITORY,
+        },
         grants: [outbound(), inbound("tasks:read")],
       }),
   });
