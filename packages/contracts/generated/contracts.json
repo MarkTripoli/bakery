@@ -8693,7 +8693,7 @@
         "SCOPE_REQUIRED"
       ],
       "organizationContext": "required_authenticated_context",
-      "implemented": false
+      "implemented": true
     },
     {
       "group": "Plugins",
@@ -8719,7 +8719,7 @@
         "SCOPE_REQUIRED"
       ],
       "organizationContext": "required_authenticated_context",
-      "implemented": false
+      "implemented": true
     },
     {
       "group": "Plugins",
@@ -8742,7 +8742,7 @@
         "SCOPE_REQUIRED"
       ],
       "organizationContext": "required_authenticated_context",
-      "implemented": false
+      "implemented": true
     },
     {
       "group": "Plugins",
@@ -8765,7 +8765,7 @@
         "SCOPE_REQUIRED"
       ],
       "organizationContext": "required_authenticated_context",
-      "implemented": false
+      "implemented": true
     },
     {
       "group": "Plugins",
@@ -8791,7 +8791,7 @@
         "SCOPE_REQUIRED"
       ],
       "organizationContext": "required_authenticated_context",
-      "implemented": false
+      "implemented": true
     },
     {
       "group": "Plugins",
@@ -10183,6 +10183,11 @@
     "skills.create",
     "skills.update",
     "skillVersions.create",
+    "pluginPackages.list",
+    "pluginPackages.create",
+    "pluginPackages.get",
+    "pluginVersions.list",
+    "pluginVersions.create",
     "skillStorageSettings.get",
     "skillStorageSettings.put",
     "skillStorageSettings.verify",
@@ -55916,13 +55921,17 @@
           "properties": {
             "name": {
               "type": "string",
+              "minLength": 1,
               "maxLength": 200,
-              "description": "PluginPackageCreate.name must contain at most 200 characters."
+              "pattern": "^(?!\\s)(?=.*\\S)",
+              "description": "PluginPackageCreate.name must match the pattern ^(?!\\s)(?=.*\\S)."
             },
             "displayName": {
               "type": "string",
+              "minLength": 1,
               "maxLength": 200,
-              "description": "PluginPackageCreate.displayName must contain at most 200 characters."
+              "pattern": "^(?!\\s)(?=.*\\S)",
+              "description": "PluginPackageCreate.displayName must match the pattern ^(?!\\s)(?=.*\\S)."
             },
             "license": {
               "type": "string",
@@ -56096,13 +56105,17 @@
           "properties": {
             "versionName": {
               "type": "string",
+              "minLength": 1,
               "maxLength": 200,
-              "description": "PluginVersionCreate.versionName must contain at most 200 characters."
+              "pattern": "^(?!\\s)(?=.*\\S)",
+              "description": "PluginVersionCreate.versionName must match the pattern ^(?!\\s)(?=.*\\S)."
             },
             "sdkRange": {
               "type": "string",
+              "minLength": 1,
               "maxLength": 200,
-              "description": "PluginVersionCreate.sdkRange must contain at most 200 characters."
+              "pattern": "^(?!\\s)(?=.*\\S)",
+              "description": "PluginVersionCreate.sdkRange must match the pattern ^(?!\\s)(?=.*\\S)."
             },
             "manifest": {
               "description": "PluginVersionCreate.manifest must contain at most 131072 UTF-8 bytes.",
@@ -56146,13 +56159,17 @@
             },
             "bundleObjectRef": {
               "type": "string",
+              "minLength": 1,
               "maxLength": 2000,
-              "description": "PluginVersionCreate.bundleObjectRef must contain at most 2000 characters."
+              "pattern": "^(?!\\s)(?=.*\\S)",
+              "description": "PluginVersionCreate.bundleObjectRef must match the pattern ^(?!\\s)(?=.*\\S)."
             },
             "bundleDigest": {
               "type": "string",
+              "minLength": 64,
               "maxLength": 64,
-              "description": "PluginVersionCreate.bundleDigest must contain at most 64 characters."
+              "pattern": "^[0-9a-f]{64}$",
+              "description": "PluginVersionCreate.bundleDigest must match the pattern ^[0-9a-f]{64}$."
             },
             "sourceEvidence": {
               "description": "PluginVersionCreate.sourceEvidence must contain at most 32000 UTF-8 bytes.",
@@ -217178,7 +217195,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:9a39c76d8a5cc76606931f6d73bc5e8ae2134cdb1ef5e8f2d8cfdb890c1d21a2",
+  "compatibilityDigest": "sha256:c2ea1145b2b35476f0f1f55b7034d2e12ad9df0a5ed876f7221e90fe1d5ddd1f",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -238065,13 +238082,17 @@
       "properties": {
         "name": {
           "type": "string",
+          "minLength": 1,
           "maxLength": 200,
-          "description": "PluginPackageCreate.name must contain at most 200 characters."
+          "pattern": "^(?!\\s)(?=.*\\S)",
+          "description": "PluginPackageCreate.name must match the pattern ^(?!\\s)(?=.*\\S)."
         },
         "displayName": {
           "type": "string",
+          "minLength": 1,
           "maxLength": 200,
-          "description": "PluginPackageCreate.displayName must contain at most 200 characters."
+          "pattern": "^(?!\\s)(?=.*\\S)",
+          "description": "PluginPackageCreate.displayName must match the pattern ^(?!\\s)(?=.*\\S)."
         },
         "license": {
           "type": "string",
@@ -238247,13 +238268,17 @@
       "properties": {
         "versionName": {
           "type": "string",
+          "minLength": 1,
           "maxLength": 200,
-          "description": "PluginVersionCreate.versionName must contain at most 200 characters."
+          "pattern": "^(?!\\s)(?=.*\\S)",
+          "description": "PluginVersionCreate.versionName must match the pattern ^(?!\\s)(?=.*\\S)."
         },
         "sdkRange": {
           "type": "string",
+          "minLength": 1,
           "maxLength": 200,
-          "description": "PluginVersionCreate.sdkRange must contain at most 200 characters."
+          "pattern": "^(?!\\s)(?=.*\\S)",
+          "description": "PluginVersionCreate.sdkRange must match the pattern ^(?!\\s)(?=.*\\S)."
         },
         "manifest": {
           "description": "PluginVersionCreate.manifest must contain at most 131072 UTF-8 bytes.",
@@ -238297,13 +238322,17 @@
         },
         "bundleObjectRef": {
           "type": "string",
+          "minLength": 1,
           "maxLength": 2000,
-          "description": "PluginVersionCreate.bundleObjectRef must contain at most 2000 characters."
+          "pattern": "^(?!\\s)(?=.*\\S)",
+          "description": "PluginVersionCreate.bundleObjectRef must match the pattern ^(?!\\s)(?=.*\\S)."
         },
         "bundleDigest": {
           "type": "string",
+          "minLength": 64,
           "maxLength": 64,
-          "description": "PluginVersionCreate.bundleDigest must contain at most 64 characters."
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "PluginVersionCreate.bundleDigest must match the pattern ^[0-9a-f]{64}$."
         },
         "sourceEvidence": {
           "description": "PluginVersionCreate.sourceEvidence must contain at most 32000 UTF-8 bytes.",
