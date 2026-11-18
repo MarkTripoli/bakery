@@ -13,8 +13,10 @@
 import { assert, assertEquals } from "@std/assert";
 import {
   failingJobs,
+  type GhResult,
   type GhRunner,
   ghRunner,
+  type GhSpawn,
   type Job,
   jobsFromPages,
   redBody,
@@ -305,53 +307,54 @@ Deno.test("a green dispatched run closes the issue as a dispatched run", async (
 });
 
 Deno.test("the real runner never hands `gh api` a --repo flag it rejects", async () => {
-  // A stand-in `gh` that refuses `api ... --repo` the way the real one does
-  // ("unknown flag: --repo") and logs every argv it is given.
-  const dir = await Deno.makeTempDir({ prefix: "nightly-signal-gh-" });
-  const log = `${dir}/argv.log`;
-  const script = `#!/bin/sh
-echo "$*" >> "${log}"
-if [ "$1" = "api" ]; then
-  for a in "$@"; do
-    if [ "$a" = "--repo" ]; then echo "unknown flag: --repo" >&2; exit 1; fi
-  done
-  echo '[{"jobs":[{"name":"x","conclusion":"success"}]}]'
-elif [ "$1 $2" = "issue list" ]; then
-  echo '[]'
-elif [ "$1 $2" = "issue close" ]; then
-  :
-else
-  echo "https://github.com/owner/repo/issues/7"
-fi
-`;
-  await Deno.writeTextFile(`${dir}/gh`, script);
-  await Deno.chmod(`${dir}/gh`, 0o755);
-  const path = Deno.env.get("PATH") ?? "";
-  Deno.env.set("PATH", `${dir}:${path}`);
-  try {
-    const gh = ghRunner("owner/repo", "token");
-    const jobs = await gh.listJobs("42");
-    assertEquals(jobs.length, 1);
-    await gh.findOpenIssues(SIGNAL_TITLE);
-    const calls = (await Deno.readTextFile(log)).trim().split("\n");
-    assert(calls[0].startsWith("api repos/owner/repo/actions/runs/42/jobs"));
-    assert(!calls[0].includes("--repo"));
-    assert(calls[1].startsWith("issue list"));
-    assert(calls[1].endsWith("--repo owner/repo"));
-    // The writes: create, edit and comment print an issue URL, close prints
-    // nothing. None of them answers in JSON, and none may throw once gh succeeded.
-    await gh.createIssue("title", "body");
-    await gh.updateIssue(7, "body");
-    await gh.commentOnIssue(7, "still red");
-    await gh.closeIssue(7, "green");
-    const writes = (await Deno.readTextFile(log)).trim().split("\n").slice(2);
-    assertEquals(
-      writes.map((call) => call.split(" ").slice(0, 2).join(" ")),
-      ["issue create", "issue edit", "issue comment", "issue close"],
-    );
-    for (const call of writes) assert(call.endsWith("--repo owner/repo"));
-  } finally {
-    Deno.env.set("PATH", path);
-    await Deno.remove(dir, { recursive: true });
+  // A stand-in for `gh` that refuses `api ... --repo` the way the real one does
+  // ("unknown flag: --repo"), prints a URL for create, edit and comment and
+  // nothing for close, and records every argv it is given. It is injected, not
+  // put on PATH: the unit lane may not run a process.
+  const encoder = new TextEncoder();
+  const argv: string[][] = [];
+  const spawn: GhSpawn = (args) => {
+    argv.push([...args]);
+    const ok = (text: string): Promise<GhResult> =>
+      Promise.resolve({
+        success: true,
+        stdout: encoder.encode(text),
+        stderr: new Uint8Array(),
+      });
+    if (args[0] === "api") {
+      if (args.includes("--repo")) {
+        return Promise.resolve({
+          success: false,
+          stdout: new Uint8Array(),
+          stderr: encoder.encode("unknown flag: --repo"),
+        });
+      }
+      return ok('[{"jobs":[{"name":"x","conclusion":"success"}]}]');
+    }
+    if (args[0] === "issue" && args[1] === "list") return ok("[]");
+    if (args[0] === "issue" && args[1] === "close") return ok("");
+    return ok("https://github.com/owner/repo/issues/7\n");
+  };
+  const gh = ghRunner("owner/repo", "token", spawn);
+  const jobs = await gh.listJobs("42");
+  assertEquals(jobs.length, 1);
+  await gh.findOpenIssues(SIGNAL_TITLE);
+  assert(argv[0]![1]!.startsWith("repos/owner/repo/actions/runs/42/jobs"));
+  assert(!argv[0]!.includes("--repo"));
+  assertEquals(argv[1]!.slice(0, 2), ["issue", "list"]);
+  assertEquals(argv[1]!.slice(-2), ["--repo", "owner/repo"]);
+  // The writes: create, edit and comment print an issue URL, close prints
+  // nothing. None of them answers in JSON, and none may throw once gh succeeded.
+  await gh.createIssue("title", "body");
+  await gh.updateIssue(7, "body");
+  await gh.commentOnIssue(7, "still red");
+  await gh.closeIssue(7, "green");
+  const writes = argv.slice(2);
+  assertEquals(
+    writes.map((call) => call.slice(0, 2).join(" ")),
+    ["issue create", "issue edit", "issue comment", "issue close"],
+  );
+  for (const call of writes) {
+    assertEquals(call.slice(-2), ["--repo", "owner/repo"]);
   }
 });

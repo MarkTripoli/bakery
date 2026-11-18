@@ -188,22 +188,53 @@ export function jobsFromPages(pages: unknown): readonly Job[] {
   );
 }
 
+/** What running `gh` once returns; the part of a process result the runner reads. */
+export type GhResult = {
+  readonly success: boolean;
+  readonly stdout: Uint8Array;
+  readonly stderr: Uint8Array;
+};
+
+/**
+ * Runs `gh` with these arguments and this token. A seam, not a convenience: the
+ * unit lane grants no `--allow-run=gh`, so a test that spawned `gh` could not
+ * run where the signal is tested. The lane's permission is not widened to fit a
+ * test; the runner takes the spawn as a parameter and a test hands it a stand-in.
+ */
+export type GhSpawn = (
+  args: readonly string[],
+  token: string,
+) => Promise<GhResult>;
+
+const spawnGh: GhSpawn = async (args, token) => {
+  const result = await new Deno.Command("gh", {
+    args: [...args],
+    env: { ...Deno.env.toObject(), GH_TOKEN: token },
+    stdout: "piped",
+    stderr: "piped",
+  }).output();
+  return {
+    success: result.success,
+    stdout: result.stdout,
+    stderr: result.stderr,
+  };
+};
+
 /**
  * The real `gh`, over the API. Kept in this file so it is easy to see the whole
  * surface the signal touches: two reads and four writes, nothing else.
  */
-export function ghRunner(repo: string, token: string): GhRunner {
+export function ghRunner(
+  repo: string,
+  token: string,
+  spawn: GhSpawn = spawnGh,
+): GhRunner {
   const api = async (args: readonly string[]): Promise<unknown> => {
     // `gh api` takes the repository in its path and has no `--repo` flag, so
     // appending one made every job read fail on the flag rather than on the
     // token. The `issue` subcommands are the ones that take `--repo`.
     const scoped = args[0] === "api" ? args : [...args, "--repo", repo];
-    const result = await new Deno.Command("gh", {
-      args: [...scoped],
-      env: { ...Deno.env.toObject(), GH_TOKEN: token },
-      stdout: "piped",
-      stderr: "piped",
-    }).output();
+    const result = await spawn(scoped, token);
     if (!result.success) {
       throw new Error(
         `gh ${args.join(" ")}: ${
