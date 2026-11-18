@@ -82,7 +82,16 @@ function graphqlStructure(document: string): string {
   while (index < document.length) {
     const char = document[index];
     if (char === "#") {
-      while (index < document.length && document[index] !== "\n") index++;
+      // A comment ends at either line terminator: graphql-js stops at 0x0A and
+      // 0x0D, so a lone carriage return ends the comment and the text after it
+      // is structure. Stopping only at "\n" would read a mutation that follows
+      // a "\r" as part of the comment.
+      while (
+        index < document.length && document[index] !== "\n" &&
+        document[index] !== "\r"
+      ) {
+        index++;
+      }
       continue;
     }
     if (document.startsWith('"""', index)) {

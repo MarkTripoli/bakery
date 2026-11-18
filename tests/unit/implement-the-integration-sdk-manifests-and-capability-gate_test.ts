@@ -319,6 +319,11 @@ Deno.test("a graphql request may be a read only when its document is a query", (
       // A byte-order mark is whitespace too.
       "query Q { a }\uFEFFmutation M { b }",
       "query Q { a } subscription S { b }",
+      // A comment ends at either line terminator, so a lone carriage return ends
+      // it too and the text after it is structure, not comment.
+      "query Q { a } # n\rmutation M { b }",
+      "query Q { a } # n\r\nmutation M { b }",
+      "query Q { a } # n\r\nsubscription S { b }",
       "subscription S { b }",
       "mutation M { b }",
       // Braces that do not balance are not a document to vouch for.
@@ -347,6 +352,9 @@ Deno.test("a graphql request may be a read only when its document is a query", (
       // The word inside a string or a comment must not refuse the document.
       'query Q { node(id: "mutation") { id } }',
       "# a mutation in a comment\nquery Q { a }",
+      // The same with a lone carriage return, and a comment after a real query.
+      "# a mutation in a comment\rquery Q { a }",
+      "query Q { a } # n\r",
     ]
   ) {
     assert(
