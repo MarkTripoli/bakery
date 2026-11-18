@@ -5,6 +5,16 @@ import {
 } from "./helpers/mock-session.ts";
 import { shot } from "./helpers/real-api.ts";
 
+/** The phone draws events as a list of rows; a wide screen draws a table. */
+const isPhone = (page: Page) => (page.viewportSize()?.width ?? 1280) < 744;
+const eventRow = (page: Page, text: string) =>
+  isPhone(page)
+    ? page.getByRole("listitem").filter({ hasText: text })
+    : page.getByRole("row").filter({ hasText: text });
+const eventText = (page: Page, text: string) =>
+  page.locator('[data-paged-list="audit"]').getByText(text, { exact: true })
+    .first();
+
 type Row = {
   id: string;
   organizationId: string | null;
@@ -99,14 +109,14 @@ for (
       await expect(page.getByRole("heading", { name: "Audit log" }).first())
         .toBeVisible();
       await expect(
-        page.getByRole("cell", { name: "Installation settings updated" }),
+        eventText(page, "Installation settings updated"),
       )
         .toBeVisible();
-      await expect(page.getByRole("cell", { name: "Password changed" }))
+      await expect(eventText(page, "Password changed"))
         .toBeVisible();
       await page.getByRole("button", { name: "Load older events" }).click();
       await expect(
-        page.getByRole("cell", { name: "Installation administrator added" }),
+        eventText(page, "Installation administrator added"),
       )
         .toBeVisible();
       await expect(page.getByRole("button", { name: "Load older events" }))
@@ -115,9 +125,7 @@ for (
         .toBe(true);
       // The button that was pressed is gone: focus is on the first row that load added.
       await expect(
-        page.getByRole("row").filter({
-          hasText: "Installation administrator added",
-        }),
+        eventRow(page, "Installation administrator added"),
       ).toBeFocused();
     });
 
@@ -134,9 +142,7 @@ for (
       await expect(more).toBeFocused();
       await more.click();
       await expect(
-        page.getByRole("row").filter({
-          hasText: "Installation administrator added",
-        }),
+        eventRow(page, "Installation administrator added"),
       ).toBeFocused();
     });
 
@@ -144,10 +150,10 @@ for (
       const seen = await installationAuditFixture(page);
       await page.goto("/installation/audit");
       await page.getByLabel("Action").selectOption("auth.password.change");
-      await expect(page.getByRole("cell", { name: "Password changed" }))
+      await expect(eventText(page, "Password changed"))
         .toBeVisible();
       await expect(
-        page.getByRole("cell", { name: "Installation settings updated" }),
+        eventText(page, "Installation settings updated"),
       )
         .toHaveCount(0);
       expect(
@@ -323,9 +329,9 @@ test.describe("organization audit log", () => {
       ],
     });
     await page.goto("/settings/audit");
-    const first = page.getByRole("row").filter({ hasText: "Ada Rivera" });
+    const first = eventRow(page, "Ada Rivera");
     await expect(first).toContainText("Member · Release bot");
-    const second = page.getByRole("row").filter({ hasText: "System" });
+    const second = eventRow(page, "System");
     await expect(second).toContainText("Organization role");
     await expect(second).toContainText("7c1d4a52");
     // The full identifier is a hover title, not the cell.
@@ -340,13 +346,13 @@ test.describe("organization audit log", () => {
       ],
     });
     await page.goto("/settings/audit");
-    const failed = page.getByRole("row").filter({ hasText: "Failed" });
+    const failed = eventRow(page, "Failed");
     await expect(failed.locator('[data-ui-component="badge"]')).toHaveAttribute(
       "data-variant",
       "danger",
     );
     await shot(page, "audit-failed");
-    await page.getByRole("row").filter({ hasText: "Failed" }).getByRole(
+    await eventRow(page, "Failed").getByRole(
       "button",
     ).first().click();
     const detail = page.getByTestId("audit-event-detail");
@@ -360,12 +366,12 @@ test.describe("organization audit log", () => {
   test("an empty result offers Clear filters; nothing recorded says why", async ({ page }) => {
     await organizationAuditFixture(page, { items: [orgRow(3)] });
     await page.goto("/settings/audit");
-    await expect(page.getByRole("cell", { name: /Ada Rivera/ })).toBeVisible();
+    await expect(eventRow(page, "Ada Rivera").first()).toBeVisible();
     await page.getByLabel("Action").selectOption("scimConnection.rotate");
     await expect(page.getByText("No events match these filters")).toBeVisible();
     await shot(page, "audit-empty-filtered");
     await page.getByRole("button", { name: "Clear filters" }).click();
-    await expect(page.getByRole("cell", { name: /Ada Rivera/ })).toBeVisible();
+    await expect(eventRow(page, "Ada Rivera").first()).toBeVisible();
 
     const none = await page.context().newPage();
     await organizationAuditFixture(none, { items: [] });
@@ -394,7 +400,7 @@ test.describe("organization audit log", () => {
     await shot(page, "audit-error");
     state.failing = false;
     await page.getByRole("button", { name: "Try again" }).click();
-    await expect(page.getByRole("cell", { name: /Ada Rivera/ })).toBeVisible();
+    await expect(eventRow(page, "Ada Rivera").first()).toBeVisible();
     await expect(page.getByRole("heading", { name: "Audit log", level: 1 }))
       .toBeFocused();
   });

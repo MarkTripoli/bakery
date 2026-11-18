@@ -4132,5 +4132,6 @@
   "settings.audit.kind.installation_settings": "⟦Ïñšŧàļļàŧïôñ šëŧŧïñĝš ŧëšŧŧ⟧",
   "settings.audit.kind.agent_definition": "⟦Àĝëñŧ⟧",
   "settings.audit.kind.agent_version": "⟦Àĝëñŧ ṽëŕšïôñ ŧë⟧",
-  "settings.audit.outcome.denied": "⟦Ŕëƒûšëð…⟧"
+  "settings.audit.outcome.denied": "⟦Ŕëƒûšëð…⟧",
+  "settings.audit.sheet.open": "⟦Ôþëñ ŧĥë ëṽëñŧ: {action} ŧëšŧ ç⟧"
 }

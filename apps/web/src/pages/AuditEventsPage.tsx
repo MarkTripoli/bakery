@@ -11,6 +11,7 @@ import { protectedQueryKey } from "../app/query-scope.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import * as organizationSelection from "../app/organization-selection.ts";
 import { useRestoreOrganizationScope } from "../app/restore-organization.ts";
+import { useShellViewport } from "../app/responsive.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { ShellActiveNavigation } from "../shell/shell-slots.tsx";
 import { AuditExportRetention } from "./AuditExportRetention.tsx";
@@ -178,6 +179,7 @@ export function AuditEventsPage({ scope: audience }: {
   const { translate, locale, timeZone } = useI18n();
   useRestoreOrganizationScope();
   const headingId = useId();
+  const phone = useShellViewport() === "phone";
   const restoring = audience === "organization" &&
     organizationSelection.hasRemembered();
   const organizationId = scope.organizationId ??
@@ -282,6 +284,7 @@ export function AuditEventsPage({ scope: audience }: {
     failed: events.isFetchNextPageError,
     rowCount: rows.length,
     hasMore: events.hasNextPage,
+    rowSelector: phone ? '[role="listitem"]' : undefined,
   });
   const when = new Intl.DateTimeFormat(locale, {
     dateStyle: "medium",
@@ -461,7 +464,52 @@ export function AuditEventsPage({ scope: audience }: {
                 />
               )
               : null}
-            {showTable
+            {showTable && phone
+              ? (
+                <div
+                  aria-label={translate("settings.audit.table.caption")}
+                  data-paged-list="audit"
+                  role="list"
+                >
+                  {rows.map((row) => {
+                    const actor = actorOf(row);
+                    const target = targetOf(row);
+                    return (
+                      <div key={row.id} role="listitem" tabIndex={-1}>
+                        <UI.ListRow
+                          controlLabel={translate("settings.audit.sheet.open", {
+                            action: label(OPERATION_KEYS, row.operation),
+                          })}
+                          detail={[
+                            actor.name,
+                            target.name
+                              ? `${target.kind} · ${target.name}`
+                              : `${target.kind} · ${target.id}`,
+                            when.format(new Date(row.createdAt)),
+                          ].join(" · ")}
+                          detailLines={2}
+                          onSelect={() => setSelected(row)}
+                          selected={selected?.id === row.id}
+                          size="tall"
+                          title={label(OPERATION_KEYS, row.operation)}
+                          trailing={
+                            <UI.Badge
+                              tone={row.outcome === "failed" ||
+                                  row.outcome === "denied"
+                                ? "danger"
+                                : "neutral"}
+                            >
+                              {label(OUTCOME_KEYS, row.outcome)}
+                            </UI.Badge>
+                          }
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              )
+              : null}
+            {showTable && !phone
               ? (
                 <div data-paged-list="audit">
                   <UI.DataTable<AuditEventItem>

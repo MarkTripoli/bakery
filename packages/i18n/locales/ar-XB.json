@@ -4132,5 +4132,6 @@
   "settings.audit.kind.installation_settings": "⟪Installation settings⟫",
   "settings.audit.kind.agent_definition": "⟪Agent⟫",
   "settings.audit.kind.agent_version": "⟪Agent version⟫",
-  "settings.audit.outcome.denied": "⟪Refused⟫"
+  "settings.audit.outcome.denied": "⟪Refused⟫",
+  "settings.audit.sheet.open": "⟪Open the event: {action}⟫"
 }

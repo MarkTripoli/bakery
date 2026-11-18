@@ -1817,6 +1817,7 @@
   "settings.audit.actor.serviceAccount": "Service account",
   "settings.audit.actor.unknown": "Unknown member",
   "settings.audit.sheet.title": "Audit event",
+  "settings.audit.sheet.open": "Open the event: {action}",
   "settings.audit.sheet.close": "Close",
   "settings.audit.sheet.request": "Request",
   "settings.audit.kind.organization": "Organization",
