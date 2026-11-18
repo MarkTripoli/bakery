@@ -144,10 +144,14 @@
   text-align: center;
 }
 /* An unknown count is a hollow ring, never a zero: the ring says "not known
-   yet", which is true, where a 0 would be a confident lie. */
+   yet", which is true, where a 0 would be a confident lie. It takes the
+   emphasis width and the muted stroke, not the hairline default: at 1px in
+   `--color-border` the ring reads as an empty bell in both themes, which
+   loses the distinction the state exists to draw. This is the same pair the
+   repaired notification surfaces carry. */
 .ui-notification-bell__badge--unknown {
   background: transparent;
-  border: var(--border-default) solid var(--color-border);
+  border: var(--border-emphasis) solid var(--color-fg-muted);
   block-size: var(--space-3);
   box-sizing: border-box;
   inline-size: var(--space-3);
