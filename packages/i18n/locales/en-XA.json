@@ -4257,5 +4257,9 @@
   "settings.roles.thing.auditRetention": "⟦àûðïŧ ŕëŧëñŧïôñ šëŧŧïñĝš ŧëšŧ ç⟧",
   "settings.roles.thing.installationAdministrator": "⟦ïñšŧàļļàŧïôñ àðɱïñïšŧŕàŧôŕš ŧëšŧ çô⟧",
   "settings.roles.thing.installationAuditEvent": "⟦ïñšŧàļļàŧïôñ àûðïŧ ëṽëñŧš ŧëšŧ ç⟧",
-  "settings.roles.thing.installationSetting": "⟦ïñšŧàļļàŧïôñ šëŧŧïñĝš ŧëšŧŧ⟧"
+  "settings.roles.thing.installationSetting": "⟦ïñšŧàļļàŧïôñ šëŧŧïñĝš ŧëšŧŧ⟧",
+  "core.actions.showAll": "⟦Šĥôŵ àļļ…⟧",
+  "core.actions.showLess": "⟦Šĥôŵ ļëšš ŧ⟧",
+  "repository.rules.summary.show.named": "⟦Šĥôŵ àļļ ôƒ {rule} ŧëšŧ⟧",
+  "repository.rules.summary.hide.named": "⟦Šĥôŵ ļëšš ôƒ {rule} ŧëšŧ⟧"
 }
