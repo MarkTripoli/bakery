@@ -81,10 +81,16 @@ function membership(id: string, principalId: string, role: string): Body {
     version: 1,
   };
 }
-function principal(id: string, displayName: string, type = "human"): Body {
+function principal(
+  id: string,
+  displayName: string,
+  type = "human",
+  createdByPrincipalId: string | null = null,
+): Body {
   return {
     id,
     principalType: type,
+    createdByPrincipalId,
     displayName,
     disabledAt: null,
     createdAt: STAMP,
@@ -117,7 +123,7 @@ function fullWorld(): World {
       principal(ADMIN_PRINCIPAL, "Ada Rivera"),
       principal(DEVELOPER_PRINCIPAL, "Jon Okafor"),
       principal(VIEWER_PRINCIPAL, "Priya Nair"),
-      principal(BOT_PRINCIPAL, "ci-deployer", "service"),
+      principal(BOT_PRINCIPAL, "ci-deployer", "service", ADMIN_PRINCIPAL),
     ],
     tokens: [{
       id: TOK_1,
@@ -388,38 +394,108 @@ for (
       const world = fullWorld();
       await accessFixture(page, world);
       await page.goto("/settings/organization/access");
-      await expect(page.locator("main h1")).toHaveText("Members & access");
+      await expect(page.locator("main h1")).toHaveText("Members");
       await expect(page.getByTestId("org-access-members")).toContainText(
         "Ada Rivera",
       );
       if (viewport.name === "desktop") {
         await expect(
-          page.getByRole("heading", { name: /Members · 4 people/ }),
+          page.getByRole("heading", { name: /Members · 3 people/ }),
         ).toBeVisible();
       } else {
-        // A phone moves the counts into the page summary.
+        // A phone moves the counts into the page summary. The section heading
+        // is level 2: the page title is Members too, now that Invitations is
+        // a tab of its own (issue 233, owner-directed split).
         await expect(
-          page.getByRole("heading", { name: "Members", exact: true }),
+          page.getByRole("heading", {
+            name: "Members",
+            exact: true,
+            level: 2,
+          }),
         )
           .toBeVisible();
-        await expect(page.getByText("4 people · 1 pending invitation"))
+        await expect(page.getByText("3 people", { exact: true }))
+          .toBeVisible();
+        // The pending count lives on the Invitations tab, which is the
+        // control it is (issue 233, owner-directed split).
+        await expect(page.getByRole("tab", { name: "Invitations (1)" }))
           .toBeVisible();
       }
-      // The scoped developer role shows under its member, named by resource.
+      // Column names explain the cells on a wide screen; a phone reads each
+      // row as its own labelled block, so the header row is not shown there
+      // (issue 233, fix 3).
+      const memberColumns = page.getByTestId("org-access-members-columns");
+      if (viewport.name === "desktop") {
+        await expect(memberColumns).toBeVisible();
+        await expect(memberColumns).toContainText("Applies to");
+      } else {
+        await expect(memberColumns).toBeHidden();
+      }
+      // A header and its cells share one grid even when a row has a single
+      // value, so a cell starts under its header in every table (issue 233,
+      // design round 3).
+      if (viewport.name === "desktop") {
+        const clientsHeader = page.getByTestId("org-access-clients-columns");
+        const clientsCell = page.getByTestId(`org-access-client-${CLIENT_1}`);
+        const headerBox = await clientsHeader.getByText("Authorized")
+          .boundingBox();
+        const cellBox = await clientsCell
+          .getByText("1 Oct 2026", { exact: true })
+          .boundingBox();
+        expect(headerBox).not.toBeNull();
+        expect(cellBox).not.toBeNull();
+        expect(Math.abs((headerBox?.x ?? 0) - (cellBox?.x ?? 0)))
+          .toBeLessThanOrEqual(1);
+      }
+      // A neutral row action keeps the secondary button it is; only a
+      // destructive one paints red label and border (issue 233, round 4).
+      const borderOf = async (testId: string) =>
+        await page.getByTestId(testId).evaluate((node) => {
+          const style = globalThis.getComputedStyle(node);
+          return {
+            border: style.borderTopColor,
+            label: style.color,
+          };
+        });
+      const editBorder = await borderOf(`org-access-edit-${M_VIEWER}`);
+      // The destructive comparison lives on the service accounts page, where
+      // the token rows are now (issue 233, split).
+      await page.goto("/settings/organization/service-accounts");
+      const revokeBorder = await borderOf(`org-access-revoke-${TOK_1}`);
+      expect(editBorder.border).not.toBe(revokeBorder.border);
+      expect(editBorder.label).not.toBe(revokeBorder.label);
+      await page.goto("/settings/organization/access");
+      // A person has ONE row however many roles they hold: the scoped role
+      // sits inside the member's row beside the organization one, named by
+      // its resource, rather than in a nameless duplicate (issue 233, fix 2).
       const jon = page.getByTestId(`org-access-member-${M_DEV}`);
       await expect(jon).toContainText("Organization · Developer");
-      await expect(page.getByTestId(`org-access-binding-${BIND_1}`))
-        .toContainText("Application · Developer");
-      await expect(page.getByTestId(`org-access-binding-${BIND_1}`))
-        .toContainText("storefront");
+      await expect(jon).toContainText("Application · Developer");
+      await expect(jon).toContainText("storefront");
+      await expect(page.getByTestId("org-access-members"))
+        .not.toContainText("No organization role");
+      // Invitations are their own tab, with the count on the tab
+      // (issue 233, owner-directed split).
+      await expect(page.getByRole("tab", { name: "Invitations (1)" }))
+        .toBeVisible();
+      await page.getByRole("tab", { name: "Invitations (1)" }).click();
       await expect(page.getByTestId(`org-access-invitation-${INV_1}`))
         .toContainText("sam@example.test");
       await expect(page.getByTestId(`org-access-invitation-${INV_1}`))
         .toContainText("Organization · Guest");
+      await page.getByRole("tab", { name: "Members", exact: true }).click();
+      // Service accounts and tokens are their own page (issue 233,
+      // owner-directed split).
+      await page.goto("/settings/organization/service-accounts");
+      await expect(page.locator("main h1"))
+        .toHaveText("Service accounts & tokens");
       await expect(page.getByTestId("org-access-account-" + BOT_PRINCIPAL))
         .toContainText("ci-deployer");
+      // A token reads as a labelled value, never a bare prefix
+      // (issue 233, fix 7).
       await expect(page.getByTestId(`org-access-token-${TOK_1}`))
-        .toContainText("bk_…9d2f");
+        .toContainText("ending 9d2f");
+      await page.goto("/settings/organization/access");
       await expect(page.getByTestId("org-access-clients"))
         .toContainText("Bakery CLI");
       // The page never scrolls sideways, on a phone least of all.
@@ -429,29 +505,50 @@ for (
       expect(overflow).toBeLessThanOrEqual(0);
     });
 
-    test("an organization with only you shows the first-invite empty state", async ({ page }) => {
+    test("an organization with only you keeps every section and its own empty line", async ({ page }) => {
       const world = emptyWorld();
       await accessFixture(page, world);
       await page.goto("/settings/organization/access");
-      await expect(page.getByTestId("org-access-empty")).toContainText(
-        "Only you are in this organization",
-      );
-      await expect(page.getByTestId("org-access-invite-first")).toBeVisible();
-      // The header action stays on a wide screen; a phone keeps only the card's.
-      if (viewport.name === "desktop") {
-        await expect(page.getByTestId("org-access-invite")).toBeVisible();
-      } else {
-        await expect(page.getByTestId("org-access-invite")).toBeHidden();
-      }
 
-      // The card hides the accounts section, so it offers the first service
-      // account itself; once one exists the sections take over.
-      await page.getByTestId("org-access-new-account-first").click();
+      // No page-wide card: the Members section lists the one person in it.
+      await expect(page.getByTestId("org-access-members"))
+        .toContainText("Ada Rivera");
+      await expect(page.getByTestId("org-access-members"))
+        .not.toContainText("Only you are in this organization");
+
+      // Each other section keeps its heading and says what will appear, with
+      // the one action that fills it (issue 233, fix 10). Invitations are a
+      // tab of their own now.
+      await page.getByRole("tab", { name: "Invitations", exact: true }).click();
+      await expect(page.getByTestId("org-access-invitations"))
+        .toContainText("No pending invitations");
+      await page.getByRole("tab", { name: "Members", exact: true }).click();
+      // The empty line keeps its sentence; the action already on screen is the
+      // action, so no second button repeats it (issue 233, round 2).
+      await expect(page.getByTestId("org-access-invite-empty")).toHaveCount(0);
+      // Service accounts and tokens moved to their own page (issue 233,
+      // owner-directed split).
+      await page.goto("/settings/organization/service-accounts");
+      await expect(page.getByTestId("org-access-accounts"))
+        .toContainText("No service accounts yet");
+      await expect(page.getByTestId("org-access-new-account-empty"))
+        .toHaveCount(0);
+      await page.goto("/settings/organization/access");
+      await expect(page.getByTestId("org-access-clients"))
+        .toContainText("No connected clients");
+      await expect(page.getByTestId("org-access-clients"))
+        .toContainText("Apps appear here after a member signs in");
+
+      // One primary on the page: the header's Invite member, on a phone too.
+      await expect(page.getByTestId("org-access-invite")).toBeVisible();
+
+      // The section's own action creates the first service account.
+      await page.goto("/settings/organization/service-accounts");
+      await page.getByTestId("org-access-new-account").click();
       const form = page.getByTestId("org-access-account-form");
       await form.getByLabel("Name").fill("release-bot");
       await form.getByRole("button", { name: "Create service account" })
         .click();
-      await expect(page.getByTestId("org-access-empty")).toHaveCount(0);
       await expect(page.getByTestId("org-access-accounts")).toContainText(
         "release-bot",
       );
@@ -469,10 +566,11 @@ for (
       await expect(page.getByTestId("org-access-clients")).toContainText(
         "Bakery CLI",
       );
-      await expect(page.getByTestId("org-access-empty")).toHaveCount(0);
+      await expect(page.getByTestId("org-access-members"))
+        .toContainText("Ada Rivera");
     });
 
-    test("the page waits for connected clients before it picks the empty card", async ({ page }) => {
+    test("the page waits for connected clients before it shows the client section", async ({ page }) => {
       const world = { ...emptyWorld(), clients: fullWorld().clients };
       await accessFixture(page, world);
       // Registered last, so it takes the client read before the fixture does.
@@ -496,12 +594,12 @@ for (
         ].every((path) => sent(world, "GET", path).length > 0)
       ).toBe(true);
       await expect(page.getByTestId("org-access-loading")).toBeVisible();
-      await expect(page.getByTestId("org-access-empty")).toHaveCount(0);
       release();
       await expect(page.getByTestId("org-access-clients")).toContainText(
         "Bakery CLI",
       );
-      await expect(page.getByTestId("org-access-empty")).toHaveCount(0);
+      await expect(page.getByTestId("org-access-members"))
+        .toContainText("Ada Rivera");
     });
 
     test("a non-admin gets a notice and no admin data is read", async ({ page }) => {
@@ -513,8 +611,11 @@ for (
       await expect(page.getByTestId("org-access-members")).toHaveCount(0);
       expect(sent(world, "GET", `/v1/organizations/${ORG}/invitations`))
         .toHaveLength(0);
-      expect(sent(world, "GET", "/v1/access-tokens")).toHaveLength(0);
-      expect(sent(world, "GET", "/v1/access-bindings")).toHaveLength(0);
+      // A member does read their own service accounts and tokens now: the
+      // page is theirs (issue 233, owner-directed split). What stays Admin
+      // only is the member directory, invitations and scoped bindings.
+      expect(sent(world, "GET", `/v1/organizations/${ORG}/memberships`))
+        .toHaveLength(0);
     });
 
     test("a failed read shows an error and retry recovers", async ({ page }) => {
@@ -540,6 +641,8 @@ for (
       await page.getByLabel("Email address").fill("guest@example.test");
       await page.getByLabel("Organization role").selectOption("guest");
       await page.getByTestId("org-access-invite-send").click();
+      // The new invitation is on the Invitations tab.
+      await page.getByRole("tab", { name: /Invitations/ }).click();
       await expect(page.getByTestId(`org-access-invitation-${INV_2}`))
         .toContainText("guest@example.test");
       const posted = sent(
@@ -565,7 +668,8 @@ for (
     test("a service account token is shown once, then revoked", async ({ page }) => {
       const world = fullWorld();
       await accessFixture(page, world);
-      await page.goto("/settings/organization/access");
+      // Tokens live on the service accounts page (issue 233, split).
+      await page.goto("/settings/organization/service-accounts");
       await page.getByTestId("org-access-new-token-action").click();
       await page.getByLabel("Token name").fill("release");
       await page.getByLabel("Scope").selectOption("bakery:read");
@@ -640,25 +744,27 @@ for (
         REPO_ID,
       );
       await dialog.getByTestId("org-access-binding-add").click();
-      await expect(page.getByTestId(`org-access-binding-${BIND_2}`))
-        .toContainText("Repository · Viewer");
-      await expect(page.getByTestId(`org-access-binding-${BIND_2}`))
-        .toContainText("oven-api");
+      // The new scoped role joins the person's own row, naming its resource
+      // (issue 233, fix 2).
+      const viewer = page.getByTestId(`org-access-member-${M_VIEWER}`);
+      await expect(viewer).toContainText("Repository · Viewer");
+      await expect(viewer).toContainText("oven-api");
       expect(sent(world, "POST", "/v1/access-bindings")[0].body).toEqual({
         principalId: VIEWER_PRINCIPAL,
         roleKey: "viewer",
         scopeType: "repository",
         scopeId: REPO_ID,
       });
-      await dialog.getByRole("button", { name: "Close dialog" }).click();
-
-      await page.getByTestId(`org-access-binding-${BIND_2}`)
-        .getByRole("button", { name: "Remove" }).click();
+      // A scoped role is removed from the person's edit dialog, which is the
+      // row's one action; the row itself never carries a second control
+      // (issue 233, fix 5).
+      await dialog.getByRole("button", { name: "Remove acme/oven-api" })
+        .click();
       await page.getByTestId("org-access-confirm-action").click();
-      await expect(page.getByTestId(`org-access-binding-${BIND_2}`))
-        .toHaveCount(
-          0,
-        );
+      // The dialog stays open so the person can keep editing; what this test
+      // pins is that the right request went out.
+      await expect(page.getByTestId(`org-access-member-${M_VIEWER}`))
+        .not.toContainText("oven-api");
       expect(
         sent(world, "DELETE", `/v1/access-bindings/${BIND_2}`)[0]
           .headers["if-match"],
@@ -684,5 +790,45 @@ for (
       await expect(page.getByTestId(`org-access-member-${M_ADMIN}`))
         .toBeVisible();
     });
+  });
+}
+
+// Evidence capture for PR 534. Not a gate: it writes stills of the screens this
+// change builds, run by hand when the PR needs viewable proof at its head.
+const shotDir = process.env.BAKERY_EVIDENCE_DIR;
+if (shotDir !== undefined) {
+  test.describe("organization access evidence", () => {
+    for (
+      const shape of [
+        { name: "desktop", width: 1440, height: 900 },
+        { name: "phone", width: 390, height: 844 },
+      ]
+    ) {
+      test(`stills (${shape.name})`, async ({ page }) => {
+        await page.setViewportSize(shape);
+        const world = fullWorld();
+        await accessFixture(page, world);
+        for (
+          const screen of [
+            { name: "members", path: "/settings/organization/access" },
+            {
+              name: "invitations",
+              path: "/settings/organization/access/invitations",
+            },
+            {
+              name: "service-accounts",
+              path: "/settings/organization/service-accounts",
+            },
+          ]
+        ) {
+          await page.goto(screen.path);
+          await page.waitForTimeout(900);
+          await page.screenshot({
+            path: `${shotDir}/${screen.name}-${shape.name}-light.png`,
+            fullPage: true,
+          });
+        }
+      });
+    }
   });
 }

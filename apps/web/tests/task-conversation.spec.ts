@@ -214,11 +214,13 @@ const problem = (status: number, code: string, retryable = false) => ({
 const teammate = {
   principalId: otherPrincipalId,
   principalType: "human",
+  createdByPrincipalId: null,
   displayName: "Dana Teammate",
 };
 const me = {
   principalId,
   principalType: "human",
+  createdByPrincipalId: null,
   displayName: "Alex Builder",
 };
 

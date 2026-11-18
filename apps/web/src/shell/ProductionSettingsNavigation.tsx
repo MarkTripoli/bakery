@@ -31,11 +31,6 @@ export const productionAccountRoutes = [
     href: "/settings/sessions",
   },
   {
-    id: "settings-clients",
-    label: <I18nText id="shell.navigation.clients" />,
-    href: "/settings/clients",
-  },
-  {
     id: "settings-appearance",
     label: <I18nText id="shell.navigation.appearance" />,
     href: "/settings/appearance",
@@ -105,7 +100,7 @@ const SECTION_LABEL_KEYS: Readonly<Record<string, MessageKey>> = {
   "/settings/profile": "shell.navigation.profile",
   "/settings/security": "shell.navigation.security",
   "/settings/sessions": "shell.navigation.sessions",
-  "/settings/clients": "shell.navigation.clients",
+  "/settings/organization/integrations/clients": "shell.navigation.clients",
   "/settings/appearance": "shell.navigation.appearance",
   "/settings/access": "shell.navigation.access",
   "/settings/organization/access": "shell.navigation.membersAndAccess",

@@ -118,15 +118,6 @@ Deno.test("issue 69 ops: externalTickets.list answers the tickets linked to one 
     // the read's documented order, and the position is not the property here.
     const secondRow = mine.items.find((item) => item.id === second.id);
     assert(secondRow, "the shared ticket is on the page");
-    // INSTRUMENT (temporary, PR 540): the expectation below has been red four
-    // times for four different reasons, so print the facts that decide it -
-    // what the read answered, and which task id sits in each position - rather
-    // than leaving the reader to derive the order from a theory about ties.
-    console.log(JSON.stringify({
-      writeOrder: ["second->taskId", "second->otherTask"],
-      actual: secondRow.linkedTaskIds,
-      taskIds: { taskId, otherTask },
-    }));
     assertEquals(secondRow.linkedTaskIds, linksOfSecond);
     assertEquals(
       (await forTask(otherTask)).items.map((item) => item.id),

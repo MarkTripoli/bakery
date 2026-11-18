@@ -1845,7 +1845,6 @@ export function createBakeryPostgresWorkflowRepository(options: {
           }
         } else if (
           snapshot?.executionMode !== "cloud_only" ||
-          row.taskType !== "maintenance" ||
           snapshot.repositoryProfile !== null ||
           row.runApplicationId !== null ||
           row.runRepositoryId !== null || row.runRepositoryProfileId !== null ||

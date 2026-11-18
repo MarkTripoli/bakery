@@ -49,6 +49,14 @@ export type ApiResult<T> =
   | { readonly ok: true; readonly data: T }
   | { readonly ok: false; readonly error: ApiFailure };
 
+export type NotificationListResponse = ClientOutputMap["Page<Notification>"];
+export type NotificationResponse = ClientOutputMap["Notification"];
+export type NotificationCountResponse = ClientOutputMap["NotificationCount"];
+export type NotificationTargetResponse = ClientOutputMap["NotificationTarget"];
+export type NotificationMarkAllReadResponse =
+  ClientOutputMap["NotificationMarkAllReadResult"];
+export type NotificationCursorQuery = ClientInputMap["NotificationCursorQuery"];
+
 export type TaskListResponse = ClientOutputMap["Page<Task>"];
 export type TaskCursorQuery = ClientInputMap["TaskCursorQuery"];
 export type TaskCreate = ClientInputMap["TaskCreate"];
@@ -1067,6 +1075,35 @@ export type BakeryApiClient = {
       readonly signal?: AbortSignal;
     },
   ) => Promise<ApiResult<TaskListResponse>>;
+  readonly listNotifications: (
+    options: NotificationCursorQuery & {
+      readonly organizationId: string;
+      readonly signal?: AbortSignal;
+    },
+  ) => Promise<ApiResult<NotificationListResponse>>;
+  readonly notificationCount: (options: {
+    readonly organizationId: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<NotificationCountResponse>>;
+  readonly resolveNotificationTarget: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<NotificationTargetResponse>>;
+  readonly setNotificationRead: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly read: boolean;
+    readonly expectedCasVersion: number;
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<NotificationResponse>>;
+  readonly markAllNotificationsRead: (options: {
+    readonly organizationId: string;
+    readonly readBefore: string;
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<NotificationMarkAllReadResponse>>;
   readonly createTask: (options: {
     readonly organizationId: string;
     readonly input: TaskCreate;
@@ -3773,6 +3810,98 @@ export function createBakeryApiClient({
         if (data.id !== options.id) {
           throw new ApiTransportError("protocol", 200);
         }
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listNotifications(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["notifications.list"](
+          {
+            filter: options.filter,
+            ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+            ...(options.limit === undefined ? {} : { limit: options.limit }),
+          },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async notificationCount(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["notifications.count"]({}, {
+          signal: options.signal,
+        });
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async resolveNotificationTarget(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["notifications.resolveTarget"](
+          { id: options.id },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async setNotificationRead(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["notifications.setRead"](
+          {
+            id: options.id,
+            read: options.read,
+            expectedCasVersion: options.expectedCasVersion,
+          },
+          {
+            signal: options.signal,
+            ...(options.idempotencyKey === undefined
+              ? {}
+              : { idempotencyKey: options.idempotencyKey }),
+          },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async markAllNotificationsRead(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["notifications.markAllRead"](
+          { readBefore: options.readBefore },
+          {
+            signal: options.signal,
+            ...(options.idempotencyKey === undefined
+              ? {}
+              : { idempotencyKey: options.idempotencyKey }),
+          },
+        );
         return { ok: true, data };
       } catch (error) {
         return failed(error);

@@ -36,7 +36,8 @@ export const TWO_FACTOR_DISABLE_PATH: string =
 export const BACKUP_CODES_PATH: string =
   "/settings/security/two-factor/backup-codes";
 /** Connected OAuth clients: the grants a person can review and revoke. */
-export const CONNECTED_CLIENTS_PATH: string = "/settings/clients";
+export const CONNECTED_CLIENTS_PATH: string =
+  "/settings/organization/integrations/clients";
 export const REVOKE_CLIENT_PATH: string = "/settings/clients/revoke";
 /** The OAuth provider sends people here to approve or deny a client. */
 export const OAUTH_CONSENT_PATH: string = "/oauth/consent";
