@@ -16,6 +16,7 @@ concurrency:
 
 jobs:
   issue:
+    # Maintainers only: nobody outside the repository's collaborators triggers CI.
     if: github.event_name == 'issues'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -23,14 +24,40 @@ jobs:
       contents: read
       issues: read
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Maintainers only
+        id: maintainer
+        env:
+          GH_TOKEN: ${{ github.token }}
+          AUTHOR: ${{ github.event.issue.user.login }}
+        run: |
+          # The event's author_association reads CONTRIBUTOR for a private
+          # organization member, so ask the repository who may write to it. A
+          # lookup that fails for any reason but "not a user with access" fails the
+          # job, so a broken gate shows red instead of silently skipping.
+          err="$RUNNER_TEMP/maintainer.err"
+          if level=$(gh api "repos/$GITHUB_REPOSITORY/collaborators/$AUTHOR/permission" --jq .permission 2>"$err"); then
+            :
+          elif grep -q 'HTTP 404' "$err"; then
+            level=none
+          else
+            cat "$err" >&2
+            exit 1
+          fi
+          case "$level" in
+            admin|maintain|write) echo "allowed=true" >> "$GITHUB_OUTPUT" ;;
+            *) echo "allowed=false" >> "$GITHUB_OUTPUT"; echo "Skipped: $AUTHOR has $level access." ;;
+          esac
+      - if: steps.maintainer.outputs.allowed == 'true'
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
-      - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
+      - if: steps.maintainer.outputs.allowed == 'true'
+        uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
         with:
           deno-version: v2.9.1
       - name: Validate live issue metadata
+        if: steps.maintainer.outputs.allowed == 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
@@ -45,15 +72,47 @@ jobs:
       issues: read
       pull-requests: read
     steps:
+      - name: Maintainers only
+        id: maintainer
+        env:
+          GH_TOKEN: ${{ github.token }}
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: |
+          # The event's author_association reads CONTRIBUTOR for a private
+          # organization member, so ask the repository who may write to it. A
+          # lookup that fails for any reason but "not a user with access" fails the
+          # job, so a broken gate shows red instead of silently skipping.
+          err="$RUNNER_TEMP/maintainer.err"
+          if level=$(gh api "repos/$GITHUB_REPOSITORY/collaborators/$AUTHOR/permission" --jq .permission 2>"$err"); then
+            :
+          elif grep -q 'HTTP 404' "$err"; then
+            level=none
+          else
+            cat "$err" >&2
+            exit 1
+          fi
+          case "$level" in
+            admin|maintain|write) echo "allowed=true" >> "$GITHUB_OUTPUT" ;;
+            *)
+              echo "allowed=false" >> "$GITHUB_OUTPUT"
+              # A required check must never read green unvalidated: an outside
+              # contributor's PR fails here until a maintainer takes it over.
+              echo "::error::outside contributor ($AUTHOR has $level access): a maintainer must take this PR over"
+              exit 1
+              ;;
+          esac
       # github.sha is trusted base code for pull_request_target, never PR head.
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - if: steps.maintainer.outputs.allowed == 'true'
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
-      - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
+      - if: steps.maintainer.outputs.allowed == 'true'
+        uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
         with:
           deno-version: v2.9.1
       - name: Validate live PR and owning issue metadata
+        if: steps.maintainer.outputs.allowed == 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
