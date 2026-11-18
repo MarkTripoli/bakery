@@ -232,6 +232,61 @@ exit 0
 });
 
 Deno.test({
+  name: "Codex reports a failed reset after refusing a secret patch (#159)",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const canary = "canary-secret-Zq81xPLm47vN";
+    const scratch = await prepareScratchRepository("bakery-codex-reset-");
+    const executable = `${scratch.dir}/fake-codex`;
+    // The hook runs after the harness commit and holds the index lock, so the
+    // reset that drops the refused patch exits non-zero.
+    const hook = `${scratch.dir}/.git/hooks/post-commit`;
+    await Deno.writeTextFile(
+      hook,
+      '#!/bin/sh\ntouch "$(git rev-parse --git-dir)/index.lock"\n',
+    );
+    await Deno.chmod(hook, 0o755);
+    await Deno.writeTextFile(
+      executable,
+      `#!/bin/sh
+if [ "\${1:-}" = "--version" ]; then echo 'codex-cli 0.0.0-fake'; exit 0; fi
+printf '%s\\n' '${canary}' > '${scratch.dir}/leak.txt'
+exit 0
+`,
+    );
+    await Deno.chmod(executable, 0o755);
+    const logged: string[] = [];
+    const original = console.error;
+    console.error = (...args: unknown[]) => {
+      logged.push(args.map(String).join(" "));
+    };
+    let outcome;
+    try {
+      outcome = await executorFor(scratch.dir, executable, [canary], {
+        count: 0,
+      }).execute(await assignment(scratch.dir), new AbortController().signal);
+    } finally {
+      console.error = original;
+    }
+    // The step still fails with the secret fault, and the failed reset is
+    // reported, without echoing the secret.
+    assertEquals(faultOf(outcome).code, "CODEX_HARNESS_PATCH_SECRET_DETECTED");
+    // Two resets run: the one that drops the refused patch and the final
+    // restore the executor always performs. Both must be reported; before the
+    // fix only the final restore was.
+    const restore = logged.filter((line) =>
+      line.includes("harness.restore_failed")
+    );
+    const resets = restore.map((line) => JSON.parse(line)).filter((entry) =>
+      entry.step === "reset"
+    );
+    assertEquals(resets.length, 2, logged.join("\n"));
+    for (const entry of resets) assert(entry.exitCode !== 0);
+    assertFalse(restore.join("\n").includes(canary));
+  },
+});
+
+Deno.test({
   name: "Codex refuses a dirty worktree before executing",
   ...RUN_PERMISSIONS,
   fn: async () => {

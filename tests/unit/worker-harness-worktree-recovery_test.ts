@@ -8,6 +8,7 @@ import {
   HARNESS_WORKTREE_DIRTY_REASON,
   harnessRestoreMarkerPath,
   harnessWorktreeCheck,
+  runRestoreStep,
 } from "../../apps/worker/src/harness-common.ts";
 import type { WorkerExecutor } from "../../apps/worker/src/executor.ts";
 import { canonicalJson } from "../../apps/server/src/platform/canonical-json.ts";
@@ -477,5 +478,38 @@ Deno.test({
     );
     await readiness;
     assertEquals(outcome.status, "completed");
+  },
+});
+
+Deno.test({
+  name:
+    "a restore step that hits the git deadline is reported as a failure (#159)",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const dir = await Deno.makeTempDir({ prefix: "bakery-restore-deadline-" });
+    const slowGit = `${dir}/slow-git`;
+    await Deno.writeTextFile(slowGit, "#!/bin/sh\nsleep 30\n");
+    await Deno.chmod(slowGit, 0o755);
+    const logged: string[] = [];
+    const original = console.error;
+    console.error = (...args: unknown[]) => {
+      logged.push(args.map(String).join(" "));
+    };
+    try {
+      await runRestoreStep(dir, ["reset", "--hard", "0".repeat(40)], {
+        executable: slowGit,
+        timeoutMs: 300,
+      });
+    } finally {
+      console.error = original;
+      await Deno.remove(dir, { recursive: true });
+    }
+    assertEquals(logged.length, 1, logged.join("\n"));
+    const entry = JSON.parse(logged[0]!);
+    assertEquals(entry.event, "harness.restore_failed");
+    assertEquals(entry.step, "reset");
+    // The deadline is reported as code -1 with the deadline's own diagnostic.
+    assertEquals(entry.exitCode, -1);
+    assertEquals(entry.detail, "git deadline");
   },
 });
