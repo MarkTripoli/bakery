@@ -330,6 +330,10 @@ Deno.test("a graphql request may be a read only when its document is a query", (
       "query Q { a",
       "query Q { a } }",
       "   ",
+      // An unterminated literal runs to the end of the document, so the write
+      // inside it is consumed and the braces no longer balance: refused too.
+      'query Q { a(id: "x } mutation M { b }',
+      'query Q { a(id: """x } mutation M { b }',
     ]
   ) {
     assert(
@@ -355,6 +359,10 @@ Deno.test("a graphql request may be a read only when its document is a query", (
       // The same with a lone carriage return, and a comment after a real query.
       "# a mutation in a comment\rquery Q { a }",
       "query Q { a } # n\r",
+      // A block string is one literal, so its braces and quotes are not structure.
+      'query Q { a """} """ }',
+      // An escaped quote does not close the string.
+      'query Q { a(id: "x\\"") }',
     ]
   ) {
     assert(
