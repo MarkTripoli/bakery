@@ -20,6 +20,7 @@ import {
   createServerTelemetryFromConfig,
   SERVER_TELEMETRY_CLOSE_MS,
 } from "./platform/telemetry.ts";
+import { startOperationalMetricSampling } from "./platform/operational-metrics.ts";
 import {
   isPreviewRequestHost,
   previewHostname,
@@ -189,6 +190,14 @@ async function runServer(config: RuntimeConfig): Promise<void> {
   // Read with the rest of the runtime configuration, so the app never reads the
   // environment itself (#306).
   const telemetry = createServerTelemetryFromConfig(config.telemetry);
+  // Sampling the ledger is what puts an application metric in the registry at
+  // all; before this, the registry held zero series and nothing flushed.
+  const operationalMetrics = startOperationalMetricSampling({
+    // The Postgres pool, not the tagged-template client: the sample is one raw
+    // aggregate, and it must not join a caller's transaction.
+    database: pgDatabase,
+    telemetry,
+  });
   const app = createApp({
     telemetry,
     config,
@@ -231,6 +240,9 @@ async function runServer(config: RuntimeConfig): Promise<void> {
           eventsSocketRegistry.closeAll(1001, "server shutdown");
           await server.shutdown();
         } finally {
+          // Stop sampling before the final flush, so the last metric record is
+          // the last sample rather than a reading of a database already closing.
+          operationalMetrics.stop();
           await telemetry.close(SERVER_TELEMETRY_CLOSE_MS).catch(() => {});
           await Promise.all([
             closePgDatabase(pgDatabase),

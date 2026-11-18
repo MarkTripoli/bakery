@@ -21,6 +21,7 @@ import {
   type TelemetrySinkConfig,
 } from "@bakery/config/telemetry-sink";
 import { mkdir, open, rename, rm, stat } from "node:fs/promises";
+import { OPERATIONAL_METRIC_SPECS } from "./operational-metrics.ts";
 import {
   createOtlpSink,
   createRotatingLogSink,
@@ -71,6 +72,9 @@ export function createServerTelemetry(
     exporter: SERVER_TELEMETRY_EXPORTER,
     redact: createTelemetryRedactor({ outcomes: JOB_OUTCOMES }),
     events: Object.values(EXECUTION_TELEMETRY_EVENTS),
+    // The registry refuses a metric it was not told about, so the catalogue is
+    // declared where the telemetry is built rather than discovered at runtime.
+    metrics: OPERATIONAL_METRIC_SPECS,
   });
 }
 
