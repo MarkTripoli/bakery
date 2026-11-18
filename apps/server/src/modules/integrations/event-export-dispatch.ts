@@ -89,9 +89,16 @@ export type DispatchResult =
   | { readonly ok: false; readonly reason: ExportRefusal };
 
 /**
- * A stable delivery identity: the same subscription, event and attempt always
- * produce the same string, so a retry after a redeploy is recognisably the same
- * delivery to a receiver deduplicating on it.
+ * A stable delivery identity: the same subscription and event always produce the
+ * same string, so every attempt at one delivery is recognisably the same delivery
+ * to a receiver deduplicating on it.
+ *
+ * The attempt number is deliberately NOT part of it. Including it was a real bug
+ * caught in review, and the reasoning is worth keeping: an identity that changes
+ * per attempt makes a retry look like a new delivery, which is the exact thing
+ * the identity exists to prevent. A receiver deduplicating on this would store
+ * the same event twice under two names. The attempt belongs in the ledger row -
+ * it says which try this is - not in the name the receiver sees.
  *
  * The parts are joined with `-` after a `bakery-` prefix and the subscription is
  * shortened, keeping it inside the 128-character limit the signature's delivery
@@ -100,11 +107,10 @@ export type DispatchResult =
 export function deliveryIdentity(input: {
   readonly subscriptionId: string;
   readonly sourceEventId: string;
-  readonly attempt: number;
 }): string {
   const subscription = input.subscriptionId.replace(/-/g, "").slice(0, 16);
   const event = input.sourceEventId.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 64);
-  return `bakery-${subscription}-${event}-${input.attempt}`;
+  return `bakery-${subscription}-${event}`;
 }
 
 /** Bounded exponential backoff for a retryable attempt, capped at an hour. */
@@ -151,12 +157,11 @@ export async function dispatchEventExport(input: {
   // A refusal ends here. Nothing is written and nothing is sent.
   if (!decision.ok) return { ok: false, reason: decision.reason };
 
-  // One identity per subscription, event and attempt, computed before the row
-  // is written so the row and the receiver see the same value.
+  // One identity per subscription and event, computed before the row is written
+  // so the row and the receiver see the same value on every attempt.
   const identity = deliveryIdentity({
     subscriptionId: input.subscription.id,
     sourceEventId: input.sourceEventId,
-    attempt: input.attempt,
   });
 
   const { deliveryId } = await input.ledger.record({

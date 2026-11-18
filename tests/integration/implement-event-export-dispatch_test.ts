@@ -2,6 +2,7 @@ import { assert, assertEquals } from "@std/assert";
 import { openPgDatabase } from "../../apps/server/src/platform/database.ts";
 import type { AuthoritySnapshot } from "../../apps/server/src/modules/catalog/integration-gate.ts";
 import {
+  deliveryIdentity,
   type DeliveryLedger,
   type DeliveryOutcome,
   type DeliveryTransport,
@@ -380,6 +381,7 @@ async function dispatch(
     eventKind?: string;
     transportOutcome?: DeliveryOutcome;
     attempt?: number;
+    sourceEventId?: string;
   } = {},
 ) {
   const ledger = recordingLedger(db);
@@ -389,7 +391,7 @@ async function dispatch(
     subscription: { ...subscription, ...options.subscription },
     destination: { ...destination, ...options.destination },
     eventKind: options.eventKind ?? "issue.opened",
-    sourceEventId: `event-${crypto.randomUUID()}`,
+    sourceEventId: options.sourceEventId ?? `event-${crypto.randomUUID()}`,
     attempt: options.attempt ?? 1,
     raw,
     payloadDigest: "digest-1",
@@ -500,11 +502,13 @@ Deno.test("an install re-approved without events:subscribe sends nothing", async
 Deno.test("an uncertain acknowledgement keeps the delivery and retries under the same identity", async () => {
   const admin = openPgDatabase(adminUrl);
   const app = openPgDatabase(appUrl);
+  const eventId = `event-${crypto.randomUUID()}`;
   try {
     await seed(admin);
 
     const { result, transport } = await dispatch(app, {
       transportOutcome: { kind: "uncertain", reason: "timeout" },
+      sourceEventId: eventId,
     });
     assertEquals(result.ok, true);
     assertEquals(transport.sent, 1);
@@ -526,12 +530,38 @@ Deno.test("an uncertain acknowledgement keeps the delivery and retries under the
       "an uncertain attempt must be scheduled for retry rather than left due now",
     );
 
-    // AC3: recovery cannot fork the delivery. The same subscription, event and
-    // attempt produce the same identity, so a retry reads as the same delivery.
-    const identity = rows[0]!.delivery_identity;
-    assert(
-      identity.startsWith("bakery-"),
-      `unexpected delivery identity shape: ${identity}`,
+    // Asserted through the real function, not a shape check: `startsWith` would
+    // have passed the very bug this test exists for, where the identity carried
+    // the attempt number and so differed on every retry.
+    assertEquals(
+      rows[0]!.delivery_identity,
+      deliveryIdentity({ subscriptionId, sourceEventId: eventId }),
+    );
+
+    // The property that actually matters: attempt 2 is the same delivery.
+    const retry = await dispatchEventExport({
+      snapshot: snapshot(),
+      subscription,
+      destination,
+      eventKind: "issue.opened",
+      sourceEventId: eventId,
+      attempt: 2,
+      raw,
+      payloadDigest: "digest-1",
+      sign,
+      ledger: recordingLedger(app),
+      transport: recordingTransport({
+        kind: "acknowledged",
+        status: 202,
+      }),
+      now,
+    });
+    assertEquals(retry.ok, true);
+    if (!retry.ok) throw new Error("unreachable");
+    assertEquals(
+      retry.deliveryIdentity,
+      rows[0]!.delivery_identity,
+      "a retry must present the same delivery identity, or the receiver stores one event twice",
     );
   } finally {
     await cleanup(admin);
