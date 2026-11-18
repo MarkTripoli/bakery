@@ -44,6 +44,13 @@ export type SessionState = {
 
 export type SessionStore = {
   findSessionState(token: string): Promise<SessionState | null>;
+  /**
+   * The state of many sessions in one query; a token with no session is absent
+   * from the map. Optional: a caller falls back to `findSessionState`.
+   */
+  findSessionStates?(
+    tokens: readonly string[],
+  ): Promise<ReadonlyMap<string, SessionState>>;
 };
 
 /** A bearer access token that is unrevoked and unexpired, with its enabled principal. */
@@ -503,6 +510,39 @@ export function createPostgresAuthPersistence(
           : null,
         twoFactorEnabled: result.rows[0].twoFactorEnabled,
       };
+    },
+
+    async findSessionStates(tokens) {
+      const states = new Map<string, SessionState>();
+      if (tokens.length === 0) return states;
+      const result = await database.query<{
+        token: string;
+        id: string;
+        expiresAt: Date;
+        factorVerifiedAt: Date | null;
+        twoFactorEnabled: boolean;
+      }>(
+        `select s.token as "token",
+            s.id as "id",
+            s."expiresAt" as "expiresAt",
+            s."factorVerifiedAt" as "factorVerifiedAt",
+            coalesce(u."twoFactorEnabled", false) as "twoFactorEnabled"
+          from public.session s
+          join public."user" u on u.id = s."userId"
+          where s.token = any($1::text[])`,
+        [[...tokens]],
+      );
+      for (const row of result.rows) {
+        states.set(row.token, {
+          id: row.id,
+          expiresAt: new Date(row.expiresAt),
+          factorVerifiedAt: row.factorVerifiedAt
+            ? new Date(row.factorVerifiedAt)
+            : null,
+          twoFactorEnabled: row.twoFactorEnabled,
+        });
+      }
+      return states;
     },
   };
 }

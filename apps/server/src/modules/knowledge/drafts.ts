@@ -6,6 +6,10 @@ export const DRAFT_LIMITS = Object.freeze({
   bodyBytes: 1_048_576,
   stateBytes: 16_777_216,
   metadataBytes: 8_192,
+  /** Encoded Loro cursor bytes as canonical base64 (draft comment anchors). */
+  cursorBytes: 1_024,
+  /** Anchors one isolated resolution may carry: one comment page. */
+  anchorsPerResolution: 100,
   queuedMutations: 100,
   workerMemoryBytes: 268_435_456,
   /**
@@ -219,6 +223,98 @@ function resolveRange(
   return [start, end];
 }
 
+/** One stored or submitted comment anchor: two encoded cursors and a quote. */
+export type DraftAnchorCandidateInput = {
+  startCursor: string;
+  endCursor: string;
+  quote: string;
+};
+
+/** Where an anchor sits in the current text, or null when it is outdated. */
+export type DraftAnchorPosition = readonly [number, number] | null;
+
+/** True when a string holds half of a UTF-16 surrogate pair. */
+export function hasUnpairedSurrogate(value: string): boolean {
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (code >= 0xd800 && code <= 0xdbff) {
+      const next = value.charCodeAt(index + 1);
+      if (!(next >= 0xdc00 && next <= 0xdfff)) return true;
+      index += 1;
+    } else if (code >= 0xdc00 && code <= 0xdfff) return true;
+  }
+  return false;
+}
+
+function decodeCursor(value: string): Cursor {
+  const bytes = decodeBase64(value);
+  try {
+    return Cursor.decode(bytes);
+  } catch (cause) {
+    throw new DraftCandidateError(
+      "unprocessable",
+      `CURSOR_ENCODING_INVALID:${
+        cause instanceof Error ? cause.name : "error"
+      }`,
+    );
+  }
+}
+
+function resolveAnchor(
+  document: LoroDoc,
+  text: string,
+  anchor: DraftAnchorCandidateInput,
+): readonly [number, number] {
+  if (anchor.quote.length === 0) {
+    throw new DraftCandidateError("precondition", "COMMENT_RANGE_EMPTY");
+  }
+  if (hasUnpairedSurrogate(anchor.quote)) {
+    throw new DraftCandidateError("precondition", "UTF16_SURROGATE_SPLIT");
+  }
+  const startCursor = decodeCursor(anchor.startCursor);
+  const endCursor = decodeCursor(anchor.endCursor);
+  let range: readonly [number, number];
+  try {
+    range = resolveRange(document, startCursor, endCursor);
+  } catch (error) {
+    if (error instanceof DraftCandidateError) throw error;
+    // Loro could not place a cursor in this history: the anchor is stale.
+    throw new DraftCandidateError("precondition", "CURSOR_RANGE_STALE");
+  }
+  const [start, end] = range;
+  if (start === end) {
+    throw new DraftCandidateError("precondition", "COMMENT_RANGE_EMPTY");
+  }
+  if (text.slice(start, end) !== anchor.quote) {
+    throw new DraftCandidateError("precondition", "COMMENT_QUOTE_MISMATCH");
+  }
+  return [start, end];
+}
+
+/**
+ * Resolves draft comment anchors against one committed state (#28) with the
+ * same cursor resolution and UTF-16 boundary checks as a guarded edit. Strict
+ * (a new root) refuses the first anchor that is stale, splits a surrogate
+ * pair, is collapsed or no longer quotes its text. Otherwise (a list) such an
+ * anchor is outdated, reported as null, and the rest still resolve.
+ */
+export function resolveDraftAnchorsCandidate(
+  state: Uint8Array,
+  anchors: readonly DraftAnchorCandidateInput[],
+  strict: boolean,
+): DraftAnchorPosition[] {
+  const document = importDocument(state);
+  const text = document.getText("body").toString();
+  return anchors.map((anchor) => {
+    try {
+      return resolveAnchor(document, text, anchor);
+    } catch (error) {
+      if (strict || !(error instanceof DraftCandidateError)) throw error;
+      return null;
+    }
+  });
+}
+
 export async function createInitialDraftCandidate(
   text: string,
 ): Promise<DraftCandidate> {
@@ -289,6 +385,16 @@ async function resolveGuardedEditTarget(
   const body = document.getText("body");
   if (body.toString().slice(start, end) !== input.expectedText) {
     throw new DraftCandidateError("precondition", "CURRENT_TARGET_CHANGED");
+  }
+  // The expected text is at the resolved range, but a cursor's own character
+  // was deleted and Loro moved it to a surviving neighbour: the range may be
+  // retyped or other text that happens to match, so it is not the one the
+  // caller read. Refused rather than guessed (#28).
+  if (
+    document.getCursorPos(startCursor)?.update !== undefined ||
+    document.getCursorPos(endCursor)?.update !== undefined
+  ) {
+    throw new DraftCandidateError("precondition", "CURRENT_TARGET_AMBIGUOUS");
   }
   return { document, body, start, end };
 }

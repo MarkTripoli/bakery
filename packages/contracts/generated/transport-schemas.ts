@@ -2880,6 +2880,53 @@ const transportSchemas = {
       ],
       "description": "Creates a new named definition (workflow, agent, or automation) with a unique slug, display name, and description; it starts with no active version until one is published and assigned."
     },
+    "WorkflowCopy": {
+      "fields": [
+        {
+          "name": "slug",
+          "type": "slug",
+          "required": true,
+          "bounds": {
+            "maxLength": 100
+          },
+          "description": "URL-safe unique identifier for the copy within the organization; the copy is a new definition, so it cannot reuse the source's slug."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 200
+          },
+          "description": "Display name shown for the copy wherever workflows are listed for selection."
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 2000
+          },
+          "description": "Free-text summary of the copy's purpose, shown in pickers and the catalog."
+        },
+        {
+          "name": "sourceVersionId",
+          "type": "uuid",
+          "required": false,
+          "description": "The version of the source workflow to copy: a published version or a draft of that workflow. Defaults to the source's active version; a source with no active version and no version named is refused."
+        },
+        {
+          "name": "expectedDigest",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 128
+          },
+          "description": "Digest of the source version the caller read; the copy is refused with STATE_CONFLICT digest_mismatch if the version's digest differs, so a changed draft is never copied as something else."
+        }
+      ],
+      "description": "Copies a workflow into a new organization-owned definition with one inactive draft, atomically. Only the semantic definition is carried over: no activation, run, effect, trigger, grant or credential. The copy's origin records the source definition, version and digest; a later change to the source never reaches the copy."
+    },
     "PermissionGrantCreate": {
       "fields": [
         {
@@ -9910,9 +9957,41 @@ const transportSchemas = {
           "type": "sha256",
           "required": true,
           "description": "Lowercase SHA-256 of the checkpoint's UTF-8 body text as the publisher previewed it; a different digest fails without publishing."
+        },
+        {
+          "name": "projectThreads",
+          "type": "uuid[]",
+          "required": false,
+          "bounds": {
+            "maxItems": 50
+          },
+          "description": "Open root draft comments of this draft to copy, with their retained replies, onto the new version as version-pinned comments. Each anchor is resolved against the published checkpoint, not the live draft; a thread that is not open, unknown or outdated at that cutoff fails the whole publish with nothing written. Omit or send an empty list to project nothing. A replay of the same publication never copies a thread twice."
         }
       ],
       "description": "Publishes one exact committed draft checkpoint as the artifact's next immutable version through the shared artifact-version service. No content, actor, artifact, parent version or organization can be supplied by the caller."
+    },
+    "DraftCommentPublication": {
+      "description": "Provenance of one draft comment copied onto a published version: which version and version-pinned comment it became, and from which frozen checkpoint.",
+      "fields": [
+        {
+          "name": "artifactVersionId",
+          "type": "uuid",
+          "required": true,
+          "description": "Immutable artifact version the comment was copied onto by a draft publication."
+        },
+        {
+          "name": "artifactCommentId",
+          "type": "uuid",
+          "required": true,
+          "description": "Version-pinned artifact comment created from this draft comment; read it through artifactComments.list on that version."
+        },
+        {
+          "name": "sourceCheckpointId",
+          "type": "uuid",
+          "required": true,
+          "description": "Published draft checkpoint whose frozen text the copied anchor was resolved against."
+        }
+      ]
     },
     "DraftSuggestionCreate": {
       "fields": [
@@ -10040,6 +10119,303 @@ const transportSchemas = {
         }
       ],
       "description": "Route identifiers naming one suggestion of an authorized active draft."
+    },
+    "DraftCommentCreate": {
+      "fields": [
+        {
+          "name": "body",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxBytes": 10240
+          },
+          "description": "Comment text rendered as sanitized Markdown; bounded to 10 KiB. It is stored only in Postgres, never in the editable Loro text, so a document edit cannot change it."
+        },
+        {
+          "name": "rootId",
+          "type": "uuid",
+          "required": false,
+          "description": "Root comment of the same draft this submission replies to. Omit to start a new anchored thread; when present the reply is flat, cannot carry anchor fields, and a reply to a reply or to a deleted root is refused."
+        },
+        {
+          "name": "epoch",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 2147483647
+          },
+          "description": "Draft epoch the cursors were read in; required for a new root and refused with reason draft_moved_on when the draft is in another epoch. Not permitted on replies."
+        },
+        {
+          "name": "startCursor",
+          "type": "base64",
+          "required": false,
+          "bounds": {
+            "maxBytes": 1024
+          },
+          "description": "Opaque encoded Loro cursor for the inclusive start of the commented range, read from draftSlices.get; required for a new root and not permitted on replies."
+        },
+        {
+          "name": "endCursor",
+          "type": "base64",
+          "required": false,
+          "bounds": {
+            "maxBytes": 1024
+          },
+          "description": "Opaque encoded Loro cursor for the exclusive end of the commented range, read from draftSlices.get; required for a new root and not permitted on replies."
+        },
+        {
+          "name": "quote",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxBytes": 65536
+          },
+          "description": "Exact text between the two cursors as the commenter selected it; required for a new root. It must equal the current draft text between the cursors, or the request is refused with reason comment_quote_mismatch, comment_anchor_stale or comment_anchor_splits_character and nothing is recorded."
+        },
+        {
+          "name": "mutationId",
+          "type": "uuid",
+          "required": true,
+          "description": "Caller-generated idempotency identifier; an exact retry answers with the same comment and a changed payload fails."
+        }
+      ],
+      "rules": [
+        "Omitted rootId creates an anchored root and requires epoch, startCursor, endCursor and quote; the anchor is resolved with getCursorPos against the current checkpoint, which becomes the creation checkpoint. Present rootId creates a flat reply to a root of the same draft and permits no anchor field. Author, actor kind and request come from the authenticated call. Creating a reply increments the root version in the same transaction."
+      ],
+      "description": "Starts an anchored discussion thread on a collaborative draft or, when rootId is present, adds a flat reply to one. The anchor is a pair of relative Loro cursors plus the quoted text, verified against the current draft before anything is recorded."
+    },
+    "DraftCommentQuery": {
+      "fields": [
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from a prior DraftCommentQuery page; bound to the same draft, root and status filter and principal."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum number of comments returned per page; defaults to 25 and cannot exceed 100."
+        },
+        {
+          "name": "rootId",
+          "type": "uuid",
+          "required": false,
+          "description": "Root comment whose flat replies to list instead of the default page of roots; status filters do not apply with it."
+        },
+        {
+          "name": "status",
+          "type": "enum",
+          "required": false,
+          "enum": [
+            "open",
+            "resolved"
+          ],
+          "description": "Lists only root threads in this resolution state; omitted lists every root. Invalid together with rootId, since replies carry no resolution state."
+        }
+      ],
+      "pagination": "pagination",
+      "rules": [
+        "Default lists root threads, including outdated and deleted ones; rootId lists that root's flat replies. Keyset (created_at,id) ascending; the cursor binds the draft, root and status filter. Every root's anchor is resolved against the current draft state."
+      ],
+      "description": "Lists the discussion threads of one collaborative draft, oldest first, with each root's anchor resolved against the current draft so a moved range shows its new offsets and a lost one shows as outdated."
+    },
+    "DraftCommentUpdate": {
+      "fields": [
+        {
+          "name": "body",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxBytes": 10240
+          },
+          "description": "Replacement comment text; only the author may edit it, and never on a deleted comment."
+        },
+        {
+          "name": "resolved",
+          "type": "boolean",
+          "required": false,
+          "description": "Resolves (true) or reopens (false) a root thread; replies carry no resolution state and a deleted comment cannot change it. Moving or deleting text never changes it."
+        },
+        {
+          "name": "deleted",
+          "type": "boolean",
+          "required": false,
+          "description": "Soft-deletes (true) or restores (false) the comment. Authors or Admins may delete; only an Admin or the recorded deleting principal may restore. Deletion hides the body and quote from reads."
+        }
+      ],
+      "rules": [
+        "At least one field; require If-Match with the comment's current version, and a stale version fails with PRECONDITION_FAILED. Body edits require the author; Admin moderation permits delete and restore only. Deleted comments reject body and resolution changes. Resolve and reopen apply only to roots. Anchor, author and root cannot change. Any reply mutation increments the root version atomically."
+      ],
+      "description": "Edits, resolves, reopens, deletes or restores one draft comment under its current If-Match, with the same moderation rules as artifact comments."
+    },
+    "DraftReferenceCreate": {
+      "fields": [
+        {
+          "name": "expectedEpoch",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1
+          },
+          "description": "Draft epoch the caller read; a draft or checkpoint in another epoch fails with PRECONDITION_FAILED reason draft_moved_on and nothing is recorded."
+        },
+        {
+          "name": "checkpointId",
+          "type": "uuid",
+          "required": true,
+          "description": "Committed checkpoint of this draft to freeze as the referenced revision, read from drafts.get when Send to agent was pressed; edits committed after it are not in the reference."
+        },
+        {
+          "name": "textDigest",
+          "type": "sha256",
+          "required": true,
+          "description": "Lowercase SHA-256 of the checkpoint's UTF-8 body text as the sender previewed it; a different digest fails with PRECONDITION_FAILED and nothing is recorded."
+        },
+        {
+          "name": "threads",
+          "type": "CommentReference[]",
+          "required": true,
+          "bounds": {
+            "maxItems": 100
+          },
+          "description": "Root draft comments sent with the revision, each with the version the caller last observed. Every root and its retained replies are captured exactly; a changed root version fails the whole send with PRECONDITION_FAILED reason thread_version_changed, and an empty list sends the revision alone."
+        },
+        {
+          "name": "mutationId",
+          "type": "uuid",
+          "required": true,
+          "description": "Caller-generated idempotency identifier; an exact retry answers with the same reference and a changed payload fails."
+        }
+      ],
+      "rules": [
+        "The checkpoint is frozen as a publication freezes it: it must be a committed checkpoint of this draft whose stored text has textDigest. Threads must be distinct, retained roots of the same draft; each is locked and compared with expectedVersion, and all pass or nothing is written. A root's version also moves when a reply is added, edited or deleted.",
+        "Bounded like a comment send to an agent: at most 100 roots, at most 200 retained replies per root and 32 KiB of captured comment text; over a bound fails with BODY_TOO_LARGE and is never truncated. Creator, actor kind and request come from the authenticated call."
+      ],
+      "description": "Freezes one exact committed draft revision and the chosen discussion threads into an immutable reference an agent turn or workflow can later name. Sending a draft to an agent records the reference only; it does not admit or start any work."
+    },
+    "DraftReferenceComment": {
+      "fields": [
+        {
+          "name": "commentId",
+          "type": "uuid",
+          "required": true,
+          "description": "Draft comment captured into the reference."
+        },
+        {
+          "name": "parentId",
+          "type": "uuid",
+          "required": false,
+          "description": "Captured root this reply belongs to; absent for a root."
+        },
+        {
+          "name": "version",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1
+          },
+          "description": "The comment's optimistic-concurrency version at capture."
+        },
+        {
+          "name": "authorId",
+          "type": "uuid",
+          "required": true,
+          "description": "Principal the comment was attributed to at capture."
+        },
+        {
+          "name": "actorKind",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "person",
+            "agent"
+          ],
+          "description": "Whether a person or an agent wrote the captured comment."
+        },
+        {
+          "name": "body",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxBytes": 10240
+          },
+          "description": "Comment text exactly as it was at capture; later edits of the live comment do not change it."
+        },
+        {
+          "name": "bodyDigest",
+          "type": "sha256",
+          "required": true,
+          "description": "SHA-256 of the captured body's UTF-8 bytes."
+        },
+        {
+          "name": "startCursor",
+          "type": "base64",
+          "required": false,
+          "bounds": {
+            "maxBytes": 1024
+          },
+          "description": "Encoded Loro cursor of the root's range start at capture; absent for a reply."
+        },
+        {
+          "name": "endCursor",
+          "type": "base64",
+          "required": false,
+          "bounds": {
+            "maxBytes": 1024
+          },
+          "description": "Encoded Loro cursor of the root's range end at capture; absent for a reply."
+        },
+        {
+          "name": "coordinateEncoding",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 64
+          },
+          "description": "Cursor encoding and offset unit of the root's anchor, such as loro-1.16-cursor-utf16; absent for a reply."
+        },
+        {
+          "name": "quote",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 65536
+          },
+          "description": "Text the commenter selected for the root; absent for a reply."
+        },
+        {
+          "name": "status",
+          "type": "enum",
+          "required": false,
+          "enum": [
+            "open",
+            "resolved"
+          ],
+          "description": "Resolution state of the root at capture; absent for a reply. Resolving the live thread later does not change it."
+        },
+        {
+          "name": "createdAt",
+          "type": "timestamp",
+          "required": true,
+          "description": "UTC time the live comment was originally recorded."
+        }
+      ],
+      "description": "One draft comment frozen into a send-to-agent reference: a chosen root or one of its retained replies, exactly as it was at capture."
     },
     "PullRequestMerge": {
       "fields": [
@@ -18148,7 +18524,8 @@ const transportSchemas = {
         "enabled",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "origin"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -18159,13 +18536,14 @@ const transportSchemas = {
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
         "version": "integer",
-        "description": "string|null"
+        "description": "string|null",
+        "origin": "WorkflowOrigin"
       },
       "nullableFields": [
         "activeVersionId",
         "description"
       ],
-      "description": "A named, organization-owned workflow definition: its stable slug, display name, and which published WorkflowVersion, if any, is currently active. Disabling it blocks new kickoffs without canceling an already-running instance, which follows its own separate cancellation policy.",
+      "description": "A named, organization-owned workflow definition: its stable slug, display name, where it came from, and which published WorkflowVersion, if any, is currently active. Disabling it blocks new kickoffs without canceling an already-running instance, which follows its own separate cancellation policy.",
       "fieldDescriptions": {
         "id": "Stable UUID identifying the workflow record.",
         "slug": "URL-safe stable name used to address the record.",
@@ -18175,11 +18553,46 @@ const transportSchemas = {
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
         "version": "Optimistic-concurrency version used when updating the record.",
-        "description": "Free-text summary of what the workflow does, shown in pickers and the catalog; null when the author left it blank. Set on create and replaced wholesale on update."
+        "description": "Free-text summary of what the workflow does, shown in pickers and the catalog; null when the author left it blank. Set on create and replaced wholesale on update.",
+        "origin": "Where this definition came from, as {kind, catalogKey, catalogVersion}: kind is authored (written in this organization), catalog (installed from the code-owned catalog; system managed and locked against organization edits) or copy; catalogKey and catalogVersion name the catalog item and release revision for a catalog origin and are null otherwise. Set when the definition is created and never changed."
       },
       "optionalFields": [
         "description"
       ]
+    },
+    "WorkflowOrigin": {
+      "fields": [
+        "kind",
+        "catalogKey",
+        "catalogVersion",
+        "sourceWorkflowId",
+        "sourceVersionId",
+        "sourceDigest"
+      ],
+      "fieldTypes": {
+        "kind": "authored|catalog|copy",
+        "catalogKey": "string|null",
+        "catalogVersion": "integer|null",
+        "sourceWorkflowId": "uuid|null",
+        "sourceVersionId": "uuid|null",
+        "sourceDigest": "string|null"
+      },
+      "nullableFields": [
+        "catalogKey",
+        "catalogVersion",
+        "sourceWorkflowId",
+        "sourceVersionId",
+        "sourceDigest"
+      ],
+      "description": "Where a workflow definition came from: written in the organization (authored), installed from the code-owned catalog (catalog, system managed and locked against organization edits) or copied from another definition (copy). A catalog origin names the catalog item and release revision it was installed from; the other kinds carry nulls. Set when the definition is created and never changed.",
+      "fieldDescriptions": {
+        "kind": "Origin kind: authored, catalog or copy.",
+        "catalogKey": "Stable key of the catalog item a catalog definition was installed from; null for authored and copied definitions.",
+        "catalogVersion": "Release revision of the catalog item the definition was installed from; null for authored and copied definitions.",
+        "sourceWorkflowId": "Stable UUID of the workflow definition a copy was taken from; null unless the kind is copy.",
+        "sourceVersionId": "Stable UUID of the version (published, or a draft) the copy was taken from; null unless the kind is copy.",
+        "sourceDigest": "Digest of the source version at the moment of the copy, so a later source update can be compared with the fork; null unless the kind is copy."
+      }
     },
     "WorkflowVersion": {
       "projection": "workflow_versions",
@@ -22268,7 +22681,7 @@ const transportSchemas = {
         "resetRequired": "Whether the client must discard its local state and request a fresh snapshot.",
         "retainedFrom": "Earliest retained event sequence that can be used to establish a fresh sync position.",
         "retryWithoutAfter": "Whether the client should retry the sync request without its after cursor.",
-        "reason": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; for a refused draft edit, why: text_changed or draft_moved_on on a 412, agent_edit_requires_suggestion or suggestion_decision_requires_person on a 403. Absent when the problem has no named rule."
+        "reason": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; for a refused draft edit, why: text_changed or draft_moved_on on a 412, or for a refused draft comment anchor comment_quote_mismatch, comment_anchor_stale or comment_anchor_splits_character on a 412; agent_edit_requires_suggestion or suggestion_decision_requires_person on a 403. Absent when the problem has no named rule."
       }
     },
     "ProviderUsageSummary": {
@@ -26149,6 +26562,153 @@ const transportSchemas = {
       "pageOf": "DraftSuggestion",
       "description": "Cursor page of the suggestions proposed for one collaborative draft, oldest first, each with what it replaces, who asked and its state. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers or offsets."
     },
+    "DraftComment": {
+      "fields": [
+        "id",
+        "draftId",
+        "rootId",
+        "epoch",
+        "authorId",
+        "authorName",
+        "actorKind",
+        "agentName",
+        "body",
+        "startCursor",
+        "endCursor",
+        "coordinateEncoding",
+        "quote",
+        "creationCheckpointId",
+        "anchorState",
+        "startUtf16",
+        "endUtf16",
+        "status",
+        "resolvedBy",
+        "resolvedAt",
+        "deletedAt",
+        "version",
+        "createdAt",
+        "updatedAt",
+        "publishedAs"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "draftId": "uuid",
+        "rootId": "uuid|null",
+        "epoch": "integer",
+        "authorId": "uuid",
+        "authorName": "string",
+        "actorKind": "enum(person|agent)",
+        "agentName": "string|null",
+        "body": "string|null",
+        "startCursor": "base64|null",
+        "endCursor": "base64|null",
+        "coordinateEncoding": "string|null",
+        "quote": "string|null",
+        "creationCheckpointId": "uuid",
+        "anchorState": "enum(current|outdated)|null",
+        "startUtf16": "integer|null",
+        "endUtf16": "integer|null",
+        "status": "enum(open|resolved)|null",
+        "resolvedBy": "uuid|null",
+        "resolvedAt": "timestamp|null",
+        "deletedAt": "timestamp|null",
+        "version": "integer",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp",
+        "publishedAs": "DraftCommentPublication[]"
+      },
+      "description": "One comment on a collaborative draft: an anchored root thread or a flat reply. A root carries its relative Loro cursors, quote and creation checkpoint, and reads resolve them against the current draft. Body and resolution are stored apart from the document text.",
+      "fieldDescriptions": {
+        "id": "Server-assigned comment identifier.",
+        "draftId": "Draft the comment discusses.",
+        "rootId": "Root comment a reply belongs to; null for a root.",
+        "epoch": "Draft epoch the comment was created in.",
+        "authorId": "Principal the comment is attributed to: the person, or the principal an agent acted for (O50).",
+        "authorName": "Trusted display name of authorId from the principal record.",
+        "actorKind": "agent when an agent wrote it through an access token or under a service or worker identity; person when a person wrote it through a signed-in session.",
+        "agentName": "Name of the access token the agent presented; null for a person or a service identity without a token.",
+        "body": "Comment text; null once the comment is deleted.",
+        "startCursor": "Opaque Loro cursor for the inclusive start of a root's commented range; null for a reply.",
+        "endCursor": "Opaque Loro cursor for the exclusive end of a root's commented range; null for a reply.",
+        "coordinateEncoding": "Version of the cursor encoding and offset unit the anchor was made with, such as loro-1.16-cursor-utf16; null for a reply.",
+        "quote": "Text the commenter selected when the root was created; null for a reply and once the comment is deleted.",
+        "creationCheckpointId": "Draft checkpoint the comment was created against.",
+        "anchorState": "current when both cursors still resolve to a non-empty range whose text equals the quote, with startUtf16 and endUtf16 giving its place in the current draft; outdated when a cursor is missing, the range collapsed or its text no longer equals the quote. Outdated threads are still listed. Null for a reply, and on a create or update answer for anything but a new root, since only draftComments.list resolves stored anchors.",
+        "startUtf16": "Current UTF-16 offset of the range start when anchorState is current; null otherwise.",
+        "endUtf16": "Current UTF-16 offset of the range end when anchorState is current; null otherwise.",
+        "status": "open or resolved for a root thread; null for a reply. Moving or deleting the anchored text never changes it.",
+        "resolvedBy": "Principal who resolved the thread; null while open.",
+        "resolvedAt": "UTC time the thread was resolved; null while open.",
+        "deletedAt": "UTC time the comment was deleted; null while retained.",
+        "version": "Optimistic-concurrency version; send it as If-Match to update the comment. A reply change also increments its root's version.",
+        "createdAt": "UTC time the comment was recorded.",
+        "updatedAt": "UTC time the comment last changed.",
+        "publishedAs": "Version-pinned copies of this comment made when a publication projected its thread, oldest first; empty when the thread was never projected. The draft comment itself is never changed or resolved by a projection."
+      },
+      "bounds": {
+        "authorName": {
+          "maxBytes": 1024
+        },
+        "agentName": {
+          "maxBytes": 1024
+        },
+        "body": {
+          "maxBytes": 10240
+        },
+        "quote": {
+          "maxBytes": 65536
+        },
+        "coordinateEncoding": {
+          "maxBytes": 64
+        }
+      },
+      "optionalFields": [
+        "publishedAs"
+      ]
+    },
+    "Page<DraftComment>": {
+      "pageOf": "DraftComment",
+      "description": "Cursor page of a collaborative draft's root threads, or of one root's flat replies, oldest first, each root with its anchor resolved against the current draft. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers or offsets."
+    },
+    "DraftReference": {
+      "fields": [
+        "id",
+        "draftId",
+        "epoch",
+        "checkpointId",
+        "serverSequence",
+        "textDigest",
+        "createdById",
+        "actorKind",
+        "createdAt",
+        "comments"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "draftId": "uuid",
+        "epoch": "integer",
+        "checkpointId": "uuid",
+        "serverSequence": "decimalString",
+        "textDigest": "sha256",
+        "createdById": "uuid",
+        "actorKind": "enum(person|agent)",
+        "createdAt": "timestamp",
+        "comments": "DraftReferenceComment[]"
+      },
+      "description": "Immutable reference a draft was sent to an agent with: one frozen committed revision and the exact discussion threads captured with it. Editing the draft, editing or resolving a comment, or publishing never changes it.",
+      "fieldDescriptions": {
+        "id": "Server-assigned reference identifier; read it back with draftReferences.get.",
+        "draftId": "Draft the reference was taken from.",
+        "epoch": "Draft epoch of the frozen checkpoint.",
+        "checkpointId": "Exact committed draft checkpoint frozen as the referenced revision.",
+        "serverSequence": "Committed draft sequence of the frozen checkpoint; edits with a higher sequence are not in the reference.",
+        "textDigest": "Canonical SHA-256 of the frozen checkpoint's UTF-8 body text.",
+        "createdById": "Principal the send is attributed to: the person, or the principal an agent acted for (O50).",
+        "actorKind": "agent when an agent sent it through an access token or under a service or worker identity; person when a person sent it through a signed-in session.",
+        "createdAt": "UTC time the reference committed.",
+        "comments": "Captured comments in send order: each requested root followed by its retained replies, oldest first."
+      }
+    },
     "MergeAttempt": {
       "projection": "pull_request_merge_attempts",
       "fields": [
@@ -27981,6 +28541,24 @@ const transportSchemas = {
       },
       "inngestTrigger": null,
       "description": "Authorized invalidation notification that a suggestion was accepted, rejected or found no longer fitting; resourceId is the suggestion. Fetch it through draftSuggestions.list."
+    },
+    "draft.comment_created": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification that a comment or reply was added to a draft; resourceId is the comment. Fetch it through draftComments.list."
+    },
+    "draft.comment_updated": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification that a draft comment was edited, resolved, reopened, deleted or restored; resourceId is the comment. Fetch it through draftComments.list."
     }
   },
   "workerActions": {
@@ -28263,7 +28841,12 @@ const transportSchemas = {
       "bakery_draftSuggestions_create",
       "bakery_draftSuggestions_list",
       "bakery_draftSuggestions_accept",
-      "bakery_draftSuggestions_reject"
+      "bakery_draftSuggestions_reject",
+      "bakery_draftComments_create",
+      "bakery_draftComments_list",
+      "bakery_draftComments_update",
+      "bakery_draftReferences_create",
+      "bakery_draftReferences_get"
     ],
     "discovery": "server/discover is optional. tools/list accepts standard cursor, filters current principal and enabled groups, and sorts deterministically. Initial cache TTL is zero; never share an authorization-filtered catalog between principals. No subscription capability is advertised.",
     "methods": [

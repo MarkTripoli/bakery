@@ -11,13 +11,32 @@ import { useRestoreOrganizationScope } from "../app/restore-organization.ts";
 import { useShellViewport } from "../app/responsive.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { ShellActiveNavigation } from "../shell/shell-slots.tsx";
+import { CopyValueButton } from "./CopyValueButton.tsx";
 
 type Credential = ScimConnection["credentials"][number];
 type Failure = "error" | "conflict" | "forbidden";
 type Pending = "rotate" | "revoke" | null;
 
+/** The setup guide's three steps, in the order an administrator does them. */
+const GUIDE_STEPS = [
+  "settings.scim.guide.copyAddress",
+  "settings.scim.guide.createToken",
+  "settings.scim.guide.paste",
+] as const;
+
 const LIFETIMES = [30, 90, 365, 730] as const;
 const OVERLAPS = [0, 30, 1440] as const;
+/** A token that expires within this many days is flagged with a Rotate action. */
+const EXPIRY_WARNING_DAYS = 14;
+const DAY_MS = 24 * 60 * 60 * 1000;
+/** The group names the server maps to a role, and the role each one gives. */
+const ROLE_GROUPS = [
+  { group: "bakery-admin", role: "admin" },
+  { group: "bakery-developer", role: "developer" },
+  { group: "bakery-viewer", role: "viewer" },
+  { group: "bakery-guest", role: "guest" },
+] as const;
+type RoleGroup = (typeof ROLE_GROUPS)[number];
 
 /**
  * A person who cannot manage SCIM is refused: a change answers 403, and the
@@ -126,6 +145,24 @@ export function ScimConnectionPage() {
     }
   };
   const status = data?.status ?? "none";
+  // The token the identity provider uses is the active credential that
+  // expires last. When none is active the connection still exists but
+  // provisioning has stopped.
+  const activeExpiries = (data?.credentials ?? [])
+    .filter((row) => row.status === "active")
+    .map((row) => new Date(row.expiresAt).getTime());
+  const lastExpiry = activeExpiries.length > 0
+    ? Math.max(...activeExpiries)
+    : null;
+  const tokenExpired = status === "active" && lastExpiry === null;
+  const tokenExpiring = status === "active" && lastExpiry !== null &&
+    lastExpiry - Date.now() <= EXPIRY_WARNING_DAYS * DAY_MS;
+  const badgeStatus = tokenExpired ? "expired" : status;
+  // The identity provider has used a token once it has synced; until then the
+  // setup guide stays open.
+  const hasSynced = (data?.credentials ?? []).some((row) =>
+    row.lastUsedAt !== null
+  );
   const notice = forbidden
     ? translate("settings.scim.forbidden")
     : connection.isError
@@ -150,14 +187,146 @@ export function ScimConnectionPage() {
     />
   );
   const gated = (content: ReactNode) => <div>{content}</div>;
+  const createForm = (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        void create();
+      }}
+    >
+      <UI.Stack>
+        {lifetimeField}
+        {/* In an Inline, so the button keeps its own width. */}
+        <UI.Inline>
+          <UI.Button type="submit" loading={creating}>
+            {translate("settings.scim.create")}
+          </UI.Button>
+        </UI.Inline>
+      </UI.Stack>
+    </form>
+  );
+  const rotateButton = (
+    <UI.Button
+      type="button"
+      variant="secondary"
+      onClick={() => setPending("rotate")}
+    >
+      {translate("settings.scim.rotate")}
+    </UI.Button>
+  );
+  // The credential the identity provider holds: the active one that expires last.
+  const shownCredential = (data?.credentials ?? [])
+    .filter((row) => row.status === "active")
+    .sort((a, b) => b.expiresAt.localeCompare(a.expiresAt))[0];
+  const credentialsView = data
+    ? (
+      phone
+        ? (
+          <div
+            aria-label={translate(
+              "settings.scim.credentials.caption",
+            )}
+            data-testid="scim-credentials-list"
+            role="list"
+          >
+            {data.credentials.map((row) => (
+              <div key={row.id} role="listitem">
+                <UI.ListRow
+                  badge={
+                    <UI.Badge
+                      tone={row.status === "active" ? "success" : "neutral"}
+                    >
+                      <UI.VisuallyHidden>
+                        {`${translate("settings.scim.column.status")}: `}
+                      </UI.VisuallyHidden>
+                      {translate(
+                        `settings.scim.credential.${row.status}`,
+                      )}
+                    </UI.Badge>
+                  }
+                  detail={[
+                    translate("settings.scim.credential.expires", {
+                      date: shortDate(row.expiresAt),
+                    }),
+                    row.lastUsedAt
+                      ? translate(
+                        "settings.scim.credential.lastUsed",
+                        {
+                          date: shortDate(row.lastUsedAt),
+                        },
+                      )
+                      : translate(
+                        "settings.scim.credential.neverUsed",
+                      ),
+                  ].join(" · ")}
+                  title={`${row.prefix}…`}
+                />
+              </div>
+            ))}
+          </div>
+        )
+        : (
+          <UI.DataTable<Credential>
+            caption={translate("settings.scim.credentials.caption")}
+            columns={[
+              {
+                id: "prefix",
+                header: translate("settings.scim.column.prefix"),
+                cell: (row) => `${row.prefix}…`,
+              },
+              {
+                id: "status",
+                header: translate("settings.scim.column.status"),
+                cell: (row) =>
+                  translate(
+                    `settings.scim.credential.${row.status}`,
+                  ),
+              },
+              {
+                id: "expires",
+                header: translate("settings.scim.column.expires"),
+                cell: (row) => date(row.expiresAt),
+              },
+              {
+                id: "lastUsed",
+                header: translate("settings.scim.column.lastUsed"),
+                cell: (row) => date(row.lastUsedAt),
+              },
+            ]}
+            emptyMessage=""
+            error=""
+            getRowKey={(row) => row.id}
+            rows={data.credentials}
+            state="ready"
+            variant="table"
+          />
+        )
+    )
+    : null;
   return (
     <>
       <ShellActiveNavigation id="settings" />
       <UI.SettingsContent data-testid="scim-connection">
         <UI.Stack gap="tight">
-          <UI.Heading level="page">
-            {translate("settings.scim.title")}
-          </UI.Heading>
+          <UI.Inline>
+            <UI.Heading level="page">
+              {translate("settings.scim.title")}
+            </UI.Heading>
+            {data && !forbidden
+              ? (
+                <UI.Badge
+                  data-testid="scim-status"
+                  tone={badgeStatus === "active"
+                    ? "success"
+                    : badgeStatus === "expired"
+                    ? "danger"
+                    : "neutral"}
+                >
+                  {translate(`settings.scim.status.${badgeStatus}`)}
+                </UI.Badge>
+              )
+              : null}
+          </UI.Inline>
           <UI.Text variant="muted">
             {translate("settings.scim.description")}
           </UI.Text>
@@ -208,166 +377,148 @@ export function ScimConnectionPage() {
           )
           : null}
         {data && !forbidden
-          ? (
-            <>
-              <UI.DescriptionList>
-                <UI.DescriptionItem
-                  title={translate("settings.scim.status")}
-                  description={translate(`settings.scim.status.${status}`)}
-                />
-                {data.baseUrl
+          ? status === "none"
+            ? (
+              <UI.EmptyState
+                action={createForm}
+                description={translate("settings.scim.empty.description")}
+                title={translate("settings.scim.empty.title")}
+              />
+            )
+            : (
+              <>
+                {tokenExpired
                   ? (
-                    <UI.DescriptionItem
-                      title={translate("settings.scim.baseUrl")}
-                      description={data.baseUrl}
-                    />
+                    <UI.InlineNotice
+                      action={rotateButton}
+                      data-testid="scim-token-expired"
+                      tone="error"
+                    >
+                      {translate("settings.scim.expired")}
+                    </UI.InlineNotice>
+                  )
+                  : tokenExpiring && lastExpiry !== null
+                  ? (
+                    <UI.InlineNotice
+                      action={rotateButton}
+                      data-testid="scim-token-expiring"
+                      tone="warning"
+                    >
+                      {translate("settings.scim.expiring", {
+                        date: shortDate(new Date(lastExpiry).toISOString()),
+                      })}
+                    </UI.InlineNotice>
                   )
                   : null}
-                {data.createdAt
+                {status === "active" && !hasSynced
                   ? (
-                    <UI.DescriptionItem
-                      title={translate("settings.scim.created")}
-                      description={date(data.createdAt)}
-                    />
+                    <UI.StepList
+                      data-testid="scim-setup-guide"
+                      label={translate("settings.scim.guide.label")}
+                    >
+                      {GUIDE_STEPS.map((step, index) => (
+                        <UI.StepItem
+                          key={step}
+                          number={index + 1}
+                          status="upcoming"
+                          statusLabel={translate("settings.scim.guide.step", {
+                            number: index + 1,
+                          })}
+                          title={translate(step)}
+                        />
+                      ))}
+                    </UI.StepList>
                   )
                   : null}
-              </UI.DescriptionList>
-              <UI.AlertBanner tone="information">
-                {translate("settings.scim.roles")}
-              </UI.AlertBanner>
-              {status !== "active"
-                ? gated(
-                  <form
-                    onSubmit={(event) => {
-                      event.preventDefault();
-                      void create();
-                    }}
-                  >
-                    <UI.Stack>
-                      {lifetimeField}
-                      {/* In an Inline, so the button keeps its own width. */}
-                      <UI.Inline>
-                        <UI.Button type="submit" loading={creating}>
-                          {translate("settings.scim.create")}
-                        </UI.Button>
-                      </UI.Inline>
-                    </UI.Stack>
-                  </form>,
-                )
-                : null}
-              {data.credentials.length > 0
-                ? (
-                  phone
+                <UI.DescriptionList>
+                  {data.baseUrl
                     ? (
-                      <div
-                        aria-label={translate(
-                          "settings.scim.credentials.caption",
-                        )}
-                        data-testid="scim-credentials-list"
-                        role="list"
-                      >
-                        {data.credentials.map((row) => (
-                          <div key={row.id} role="listitem">
-                            <UI.ListRow
-                              badge={
-                                <UI.Badge
-                                  tone={row.status === "active"
-                                    ? "success"
-                                    : "neutral"}
-                                >
-                                  <UI.VisuallyHidden>
-                                    {`${
-                                      translate("settings.scim.column.status")
-                                    }: `}
-                                  </UI.VisuallyHidden>
-                                  {translate(
-                                    `settings.scim.credential.${row.status}`,
-                                  )}
-                                </UI.Badge>
-                              }
-                              detail={[
-                                translate("settings.scim.credential.expires", {
-                                  date: shortDate(row.expiresAt),
-                                }),
-                                row.lastUsedAt
-                                  ? translate(
-                                    "settings.scim.credential.lastUsed",
-                                    {
-                                      date: shortDate(row.lastUsedAt),
-                                    },
-                                  )
-                                  : translate(
-                                    "settings.scim.credential.neverUsed",
-                                  ),
-                              ].join(" · ")}
-                              title={`${row.prefix}…`}
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    )
-                    : (
-                      <UI.DataTable<Credential>
-                        caption={translate("settings.scim.credentials.caption")}
-                        columns={[
-                          {
-                            id: "prefix",
-                            header: translate("settings.scim.column.prefix"),
-                            cell: (row) => `${row.prefix}…`,
-                          },
-                          {
-                            id: "status",
-                            header: translate("settings.scim.column.status"),
-                            cell: (row) =>
-                              translate(
-                                `settings.scim.credential.${row.status}`,
-                              ),
-                          },
-                          {
-                            id: "expires",
-                            header: translate("settings.scim.column.expires"),
-                            cell: (row) => date(row.expiresAt),
-                          },
-                          {
-                            id: "lastUsed",
-                            header: translate("settings.scim.column.lastUsed"),
-                            cell: (row) => date(row.lastUsedAt),
-                          },
-                        ]}
-                        emptyMessage=""
-                        error=""
-                        getRowKey={(row) => row.id}
-                        rows={data.credentials}
-                        state="ready"
-                        variant="table"
+                      <UI.DescriptionItem
+                        action={
+                          <CopyValueButton
+                            label={translate("settings.scim.baseUrl.copy")}
+                            value={data.baseUrl}
+                          />
+                        }
+                        actionPlacement="below"
+                        description={
+                          <UI.DataText state="wrapped" variant="code">
+                            {data.baseUrl}
+                          </UI.DataText>
+                        }
+                        title={translate("settings.scim.baseUrl")}
                       />
                     )
-                )
-                : null}
-              {status === "active"
-                ? (
-                  <UI.Inline>
-                    {gated(
+                    : null}
+                  {status === "active" && !secret && shownCredential
+                    ? (
+                      <UI.DescriptionItem
+                        description={`${shownCredential.prefix}… ${
+                          translate("settings.scim.token.hidden")
+                        }`}
+                        title={translate("settings.scim.token.label")}
+                      />
+                    )
+                    : null}
+                  {data.createdAt
+                    ? (
+                      <UI.DescriptionItem
+                        title={translate("settings.scim.created")}
+                        description={date(data.createdAt)}
+                      />
+                    )
+                    : null}
+                </UI.DescriptionList>
+                <UI.Stack gap="compact">
+                  <UI.Heading level="section">
+                    {translate("settings.scim.roles.title")}
+                  </UI.Heading>
+                  <UI.DataTable<RoleGroup>
+                    caption={translate("settings.scim.roles.caption")}
+                    captionHidden
+                    columns={[
+                      {
+                        id: "group",
+                        header: translate("settings.scim.roles.group"),
+                        cell: (row) => (
+                          <UI.DataText variant="code">{row.group}</UI.DataText>
+                        ),
+                      },
+                      {
+                        id: "role",
+                        header: translate("settings.scim.roles.role"),
+                        cell: (row) => translate(`access.role.${row.role}`),
+                      },
+                    ]}
+                    emptyMessage=""
+                    error=""
+                    getRowKey={(row) => row.group}
+                    rows={[...ROLE_GROUPS]}
+                    state="ready"
+                    variant="table"
+                  />
+                  <UI.Text variant="muted">
+                    {translate("settings.scim.roles.default")}
+                  </UI.Text>
+                </UI.Stack>
+                {status !== "active" ? gated(createForm) : null}
+                {data.credentials.length > 0 ? credentialsView : null}
+                {status === "active"
+                  ? (
+                    <UI.Inline>
+                      {gated(rotateButton)}
                       <UI.Button
                         type="button"
-                        variant="secondary"
-                        onClick={() => setPending("rotate")}
+                        variant="destructive-outline"
+                        onClick={() => setPending("revoke")}
                       >
-                        {translate("settings.scim.rotate")}
-                      </UI.Button>,
-                    )}
-                    <UI.Button
-                      type="button"
-                      variant="destructive-outline"
-                      onClick={() => setPending("revoke")}
-                    >
-                      {translate("settings.scim.revoke")}
-                    </UI.Button>
-                  </UI.Inline>
-                )
-                : null}
-            </>
-          )
+                        {translate("settings.scim.revoke")}
+                      </UI.Button>
+                    </UI.Inline>
+                  )
+                  : null}
+              </>
+            )
           : null}
         <UI.AlertDialog
           open={pending === "rotate"}
