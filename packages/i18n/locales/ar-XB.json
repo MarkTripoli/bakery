@@ -4196,5 +4196,6 @@
   "tasks.run.rules.loadFailed": "⟪The rules this run used could not be loaded.⟫",
   "tasks.run.rules.forbidden": "⟪You do not have access to see which rules this run used.⟫",
   "repository.rules.details.fingerprint.helpNoChecks": "⟪Identifies the exact rules in force.⟫",
-  "repository.rules.details.fingerprint.help": "⟪Identifies the exact rules and checks in force. Each run records the fingerprint it started with, so you can tell whether a run used these rules.⟫"
+  "repository.rules.details.fingerprint.help": "⟪Identifies the exact rules and checks in force. Each run records the fingerprint it started with, so you can tell whether a run used these rules.⟫",
+  "tasks.run.rules.fixed.finished": "⟪Fixed when the run started.⟫"
 }

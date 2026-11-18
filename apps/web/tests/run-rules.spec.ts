@@ -86,6 +86,9 @@ test.describe("Rules this run used", () => {
     await expect(page.getByTestId("run-rules-comparison")).toContainText(
       "This run used the rules it started with.",
     );
+    // A finished run is not "in progress": the fixed line says only when.
+    await expect(block(page)).toContainText("Fixed when the run started.");
+    await expect(block(page)).not.toContainText("in progress");
   });
 
   test("a run that held two rules fingerprints lists the newest first with its step", async ({ page }) => {
@@ -101,8 +104,9 @@ test.describe("Rules this run used", () => {
     await expect(rows).toHaveCount(2);
     await expect(rows.nth(0)).toContainText(RULES_B.slice(0, 12));
     await expect(rows.nth(1)).toContainText(RULES_A.slice(0, 12));
-    await expect(block(page)).toContainText("from verify");
-    await expect(block(page)).toContainText("from implement");
+    // "from {step}" sits in its own line under each row's name.
+    await expect(rows.nth(0)).toContainText("from verify");
+    await expect(rows.nth(1)).toContainText("from implement");
     // The comparison uses the newest.
     await expect(page.getByTestId("run-rules-comparison")).toContainText(
       "Same as the rules in force now.",

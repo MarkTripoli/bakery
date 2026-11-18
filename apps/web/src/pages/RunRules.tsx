@@ -213,28 +213,27 @@ export function RunRulesDetails(
   return (
     <UI.Stack gap="tight" data-testid="run-rules">
       {heading}
-      <UI.Text variant="muted">{t("tasks.run.rules.fixed")}</UI.Text>
+      <UI.Text variant="muted">
+        {t(
+          finished ? "tasks.run.rules.fixed.finished" : "tasks.run.rules.fixed",
+        )}
+      </UI.Text>
       {facts.rules.map((rule) => {
         const step = rule.stepId === null
           ? undefined
           : stepNames.get(rule.stepId);
         return (
-          <div key={rule.digest}>
-            <FingerprintRow
-              copyFailedText={copyFailed}
-              fingerprint={rule.digest}
-              helpText={t("tasks.run.rules.fingerprint.help")}
-              label={t("tasks.run.rules.fingerprint")}
-              testId="run-rules-fingerprint"
-            />
-            {facts.rules.length > 1 && step !== undefined
-              ? (
-                <UI.Text variant="muted">
-                  {t("tasks.run.rules.fromStep", { step })}
-                </UI.Text>
-              )
-              : null}
-          </div>
+          <FingerprintRow
+            copyFailedText={copyFailed}
+            fingerprint={rule.digest}
+            helpText={t("tasks.run.rules.fingerprint.help")}
+            key={rule.digest}
+            label={t("tasks.run.rules.fingerprint")}
+            note={facts.rules.length > 1 && step !== undefined
+              ? t("tasks.run.rules.fromStep", { step })
+              : undefined}
+            testId="run-rules-fingerprint"
+          />
         );
       })}
       {facts.checks === null
@@ -255,18 +254,19 @@ export function RunRulesDetails(
       {version}
       {comparison === "same"
         ? (
-          <UI.Inline gap="compact" data-testid="run-rules-comparison">
-            <UI.IconGlyph name="check" size="small" />
-            <UI.Text>{t("tasks.run.rules.same")}</UI.Text>
+          <UI.Stack gap="tight" data-testid="run-rules-comparison">
+            <UI.Text>
+              <UI.IconGlyph name="check" size="small" />{" "}
+              {t("tasks.run.rules.same")}
+            </UI.Text>
             {open}
-          </UI.Inline>
+          </UI.Stack>
         )
         : comparison === "changed"
         ? (
-          <UI.Inline gap="compact" data-testid="run-rules-comparison">
-            <UI.IconGlyph name="caution" size="small" />
+          <UI.Stack gap="tight" data-testid="run-rules-comparison">
             <UI.Text>
-              {t(
+              <UI.IconGlyph name="caution" size="small" /> {t(
                 finished
                   ? "tasks.run.rules.changed.finished"
                   : "tasks.run.rules.changed.running",
@@ -279,7 +279,7 @@ export function RunRulesDetails(
                   {t("tasks.run.rules.seeCurrent")}
                 </RulesLink>
               )}
-          </UI.Inline>
+          </UI.Stack>
         )
         : open}
     </UI.Stack>
