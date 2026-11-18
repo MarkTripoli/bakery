@@ -113,11 +113,6 @@
   font: var(--type-hint);
   overflow-wrap: anywhere;
 }
-.ui-sso-settings__empty {
-  margin: var(--space-0);
-  color: var(--color-fg-muted);
-  font: var(--type-body);
-}
 .ui-sso-settings__domain {
   display: flex;
   flex-direction: column;
