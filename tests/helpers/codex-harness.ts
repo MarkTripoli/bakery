@@ -64,17 +64,30 @@ export const accountHomeDirectory: AccountHome = () => {
   try {
     const uid = Deno.uid();
     if (uid === null) return undefined;
-    for (const line of Deno.readTextFileSync("/etc/passwd").split("\n")) {
-      const fields = line.split(":");
-      if (fields.length >= 6 && fields[2] === String(uid) && fields[5]) {
-        return fields[5];
-      }
-    }
+    return homeFromPasswd(Deno.readTextFileSync("/etc/passwd"), uid);
   } catch {
     // Not readable under this lane's permissions.
   }
   return undefined;
 };
+
+/**
+ * The home directory of the entry for `uid` in the text of a passwd file
+ * (`name:password:uid:gid:gecos:home:shell`): the uid field must equal it
+ * exactly, so `1000` does not match `10000`, and an entry with no home, and a
+ * comment line, are not answers. Pulled out of `accountHomeDirectory` so a test can give it a file
+ * of several entries and check which home comes back (#257).
+ */
+export function homeFromPasswd(text: string, uid: number): string | undefined {
+  for (const line of text.split("\n")) {
+    if (line.startsWith("#")) continue;
+    const fields = line.split(":");
+    if (fields.length >= 6 && fields[2] === String(uid) && fields[5]) {
+      return fields[5];
+    }
+  }
+  return undefined;
+}
 
 /** The metadata of the dedicated directory's auth.json, without following a link. */
 type FileInfoOf = (path: string) => Deno.FileInfo;
