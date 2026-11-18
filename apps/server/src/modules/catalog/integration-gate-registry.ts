@@ -1,4 +1,3 @@
-import { z } from "zod";
 import { githubIntegration } from "./integration-providers/github.ts";
 import {
   PROVIDER_IDENTITIES,
@@ -77,12 +76,19 @@ export function deployedIntegrationsDefects(): string[] {
  * startup for every integration test. Frozen manifest data still stops a provider
  * from redefining itself, which is what this helper is for.
  */
+/**
+ * Whether a value is a zod schema, recognised by its own shape rather than by
+ * importing zod: this module holds the definitions' data and must not pull the
+ * schema library in to describe it.
+ */
+function isZodSchema(value: unknown): boolean {
+  return typeof (value as { _zod?: { def?: unknown } } | null)?._zod?.def ===
+    "object";
+}
+
 function freezeDeep<T>(value: T): T {
-  if (value instanceof z.ZodType) return value;
-  if (value && typeof value === "object" && !Object.isFrozen(value)) {
-    Object.freeze(value);
-  }
-  if (value && typeof value === "object") {
+  if (value && typeof value === "object" && !isZodSchema(value)) {
+    if (!Object.isFrozen(value)) Object.freeze(value);
     for (const child of Object.values(value as Record<string, unknown>)) {
       freezeDeep(child);
     }
