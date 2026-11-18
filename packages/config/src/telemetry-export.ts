@@ -547,12 +547,6 @@ export function createBoundedExporter<T>(
         closeDeadlineAt = wait > 0
           ? performance.now() + wait
           : Number.POSITIVE_INFINITY;
-        // The pump is started here, synchronously, before any timer is awaited.
-        // It used to rely on offer()'s interval timer: with a synchronous sink the
-        // only await able to fire that timer was the deadline itself, so close(1)
-        // raced its own pump and abandoned a full queue unflushed. Which showed up
-        // as a flaky "it flushed nothing at all" on a loaded runner, because the
-        // outcome depended on whether an unrelated timer turn landed first.
         const deadline = after(wait);
         try {
           const flushing = pump();
