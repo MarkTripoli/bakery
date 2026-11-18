@@ -67,12 +67,26 @@ export function deployedIntegrationsDefects(): string[] {
  * that helper skips objects that are already frozen (`!Object.isFrozen(value)`),
  * so called on a frozen array it returns at once and never reaches the manifest -
  * it would look like a fix and change nothing. Descent here is unconditional.
+ *
+ * Zod schemas are the one thing it must not touch. A handler carries its input and
+ * output schemas as Zod instances, and Zod 4 fills in `.shape` lazily by defining a
+ * property on the instance itself; freezing the instance makes that define throw, so
+ * the schema can no longer be converted to JSON Schema. Startup converts every
+ * handler schema to hash the manifest digest, so freezing them does not harden the
+ * deployment, it prevents it: the server exited before it listened.
+ *
+ * A schema is code, not data. The manifest is what this freeze exists to protect,
+ * and the surrounding handler object is still frozen, so `input` and `output` cannot
+ * be swapped out at runtime; only the instance's internal cache stays writable.
  */
+function isZodSchema(value: unknown): boolean {
+  return typeof (value as { _zod?: { def?: unknown } } | null)?._zod?.def ===
+    "object";
+}
+
 function freezeDeep<T>(value: T): T {
-  if (value && typeof value === "object" && !Object.isFrozen(value)) {
-    Object.freeze(value);
-  }
-  if (value && typeof value === "object") {
+  if (value && typeof value === "object" && !isZodSchema(value)) {
+    if (!Object.isFrozen(value)) Object.freeze(value);
     for (const child of Object.values(value as Record<string, unknown>)) {
       freezeDeep(child);
     }
