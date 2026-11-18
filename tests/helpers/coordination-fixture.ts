@@ -209,10 +209,16 @@ async function seedCoordinationState(
     kind: "workflow",
     name: "coordination-fixed",
     inputs: { taskId: { type: "uuid", required: true } },
+    // One container, so the document is a compiled plan and the engine decides
+    // its step. A bare top-level step list is the flat grammar, which has no
+    // executor to run it.
     steps: [{
-      id: "review",
-      uses: "workflow.noop",
-      with: {},
+      id: "flow",
+      steps: [{
+        id: "review",
+        uses: "workflow.noop",
+        with: {},
+      }],
     }],
   };
   await owner`
