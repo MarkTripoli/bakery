@@ -68619,6 +68619,7 @@ export const clientManifest = {
           "description": "The inbox revision after the change, so the client can order it against other responses."
         },
         "batchId": {
+          "description": "NotificationMarkAllReadResult.batchId may be null in this transport value.",
           "anyOf": [
             {
               "type": "string",
@@ -68630,15 +68631,13 @@ export const clientManifest = {
               "type": "null",
               "description": "Null indicates that the value is unavailable."
             }
-          ],
-          "description": "NotificationMarkAllReadResult.batchId may be null in this transport value."
+          ]
         }
       },
       "required": [
         "marked",
         "remainingUnread",
-        "revision",
-        "batchId"
+        "revision"
       ],
       "additionalProperties": false,
       "description": "Outcome of a snapshot-bounded mark-all-read: how many items were marked, how many are still unread, and the resulting revision."

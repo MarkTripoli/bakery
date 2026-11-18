@@ -212771,6 +212771,7 @@
               "description": "The inbox revision after the change, so the client can order it against other responses."
             },
             "batchId": {
+              "description": "NotificationMarkAllReadResult.batchId may be null in this transport value.",
               "anyOf": [
                 {
                   "type": "string",
@@ -212782,15 +212783,13 @@
                   "type": "null",
                   "description": "Null indicates that the value is unavailable."
                 }
-              ],
-              "description": "NotificationMarkAllReadResult.batchId may be null in this transport value."
+              ]
             }
           },
           "required": [
             "marked",
             "remainingUnread",
-            "revision",
-            "batchId"
+            "revision"
           ],
           "additionalProperties": false,
           "description": "Outcome of a snapshot-bounded mark-all-read: how many items were marked, how many are still unread, and the resulting revision."
@@ -216120,7 +216119,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:a7524e9ac7b98d7a8e8f0b9b42c9eedd33952f7981b005976b31487eb366a856",
+  "compatibilityDigest": "sha256:c1d2918eb7ae73396e856b31aa0f8bce4ac8ebe4974246d4d7091b71dc388453",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -394660,6 +394659,7 @@
           "description": "The inbox revision after the change, so the client can order it against other responses."
         },
         "batchId": {
+          "description": "NotificationMarkAllReadResult.batchId may be null in this transport value.",
           "anyOf": [
             {
               "type": "string",
@@ -394671,15 +394671,13 @@
               "type": "null",
               "description": "Null indicates that the value is unavailable."
             }
-          ],
-          "description": "NotificationMarkAllReadResult.batchId may be null in this transport value."
+          ]
         }
       },
       "required": [
         "marked",
         "remainingUnread",
-        "revision",
-        "batchId"
+        "revision"
       ],
       "additionalProperties": false,
       "description": "Outcome of a snapshot-bounded mark-all-read: how many items were marked, how many are still unread, and the resulting revision."

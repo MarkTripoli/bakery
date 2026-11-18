@@ -27161,6 +27161,9 @@ const transportSchemas = {
         "revision",
         "batchId"
       ],
+      "optionalFields": [
+        "batchId"
+      ],
       "fieldTypes": {
         "marked": "integer",
         "remainingUnread": "integer",
