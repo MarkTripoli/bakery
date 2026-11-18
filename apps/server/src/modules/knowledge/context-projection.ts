@@ -243,7 +243,9 @@ export function verifyCitation(
 ): CitationCheck {
   // Authorization first, so an unauthorized caller learns nothing about the
   // version (not even whether it still exists).
-  if (!current.authorized) return { valid: false, reason: "not_authorized" };
+  if (current.authorized !== true) {
+    return { valid: false, reason: "not_authorized" };
+  }
   // Stored or cached citations are untrusted input: anything the schema
   // rejects (bad offsets, wrong shapes, a missing location) is not reused.
   const parsed = ContextCitationSchema.safeParse(input);
