@@ -34,12 +34,28 @@ export type OpaqueCredential = string & { readonly [credentialBrand]: true };
 export const opaqueCredential = (value: string): OpaqueCredential =>
   value as OpaqueCredential;
 
+/**
+ * What a credential store needs to mint one credential.
+ *
+ * `subject` carries the invocation facts the broker already resolved - the
+ * install, the resource and its provider-side identifiers - because a credential
+ * store cannot derive them from ids alone without repeating the read (and the
+ * generation-capture ordering) that makes a stale-connection refusal reliable.
+ * It is advisory data, not authority: the broker has already authorized this
+ * invocation and re-checks it independently.
+ */
 export type CredentialRequest = Readonly<{
   organizationId: string;
   connectionId: string;
   resourceId: string;
   profileId: string;
   providerPermissions: Readonly<Record<string, "read" | "write">>;
+  subject: Readonly<{
+    installId: string;
+    resourceKind: string;
+    applicationId?: string;
+    repositoryId?: string;
+  }>;
 }>;
 
 /** Resolves a short-lived credential for one connection and resource. Called only after authorization and validation. */
@@ -355,6 +371,16 @@ export function createBrokerWithProfiles(
       resourceId: bound.resource.id,
       profileId: profile.id,
       providerPermissions: template.providerPermissions,
+      subject: {
+        installId: bound.installId,
+        resourceKind: bound.resource.kind,
+        ...(bound.resource.applicationId === undefined
+          ? {}
+          : { applicationId: bound.resource.applicationId }),
+        ...(bound.resource.repositoryId === undefined
+          ? {}
+          : { repositoryId: bound.resource.repositoryId }),
+      },
     });
     if (
       typeof credential !== "string" ||
