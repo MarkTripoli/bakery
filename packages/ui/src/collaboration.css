@@ -2124,6 +2124,7 @@ button.ui-activity-line__row:hover {
 
 .ui-activity-line:has(.ui-session-path) .ui-activity-line__text {
   display: flex;
+  gap: var(--space-1);
   min-inline-size: 0;
   white-space: nowrap;
 }
@@ -2241,6 +2242,7 @@ button.ui-activity-line__row:hover {
 
 /* Terminal output under a step: monospace, scrolls its own overflow. */
 .ui-session-thread__terminal {
+  box-sizing: border-box;
   background: var(--color-surface-subtle);
   border: var(--border-default) solid var(--color-border);
   border-radius: var(--radius-surface);

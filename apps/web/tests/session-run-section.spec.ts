@@ -178,6 +178,12 @@ async function prepare(page: Page, options: Options = {}) {
     [runningStepId]: [session(runningStepId, "active")],
     [doneStepId]: [],
   };
+  // Anything not stubbed below is an empty list, so the page around the run
+  // section shows no error banners that are not this spec's subject.
+  await page.route(
+    "**/v1/**",
+    (route) => route.fulfill({ json: { items: [], nextCursor: null } }),
+  );
   await mockAuthenticatedSession(page);
   await page.route(
     `**/v1/tasks/${taskId}`,
@@ -290,7 +296,11 @@ test(
     // One live region for the step: the now line, naming the running tool.
     await expect(now(page)).toHaveCount(1);
     await expect(now(page)).toContainText("Running run_tests…");
-    await still(page, "run-section-running");
+    await still(page, "run-section-running", undefined, {
+      scrollTo: thread(page).or(
+        page.getByText("This step has no agent session."),
+      ).first(),
+    });
   },
 );
 
@@ -308,7 +318,11 @@ test(
       .toBeVisible();
     const line = now(page);
     await expect(line).toContainText("implement: Running run_tests…");
-    await still(page, "run-section-other-step-now");
+    await still(page, "run-section-other-step-now", undefined, {
+      scrollTo: thread(page).or(
+        page.getByText("This step has no agent session."),
+      ).first(),
+    });
     await line.getByRole("button").click();
     await expect(page.getByLabel("Output step")).toHaveValue(runningStepId);
     await expect(thread(page)).toBeVisible();
@@ -338,7 +352,11 @@ test(
       );
     // No running step, no line.
     await expect(now(page)).toHaveCount(0);
-    await still(page, "run-section-no-session");
+    await still(page, "run-section-no-session", undefined, {
+      scrollTo: thread(page).or(
+        page.getByText("This step has no agent session."),
+      ).first(),
+    });
   },
 );
 
@@ -396,6 +414,10 @@ test(
         "[role=status], [aria-live]",
       ),
     ).toHaveCount(0);
-    await still(page, "run-section-raw-output-open");
+    await still(page, "run-section-raw-output-open", undefined, {
+      scrollTo: thread(page).or(
+        page.getByText("This step has no agent session."),
+      ).first(),
+    });
   },
 );
