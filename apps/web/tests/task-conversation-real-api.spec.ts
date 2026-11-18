@@ -10,6 +10,7 @@ import {
 } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { submitUntilAccepted } from "./helpers/api-retry.ts";
+import { laneBudgetMs } from "./helpers/lane-budget.ts";
 
 /**
  * Real-API proof of the FS26 task conversation loop against a
@@ -123,7 +124,7 @@ test(
       !realApi,
       "set BAKERY_REAL_API=1 against the owned scripted stack",
     );
-    test.setTimeout(240_000);
+    test.setTimeout(laneBudgetMs(240_000));
     expect(process.env.BAKERY_ENV, "needs the isolated test environment").toBe(
       "test",
     );
