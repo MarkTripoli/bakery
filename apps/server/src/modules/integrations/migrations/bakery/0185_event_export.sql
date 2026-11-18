@@ -25,10 +25,19 @@
 -- triggers, no functions.
 --
 -- Grants follow 0143: application roles insert and read freely, and may update
--- only the columns whose lifecycle transitions the application performs. No
--- DELETE grant on deliveries, because a delivery is a record of something that
--- may have reached a receiver; retention removes rows in a later sweep with an
--- explicitly granted path.
+-- only the columns whose lifecycle transitions the application performs.
+--
+-- Delivery history is protected by two independent doors, because closing only
+-- one is not enough. There is no DELETE grant on integration_deliveries, and
+-- every foreign key that reaches a delivery is ON DELETE RESTRICT rather than
+-- CASCADE. A CASCADE would have defeated the missing grant entirely: Postgres
+-- performs referential actions without checking the deleting role's privilege
+-- on the referencing table, so a role holding DELETE on a subscription could
+-- have erased its deliveries through the cascade. That is not theoretical -
+-- it was reproduced on a real database against the CASCADE version of this
+-- file, where bakery_app held no DELETE on deliveries and still took the row
+-- count from 1 to 0 by deleting the subscription. Retiring a subscription or a
+-- destination is therefore a status change, never a row delete.
 
 create table bakery.integration_destinations (
   id uuid primary key,
@@ -64,13 +73,25 @@ create table bakery.integration_destinations (
   -- The stable name a receiver deduplicates on. Unique per organization so two
   -- destinations can never appear to a receiver as one.
   constraint integration_destinations_recovery_identity_unique
-    unique (organization_id, recovery_identity)
+    unique (organization_id, recovery_identity),
+  -- Superset of (organization_id, id), so it constrains nothing new; it exists
+  -- only so a child can name the destination AND its connection in one key.
+  constraint integration_destinations_connection_identity_unique
+    unique (organization_id, id, connection_id)
 );
 
 -- Dispatch reads due destinations by organization; the secondary index exists
 -- so the connection cascade finds its referencing rows instead of scanning.
 create index integration_destinations_due_idx
   on bakery.integration_destinations (organization_id, next_allowed_at);
+
+-- The source resource must belong to the same connection as the subscription.
+-- integration_resources is already unique on (organization_id, id), so this
+-- superset key constrains nothing new; it exists so the child key can name the
+-- connection as well.
+alter table bakery.integration_resources
+  add constraint integration_resources_connection_identity_unique
+  unique (organization_id, id, connection_id);
 
 create table bakery.integration_event_subscriptions (
   id uuid primary key,
@@ -89,6 +110,10 @@ create table bakery.integration_event_subscriptions (
 
   constraint integration_event_subscriptions_organization_id_unique
     unique (organization_id, id),
+  -- Superset of (organization_id, id); lets a delivery name its subscription
+  -- and that subscription's destination in one key.
+  constraint integration_event_subscriptions_destination_identity_unique
+    unique (organization_id, id, destination_id),
   constraint integration_event_subscriptions_organization_fk
     foreign key (organization_id)
     references bakery.organizations (id) on delete cascade,
@@ -99,14 +124,16 @@ create table bakery.integration_event_subscriptions (
   -- Composite keys pin the destination and the source to the same
   -- organization and connection, so a subscription cannot name another
   -- tenant's destination or a resource it never had access to.
+  -- Both keys carry connection_id, so a subscription cannot pair its own
+  -- connection with another connection's destination or source resource.
   constraint integration_event_subscriptions_destination_fk
-    foreign key (organization_id, destination_id)
-    references bakery.integration_destinations (organization_id, id)
-    on delete cascade,
+    foreign key (organization_id, destination_id, connection_id)
+    references bakery.integration_destinations (organization_id, id, connection_id)
+    on delete restrict,
   constraint integration_event_subscriptions_source_fk
-    foreign key (organization_id, source_resource_id)
-    references bakery.integration_resources (organization_id, id)
-    on delete cascade
+    foreign key (organization_id, source_resource_id, connection_id)
+    references bakery.integration_resources (organization_id, id, connection_id)
+    on delete restrict
 );
 
 create index integration_event_subscriptions_connection_idx
@@ -143,14 +170,18 @@ create table bakery.integration_deliveries (
   constraint integration_deliveries_organization_fk
     foreign key (organization_id)
     references bakery.organizations (id) on delete cascade,
+  -- RESTRICT, not CASCADE: a delivery records an attempt that may already have
+  -- reached a receiver, and a cascade would let a role with DELETE on the
+  -- parent erase that history without ever holding DELETE here. Retiring a
+  -- subscription or destination is a status change, not a row delete.
   constraint integration_deliveries_subscription_fk
-    foreign key (organization_id, subscription_id)
-    references bakery.integration_event_subscriptions (organization_id, id)
-    on delete cascade,
+    foreign key (organization_id, subscription_id, destination_id)
+    references bakery.integration_event_subscriptions (organization_id, id, destination_id)
+    on delete restrict,
   constraint integration_deliveries_destination_fk
     foreign key (organization_id, destination_id)
     references bakery.integration_destinations (organization_id, id)
-    on delete cascade,
+    on delete restrict,
   -- A retry is another attempt of one delivery, never a second delivery of the
   -- same event, and the identity a receiver sees is derived from this triple.
   constraint integration_deliveries_attempt_unique
