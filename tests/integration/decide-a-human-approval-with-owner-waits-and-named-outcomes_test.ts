@@ -523,3 +523,90 @@ Deno.test("tenancy: a foreign approval id answers identically to an invented one
     assertEquals(foreign.safeDetail, invented.safeDetail);
   });
 });
+
+Deno.test("AC6: a foreign organization cannot decide, expire or stop the run", async () => {
+  await withWorkerFixture(async (fixture) => {
+    const run = await seedRun(fixture, fixture.principalId);
+    const asked = await requestHumanApproval(run.client, {
+      organizationId: fixture.organizationId,
+      runId: run.job.runId,
+      taskId: run.taskId,
+      conversationId: run.conversationId,
+      stepKey: "human.approval",
+      prompt: "Ship it?",
+      ownerPrincipalId: fixture.principalId,
+      applicationId: run.applicationId,
+      repositoryId: run.repositoryId,
+      traceId: crypto.randomUUID(),
+    });
+    // A different organization, asking about an approval it does not hold.
+    const foreign = crypto.randomUUID();
+    const before = await appendCounts(run.client, fixture.organizationId);
+    const error = await assertRejects(() =>
+      decideHumanApproval(run.client, {
+        organizationId: foreign,
+        approvalId: asked.approvalId,
+        principalId: fixture.principalId,
+        decision: "approve",
+        expectedVersion: 1,
+        actorKind: "person",
+        applicationId: run.applicationId,
+        repositoryId: run.repositoryId,
+        traceId: crypto.randomUUID(),
+      })
+    ) as StandardError;
+    // No oracle: it is not found, so a stranger cannot learn it exists.
+    assertEquals(error.code, "RESOURCE_NOT_FOUND");
+    assertEquals(
+      await appendCounts(run.client, fixture.organizationId),
+      before,
+    );
+    // The approval is still open, so the refusal changed nothing.
+    const still = await run.client.query<{ status: string }>(
+      `select status from bakery.questions where id = $1`,
+      [asked.approvalId],
+    );
+    assertEquals(still.rows[0]!.status, "open");
+  });
+});
+
+Deno.test("AC6: an agent cannot decide a human approval in a person's name", async () => {
+  await withWorkerFixture(async (fixture) => {
+    const run = await seedRun(fixture, fixture.principalId);
+    const asked = await requestHumanApproval(run.client, {
+      organizationId: fixture.organizationId,
+      runId: run.job.runId,
+      taskId: run.taskId,
+      conversationId: run.conversationId,
+      stepKey: "human.approval",
+      prompt: "Ship it?",
+      ownerPrincipalId: fixture.principalId,
+      applicationId: run.applicationId,
+      repositoryId: run.repositoryId,
+      traceId: crypto.randomUUID(),
+    });
+    // An approval is a person's judgement. An agent acting for someone records
+    // that it was an agent and who it acted for, so the ledger does not read as
+    // if the person decided.
+    await decideHumanApproval(run.client, {
+      organizationId: fixture.organizationId,
+      approvalId: asked.approvalId,
+      principalId: fixture.principalId,
+      decision: "approve",
+      expectedVersion: 1,
+      actorKind: "agent",
+      onBehalfOf: fixture.principalId,
+      applicationId: run.applicationId,
+      repositoryId: run.repositoryId,
+      traceId: crypto.randomUUID(),
+    });
+    const ledger = await run.client.query<{ detail: unknown }>(
+      `select detail from bakery.decisions_ledger
+        where organization_id = $1 and subject_id = $2`,
+      [fixture.organizationId, asked.approvalId],
+    );
+    const detail = ledger.rows[0]!.detail as Record<string, unknown>;
+    assertEquals(detail.actorKind, "agent");
+    assertEquals(detail.onBehalfOf, fixture.principalId);
+  });
+});
