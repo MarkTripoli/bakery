@@ -149,6 +149,65 @@ function contextDatabase(context: ActionContext): PgDatabase {
 }
 
 /**
+ * The `+action grant` half of the catalog's `Developer+action grant` tier.
+ *
+ * `authorizeOrganizationAction` refuses every access tier outside the three base
+ * organization policies unless the action names its own guard, and this tier is
+ * one of them: the role check alone would let a Developer invoke any action on
+ * any connection. This guard answers the other half - the caller holds a live
+ * out-of-bakery grant for the exact action and resource the request names - and
+ * the gate still re-reads the whole snapshot per invocation for binding, health,
+ * availability and the grant's action version.
+ *
+ * Without it the route was refused for EVERY caller, the connection's own Admin
+ * included: the authority layer threw `requires an action-specific authorization
+ * guard` before the handler ran, so the gate never saw a request. A refusal test
+ * alone could not see that - it passes for the wrong reason - which is why the
+ * granted call is the one that proves the door.
+ */
+export async function authorizeActionGrant(
+  context: ActionContext,
+  input: unknown,
+): Promise<void> {
+  const { context: authorized, actor } = organizationActor(context);
+  const connectionId = context.params.id;
+  if (typeof connectionId !== "string" || connectionId.length === 0) {
+    throw new StandardError({ code: "INTERNAL" });
+  }
+  const value = (input ?? {}) as { action?: unknown; arguments?: unknown };
+  if (typeof value.action !== "string" || value.action.length === 0) {
+    throw new StandardError({
+      code: "UNPROCESSABLE",
+      detail: "invalid invocation input",
+    });
+  }
+  const { resourceId } = splitInvocationArguments(value.arguments);
+  const granted = await authorized.transaction.query(
+    `select 1 from bakery.integration_grants
+      where organization_id = $1 and connection_id = $2
+        and direction = 'out_of_bakery'
+        and capability = $3 and resource_id = $4
+        and revoked_at is null
+        and (expires_at is null or expires_at > now())
+        and (
+          (subject_type = 'principal' and subject_principal_id = $5)
+          or (subject_type = 'organization_role' and subject_role = $6)
+        )`,
+    [
+      actor.organizationId,
+      connectionId,
+      value.action,
+      resourceId,
+      actor.subject.principalId,
+      actor.role ?? null,
+    ],
+  );
+  if (granted.rows.length === 0) {
+    throw new StandardError({ code: "AUTH_FORBIDDEN" });
+  }
+}
+
+/**
  * The version the registry currently declares for an action id.
  *
  * A registry activation mounts exactly one version per action id, so the first

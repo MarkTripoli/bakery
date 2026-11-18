@@ -31,6 +31,7 @@ import type {
 } from "../catalog/integration-gate.ts";
 import { denyAllProviderRequests } from "../catalog/integration-gate.ts";
 import {
+  authorizeActionGrant,
   connectionInvokeDeps,
   invokeConnectionAction,
   toConnectionInvokeResponse,
@@ -900,6 +901,10 @@ export function createIntegrationsActionRegistry(
     // checks. Not `adminEdit` - invoking an action is not editing the connection.
     policy: {
       access: ActionAccess.DeveloperAndActionGrant,
+      // The tier's `+action grant` half: a Developer holds the role but also has
+      // to hold a live grant for this exact action and resource. The gate below
+      // re-reads the whole snapshot for binding, health and availability.
+      authorize: authorizeActionGrant,
       // A connection belongs to an organization, so this is a real organization
       // context: `None` is refused outright by PostgresAuthorityRunner, which
       // would have made the route 403 for everyone including the connection's own

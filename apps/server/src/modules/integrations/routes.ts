@@ -6,6 +6,7 @@ import {
 import { contractSchemas } from "@bakery/contracts/contracts";
 import { IntegrationsImplementedAction } from "@bakery/contracts/implemented-actions";
 import {
+  type ActionContextSeed,
   createApiRouter,
   getTraceId,
   problemResponse,
@@ -202,7 +203,16 @@ export function createIntegrationsRoutes(options: {
     createApiRouter({
       registry,
       publicBaseUrl: options.publicBaseUrl,
-      createContext: createActionContext,
+      // The invoke door drives the effect ledger, which opens its own
+      // transactions (lease claim, effect row, dispatch) and therefore needs the
+      // pool, not the authority transaction. `createActionContext` seeds the
+      // principal and nothing else, so without this the door's own
+      // `contextDatabase` guard answered INTERNAL on every granted call.
+      createContext: (context) =>
+        ({
+          ...createActionContext(context),
+          database: options.database,
+        }) as ActionContextSeed & { database: PgDatabase },
     }),
   );
   return app;
