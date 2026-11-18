@@ -10,7 +10,9 @@ import {
   readNotificationCount,
   setNotificationRead,
   toNotification,
+  undoMarkAllNotificationsRead,
 } from "./notifications-postgres.ts";
+import { signalInboxChanged } from "./notification-signal.ts";
 import {
   resolveDestinationSummary,
   resolveNotificationTarget,
@@ -85,11 +87,18 @@ export function createNotificationHandlers(secret: string) {
 
     async setRead(context: ActionContext, input: unknown) {
       const { transaction, scope } = recipientOf(context);
-      const row = await setNotificationRead(
-        transaction,
-        scope,
-        input as z.output<typeof contractSchemas.NotificationReadUpdate>,
-      );
+      const change = input as z.output<
+        typeof contractSchemas.NotificationReadUpdate
+      >;
+      const row = await setNotificationRead(transaction, scope, change);
+      // Only a real change is a signal; a repeated same-state write is not.
+      if (row.revision !== change.expectedCasVersion) {
+        await signalInboxChanged(transaction, {
+          organizationId: scope.organizationId,
+          recipientId: scope.recipientId,
+          traceId: context.traceId,
+        });
+      }
       return toNotification(
         row,
         await resolveDestinationSummary(transaction, scope, row),
@@ -101,7 +110,39 @@ export function createNotificationHandlers(secret: string) {
       const { readBefore } = input as z.output<
         typeof contractSchemas.NotificationMarkAllRead
       >;
-      return await markAllNotificationsRead(transaction, scope, readBefore);
+      const result = await markAllNotificationsRead(
+        transaction,
+        scope,
+        readBefore,
+      );
+      if (result.marked > 0) {
+        await signalInboxChanged(transaction, {
+          organizationId: scope.organizationId,
+          recipientId: scope.recipientId,
+          traceId: context.traceId,
+        });
+      }
+      return result;
+    },
+
+    async undoMarkAllRead(context: ActionContext, input: unknown) {
+      const { transaction, scope } = recipientOf(context);
+      const { batchId } = input as z.output<
+        typeof contractSchemas.NotificationUndoMarkAllRead
+      >;
+      const result = await undoMarkAllNotificationsRead(
+        transaction,
+        scope,
+        batchId,
+      );
+      if (result.restored > 0) {
+        await signalInboxChanged(transaction, {
+          organizationId: scope.organizationId,
+          recipientId: scope.recipientId,
+          traceId: context.traceId,
+        });
+      }
+      return result;
     },
   };
 }
