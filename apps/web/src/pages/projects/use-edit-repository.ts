@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { type RepositoryResponse, versionEtag } from "../../api/client.ts";
 import { useBakeryApi } from "../../api/context.tsx";
 import { useProtectedScope } from "../../app/query-scope-context.tsx";
+import { outcomeUnknown } from "../library/use-create-draft.ts";
 import { type ProjectFailure, projectFailure } from "./useProjectMutations.ts";
 
 /** What the dialog changes: the default branch. */
@@ -46,6 +47,8 @@ export function useEditRepository(repository: RepositoryResponse) {
         idempotencyKey: intent.current.key,
       });
       if (!result.ok) {
+        // A definite refusal did not happen: the next try is a new intent.
+        if (!outcomeUnknown(result.error)) intent.current = null;
         setFailure(projectFailure(result.error));
         throw result.error;
       }

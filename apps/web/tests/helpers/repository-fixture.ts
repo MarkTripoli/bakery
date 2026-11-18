@@ -260,7 +260,11 @@ export async function repositoryFixture(page: Page, options: Options = {}) {
     createKeys: [] as (string | null)[],
     /** The If-Match each save over a version that carries rules was sent with. */
     createIfMatch: [] as (string | null)[],
-    updates: [] as { ifMatch: string | null; body: Record<string, unknown> }[],
+    updates: [] as {
+      ifMatch: string | null;
+      key: string | null;
+      body: Record<string, unknown>;
+    }[],
     profileReads: 0,
   };
   const profileBody = (profile: Profile) => ({
@@ -314,6 +318,7 @@ export async function repositoryFixture(page: Page, options: Options = {}) {
       const body = request.postDataJSON() as Record<string, unknown>;
       seen.updates.push({
         ifMatch: request.headers()["if-match"] ?? null,
+        key: request.headers()["idempotency-key"] ?? null,
         body,
       });
       // The server answers 412 to a stale version: the page must hold the

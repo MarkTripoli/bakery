@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { type RepositoryResponse, versionEtag } from "../../api/client.ts";
 import { useBakeryApi } from "../../api/context.tsx";
 import { useProtectedScope } from "../../app/query-scope-context.tsx";
+import { outcomeUnknown } from "../library/use-create-draft.ts";
 import { type ProjectFailure, projectFailure } from "./useProjectMutations.ts";
 
 /**
@@ -17,7 +18,11 @@ export function useArchiveRepository(
   const scope = useProtectedScope();
   const queryClient = useQueryClient();
   const [failure, setFailure] = useState<ProjectFailure | null>(null);
-  const intent = useRef<{ signature: string; key: string } | null>(null);
+  // The key and the time travel together: a replay after a lost answer must
+  // send the same body under the same key.
+  const intent = useRef<
+    { signature: string; key: string; archivedAt: string | null } | null
+  >(null);
   const organizationId = scope.organizationId as string;
 
   const mutation = useMutation({
@@ -27,16 +32,22 @@ export function useArchiveRepository(
       setFailure(null);
       const signature = `${archive}:${repository.version}`;
       if (intent.current?.signature !== signature) {
-        intent.current = { signature, key: crypto.randomUUID() };
+        intent.current = {
+          signature,
+          key: crypto.randomUUID(),
+          archivedAt: archive ? new Date().toISOString() : null,
+        };
       }
       const result = await api.updateRepository({
         organizationId,
         id: repository.id,
-        input: { archivedAt: archive ? new Date().toISOString() : null },
+        input: { archivedAt: intent.current.archivedAt },
         ifMatch: versionEtag(repository.version),
         idempotencyKey: intent.current.key,
       });
       if (!result.ok) {
+        // A definite refusal did not happen: the next try is a new intent.
+        if (!outcomeUnknown(result.error)) intent.current = null;
         setFailure(projectFailure(result.error));
         throw result.error;
       }

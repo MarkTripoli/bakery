@@ -1654,6 +1654,35 @@ test.describe("archive and restore from More", () => {
     await expect(dialog).toContainText("Someone else changed this just now");
   });
 
+  test("a retry after a lost answer sends the same body under the same key", async ({ page }) => {
+    const fixture = await openMore(page, { use: "down" });
+    const archive = () =>
+      page.getByRole("button", { name: "Archive repository", exact: true });
+    await archive().click();
+    const dialog = page.getByRole("alertdialog");
+    await dialog.getByRole("button", { name: "Archive", exact: true }).click();
+    await expect(dialog).toContainText("That did not work. Try again.");
+    await dialog.getByRole("button", { name: "Archive", exact: true }).click();
+    await expect.poll(() => fixture.seen.updates.length).toBe(2);
+    const [first, second] = fixture.seen.updates;
+    expect(second.key).not.toBeNull();
+    expect(second.key).toBe(first.key);
+    expect(second.body.archivedAt).toBe(first.body.archivedAt);
+  });
+
+  test("after a refusal the next try is a new intent with a new key", async ({ page }) => {
+    const fixture = await openMore(page, { use: "conflict" });
+    await page.getByRole("button", { name: "Archive repository", exact: true })
+      .click();
+    const dialog = page.getByRole("alertdialog");
+    await dialog.getByRole("button", { name: "Archive", exact: true }).click();
+    await expect(dialog).toContainText("Someone else changed this");
+    await dialog.getByRole("button", { name: "Archive", exact: true }).click();
+    await expect.poll(() => fixture.seen.updates.length).toBe(2);
+    const [first, second] = fixture.seen.updates;
+    expect(second.key).not.toBe(first.key);
+  });
+
   test("only an administrator is offered Archive", async ({ page }) => {
     await openMore(page, { role: "member" });
     await expect(
@@ -1728,6 +1757,28 @@ test.describe("change the default branch from More", () => {
     await dialog.getByLabel(/^Default branch/).press("Enter");
     await expect(dialog.getByText("Enter a branch.")).toBeVisible();
     expect(fixture.seen.updates).toEqual([]);
+  });
+
+  test("a retry after a lost answer keeps its key; a refusal starts a new intent", async ({ page }) => {
+    const lost = await openEdit(page, { use: "down" });
+    await lost.dialog.getByLabel(/^Default branch/).fill("develop");
+    await lost.dialog.getByRole("button", { name: "Save changes" }).click();
+    await expect(lost.dialog).toContainText("That did not work. Try again.");
+    await lost.dialog.getByRole("button", { name: "Save changes" }).click();
+    await expect.poll(() => lost.fixture.seen.updates.length).toBe(2);
+    const [a, b] = lost.fixture.seen.updates;
+    expect(b.key).toBe(a.key);
+    await page.unrouteAll({ behavior: "ignoreErrors" });
+    const refused = await openEdit(page, { use: "conflict" });
+    await refused.dialog.getByLabel(/^Default branch/).fill("develop");
+    await refused.dialog.getByRole("button", { name: "Save changes" }).click();
+    await expect(refused.dialog).toContainText(
+      "changed while you were editing",
+    );
+    await refused.dialog.getByRole("button", { name: "Save changes" }).click();
+    await expect.poll(() => refused.fixture.seen.updates.length).toBe(2);
+    const [c, d] = refused.fixture.seen.updates;
+    expect(d.key).not.toBe(c.key);
   });
 
   test("a version that moved says so, with Reload, and keeps the dialog", async ({ page }) => {
