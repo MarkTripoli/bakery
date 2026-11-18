@@ -39,6 +39,11 @@ export function isScannedSource(name: string): boolean {
   return /\.(?:[cm]?[jt]s|[jt]sx)$/.test(name);
 }
 
+/** Whether a source file may hold JSX, whose text the scanner must skip. */
+export function isJsxSource(name: string): boolean {
+  return /\.[jt]sx$/.test(name);
+}
+
 export async function* sources(
   directory: URL,
   // Names are reported relative to the directory the walk started in.
@@ -112,17 +117,38 @@ function decodeEscape(source: string, at: number): [string, number] {
 }
 
 /**
+ * What the scanner is inside, innermost last. A template hole and a JSX
+ * expression both end at their matching `}`; a JSX tag and a JSX element's
+ * children are read by their own rules, because JSX text is not code: it may
+ * hold quotes, slashes and apostrophes that would otherwise look like strings,
+ * comments and regular expressions.
+ */
+type Frame =
+  | { kind: "template"; text: string; depth: number }
+  | { kind: "expr"; depth: number }
+  | { kind: "tag"; closing: boolean }
+  | { kind: "children" };
+
+/**
  * The string and template literals of a TypeScript source, with comments and
  * regular expressions skipped. `balanced` is false when the scanner ended
- * inside a string, template, comment or regex, which means it lost track and
- * its answer cannot be trusted.
+ * inside a string, template, comment, regex or JSX element, which means it
+ * lost track and its answer cannot be trusted.
+ *
+ * With `jsx` (a .tsx or .jsx file) a `<` where an expression may start opens
+ * a JSX element: attribute strings and `{...}` expressions are read as code,
+ * and the text between tags is skipped. A TypeScript generic arrow function
+ * (`<T,>(x) => x` or `<T extends X>(x: T) => x`) is not told apart from JSX
+ * and is reported as lost track, never silently; a worker .tsx file would need
+ * another form, such as a named generic function.
  */
 export function stringLiterals(
   source: string,
+  options: { jsx?: boolean } = {},
 ): { literals: Literal[]; balanced: boolean } {
+  const jsx = options.jsx === true;
   const literals: Literal[] = [];
-  // Open templates: the brace depth inside each `${`, innermost last.
-  const templates: Array<{ text: string; depth: number }> = [];
+  const frames: Frame[] = [];
   let previous = "";
   let index = 0;
   // Whether each open parenthesis belongs to an if, while, for or with header.
@@ -144,7 +170,7 @@ export function stringLiterals(
         index = at + 1;
         return;
       } else if (char === "$" && source[at + 1] === "{") {
-        templates.push({ text: text + HOLE, depth: 0 });
+        frames.push({ kind: "template", text: text + HOLE, depth: 0 });
         previous = "{";
         index = at + 2;
         return;
@@ -156,10 +182,63 @@ export function stringLiterals(
     index = source.length + 1; // ran off the end inside a template
   };
 
+  /** A JSX element ended: continue as an expression that just finished. */
+  const endElement = () => {
+    const under = frames[frames.length - 1];
+    if (under?.kind !== "children" && under?.kind !== "tag") previous = ")";
+  };
+
   while (index < source.length) {
     const char = source[index];
     const next = source[index + 1];
-    if (char === "/" && next === "/") {
+    const top = frames[frames.length - 1];
+    if (top?.kind === "tag") {
+      if (char === '"' || char === "'") {
+        // An attribute string has no escapes and may span lines.
+        const end = source.indexOf(char, index + 1);
+        if (end < 0) return { literals, balanced: false };
+        literals.push({ quote: char, text: source.slice(index + 1, end) });
+        index = end + 1;
+      } else if (char === "{") {
+        frames.push({ kind: "expr", depth: 0 });
+        previous = "{";
+        index += 1;
+      } else if (char === "/" && next === ">") {
+        frames.pop();
+        index += 2;
+        endElement();
+      } else if (char === ">") {
+        frames.pop();
+        if (top.closing) {
+          // The closing tag also ends its element's children.
+          frames.pop();
+          endElement();
+        } else frames.push({ kind: "children" });
+        index += 1;
+      } else index += 1;
+      continue;
+    }
+    if (top?.kind === "children") {
+      if (char === "{") {
+        frames.push({ kind: "expr", depth: 0 });
+        previous = "{";
+      } else if (char === "<") {
+        frames.push({ kind: "tag", closing: next === "/" });
+        if (next === "/") index += 1;
+      }
+      index += 1;
+      continue;
+    }
+    if (
+      jsx && char === "<" && /[A-Za-z_$>]/.test(next ?? "") &&
+      (previous === "" || REGEX_PRECEDES.has(previous) ||
+        /\b(?:return|case|in|of|void|delete|throw|new|default)$/.test(
+          source.slice(Math.max(0, index - 8), index).trimEnd(),
+        ))
+    ) {
+      frames.push({ kind: "tag", closing: false });
+      index += 1;
+    } else if (char === "/" && next === "/") {
       const end = source.indexOf("\n", index);
       index = end < 0 ? source.length : end + 1;
     } else if (char === "/" && next === "*") {
@@ -192,15 +271,19 @@ export function stringLiterals(
       index = at + 1;
     } else if (char === "`") {
       readTemplate(index + 1);
-    } else if (char === "{" && templates.length > 0) {
-      templates[templates.length - 1].depth += 1;
+    } else if (char === "{" && top !== undefined) {
+      (top as { depth: number }).depth += 1;
       previous = "{";
       index += 1;
-    } else if (char === "}" && templates.length > 0) {
-      const open = templates[templates.length - 1];
+    } else if (char === "}" && top !== undefined) {
+      const open = top as { depth: number; text?: string };
       if (open.depth === 0) {
-        templates.pop();
-        readTemplate(index + 1, open.text);
+        frames.pop();
+        if (top.kind === "template") readTemplate(index + 1, open.text);
+        else {
+          previous = "}";
+          index += 1;
+        }
       } else {
         open.depth -= 1;
         previous = "}";
@@ -252,7 +335,7 @@ export function stringLiterals(
   }
   return {
     literals,
-    balanced: templates.length === 0 && index <= source.length,
+    balanced: frames.length === 0 && index <= source.length,
   };
 }
 
@@ -263,8 +346,11 @@ const bareGitGrant = /allow-run=(?:[^,\s]*,)*git(?=,|$)/;
  * What in `source` would spawn or grant git by a name found on PATH: any
  * literal that is exactly `git`, and any `--allow-run=` list naming it.
  */
-export function bareGitFindings(source: string): string[] {
-  const { literals, balanced } = stringLiterals(source);
+export function bareGitFindings(
+  source: string,
+  options: { jsx?: boolean } = {},
+): string[] {
+  const { literals, balanced } = stringLiterals(source, options);
   const findings: string[] = [];
   if (!balanced) findings.push("the scanner lost track of the source");
   for (const { quote, text } of literals) {
@@ -296,9 +382,10 @@ Deno.test("no worker source names git bare, or repeats the path", async () => {
   for await (const { name, text } of sources(workerSource)) {
     scanned += 1;
     if (name === constantModule) continue;
-    const { balanced } = stringLiterals(text);
+    const jsx = isJsxSource(name);
+    const { balanced } = stringLiterals(text, { jsx });
     if (!balanced) lostTrack.push(name);
-    for (const finding of bareGitFindings(text)) {
+    for (const finding of bareGitFindings(text, { jsx })) {
       bare.push(`${name}: ${finding}`);
     }
     if (text.includes(GIT_EXECUTABLE)) repeatsPath.push(name);
@@ -736,5 +823,75 @@ Deno.test("the walk reads every kind of source file in nested directories, and a
     assertEquals(seen.sort(), Object.keys(sourcesByName).sort());
   } finally {
     await rm(root, { recursive: true, force: true });
+  }
+});
+
+// JSX text is not code (#153): quotes, apostrophes and slashes in it must not
+// start strings, comments or regular expressions.
+const jsxSource = [
+  "const view = (name: string) => (",
+  "  <section className=\"a\" data-x='b'>",
+  "    Don't say \"git\" or 'git' // here / and /x/g",
+  '    <Item title="git" count={3} {...rest} />',
+  '    {cond ? <b>it\'s {"x"}</b> : null}',
+  '    {/* a comment with a "quote */}',
+  "    <>text with a ' and a `</>",
+  "  </section>",
+  ");",
+  "const half = 4 / 2;",
+  'const ok = "git-ok";',
+].join("\n");
+
+Deno.test("JSX text does not make the scanner lose track (#153)", () => {
+  const { literals, balanced } = stringLiterals(jsxSource, { jsx: true });
+  assert(balanced, "the scanner lost track inside JSX");
+  // Attribute strings and expression literals are code; JSX text is not.
+  assertEquals(
+    literals.map((literal) => literal.text),
+    ["a", "b", "git", "x", "git-ok"],
+  );
+  // Without the JSX option the same source does lose track: the option is what
+  // makes the difference.
+  assertEquals(stringLiterals(jsxSource).balanced, false);
+});
+
+Deno.test("a bare git in JSX code is flagged and the same word in JSX text is not (#153)", () => {
+  assertEquals(
+    bareGitFindings(jsxSource, { jsx: true }),
+    ['a "git" literal'],
+  );
+  assertEquals(bareGitFindings("<p>git</p>;", { jsx: true }), []);
+  assertEquals(bareGitFindings('<p>{"git"}</p>;', { jsx: true }), [
+    'a "git" literal',
+  ]);
+  assertEquals(bareGitFindings('<Run cmd="git" />;', { jsx: true }), [
+    'a "git" literal',
+  ]);
+});
+
+Deno.test("an unclosed JSX element or attribute string is reported as lost track (#153)", () => {
+  for (const broken of ["<div>text", '<a title="open', "<a><b></a>;"]) {
+    assertEquals(stringLiterals(broken, { jsx: true }).balanced, false, broken);
+  }
+});
+
+Deno.test("the walk reads a .tsx file as JSX and leaves .ts files alone (#153)", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "bakery-jsx-scan-"));
+  try {
+    await writeFile(join(directory, "view.tsx"), jsxSource);
+    await writeFile(join(directory, "plain.ts"), 'const a = "ok";\n');
+    const seen: string[] = [];
+    for await (
+      const { name, text } of sources(new URL(`file://${directory}/`))
+    ) {
+      const jsx = isJsxSource(name);
+      assert(stringLiterals(text, { jsx }).balanced, name);
+      seen.push(name);
+    }
+    assertEquals(seen.sort(), ["plain.ts", "view.tsx"]);
+    assert(isJsxSource("view.tsx") && isJsxSource("a.jsx"));
+    assertEquals(isJsxSource("plain.ts"), false);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
   }
 });
