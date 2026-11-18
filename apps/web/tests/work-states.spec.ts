@@ -64,10 +64,11 @@ test("a failed Work load is one error block with a content-width secondary butto
 
 test("trying again after a failed Work load reads the list again", async ({ page }) => {
   await prepare(page);
+  let failing = true;
   let reads = 0;
   await page.route("**/v1/tasks?*", (route) => {
     reads += 1;
-    return reads === 1
+    return failing
       ? route.fulfill({
         status: 500,
         contentType: "application/problem+json",
@@ -76,38 +77,48 @@ test("trying again after a failed Work load reads the list again", async ({ page
       : route.fulfill({ json: { items: [], nextCursor: null } });
   });
   await page.goto("/tasks");
-  await page.getByRole("button", { name: "Try again", exact: true }).click();
-  await expect.poll(() => reads).toBeGreaterThan(1);
+  const retry = page.getByRole("button", { name: "Try again", exact: true });
+  await expect(retry).toBeVisible();
+  const before = reads;
+  failing = false;
+  await retry.click();
+  await expect.poll(() => reads).toBeGreaterThan(before);
   await expect(page.locator('[data-ui-component="errorState"]')).toHaveCount(0);
 });
 
 for (const status of [404, 403] as const) {
-  test(`a task that answers ${status} says it is not available, and the button goes back to Work`, async ({ page }) => {
-    await prepare(page);
-    await page.route(
-      `**/v1/tasks/${taskId}`,
-      (route) =>
-        route.fulfill({
-          status,
-          contentType: "application/problem+json",
-          json: problem(status, status === 404 ? "NOT_FOUND" : "FORBIDDEN"),
-        }),
-    );
-    await page.goto(`/tasks/${taskId}`);
-    const empty = page.locator('[data-ui-component="emptyState"]');
-    await expect(empty).toContainText("This task is not available");
-    await expect(empty).toContainText(
-      "It may have been deleted, or you may not have access to it.",
-    );
-    // The page is "Task", and the trail reads Work / Task.
-    await expect(page.getByRole("heading", { name: "Task detail" }))
-      .toHaveCount(0);
-    const trail = page.getByRole("navigation", { name: /breadcrumb/i });
-    await expect(trail).toContainText("Work");
-    await expect(trail).toContainText("Task");
-    await still(page, `task-unavailable-${status}`);
-    await empty.getByRole("button", { name: "Back to Work", exact: true })
-      .click();
-    await expect(page).toHaveURL(/\/tasks$/);
-  });
+  test(
+    `a task that answers ${status} says it is not available, and the button goes back to Work`,
+    async ({ page }, testInfo) => {
+      await prepare(page);
+      await page.route(
+        `**/v1/tasks/${taskId}`,
+        (route) =>
+          route.fulfill({
+            status,
+            contentType: "application/problem+json",
+            json: problem(status, status === 404 ? "NOT_FOUND" : "FORBIDDEN"),
+          }),
+      );
+      await page.goto(`/tasks/${taskId}`);
+      const empty = page.locator('[data-ui-component="emptyState"]');
+      await expect(empty).toContainText("This task is not available");
+      await expect(empty).toContainText(
+        "It may have been deleted, or you may not have access to it.",
+      );
+      // The page is "Task", and the trail reads Work / Task.
+      await expect(page.getByRole("heading", { name: "Task detail" }))
+        .toHaveCount(0);
+      // A phone has no top-bar trail; a wide screen reads Work / Task.
+      if (testInfo.project.name === "desktop") {
+        const trail = page.getByRole("navigation", { name: /breadcrumb/i });
+        await expect(trail).toContainText("Work");
+        await expect(trail).toContainText("Task");
+      }
+      await still(page, `task-unavailable-${status}`);
+      await empty.getByRole("button", { name: "Back to Work", exact: true })
+        .click();
+      await expect(page).toHaveURL(/\/tasks$/);
+    },
+  );
 }
