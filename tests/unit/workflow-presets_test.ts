@@ -187,6 +187,15 @@ Deno.test("task.brief input rejects unknown fields and out-of-range briefs", () 
   assert(
     !schema.safeParse({
       ...valid,
+      // The descriptor declares a kebab-case pattern for `taskType`, and a
+      // declared pattern is a constraint: a label that is not one is refused
+      // even though it is short enough to pass the length bound.
+      brief: { ...valid.brief, taskType: "Not A Label" },
+    }).success,
+  );
+  assert(
+    !schema.safeParse({
+      ...valid,
       brief: { ...valid.brief, description: "x".repeat(20_001) },
     }).success,
   );

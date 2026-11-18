@@ -255,6 +255,29 @@ export const designSchemas: Readonly<Record<string, Schema>> = Object.freeze({
     measured: bool(),
   }),
   TaskBriefInput: obj({ taskId: uuid() }),
+  // #554 added these two actions to the registry without adding their IO here,
+  // so the design catalog could not resolve them and this test went red on
+  // main. Shapes mirror docs/technical-design/transport-schemas.json and the
+  // pinned output contracts in packages/contracts/generated/contracts.json.
+  WorkflowStopInput: obj({
+    outcome: str({ maxLength: 100 }),
+    reason: str({ maxLength: 2000 }),
+  }),
+  WorkflowStopOutput: obj({
+    outcome: nonEmpty({ maxLength: 100 }),
+    reason: str({ maxLength: 2000 }),
+  }),
+  HumanApprovalInput: obj({
+    prompt: nonEmpty({ maxLength: 2000 }),
+    audience: jsonValue(),
+  }),
+  HumanApprovalOutput: obj({
+    decision: enumOf("approve", "request_changes", "reject"),
+    note: str({ maxLength: 4000 }),
+    decidedBy: uuid(),
+    decidedAt: str({ format: "date-time" }),
+    approvalId: uuid(),
+  }),
 });
 
 /** Check names of the design set (doc 06 specimen `checks` lists). */
