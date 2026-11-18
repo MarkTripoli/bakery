@@ -27,6 +27,7 @@ import {
   type HostAuthProfile,
 } from "./integration-gate-profiles.ts";
 import { markProviderFailure } from "./integration-provider-outcome.ts";
+import { identityForSlug } from "../integrations/registry.ts";
 
 type PermissionLevel = "read" | "write";
 const LEVEL_RANK: Record<PermissionLevel, number> = { read: 1, write: 2 };
@@ -66,6 +67,13 @@ export type ActiveIntegration = Readonly<{
 export type ActiveIntegrationRegistry = Readonly<{
   integrations: readonly ActiveIntegration[];
   get(providerId: string): ActiveIntegration | undefined;
+  /**
+   * The active integration serving a provider slug, or `undefined` when the slug
+   * is not deployed. Keyed on the slug rather than the UUID because the callers
+   * that hold a name - routes, connection rows, webhook paths - do not hold the
+   * row id, and a caller forced to invent one is a caller that can invent it wrong.
+   */
+  getBySlug(slug: string): ActiveIntegration | undefined;
   findAction(
     providerId: string,
     actionId: string,
@@ -303,6 +311,16 @@ export function activateDeployedIntegrations(
   const registry: ActiveIntegrationRegistry = Object.freeze({
     integrations: Object.freeze(integrations),
     get: (providerId: string) => byId.get(providerId),
+    // A caller holding a slug - a URL segment, a connection row, a webhook path -
+    // has no way in through `get`, which keys on the provider id. This resolves
+    // the slug through the identity registry (section 12.4), which owns that
+    // mapping and answers hostile input with `undefined` rather than a throw, so
+    // there is one lookup convention rather than a second table that could
+    // disagree with it.
+    getBySlug: (slug: string) => {
+      const identity = identityForSlug(slug);
+      return identity ? byId.get(identity.gateId) : undefined;
+    },
     findAction: (providerId: string, actionId: string, version: number) =>
       byId.get(providerId)?.actions.find((a) =>
         a.id === actionId && a.version === version

@@ -124348,6 +124348,56 @@
                     "minimum": -9007199254740991,
                     "maximum": 9007199254740991,
                     "description": "Optimistic-concurrency version used when updating the record."
+                  },
+                  "origin": {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "authored",
+                          "catalog",
+                          "copy"
+                        ],
+                        "description": "Origin kind: authored, catalog or copy."
+                      },
+                      "catalogKey": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 65536,
+                            "description": "Stable key of the catalog item a catalog definition was installed from; null for authored and copied definitions."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "WorkflowOrigin.catalogKey may be null in this transport value."
+                      },
+                      "catalogVersion": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991,
+                            "description": "Release revision of the catalog item the definition was installed from; null for authored and copied definitions."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "WorkflowOrigin.catalogVersion may be null in this transport value."
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "catalogKey",
+                      "catalogVersion"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Where this definition came from, as {kind, catalogKey, catalogVersion}: kind is authored (written in this organization), catalog (installed from the code-owned catalog; system managed and locked against organization edits) or copy; catalogKey and catalogVersion name the catalog item and release revision for a catalog origin and are null otherwise. Set when the definition is created and never changed."
                   }
                 },
                 "required": [
@@ -124358,10 +124408,11 @@
                   "enabled",
                   "createdAt",
                   "updatedAt",
-                  "version"
+                  "version",
+                  "origin"
                 ],
                 "additionalProperties": false,
-                "description": "A named, organization-owned workflow definition: its stable slug, display name, and which published WorkflowVersion, if any, is currently active. Disabling it blocks new kickoffs without canceling an already-running instance, which follows its own separate cancellation policy."
+                "description": "A named, organization-owned workflow definition: its stable slug, display name, where it came from, and which published WorkflowVersion, if any, is currently active. Disabling it blocks new kickoffs without canceling an already-running instance, which follows its own separate cancellation policy."
               },
               "description": "Page<Workflow>.items must contain at most 100 items."
             },
@@ -142465,6 +142516,56 @@
               "minimum": -9007199254740991,
               "maximum": 9007199254740991,
               "description": "Optimistic-concurrency version used when updating the record."
+            },
+            "origin": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "authored",
+                    "catalog",
+                    "copy"
+                  ],
+                  "description": "Origin kind: authored, catalog or copy."
+                },
+                "catalogKey": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "Stable key of the catalog item a catalog definition was installed from; null for authored and copied definitions."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "WorkflowOrigin.catalogKey may be null in this transport value."
+                },
+                "catalogVersion": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991,
+                      "description": "Release revision of the catalog item the definition was installed from; null for authored and copied definitions."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "WorkflowOrigin.catalogVersion may be null in this transport value."
+                }
+              },
+              "required": [
+                "kind",
+                "catalogKey",
+                "catalogVersion"
+              ],
+              "additionalProperties": false,
+              "description": "Where this definition came from, as {kind, catalogKey, catalogVersion}: kind is authored (written in this organization), catalog (installed from the code-owned catalog; system managed and locked against organization edits) or copy; catalogKey and catalogVersion name the catalog item and release revision for a catalog origin and are null otherwise. Set when the definition is created and never changed."
             }
           },
           "required": [
@@ -142475,10 +142576,62 @@
             "enabled",
             "createdAt",
             "updatedAt",
-            "version"
+            "version",
+            "origin"
           ],
           "additionalProperties": false,
-          "description": "A named, organization-owned workflow definition: its stable slug, display name, and which published WorkflowVersion, if any, is currently active. Disabling it blocks new kickoffs without canceling an already-running instance, which follows its own separate cancellation policy."
+          "description": "A named, organization-owned workflow definition: its stable slug, display name, where it came from, and which published WorkflowVersion, if any, is currently active. Disabling it blocks new kickoffs without canceling an already-running instance, which follows its own separate cancellation policy."
+        },
+        "WorkflowOrigin": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "authored",
+                "catalog",
+                "copy"
+              ],
+              "description": "Origin kind: authored, catalog or copy."
+            },
+            "catalogKey": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Stable key of the catalog item a catalog definition was installed from; null for authored and copied definitions."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "WorkflowOrigin.catalogKey may be null in this transport value."
+            },
+            "catalogVersion": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "Release revision of the catalog item the definition was installed from; null for authored and copied definitions."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "WorkflowOrigin.catalogVersion may be null in this transport value."
+            }
+          },
+          "required": [
+            "kind",
+            "catalogKey",
+            "catalogVersion"
+          ],
+          "additionalProperties": false,
+          "description": "Where a workflow definition came from: written in the organization (authored), installed from the code-owned catalog (catalog, system managed and locked against organization edits) or copied from another definition (copy). A catalog origin names the catalog item and release revision it was installed from; the other kinds carry nulls. Set when the definition is created and never changed."
         },
         "ArtifactKind": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -214660,7 +214813,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:97dc48dcabad39c5ac9c54f779e84293049b1b600437cbef9ff98f291703ee2a",
+  "compatibilityDigest": "sha256:20c402398423ce5d56757b4084b9132c8496717f3457f2e9d3eb47795dc09369",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -305073,6 +305226,56 @@
                 "minimum": -9007199254740991,
                 "maximum": 9007199254740991,
                 "description": "Optimistic-concurrency version used when updating the record."
+              },
+              "origin": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "authored",
+                      "catalog",
+                      "copy"
+                    ],
+                    "description": "Origin kind: authored, catalog or copy."
+                  },
+                  "catalogKey": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "Stable key of the catalog item a catalog definition was installed from; null for authored and copied definitions."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "WorkflowOrigin.catalogKey may be null in this transport value."
+                  },
+                  "catalogVersion": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "Release revision of the catalog item the definition was installed from; null for authored and copied definitions."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "WorkflowOrigin.catalogVersion may be null in this transport value."
+                  }
+                },
+                "required": [
+                  "kind",
+                  "catalogKey",
+                  "catalogVersion"
+                ],
+                "additionalProperties": false,
+                "description": "Where this definition came from, as {kind, catalogKey, catalogVersion}: kind is authored (written in this organization), catalog (installed from the code-owned catalog; system managed and locked against organization edits) or copy; catalogKey and catalogVersion name the catalog item and release revision for a catalog origin and are null otherwise. Set when the definition is created and never changed."
               }
             },
             "required": [
@@ -305083,10 +305286,11 @@
               "enabled",
               "createdAt",
               "updatedAt",
-              "version"
+              "version",
+              "origin"
             ],
             "additionalProperties": false,
-            "description": "A named, organization-owned workflow definition: its stable slug, display name, and which published WorkflowVersion, if any, is currently active. Disabling it blocks new kickoffs without canceling an already-running instance, which follows its own separate cancellation policy."
+            "description": "A named, organization-owned workflow definition: its stable slug, display name, where it came from, and which published WorkflowVersion, if any, is currently active. Disabling it blocks new kickoffs without canceling an already-running instance, which follows its own separate cancellation policy."
           },
           "description": "Page<Workflow>.items must contain at most 100 items."
         },
@@ -323234,6 +323438,56 @@
           "minimum": -9007199254740991,
           "maximum": 9007199254740991,
           "description": "Optimistic-concurrency version used when updating the record."
+        },
+        "origin": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "authored",
+                "catalog",
+                "copy"
+              ],
+              "description": "Origin kind: authored, catalog or copy."
+            },
+            "catalogKey": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Stable key of the catalog item a catalog definition was installed from; null for authored and copied definitions."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "WorkflowOrigin.catalogKey may be null in this transport value."
+            },
+            "catalogVersion": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "Release revision of the catalog item the definition was installed from; null for authored and copied definitions."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "WorkflowOrigin.catalogVersion may be null in this transport value."
+            }
+          },
+          "required": [
+            "kind",
+            "catalogKey",
+            "catalogVersion"
+          ],
+          "additionalProperties": false,
+          "description": "Where this definition came from, as {kind, catalogKey, catalogVersion}: kind is authored (written in this organization), catalog (installed from the code-owned catalog; system managed and locked against organization edits) or copy; catalogKey and catalogVersion name the catalog item and release revision for a catalog origin and are null otherwise. Set when the definition is created and never changed."
         }
       },
       "required": [
@@ -323244,10 +323498,62 @@
         "enabled",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "origin"
       ],
       "additionalProperties": false,
-      "description": "A named, organization-owned workflow definition: its stable slug, display name, and which published WorkflowVersion, if any, is currently active. Disabling it blocks new kickoffs without canceling an already-running instance, which follows its own separate cancellation policy."
+      "description": "A named, organization-owned workflow definition: its stable slug, display name, where it came from, and which published WorkflowVersion, if any, is currently active. Disabling it blocks new kickoffs without canceling an already-running instance, which follows its own separate cancellation policy."
+    },
+    "WorkflowOrigin": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "authored",
+            "catalog",
+            "copy"
+          ],
+          "description": "Origin kind: authored, catalog or copy."
+        },
+        "catalogKey": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Stable key of the catalog item a catalog definition was installed from; null for authored and copied definitions."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "WorkflowOrigin.catalogKey may be null in this transport value."
+        },
+        "catalogVersion": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Release revision of the catalog item the definition was installed from; null for authored and copied definitions."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "WorkflowOrigin.catalogVersion may be null in this transport value."
+        }
+      },
+      "required": [
+        "kind",
+        "catalogKey",
+        "catalogVersion"
+      ],
+      "additionalProperties": false,
+      "description": "Where a workflow definition came from: written in the organization (authored), installed from the code-owned catalog (catalog, system managed and locked against organization edits) or copied from another definition (copy). A catalog origin names the catalog item and release revision it was installed from; the other kinds carry nulls. Set when the definition is created and never changed."
     },
     "ArtifactKind": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

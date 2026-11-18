@@ -1315,6 +1315,7 @@ export type ContractOutputName =
   | "Workflow"
   | "WorkflowActionDeclaration"
   | "WorkflowActionRetry"
+  | "WorkflowOrigin"
   | "WorkflowPreset"
   | "WorkflowPresetAvailability"
   | "WorkflowPresetStep"
