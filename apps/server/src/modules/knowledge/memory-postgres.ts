@@ -541,6 +541,29 @@ export async function updateMemory(
     });
   }
 
+  // Moving an active entry onto another active entry's topic makes two active
+  // entries share one topic just as surely as reactivating a retired one does,
+  // so the subject change faces the same check and the same exemption for the
+  // entry itself.
+  if (input.subject !== undefined && input.status !== "retired") {
+    const current = await transaction.query<
+      { repository_id: string; topic: string; status: string }
+    >(
+      `select repository_id, topic, status from bakery.memory_entries
+        where organization_id = $1 and id = $2`,
+      [organizationId, memoryId],
+    );
+    const entry = current.rows[0];
+    if (entry && entry.status === "active" && entry.topic !== input.subject) {
+      await assertNoConflictingActiveEntry(transaction, {
+        organizationId,
+        repositoryId: entry.repository_id,
+        topic: input.subject,
+        excludeMemoryId: memoryId,
+      });
+    }
+  }
+
   // Reactivation is a promotion claim, not a flag flip. Setting status back to
   // active would otherwise put a second active entry on a topic that already has
   // one, which is the exact state AC1 exists to prevent. It faces the same

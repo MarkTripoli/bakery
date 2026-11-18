@@ -525,3 +525,58 @@ Deno.test("AC2: a correction keeps the entry's real confidence instead of resett
     await seeded.fixture.fixture.close();
   }
 });
+
+Deno.test("AC1: moving an active entry onto another active entry's topic is refused", async () => {
+  const seeded = await seed();
+  try {
+    const alpha = await (await send(seeded, "POST", "/v1/memories", {
+      repositoryId: seeded.repositoryId,
+      subject: "alpha",
+      content: "The alpha claim.",
+      provenance: proven(seeded),
+    })).json();
+    const beta = await (await send(seeded, "POST", "/v1/memories", {
+      repositoryId: seeded.repositoryId,
+      subject: "beta",
+      content: "The beta claim.",
+      provenance: proven(seeded),
+    })).json();
+    assertEquals(beta.status, "active");
+
+    // Both entries are active. Renaming one onto the other's topic would leave
+    // two active entries sharing a topic, which is the state AC1 forbids however
+    // it is reached - not only through reactivation.
+    const moved = await send(
+      seeded,
+      "PATCH",
+      `/v1/memories/${alpha.id}`,
+      { subject: "beta" },
+      alpha.version,
+    );
+    assertEquals(moved.status, 409);
+    const body = await moved.json();
+    assertEquals(body.reason ?? body.params?.reason, "conflict_detected");
+
+    // Renaming to a topic nobody holds is still allowed: the rule is about
+    // collisions, not about freezing the label.
+    const renamed = await send(
+      seeded,
+      "PATCH",
+      `/v1/memories/${alpha.id}`,
+      { subject: "gamma" },
+      alpha.version,
+    );
+    assertEquals(renamed.status, 200);
+
+    const activeBeta = await rowsFor(seeded.organizationId, async (db) => {
+      const result = await db<{ n: string }[]>`
+        select count(*)::text as n from bakery.memory_entries
+         where organization_id = ${seeded.organizationId}
+           and lower(topic) = 'beta' and status = 'active'`;
+      return result[0].n;
+    });
+    assertEquals(Number(activeBeta), 1);
+  } finally {
+    await seeded.fixture.fixture.close();
+  }
+});
