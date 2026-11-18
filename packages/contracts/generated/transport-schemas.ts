@@ -5656,16 +5656,31 @@ const transportSchemas = {
     "WorkflowListingCreate": {
       "fields": [
         {
+          "name": "versionId",
+          "type": "uuid",
+          "required": true,
+          "description": "Published version of the unlisted source definition to copy; a draft or unknown version is refused."
+        },
+        {
+          "name": "slug",
+          "type": "slug",
+          "required": false,
+          "bounds": {
+            "maxLength": 100
+          },
+          "description": "Slug for the new library definition; omitted generates copy-<uuid>. A slug already used in the organization fails with STATE_CONFLICT."
+        },
+        {
           "name": "name",
           "type": "string",
           "required": false,
           "bounds": {
             "maxLength": 200
           },
-          "description": "Library name for the saved workflow; omitted keeps the name the definition already has."
+          "description": "Library name for the new definition; omitted keeps the source definition's name."
         }
       ],
-      "description": "Save as workflow: moves an unlisted definition into the library under its If-Match version, keeping its origin. Only a person may save; an agent is refused with AUTH_FORBIDDEN, an already listed definition with STATE_CONFLICT workflow_already_listed."
+      "description": "Save as workflow: copies one published version of an unlisted definition into a new listed definition with its own draft, whose origin is copy naming the source definition and version. The unlisted source and its runs are unchanged. If-Match is the source definition's version (stale: PRECONDITION_FAILED). Only a person may save; an agent is refused with AUTH_FORBIDDEN, and a listed source is STATE_CONFLICT workflow_already_listed."
     },
     "WorkflowDefinitionProposalDecision": {
       "fields": [
@@ -18206,7 +18221,7 @@ const transportSchemas = {
         "version": "Optimistic-concurrency version used when updating the record.",
         "description": "Free-text summary of what the workflow does, shown in pickers and the catalog; null when the author left it blank. Set on create and replaced wholesale on update.",
         "origin": "Where this definition came from, as {kind, catalogKey, catalogVersion}: kind is authored (written in this organization), catalog (installed from the code-owned catalog; system managed and locked against organization edits) copy, or coordinator (a coordinator proposal a person accepted in a conversation, which also names that conversationId and turnId); catalogKey and catalogVersion name the catalog item and release revision for a catalog origin and are null otherwise. Set when the definition is created and never changed.",
-        "visibility": "listed definitions appear in the library list and can be made the active version; unlisted ones (coordinator proposals a person accepted) are readable by id and runnable only at an exact published version until a person saves them as a workflow. Outside every digest. Omitted by servers that predate it."
+        "visibility": "listed definitions appear in the library list and can be made the active version; unlisted ones (coordinator proposals a person accepted) are readable by id and runnable only at an exact published version. Save as workflow copies one into a new listed definition and leaves the unlisted source unchanged. Outside every digest. Omitted by servers that predate it."
       },
       "optionalFields": [
         "description",
@@ -18219,20 +18234,26 @@ const transportSchemas = {
         "catalogKey",
         "catalogVersion",
         "conversationId",
-        "turnId"
+        "turnId",
+        "sourceWorkflowId",
+        "sourceVersionId"
       ],
       "fieldTypes": {
         "kind": "authored|catalog|copy|coordinator",
         "catalogKey": "string|null",
         "catalogVersion": "integer|null",
         "conversationId": "uuid|null",
-        "turnId": "uuid|null"
+        "turnId": "uuid|null",
+        "sourceWorkflowId": "uuid|null",
+        "sourceVersionId": "uuid|null"
       },
       "nullableFields": [
         "catalogKey",
         "catalogVersion",
         "conversationId",
-        "turnId"
+        "turnId",
+        "sourceWorkflowId",
+        "sourceVersionId"
       ],
       "description": "Where a workflow definition came from: written in the organization (authored), installed from the code-owned catalog (catalog, system managed and locked against organization edits), copied from another definition (copy), or accepted from a coordinator proposal in a conversation (coordinator). A catalog origin names the catalog item and release revision it was installed from; the other kinds carry nulls. Set when the definition is created and never changed.",
       "fieldDescriptions": {
@@ -18240,11 +18261,15 @@ const transportSchemas = {
         "catalogKey": "Stable key of the catalog item a catalog definition was installed from; null for authored and copied definitions.",
         "catalogVersion": "Release revision of the catalog item the definition was installed from; null for authored and copied definitions.",
         "conversationId": "Conversation whose coordinator proposed this definition; null unless kind is coordinator. Omitted by servers that predate it.",
-        "turnId": "Coordinator turn that proposed this definition; null unless kind is coordinator. Omitted by servers that predate it."
+        "turnId": "Coordinator turn that proposed this definition; null unless kind is coordinator. Omitted by servers that predate it.",
+        "sourceWorkflowId": "Definition a copy was made from (save as workflow copies an unlisted definition); null unless kind is copy. Omitted by servers that predate it.",
+        "sourceVersionId": "Published version of the source definition a copy was made from; null unless kind is copy. Omitted by servers that predate it."
       },
       "optionalFields": [
         "conversationId",
-        "turnId"
+        "turnId",
+        "sourceWorkflowId",
+        "sourceVersionId"
       ]
     },
     "WorkflowDefinitionProposal": {

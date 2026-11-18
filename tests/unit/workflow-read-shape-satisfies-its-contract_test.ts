@@ -24,6 +24,8 @@ const row = {
   visibility: "listed",
   origin_conversation_id: null,
   origin_turn_id: null,
+  origin_source_workflow_id: null,
+  origin_source_version_id: null,
 };
 
 Deno.test("an authored definition's read shape satisfies the Workflow contract", () => {
@@ -34,6 +36,8 @@ Deno.test("an authored definition's read shape satisfies the Workflow contract",
     catalogVersion: null,
     conversationId: null,
     turnId: null,
+    sourceWorkflowId: null,
+    sourceVersionId: null,
   });
   const parsed = contractSchemas.Workflow.safeParse(shape);
   assertEquals(parsed.success, true, JSON.stringify(parsed.error?.issues));
@@ -53,6 +57,8 @@ Deno.test("a catalog definition's read shape carries its key and revision and sa
     catalogVersion: 3,
     conversationId: null,
     turnId: null,
+    sourceWorkflowId: null,
+    sourceVersionId: null,
   });
   const parsed = contractSchemas.Workflow.safeParse(shape);
   assertEquals(parsed.success, true, JSON.stringify(parsed.error?.issues));

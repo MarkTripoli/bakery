@@ -217,7 +217,7 @@ export function createWorkflowsActionRegistry(
     output: contractSchemas.Workflow,
     policy: commandPolicy,
     explicitIdempotency: "key-and-if-match",
-    successStatus: 200,
+    successStatus: 201,
     handler: handlers.createListing,
   });
   registry.register({

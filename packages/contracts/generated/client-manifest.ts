@@ -1654,7 +1654,7 @@ export const clientManifest = {
       "permission": "workflow:manage",
       "input": "WorkflowListingCreate",
       "output": "Workflow",
-      "event": "workflows.updated",
+      "event": "workflows.created",
       "mcp": "bakery_workflowListings_create",
       "idempotency": "Idempotency-Key + If-Match required",
       "errors": [
@@ -16006,14 +16006,29 @@ export const clientManifest = {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
       "properties": {
+        "versionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Published version of the unlisted source definition to copy; a draft or unknown version is refused."
+        },
+        "slug": {
+          "description": "WorkflowListingCreate.slug must contain at most 100 characters.",
+          "type": "string",
+          "maxLength": 100,
+          "pattern": "^[a-z0-9]+(?:[-_][a-z0-9]+)*$"
+        },
         "name": {
           "description": "WorkflowListingCreate.name must contain at most 200 characters.",
           "type": "string",
           "maxLength": 200
         }
       },
+      "required": [
+        "versionId"
+      ],
       "additionalProperties": false,
-      "description": "Save as workflow: moves an unlisted definition into the library under its If-Match version, keeping its origin. Only a person may save; an agent is refused with AUTH_FORBIDDEN, an already listed definition with STATE_CONFLICT workflow_already_listed."
+      "description": "Save as workflow: copies one published version of an unlisted definition into a new listed definition with its own draft, whose origin is copy naming the source definition and version. The unlisted source and its runs are unchanged. If-Match is the source definition's version (stale: PRECONDITION_FAILED). Only a person may save; an agent is refused with AUTH_FORBIDDEN, and a listed source is STATE_CONFLICT workflow_already_listed."
     },
     "WorkflowDefinitionProposalDecision": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -27116,6 +27131,36 @@ export const clientManifest = {
                         "description": "Null indicates that the value is unavailable."
                       }
                     ]
+                  },
+                  "sourceWorkflowId": {
+                    "description": "WorkflowOrigin.sourceWorkflowId may be null in this transport value.",
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "Definition a copy was made from (save as workflow copies an unlisted definition); null unless kind is copy. Omitted by servers that predate it."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ]
+                  },
+                  "sourceVersionId": {
+                    "description": "WorkflowOrigin.sourceVersionId may be null in this transport value.",
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "Published version of the source definition a copy was made from; null unless kind is copy. Omitted by servers that predate it."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ]
                   }
                 },
                 "required": [
@@ -27127,7 +27172,7 @@ export const clientManifest = {
                 "description": "Where this definition came from, as {kind, catalogKey, catalogVersion}: kind is authored (written in this organization), catalog (installed from the code-owned catalog; system managed and locked against organization edits) copy, or coordinator (a coordinator proposal a person accepted in a conversation, which also names that conversationId and turnId); catalogKey and catalogVersion name the catalog item and release revision for a catalog origin and are null otherwise. Set when the definition is created and never changed."
               },
               "visibility": {
-                "description": "listed definitions appear in the library list and can be made the active version; unlisted ones (coordinator proposals a person accepted) are readable by id and runnable only at an exact published version until a person saves them as a workflow. Outside every digest. Omitted by servers that predate it.",
+                "description": "listed definitions appear in the library list and can be made the active version; unlisted ones (coordinator proposals a person accepted) are readable by id and runnable only at an exact published version. Save as workflow copies one into a new listed definition and leaves the unlisted source unchanged. Outside every digest. Omitted by servers that predate it.",
                 "type": "string",
                 "enum": [
                   "listed",
@@ -40914,6 +40959,36 @@ export const clientManifest = {
                   "description": "Null indicates that the value is unavailable."
                 }
               ]
+            },
+            "sourceWorkflowId": {
+              "description": "WorkflowOrigin.sourceWorkflowId may be null in this transport value.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Definition a copy was made from (save as workflow copies an unlisted definition); null unless kind is copy. Omitted by servers that predate it."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ]
+            },
+            "sourceVersionId": {
+              "description": "WorkflowOrigin.sourceVersionId may be null in this transport value.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Published version of the source definition a copy was made from; null unless kind is copy. Omitted by servers that predate it."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ]
             }
           },
           "required": [
@@ -40925,7 +41000,7 @@ export const clientManifest = {
           "description": "Where this definition came from, as {kind, catalogKey, catalogVersion}: kind is authored (written in this organization), catalog (installed from the code-owned catalog; system managed and locked against organization edits) copy, or coordinator (a coordinator proposal a person accepted in a conversation, which also names that conversationId and turnId); catalogKey and catalogVersion name the catalog item and release revision for a catalog origin and are null otherwise. Set when the definition is created and never changed."
         },
         "visibility": {
-          "description": "listed definitions appear in the library list and can be made the active version; unlisted ones (coordinator proposals a person accepted) are readable by id and runnable only at an exact published version until a person saves them as a workflow. Outside every digest. Omitted by servers that predate it.",
+          "description": "listed definitions appear in the library list and can be made the active version; unlisted ones (coordinator proposals a person accepted) are readable by id and runnable only at an exact published version. Save as workflow copies one into a new listed definition and leaves the unlisted source unchanged. Outside every digest. Omitted by servers that predate it.",
           "type": "string",
           "enum": [
             "listed",

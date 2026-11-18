@@ -13,18 +13,34 @@
 --
 -- origin_conversation_id and origin_turn_id say which conversation and which
 -- coordinator turn proposed an unlisted definition. Both are null for every
--- other origin. Existing rows default to listed with null provenance, which is
+-- other origin. Provenance foreign keys null only their own column when the
+-- referenced row goes (an organization delete cascades in any order). Save as workflow copies an unlisted definition's published
+-- version into a new listed definition (factory-modes.md section 4.2 step 5):
+-- the copy's origin_source_workflow_id and origin_source_version_id name that
+-- source, and the source itself is never changed. Existing rows default to listed with null provenance, which is
 -- what they already are, so no data repair is needed.
 alter table bakery.workflow_definitions
   add column visibility text not null default 'listed',
   add column origin_conversation_id uuid,
   add column origin_turn_id uuid,
+  add column origin_source_workflow_id uuid,
+  add column origin_source_version_id uuid,
   add constraint workflow_definitions_origin_conversation_fk
     foreign key (organization_id, origin_conversation_id)
-    references bakery.conversations (organization_id, id),
+    references bakery.conversations (organization_id, id)
+    on delete set null (origin_conversation_id),
   add constraint workflow_definitions_origin_turn_fk
     foreign key (organization_id, origin_turn_id)
-    references bakery.conversation_turns (organization_id, id);
+    references bakery.conversation_turns (organization_id, id)
+    on delete set null (origin_turn_id),
+  add constraint workflow_definitions_origin_source_workflow_fk
+    foreign key (organization_id, origin_source_workflow_id)
+    references bakery.workflow_definitions (organization_id, id)
+    on delete set null (origin_source_workflow_id),
+  add constraint workflow_definitions_origin_source_version_fk
+    foreign key (organization_id, origin_source_version_id)
+    references bakery.workflow_versions (organization_id, id)
+    on delete set null (origin_source_version_id);
 
 -- One proposal is one coherent change a coordinator turn asked for, decided
 -- whole by a person: the full definition document it wants the conversation's

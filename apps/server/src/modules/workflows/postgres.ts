@@ -42,7 +42,7 @@ import {
 const DEFINITIONS_ORDERING = "createdAt:desc,id:desc";
 const VERSIONS_ORDERING = "revision:desc,id:desc";
 const DEFINITION_COLUMNS =
-  "id, slug, name, description, active_version_id, enabled, created_at, updated_at, version, origin_kind, origin_catalog_key, origin_catalog_version, visibility, origin_conversation_id, origin_turn_id";
+  "id, slug, name, description, active_version_id, enabled, created_at, updated_at, version, origin_kind, origin_catalog_key, origin_catalog_version, visibility, origin_conversation_id, origin_turn_id, origin_source_workflow_id, origin_source_version_id";
 const PRESET_SLUG_PREFIX = "preset:";
 
 export type WorkflowDefinitionRow = {
@@ -61,6 +61,8 @@ export type WorkflowDefinitionRow = {
   visibility: string;
   origin_conversation_id: string | null;
   origin_turn_id: string | null;
+  origin_source_workflow_id: string | null;
+  origin_source_version_id: string | null;
 };
 
 /** Library visibility of a definition (chapter 25 primitive 2). */
@@ -170,6 +172,8 @@ function originOf(row: WorkflowDefinitionRow) {
     catalogVersion: row.origin_catalog_version,
     conversationId: row.origin_conversation_id,
     turnId: row.origin_turn_id,
+    sourceWorkflowId: row.origin_source_workflow_id,
+    sourceVersionId: row.origin_source_version_id,
   };
 }
 
@@ -334,8 +338,10 @@ export async function createWorkflowDefinition(
 export type WorkflowDefinitionProvenance = Readonly<{
   visibility: WorkflowVisibility;
   originKind: string;
-  originConversationId: string;
-  originTurnId: string;
+  originConversationId?: string;
+  originTurnId?: string;
+  originSourceWorkflowId?: string;
+  originSourceVersionId?: string;
 }>;
 
 /**
@@ -355,8 +361,9 @@ export async function insertWorkflowDefinition(
       provenance
         ? `insert into bakery.workflow_definitions (
              id, organization_id, slug, name, description, visibility,
-             origin_kind, origin_conversation_id, origin_turn_id
-           ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+             origin_kind, origin_conversation_id, origin_turn_id,
+             origin_source_workflow_id, origin_source_version_id
+           ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
            returning ${DEFINITION_COLUMNS}`
         : `insert into bakery.workflow_definitions (
              id, organization_id, slug, name, description
@@ -371,8 +378,10 @@ export async function insertWorkflowDefinition(
           value.description,
           provenance.visibility,
           provenance.originKind,
-          provenance.originConversationId,
-          provenance.originTurnId,
+          provenance.originConversationId ?? null,
+          provenance.originTurnId ?? null,
+          provenance.originSourceWorkflowId ?? null,
+          provenance.originSourceVersionId ?? null,
         ]
         : [
           id,
@@ -1075,11 +1084,16 @@ export async function activateWorkflowVersion(
   return toWorkflowDefinition(row);
 }
 
+/** Origin kind of a definition copied from another one (0175's vocabulary). */
+export const COPY_ORIGIN_KIND = "copy";
+
 /**
- * Save as workflow: a person moves an unlisted definition into the library
- * under the definition's compare-and-set version. Its origin is kept, so the
- * library entry still says which conversation and turn proposed it. Only a
- * person saves (chapter 25 O52); an agent's request is refused.
+ * Save as workflow (factory-modes.md section 4.2 step 5): a person copies one
+ * published version of an unlisted definition into a NEW listed definition
+ * with its own draft, written by the editor's definition and draft writers.
+ * The copy's origin is `copy` naming the source definition and version; the
+ * unlisted source and every run pinned to it stay unchanged. If-Match is the
+ * source definition's version. Only a person saves (chapter 25 O52).
  */
 export async function createWorkflowListing(
   context: ActionContext,
@@ -1089,63 +1103,76 @@ export async function createWorkflowListing(
     context,
   );
   assertPersonActs(context, principalId, "workflow_listing_requires_person");
-  const value = input as { name?: string };
+  const value = input as { versionId: string; slug?: string; name?: string };
   const workflowId = context.params.id;
   if (!workflowId) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
   const expectedVersion = requireCommandMetadata(context).expectedVersion;
   if (expectedVersion === undefined) {
     throw new StandardError({ code: "PRECONDITION_REQUIRED" });
   }
-  await lockAuthoringDefinition(transaction, organizationId, workflowId);
-  const current = await transaction.query<
-    { visibility: string; version: number }
-  >(
-    `select visibility, version from bakery.workflow_definitions
-      where organization_id = $1 and id = $2`,
+  // Lock the source so the version check and the copy read one state.
+  const source = (await transaction.query<{
+    visibility: string;
+    version: number;
+    name: string;
+    description: string | null;
+  }>(
+    `select visibility, version, name, description
+       from bakery.workflow_definitions
+      where organization_id = $1 and id = $2
+      for update`,
     [organizationId, workflowId],
-  );
-  const target = current.rows[0];
-  if (!target) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
-  if (target.version !== expectedVersion) {
+  )).rows[0];
+  if (!source) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  if (source.version !== expectedVersion) {
     throw new StandardError({ code: "PRECONDITION_FAILED" });
   }
-  if (target.visibility !== WorkflowVisibility.Unlisted) {
+  if (source.visibility !== WorkflowVisibility.Unlisted) {
     throw new StandardError({
       code: "STATE_CONFLICT",
       params: { reason: "workflow_already_listed" },
     });
   }
-  const updated = await boundedMutation(() =>
-    transaction.query<WorkflowDefinitionRow>(
-      `update bakery.workflow_definitions
-          set visibility = $4,
-              name = coalesce($5, name),
-              updated_at = now(), version = version + 1
-        where organization_id = $1 and id = $2 and version = $3
-        returning ${DEFINITION_COLUMNS}`,
-      [
-        organizationId,
-        workflowId,
-        expectedVersion,
-        WorkflowVisibility.Listed,
-        value.name ?? null,
-      ],
-    )
-  );
-  const row = updated.rows[0];
-  if (!row) throw new StandardError({ code: "PRECONDITION_FAILED" });
-  await appendWorkflowFacts(transaction, {
+  const version = (await transaction.query<
+    { status: string; source_yaml: string; normalized_spec: JsonValue }
+  >(
+    `select status, source_yaml, normalized_spec from bakery.workflow_versions
+      where organization_id = $1 and workflow_id = $2 and id = $3`,
+    [organizationId, workflowId, value.versionId],
+  )).rows[0];
+  if (!version) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  if (version.status !== "published") {
+    throw new StandardError({
+      code: "STATE_CONFLICT",
+      params: { reason: "workflow_version_not_published" },
+    });
+  }
+  const facts = writeFactsOf(context);
+  const copy = await insertWorkflowDefinition(transaction, facts, {
+    slug: value.slug ?? `copy-${crypto.randomUUID()}`,
+    name: value.name ?? source.name,
+    description: source.description ?? "",
+  }, {
+    visibility: WorkflowVisibility.Listed,
+    originKind: COPY_ORIGIN_KIND,
+    originSourceWorkflowId: workflowId,
+    originSourceVersionId: value.versionId,
+  });
+  await createWorkflowDraft(transaction, facts, copy.id, {
+    definition: version.normalized_spec,
+    sourceYaml: version.source_yaml,
+  });
+  await appendAudit(transaction, {
     organizationId,
     principalId,
     operation: "workflowListings.create",
     resourceType: "workflow_definition",
-    resourceId: workflowId,
-    eventType: "workflows.updated",
-    resourceVersion: row.version,
+    resourceId: copy.id,
     requestId: context.requestId,
     traceId: context.traceId,
+    details: { sourceWorkflowId: workflowId, sourceVersionId: value.versionId },
   });
-  return toWorkflowDefinition(row);
+  return toWorkflowDefinition(copy);
 }
 
 /** Refuses an agent's request where chapter 25 reserves the act for a person. */

@@ -1672,7 +1672,7 @@
       "organizationContext": "required_authenticated_context",
       "input": "WorkflowListingCreate",
       "output": "Workflow",
-      "event": "workflows.updated",
+      "event": "workflows.created",
       "mcp": "bakery_workflowListings_create",
       "idempotency": "Idempotency-Key + If-Match required",
       "errors": [

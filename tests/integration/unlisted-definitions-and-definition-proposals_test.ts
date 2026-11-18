@@ -380,15 +380,17 @@ Deno.test("a coordinator proposes an unlisted definition, a person decides it an
       "definition_proposal_target_invalid",
     );
 
-    // Save as workflow: an agent is refused, a stale expectedVersion is refused.
+    // Save as workflow refusals. The copy itself needs a published source
+    // version, which the run test below has; these are checked before it.
     const listingPath = `/v1/workflows/${workflowId}/listings`;
+    const listingBody = { versionId: crypto.randomUUID() };
     const agentSave = await agentPost(
       fixture,
       seed.organizationId,
       agent,
       listingPath,
       unlisted.version,
-      {},
+      listingBody,
     );
     // Workflow authoring routes take a browser session only, so an agent's
     // token never reaches save as workflow (and the handler refuses one too).
@@ -397,7 +399,7 @@ Deno.test("a coordinator proposes an unlisted definition, a person decides it an
       (await call(fixture, seed, listingPath, {
         method: "POST",
         ifMatch: unlisted.version + 7,
-        body: {},
+        body: listingBody,
       })).status,
       412,
     );
@@ -405,30 +407,9 @@ Deno.test("a coordinator proposes an unlisted definition, a person decides it an
       (await call(fixture, other, listingPath, {
         method: "POST",
         ifMatch: unlisted.version,
-        body: {},
+        body: listingBody,
       })).status,
       404,
-    );
-    const saved = await json<Workflow>(
-      await call(fixture, seed, listingPath, {
-        method: "POST",
-        ifMatch: unlisted.version,
-        body: { name: "Issue triage" },
-      }),
-      200,
-    );
-    assertEquals(saved.visibility, "listed");
-    assertEquals(saved.name, "Issue triage");
-    assertEquals(saved.origin.kind, "coordinator");
-    assertEquals(saved.origin.conversationId, seed.conversationId);
-    assert((await listIds(seed)).includes(workflowId));
-    assertEquals(
-      (await call(fixture, seed, listingPath, {
-        method: "POST",
-        ifMatch: saved.version,
-        body: {},
-      })).status,
-      409,
     );
   }));
 
@@ -518,4 +499,69 @@ Deno.test("an unlisted definition runs at its exact published version through no
       201,
     );
     assertEquals(run.workflowVersionId, published.id);
+
+    // Save as workflow copies the published version into a new listed
+    // definition with a draft; the unlisted source is unchanged.
+    const sourceBefore = await expectJson<Workflow>(
+      await apiCall(fixture, scope, "GET", `/v1/workflows/${workflow.id}`),
+      200,
+    );
+    const copy = await expectJson<
+      Workflow & {
+        origin: { sourceWorkflowId: string; sourceVersionId: string };
+      }
+    >(
+      await apiCall(
+        fixture,
+        scope,
+        "POST",
+        `/v1/workflows/${workflow.id}/listings`,
+        {
+          body: { versionId: published.id, name: "Saved flow" },
+          headers: { "If-Match": `"${sourceBefore.version}"` },
+        },
+      ),
+      201,
+    );
+    assert(copy.id !== workflow.id);
+    assertEquals(copy.visibility, "listed");
+    assertEquals(copy.name, "Saved flow");
+    assertEquals(copy.origin.kind, "copy");
+    assertEquals(copy.origin.sourceWorkflowId, workflow.id);
+    assertEquals(copy.origin.sourceVersionId, published.id);
+    const copyVersions = await expectJson<
+      { items: { status: string; normalizedSpec: unknown }[] }
+    >(
+      await apiCall(fixture, scope, "GET", `/v1/workflows/${copy.id}/versions`),
+      200,
+    );
+    assertEquals(copyVersions.items.length, 1);
+    assertEquals(copyVersions.items[0].status, "draft");
+    assertEquals(copyVersions.items[0].normalizedSpec, definition);
+    const sourceAfter = await expectJson<Workflow>(
+      await apiCall(fixture, scope, "GET", `/v1/workflows/${workflow.id}`),
+      200,
+    );
+    assertEquals(sourceAfter.visibility, "unlisted");
+    assertEquals(sourceAfter.version, sourceBefore.version);
+    const listed = (await expectJson<{ items: { id: string }[] }>(
+      await apiCall(fixture, scope, "GET", "/v1/workflows?limit=100"),
+      200,
+    )).items.map((item) => item.id);
+    assert(listed.includes(copy.id));
+    assert(!listed.includes(workflow.id));
+    // A stale If-Match on the source is refused and copies nothing.
+    assertEquals(
+      (await apiCall(
+        fixture,
+        scope,
+        "POST",
+        `/v1/workflows/${workflow.id}/listings`,
+        {
+          body: { versionId: published.id },
+          headers: { "If-Match": `"${sourceBefore.version + 3}"` },
+        },
+      )).status,
+      412,
+    );
   }, { env: presetBudgetEnv }));

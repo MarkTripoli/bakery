@@ -28,6 +28,8 @@ function row(overrides: Record<string, unknown> = {}) {
     visibility: "listed",
     origin_conversation_id: null,
     origin_turn_id: null,
+    origin_source_workflow_id: null,
+    origin_source_version_id: null,
     ...overrides,
   };
 }
@@ -40,6 +42,8 @@ Deno.test("an authored definition carries no catalog origin", () => {
     catalogVersion: null,
     conversationId: null,
     turnId: null,
+    sourceWorkflowId: null,
+    sourceVersionId: null,
   });
   assertEquals(definition.visibility, "listed");
 });
@@ -59,6 +63,8 @@ Deno.test("an installed definition carries the catalog key and version it came f
     catalogVersion: 3,
     conversationId: null,
     turnId: null,
+    sourceWorkflowId: null,
+    sourceVersionId: null,
   });
 });
 
@@ -111,6 +117,8 @@ Deno.test("a coordinator definition names the conversation and turn that propose
     catalogVersion: null,
     conversationId: "22222222-2222-2222-2222-222222222222",
     turnId: "33333333-3333-3333-3333-333333333333",
+    sourceWorkflowId: null,
+    sourceVersionId: null,
   });
   assertEquals(definition.visibility, "unlisted");
 });
