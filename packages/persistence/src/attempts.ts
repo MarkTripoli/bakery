@@ -61,6 +61,14 @@ type WorkflowLifecycleContext = {
   repositoryId: string | null;
   conversationId: string;
   originalTraceId: string | null;
+  /**
+   * The W3C span context of the request that created the run, from the
+   * `run.requested` event. This is the trace a worker's claim should continue:
+   * the claim request itself comes from the worker and carries no context of
+   * its own, so without this every assignment starts a root trace and the
+   * originating request disappears at the process boundary.
+   */
+  originalTraceparent: string | null;
   runStatus: string;
   stepStatus: string;
   taskStatus: string;
@@ -81,6 +89,7 @@ async function loadWorkflowLifecycleContext(
             task.repository_id as "repositoryId",
             task.conversation_id as "conversationId",
             original_request.trace_id as "originalTraceId",
+            original_request.traceparent as "originalTraceparent",
             run.status as "runStatus", step.status as "stepStatus",
             task.status as "taskStatus", task.current_run_id as "taskCurrentRunId",
             job.status as "jobStatus", job.max_attempts as "maxAttempts"
@@ -95,7 +104,7 @@ async function loadWorkflowLifecycleContext(
          on task.organization_id = run.organization_id
         and task.id = run.task_id
        left join lateral (
-         select event.trace_id
+         select event.trace_id, event.traceparent
            from bakery.domain_events event
           where event.organization_id = run.organization_id
             and event.aggregate_id = run.id

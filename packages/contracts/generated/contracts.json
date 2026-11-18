@@ -184482,7 +184482,7 @@
             "traceparent": {
               "description": "W3C trace context of the request that caused this work, so the worker continues the caller's trace instead of starting an unrelated one.",
               "type": "string",
-              "pattern": "^00-[0-9a-f]{32}-[0-9a-f]{16}-0[01]$"
+              "pattern": "^(?!00-0{32}-|00-[0-9a-f]{32}-0{16}-)00-[0-9a-f]{32}-[0-9a-f]{16}-0[01]$"
             }
           },
           "required": [
@@ -217179,7 +217179,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:f6b989763dbcf181ba4d25fce0369a0046fde9d1360158f339e5364419a9b34a",
+  "compatibilityDigest": "sha256:7592c31373700c12ef6d957f3a5b7329392d856cdf24da246a9544d6a6553e39",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -366942,7 +366942,7 @@
         "traceparent": {
           "description": "W3C trace context of the request that caused this work, so the worker continues the caller's trace instead of starting an unrelated one.",
           "type": "string",
-          "pattern": "^00-[0-9a-f]{32}-[0-9a-f]{16}-0[01]$"
+          "pattern": "^(?!00-0{32}-|00-[0-9a-f]{32}-0{16}-)00-[0-9a-f]{32}-[0-9a-f]{16}-0[01]$"
         }
       },
       "required": [

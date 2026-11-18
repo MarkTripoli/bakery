@@ -5,8 +5,14 @@ import {
   parseTraceparent,
 } from "@bakery/config/telemetry-trace";
 import { traceEnvironment } from "../../apps/worker/src/harness-common.ts";
+import { claudeChildEnvironment } from "../../apps/worker/src/claude-harness.ts";
+import { codexChildEnvironment } from "../../apps/worker/src/codex-harness.ts";
+import { piChildEnvironment } from "../../apps/worker/src/pi-harness.ts";
 import { contractSchemas } from "../../packages/contracts/src/contracts.ts";
-import { assignmentTraceparent } from "../../apps/server/src/modules/execution/claim-application.ts";
+import {
+  assignmentFromJob,
+  assignmentTraceparent,
+} from "../../apps/server/src/modules/execution/claim-application.ts";
 
 /**
  * W3C propagation into the worker envelope (#23, slice 3).
@@ -81,6 +87,12 @@ Deno.test("the generated contract refuses a malformed trace context", () => {
       `00-${TRACE}-${CALLER_SPAN}-02`,
       // A truncated span id.
       `00-${TRACE}-${CALLER_SPAN.slice(0, 8)}-01`,
+      // W3C makes an all-zero trace id invalid: a zero id is what a writer
+      // emits when it has no context, so accepting one joins a trace that does
+      // not exist. This is the case a hex-count pattern lets through.
+      `00-${"0".repeat(32)}-${CALLER_SPAN}-01`,
+      // The same for the parent id.
+      `00-${TRACE}-${"0".repeat(16)}-01`,
     ]
   ) {
     assert(
@@ -126,4 +138,111 @@ Deno.test("a malformed header is replaced, never echoed into the envelope", () =
     parseTraceparent(produced) !== undefined,
     "no valid context replaced it",
   );
+});
+
+Deno.test("every adapter launches its harness with the trace", () => {
+  // One test per adapter, because QA found that removing the spread from any
+  // one of them survived: three adapters share one helper, but each has to
+  // actually call it. Asserted on the value the launch would receive.
+  const traceparent = formatTraceparent(childTraceContext({
+    traceId: TRACE,
+    spanId: CALLER_SPAN,
+    sampled: true,
+  }));
+  const launched: Array<[string, Readonly<Record<string, string>>]> = [
+    [
+      "claude",
+      claudeChildEnvironment(
+        { home: "/tmp/h", path: "/tmp/h/c" },
+        { traceparent },
+      ),
+    ],
+    [
+      "codex",
+      codexChildEnvironment({ home: "/tmp/h", codexHome: "/tmp/h/x" }, {
+        traceparent,
+      }),
+    ],
+    [
+      "pi",
+      piChildEnvironment({ home: "/tmp/h", agentDir: "/tmp/h/a" }, {
+        traceparent,
+      }),
+    ],
+  ];
+  for (const [name, environment] of launched) {
+    assertEquals(
+      environment.TRACEPARENT,
+      traceparent,
+      `the ${name} adapter does not launch with TRACEPARENT`,
+    );
+  }
+});
+
+Deno.test("the envelope continues the run's trace, not the claim's", () => {
+  // QA's finding: the claim request comes from the worker and carries no
+  // context, so reading inbound headers gave every assignment a fresh root and
+  // the originating request vanished at the process boundary. The durable
+  // source is the run's `run.requested` event.
+  const runContext = `00-${TRACE}-${CALLER_SPAN}-01`;
+  const produced = parseTraceparent(
+    assignmentTraceparent(new Headers(), runContext),
+  );
+  assert(produced !== undefined, "the envelope carried no context");
+  assertEquals(produced.traceId, TRACE, "the run's trace was not continued");
+  assert(produced.spanId !== CALLER_SPAN, "the run's span was reused");
+});
+
+Deno.test("a run context outranks an inbound claim header", () => {
+  // The originating request is the truer parent: the worker's own header would
+  // otherwise become the root for work the operator never asked for.
+  const runTrace = "11111111111111111111111111111111";
+  const produced = parseTraceparent(
+    assignmentTraceparent(
+      new Headers({ traceparent: `00-${TRACE}-${CALLER_SPAN}-01` }),
+      `00-${runTrace}-${CALLER_SPAN}-01`,
+    ),
+  );
+  assertEquals(produced?.traceId, runTrace);
+});
+
+Deno.test("the built assignment carries the context onto the wire", () => {
+  // QA's mutant: delete `traceparent` from the object assignmentFromJob returns
+  // and every other test still passes, because they all stop at the helper. The
+  // field has to be in the envelope the worker actually parses.
+  const repositoryId = "77777777-7777-4777-8777-777777777777";
+  const job = {
+    id: "11111111-1111-4111-8111-111111111111",
+    action: "quality.check",
+    requirements: {},
+    input: { repositoryId, revision: "base", checks: ["test"] },
+    currentCheckpoints: [],
+    agentConfig: {},
+    skillRefs: [],
+    agentVersionId: "44444444-4444-4444-8444-444444444444",
+    billing: null,
+    installationReservationId: null,
+    agentSessionId: null,
+    currentFence: "1",
+    originalTraceparent: `00-${TRACE}-${CALLER_SPAN}-01`,
+  };
+  const built = assignmentFromJob(
+    job as never,
+    "22222222-2222-4222-8222-222222222222",
+    "33333333-3333-4333-8333-333333333333",
+    "44444444-4444-4444-8444-444444444444",
+    "1",
+    "lease-token-fixture",
+    1n,
+    new Date("2026-01-01T00:00:00Z"),
+    30,
+    new Date("2026-01-01T00:00:00Z"),
+    null,
+    assignmentTraceparent(new Headers(), job.originalTraceparent),
+  );
+  const wire = (built as { traceparent?: string }).traceparent;
+  assert(wire !== undefined, "the assignment has no traceparent field");
+  const parsed = parseTraceparent(wire);
+  assert(parsed !== undefined, "the assignment carries an unusable context");
+  assertEquals(parsed.traceId, TRACE);
 });

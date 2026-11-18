@@ -71,24 +71,38 @@ function requestMetadata(headers: Headers): RequestMetadata {
 }
 
 /**
- * The W3C context the worker should continue, as a child of the caller's span.
+ * The W3C context a worker's envelope should carry: the trace of the request
+ * that caused this work.
  *
- * A claim is one leg of work inside a trace that began with the user's request,
- * so the assignment carries the caller's trace id and a fresh span id parented to
- * the caller's span. Without it the worker starts an unrelated trace and an
- * operator cannot follow one request into the work it caused. A malformed or
- * absent header is not an error here: the claim proceeds under a fresh trace,
- * because refusing work over a tracing header would be a worse failure than a
- * broken trace.
+ * The claim request itself comes from the worker and carries no context of its
+ * own, so reading the inbound headers would give every assignment a fresh root
+ * trace and the originating request would vanish at the process boundary. The
+ * durable source is the job's run: the `run.requested` event recorded the
+ * caller's span context (0151). Continuation is a child of that span, so the
+ * worker's span is a distinguishable leg of the same trace.
+ *
+ * Precedence: the run's originating context, then an explicit inbound
+ * `traceparent` (a worker that wants to parent its own claim), then a fresh
+ * root. A malformed candidate never refuses work - it is replaced - because
+ * failing a claim over a tracing header is a worse outcome than a broken trace.
  */
-export function assignmentTraceparent(headers: Headers): string {
-  const parent = parseTraceparent(headers.get("traceparent") ?? "");
+export function assignmentTraceparent(
+  headers: Headers,
+  original?: string | null,
+): string {
+  const parent = parseTraceparent(original ?? "") ??
+    parseTraceparent(headers.get("traceparent") ?? "");
   return formatTraceparent(
     parent === undefined ? newTraceContext() : childTraceContext(parent),
   );
 }
 
-function assignmentFromJob(
+/**
+ * Builds the envelope a worker receives. Exported so a test can assert the
+ * context actually reaches the wire, rather than only that a helper computes
+ * one: QA found that deleting the field here passed every test.
+ */
+export function assignmentFromJob(
   job: ClaimableJob,
   attemptId: string,
   hostId: string,
@@ -337,7 +351,7 @@ export async function executeClaim(
         DEFAULT_LEASE_SECONDS,
         lease.serverTime,
         sealedCredentialOperation,
-        assignmentTraceparent(options.headers),
+        assignmentTraceparent(options.headers, job.originalTraceparent),
       );
       await persistence.recordAssignment({
         organizationId: identity.host.organizationId,
