@@ -294,3 +294,50 @@ Deno.test("an internal error is reported and the command line still exits 0 (#29
     }
   });
 });
+
+/** A failed test with twenty files whose long names make the longest header. */
+async function failedTestWithLongNames(
+  root: string,
+  name: string,
+  snapshot: string,
+): Promise<void> {
+  const extra: Record<string, string> = {};
+  for (let index = 0; index < MAX_LISTED_FILES; index += 1) {
+    extra[`${String(index).padStart(2, "0")}-${"n".repeat(200)}.txt`] = "";
+  }
+  await failedTest(root, name, snapshot, extra);
+}
+
+Deno.test("a header of twenty long file names is cut to the header limit (#294)", async () => {
+  await withResults(async (root) => {
+    await failedTestWithLongNames(root, "long", "x");
+    const text = render(root);
+    const header = text.split("\n").find((line) =>
+      line.startsWith("::group::")
+    )!;
+    // Without the cap this header is about 4,000 characters.
+    assertEquals(header.length, MAX_HEADER_CHARS);
+    // Cut, not dropped: it still starts as a group and names the test.
+    assertStringIncludes(header, "::group::long (");
+  });
+});
+
+Deno.test("the headers count toward the total, so they can decide whether the next test prints (#294)", async () => {
+  await withResults(async (root) => {
+    // Snapshots of 16,000 bytes: twelve of them are 192,000, under the total,
+    // so on snapshot bytes alone a thirteenth test would still print. With the
+    // 512-character headers counted, twelve are 198,144, over it, so the run
+    // stops after twelve and counts the rest as not printed.
+    const count = 14;
+    for (let index = 0; index < count; index += 1) {
+      await failedTestWithLongNames(
+        root,
+        `t${String(index).padStart(2, "0")}`,
+        "Q".repeat(16_000),
+      );
+    }
+    const text = render(root);
+    assertEquals(text.split("::group::").length - 1, 12);
+    assertStringIncludes(text, "2 more failed test(s) not printed");
+  });
+});
