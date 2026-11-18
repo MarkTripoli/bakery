@@ -411,28 +411,38 @@ test("ui_route_reference follows the renamed settings routes and records the unm
 });
 
 test("ui_route_reference serves the account security and connected client routes", async () => {
-  const paths = [
+  const baselined = [
     "/settings/security/password",
     "/settings/security/passkeys",
     "/settings/security/passkeys/new",
     "/account/reauthenticate",
-    "/settings/clients",
     "/settings/clients/revoke",
     "/oauth/consent",
+    "/settings/organization/integrations/clients",
   ];
+  // /settings/clients is a permanent redirect that renders no UI of its own, so
+  // #233 moved the baseline to the organization integrations route and left the
+  // old path as no-mock rather than giving the redirect an artboard.
+  const redirect = "/settings/clients";
+  const paths = [...baselined, redirect];
   const { replies } = await converse([
     ...handshake,
     ...paths.map((path, index) =>
       call(index + 2, "ui_route_reference", { path })
     ),
   ]);
-  paths.forEach((path, index) => {
+  baselined.forEach((path, index) => {
     const { entry, cases } = replies.get(index + 2).result.structuredContent;
     assert.equal(entry.path, path);
     assert.equal(entry.status, "baselined");
     assert.equal(entry.manifest, "auth");
     assert(cases.length > 0 && cases.every((c) => c.referencePngExists), path);
   });
+  const { entry, cases } = replies.get(baselined.length + 2).result
+    .structuredContent;
+  assert.equal(entry.path, redirect);
+  assert.equal(entry.status, "no-mock");
+  assert.equal(cases.length, 0);
 });
 
 test("ui_route_reference scores the personal settings screens from the settings manifest", async () => {

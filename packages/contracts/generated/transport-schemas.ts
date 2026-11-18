@@ -18148,7 +18148,8 @@ const transportSchemas = {
         "enabled",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "origin"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -18159,13 +18160,14 @@ const transportSchemas = {
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
         "version": "integer",
-        "description": "string|null"
+        "description": "string|null",
+        "origin": "json"
       },
       "nullableFields": [
         "activeVersionId",
         "description"
       ],
-      "description": "A named, organization-owned workflow definition: its stable slug, display name, and which published WorkflowVersion, if any, is currently active. Disabling it blocks new kickoffs without canceling an already-running instance, which follows its own separate cancellation policy.",
+      "description": "A named, organization-owned workflow definition: its stable slug, display name, where it came from, and which published WorkflowVersion, if any, is currently active. Disabling it blocks new kickoffs without canceling an already-running instance, which follows its own separate cancellation policy.",
       "fieldDescriptions": {
         "id": "Stable UUID identifying the workflow record.",
         "slug": "URL-safe stable name used to address the record.",
@@ -18175,7 +18177,8 @@ const transportSchemas = {
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
         "version": "Optimistic-concurrency version used when updating the record.",
-        "description": "Free-text summary of what the workflow does, shown in pickers and the catalog; null when the author left it blank. Set on create and replaced wholesale on update."
+        "description": "Free-text summary of what the workflow does, shown in pickers and the catalog; null when the author left it blank. Set on create and replaced wholesale on update.",
+        "origin": "Where this definition came from, as {kind, catalogKey, catalogVersion}: kind is authored (written in this organization), catalog (installed from the code-owned catalog; system managed and locked against organization edits) or copy; catalogKey and catalogVersion name the catalog item and release revision for a catalog origin and are null otherwise. Set when the definition is created and never changed."
       },
       "optionalFields": [
         "description"
