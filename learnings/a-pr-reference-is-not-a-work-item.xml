@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="a-pr-reference-is-not-a-work-item" project="bakery">
+  <title>A pull request reference is not a work item, and a policy field is read by a regex that a dash does not satisfy</title>
+  <trigger>Filling a pull request body's owning-work-item field, or editing a verification checklist that another seat has already touched.</trigger>
+  <rule>A ticket or owning-work-item field must name an ISSUE. The validator resolves the number against the live API and rejects any number that carries a `pull_request` field, so a PR number in that field fails even though the link resolves and reads correctly in a browser. The issue a PR served and the PR itself are different numbers: the PR body's own first line names the issue, and that is the number the field wants.</rule>
+  <rule>A policy field is matched by a regex, not read for meaning. The verification checklist accepts `N/A: reason` and rejects `N/A - reason`, because the pattern requires the colon. A one-character difference between two forms that a human reads identically decides whether the gate is green, so the form is copied from the validator rather than written from sense.</rule>
+  <rule>The body is a shared surface. Other seats tick boxes and rewrite lines, so a body that validated when its author wrote it can fail later without the author touching it. "The author validated it" and "the live body validates" are different claims, and only a check run against the live body answers the second. Re-run the live check after any edit, including edits made by someone else.</rule>
+  <verification>
+    <requirement>Record the live check's own output (ok and errors) against the current head, not the exit code of the command that edited the body. A body validated only before another seat's edit is treated as unvalidated.</requirement>
+  </verification>
+</learning>
