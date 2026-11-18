@@ -291,6 +291,7 @@ const implementedWorkflowActions = [
   "workflowVersions.list",
   "workflowVersions.publish",
   "workflowVersions.update",
+  "workflows.copy",
   "workflows.create",
   "workflows.get",
   "workflows.list",
@@ -298,7 +299,7 @@ const implementedWorkflowActions = [
   "workflows.validate",
 ];
 
-Deno.test("workflows registry implements exactly the eleven definition, read, draft, publish, activate and validate actions", () => {
+Deno.test("workflows registry implements exactly the twelve definition, read, draft, publish, activate and validate actions", () => {
   const unavailable = () => Promise.reject(new Error("not called"));
   const registry = createWorkflowsActionRegistry(
     {} as PgDatabase,
@@ -307,6 +308,7 @@ Deno.test("workflows registry implements exactly the eleven definition, read, dr
       getWorkflow: unavailable,
       createWorkflow: unavailable,
       updateWorkflow: unavailable,
+      copyWorkflow: unavailable,
       listVersions: unavailable,
       getVersion: unavailable,
       createVersion: unavailable,

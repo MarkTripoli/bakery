@@ -1495,6 +1495,31 @@ export const clientManifest = {
     },
     {
       "group": "Definitions",
+      "method": "POST",
+      "path": "/v1/workflows/{id}/copy",
+      "action": "workflows.copy",
+      "access": "Admin",
+      "permission": "workflow:manage",
+      "input": "WorkflowCopy",
+      "output": "Workflow",
+      "event": "workflows.created",
+      "mcp": "bakery_workflows_copy",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Definitions",
       "method": "GET",
       "path": "/v1/workflows/{id}/versions",
       "action": "workflowVersions.list",
@@ -11803,6 +11828,46 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "Creates a new named definition (workflow, agent, or automation) with a unique slug, display name, and description; it starts with no active version until one is published and assigned."
     },
+    "WorkflowCopy": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "slug": {
+          "type": "string",
+          "maxLength": 100,
+          "pattern": "^[a-z0-9]+(?:[-_][a-z0-9]+)*$",
+          "description": "WorkflowCopy.slug must contain at most 100 characters."
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "WorkflowCopy.name must contain at most 200 characters."
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 2000,
+          "description": "WorkflowCopy.description must contain at most 2000 characters."
+        },
+        "sourceVersionId": {
+          "description": "The version of the source workflow to copy: a published version or a draft of that workflow. Defaults to the source's active version; a source with no active version and no version named is refused.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "expectedDigest": {
+          "description": "WorkflowCopy.expectedDigest must contain at most 128 characters.",
+          "type": "string",
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "slug",
+        "name",
+        "description"
+      ],
+      "additionalProperties": false,
+      "description": "Copies a workflow into a new organization-owned definition with one inactive draft, atomically. Only the semantic definition is carried over: no activation, run, effect, trigger, grant or credential. The copy's origin records the source definition, version and digest; a later change to the source never reaches the copy."
+    },
     "PermissionGrantCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -11879,6 +11944,7 @@ export const clientManifest = {
             "workflows.get",
             "workflows.create",
             "workflows.update",
+            "workflows.copy",
             "workflowVersions.list",
             "workflowVersions.create",
             "workflowVersions.get",
@@ -27300,12 +27366,59 @@ export const clientManifest = {
                       }
                     ],
                     "description": "WorkflowOrigin.catalogVersion may be null in this transport value."
+                  },
+                  "sourceWorkflowId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "Stable UUID of the workflow definition a copy was taken from; null unless the kind is copy."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "WorkflowOrigin.sourceWorkflowId may be null in this transport value."
+                  },
+                  "sourceVersionId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "Stable UUID of the version (published, or a draft) the copy was taken from; null unless the kind is copy."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "WorkflowOrigin.sourceVersionId may be null in this transport value."
+                  },
+                  "sourceDigest": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "Digest of the source version at the moment of the copy, so a later source update can be compared with the fork; null unless the kind is copy."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "WorkflowOrigin.sourceDigest may be null in this transport value."
                   }
                 },
                 "required": [
                   "kind",
                   "catalogKey",
-                  "catalogVersion"
+                  "catalogVersion",
+                  "sourceWorkflowId",
+                  "sourceVersionId",
+                  "sourceDigest"
                 ],
                 "additionalProperties": false,
                 "description": "Where this definition came from, as {kind, catalogKey, catalogVersion}: kind is authored (written in this organization), catalog (installed from the code-owned catalog; system managed and locked against organization edits) or copy; catalogKey and catalogVersion name the catalog item and release revision for a catalog origin and are null otherwise. Set when the definition is created and never changed."
@@ -31242,6 +31355,7 @@ export const clientManifest = {
                   "workflows.get",
                   "workflows.create",
                   "workflows.update",
+                  "workflows.copy",
                   "workflowVersions.list",
                   "workflowVersions.create",
                   "workflowVersions.get",
@@ -41061,12 +41175,59 @@ export const clientManifest = {
                 }
               ],
               "description": "WorkflowOrigin.catalogVersion may be null in this transport value."
+            },
+            "sourceWorkflowId": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Stable UUID of the workflow definition a copy was taken from; null unless the kind is copy."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "WorkflowOrigin.sourceWorkflowId may be null in this transport value."
+            },
+            "sourceVersionId": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Stable UUID of the version (published, or a draft) the copy was taken from; null unless the kind is copy."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "WorkflowOrigin.sourceVersionId may be null in this transport value."
+            },
+            "sourceDigest": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Digest of the source version at the moment of the copy, so a later source update can be compared with the fork; null unless the kind is copy."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "WorkflowOrigin.sourceDigest may be null in this transport value."
             }
           },
           "required": [
             "kind",
             "catalogKey",
-            "catalogVersion"
+            "catalogVersion",
+            "sourceWorkflowId",
+            "sourceVersionId",
+            "sourceDigest"
           ],
           "additionalProperties": false,
           "description": "Where this definition came from, as {kind, catalogKey, catalogVersion}: kind is authored (written in this organization), catalog (installed from the code-owned catalog; system managed and locked against organization edits) or copy; catalogKey and catalogVersion name the catalog item and release revision for a catalog origin and are null otherwise. Set when the definition is created and never changed."
@@ -47350,6 +47511,7 @@ export const clientManifest = {
             "workflows.get",
             "workflows.create",
             "workflows.update",
+            "workflows.copy",
             "workflowVersions.list",
             "workflowVersions.create",
             "workflowVersions.get",
