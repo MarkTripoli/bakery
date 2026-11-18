@@ -10,6 +10,11 @@ export type PresencePerson = {
   readonly name: string;
   readonly kind: "person" | "agent" | "service";
   readonly src?: string;
+  /**
+   * Which of the six presence colours is theirs for the session (1 to 6), the
+   * same one as their caret in the editor. Omit it and no ring is drawn.
+   */
+  readonly color?: 1 | 2 | 3 | 4 | 5 | 6;
 };
 
 /** Where this person's own changes stand. */
@@ -87,6 +92,7 @@ export function PresenceRow(
           <Avatar
             alt={person.name}
             data-kind={person.kind}
+            data-presence-color={person.color}
             fallback={person.kind === "person"
               ? undefined
               : <IconGlyph name="terminal" size="small" />}

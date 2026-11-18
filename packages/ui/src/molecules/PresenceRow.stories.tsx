@@ -8,16 +8,16 @@ const meta = {
 export default meta;
 
 const PEOPLE = [
-  { id: "a", name: "Ana Reyes", kind: "person" },
-  { id: "b", name: "Ben Okafor", kind: "person" },
-  { id: "c", name: "Coding agent", kind: "agent" },
+  { id: "a", name: "Ana Reyes", kind: "person", color: 1 },
+  { id: "b", name: "Ben Okafor", kind: "person", color: 2 },
+  { id: "c", name: "Coding agent", kind: "agent", color: 3 },
 ] as const;
 const MANY = [
   ...PEOPLE,
-  { id: "d", name: "Dee Park", kind: "person" },
-  { id: "e", name: "Eli Stone", kind: "person" },
-  { id: "f", name: "Fay Lund", kind: "person" },
-  { id: "g", name: "Gus Held", kind: "person" },
+  { id: "d", name: "Dee Park", kind: "person", color: 4 },
+  { id: "e", name: "Eli Stone", kind: "person", color: 5 },
+  { id: "f", name: "Fay Lund", kind: "person", color: 6 },
+  { id: "g", name: "Gus Held", kind: "person", color: 1 },
 ] as const;
 
 const SAVE: Record<PresenceSaveState, string> = {
@@ -25,7 +25,7 @@ const SAVE: Record<PresenceSaveState, string> = {
   sending: "Saving…",
   offline: "Not saved. Reconnecting…",
   "catching-up": "Catching up…",
-  refused: "Some of your changes could not be saved.",
+  refused: "Some changes not saved",
 };
 
 /** Every save state, then a crowd that is counted, then one unbroken long name. */

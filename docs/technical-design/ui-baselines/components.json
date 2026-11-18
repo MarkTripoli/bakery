@@ -7458,12 +7458,20 @@
           "Not focusable; the row is read on demand"
         ],
         "targetSize": "No interactive target",
-        "notes": "The save state is a polite live region, announced once when it changes. Colour is never the only carrier: the state is always in words."
+        "notes": "The save state is a polite live region, announced once when it changes. A person's ring colour matches their caret in the editor; colour is never the only carrier: names and the save state are always in words."
       },
       "tokens": [
+        "--border-default",
         "--color-destructive",
         "--color-fg",
         "--color-fg-muted",
+        "--color-surface",
+        "--presence-1",
+        "--presence-2",
+        "--presence-3",
+        "--presence-4",
+        "--presence-5",
+        "--presence-6",
         "--space-1",
         "--space-2",
         "--space-3",
@@ -7580,17 +7588,19 @@
       "paper": [],
       "a11y": {
         "role": "article",
-        "accessibleName": "content",
+        "accessibleName": "aria-labelledby",
         "keyboard": [
-          "Tab reaches Accept, Check again and Reject; Enter or Space presses"
+          "Tab reaches the card, then Accept, Check again and Reject; Enter or Space on the card chooses it, on a button presses it"
         ],
         "targetSize": "min 44px (coarse pointer)",
         "notes": "The card states what it adds and removes in words; colour and strike-through never carry it alone."
       },
       "tokens": [
         "--border-default",
+        "--color-focus",
+        "--focus-offset",
+        "--focus-width",
         "--color-border",
-        "--color-destructive",
         "--color-fg-muted",
         "--color-surface-raised",
         "--radius-surface",
@@ -7602,7 +7612,8 @@
         "--type-label"
       ],
       "variants": [
-        "default"
+        "default",
+        "selected"
       ],
       "states": [
         "default",
@@ -7633,9 +7644,10 @@
       "requiredCases": [
         {
           "id": "contract",
-          "description": "Exercises every documented SuggestionCard state: acceptable, no longer fitting the text, outcome unknown, and in flight.",
+          "description": "Exercises every documented SuggestionCard state (acceptable, no longer fitting the text, outcome unknown, in flight) and the card the person chose.",
           "variants": [
-            "default"
+            "default",
+            "selected"
           ],
           "states": [
             "default",

@@ -19,7 +19,12 @@ const MESSAGE = {
   unknown: "Could not tell whether this was applied.",
 } as const;
 
-function Card({ state }: { state: SuggestionCardState }) {
+function Card(
+  { selected = false, state }: {
+    selected?: boolean;
+    state: SuggestionCardState;
+  },
+) {
   return (
     <SuggestionCard
       acceptLabel="Accept"
@@ -29,15 +34,17 @@ function Card({ state }: { state: SuggestionCardState }) {
       onAccept={() => {}}
       onCheckAgain={() => {}}
       onReject={() => {}}
+      onSelect={() => {}}
       origin="From “shorten the introduction”, asked by Ana Reyes · 5 min ago"
       rejectLabel="Reject"
+      selected={selected}
       state={state}
       summary="Replaces the first paragraph with a two-sentence summary."
     />
   );
 }
 
-/** Every state: it can be accepted, no longer fits, is unknown, or is in flight. */
+/** Every state: it can be accepted, no longer fits, is unknown, or is in flight; then the chosen card. */
 export const Contract: StoryObj = {
   render: () => (
     <Stack gap="standard">
@@ -49,6 +56,10 @@ export const Contract: StoryObj = {
           <Card state={state} />
         </div>
       ))}
+      <div>
+        <Text>selected: the card whose text is in view</Text>
+        <Card selected state="default" />
+      </div>
     </Stack>
   ),
 };

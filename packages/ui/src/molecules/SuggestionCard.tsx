@@ -1,5 +1,12 @@
-import type { HTMLAttributes, ReactNode } from "react";
+import {
+  type HTMLAttributes,
+  type KeyboardEvent,
+  type MouseEvent,
+  type ReactNode,
+  useId,
+} from "react";
 import { Button } from "../atoms/Button.tsx";
+import { IconGlyph } from "../atoms/IconGlyph.tsx";
 import type { SemanticNativeProps } from "../foundations/semantic-native-props.ts";
 import "../collaboration.css";
 
@@ -24,6 +31,13 @@ export type SuggestionCardProps =
   >
   & {
     state?: SuggestionCardState;
+    /**
+     * This is the suggestion the person chose, so the text it would change is
+     * in view. Only one card of a list is selected.
+     */
+    selected?: boolean;
+    /** Choose this card; the whole card is the target, its buttons keep their own. */
+    onSelect?: () => void;
     /** "Suggested by the agent". */
     heading: ReactNode;
     /** What it does, in one sentence. */
@@ -54,29 +68,50 @@ export function SuggestionCard(
     onAccept,
     onCheckAgain,
     onReject,
+    onSelect,
     origin,
     rejectLabel,
+    selected = false,
     state = "default",
     summary,
     ...props
   }: SuggestionCardProps,
 ) {
   const busy = state === "working";
+  const headingId = useId();
+  const summaryId = useId();
+  // A click on a button inside the card is that button's, not a selection.
+  const select = (event: MouseEvent<HTMLElement>) => {
+    if (!(event.target as HTMLElement).closest("button")) onSelect?.();
+  };
+  const selectByKey = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.target !== event.currentTarget) return;
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      onSelect?.();
+    }
+  };
   return (
     <article
+      aria-current={selected ? "true" : undefined}
+      aria-labelledby={`${headingId} ${summaryId}`}
       className="ui-suggestion-card"
+      onClick={onSelect ? select : undefined}
+      onKeyDown={onSelect ? selectByKey : undefined}
+      tabIndex={onSelect ? 0 : undefined}
       {...props}
       data-state={state}
       data-ui-component="suggestionCard"
-      data-variant="default"
+      data-variant={selected ? "selected" : "default"}
     >
-      <h3 className="ui-suggestion-card__heading">{heading}</h3>
-      <p className="ui-suggestion-card__summary">{summary}</p>
+      <h3 className="ui-suggestion-card__heading" id={headingId}>{heading}</h3>
+      <p className="ui-suggestion-card__summary" id={summaryId}>{summary}</p>
       <p className="ui-suggestion-card__origin">{origin}</p>
       {state === "outdated" || state === "unknown"
         ? (
           <p className="ui-suggestion-card__message" role="status">
-            {message}
+            <IconGlyph name="caution" size="small" />
+            <span>{message}</span>
           </p>
         )
         : null}

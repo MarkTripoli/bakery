@@ -1836,6 +1836,25 @@
   word-break: break-word;
 }
 
+/* The six presence colours: a person's ring here is their caret in the editor.
+   Each clears 3:1 against its theme's page, since a ring is not text. */
+:root {
+  --presence-1: #2563eb;
+  --presence-2: #c2410c;
+  --presence-3: #15803d;
+  --presence-4: #7e22ce;
+  --presence-5: #be185d;
+  --presence-6: #0f766e;
+}
+[data-theme="dark"] {
+  --presence-1: #60a5fa;
+  --presence-2: #fb923c;
+  --presence-3: #4ade80;
+  --presence-4: #c084fc;
+  --presence-5: #f472b6;
+  --presence-6: #2dd4bf;
+}
+
 /* Who is editing a shared document, and where this person's changes stand. */
 .ui-presence-row {
   align-items: center;
@@ -1848,8 +1867,31 @@
   align-items: center;
   display: inline-flex;
   flex-wrap: wrap;
-  gap: var(--space-1);
+  gap: var(--space-2);
   max-inline-size: 100%;
+  padding: var(--space-1);
+}
+.ui-presence-row__people [data-presence-color] {
+  box-shadow: 0 0 0 var(--border-default) var(--color-surface),
+    0 0 0 calc(var(--border-default) * 3) var(--presence-ring);
+}
+.ui-presence-row__people [data-presence-color="1"] {
+  --presence-ring: var(--presence-1);
+}
+.ui-presence-row__people [data-presence-color="2"] {
+  --presence-ring: var(--presence-2);
+}
+.ui-presence-row__people [data-presence-color="3"] {
+  --presence-ring: var(--presence-3);
+}
+.ui-presence-row__people [data-presence-color="4"] {
+  --presence-ring: var(--presence-4);
+}
+.ui-presence-row__people [data-presence-color="5"] {
+  --presence-ring: var(--presence-5);
+}
+.ui-presence-row__people [data-presence-color="6"] {
+  --presence-ring: var(--presence-6);
 }
 .ui-presence-row__more {
   color: var(--color-fg-muted);
@@ -1912,11 +1954,24 @@
   overflow-wrap: anywhere;
 }
 .ui-suggestion-card__message {
+  align-items: flex-start;
+  display: flex;
   font: var(--type-hint);
+  gap: var(--space-1);
   margin: var(--space-0);
 }
-.ui-suggestion-card[data-state="outdated"] .ui-suggestion-card__message {
-  color: var(--color-destructive);
+.ui-suggestion-card__message > span {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+/* The chosen card: the same outline as keyboard focus, so it reads as "this one". */
+.ui-suggestion-card[data-variant="selected"] {
+  outline: var(--focus-width) solid var(--color-focus);
+  outline-offset: var(--focus-offset);
+}
+.ui-suggestion-card[tabindex]:focus-visible {
+  outline: var(--focus-width) solid var(--color-focus);
+  outline-offset: var(--focus-offset);
 }
 .ui-suggestion-card__actions {
   display: flex;
