@@ -1072,28 +1072,16 @@ Deno.test("a mutation the server names twice in resyncs is refused, not resent f
   assertEquals(socket.binary().length, 2, "not a third time");
 });
 
-Deno.test("a non-retryable 4xx refuses only the oldest unanswered piece; the rest are tried once each", () => {
+Deno.test("a non-retryable 4xx refuses every pending piece: a later edit cannot apply without the one before it", () => {
   const h = harness();
   const first = connect(h, "Intro").socket;
-  type(h, "one", 5);
-  type(h, "two", 8);
+  type(h, "A", 5);
+  type(h, "B", 6);
   assertEquals(first.binary().length, 2);
-  first.receive({
-    type: "problem",
-    requestId: null,
-    problem: {
-      type: "https://bakery.dev/problems/body_too_large",
-      title: "Too large",
-      status: 413,
-      detail: "d",
-      code: "BODY_TOO_LARGE",
-      requestId: "11111111-1111-4111-8111-111111111111",
-      retryable: false,
-    },
-  });
+  first.receive(problemFrame(413, false));
   const snapshot = h.session.getSnapshot();
-  assertEquals(snapshot.refused.map((piece) => piece.text), ["one"]);
-  assertEquals(snapshot.pendingCount, 1);
+  assertEquals(snapshot.refused.map((piece) => piece.text).sort(), ["A", "B"]);
+  assertEquals(snapshot.pendingCount, 0);
 });
 
 const problemFrame = (status: number, retryable: boolean) => ({
