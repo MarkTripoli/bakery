@@ -14,6 +14,7 @@ import {
 import { workerActionOutputSchema } from "../../../packages/contracts/src/contracts.ts";
 import { canonicalJson } from "../../../packages/contracts/src/workflow-compiler/canonical.ts";
 import { sha256Hex } from "../../../apps/server/src/platform/canonical-json.ts";
+import { sha256Hex as sha256Bytes } from "../../../apps/worker/src/harness-common.ts";
 import type { JobAssignment } from "../../../apps/worker/src/types.ts";
 import {
   CHECK_RULE_KEY_ENV,
@@ -926,6 +927,89 @@ export function registerRunnerCases(): void {
         await assertCleanedUp(run);
       } finally {
         await disposeRun(run);
+      }
+    },
+  );
+
+  runnerTest(
+    "a pinned input whose bytes are not the pin refuses the attempt before any check runs",
+    async () => {
+      // AC5 of the context work, stated as the attempt's behaviour rather than
+      // the adapter's: a check must not run against bytes that are not the ones
+      // admission pinned. The marker file proves the argv never started.
+      const scratch = await committedScratch();
+      const ran = join(scratch.markers, "ran");
+      const state = await stateWithCredentials();
+      try {
+        const text = new TextEncoder().encode("the brief");
+        const digest = await sha256Bytes(text);
+        const pin = {
+          slot: "brief",
+          path: "brief",
+          digest,
+          sizeBytes: text.length,
+          mediaType: "text/plain",
+        };
+        const run = await runCheckExecutor({
+          scratch,
+          state,
+          assignment: (assignment) => ({
+            ...assignment,
+            contextInputs: [pin],
+          }),
+          readAttemptContext: () =>
+            Promise.resolve([{
+              artifactVersionId: "11111111-1111-4111-8111-111111111111",
+              artifactId: "22222222-2222-4222-8222-222222222222",
+              digest: pin.digest,
+              sizeBytes: pin.sizeBytes,
+              mediaType: pin.mediaType,
+              contentBase64: btoa("NOT the brief"),
+            }]),
+          commands: [{ id: "unit", argv: sh(`touch '${ran}'`) }],
+        });
+        assertEquals(
+          faultCode(run.outcome),
+          "CHECK_CONTEXT_UNMATERIALIZABLE",
+        );
+        assertEquals(await exists(ran), false);
+      } finally {
+        await disposeRun({ stateDir: state.stateDir, scratch });
+      }
+    },
+  );
+
+  runnerTest(
+    "an assignment that pins inputs with no reader refuses rather than running unchecked",
+    async () => {
+      const scratch = await committedScratch();
+      const ran = join(scratch.markers, "ran");
+      const state = await stateWithCredentials();
+      try {
+        const text = new TextEncoder().encode("the brief");
+        const digest = await sha256Bytes(text);
+        const run = await runCheckExecutor({
+          scratch,
+          state,
+          assignment: (assignment) => ({
+            ...assignment,
+            contextInputs: [{
+              slot: "brief",
+              path: "brief",
+              digest,
+              sizeBytes: text.length,
+              mediaType: "text/plain",
+            }],
+          }),
+          commands: [{ id: "unit", argv: sh(`touch '${ran}'`) }],
+        });
+        assertEquals(
+          faultCode(run.outcome),
+          "CHECK_CONTEXT_READER_MISSING",
+        );
+        assertEquals(await exists(ran), false);
+      } finally {
+        await disposeRun({ stateDir: state.stateDir, scratch });
       }
     },
   );
