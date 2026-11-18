@@ -20,6 +20,10 @@ import {
 } from "../../platform/postgres-errors.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import { lockAndReauthorize } from "../repository-rules/postgres.ts";
+import {
+  assertMayPublishDefinition,
+  DefinitionKind,
+} from "../auth/application/definition-publish-grants.ts";
 
 const KIND_COLUMNS = `k.id,
   k.organization_id as "organizationId",
@@ -278,6 +282,13 @@ export async function publishArtifactKindVersion(
   const anyKey = (value.definition as { key?: unknown } | null)?.key;
   const key = typeof anyKey === "string" ? anyKey : null;
   const pathKey = (context.params as { key: string }).key;
+  // Publishing a kind version is an off-by-default agent power (O52, #421).
+  await assertMayPublishDefinition(transaction, context, {
+    organizationId,
+    principalId,
+    kind: DefinitionKind.ArtifactKind,
+    definitionRef: pathKey,
+  });
   // The key is in the path and in the body. They must agree, because a
   // publication that addressed one kind while defining another would create a
   // kind nobody addressed under a revision this call claimed to be publishing.

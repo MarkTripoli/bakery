@@ -373,6 +373,8 @@ export const WorkflowImplementedAction = Object.freeze(
     WorkflowDefinitionProposalsGet: "workflowDefinitionProposals.get",
     WorkflowDefinitionProposalDecisionsCreate:
       "workflowDefinitionProposalDecisions.create",
+    DefinitionPublishGrantsCreate: "definitionPublishGrants.create",
+    DefinitionPublishGrantsDelete: "definitionPublishGrants.delete",
   } as const satisfies Record<string, CatalogActionName>,
 );
 export const workflowImplementedActions = Object.freeze(

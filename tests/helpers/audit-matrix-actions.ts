@@ -39,6 +39,8 @@ export const AUDIT_MATRIX_ACTIONS = [
   "accessTokens.revoke",
   "accessBindings.create",
   "accessBindings.delete",
+  "definitionPublishGrants.create",
+  "definitionPublishGrants.delete",
   "applicationRepositoryRoles.set",
   "organizationRoles.create",
   "organizationRoles.update",

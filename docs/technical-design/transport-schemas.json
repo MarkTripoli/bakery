@@ -10694,6 +10694,34 @@
         }
       ],
       "description": "Lists the agent sessions that belong to one run step, so a client can reach a session by run rather than by an id it already knows."
+    },
+    "DefinitionPublishGrantCreate": {
+      "fields": [
+        {
+          "name": "definitionKind",
+          "type": "enum(workflow|agent|artifactKind|skill)",
+          "required": true,
+          "description": "Kind of definition the grant covers: a workflow, an agent, an artifact kind or a skill."
+        },
+        {
+          "name": "definitionId",
+          "type": "string|null",
+          "required": false,
+          "description": "The one definition the grant covers: a workflow, agent or skill UUID, or an artifact kind key. Null or absent covers every definition of the kind and then requires accessTokenId, so no grant reaches every agent on every definition."
+        },
+        {
+          "name": "accessTokenId",
+          "type": "uuid|null",
+          "required": false,
+          "description": "The one seat (access token) the grant is limited to. Null or absent lets any agent acting on the named definition publish it."
+        }
+      ],
+      "rules": [
+        "A person with a browser session only; an agent is refused (O51: delegating authority is never an agent's act).",
+        "An unknown or foreign definition and an unknown, revoked or foreign token both answer RESOURCE_NOT_FOUND.",
+        "A second grant for the same kind, definition and seat is STATE_CONFLICT with reason publish_grant_exists."
+      ],
+      "description": "Grants agents the off-by-default power to publish versions of, and \"Use this version\" for, one definition or one seat (chapter 25 O52). Agents author drafts without a grant; a grant never lets an agent decide a proposal."
     }
   },
   "projections": {
@@ -18652,6 +18680,7 @@
         "state",
         "decidedBy",
         "decidedAt",
+        "supersededByVersionId",
         "createdAt",
         "updatedAt",
         "version"
@@ -18665,18 +18694,20 @@
         "name": "string",
         "definition": "json",
         "digest": "string",
-        "state": "enum(waiting|accepted|rejected)",
+        "state": "enum(waiting|accepted|rejected|superseded)",
         "decidedBy": "uuid|null",
         "decidedAt": "timestamp|null",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "supersededByVersionId": "uuid|null"
       },
       "nullableFields": [
         "workflowId",
         "baseDraftVersion",
         "decidedBy",
-        "decidedAt"
+        "decidedAt",
+        "supersededByVersionId"
       ],
       "description": "One workflow definition a coordinator turn proposed, waiting for a person to accept or reject it whole. Accepting writes it through the editor's own draft operations into an unlisted definition; nothing runs, publishes or activates.",
       "fieldDescriptions": {
@@ -18688,12 +18719,13 @@
         "name": "Plain-language name the coordinator gave the proposed workflow.",
         "definition": "Complete proposed workflow definition document, stored as canonical JSON.",
         "digest": "SHA-256 of the canonical proposed definition.",
-        "state": "waiting until a person decides; then accepted or rejected, never changed again.",
+        "state": "waiting until a person decides; then accepted or rejected, or superseded when the draft it was made against was published first. Never changed again once settled.",
         "decidedBy": "Person who decided the proposal; null while waiting.",
-        "decidedAt": "When the proposal was decided; null while waiting.",
+        "decidedAt": "When the proposal was decided or superseded; null while waiting.",
         "createdAt": "When the proposal was recorded.",
         "updatedAt": "When the proposal last changed.",
-        "version": "Optimistic-concurrency version a decision must name in If-Match."
+        "version": "Optimistic-concurrency version a decision must name in If-Match.",
+        "supersededByVersionId": "Published workflow version that superseded this proposal: publishing deletes the draft the proposal was made against, so the proposal is settled in the same transaction instead of waiting forever. Null otherwise."
       }
     },
     "WorkflowVersion": {
@@ -27421,6 +27453,40 @@
         "nextCursor": "Opaque continuation after the last emitted session, or null when traversal is complete."
       },
       "description": "One page of the agent sessions that belong to a run step, newest page last."
+    },
+    "DefinitionPublishGrant": {
+      "fields": [
+        "id",
+        "definitionKind",
+        "definitionId",
+        "accessTokenId",
+        "grantedBy",
+        "createdAt",
+        "version"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "definitionKind": "enum(workflow|agent|artifactKind|skill)",
+        "definitionId": "string|null",
+        "accessTokenId": "uuid|null",
+        "grantedBy": "uuid",
+        "createdAt": "timestamp",
+        "version": "integer"
+      },
+      "nullableFields": [
+        "definitionId",
+        "accessTokenId"
+      ],
+      "description": "One grant of the agent publish power (O52): which definition kind and definition it covers, which seat it is limited to, and the person who granted it. Revoking deletes it; the audit log keeps both.",
+      "fieldDescriptions": {
+        "id": "Stable UUID identifying the grant.",
+        "definitionKind": "Kind of definition the grant covers.",
+        "definitionId": "Definition the grant covers (UUID, or an artifact kind key); null covers every definition of the kind for the named seat.",
+        "accessTokenId": "Seat (access token) the grant is limited to; null for any agent acting on the named definition.",
+        "grantedBy": "Person who made the grant.",
+        "createdAt": "When the grant was made.",
+        "version": "Optimistic-concurrency version a revoke must name in If-Match."
+      }
     }
   },
   "pageEnvelope": {
@@ -28683,6 +28749,33 @@
       },
       "inngestTrigger": null,
       "description": "Authorized invalidation notification that a draft comment was edited, resolved, reopened, deleted or restored; resourceId is the comment. Fetch it through draftComments.list."
+    },
+    "workflowDefinitionProposal.superseded": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "definitionPublishGrant.created": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "definitionPublishGrant.deleted": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
     }
   },
   "workerActions": {
