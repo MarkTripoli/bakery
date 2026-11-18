@@ -38,6 +38,7 @@ import { repositoryRulesBakeryMigrationSource } from "../../apps/server/src/modu
 import { artifactKindsBakeryMigrationSource } from "../../apps/server/src/modules/artifact-kinds/migrations.ts";
 import { integrationsBakeryMigrationSource } from "../../apps/server/src/modules/integrations/migrations.ts";
 import { deliveryBakeryMigrationSource } from "../../apps/server/src/modules/delivery/migrations.ts";
+import { mcpBakeryMigrationSource } from "../../apps/server/src/modules/mcp/migrations.ts";
 import { authBakeryMigrationSource } from "../../apps/server/src/modules/auth/migrations.ts";
 import { projectsBakeryMigrationSource } from "../../apps/server/src/modules/projects/migrations.ts";
 import { workBakeryMigrationSource } from "../../apps/server/src/modules/work/migrations.ts";
@@ -53,6 +54,7 @@ Deno.test("Bakery migrations follow the globally unique migration sequence", asy
     ...await loadMigrations(artifactKindsBakeryMigrationSource),
     ...await loadMigrations(integrationsBakeryMigrationSource),
     ...await loadMigrations(deliveryBakeryMigrationSource),
+    ...await loadMigrations(mcpBakeryMigrationSource),
   ];
   for (
     const [version, error] of [
