@@ -13,6 +13,7 @@ import {
 import { shot } from "./helpers/real-api.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
 import { firstRender } from "./helpers/first-render.ts";
+import { laneBudgetMs } from "./helpers/lane-budget.ts";
 
 registerPageHealth(test);
 
@@ -361,7 +362,7 @@ const VIEWPORTS = [
   { name: "tablet", width: 744, height: 960 },
   { name: "desktop", width: 1280, height: 960 },
 ] as const;
-const MATRIX_CASE_TIMEOUT_MS = 60_000;
+const MATRIX_CASE_TIMEOUT_MS = laneBudgetMs(60_000);
 
 async function assertRouteCase(
   page: Page,

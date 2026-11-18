@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
+import { laneBudgetMs } from "./helpers/lane-budget.ts";
 
 const realApi = process.env.BAKERY_REAL_API === "1";
 const realEmail = process.env.BAKERY_REAL_EMAIL ?? "";
@@ -36,7 +37,7 @@ test(
       !realEmail || !realPassword,
       "real API credentials were not supplied",
     );
-    test.setTimeout(120_000);
+    test.setTimeout(laneBudgetMs(120_000));
     mkdirSync(captureDirectory, { recursive: true });
 
     const context = await browser.newContext({
