@@ -32,13 +32,24 @@ const MAX_BODY_BYTES = INTAKE_MAX_BODY_BYTES;
 const SIGNATURE_HEADER = /^sha256=([0-9a-f]{64})$/;
 
 /**
- * How old a delivery may be before it is refused as a replay.
+ * How old a delivery may be before it is refused as a replay, when the body
+ * carries a timestamp at all.
  *
  * GitHub retries a failed delivery for up to three hours, so a window tighter
- * than that would drop legitimate redeliveries. It is also the only staleness
- * guard available: the signature proves the body, and the delivery id is the
- * separate idempotency key, so time is the one signal that separates a retry
- * from a replay of an old delivery under a fresh signature.
+ * than that would drop legitimate redeliveries. The window is stated here for
+ * the providers and payloads that do carry a send time - Slack's
+ * `X-Slack-Request-Timestamp` is the obvious one - and it is not a guarantee
+ * GitHub gives.
+ *
+ * **GitHub App deliveries carry no timestamp anywhere.** There is no
+ * `X-GitHub-Delivery-Timestamp` header, and no `delivery_timestamp` or
+ * `timestamp` field in the body: `installation.updated_at` is when the
+ * installation changed, which has nothing to do with when this delivery was
+ * sent. So this window never fires for a real GitHub delivery, and the module
+ * does not pretend otherwise. The load-bearing guard against a replayed
+ * delivery is the delivery id: `x-github-delivery` is idempotency's key, and
+ * the receipt the host writes for it is what refuses a second application. A
+ * stale signed body is therefore accepted here and refused at the receipt.
  */
 export const DELIVERY_REPLAY_WINDOW_MS = 3 * 60 * 60 * 1_000;
 
@@ -193,7 +204,12 @@ export const githubIngress: WebhookIngress = Object.freeze({
     // connection facts, and the host decides what each means for existing work.
     // Looked up by action alone, but only for the `installation` event, so an
     // `issue.created` cannot be read as an install.
-    const lifecycleEvent = event === "installation" && action !== null
+    // `Object.hasOwn` rather than a bare index: `LIFECYCLE_ACTIONS[action]` on
+    // a plain object also answers for `constructor`, `toString` and the rest of
+    // `Object.prototype`, so an installation delivery with `action: "toString"`
+    // would have carried a function where a lifecycle event belongs.
+    const lifecycleEvent = event === "installation" && action !== null &&
+        Object.hasOwn(LIFECYCLE_ACTIONS, action)
       ? LIFECYCLE_ACTIONS[action]
       : undefined;
     if (lifecycleEvent !== undefined) {
@@ -225,8 +241,14 @@ export const githubIngress: WebhookIngress = Object.freeze({
     // One subject per delivery, named by the provider's own id: the host decides
     // whether it mirrors that subject at all, so an unknown subject is a no-op
     // there rather than a refusal here.
-    const subjectExternalId = subjectOf(payload);
-    if (subjectExternalId === null) {
+    //
+    // The subject follows the event, not whichever key the payload happens to
+    // carry: an `issues` delivery is about a ticket and a `pull_request`
+    // delivery is about a change, and answering `check` for both would hand the
+    // host the wrong engine subject and have it look up an id that names
+    // nothing there.
+    const subject = subjectOf(event, payload);
+    if (subject === null) {
       return {
         kind: "routed",
         externalAuthorizationId,
@@ -240,9 +262,9 @@ export const githubIngress: WebhookIngress = Object.freeze({
       projection: payload,
       intents: [{
         kind: "refresh",
-        subject: "check",
+        subject: subject.kind,
         resourceExternalId: String(repositoryId),
-        subjectExternalId,
+        subjectExternalId: subject.externalId,
       }],
     };
   },
@@ -294,40 +316,55 @@ function isGitHubDelivery(value: unknown): value is GitHubDelivery {
 }
 
 /**
- * The subject a check or change delivery names, if it names one.
+ * The engine subject a delivery is about, chosen by its event.
  *
- * A check run and a workflow run both carry their own id; a ticket-shaped event
- * carries the issue. The host reads `subject` off the intent, so the provider's
- * job is only to say which provider-side record the delivery is about.
+ * The event decides the kind, and the payload only supplies the id. Searching
+ * for the first key that happens to exist would let a payload's shape pick the
+ * subject: an `issues` delivery has no `check_run`, but a future event carrying
+ * both would be classified by accident rather than by what it says it is.
+ *
+ * A delivery naming an event Bakery does not mirror answers `null` and the host
+ * falls back to a discovery sweep, which is cheap and cannot mislabel a record.
  */
-function subjectOf(payload: Record<string, unknown>): string | null {
-  for (
-    const key of [
-      "check_run",
-      "workflow_run",
-      "pull_request",
-      "issue",
-    ]
-  ) {
+function subjectOf(
+  event: string,
+  payload: Record<string, unknown>,
+): { kind: "ticket" | "change" | "check"; externalId: string } | null {
+  const mapping: readonly [string, "ticket" | "change" | "check", string][] = [
+    ["issues", "ticket", "issue"],
+    ["issue_comment", "ticket", "issue"],
+    ["pull_request", "change", "pull_request"],
+    ["pull_request_review", "change", "pull_request"],
+    ["check_run", "check", "check_run"],
+    ["workflow_run", "check", "workflow_run"],
+  ];
+  for (const [named, kind, key] of mapping) {
+    if (event !== named) continue;
     const raw = payload[key];
-    if (raw === null || typeof raw !== "object" || Array.isArray(raw)) continue;
-    const id = (raw as Record<string, unknown>).id;
-    if (typeof id === "number" && Number.isSafeInteger(id) && id > 0) {
-      return String(id);
+    if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
+      return null;
     }
+    const id = (raw as Record<string, unknown>).id;
+    return typeof id === "number" && Number.isSafeInteger(id) && id > 0
+      ? { kind, externalId: String(id) }
+      : null;
   }
   return null;
 }
 
 /**
- * When GitHub sent the delivery, from the fields it puts on every App delivery.
+ * The delivery's own send time, when it states one.
  *
- * GitHub does not send a delivery timestamp header, so the body's own clock is
- * the only source: `check_run.started_at` and friends are event-specific, while
- * `sender` carries nothing usable. What every App delivery does carry is the
- * installation's `updated_at`, which is not the delivery time and must not be
- * treated as one - so this reads only an explicit event timestamp and answers
- * null when absent, letting the delivery through rather than guessing.
+ * GitHub App deliveries do not: there is no delivery-timestamp header, and the
+ * body has no `delivery_timestamp` or `timestamp` field. This reads those two
+ * names because a generic payload may carry one, and answers `null` for every
+ * real GitHub delivery, so the staleness check is simply not reached.
+ *
+ * Nothing here falls back to a field that merely looks like a time.
+ * `installation.updated_at` is when the installation changed, and treating it as
+ * the send time would refuse a legitimate delivery because the installation was
+ * created long ago - and accept a replay because it was changed a minute ago.
+ * The delivery id is the real guard; see `DELIVERY_REPLAY_WINDOW_MS`.
  */
 function deliveryTimestamp(payload: Record<string, unknown>): number | null {
   const raw = payload.delivery_timestamp ?? payload.timestamp;

@@ -290,9 +290,11 @@ Deno.test("an issue delivery is never read as an installation lifecycle", () => 
     repository: { id: 900 },
     issue: { id: 7 },
   }) as { intents: readonly IntakeIntent[] }).intents;
+  // An issue is a ticket. This assertion previously said `check`, which is what
+  // the code did rather than what the SDK's vocabulary allows.
   assertEquals(intents, [{
     kind: "refresh",
-    subject: "check",
+    subject: "ticket",
     resourceExternalId: "900",
     subjectExternalId: "7",
   }]);
@@ -344,4 +346,138 @@ Deno.test("a repository delivery the payload never names becomes a sweep", () =>
     }) as { intents: readonly IntakeIntent[] }).intents,
     [{ kind: "discovery" }],
   );
+});
+
+Deno.test("a prototype key never looks like a lifecycle action", () => {
+  // `LIFECYCLE_ACTIONS[action]` on a plain object answers for `constructor`
+  // and `toString` too, which put a function where a lifecycle event belongs.
+  // Named after the object's own properties, not inherited ones.
+  for (
+    const action of ["constructor", "toString", "hasOwnProperty", "__proto__"]
+  ) {
+    // It falls through to the repository/no-repository branches rather than
+    // claiming a lifecycle event, and never carries a function as its event.
+    const result = classify({
+      event: "installation",
+      action,
+      installation: { id: 42 },
+    }) as { kind: string; intents?: readonly { kind: string }[] };
+    assertEquals(result.kind, "routed");
+    for (const intent of result.intents ?? []) {
+      assert(intent.kind !== "lifecycle");
+    }
+  }
+});
+
+Deno.test("an issue delivery refreshes a ticket and a pull request a change", () => {
+  // The SDK's vocabulary is ticket, change and check. Answering `check` for an
+  // issue or a pull request handed the host the wrong engine subject, so it
+  // looked up an id that names nothing there.
+  const intent = (event: string, key: string) =>
+    (classify({
+      event,
+      action: "opened",
+      installation: { id: 42 },
+      repository: { id: 900 },
+      [key]: { id: 77 },
+    }) as { intents: readonly IntakeIntent[] }).intents[0];
+
+  assertEquals(intent("issues", "issue"), {
+    kind: "refresh",
+    subject: "ticket",
+    resourceExternalId: "900",
+    subjectExternalId: "77",
+  });
+  assertEquals(intent("issue_comment", "issue"), {
+    kind: "refresh",
+    subject: "ticket",
+    resourceExternalId: "900",
+    subjectExternalId: "77",
+  });
+  assertEquals(intent("pull_request", "pull_request"), {
+    kind: "refresh",
+    subject: "change",
+    resourceExternalId: "900",
+    subjectExternalId: "77",
+  });
+  assertEquals(intent("pull_request_review", "pull_request"), {
+    kind: "refresh",
+    subject: "change",
+    resourceExternalId: "900",
+    subjectExternalId: "77",
+  });
+  // Only a check-shaped event names a check.
+  assertEquals(intent("check_run", "check_run"), {
+    kind: "refresh",
+    subject: "check",
+    resourceExternalId: "900",
+    subjectExternalId: "77",
+  });
+  assertEquals(intent("workflow_run", "workflow_run"), {
+    kind: "refresh",
+    subject: "check",
+    resourceExternalId: "900",
+    subjectExternalId: "77",
+  });
+});
+
+Deno.test("the subject follows the event, not whichever key the payload carries", () => {
+  // A pull request payload that also carries an `issue` object must not be read
+  // as a ticket: searching for the first key that exists would let the payload's
+  // shape choose the subject instead of what the delivery says it is.
+  const both = (classify({
+    event: "pull_request",
+    action: "opened",
+    installation: { id: 42 },
+    repository: { id: 900 },
+    issue: { id: 11 },
+    pull_request: { id: 22 },
+  }) as { intents: readonly IntakeIntent[] }).intents[0];
+  assertEquals(both, {
+    kind: "refresh",
+    subject: "change",
+    resourceExternalId: "900",
+    subjectExternalId: "22",
+  });
+
+  // An issue event carrying no issue object is a discovery sweep, not a guess.
+  assertEquals(
+    (classify({
+      event: "issues",
+      action: "opened",
+      installation: { id: 42 },
+      repository: { id: 900 },
+      pull_request: { id: 22 },
+    }) as { intents: readonly IntakeIntent[] }).intents,
+    [{ kind: "discovery" }],
+  );
+});
+
+Deno.test("a real GitHub delivery carries no timestamp, so it is never stale", () => {
+  // GitHub sends no delivery timestamp in a header or in the body:
+  // `installation.updated_at` is when the installation changed, not when this
+  // delivery was sent. A payload shaped exactly like a real one, with an
+  // installation updated long ago, must still verify - the delivery id is what
+  // refuses a replay, at the receipt.
+  const real = enc(JSON.stringify({
+    action: "created",
+    installation: {
+      id: 42,
+      updated_at: "2020-01-01T00:00:00.000Z",
+      created_at: "2020-01-01T00:00:00.000Z",
+    },
+    repositories: [{ id: 900 }],
+    sender: { id: 7, login: "someone" },
+  }));
+  const result = githubIngress.verify({
+    body: real,
+    headers: new Headers({
+      "x-hub-signature-256": `sha256=${hex(hmacSha256(secret, real))}`,
+      "x-github-event": "installation",
+      "x-github-delivery": "d-1",
+    }),
+    secrets: [secret],
+    now: NOW,
+  });
+  assertEquals(result.ok, true);
 });
