@@ -2878,7 +2878,7 @@
         "IDEMPOTENCY_PAYLOAD_MISMATCH"
       ],
       "organizationContext": "none",
-      "implemented": false
+      "implemented": true
     },
     {
       "group": "Extensions",
@@ -9701,6 +9701,7 @@
     "integrationConnections.remove",
     "integrationResources.update",
     "integrationConnections.check",
+    "integrationConnections.invoke",
     "integrationDiscoveries.create",
     "integrationInstallations.list",
     "integrationInstallations.get",
@@ -213067,7 +213068,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:c4f2e0edb6e258b45e83f975b16500b8d9cc45f69d0879d9fb06f236aecce3be",
+  "compatibilityDigest": "sha256:43c26fc81d6fc1e18a74156b8c7ef5a0ba98a0d1b37d235966a7ee192d572281",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

@@ -16,6 +16,10 @@ import { type AuthVariables, createActionContext } from "../auth/middleware.ts";
 import { createIntegrationsActionRegistry } from "./actions.ts";
 import { mountIntakeRoute } from "./intake-routes.ts";
 import type { InstallationTokenBroker } from "./token-broker.ts";
+import type {
+  ActiveIntegrationRegistry,
+  ProviderRequestPort,
+} from "../catalog/integration-gate.ts";
 import {
   createFetchGitHubAppClient,
   type GitHubAppClient,
@@ -110,6 +114,14 @@ export function createIntegrationsRoutes(options: {
   /** The process's token broker; one per registry when absent. */
   broker?: InstallationTokenBroker;
   cursorSecret: string;
+  /**
+   * The process's activated integration registry, bound once in `app.ts`. The
+   * invoke door is the only route that needs it: it resolves the connection's
+   * provider by name through it instead of re-deriving which providers exist.
+   */
+  integrationRegistry: ActiveIntegrationRegistry;
+  /** The provider request port the invoke door sends through. */
+  providerRequests?: ProviderRequestPort;
 }) {
   const registry = createIntegrationsActionRegistry(options.database, {
     publicBaseUrl: options.publicBaseUrl,
@@ -117,6 +129,10 @@ export function createIntegrationsRoutes(options: {
     github: options.githubAppClient ?? createFetchGitHubAppClient(),
     cursorSecret: options.cursorSecret,
     broker: options.broker,
+    integrationRegistry: options.integrationRegistry,
+    ...(options.providerRequests === undefined
+      ? {}
+      : { providerRequests: options.providerRequests }),
   });
   const app = new Hono<{ Variables: AuthVariables }>();
   app.use("/v1/integration-app-registrations/github", options.browserSession);

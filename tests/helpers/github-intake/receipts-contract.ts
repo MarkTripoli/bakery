@@ -16,6 +16,8 @@ import { createIntegrationsActionRegistry } from "../../../apps/server/src/modul
 import { GitHubAppPath } from "../../../apps/server/src/modules/integrations/github-app.ts";
 import type { PgDatabase } from "../../../apps/server/src/platform/database.ts";
 import { createFakeGitHubApp } from "../fake-github-app.ts";
+import { activateDeployedIntegrations } from "../../../apps/server/src/modules/catalog/integration-gate.ts";
+import { deployedIntegrations } from "../../../apps/server/src/modules/catalog/integration-gate-registry.ts";
 
 const ACTION = "intake.github";
 const ACCESS =
@@ -48,6 +50,7 @@ function registry() {
     publicBaseUrl: "https://bakery.example.test",
     github: createFakeGitHubApp().client,
     cursorSecret: "contract-test-cursor-secret-0123456789abcdef",
+    integrationRegistry: activateDeployedIntegrations(deployedIntegrations),
   });
 }
 
