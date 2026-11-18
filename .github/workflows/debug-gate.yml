@@ -11,7 +11,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        author: [Triippz, torvalds, github-actions[bot], no-such-user-zz-0042]
+        author: ["Triippz", "torvalds", "github-actions[bot]", "no-such-user-zz-0042"]
     steps:
       - name: Maintainers only
         id: maintainer
