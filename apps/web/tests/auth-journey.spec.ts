@@ -10,6 +10,7 @@ import {
   sleep,
   submitUntilAccepted,
 } from "./helpers/api-retry.ts";
+import { laneBudgetMs } from "./helpers/lane-budget.ts";
 
 /**
  * Live, real-API proof of the acceptance criteria in FS03 (#127) Phase 6 —
@@ -365,7 +366,7 @@ test.describe("auth journey", () => {
   });
 
   test("1b. keyboard-only sign-in reaches / with an org-scoped request and an httpOnly session cookie", async ({ page }) => {
-    test.setTimeout(90_000);
+    test.setTimeout(laneBudgetMs(90_000));
 
     await page.goto("/sign-in");
     await expect(page.getByTestId("sign-in")).toBeVisible();
@@ -427,7 +428,7 @@ test.describe("auth journey", () => {
   });
 
   test("1c. tap-driven sign-in on an emulated iPhone reaches / (assertion 9's mobile repeat of 1)", async ({ browser }) => {
-    test.setTimeout(120_000);
+    test.setTimeout(laneBudgetMs(120_000));
 
     const mobileContext = await browser.newContext({
       ...devices["iPhone 13"],
@@ -473,7 +474,7 @@ test.describe("auth journey", () => {
   // ---- 2. Deep link ---------------------------------------------------
 
   test("2. an anonymous deep link to /settings/sessions redirects to sign-in and returns there after sign-in", async ({ page }) => {
-    test.setTimeout(60_000);
+    test.setTimeout(laneBudgetMs(60_000));
 
     await page.goto("/settings/sessions");
     await expect(page).toHaveURL("/sign-in");
@@ -487,7 +488,7 @@ test.describe("auth journey", () => {
   // ---- 3. Expired / tampered session -----------------------------------
 
   test("3. a tampered session cookie redirects to /sign-in?reason=expired and /v1/me reports AUTH_INVALID", async ({ page }) => {
-    test.setTimeout(60_000);
+    test.setTimeout(laneBudgetMs(60_000));
 
     await page.goto("/sign-in");
     await signIn(page, ADMIN_EMAIL, ADMIN_PASSWORD);
@@ -523,7 +524,7 @@ test.describe("auth journey", () => {
   // ---- 4. Multi-session revocation --------------------------------------
 
   test("4. a second session can be listed, revoked individually, and revoking the current session signs the browser out", async ({ page, browser, baseURL }) => {
-    test.setTimeout(75_000);
+    test.setTimeout(laneBudgetMs(75_000));
 
     await page.goto("/sign-in");
     await signIn(page, ADMIN_EMAIL, ADMIN_PASSWORD);
@@ -610,7 +611,7 @@ test.describe("auth journey", () => {
     "5a. an anonymous invitation preview (real and unknown), a bare /register, /organizations, " +
       "and the real API boundary (readiness + a non-auth Problem) all render",
     async ({ page, browser, baseURL }, testInfo) => {
-      test.setTimeout(90_000);
+      test.setTimeout(laneBudgetMs(90_000));
       const tag = `${testInfo.project.name}-${randomToken()}`;
 
       // Moved here from `real-api.spec.ts`, which ran these same two
@@ -759,7 +760,7 @@ test.describe("auth journey", () => {
         !realSignupsEnabled,
         "installation registration mode is not configured for this API",
       );
-      test.setTimeout(90_000);
+      test.setTimeout(laneBudgetMs(90_000));
       const tag = `${testInfo.project.name}-${randomToken()}`;
 
       await page.goto("/sign-in");
@@ -917,7 +918,7 @@ test.describe("auth journey", () => {
       !realSignupsEnabled,
       "installation registration mode is not configured for this API",
     );
-    test.setTimeout(75_000);
+    test.setTimeout(laneBudgetMs(75_000));
     const tag = `desktop-${randomToken()}`;
 
     await page.goto("/sign-in");
@@ -1021,7 +1022,7 @@ test.describe("auth journey", () => {
   // ---- 7. Cross-origin ----------------------------------------------------
 
   test("7. a cross-origin sign-in and a cross-origin session revocation are both blocked", async ({ page, request }) => {
-    test.setTimeout(75_000);
+    test.setTimeout(laneBudgetMs(75_000));
 
     await page.goto("/sign-in");
     await signIn(page, ADMIN_EMAIL, ADMIN_PASSWORD);
@@ -1089,7 +1090,7 @@ test.describe("auth journey", () => {
     // shared admin instead so it never depends on that gate; the
     // file-level `beforeEach` above already keeps it off any other
     // project.
-    test.setTimeout(300_000);
+    test.setTimeout(laneBudgetMs(300_000));
 
     await page.goto("/sign-in");
     await signIn(page, ADMIN_EMAIL, ADMIN_PASSWORD);

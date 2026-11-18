@@ -2662,8 +2662,8 @@ const transportSchemas = {
         {
           "name": "sourceArtifactVersionId",
           "type": "uuid",
-          "required": false,
-          "description": "Exact artifact version whose evidence justifies this memory revision; promotion requires this to name real evidence and pass a conflict scan before the revision is accepted."
+          "required": true,
+          "description": "Exact artifact version whose evidence justifies this memory revision. Required: a revision with no evidence is an opinion, not a memory, and promotion refuses it before it is stored."
         }
       ],
       "description": "Adds a new revision to an existing memory entry and advances its current-revision pointer through the normal compare-and-swap path."
@@ -2685,10 +2685,9 @@ const transportSchemas = {
           "required": false,
           "enum": [
             "active",
-            "superseded",
-            "retracted"
+            "retired"
           ],
-          "description": "Lifecycle state of the memory entry: \"active\" while retrievable, \"superseded\" once replaced by newer learning, or \"retracted\" if withdrawn as incorrect."
+          "description": "Lifecycle state of the memory entry, using the projection's own vocabulary: \"active\" while retrievable, or \"retired\" once withdrawn. Why it was retired - replaced by newer learning or withdrawn as incorrect - belongs in the next revision's required reason, which is where the history keeps it."
         }
       ],
       "description": "Edits a memory entry's subject or lifecycle status without creating a new revision; use MemoryRevisionCreate to change its content."
@@ -10748,6 +10747,55 @@ const transportSchemas = {
         "A second grant for the same kind, definition and seat is STATE_CONFLICT with reason publish_grant_exists."
       ],
       "description": "Grants agents the off-by-default power to publish versions of, and \"Use this version\" for, one definition or one seat (chapter 25 O52). Agents author drafts without a grant; a grant never lets an agent decide a proposal."
+    },
+    "ScopeProfileCheckCommand": {
+      "description": "One check command a project's scope profile offers to steps as a default; the id is stable so a run's evidence names the command that produced it.",
+      "fields": [
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "description": "Stable lowercase kebab-case identifier of the check, unique within the profile."
+        },
+        {
+          "name": "command",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "description": "Shell command text the check runs. The profile owns the policy; the kernel never interprets the text."
+        }
+      ]
+    },
+    "ProjectScopeProfilePut": {
+      "fields": [
+        {
+          "name": "checkCommands",
+          "type": "ScopeProfileCheckCommand[]",
+          "required": true,
+          "bounds": {
+            "maxItems": 64
+          },
+          "description": "Every check command the profile offers to steps as a default, in profile order; the list replaces the published one, and an empty list publishes no checks."
+        },
+        {
+          "name": "rules",
+          "type": "json[]",
+          "required": true,
+          "description": "Every rule entry the profile supplies, replacing the published list; the rule library, not the kernel, gives each entry its meaning."
+        }
+      ],
+      "rules": [
+        "Organization admin. Idempotency-Key is required. When the project has a published profile a strong If-Match with its revision is required (428 when missing, 412 when stale); before the first save If-Match must be absent.",
+        "A project in another organization, or one that does not exist, answers 404. Check ids must be unique (422 UNPROCESSABLE)."
+      ],
+      "description": "Publishes the next revision of one project's scope profile: the step defaults every later run of the project inherits and pins at admission."
     },
     "TicketRoutingRuleInput": {
       "fields": [
@@ -27612,6 +27660,37 @@ const transportSchemas = {
         "version": "Optimistic-concurrency version a revoke must name in If-Match."
       }
     },
+    "ProjectScopeProfile": {
+      "fields": [
+        "applicationId",
+        "revision",
+        "digest",
+        "checkCommands",
+        "rules",
+        "updatedAt"
+      ],
+      "fieldTypes": {
+        "applicationId": "uuid",
+        "revision": "integer",
+        "digest": "sha256|null",
+        "checkCommands": "ScopeProfileCheckCommand[]",
+        "rules": "json[]",
+        "updatedAt": "timestamp|null"
+      },
+      "nullableFields": [
+        "digest",
+        "updatedAt"
+      ],
+      "description": "A project's published scope profile (one-engine O23): the step defaults its runs inherit. A project that has published none reads as the empty baseline at revision 0.",
+      "fieldDescriptions": {
+        "applicationId": "Project (application) the profile belongs to; a profile never supplies defaults to another project.",
+        "revision": "Published revision, 0 for the empty baseline; submit it as If-Match when saving again.",
+        "digest": "SHA-256 hex of the canonical profile content, which a run pins at admission; null for the empty baseline.",
+        "checkCommands": "Check commands offered to steps as defaults, in profile order.",
+        "rules": "Rule entries the profile supplies, in profile order.",
+        "updatedAt": "When the profile was last published, or null for the empty baseline."
+      }
+    },
     "TicketRoutingRule": {
       "projection": "ticket_routing_rules",
       "fields": [
@@ -27702,7 +27781,7 @@ const transportSchemas = {
       "fieldDescriptions": {
         "repositoryId": "UUID of the repository this child is scoped to; a request holds each repository at most once.",
         "role": "Role the repository plays for the request; default when the ticket matched no rule and fell back to the source's own repository.",
-        "routingRuleId": "UUID of the rule that routed the ticket here, or null for the fallback to the source's repository or when the rule was later deleted.",
+        "routingRuleId": "UUID of the rule that routed the ticket here as pinned at admission (the rule may since have been deleted), or null for the fallback to the source's repository.",
         "routingRuleVersion": "Version of that rule at admission, or null for the fallback.",
         "sourcePolicyRevision": "Ticket source policy revision the child was admitted under.",
         "pinnedPreset": "Workflow preset identity (id, revision, digest) the child was admitted with."
