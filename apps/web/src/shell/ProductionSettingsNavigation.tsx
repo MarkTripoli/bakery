@@ -50,6 +50,11 @@ export const productionOrganizationRoutes = [
     href: "/settings/organization/access",
   },
   {
+    id: "settings-organization-service-accounts",
+    label: <I18nText id="shell.navigation.serviceAccounts" />,
+    href: "/settings/organization/service-accounts",
+  },
+  {
     id: "settings-organization-roles",
     label: <I18nText id="shell.navigation.customRoles" />,
     href: "/settings/organization/roles",
@@ -104,6 +109,7 @@ const SECTION_LABEL_KEYS: Readonly<Record<string, MessageKey>> = {
   "/settings/appearance": "shell.navigation.appearance",
   "/settings/access": "shell.navigation.access",
   "/settings/organization/access": "shell.navigation.membersAndAccess",
+  "/settings/organization/service-accounts": "shell.navigation.serviceAccounts",
   "/settings/organization/roles": "shell.navigation.customRoles",
   "/settings/organization/repository-rules": "shell.navigation.repositoryRules",
   "/settings/organization/integrations":

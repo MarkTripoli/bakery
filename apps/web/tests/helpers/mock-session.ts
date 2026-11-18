@@ -286,6 +286,20 @@ export async function mockAuthenticatedSession(page: Page): Promise<void> {
       body: JSON.stringify({ unread: 0, revision: 1 }),
     });
   });
+  await page.route("**/v1/installation/settings", (route) => {
+    if (route.request().method() !== "GET") return route.fallback();
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        registrationMode: "invitation",
+        organizationCreationPolicy: "installation_admins",
+        version: 1,
+        updatedByPrincipalId: MOCK_PRINCIPAL_ID,
+        updatedAt: "2026-10-11T14:12:00.000Z",
+      }),
+    });
+  });
   await page.route("**/api/auth/passkey/list-user-passkeys", (route) => {
     if (route.request().method() !== "GET") return route.fallback();
     return route.fulfill({

@@ -197,15 +197,6 @@ async function expectNoHorizontalOverflow(page: Page) {
 }
 
 async function expectSelectedParent(page: Page, path: string) {
-  if (path.startsWith("/settings/organization/service-accounts")) {
-    // The sections navigation has no item for this page (the phone index
-    // lists it), so nothing is marked current. Where it belongs in the
-    // navigation is a design question, not something this check decides.
-    await expect(
-      page.locator('.bakery-section-navigation a[aria-current="page"]'),
-    ).toHaveCount(0);
-    return;
-  }
   if (path === "/settings" || path.startsWith("/settings/")) {
     const expectedHref = path.startsWith("/settings/sessions")
       ? "/settings/sessions"
@@ -221,6 +212,8 @@ async function expectSelectedParent(page: Page, path: string) {
       ? "/settings/access"
       : path.startsWith("/settings/organization/access")
       ? "/settings/organization/access"
+      : path.startsWith("/settings/organization/service-accounts")
+      ? "/settings/organization/service-accounts"
       : path.startsWith("/settings/organization/roles")
       ? "/settings/organization/roles"
       : path.startsWith("/settings/organization/repository-rules")
@@ -693,6 +686,7 @@ test.describe("settings routes and navigation", () => {
       navigation.getByRole("list", { name: "Organization" }).getByRole("link"),
     ).toHaveText([
       "Members & access",
+      "Service accounts & tokens",
       "Custom roles",
       "Repository rules",
       "Integrations",
@@ -727,8 +721,8 @@ test.describe("settings routes and navigation", () => {
     )
       .toHaveCount(0);
     const links = sheet.getByRole("link");
-    await expect(links).toHaveCount(12);
-    for (let index = 0; index < 12; index += 1) {
+    await expect(links).toHaveCount(13);
+    for (let index = 0; index < 13; index += 1) {
       const clipped = await links.nth(index).evaluate((node) =>
         node.scrollWidth > node.clientWidth + 1
       );

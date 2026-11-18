@@ -2361,7 +2361,7 @@
   "shell.navigation.organizationAdmin": "Organization admin",
   "shell.navigation.accessShort": "Access",
   "shell.navigation.members": "Members",
-  "shell.navigation.serviceAccounts": "Service accounts",
+  "shell.navigation.serviceAccounts": "Service accounts & tokens",
   "tasks.conversation.heading": "Conversation",
   "tasks.conversation.brief": "Task brief",
   "tasks.conversation.loading": "Loading the conversation…",
