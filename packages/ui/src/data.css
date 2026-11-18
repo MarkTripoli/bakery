@@ -344,6 +344,7 @@
 }
 .ui-data-table td time {
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 .ui-data-table caption {
   text-align: start;

@@ -108,6 +108,15 @@ for (
       await page.goto("/installation/audit");
       await expect(page.getByRole("heading", { name: "Audit log" }).first())
         .toBeVisible();
+      // "Load older events" is an outline button at its own width, and a time stays on one line.
+      const more = page.getByRole("button", { name: "Load older events" });
+      await expect(more).toHaveClass(/ui-button--outline/);
+      const moreBox = await more.boundingBox();
+      expect(moreBox!.width).toBeLessThan(300);
+      if (!isPhone(page)) {
+        const timeBox = await page.locator("tbody time").first().boundingBox();
+        expect(timeBox!.height).toBeLessThan(24);
+      }
       await expect(
         eventText(page, "Installation settings updated"),
       )

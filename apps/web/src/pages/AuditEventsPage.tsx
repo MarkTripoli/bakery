@@ -615,20 +615,23 @@ export function AuditEventsPage({ scope: audience }: {
                 : null}
               {events.hasNextPage
                 ? (
-                  <UI.Button
-                    data-paged-more="audit"
-                    data-paged-retry={events.isFetchNextPageError
-                      ? "audit"
-                      : undefined}
-                    loading={events.isFetchingNextPage}
-                    onClick={() => {
-                      paging.ask();
-                      void events.fetchNextPage();
-                    }}
-                    type="button"
-                  >
-                    {translate("settings.audit.loadMore")}
-                  </UI.Button>
+                  <UI.Inline>
+                    <UI.Button
+                      data-paged-more="audit"
+                      data-paged-retry={events.isFetchNextPageError
+                        ? "audit"
+                        : undefined}
+                      loading={events.isFetchingNextPage}
+                      onClick={() => {
+                        paging.ask();
+                        void events.fetchNextPage();
+                      }}
+                      type="button"
+                      variant="outline"
+                    >
+                      {translate("settings.audit.loadMore")}
+                    </UI.Button>
+                  </UI.Inline>
                 )
                 : null}
               {audience === "organization" && organizationId
