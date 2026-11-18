@@ -93,7 +93,7 @@ Deno.test("private, loopback, link-local and metadata addresses are refused", ()
   }
 
   // A public address is accepted, or none of the above proves anything.
-  assertEquals(checkResolvedAddresses(["93.184.216.34"]), { ok: true });
+  assertEquals(checkResolvedAddresses(["93.184.216.34"]).ok, true);
   assertEquals(checkResolvedAddresses(["2606:2800:220:1::1"]), { ok: true });
 });
 
@@ -232,4 +232,32 @@ Deno.test("a resolved ipv6 loopback is refused by the address check", () => {
     ok: false,
     reason: "resolves_to_private_address",
   });
+});
+
+Deno.test("the two ranges qa found are refused, and the neighbours are not", () => {
+  // Site-local (fec0::/10) is deprecated but still routable inside a site, and
+  // Teredo tunnels IPv6 over an embedded IPv4 endpoint.
+  assertEquals(isPrivateAddress("fec0::1"), true);
+  assertEquals(isPrivateAddress("2001:0:4136:e378::1"), true);
+  // But not all of 2001::/16, which contains globally routed space.
+  assertEquals(isPrivateAddress("2001:4860:4860::8888"), false);
+});
+
+Deno.test("a resolved answer that is not an ip literal is refused", () => {
+  // The transport is told to connect to these exact strings; an answer the judge
+  // did not read as an address is not an address it judged.
+  assertEquals(checkResolvedAddresses(["receiver.example.test"]), {
+    ok: false,
+    reason: "resolves_to_private_address",
+  });
+  // A zone-qualified literal parses once the zone is stripped, so it is refused
+  // for being link-local rather than for being unreadable - and the reason a
+  // caller sees is the same either way, which is what matters.
+  assertEquals(checkResolvedAddresses(["fe80::1%eth0"]), {
+    ok: false,
+    reason: "resolves_to_private_address",
+  });
+  // The public case still passes, so the zeros above are the rule and not a
+  // check that refuses everything.
+  assertEquals(checkResolvedAddresses(["93.184.216.34"]).ok, true);
 });

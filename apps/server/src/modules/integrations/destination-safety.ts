@@ -111,8 +111,10 @@ export function isPrivateIpv6(value: string): boolean {
   if (isAllZero(parsed, 0, 16)) return true;
   if (isAllZero(parsed, 0, 15) && parsed[15] === 1) return true;
 
-  // fe80::/10 link-local, fc00::/7 unique-local, ff00::/8 multicast.
+  // fe80::/10 link-local, fec0::/10 site-local (deprecated but still routable
+  // inside a site), fc00::/7 unique-local, ff00::/8 multicast.
   if (parsed[0] === 0xfe && (parsed[1]! & 0xc0) === 0x80) return true;
+  if (parsed[0] === 0xfe && (parsed[1]! & 0xc0) === 0xc0) return true;
   if ((parsed[0]! & 0xfe) === 0xfc) return true;
   if (parsed[0] === 0xff) return true;
 
@@ -134,6 +136,15 @@ export function isPrivateIpv6(value: string): boolean {
   }
   if (parsed[0] === 0x20 && parsed[1] === 0x02) {
     return isPrivateIpv4([parsed[2]!, parsed[3]!, parsed[4]!, parsed[5]!]);
+  }
+  // 2001::/32 is Teredo, which tunnels IPv6 over an embedded IPv4 endpoint and
+  // is not a destination an export should reach. 2001:0::/32 specifically, not
+  // all of 2001::/16, which contains globally routed space.
+  if (
+    parsed[0] === 0x20 && parsed[1] === 0x01 && parsed[2] === 0x00 &&
+    parsed[3] === 0x00
+  ) {
+    return true;
   }
 
   return false;
@@ -254,6 +265,12 @@ export function checkResolvedAddresses(
 ): DestinationDecision {
   if (addresses.length === 0) return refuse("unresolved");
   for (const address of addresses) {
+    // An answer that is not an IP literal is refused rather than waved through:
+    // the transport is told to connect to these exact strings, and a name is an
+    // address this judge never actually read.
+    if (parseIpv4(address) === null && parseIpv6(address) === null) {
+      return refuse("resolves_to_private_address");
+    }
     if (isPrivateAddress(address)) return refuse("resolves_to_private_address");
   }
   return allow;

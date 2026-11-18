@@ -73,9 +73,12 @@ export type IntegrationsBackgroundDependencies =
   & {
     /**
      * The activated registry, so a background function that holds a provider name
-     * resolves it instead of re-deriving which providers exist.
+     * resolves it instead of re-deriving which providers exist. Optional because
+     * a caller that wires no export worker needs no registry: the export
+     * function is only registered when one is supplied, which is honest - a
+     * worker with no registry could not authorize anything anyway.
      */
-    readonly registry: ActiveIntegrationRegistry;
+    readonly registry?: ActiveIntegrationRegistry;
   };
 
 type SkillImportDependencies = Readonly<{
@@ -206,21 +209,25 @@ export function createDefaultInngestFunctions(options: {
         // per subscriber. Every adapter below is production, which is the point
         // - the dispatch path's refusals only mean something if something calls
         // it outside a test.
-        createIntegrationEventExport({
-          client: options.client,
-          database: options.database,
-          authority: createPostgresAuthorityPort(
-            options.database,
-            options.integrations.registry,
-          ),
-          registry: options.integrations.registry,
-          transport: createPinnedHttpsTransport(),
-          resolve: resolveHostAddresses,
-          secretFor: createDestinationSecretReader(
-            options.database,
-            options.integrations.secretsKey,
-          ),
-        }),
+        ...(options.integrations.registry
+          ? [
+            createIntegrationEventExport({
+              client: options.client,
+              database: options.database,
+              authority: createPostgresAuthorityPort(
+                options.database,
+                options.integrations.registry,
+              ),
+              registry: options.integrations.registry,
+              transport: createPinnedHttpsTransport(),
+              resolve: resolveHostAddresses,
+              secretFor: createDestinationSecretReader(
+                options.database,
+                options.integrations.secretsKey,
+              ),
+            }),
+          ]
+          : []),
         createBlobUploadReaper({
           client: options.client,
           database: options.database,
