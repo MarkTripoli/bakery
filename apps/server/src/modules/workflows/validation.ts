@@ -11,6 +11,7 @@ import {
 } from "@bakery/persistence";
 import {
   compileWorkflowDocumentDetailed,
+  decodeWorkflowYaml,
   WORKFLOW_COMPILER_VERSION,
   type WorkflowActionSite,
   type WorkflowDocumentResult,
@@ -141,6 +142,42 @@ function pointer(...segments: readonly (string | number)[]): string {
 
 function issue(path: string, code: string): WorkflowValidationIssue {
   return Object.freeze({ path, code, message: code.replaceAll("_", " ") });
+}
+
+/**
+ * Whether the YAML a draft was authored from is safe and says what the stored
+ * definition says. Publication stores both, and a reader later trusts that the
+ * source is the definition's own, so this is where an unsafe source is stopped:
+ * an explicit tag or directive, an anchor or alias, a merge key, a duplicate
+ * key, more than one document, an oversize or over-deep text, or a YAML that
+ * decodes to something other than the definition. The decoder is the one the
+ * importer uses, so a YAML the importer accepts is one publication accepts.
+ *
+ * Findings carry fixed messages and pointers; none echoes the submitted text.
+ * A draft whose source is the canonical JSON the server stored by default
+ * decodes and matches, so a definition saved without any YAML is unaffected.
+ */
+export function validateWorkflowSourceYaml(
+  sourceYaml: string,
+  definition: unknown,
+): readonly WorkflowValidationIssue[] {
+  const decoded = decodeWorkflowYaml(sourceYaml);
+  if (!decoded.ok) {
+    return decoded.diagnostics.map((diagnostic) =>
+      Object.freeze({
+        path: diagnostic.path,
+        code: diagnostic.code,
+        message: diagnostic.message,
+      })
+    );
+  }
+  let same: boolean;
+  try {
+    same = canonicalJson(decoded.value) === canonicalJson(definition);
+  } catch {
+    same = false;
+  }
+  return same ? [] : [issue("", "source_yaml_mismatch")];
 }
 
 /**
