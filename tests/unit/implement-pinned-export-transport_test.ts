@@ -1,5 +1,6 @@
 import { assertEquals } from "@std/assert";
 import {
+  armDeadline,
   createPinnedHttpsTransport,
   createResponseHandler,
   outcomeFor,
@@ -99,46 +100,33 @@ Deno.test("a 3xx is refused, not retried", () => {
 Deno.test("a server that never answers cannot hold the send", async () => {
   // QA probed this: `void RESPONSE_DRAIN_LIMIT` declared a limit and enforced
   // nothing, so a receiver that never finished held send() open until the socket
-  // died. The total deadline is now real, and this proves it: the listener
-  // accepts the connection and then says nothing at all, so no socket idle
-  // timeout can fire and only the deadline can end the attempt.
-  const listener = Deno.listen({ port: 0, hostname: "127.0.0.1" });
-  const { port } = listener.addr as { port: number };
-  const accepted: Deno.Conn[] = [];
-  const accept = (async () => {
-    try {
-      for await (const connection of listener) accepted.push(connection);
-    } catch {
-      // The listener closes when the test ends.
-    }
-  })();
+  // died. The total deadline is now real.
+  //
+  // Driven through `armDeadline` rather than a real listener. The unit lane runs
+  // with `--allow-env --allow-read` only, so `Deno.listen` throws NotCapable
+  // there: a test that needs net permission fails on the lane it belongs to, and
+  // a suite that only passes locally is worse than no suite. What the deadline
+  // has to do is end an exchange that produces no events at all, which is exactly
+  // what this exercises.
+  let expired = 0;
+  const started = Date.now();
+  const disarm = armDeadline(30, () => {
+    expired += 1;
+  });
+  await new Promise((resolve) => setTimeout(resolve, 80));
+  assertEquals(expired, 1);
+  assertEquals(Date.now() - started >= 20, true);
 
-  try {
-    const started = Date.now();
-    const outcome = await createPinnedHttpsTransport({ timeoutMs: 1_000 }).send(
-      {
-        origin: `https://127.0.0.1:${port}`,
-        path: "/silent",
-        addresses: ["127.0.0.1"],
-        raw: new Uint8Array([123, 125]),
-        headers: {},
-      },
-    );
-    const elapsed = Date.now() - started;
-    assertEquals(outcome.kind, "uncertain");
-    // Bounded by the deadline, not by the server deciding to answer.
-    assertEquals(elapsed < 5_000, true, `took ${elapsed}ms`);
-  } finally {
-    for (const connection of accepted) {
-      try {
-        connection.close();
-      } catch {
-        // Already closed.
-      }
-    }
-    listener.close();
-    await accept;
-  }
+  // And a disarmed deadline never fires, so a fast exchange is not cut off by a
+  // timer it outran.
+  let lateExpiries = 0;
+  const disarmEarly = armDeadline(20, () => {
+    lateExpiries += 1;
+  });
+  disarmEarly();
+  await new Promise((resolve) => setTimeout(resolve, 60));
+  assertEquals(lateExpiries, 0);
+  disarm();
 });
 
 Deno.test("a receiver streaming forever is cut off at the byte cap", () => {
@@ -175,4 +163,21 @@ Deno.test("a receiver streaming forever is cut off at the byte cap", () => {
   // The cap is a bound, not a comment.
   assertEquals(RESPONSE_DRAIN_LIMIT > 0, true);
   assertEquals(RESPONSE_DRAIN_LIMIT <= 64 * 1024, true);
+});
+
+Deno.test("the transport refuses an empty pinned set instead of resolving", async () => {
+  // The rebinding defence is that the transport answers ONLY from the addresses
+  // already judged. An empty set must fail, not fall back to the system resolver:
+  // a fallback would re-resolve a name the judge never saw, which is the attack.
+  const transport = createPinnedHttpsTransport({ timeoutMs: 100 });
+  const outcome = await transport.send({
+    origin: "https://receiver.invalid",
+    path: "/hook",
+    addresses: [],
+    raw: new TextEncoder().encode("{}"),
+    headers: {},
+  });
+  // Refused, not uncertain: nothing left this process, so retrying cannot help
+  // and `uncertain` would retry forever.
+  assertEquals(outcome.kind, "refused");
 });

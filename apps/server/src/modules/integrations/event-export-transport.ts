@@ -133,6 +133,25 @@ export function createResponseHandler(
   };
 }
 
+/**
+ * Arms the total deadline for one exchange and answers its disarm.
+ *
+ * Separated from the transport so the deadline can be proved without a socket:
+ * the unit lane has no net permission, and a test that needs one is a test that
+ * fails on the lane it belongs to. `onExpire` is what actually ends the attempt,
+ * so the caller decides whether that means destroying a socket or settling a
+ * fake.
+ */
+export function armDeadline(
+  timeoutMs: number,
+  onExpire: () => void,
+): () => void {
+  const timer = setTimeout(onExpire, timeoutMs);
+  // The timer must never be the reason the process stays alive.
+  if (typeof timer === "object" && "unref" in timer) timer.unref();
+  return () => clearTimeout(timer);
+}
+
 /** How long one delivery may take before it is treated as uncertain. */
 export const EXPORT_TIMEOUT_MS = 10_000;
 
@@ -150,6 +169,16 @@ export function createPinnedHttpsTransport(
   const timeoutMs = options.timeoutMs ?? EXPORT_TIMEOUT_MS;
   return {
     send(input) {
+      // Dispatch refuses an unresolved destination before it ever gets here, so an
+      // empty set means a caller skipped that check. The transport still answers
+      // `refused` rather than letting the socket error surface as `uncertain`:
+      // nothing was sent, so retrying cannot help, and `uncertain` would retry
+      // forever on a state that will never change. Status 0 marks "no HTTP
+      // exchange took place": real statuses start at 100, so this cannot be
+      // mistaken for a receiver's answer.
+      if (input.addresses.length === 0) {
+        return Promise.resolve({ kind: "refused" as const, status: 0 });
+      }
       return new Promise<DeliveryOutcome>((resolve) => {
         const url = new URL(`${input.origin}${input.path}`);
         let settled = false;
