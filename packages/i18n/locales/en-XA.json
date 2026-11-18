@@ -4167,5 +4167,7 @@
   "projects.repository.test.foreign": "⟦Ŧĥàŧ ñàɱë ƀëļôñĝš ŧô àñôŧĥëŕ àþþļïçàŧïôñ. ŧëšŧ çôþÿ ŧë⟧",
   "projects.repository.test.failed": "⟦Ŧĥë ñàɱë çôûļð ñôŧ ƀë ŧëšŧëð. Ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧ⟧",
   "projects.repository.test.empty": "⟦Ëñŧëŕ à ñàɱë. ŧë⟧",
-  "issues.next.openRepositorySetup": "⟦Ôþëñ {name}'š šëŧûþ ŧëšŧ⟧"
+  "issues.next.openRepositorySetup": "⟦Ôþëñ {name}'š šëŧûþ ŧëšŧ⟧",
+  "projects.repository.names.form.used": "⟦“{name}” ïš àļŕëàðÿ ûšëð ïñ ŧĥïš àþþļïçàŧïôñ. Ñàɱëš ɱûšŧ ƀë ûñïǫûë ïñ àñ àþþļïçàŧïôñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
+  "projects.repository.support.copy": "⟦Çôþÿ {name} ŧ⟧"
 }

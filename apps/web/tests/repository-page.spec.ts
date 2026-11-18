@@ -1431,8 +1431,14 @@ test.describe("names, testing a name, and details for support", () => {
     await sheet(page).getByLabel(/^Name\*?$/).fill("api");
     await sheet(page).getByRole("button", { name: "Save name" }).click();
     await expect(
-      sheet(page).getByText(/That name is already used in this application/),
+      sheet(page).getByText(
+        "“api” is already used in this application. Names must be unique in an application.",
+      ),
     ).toBeVisible();
+    await expect(sheet(page).getByLabel(/^Name\*?$/)).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
     await expect(card(page).getByTestId("name-api")).toHaveCount(0);
   });
 
@@ -1547,6 +1553,9 @@ test.describe("names, testing a name, and details for support", () => {
     await details.getByRole("button", { name: "Details for support" }).click();
     await expect(details.getByText(REPOSITORY_ID)).toBeVisible();
     await expect(details).toContainText("Settings version in use");
+    // Each known value has its own Copy, named for what it copies.
+    await expect(details.getByRole("button", { name: "Copy Repository" }))
+      .toBeVisible();
     // No check is known, so its details say so.
     await expect(
       details.getByText("Not known", { exact: true }).first(),

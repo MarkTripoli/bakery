@@ -81,16 +81,19 @@ export function NamesSheet(
             </UI.InlineNotice>
           )
           : null}
-        {writes.failure === null ? null : (
-          <UI.InlineNotice
-            role="alert"
-            tone={writes.failure === "conflict" ? "warning" : "error"}
-          >
-            {translate(
-              `projects.repository.names.failure.${writes.failure}` as never,
-            )}
-          </UI.InlineNotice>
-        )}
+        {writes.failure === null ||
+            (writes.failure === "conflict" && editing === null)
+          ? null
+          : (
+            <UI.InlineNotice
+              role="alert"
+              tone={writes.failure === "conflict" ? "warning" : "error"}
+            >
+              {translate(
+                `projects.repository.names.failure.${writes.failure}` as never,
+              )}
+            </UI.InlineNotice>
+          )}
         {names.length === 0 ? null : (
           <UI.Stack
             gap="compact"
@@ -194,7 +197,11 @@ export function NamesSheet(
                 hint={translate(
                   "projects.repository.names.form.nameHelp" as never,
                 )}
-                error={tried && problem === "empty"
+                error={writes.failure === "conflict" && editing === null
+                  ? translate("projects.repository.names.form.used" as never, {
+                    name: values.name.trim(),
+                  })
+                  : tried && problem === "empty"
                   ? translate("projects.repository.names.form.empty" as never)
                   : tried && problem === "tooLong"
                   ? translate("projects.repository.names.form.tooLong" as never)
@@ -206,7 +213,8 @@ export function NamesSheet(
                   name="name"
                   autoComplete="off"
                   disabled={disabled}
-                  invalid={tried && problem !== null}
+                  invalid={(tried && problem !== null) ||
+                    (writes.failure === "conflict" && editing === null)}
                   value={values.name}
                   onChange={(name) => set({ name })}
                 />

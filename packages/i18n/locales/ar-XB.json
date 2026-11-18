@@ -4167,5 +4167,7 @@
   "projects.repository.test.foreign": "⟪That name belongs to another application.⟫",
   "projects.repository.test.failed": "⟪The name could not be tested. Try again.⟫",
   "projects.repository.test.empty": "⟪Enter a name.⟫",
-  "issues.next.openRepositorySetup": "⟪Open {name}'s setup⟫"
+  "issues.next.openRepositorySetup": "⟪Open {name}'s setup⟫",
+  "projects.repository.names.form.used": "⟪“{name}” is already used in this application. Names must be unique in an application.⟫",
+  "projects.repository.support.copy": "⟪Copy {name}⟫"
 }

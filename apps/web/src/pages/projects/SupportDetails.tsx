@@ -11,6 +11,7 @@ import {
   repositoryProfileObservationQueryOptions,
 } from "../../api/query.ts";
 import { useProtectedScope } from "../../app/query-scope-context.tsx";
+import { CopyValueButton } from "../CopyValueButton.tsx";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 
 /**
@@ -76,10 +77,25 @@ export function SupportDetails(
               key={key}
               title={translate(`projects.repository.support.${key}` as never)}
               description={
-                <UI.DataText>
-                  {value ??
-                    translate("projects.repository.support.none" as never)}
-                </UI.DataText>
+                <UI.Inline gap="compact">
+                  <UI.DataText>
+                    {value ??
+                      translate("projects.repository.support.none" as never)}
+                  </UI.DataText>
+                  {value === null ? null : (
+                    <CopyValueButton
+                      label={translate(
+                        "projects.repository.support.copy" as never,
+                        {
+                          name: translate(
+                            `projects.repository.support.${key}` as never,
+                          ),
+                        },
+                      )}
+                      value={value}
+                    />
+                  )}
+                </UI.Inline>
               }
             />
           ))}
