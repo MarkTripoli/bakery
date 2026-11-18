@@ -8,6 +8,10 @@ import {
 import type { ActionAttribution } from "../auth/application/action-attribution.ts";
 import { sha256Bytes } from "./bytes.ts";
 import { commitArtifactVersion } from "./persistence.ts";
+import {
+  projectDraftThreads,
+  type ResolvedThreadProjection,
+} from "./draft-comment-projection.ts";
 export { DRAFT_SOURCE_METADATA_KEYS } from "./draft-source-metadata.ts";
 
 /**
@@ -71,6 +75,11 @@ export type PublishFrozenDraftInput = Readonly<{
    * that has a store today, so it is the one that writes blob-backed versions.
    */
   blobStore?: OrganizationBlobStore;
+  /**
+   * Draft threads to copy onto the new version, resolved at this cutoff. Only
+   * a first publication projects: a replay answers with what was committed.
+   */
+  projection?: ResolvedThreadProjection;
 }>;
 
 type PublicationRow = {
@@ -285,6 +294,30 @@ export async function publishFrozenDraft(
   });
   const versionId = version.id as string;
   const versionNumber = version.revision as number;
+  if (input.projection) {
+    if (
+      input.projection.draftId !== frozen.draftId ||
+      input.projection.checkpointId !== frozen.checkpointId
+    ) throw new Error("DRAFT_PROJECTION_CHECKPOINT_MISMATCH");
+    await projectDraftThreads(transaction, {
+      organizationId,
+      projection: input.projection,
+      version: {
+        id: versionId,
+        artifactId: draft.artifact_id,
+        content: frozen.content,
+        mediaType: frozen.mediaType,
+        sha256: frozen.sha256,
+      },
+      scope: {
+        applicationId: draft.application_id,
+        repositoryId: draft.repository_id,
+        taskId: draft.task_id,
+        conversationId: draft.conversation_id,
+      },
+      traceId: input.traceId,
+    });
+  }
   await transaction.query(
     `insert into bakery.artifact_draft_publications (
        organization_id,draft_id,epoch,checkpoint_id,server_sequence,
@@ -336,6 +369,7 @@ export async function publishFrozenDraft(
       versionNumber,
       actorKind: attribution.actorKind,
       accessTokenId: attribution.accessTokenId,
+      projectedThreads: input.projection?.rootIds ?? [],
     },
   });
   if (audited !== 1) throw new Error("DRAFT_PUBLICATION_AUDIT_INSERT_FAILED");
@@ -348,6 +382,20 @@ export async function publishFrozenDraft(
   );
   if (!publication) throw new Error("DRAFT_PUBLICATION_READBACK_MISSING");
   return { publication, replayed: false };
+}
+
+/** True when this exact checkpoint already became a version (a replay). */
+export async function draftCheckpointPublished(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  draftId: string,
+  checkpointId: string,
+): Promise<boolean> {
+  return (await transaction.query(
+    `select 1 from bakery.artifact_draft_publications
+      where organization_id=$1 and draft_id=$2 and checkpoint_id=$3`,
+    [organizationId, draftId, checkpointId],
+  )).rows.length === 1;
 }
 
 /** "Was this checkpoint published?": the publication, or RESOURCE_NOT_FOUND. */

@@ -434,6 +434,11 @@ export const DraftImplementedAction = Object.freeze(
     SuggestionList: "draftSuggestions.list",
     SuggestionAccept: "draftSuggestions.accept",
     SuggestionReject: "draftSuggestions.reject",
+    CommentCreate: "draftComments.create",
+    CommentList: "draftComments.list",
+    CommentUpdate: "draftComments.update",
+    ReferenceCreate: "draftReferences.create",
+    ReferenceGet: "draftReferences.get",
   } as const satisfies Record<string, CatalogActionName>,
 );
 
