@@ -214,7 +214,7 @@ test.describe("single sign-on settings against the real API", () => {
   test("registers an OIDC provider the backend stores and the page keeps after a reload", async ({ page, baseURL }) => {
     await openAsAdmin(page, baseURL);
     await page.getByRole("button", { name: "Add provider" }).click();
-    await page.getByLabel("Display name").fill(PROVIDER);
+    await page.getByLabel("Provider name").fill(PROVIDER);
     await page.getByLabel("Issuer URL").fill(server.issuer.issuer);
     await page.getByLabel("Client ID").fill(server.issuer.clientId);
     await page.getByLabel("Client secret", { exact: true }).fill(
@@ -398,7 +398,7 @@ test.describe("single sign-on settings against the real API", () => {
     await openAsAdmin(page, baseURL);
     await page.getByRole("button", { name: "Add provider" }).click();
     await page.getByRole("radio", { name: "SAML" }).check();
-    await page.getByLabel("Display name").fill(SAML_PROVIDER);
+    await page.getByLabel("Provider name").fill(SAML_PROVIDER);
     await page.getByLabel("Email domain").fill(SAML_DOMAIN);
     await shot(page, "sso-add-saml");
     await page.getByLabel("Identity provider metadata").fill(

@@ -610,23 +610,25 @@ function ProviderForm({
               <UI.Text variant="strong">
                 {translate("settings.sso.protocol.label")}
               </UI.Text>
-              <UI.SegmentedControl
-                aria-label={translate("settings.sso.protocol.label")}
-                name="sso-protocol"
-                variant="inline"
-                value={protocol}
-                onChange={(value) => setProtocol(value as Protocol)}
-                options={[
-                  {
-                    value: "saml",
-                    label: translate("settings.sso.protocol.saml"),
-                  },
-                  {
-                    value: "oidc",
-                    label: translate("settings.sso.protocol.oidc.long"),
-                  },
-                ]}
-              />
+              <UI.Inline>
+                <UI.SegmentedControl
+                  aria-label={translate("settings.sso.protocol.label")}
+                  name="sso-protocol"
+                  variant="inline"
+                  value={protocol}
+                  onChange={(value) => setProtocol(value as Protocol)}
+                  options={[
+                    {
+                      value: "saml",
+                      label: translate("settings.sso.protocol.saml"),
+                    },
+                    {
+                      value: "oidc",
+                      label: translate("settings.sso.protocol.oidc.long"),
+                    },
+                  ]}
+                />
+              </UI.Inline>
               <UI.Text variant="muted">
                 {translate("settings.sso.protocol.help")}
               </UI.Text>

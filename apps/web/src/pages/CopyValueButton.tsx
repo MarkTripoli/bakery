@@ -44,16 +44,22 @@ export function CopyValueButton(
           )}
         </UI.Button>
       </UI.Inline>
-      {result === "failed"
-        ? (
-          <UI.Text variant="muted">
-            {translate("settings.copy.failed")}
-          </UI.Text>
-        )
-        : null}
-      <UI.VisuallyHidden as="div" role="status">
-        {result === "copied" ? translate("settings.copy.copied") : null}
-      </UI.VisuallyHidden>
+      <UI.Stack gap="compact" role="status">
+        {result === "failed"
+          ? (
+            <UI.Text variant="muted">
+              {translate("settings.copy.failed")}
+            </UI.Text>
+          )
+          : null}
+        {result === "copied"
+          ? (
+            <UI.VisuallyHidden as="div">
+              {translate("settings.copy.copied")}
+            </UI.VisuallyHidden>
+          )
+          : null}
+      </UI.Stack>
     </UI.Stack>
   );
 }

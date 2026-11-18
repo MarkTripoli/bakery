@@ -1840,10 +1840,7 @@
   "settings.scim.status.revoked": "⟪Revoked⟫",
   "settings.scim.created": "⟪Created⟫",
   "settings.scim.never": "⟪Never⟫",
-  "settings.scim.lifetime.label": "⟪Credential lifetime⟫",
   "settings.scim.lifetime.days": "⟪{days} days⟫",
-  "settings.scim.credentials.caption": "⟪SCIM credentials⟫",
-  "settings.scim.column.prefix": "⟪Credential⟫",
   "settings.scim.column.status": "⟪Status⟫",
   "settings.scim.column.expires": "⟪Expires⟫",
   "settings.scim.column.lastUsed": "⟪Last used⟫",
@@ -1854,7 +1851,6 @@
   "settings.scim.token.copy": "⟪Copy token⟫",
   "settings.scim.token.copied": "⟪Copied⟫",
   "settings.scim.token.done": "⟪I have stored the token⟫",
-  "settings.scim.overlap.label": "⟪Keep the earlier credential working for⟫",
   "settings.scim.overlap.0": "⟪Not at all⟫",
   "settings.scim.overlap.30": "⟪30 minutes⟫",
   "settings.scim.overlap.1440": "⟪24 hours⟫",
@@ -1892,7 +1888,6 @@
   "settings.sso.provider.deleted": "⟪Provider removed.⟫",
   "settings.sso.provider.deleteError": "⟪The provider could not be removed.⟫",
   "settings.sso.provider.saved": "⟪Provider saved. Verify its domain to turn it on.⟫",
-  "settings.sso.field.providerId": "⟪Display name⟫",
   "settings.sso.field.domain": "⟪Email domain⟫",
   "settings.sso.field.issuer": "⟪Issuer URL⟫",
   "settings.sso.field.clientId": "⟪Client ID⟫",
@@ -4109,5 +4104,10 @@
   "settings.sso.field.metadata.hint": "⟪Paste the metadata XML from your identity provider, or the URL where it is published.⟫",
   "settings.sso.verify.pending": "⟪We could not find the record yet. DNS changes can take up to an hour.⟫",
   "settings.sso.verify.checkAgainLabel": "⟪Check again for {name}⟫",
-  "settings.sso.verify.copyType": "⟪Copy type⟫"
+  "settings.sso.verify.copyType": "⟪Copy type⟫",
+  "settings.scim.lifetime.label": "⟪Token lifetime⟫",
+  "settings.scim.credentials.caption": "⟪SCIM tokens⟫",
+  "settings.scim.column.prefix": "⟪Token⟫",
+  "settings.scim.overlap.label": "⟪Keep the earlier token working for⟫",
+  "settings.sso.field.providerId": "⟪Provider name⟫"
 }

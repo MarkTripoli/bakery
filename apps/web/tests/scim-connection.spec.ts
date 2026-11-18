@@ -242,11 +242,11 @@ for (
       const list = page.getByTestId("scim-credentials-list");
       if (viewport.name === "desktop") {
         await expect(list).toHaveCount(0);
-        await expect(page.getByRole("table", { name: "SCIM credentials" }))
+        await expect(page.getByRole("table", { name: "SCIM tokens" }))
           .toBeVisible();
         return;
       }
-      await expect(page.getByRole("table", { name: "SCIM credentials" }))
+      await expect(page.getByRole("table", { name: "SCIM tokens" }))
         .toHaveCount(0);
       const rows = list.getByRole("listitem");
       await expect(rows).toHaveCount(4);
@@ -278,7 +278,7 @@ for (
       await scimFixture(page, { initial: "none" });
       await page.goto("/settings/scim");
       // The create form's own select; the rotate dialog holds another one.
-      const select = page.getByRole("combobox", { name: "Credential lifetime" })
+      const select = page.getByRole("combobox", { name: "Token lifetime" })
         .first();
       const create = page.getByRole("button", { name: "Set up provisioning" });
       await expect(create).toBeVisible();

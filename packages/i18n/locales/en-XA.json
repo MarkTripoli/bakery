@@ -1840,10 +1840,7 @@
   "settings.scim.status.revoked": "⟦Ŕëṽôķëð…⟧",
   "settings.scim.created": "⟦Çŕëàŧëð…⟧",
   "settings.scim.never": "⟦Ñëṽëŕ⟧",
-  "settings.scim.lifetime.label": "⟦Çŕëðëñŧïàļ ļïƒëŧïɱë ŧëšŧ⟧",
   "settings.scim.lifetime.days": "⟦{days} ðàÿš ŧ⟧",
-  "settings.scim.credentials.caption": "⟦ŠÇÏṀ çŕëðëñŧïàļš ŧëš⟧",
-  "settings.scim.column.prefix": "⟦Çŕëðëñŧïàļ ŧ⟧",
   "settings.scim.column.status": "⟦Šŧàŧûš…⟧",
   "settings.scim.column.expires": "⟦Ëẋþïŕëš…⟧",
   "settings.scim.column.lastUsed": "⟦Ļàšŧ ûšëð ŧ⟧",
@@ -1854,7 +1851,6 @@
   "settings.scim.token.copy": "⟦Çôþÿ ŧôķëñ ŧ⟧",
   "settings.scim.token.copied": "⟦Çôþïëð…⟧",
   "settings.scim.token.done": "⟦Ï ĥàṽë šŧôŕëð ŧĥë ŧôķëñ ŧëšŧ ç⟧",
-  "settings.scim.overlap.label": "⟦Ķëëþ ŧĥë ëàŕļïëŕ çŕëðëñŧïàļ ŵôŕķïñĝ ƒôŕ ŧëšŧ çôþÿ ŧ⟧",
   "settings.scim.overlap.0": "⟦Ñôŧ àŧ àļļ ŧ⟧",
   "settings.scim.overlap.30": "⟦30 ɱïñûŧëš ŧ⟧",
   "settings.scim.overlap.1440": "⟦24 ĥôûŕš…⟧",
@@ -1892,7 +1888,6 @@
   "settings.sso.provider.deleted": "⟦Þŕôṽïðëŕ ŕëɱôṽëð. ŧëš⟧",
   "settings.sso.provider.deleteError": "⟦Ŧĥë þŕôṽïðëŕ çôûļð ñôŧ ƀë ŕëɱôṽëð. ŧëšŧ çôþÿ⟧",
   "settings.sso.provider.saved": "⟦Þŕôṽïðëŕ šàṽëð. Ṽëŕïƒÿ ïŧš ðôɱàïñ ŧô ŧûŕñ ïŧ ôñ. ŧëšŧ çôþÿ ŧëšŧ⟧",
-  "settings.sso.field.providerId": "⟦Ðïšþļàÿ ñàɱë ŧë⟧",
   "settings.sso.field.domain": "⟦Ëɱàïļ ðôɱàïñ ŧë⟧",
   "settings.sso.field.issuer": "⟦Ïššûëŕ ÛŔĻ ŧ⟧",
   "settings.sso.field.clientId": "⟦Çļïëñŧ ÏÐ ŧ⟧",
@@ -4109,5 +4104,10 @@
   "settings.sso.field.metadata.hint": "⟦Þàšŧë ŧĥë ɱëŧàðàŧà ẊṀĻ ƒŕôɱ ÿôûŕ ïðëñŧïŧÿ þŕôṽïðëŕ, ôŕ ŧĥë ÛŔĻ ŵĥëŕë ïŧ ïš þûƀļïšĥëð. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "settings.sso.verify.pending": "⟦Ŵë çôûļð ñôŧ ƒïñð ŧĥë ŕëçôŕð ÿëŧ. ÐÑŠ çĥàñĝëš çàñ ŧàķë ûþ ŧô àñ ĥôûŕ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
   "settings.sso.verify.checkAgainLabel": "⟦Çĥëçķ àĝàïñ ƒôŕ {name} ŧëšŧŧ⟧",
-  "settings.sso.verify.copyType": "⟦Çôþÿ ŧÿþë ŧ⟧"
+  "settings.sso.verify.copyType": "⟦Çôþÿ ŧÿþë ŧ⟧",
+  "settings.scim.lifetime.label": "⟦Ŧôķëñ ļïƒëŧïɱë ŧë⟧",
+  "settings.scim.credentials.caption": "⟦ŠÇÏṀ ŧôķëñš ŧ⟧",
+  "settings.scim.column.prefix": "⟦Ŧôķëñ⟧",
+  "settings.scim.overlap.label": "⟦Ķëëþ ŧĥë ëàŕļïëŕ ŧôķëñ ŵôŕķïñĝ ƒôŕ ŧëšŧ çôþÿ⟧",
+  "settings.sso.field.providerId": "⟦Þŕôṽïðëŕ ñàɱë ŧë⟧"
 }

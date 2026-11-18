@@ -174,7 +174,7 @@ test.describe("single sign-on settings", () => {
     ).toBeVisible();
     for (
       const [label, help] of [
-        ["Display name", "Shown to members on the sign-in page"],
+        ["Provider name", "Shown to members on the sign-in page"],
         ["Issuer URL", "The address of your identity provider"],
         ["Client ID", "Copy this from the application you created"],
         ["Client secret", "Copy this from the same place."],
@@ -254,7 +254,7 @@ test.describe("single sign-on settings", () => {
       .toBeVisible();
     await expect(page.getByRole("radio", { name: "OpenID Connect" }))
       .toBeChecked();
-    await page.getByLabel("Display name").fill("okta");
+    await page.getByLabel("Provider name").fill("okta");
     await page.getByLabel("Issuer URL").fill("https://acme.okta.example");
     await page.getByLabel("Client ID").fill("0oa8k2m4n6p");
     await page.getByLabel("Client secret", { exact: true }).fill(
@@ -278,7 +278,7 @@ test.describe("single sign-on settings", () => {
     await page.goto("/settings/organization/sso");
     await page.getByRole("button", { name: "Add provider" }).click();
     await page.getByRole("radio", { name: "SAML" }).check();
-    await page.getByLabel("Display name").fill("entra");
+    await page.getByLabel("Provider name").fill("entra");
     await page.getByLabel("Identity provider metadata").fill(SAML_METADATA);
     await page.getByLabel("Email domain").fill("acme.example");
     await page.getByRole("button", { name: "Save provider" }).click();
@@ -301,7 +301,7 @@ test.describe("single sign-on settings", () => {
     await page.goto("/settings/organization/sso");
     await page.getByRole("button", { name: "Add provider" }).click();
     await page.getByRole("radio", { name: "SAML" }).check();
-    await page.getByLabel("Display name").fill("entra");
+    await page.getByLabel("Provider name").fill("entra");
     await page.getByLabel("Identity provider metadata").fill(
       "<EntityDescriptor/>",
     );
