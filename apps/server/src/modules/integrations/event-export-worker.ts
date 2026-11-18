@@ -52,7 +52,15 @@ type SubscriptionRow = {
   origin: string;
   path: string;
   destination_status: string;
-  recipient_principal_id: string;
+  /**
+   * The principal the export runs as.
+   *
+   * Taken from the connection rather than the destination: a destination has no
+   * recipient principal, and inventing one is how this query first failed on a
+   * fresh database. The connection records who granted it, and the export is an
+   * act of that connection.
+   */
+  created_by: string;
   secret_version_id: string;
 };
 
@@ -90,12 +98,15 @@ export async function exportSourceEvent(
             destination.origin,
             destination.path,
             destination.status as destination_status,
-            destination.recipient_principal_id,
+            connection.created_by,
             destination.secret_version_id
        from bakery.integration_event_subscriptions as subscription
        join bakery.integration_destinations as destination
          on destination.organization_id = subscription.organization_id
         and destination.id = subscription.destination_id
+       join bakery.integration_connections as connection
+         on connection.organization_id = subscription.organization_id
+        and connection.id = subscription.connection_id
       where subscription.organization_id = $1
         and subscription.source_resource_id = $2
         and subscription.status = 'active'
@@ -197,7 +208,7 @@ async function loadAuthority(
 ) {
   const snapshot = await dependencies.authority.load({
     organizationId: event.organizationId,
-    actorRef: row.recipient_principal_id,
+    actorRef: row.created_by,
     connectionId: row.connection_id,
     resourceId: event.sourceResourceId,
   });
