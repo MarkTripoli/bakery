@@ -13717,13 +13717,9 @@ export const clientManifest = {
         },
         "taskType": {
           "type": "string",
-          "enum": [
-            "feature",
-            "bug",
-            "epic",
-            "maintenance"
-          ],
-          "description": "Classification of the work: `feature`, `bug`, `maintenance`, or `epic`. An `epic` is a parent task that completes only after its required child tasks complete, not merely when it is decomposed into them."
+          "minLength": 1,
+          "maxLength": 40,
+          "description": "TaskCreate.taskType must contain at most 40 characters."
         },
         "title": {
           "type": "string",
@@ -22322,12 +22318,7 @@ export const clientManifest = {
               },
               "taskType": {
                 "type": "string",
-                "enum": [
-                  "feature",
-                  "bug",
-                  "epic",
-                  "maintenance"
-                ],
+                "maxLength": 65536,
                 "description": "Classification of work represented by the record."
               },
               "status": {
@@ -37661,12 +37652,7 @@ export const clientManifest = {
         },
         "taskType": {
           "type": "string",
-          "enum": [
-            "feature",
-            "bug",
-            "epic",
-            "maintenance"
-          ],
+          "maxLength": 65536,
           "description": "Classification of work represented by the record."
         },
         "status": {

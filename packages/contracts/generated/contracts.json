@@ -44048,13 +44048,9 @@
             },
             "taskType": {
               "type": "string",
-              "enum": [
-                "feature",
-                "bug",
-                "epic",
-                "maintenance"
-              ],
-              "description": "Classification of the work: `feature`, `bug`, `maintenance`, or `epic`. An `epic` is a parent task that completes only after its required child tasks complete, not merely when it is decomposed into them."
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "TaskCreate.taskType must contain at most 40 characters."
             },
             "title": {
               "type": "string",
@@ -57071,13 +57067,9 @@
             },
             "taskType": {
               "type": "string",
-              "enum": [
-                "feature",
-                "bug",
-                "epic",
-                "maintenance"
-              ],
-              "description": "Task classification copied from the task row."
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "TaskBrief.taskType must contain at most 40 characters."
             },
             "approvedPlan": {
               "description": "Plan revision a human approved for this task, frozen with the brief; absent when the plan stage ran without an approval.",
@@ -57298,13 +57290,9 @@
                 },
                 "taskType": {
                   "type": "string",
-                  "enum": [
-                    "feature",
-                    "bug",
-                    "epic",
-                    "maintenance"
-                  ],
-                  "description": "Task classification copied from the task row."
+                  "minLength": 1,
+                  "maxLength": 40,
+                  "description": "TaskBrief.taskType must contain at most 40 characters."
                 },
                 "approvedPlan": {
                   "description": "Plan revision a human approved for this task, frozen with the brief; absent when the plan stage ran without an approval.",
@@ -60662,12 +60650,7 @@
             },
             "taskType": {
               "type": "string",
-              "enum": [
-                "feature",
-                "bug",
-                "epic",
-                "maintenance"
-              ],
+              "maxLength": 65536,
               "description": "Classification of work represented by the task record."
             },
             "status": {
@@ -61080,12 +61063,7 @@
             },
             "taskType": {
               "type": "string",
-              "enum": [
-                "feature",
-                "bug",
-                "epic",
-                "maintenance"
-              ],
+              "maxLength": 65536,
               "description": "Classification of work represented by the task record."
             },
             "status": {
@@ -61498,12 +61476,7 @@
             },
             "taskType": {
               "type": "string",
-              "enum": [
-                "feature",
-                "bug",
-                "epic",
-                "maintenance"
-              ],
+              "maxLength": 65536,
               "description": "Classification of work represented by the record."
             },
             "status": {
@@ -118547,12 +118520,7 @@
                   },
                   "taskType": {
                     "type": "string",
-                    "enum": [
-                      "feature",
-                      "bug",
-                      "epic",
-                      "maintenance"
-                    ],
+                    "maxLength": 65536,
                     "description": "Classification of work represented by the record."
                   },
                   "status": {
@@ -174010,13 +173978,9 @@
                         },
                         "taskType": {
                           "type": "string",
-                          "enum": [
-                            "feature",
-                            "bug",
-                            "epic",
-                            "maintenance"
-                          ],
-                          "description": "Task classification copied from the task row."
+                          "minLength": 1,
+                          "maxLength": 40,
+                          "description": "TaskBrief.taskType must contain at most 40 characters."
                         },
                         "approvedPlan": {
                           "description": "Plan revision a human approved for this task, frozen with the brief; absent when the plan stage ran without an approval.",
@@ -210603,7 +210567,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:078340f822388cde6c8081379dd439bb6de5821d1b0754833ecc11e3cfaa5186",
+  "compatibilityDigest": "sha256:5fcf7f018fe6f941f8c1ef92ebdd37bd9f2e31e60adb81705cd005bfa9377cff",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -221151,13 +221115,9 @@
         },
         "taskType": {
           "type": "string",
-          "enum": [
-            "feature",
-            "bug",
-            "epic",
-            "maintenance"
-          ],
-          "description": "Classification of the work: `feature`, `bug`, `maintenance`, or `epic`. An `epic` is a parent task that completes only after its required child tasks complete, not merely when it is decomposed into them."
+          "minLength": 1,
+          "maxLength": 40,
+          "description": "TaskCreate.taskType must contain at most 40 characters."
         },
         "title": {
           "type": "string",
@@ -234222,13 +234182,9 @@
         },
         "taskType": {
           "type": "string",
-          "enum": [
-            "feature",
-            "bug",
-            "epic",
-            "maintenance"
-          ],
-          "description": "Task classification copied from the task row."
+          "minLength": 1,
+          "maxLength": 40,
+          "description": "TaskBrief.taskType must contain at most 40 characters."
         },
         "approvedPlan": {
           "description": "Plan revision a human approved for this task, frozen with the brief; absent when the plan stage ran without an approval.",
@@ -234449,13 +234405,9 @@
             },
             "taskType": {
               "type": "string",
-              "enum": [
-                "feature",
-                "bug",
-                "epic",
-                "maintenance"
-              ],
-              "description": "Task classification copied from the task row."
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "TaskBrief.taskType must contain at most 40 characters."
             },
             "approvedPlan": {
               "description": "Plan revision a human approved for this task, frozen with the brief; absent when the plan stage ran without an approval.",
@@ -237819,12 +237771,7 @@
         },
         "taskType": {
           "type": "string",
-          "enum": [
-            "feature",
-            "bug",
-            "epic",
-            "maintenance"
-          ],
+          "maxLength": 65536,
           "description": "Classification of work represented by the task record."
         },
         "status": {
@@ -238239,12 +238186,7 @@
         },
         "taskType": {
           "type": "string",
-          "enum": [
-            "feature",
-            "bug",
-            "epic",
-            "maintenance"
-          ],
+          "maxLength": 65536,
           "description": "Classification of work represented by the task record."
         },
         "status": {
@@ -238659,12 +238601,7 @@
         },
         "taskType": {
           "type": "string",
-          "enum": [
-            "feature",
-            "bug",
-            "epic",
-            "maintenance"
-          ],
+          "maxLength": 65536,
           "description": "Classification of work represented by the record."
         },
         "status": {
@@ -295910,12 +295847,7 @@
               },
               "taskType": {
                 "type": "string",
-                "enum": [
-                  "feature",
-                  "bug",
-                  "epic",
-                  "maintenance"
-                ],
+                "maxLength": 65536,
                 "description": "Classification of work represented by the record."
               },
               "status": {
@@ -351457,13 +351389,9 @@
                     },
                     "taskType": {
                       "type": "string",
-                      "enum": [
-                        "feature",
-                        "bug",
-                        "epic",
-                        "maintenance"
-                      ],
-                      "description": "Task classification copied from the task row."
+                      "minLength": 1,
+                      "maxLength": 40,
+                      "description": "TaskBrief.taskType must contain at most 40 characters."
                     },
                     "approvedPlan": {
                       "description": "Plan revision a human approved for this task, frozen with the brief; absent when the plan stage ran without an approval.",
