@@ -267,6 +267,7 @@ for (
       await expect(confirm).toContainText(
         "No members have this role, so nobody's access changes.",
       );
+      await shot(page, "custom-roles-delete-dialog", [], { windowOnly: true });
       const writesBefore = state.writes.length;
       await confirm.getByRole("button", { name: "Cancel" }).click();
       expect(state.writes).toHaveLength(writesBefore);
@@ -378,6 +379,7 @@ for (
       await expect(row).toContainText(
         "Remove its 2 members first to delete this role.",
       );
+      await shot(page, "custom-roles-with-members");
     });
 
     test("a refused write names the reason and keeps the form open", async ({ page }) => {
