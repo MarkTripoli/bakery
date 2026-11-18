@@ -8094,6 +8094,52 @@
     {
       "group": "Tickets",
       "method": "GET",
+      "path": "/v1/ticket-sources/{id}/routing-rules",
+      "action": "ticketRoutingRules.get",
+      "access": "Developer",
+      "permission": "ticketSource:read",
+      "input": "IdPath",
+      "output": "TicketRoutingRuleSet",
+      "event": "",
+      "mcp": null,
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Tickets",
+      "method": "PUT",
+      "path": "/v1/ticket-sources/{id}/routing-rules",
+      "action": "ticketRoutingRules.replace",
+      "access": "Admin",
+      "permission": "ticketSource:manage",
+      "input": "TicketRoutingRulesReplace",
+      "output": "TicketRoutingRuleSet",
+      "event": "ticket.source_changed",
+      "mcp": null,
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "PRECONDITION_FAILED",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Tickets",
+      "method": "GET",
       "path": "/v1/external-tickets",
       "action": "externalTickets.list",
       "access": "Developer",

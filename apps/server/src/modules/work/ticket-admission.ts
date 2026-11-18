@@ -76,6 +76,7 @@ import {
   findNonterminalRequest,
   insertPrimaryLink,
   insertRequest,
+  insertRequestTargets,
   latestReport,
   lockSource,
   lockTaskForUpdate,
@@ -96,6 +97,11 @@ import {
   upsertExternalTicket,
 } from "./ticket-store.ts";
 import type { TicketSourceReader } from "./ticket-source-reader.ts";
+import {
+  readRouteRules,
+  resolveTicketRoutes,
+  type TicketRouteResolution,
+} from "./ticket-routing.ts";
 import { presetAvailability } from "./workflow-presets.ts";
 
 /**
@@ -338,6 +344,29 @@ async function sourceFacts(frame: Frame): Promise<ReadinessSourceFacts> {
   };
 }
 
+/** The route of each frame's ticket, resolved at most once per admission. */
+const frameRoutes = new WeakMap<Frame, Promise<TicketRouteResolution>>();
+
+/**
+ * Label routing of the frame's ticket under the source lock the frame holds:
+ * the rules are read and resolved once, so the readiness report and the
+ * targets an admission pins come from the same answer.
+ */
+function routeOf(frame: Frame): Promise<TicketRouteResolution> {
+  let route = frameRoutes.get(frame);
+  if (route === undefined) {
+    route = readRouteRules(frame.transaction, frame.source).then((rules) =>
+      resolveTicketRoutes(
+        issueLabels(frame.prefetch),
+        rules,
+        frame.source.repositoryId,
+      )
+    );
+    frameRoutes.set(frame, route);
+  }
+  return route;
+}
+
 type EvaluationContext = {
   origin: TicketRequestOrigin;
   labelBasis: TicketLabelBasis;
@@ -372,6 +401,9 @@ async function evaluate(
     origin: context.origin,
     labelBasis: context.labelBasis,
     pinnedRequirementsDigest: context.pinnedRequirementsDigest,
+    // Only a new admission routes: a request that exists keeps its targets,
+    // whatever the rules say now.
+    ...(context.activeRequest === null ? { route: await routeOf(frame) } : {}),
   };
   return await evaluateReadiness(input);
 }
@@ -951,6 +983,16 @@ async function admitFresh(
     requirementsDigest: report.requirementsDigest,
     readinessReportId: stored.id,
     pinnedPreset: report.preset,
+  });
+  // The scoped children: one per routed repository, pinned to this admission.
+  const route = await routeOf(frame);
+  if (route.kind !== "routed") throw new Error("TICKET_ROUTE_NOT_READY");
+  await insertRequestTargets(transaction, {
+    organizationId: call.organizationId,
+    requestId,
+    sourcePolicyRevision: source.policyRevision,
+    pinnedPreset: report.preset,
+    targets: route.targets,
   });
   let request = await mustRequest(transaction, call.organizationId, requestId);
 

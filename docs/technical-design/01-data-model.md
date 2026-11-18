@@ -819,6 +819,38 @@ Immutable readiness evaluation of one external ticket for one observed basis.
 
 **Integrity:** Insert-only: bakery_app has select and insert and no update or delete grant, so a recorded evaluation cannot be rewritten. Inherits only id and created_at; version is the per-ticket report sequence, not a concurrency counter, and there is no updated_at. UNIQUE(external_ticket_id,version). A new report is stored only when its basis_digest differs from the newest one of the ticket. checks holds one entry per check id with status pass, wait or reject, a reason code and bounded evidence; verdict follows from the checks. origin names the call that first saw the basis. UNIQUE(organization_id,external_ticket_id,id) lets ticket_requests pin a report of its own ticket. UNIQUE(organization_id,id) supports composite foreign keys; tenant-owned parent references are constrained to the same organization unless this record documents a host-owned exception.
 
+#### `ticket_routing_rules`
+
+Versioned rule routing one provider label of a ticket source to a repository role.
+
+| Field | Type | Nullable | Reference |
+|---|---|---|---|
+| `organization_id` | `uuid` | no | `organizations` |
+| `ticket_source_id` | `uuid` | no | `ticket_sources` |
+| `provider_label_id` | `text` | no | none |
+| `repository_id` | `uuid` | no | `repositories` |
+| `role` | `text` | no | none |
+| `preset_id` | `text` | no | none |
+
+**Integrity:** UNIQUE(organization_id,ticket_source_id,provider_label_id,repository_id). Owned by its source (cascade on source delete); the repository FK has no cascade, so an archived or inaccessible target stays visible and blocks admission with a named reason. ticketRoutingRules.replace swaps the whole set under the source row lock and If-Match on the source version: a surviving rule keeps its id, version counts its own role or preset edits, a removed rule is deleted, and any change advances ticket_sources.policy_revision and version once. bakery_app may select, insert, delete and update role, preset_id, updated_at and version. Role format, label key bounds and preset ids are TypeScript validation. UNIQUE(organization_id,id) supports composite foreign keys; tenant-owned parent references are constrained to the same organization unless this record documents a host-owned exception.
+
+#### `ticket_request_targets`
+
+Immutable repository-scoped child of one admitted ticket request.
+
+| Field | Type | Nullable | Reference |
+|---|---|---|---|
+| `organization_id` | `uuid` | no | `organizations` |
+| `ticket_request_id` | `uuid` | no | `ticket_requests` |
+| `repository_id` | `uuid` | no | `repositories` |
+| `role` | `text` | no | none |
+| `routing_rule_id` | `uuid?` | yes | none |
+| `routing_rule_version` | `int?` | yes | none |
+| `source_policy_revision` | `int` | no | none |
+| `pinned_preset` | `jsonb` | no | none |
+
+**Integrity:** Insert-only: bakery_app has select and insert and no update or delete grant, so a rule or policy edit, a re-pin or an upgrade never retargets an admitted request. Inherits id and created_at only. UNIQUE(organization_id,ticket_request_id,repository_id): one child per repository, the floor under the resolver's deduplication of matched rules. Admission writes the children with the request, pinning role, rule and rule version (null for the fallback to the source's repository), the source policy revision and the preset. routing_rule_id is a pinned value with no foreign key, so deleting the rule leaves the child exactly as admitted. UNIQUE(organization_id,id) supports composite foreign keys; tenant-owned parent references are constrained to the same organization unless this record documents a host-owned exception.
+
 #### `ticket_task_links`
 
 Explicit same-organization link between an external ticket and Bakery task.

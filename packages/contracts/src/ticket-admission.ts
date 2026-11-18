@@ -143,6 +143,32 @@ export function ticketVerdictFromChecks(
 }
 
 /**
+ * Why label routing (#31) blocks a new admission, reported by the
+ * `repository_ready` check with status `reject`:
+ * - `route_ambiguous`: the matched rules give one repository two roles or
+ *   presets, or one role two repositories, so the targets cannot be
+ *   deduplicated into one child per repository;
+ * - `route_target_deleted`: a matched rule routes to an archived repository;
+ * - `route_target_inaccessible`: a matched rule routes to a repository the
+ *   source's application no longer owns or whose integration connection is
+ *   archived.
+ * A blocked ticket is never admitted; it is not silently routed elsewhere.
+ */
+export const TICKET_ROUTE_BLOCK_REASONS = Object.freeze(
+  [
+    "route_ambiguous",
+    "route_target_deleted",
+    "route_target_inaccessible",
+  ] as const,
+);
+export type TicketRouteBlockReason = typeof TICKET_ROUTE_BLOCK_REASONS[number];
+
+/** Most label routing rules one ticket source holds. */
+export const TICKET_ROUTING_MAX_RULES = 50;
+/** Role a request target takes when the ticket matched no rule and falls back to the source's repository. */
+export const TICKET_ROUTE_FALLBACK_ROLE = "default";
+
+/**
  * Reasons that suspend a request and clear by themselves: when the condition
  * is restored, a recheck resumes the request after re-verifying authority and
  * label provenance live. Includes source-state and repository or preset setup
@@ -201,10 +227,18 @@ export type TicketExplicitResumeReason =
  * check, and the others only appear before a request exists (the ticket is
  * not yet admitted, so there is nothing to suspend). A request that already
  * exists records `acceptance_changed` instead of `acceptance_missing` when
- * its acceptance criteria disappear.
+ * its acceptance criteria disappear. The route reasons block a new admission
+ * whose label routing cannot resolve; a request that exists keeps the targets
+ * it was admitted with, so they never suspend one.
  */
 export const TICKET_NON_SUSPENDING_REASONS = Object.freeze(
-  ["ok", "acceptance_missing", "active_request", "adoption_required"] as const,
+  [
+    "ok",
+    "acceptance_missing",
+    "active_request",
+    "adoption_required",
+    ...TICKET_ROUTE_BLOCK_REASONS,
+  ] as const,
 );
 export type TicketNonSuspendingReason =
   typeof TICKET_NON_SUSPENDING_REASONS[number];
@@ -289,7 +323,11 @@ export const TICKET_CHECK_REASONS: Readonly<
   ),
   no_active_admission: Object.freeze(["active_request"] as const),
   repository_ready: Object.freeze(
-    ["repository_archived", "no_active_profile"] as const,
+    [
+      "repository_archived",
+      "no_active_profile",
+      ...TICKET_ROUTE_BLOCK_REASONS,
+    ] as const,
   ),
   preset_ready: Object.freeze(["preset_setup_required"] as const),
   authority_live: Object.freeze(
