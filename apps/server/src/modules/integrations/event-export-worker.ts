@@ -125,7 +125,7 @@ export async function exportSourceEvent(
         and ($5::boolean or not exists (
           select 1 from bakery.integration_deliveries as attempt
            where attempt.subscription_id = subscription.id
-             and attempt.source_event_id = $3
+             and attempt.source_event_id = $6
         ))
       order by subscription.id
       limit $4`,
@@ -135,6 +135,7 @@ export async function exportSourceEvent(
       event.eventKind,
       EXPORT_FAN_OUT_LIMIT,
       options?.retryExisting === true,
+      event.sourceEventId,
     ],
   );
 
