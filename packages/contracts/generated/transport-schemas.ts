@@ -26189,7 +26189,7 @@ const transportSchemas = {
         "runId": "uuid|null",
         "prompt": "string",
         "status": "enum(open|answered|expired|withdrawn|superseded|revoked|consumed)",
-        "subjectType": "enum(plan_revision|run_stage|merge|deploy|human_approval)",
+        "subjectType": "enum(plan_revision|run_stage|merge|deploy|human_approval|run_step)",
         "subjectId": "uuid",
         "subjectDigest": "sha256",
         "scope": "json",
@@ -26230,7 +26230,7 @@ const transportSchemas = {
         "runId": "UUID of the run that consumed the approval, or null while unconsumed.",
         "prompt": "Human-readable request shown to the approver.",
         "status": "Lifecycle: open, answered (decided), expired, withdrawn, superseded by a newer revision, revoked or consumed by a run.",
-        "subjectType": "What the approval authorizes: plan_revision today; merge and deploy are unsupported.",
+        "subjectType": "What the approval authorizes: a plan revision, a run stage, or a run step (human.approval); merge and deploy are unsupported.",
         "subjectId": "UUID of the exact subject, the plan revision id for plan approvals.",
         "subjectDigest": "SHA-256 digest of the subject the approval is bound to.",
         "scope": "Stage scope the approval applies to, for example the plan stage.",
@@ -28801,6 +28801,24 @@ const transportSchemas = {
       "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
     },
     "approval.requested": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "human.approval.decided": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "workflow.stopped": {
       "schemaVersion": 1,
       "payloadFields": {
         "resourceId": "uuid",

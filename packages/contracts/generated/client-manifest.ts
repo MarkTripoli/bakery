@@ -66014,9 +66014,10 @@ export const clientManifest = {
             "run_stage",
             "merge",
             "deploy",
-            "human_approval"
+            "human_approval",
+            "run_step"
           ],
-          "description": "What the approval authorizes: plan_revision today; merge and deploy are unsupported."
+          "description": "What the approval authorizes: a plan revision, a run stage, or a run step (human.approval); merge and deploy are unsupported."
         },
         "subjectId": {
           "type": "string",
@@ -66784,9 +66785,10 @@ export const clientManifest = {
                   "run_stage",
                   "merge",
                   "deploy",
-                  "human_approval"
+                  "human_approval",
+                  "run_step"
                 ],
-                "description": "What the approval authorizes: plan_revision today; merge and deploy are unsupported."
+                "description": "What the approval authorizes: a plan revision, a run stage, or a run step (human.approval); merge and deploy are unsupported."
               },
               "subjectId": {
                 "type": "string",

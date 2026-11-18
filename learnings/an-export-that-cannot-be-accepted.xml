@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="an-export-that-cannot-be-accepted" project="bakery">
+  <title>An exporter whose payload the receiver rejects is indistinguishable from an exporter with no sink</title>
+  <trigger>Wiring a telemetry or webhook exporter to a third-party protocol (OTLP/HTTP, a vendor event API) and proving it works by asserting the shape the encoder produces.</trigger>
+  <mistake>Shipped an OTLP sink that posted resourceSpans and resourceMetrics in one body to one URL and gave spans no ids when the record had no trace context. Every test passed, because the test asserted the encoder's own output. A real collector would have rejected every batch: OTLP/HTTP has one path per signal (/v1/traces, /v1/metrics), and a span without a traceId and spanId is invalid. The failure is silent in exactly the same way as having no sink at all - nothing errors, nothing arrives.</mistake>
+  <rule>For a protocol with an external schema, the proof must be the schema's requirements, not the encoder's intent. Enumerate what the receiver demands (one path per signal, required ids, gauges as gauges and counters as monotonic sums) and assert each one by name. Prefer one request per signal over one body carrying several, because a single URL cannot serve two signals. Where a record lacks protocol-mandated identifiers, synthesize valid ones rather than omitting the field: an unkeyable span is a rejected batch.</rule>
+  <verification>
+    <command>Point the sink at a real collector, or validate each body against the protocol's JSON schema, before claiming the export works.</command>
+    <command>Assert the request URL and body per signal, and assert the required fields are present and well formed (32 hex trace id, 16 hex span id).</command>
+  </verification>
+  <boundary>A unit test over the synchronous encoder cannot establish that the receiver accepts the payload. This boundary is not closeable inside the unit lane, so state it in the PR rather than implying the export is proven end to end.</boundary>
+</learning>

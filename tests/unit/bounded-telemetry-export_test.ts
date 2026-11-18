@@ -1597,6 +1597,49 @@ Deno.test("close stops mid-queue only when the budget is too small to finish", a
   );
 });
 
+Deno.test("close always offers at least one batch, even when the budget is spent", async () => {
+  // The real CI failure ("it flushed nothing at all"), and NOT a pump-start race:
+  // close() already started the pump synchronously. The deadline was the problem.
+  // close(1) arms a 1 ms timer and the pump begins on the next microtask, so on a
+  // loaded runner performance.now() was already past the deadline when the loop
+  // first reached its check - and that check ran BEFORE the first take, shedding
+  // all 1000 items having offered the sink nothing. A shutdown deadline must
+  // bound the flush, not cancel it.
+  //
+  // Made deterministic rather than observed by luck: the clock jumps past the
+  // deadline at the moment the pump starts, which is the worst case the runner
+  // sometimes reached on its own.
+  const realNow = performance.now.bind(performance);
+  const exported: number[] = [];
+  const exporter = make<number>(
+    (batch) => {
+      exported.push(...batch);
+    },
+    { capacity: 1000, batchSize: 10, intervalMs: 10_000, maxAttempts: 1 },
+  );
+  for (let item = 0; item < 1000; item += 1) exporter.offer(item);
+  try {
+    // Advances normally while the deadline is being computed, then jumps past it,
+    // so the deadline is a real number in the past when the pump first reads it.
+    let calls = 0;
+    performance.now = () => {
+      calls += 1;
+      return calls <= 1 ? realNow() : Number.MAX_SAFE_INTEGER;
+    };
+    await exporter.close(1);
+  } finally {
+    performance.now = realNow;
+  }
+  const stats = exporter.stats();
+  conserved(stats);
+  assert(exported.length > 0, "it flushed nothing at all");
+  assertEquals(
+    exported.length + stats.dropped.shutdown,
+    1000,
+    "the rest was not accounted as shed",
+  );
+});
+
 Deno.test("a closing exporter never yields: no zero-delay timer is made while it flushes", async () => {
   const exporter = make<number>(() => {}, {
     capacity: 100,
