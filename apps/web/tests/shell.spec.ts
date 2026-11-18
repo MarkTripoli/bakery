@@ -197,6 +197,15 @@ async function expectNoHorizontalOverflow(page: Page) {
 }
 
 async function expectSelectedParent(page: Page, path: string) {
+  if (path.startsWith("/settings/organization/service-accounts")) {
+    // The sections navigation has no item for this page (the phone index
+    // lists it), so nothing is marked current. Where it belongs in the
+    // navigation is a design question, not something this check decides.
+    await expect(
+      page.locator('.bakery-section-navigation a[aria-current="page"]'),
+    ).toHaveCount(0);
+    return;
+  }
   if (path === "/settings" || path.startsWith("/settings/")) {
     const expectedHref = path.startsWith("/settings/sessions")
       ? "/settings/sessions"
@@ -659,7 +668,7 @@ test.describe("settings routes and navigation", () => {
     expect(styles[0]).toMatch(/^Geist\b/);
   });
 
-  test("lists the sections under two labelled groups, with the connected-clients item and without Machines", async ({ page }) => {
+  test("lists the sections under two labelled groups, without Machines", async ({ page }) => {
     await mockAuthenticatedSession(page);
     await stubRole(page, "admin");
     await page.setViewportSize({ width: 1280, height: 960 });
@@ -677,7 +686,6 @@ test.describe("settings routes and navigation", () => {
       "Profile",
       "Account & security",
       "Active sessions",
-      "Connected clients",
       "Appearance",
       "Your access",
     ]);
@@ -719,8 +727,8 @@ test.describe("settings routes and navigation", () => {
     )
       .toHaveCount(0);
     const links = sheet.getByRole("link");
-    await expect(links).toHaveCount(13);
-    for (let index = 0; index < 13; index += 1) {
+    await expect(links).toHaveCount(12);
+    for (let index = 0; index < 12; index += 1) {
       const clipped = await links.nth(index).evaluate((node) =>
         node.scrollWidth > node.clientWidth + 1
       );
@@ -740,6 +748,7 @@ test.describe("settings routes and navigation", () => {
       /Active sessions/,
       /Appearance/,
       /Your access/,
+      /Service accounts/,
     ]);
     await page.getByRole("link", { name: /Appearance/ }).click();
     await expect(page).toHaveURL("/settings/appearance");
@@ -810,7 +819,6 @@ test("the account and organization triggers stay one row when a name is long, an
       body: JSON.stringify({
         principalId: "00000000-0000-4000-8000-000000000001",
         principalType: "human",
-        createdByPrincipalId: null,
         displayName: LONG_PERSON,
         locale: "en",
         timeZone: null,
