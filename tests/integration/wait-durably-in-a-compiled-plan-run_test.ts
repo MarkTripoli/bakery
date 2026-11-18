@@ -126,10 +126,10 @@ Deno.test("what is left of a wait is read from the database clock, and it is onl
     assert(half !== null && half.remainingMs <= 400, JSON.stringify(half));
     // Gone.
     await backdate(fixture, seeded, 1500);
-    assertEquals(
-      await seeded.repository.readWait(key, seeded.owner),
-      { durationMs: 1000, remainingMs: 0 },
-    );
+    const gone = await seeded.repository.readWait(key, seeded.owner);
+    assert(gone !== null);
+    assertEquals(gone.durationMs, 1000);
+    assertEquals(gone.remainingMs, 0);
     assertEquals(await seeded.repository.completeWait(key, seeded.owner), true);
     const done = await waitRow(fixture, seeded);
     assertEquals(done.status, "completed");
