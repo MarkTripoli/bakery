@@ -4,6 +4,12 @@ import { workerActionOutputCarriesSession } from "@bakery/contracts/contracts";
 import { DEFAULT_LEASE_SECONDS } from "@bakery/persistence";
 import { canonicalExecutionInputDigest } from "@bakery/persistence/repository-admission";
 import type { SealedCredentialOperation } from "@bakery/contracts/secret-identity";
+import {
+  childTraceContext,
+  formatTraceparent,
+  newTraceContext,
+  parseTraceparent,
+} from "@bakery/config/telemetry-trace";
 import type {
   ClaimableJob,
   ClaimIdentity,
@@ -64,6 +70,24 @@ function requestMetadata(headers: Headers): RequestMetadata {
   return { requestId, traceId };
 }
 
+/**
+ * The W3C context the worker should continue, as a child of the caller's span.
+ *
+ * A claim is one leg of work inside a trace that began with the user's request,
+ * so the assignment carries the caller's trace id and a fresh span id parented to
+ * the caller's span. Without it the worker starts an unrelated trace and an
+ * operator cannot follow one request into the work it caused. A malformed or
+ * absent header is not an error here: the claim proceeds under a fresh trace,
+ * because refusing work over a tracing header would be a worse failure than a
+ * broken trace.
+ */
+export function assignmentTraceparent(headers: Headers): string {
+  const parent = parseTraceparent(headers.get("traceparent") ?? "");
+  return formatTraceparent(
+    parent === undefined ? newTraceContext() : childTraceContext(parent),
+  );
+}
+
 function assignmentFromJob(
   job: ClaimableJob,
   attemptId: string,
@@ -76,6 +100,7 @@ function assignmentFromJob(
   leaseDurationSeconds: number,
   serverTime: Date | string,
   sealedCredentialOperation: SealedCredentialOperation | null,
+  traceparent: string,
 ): Assignment {
   const assignment = {
     jobId: job.id,
@@ -101,6 +126,7 @@ function assignmentFromJob(
     leaseDurationSeconds,
     serverTime: iso(serverTime),
     sealedCredentialOperation,
+    traceparent,
     // Only actions whose result names a session receive the server-created one.
     ...(job.agentSessionId === null ||
         !workerActionOutputCarriesSession(job.action)
@@ -311,6 +337,7 @@ export async function executeClaim(
         DEFAULT_LEASE_SECONDS,
         lease.serverTime,
         sealedCredentialOperation,
+        assignmentTraceparent(options.headers),
       );
       await persistence.recordAssignment({
         organizationId: identity.host.organizationId,

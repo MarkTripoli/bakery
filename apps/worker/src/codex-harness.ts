@@ -26,6 +26,7 @@ import {
   repairRevisionMismatch,
   requireCleanHarnessWorktree,
   runBoundedHarness,
+  traceEnvironment,
   withHarnessRestore,
 } from "./harness-common.ts";
 import { provenCanceledOutcome, type PublishArtifact } from "./task-brief.ts";
@@ -319,7 +320,12 @@ async function executeCodexHarness(
         "The Codex harness could not complete the bounded task",
       );
     }
-    const childEnvironment = { HOME: dirs.home, CODEX_HOME: dirs.codexHome };
+    const childEnvironment = {
+      HOME: dirs.home,
+      CODEX_HOME: dirs.codexHome,
+      // The harness continues the trace that caused this work.
+      ...traceEnvironment(assignment),
+    };
     const versionProbe = await probeHarnessVersion(
       codexExecutable,
       worktree,

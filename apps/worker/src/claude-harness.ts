@@ -26,6 +26,7 @@ import {
   repairRevisionMismatch,
   requireCleanHarnessWorktree,
   runBoundedHarness,
+  traceEnvironment,
   withHarnessRestore,
 } from "./harness-common.ts";
 import { executeClaudeCoordinatorTurn } from "./claude-coordinator.ts";
@@ -1370,6 +1371,8 @@ async function executeClaudeHarness(
     const childEnvironment = {
       HOME: config.home,
       CLAUDE_CONFIG_DIR: config.path,
+      // The harness continues the trace that caused this work.
+      ...traceEnvironment(assignment),
     };
     const claudeExecutable = options.claudeExecutable ?? "claude";
     const versionProbe = await probeHarnessVersion(

@@ -36,6 +36,7 @@ import {
   requireCleanHarnessWorktree,
   sha256Hex,
   spawnHarnessProcess,
+  traceEnvironment,
   withHarnessRestore,
 } from "./harness-common.ts";
 import { provenCanceledOutcome, type PublishArtifact } from "./task-brief.ts";
@@ -1573,6 +1574,8 @@ async function executePiHarness(
     const childEnvironment = {
       HOME: config.home,
       PI_CODING_AGENT_DIR: config.agentDir,
+      // The harness continues the trace that caused this work.
+      ...traceEnvironment(assignment),
     };
     const versionProbe = await probeHarnessVersion(
       options.piExecutable ?? "pi",

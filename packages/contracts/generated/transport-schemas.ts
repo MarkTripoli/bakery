@@ -21844,7 +21844,8 @@ const transportSchemas = {
         "serverTime",
         "sealedCredentialOperation",
         "agentSessionId",
-        "contextInputs"
+        "contextInputs",
+        "traceparent"
       ],
       "optionalFields": [
         "workerSessionId",
@@ -21852,7 +21853,8 @@ const transportSchemas = {
         "leaseDurationSeconds",
         "serverTime",
         "agentSessionId",
-        "contextInputs"
+        "contextInputs",
+        "traceparent"
       ],
       "fieldTypes": {
         "jobId": "uuid",
@@ -21876,7 +21878,8 @@ const transportSchemas = {
         "serverTime": "timestamp",
         "sealedCredentialOperation": "SealedCredentialOperation|null",
         "agentSessionId": "uuid",
-        "contextInputs": "StepContextInput[]"
+        "contextInputs": "StepContextInput[]",
+        "traceparent": "traceparent"
       },
       "sensitiveFields": [
         "leaseToken"
@@ -21927,7 +21930,8 @@ const transportSchemas = {
         "serverTime": "PostgreSQL-authoritative claim time used to derive a monotonic lease deadline.",
         "sealedCredentialOperation": "Required nullable daemon-only prepared credential operation. Null for every non-identity action; never copied into job input or a subprocess.",
         "agentSessionId": "Server-created harness session the result must reference.",
-        "contextInputs": "Input slots the step declared, pinned at admission: the worker materializes exactly these bytes into its context directory and never re-fetches the artifact, so the digest it verifies is the one admission pinned."
+        "contextInputs": "Input slots the step declared, pinned at admission: the worker materializes exactly these bytes into its context directory and never re-fetches the artifact, so the digest it verifies is the one admission pinned.",
+        "traceparent": "W3C trace context of the request that caused this work, so the worker continues the caller's trace instead of starting an unrelated one."
       }
     },
     "LeaseState": {

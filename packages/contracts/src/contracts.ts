@@ -778,6 +778,16 @@ function namedFormat(base: string): Schema | undefined {
       ).describe(
         "Write-only credential, no control characters or whitespace; at most 4096 UTF-8 bytes.",
       );
+    case "traceparent":
+      // The W3C version-00 layout and nothing looser. A worker that receives a
+      // malformed context would either drop it or, worse, join an unrelated
+      // trace, so the wire type refuses it here rather than at the far end.
+      return z.string().regex(
+        /^00-[0-9a-f]{32}-[0-9a-f]{16}-0[01]$/,
+        "Invalid trace context.",
+      ).describe(
+        "W3C trace context (version 00) as trace-id, parent-id and sampled flag.",
+      );
     case "secretString":
       return described(
         z.string().min(1).max(65536),
