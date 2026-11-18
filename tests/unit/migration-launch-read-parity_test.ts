@@ -59,15 +59,6 @@ function allowReadEntries(command: string): string[] {
 }
 
 /**
- * Every module whose migration directory a launch path must be allowed to read.
- *
- * The two launches run from different working directories: the package script
- * from `apps/server`, the compose service from the repository root. So the same
- * directory is spelled `src/platform/migrations` in one and
- * `apps/server/src/platform/migrations` in the other; each caller passes the
- * prefix its own launch uses.
- */
-/**
  * One top-level compose service's text, bounded by the next service.
  *
  * Slicing from `migrate:` to the end of the file would also read every service
@@ -86,6 +77,15 @@ function serviceBlock(compose: string, name: string): string {
   return next === -1 ? rest : rest.slice(0, next);
 }
 
+/**
+ * The `--allow-read=` entries a launch path must hold, one per registered root.
+ *
+ * The two launches run from different working directories: the package script
+ * from `apps/server`, the compose service from the repository root. So the same
+ * directory is spelled `src/platform/migrations` in one and
+ * `apps/server/src/platform/migrations` in the other; each caller passes the
+ * prefix its own launch uses.
+ */
 function expectedEntries(roots: string[], prefix: string): string[] {
   return roots.map((root) => `${prefix}${root}`);
 }
