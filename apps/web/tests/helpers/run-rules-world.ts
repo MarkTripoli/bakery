@@ -178,6 +178,15 @@ export async function openRun(page: Page, world: World = {}) {
   await handle("**/v1/runs/*/delivery-decisions*", page_([]));
   await handle("**/v1/approvals?*", page_([]));
   await handle("**/v1/pull-requests?*", page_([]));
+  // The conversation beside the run reads these; unstubbed they fail and the
+  // page shows "could not be loaded" banners that are not this feature's.
+  await handle(`**/v1/conversations/${uuid(6)}/messages*`, page_([]));
+  await handle(`**/v1/conversations/${uuid(6)}/participants*`, page_([]));
+  await handle(`**/v1/conversations/${uuid(6)}/turns*`, page_([]));
+  await handle("**/v1/coordination-plans*", page_([]));
+  await handle("**/v1/plan-revisions*", page_([]));
+  await handle("**/v1/questions*", page_([]));
+  await handle("**/v1/workflow-presets*", page_([]));
   await handle("**/v1/sync*", {
     resourceState: {},
     highwater: "0",
