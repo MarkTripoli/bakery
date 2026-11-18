@@ -68,13 +68,36 @@ export const EVENT_SCOPES: Readonly<
     assertQuery: `select 1 from bakery.worker_hosts
         where organization_id = $1 and id = $2`,
   }),
+  // One person's inbox signal. The id is a principal and only that principal
+  // may subscribe to it (assertScope); it carries no task state to snapshot.
+  inbox: Object.freeze({
+    eventColumn: "recipient_id",
+    taskColumn: "id",
+    assertQuery: `select 1 from bakery.organization_memberships
+        where organization_id = $1 and principal_id = $2
+          and status = 'active'`,
+  }),
 });
 
+/**
+ * Confirms the scope exists in this organization. An inbox scope is personal:
+ * it is accepted only for the subscriber's own principal id, so naming another
+ * person's inbox answers exactly like a scope that does not exist. Callers
+ * without a subscriber (snapshots) cannot use it at all.
+ */
 export async function assertScope(
   transaction: PgTransactionClient,
   organizationId: OrganizationId,
   scope: SyncScope,
+  subscriberId?: string,
 ): Promise<void> {
+  if (
+    scope.type === "inbox" &&
+    (subscriberId === undefined ||
+      scope.id.toLowerCase() !== subscriberId.toLowerCase())
+  ) {
+    throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  }
   const result = await transaction.query(
     EVENT_SCOPES[scope.type].assertQuery,
     [organizationId, scope.id],
@@ -137,6 +160,7 @@ export async function readScopedEvents(
     conversation: [],
     worker_enrollment: [],
     worker: [],
+    inbox: [],
   };
   for (const scope of scopes) idsByType[scope.type].push(scope.id);
   const events = await transaction.query<EventRow>(
@@ -155,6 +179,7 @@ export async function readScopedEvents(
            or conversation_id = any($7::uuid[])
            or worker_enrollment_id = any($8::uuid[])
            or worker_host_id = any($9::uuid[])
+           or recipient_id = any($11::uuid[])
          )
        order by bakery.domain_events.organization_sequence asc
        limit $10`,
@@ -169,6 +194,7 @@ export async function readScopedEvents(
       idsByType.worker_enrollment,
       idsByType.worker,
       limit,
+      idsByType.inbox,
     ],
   );
   return events.rows;

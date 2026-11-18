@@ -266,7 +266,8 @@ export async function setNotificationRead(
   }
   await transaction.query(
     `update bakery.notifications
-     set read_at = $4::timestamptz, revision = revision + 1
+     set read_at = $4::timestamptz, revision = revision + 1,
+       read_batch_id = null
      where organization_id = $1::uuid and recipient_id = $2::uuid
        and id = $3::uuid`,
     [
@@ -289,15 +290,37 @@ export async function markAllNotificationsRead(
   transaction: PgTransactionClient,
   scope: NotificationScope,
   readBefore: string,
-): Promise<{ marked: number; remainingUnread: number; revision: number }> {
+): Promise<
+  {
+    marked: number;
+    remainingUnread: number;
+    revision: number;
+    batchId: string | null;
+  }
+> {
+  // The press is recorded first so every row it marks can point back at it;
+  // undo then restores exactly these rows. Rows are locked in a stable order
+  // so two devices pressing at once serialize instead of deadlocking.
+  const batch = await transaction.query<{ id: string }>(
+    `insert into bakery.notification_read_batches (organization_id, recipient_id)
+     values ($1, $2) returning id`,
+    [scope.organizationId, scope.recipientId],
+  );
+  const batchId = batch.rows[0]?.id;
+  if (!batchId) throw new Error("NOTIFICATION_READ_BATCH_INSERT_FAILED");
   const updated = await transaction.query<{ id: string }>(
-    `update bakery.notifications
-     set read_at = now(), revision = revision + 1
-     where organization_id = $1::uuid and recipient_id = $2::uuid
-       and read_at is null
-       and created_at <= $3::timestamptz
-     returning id`,
-    [scope.organizationId, scope.recipientId, readBefore],
+    `with target as (
+       select id from bakery.notifications
+       where organization_id = $1::uuid and recipient_id = $2::uuid
+         and read_at is null and created_at <= $3::timestamptz
+       order by id
+       for update
+     )
+     update bakery.notifications as n
+     set read_at = now(), revision = n.revision + 1, read_batch_id = $4::uuid
+     from target where n.id = target.id
+     returning n.id`,
+    [scope.organizationId, scope.recipientId, readBefore, batchId],
   );
   const remaining = await transaction.query<
     { unread: string; revision: number | null }
@@ -312,5 +335,77 @@ export async function markAllNotificationsRead(
     marked: updated.rows.length,
     remainingUnread: Number(remaining.rows[0]?.unread ?? "0"),
     revision: remaining.rows[0]?.revision ?? 0,
+    batchId: updated.rows.length > 0 ? batchId : null,
+  };
+}
+
+/** How long a mark-all-read press can be undone (the UX toast is 10 s). */
+export const MARK_ALL_UNDO_WINDOW_SECONDS = 600;
+
+/**
+ * Undoes one mark-all-read press of this recipient, once, within the window.
+ * Only rows that still carry the press's batch id become unread: a row read or
+ * unread again since then had its batch id cleared and keeps the newer state.
+ */
+export async function undoMarkAllNotificationsRead(
+  transaction: PgTransactionClient,
+  scope: NotificationScope,
+  batchId: string,
+): Promise<{ restored: number; unread: number; revision: number }> {
+  const locked = await transaction.query<
+    { undone: boolean; expired: boolean }
+  >(
+    `select undone_at is not null as undone,
+       created_at < now() - make_interval(secs => $4) as expired
+     from bakery.notification_read_batches
+     where organization_id = $1::uuid and recipient_id = $2::uuid
+       and id = $3::uuid
+     for update`,
+    [
+      scope.organizationId,
+      scope.recipientId,
+      batchId,
+      MARK_ALL_UNDO_WINDOW_SECONDS,
+    ],
+  );
+  const batch = locked.rows[0];
+  if (!batch) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  if (batch.undone || batch.expired) {
+    throw new StandardError({
+      code: "STATE_CONFLICT",
+      params: {
+        reason: batch.undone ? "undo_already_applied" : "undo_window_expired",
+      },
+    });
+  }
+  await transaction.query(
+    `update bakery.notification_read_batches set undone_at = now()
+     where organization_id = $1::uuid and id = $2::uuid`,
+    [scope.organizationId, batchId],
+  );
+  const restored = await transaction.query<{ id: string }>(
+    `with target as (
+       select id from bakery.notifications
+       where organization_id = $1::uuid and recipient_id = $2::uuid
+         and read_batch_id = $3::uuid
+       order by id
+       for update
+     )
+     update bakery.notifications as n
+     set read_at = null, revision = n.revision + 1, read_batch_id = null
+     from target where n.id = target.id
+     returning n.id`,
+    [scope.organizationId, scope.recipientId, batchId],
+  );
+  const count = await readNotificationCount(transaction, scope);
+  const newest = await transaction.query<{ revision: number | null }>(
+    `select max(revision) as revision from bakery.notifications
+     where organization_id = $1::uuid and recipient_id = $2::uuid`,
+    [scope.organizationId, scope.recipientId],
+  );
+  return {
+    restored: restored.rows.length,
+    unread: count.unread,
+    revision: newest.rows[0]?.revision ?? 1,
   };
 }

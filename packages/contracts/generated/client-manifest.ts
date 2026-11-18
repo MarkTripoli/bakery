@@ -4772,6 +4772,29 @@ export const clientManifest = {
     },
     {
       "group": "Artifacts",
+      "method": "GET",
+      "path": "/v1/artifact-versions/{id}/mention-candidates",
+      "action": "artifactComments.mentionCandidates",
+      "access": "Developer",
+      "permission": "artifactComment:read",
+      "input": "MentionCandidateQuery",
+      "output": "Page<MentionCandidate>",
+      "event": "",
+      "mcp": "bakery_artifactComments_mentionCandidates",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Artifacts",
       "method": "POST",
       "path": "/v1/artifact-versions/{id}/comments",
       "action": "artifactComments.create",
@@ -5127,6 +5150,78 @@ export const clientManifest = {
     {
       "group": "Conversation",
       "method": "GET",
+      "path": "/v1/conversations/{id}/mention-candidates",
+      "action": "conversations.mentionCandidates",
+      "access": "Developer",
+      "permission": "message:read",
+      "input": "MentionCandidateQuery",
+      "output": "Page<MentionCandidate>",
+      "event": "",
+      "mcp": "bakery_conversations_mentionCandidates",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Conversation",
+      "method": "GET",
+      "path": "/v1/conversations/{id}/access",
+      "action": "conversationAccess.list",
+      "access": "Developer",
+      "permission": "message:read",
+      "input": "ConversationAccessQuery",
+      "output": "Page<ConversationAccessGrant>",
+      "event": "",
+      "mcp": "bakery_conversationAccess_list",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Conversation",
+      "method": "POST",
+      "path": "/v1/conversations/{id}/access/{principalId}/revoke",
+      "action": "conversationAccess.revoke",
+      "access": "Developer",
+      "permission": "conversation:share",
+      "input": "ConversationAccessRevoke",
+      "output": "ConversationAccessGrant",
+      "event": "conversations.access_changed",
+      "mcp": "bakery_conversationAccess_revoke",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Conversation",
+      "method": "GET",
       "path": "/v1/conversation-turns/{id}",
       "action": "conversationTurns.get",
       "access": "Developer",
@@ -5269,7 +5364,7 @@ export const clientManifest = {
       "permission": "notification:write",
       "input": "NotificationReadUpdate",
       "output": "Notification",
-      "event": "notification.read_changed",
+      "event": "notifications.inbox_changed",
       "mcp": "bakery_notifications_setRead",
       "idempotency": "Idempotency-Key + expectedCasVersion required",
       "errors": [
@@ -5295,7 +5390,7 @@ export const clientManifest = {
       "permission": "notification:write",
       "input": "NotificationMarkAllRead",
       "output": "NotificationMarkAllReadResult",
-      "event": "notification.read_changed",
+      "event": "notifications.inbox_changed",
       "mcp": "bakery_notifications_markAllRead",
       "idempotency": "Idempotency-Key required",
       "errors": [
@@ -5306,6 +5401,30 @@ export const clientManifest = {
         "UNPROCESSABLE",
         "STATE_CONFLICT",
         "VERSION_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Conversation",
+      "method": "POST",
+      "path": "/v1/notifications/read-all/undo",
+      "action": "notifications.undoMarkAllRead",
+      "access": "Current member",
+      "permission": "notification:write",
+      "input": "NotificationUndoMarkAllRead",
+      "output": "NotificationUndoMarkAllReadResult",
+      "event": "notifications.inbox_changed",
+      "mcp": "bakery_notifications_undoMarkAllRead",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
         "MALFORMED_REQUEST"
       ],
@@ -9996,6 +10115,17 @@ export const clientManifest = {
               "description": "CommentAnchor patch variant."
             }
           ]
+        },
+        "mentions": {
+          "description": "ArtifactCommentCreate.mentions must contain at most 20 items.",
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "Principal ids of the people this comment @-mentions, in the order they appear. Each distinct non-self person who can read the artifact's comment thread is notified once. A comment never widens access: someone who cannot read the thread is refused with UNPROCESSABLE naming the mention by index, and nothing is written. Each array item follows this format."
+          }
         }
       },
       "required": [
@@ -11764,6 +11894,17 @@ export const clientManifest = {
             "additionalProperties": false,
             "description": "Root comments being sent to the agent as reviewed feedback, each with its expected version; the server snapshots their current root plus replies atomically and rejects the whole send if any reference is stale, out of scope, or deleted. Each array item follows this format."
           }
+        },
+        "mentions": {
+          "description": "MessageCreate.mentions must contain at most 20 items.",
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "Principal ids of the people this message @-mentions, in the order they appear. Each distinct non-self person is notified once; a person without access to the conversation is given read and reply access to it in the same transaction when the writer may share. If any one cannot be mentioned the whole send is refused with UNPROCESSABLE naming the mention by index and nothing is written. Text that merely looks like @name never mentions anyone. Each array item follows this format."
+          }
         }
       },
       "required": [
@@ -12043,6 +12184,7 @@ export const clientManifest = {
             "artifactPreviews.revoke",
             "artifactPreviews.availability",
             "artifactComments.list",
+            "artifactComments.mentionCandidates",
             "artifactComments.create",
             "artifactComments.update",
             "memories.list",
@@ -12084,6 +12226,9 @@ export const clientManifest = {
             "externalEffects.get",
             "conversationTurns.list",
             "conversationParticipants.list",
+            "conversations.mentionCandidates",
+            "conversationAccess.list",
+            "conversationAccess.revoke",
             "conversationTurns.get",
             "conversationTurns.cancel",
             "notifications.list",
@@ -12092,6 +12237,7 @@ export const clientManifest = {
             "notifications.resolveTarget",
             "notifications.setRead",
             "notifications.markAllRead",
+            "notifications.undoMarkAllRead",
             "artifactComments.listAcrossVersions",
             "organizations.list",
             "organizations.create",
@@ -13795,9 +13941,10 @@ export const clientManifest = {
             "task",
             "conversation",
             "worker_enrollment",
-            "worker"
+            "worker",
+            "inbox"
           ],
-          "description": "Kind of resource the snapshot is scoped to: an organization-wide application feed, one repository, one task, one conversation, one worker enrollment (Admin status feed), or one worker machine (safe status feed)."
+          "description": "Kind of resource the snapshot is scoped to: an organization-wide application feed, one repository, one task, one conversation, one worker enrollment (Admin status feed), or one worker machine (safe status feed). \"inbox\" is events-only: its id must be the caller's own principal id and it carries only notifications.inbox_changed signals; snapshots reject it."
         },
         "scopeId": {
           "type": "string",
@@ -19276,6 +19423,92 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Lists the agent sessions that belong to one run step, so a client can reach a session by run rather than by an id it already knows."
+    },
+    "MentionCandidateQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "query": {
+          "description": "MentionCandidateQuery.query must contain at most 100 characters.",
+          "type": "string",
+          "maxLength": 100
+        },
+        "cursor": {
+          "description": "MentionCandidateQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "limit": {
+          "description": "MentionCandidateQuery.limit must be at most 25.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 25
+        }
+      },
+      "additionalProperties": false,
+      "description": "Server-side search for people the writer may @-mention in one conversation (a task chat) or one artifact comment thread, bounded and cursor paged."
+    },
+    "ConversationAccessQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "cursor": {
+          "description": "ConversationAccessQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "limit": {
+          "description": "ConversationAccessQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "additionalProperties": false,
+      "description": "Cursor query over the people a mention gave direct access to one conversation."
+    },
+    "ConversationAccessRevoke": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Conversation whose direct grant is removed; supplied via the request's {id} path segment."
+        },
+        "principalId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Person whose mention-granted access is removed; supplied via the request's {principalId} path segment."
+        }
+      },
+      "required": [
+        "id",
+        "principalId"
+      ],
+      "additionalProperties": false,
+      "description": "Removes one person's mention-granted access to one conversation under compare-and-set on the grant version."
+    },
+    "NotificationUndoMarkAllRead": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "batchId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The batchId a mark-all-read call returned. Only that press of the authenticated recipient can be undone, once, within 10 minutes."
+        }
+      },
+      "required": [
+        "batchId"
+      ],
+      "additionalProperties": false,
+      "description": "Undoes the recipient's last mark-all-read press within its bound, so the Undo toast can restore exactly what was marked."
     },
     "UserPreferences": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -31406,6 +31639,7 @@ export const clientManifest = {
                   "artifactPreviews.revoke",
                   "artifactPreviews.availability",
                   "artifactComments.list",
+                  "artifactComments.mentionCandidates",
                   "artifactComments.create",
                   "artifactComments.update",
                   "memories.list",
@@ -31447,6 +31681,9 @@ export const clientManifest = {
                   "externalEffects.get",
                   "conversationTurns.list",
                   "conversationParticipants.list",
+                  "conversations.mentionCandidates",
+                  "conversationAccess.list",
+                  "conversationAccess.revoke",
                   "conversationTurns.get",
                   "conversationTurns.cancel",
                   "notifications.list",
@@ -31455,6 +31692,7 @@ export const clientManifest = {
                   "notifications.resolveTarget",
                   "notifications.setRead",
                   "notifications.markAllRead",
+                  "notifications.undoMarkAllRead",
                   "artifactComments.listAcrossVersions",
                   "organizations.list",
                   "organizations.create",
@@ -47514,6 +47752,7 @@ export const clientManifest = {
             "artifactPreviews.revoke",
             "artifactPreviews.availability",
             "artifactComments.list",
+            "artifactComments.mentionCandidates",
             "artifactComments.create",
             "artifactComments.update",
             "memories.list",
@@ -47555,6 +47794,9 @@ export const clientManifest = {
             "externalEffects.get",
             "conversationTurns.list",
             "conversationParticipants.list",
+            "conversations.mentionCandidates",
+            "conversationAccess.list",
+            "conversationAccess.revoke",
             "conversationTurns.get",
             "conversationTurns.cancel",
             "notifications.list",
@@ -47563,6 +47805,7 @@ export const clientManifest = {
             "notifications.resolveTarget",
             "notifications.setRead",
             "notifications.markAllRead",
+            "notifications.undoMarkAllRead",
             "artifactComments.listAcrossVersions",
             "organizations.list",
             "organizations.create",
@@ -54911,6 +55154,7 @@ export const clientManifest = {
               "draft:read",
               "externalEffect:read",
               "conversationTurn:read",
+              "conversation:share",
               "conversationTurn:write",
               "notification:read",
               "notification:write",
@@ -67885,12 +68129,28 @@ export const clientManifest = {
           "minimum": -9007199254740991,
           "maximum": 9007199254740991,
           "description": "The inbox revision after the change, so the client can order it against other responses."
+        },
+        "batchId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Identifier of this mark-all-read press for notifications.undoMarkAllRead, or null when nothing was marked. Undo is accepted for 10 minutes."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "NotificationMarkAllReadResult.batchId may be null in this transport value."
         }
       },
       "required": [
         "marked",
         "remainingUnread",
-        "revision"
+        "revision",
+        "batchId"
       ],
       "additionalProperties": false,
       "description": "Outcome of a snapshot-bounded mark-all-read: how many items were marked, how many are still unread, and the resulting revision."
@@ -68838,6 +69098,382 @@ export const clientManifest = {
           "description": "JSON value node."
         }
       }
+    },
+    "Page<MentionCandidate>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "principalId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID of the person; the typed mention stores this identity, not the visible name."
+              },
+              "displayName": {
+                "type": "string",
+                "maxLength": 200,
+                "description": "MentionCandidate.displayName must contain at most 200 characters."
+              },
+              "hasAccess": {
+                "type": "boolean",
+                "description": "True when the person can already read and reply here, through their organization role or an earlier mention; mentioning them only notifies."
+              },
+              "gainsAccessOnSend": {
+                "type": "boolean",
+                "description": "True when the person cannot reply here today and the writer may share: sending the mention gives them read and reply access to this one conversation. False together with hasAccess false means the writer cannot share with this person, so the mention would be refused."
+              }
+            },
+            "required": [
+              "principalId",
+              "displayName",
+              "hasAccess",
+              "gainsAccessOnSend"
+            ],
+            "additionalProperties": false,
+            "description": "One person the writer may mention, with whether they already have access or would gain it when the message is sent. It carries no email address, role or contact data."
+          },
+          "description": "Page<MentionCandidate>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<MentionCandidate>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Page<MentionCandidate>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<MentionCandidate>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<MentionCandidate>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of MentionCandidate."
+    },
+    "ConversationAccessGrant": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID of this grant record."
+        },
+        "conversationId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The one conversation this grant opens; it never reaches sibling conversations, the repository or task controls."
+        },
+        "principalId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The person who holds the grant."
+        },
+        "displayName": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "ConversationAccessGrant.displayName must contain at most 200 characters."
+        },
+        "grantedById": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Who gave the access by mentioning the holder most recently."
+        },
+        "grantedByName": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "ConversationAccessGrant.grantedByName must contain at most 200 characters."
+        },
+        "sourceMessageId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The message whose mention created or renewed the grant, or null when that message is gone."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "ConversationAccessGrant.sourceMessageId may be null in this transport value."
+        },
+        "grantedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When the grant was created or last renewed."
+        },
+        "revokedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the grant was removed, or null while it is live."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "ConversationAccessGrant.revokedAt may be null in this transport value."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "description": "ConversationAccessGrant.version must be at least 1."
+        }
+      },
+      "required": [
+        "id",
+        "conversationId",
+        "principalId",
+        "displayName",
+        "grantedById",
+        "grantedByName",
+        "sourceMessageId",
+        "grantedAt",
+        "revokedAt",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "One person's direct, mention-granted access to one conversation, with who granted it and from which message."
+    },
+    "Page<ConversationAccessGrant>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID of this grant record."
+              },
+              "conversationId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The one conversation this grant opens; it never reaches sibling conversations, the repository or task controls."
+              },
+              "principalId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The person who holds the grant."
+              },
+              "displayName": {
+                "type": "string",
+                "maxLength": 200,
+                "description": "ConversationAccessGrant.displayName must contain at most 200 characters."
+              },
+              "grantedById": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Who gave the access by mentioning the holder most recently."
+              },
+              "grantedByName": {
+                "type": "string",
+                "maxLength": 200,
+                "description": "ConversationAccessGrant.grantedByName must contain at most 200 characters."
+              },
+              "sourceMessageId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "The message whose mention created or renewed the grant, or null when that message is gone."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "ConversationAccessGrant.sourceMessageId may be null in this transport value."
+              },
+              "grantedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "When the grant was created or last renewed."
+              },
+              "revokedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "When the grant was removed, or null while it is live."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "ConversationAccessGrant.revokedAt may be null in this transport value."
+              },
+              "version": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991,
+                "description": "ConversationAccessGrant.version must be at least 1."
+              }
+            },
+            "required": [
+              "id",
+              "conversationId",
+              "principalId",
+              "displayName",
+              "grantedById",
+              "grantedByName",
+              "sourceMessageId",
+              "grantedAt",
+              "revokedAt",
+              "version"
+            ],
+            "additionalProperties": false,
+            "description": "One person's direct, mention-granted access to one conversation, with who granted it and from which message."
+          },
+          "description": "Page<ConversationAccessGrant>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<ConversationAccessGrant>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Page<ConversationAccessGrant>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<ConversationAccessGrant>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<ConversationAccessGrant>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of ConversationAccessGrant."
+    },
+    "NotificationUndoMarkAllReadResult": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "restored": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "NotificationUndoMarkAllReadResult.restored must be at least 0."
+        },
+        "unread": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "NotificationUndoMarkAllReadResult.unread must be at least 0."
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "The newest inbox revision after the undo, for ordering against other responses and events."
+        }
+      },
+      "required": [
+        "restored",
+        "unread",
+        "revision"
+      ],
+      "additionalProperties": false,
+      "description": "Outcome of undoing one mark-all-read press."
     }
   }
 } as const;

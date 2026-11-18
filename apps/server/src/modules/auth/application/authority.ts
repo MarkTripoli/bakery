@@ -47,6 +47,12 @@ export type OrganizationActor = {
    * allowed it: the list must return nothing outside this scope.
    */
   accessScope?: AccessScope;
+  /**
+   * Set only when the organization role refused a conversation action and a
+   * live mention grant on that one conversation allowed it. Such an actor may
+   * read and reply there and nothing more: no agent requests, no resharing.
+   */
+  conversationGrant?: Readonly<{ conversationId: string }>;
 };
 
 export type InstallationActor = {
