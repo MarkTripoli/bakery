@@ -22,6 +22,49 @@ const TS_EXPECT_ERROR_PATTERN = new RegExp(
 );
 const BARE_DENO_LINT_IGNORE = /\/\/\s*deno-lint-ignore(?:-file)?\s*$/;
 
+/**
+ * Rules that guard the integration boundaries (chapter 09 section 12.8, rail B4).
+ *
+ * A lint suppression is normally a local judgement call, but these rules are the
+ * architecture itself: silencing `no-provider-internal-import` on one import
+ * reintroduces exactly the coupling the modular split removes, and it would do it
+ * in a way no baseline can see. So they may never be suppressed, and the guard
+ * fails `pnpm lint` rather than leaving it to review to notice.
+ *
+ * The family is a prefix (`bakery-boundaries/*`) so a new rule in it is covered
+ * the day it is added.
+ */
+const UNSUPPRESSABLE_RULES: ReadonlyArray<
+  { name: string; matches: (rule: string) => boolean }
+> = [
+  {
+    name: "bakery-boundaries/*",
+    matches: (rule) => rule.startsWith("bakery-boundaries/"),
+  },
+  {
+    name: "no-client-server-import",
+    matches: (rule) =>
+      rule === "no-client-server-import" ||
+      rule === "bakery-boundaries/no-client-server-import",
+  },
+];
+
+/** The rule names a `deno-lint-ignore` line suppresses. */
+export function suppressedRules(line: string): string[] {
+  const match = /\/\/\s*deno-lint-ignore(?:-file)?\s+(.+)$/.exec(line.trim());
+  if (!match) return [];
+  return match[1]!
+    .split(/[\s,]+/)
+    .map((rule) => rule.trim())
+    .filter((rule) => rule.length > 0 && !rule.startsWith("--"));
+}
+
+export function unsuppressableRule(line: string): string | undefined {
+  return suppressedRules(line).find((rule) =>
+    UNSUPPRESSABLE_RULES.some((banned) => banned.matches(rule))
+  );
+}
+
 export type SuppressionViolation = {
   path: string;
   line: number;
@@ -77,6 +120,18 @@ export function findSuppressionViolations(
         path,
         line: lineNumber,
         reason: "deno-lint-ignore must name the rule(s) it suppresses",
+        text: trimmed,
+      });
+      continue;
+    }
+
+    const banned = unsuppressableRule(line);
+    if (banned !== undefined) {
+      violations.push({
+        path,
+        line: lineNumber,
+        reason:
+          `${banned} guards an integration boundary and may never be suppressed (rail B4)`,
         text: trimmed,
       });
     }
