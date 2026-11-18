@@ -336,8 +336,11 @@
   inset-inline-end: 0;
   inset-inline-start: auto;
 }
-/* A menu inside a popover rides the popover's frame; it needs none of its own. */
+/* A menu inside a popover rides the popover's frame; it needs none of its own,
+   and no surface of its own either, or a dark popover shows a second, darker
+   panel inside the first. */
 .ui-popover__content > .ui-menu {
+  background: transparent;
   border: var(--border-none);
   padding: var(--space-0);
 }
