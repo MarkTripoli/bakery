@@ -7,8 +7,10 @@
 --   definition_kind  workflow | agent | artifactKind | skill (TypeScript
 --                    vocabulary, not a CHECK constraint: the PostgreSQL
 --                    boundary rail forbids them);
---   definition_ref   the definition the grant covers (a workflow, agent or
---                    skill id, or an artifact kind key); null covers every
+--   definition_id    the immutable id of the definition the grant covers (a
+--                    workflow, agent, skill or artifact kind row id, never an
+--                    artifact kind's key, so a kind recreated under a reused
+--                    key does not inherit the grant); null covers every
 --                    definition of the kind, and the writer then requires a
 --                    seat, so there is no organization-wide agent grant;
 --   access_token_id  the seat (access token) the grant is limited to; null
@@ -21,7 +23,7 @@ create table bakery.definition_publish_grants (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null,
   definition_kind text not null,
-  definition_ref text,
+  definition_id uuid,
   access_token_id uuid,
   granted_by uuid not null,
   created_at timestamptz not null default now(),
@@ -45,7 +47,7 @@ create unique index definition_publish_grants_scope_idx
   on bakery.definition_publish_grants (
     organization_id,
     definition_kind,
-    coalesce(definition_ref, ''),
+    coalesce(definition_id, '00000000-0000-0000-0000-000000000000'::uuid),
     coalesce(access_token_id, '00000000-0000-0000-0000-000000000000'::uuid)
   );
 

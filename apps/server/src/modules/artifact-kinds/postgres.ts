@@ -282,13 +282,6 @@ export async function publishArtifactKindVersion(
   const anyKey = (value.definition as { key?: unknown } | null)?.key;
   const key = typeof anyKey === "string" ? anyKey : null;
   const pathKey = (context.params as { key: string }).key;
-  // Publishing a kind version is an off-by-default agent power (O52, #421).
-  await assertMayPublishDefinition(transaction, context, {
-    organizationId,
-    principalId,
-    kind: DefinitionKind.ArtifactKind,
-    definitionRef: pathKey,
-  });
   // The key is in the path and in the body. They must agree, because a
   // publication that addressed one kind while defining another would create a
   // kind nobody addressed under a revision this call claimed to be publishing.
@@ -306,6 +299,16 @@ export async function publishArtifactKindVersion(
     [organizationId, pathKey],
   );
   const kindId = kind.rows[0]?.id ?? null;
+  // Publishing a kind version is an off-by-default agent power (O52, #421).
+  // The grant names the kind's immutable row id, never its key, so a kind
+  // recreated under a reused key does not inherit a grant. A first publish
+  // (no row yet) is covered only by a seat grant on every kind.
+  await assertMayPublishDefinition(transaction, context, {
+    organizationId,
+    principalId,
+    kind: DefinitionKind.ArtifactKind,
+    definitionId: kindId,
+  });
   // Serialize publishers of one kind with an advisory lock rather than
   // `select ... for update`. The kind tables are insert-only - bakery_app has no
   // UPDATE privilege on them, which is what makes a published revision

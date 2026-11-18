@@ -1,5 +1,7 @@
 import { assert, assertEquals } from "@std/assert";
 import { withPgTransaction } from "../../packages/persistence/src/postgres.ts";
+import { assertMayPublishDefinition } from "../../apps/server/src/modules/auth/application/definition-publish-grants.ts";
+import { StandardError } from "../../packages/contracts/src/http.ts";
 import { seedOrganization } from "../helpers/coordinator-turns.ts";
 import {
   agentToken,
@@ -527,4 +529,63 @@ Deno.test("5.19-5.21: grants and publishes are organization-scoped and leak noth
       })).status,
       409,
     );
+  }));
+
+Deno.test("an artifact kind grant names the kind's row id, so a new kind under the same key inherits nothing", () =>
+  withFixture(async (fixture) => {
+    const seed = await seedOrganization(fixture, "kind-key", { role: "admin" });
+    const agent = await agentToken(fixture, seed);
+    const insertKind = async () =>
+      (await fixture.pgDatabase.query<{ id: string }>(
+        `insert into bakery.artifact_kinds (organization_id, key, created_by)
+         values ($1, 'reused-key', $2) returning id`,
+        [seed.organizationId, seed.principalId],
+      )).rows[0].id;
+    const kindA = await insertKind();
+    // A grant names the kind by id; a key is not an id.
+    assertEquals(
+      (await refusal(
+        await send(fixture, { seed }, "POST", "/v1/definition-publish-grants", {
+          body: { definitionKind: "artifactKind", definitionId: "reused-key" },
+        }),
+      )).status,
+      400,
+    );
+    await grant(fixture, { seed }, {
+      definitionKind: "artifactKind",
+      definitionId: kindA,
+      accessTokenId: agent.tokenId,
+    });
+    // Kind A goes and kind B is created under the same key.
+    await fixture.pgDatabase.query(
+      `delete from bakery.artifact_kinds where organization_id = $1 and id = $2`,
+      [seed.organizationId, kindA],
+    );
+    const kindB = await insertKind();
+    assert(kindB !== kindA);
+    const asAgent = {
+      principal: { principalType: "service" },
+      accessToken: { id: agent.tokenId },
+    } as never;
+    const check = (definitionId: string) =>
+      withPgTransaction(
+        fixture.runtimePgDatabase,
+        (transaction) =>
+          assertMayPublishDefinition(transaction, asAgent, {
+            organizationId: seed.organizationId,
+            principalId: agent.principalId,
+            kind: "artifactKind",
+            definitionId,
+          }),
+      );
+    let refusedB: unknown;
+    try {
+      await check(kindB);
+    } catch (error) {
+      refusedB = error;
+    }
+    assert(refusedB instanceof StandardError, String(refusedB));
+    assertEquals(refusedB.code, "AUTH_FORBIDDEN");
+    // The grant still covers exactly the kind it named.
+    assertEquals((await check(kindA)).actorKind, "agent");
   }));

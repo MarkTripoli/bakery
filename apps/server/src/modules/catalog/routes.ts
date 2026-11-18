@@ -158,7 +158,7 @@ export function createCatalogRoutes(options: {
             organizationId,
             principalId,
             kind: DefinitionKind.Skill,
-            definitionRef: context.params.id ?? "",
+            definitionId: context.params.id ?? null,
           });
           const stage = (context as StagedActionContext)[
             publicationExecutionStage

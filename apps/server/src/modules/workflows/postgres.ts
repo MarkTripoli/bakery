@@ -635,7 +635,7 @@ export async function updateWorkflowDefinition(
       organizationId,
       principalId,
       kind: DefinitionKind.Workflow,
-      definitionRef: workflowId,
+      definitionId: workflowId,
     });
   const updated = await boundedMutation(() =>
     transaction.query<WorkflowDefinitionRow>(
@@ -1115,7 +1115,7 @@ export async function publishWorkflowVersion(
     organizationId,
     principalId,
     kind: DefinitionKind.Workflow,
-    definitionRef: workflowId,
+    definitionId: workflowId,
   });
   const drafts = await transaction.query<
     {
@@ -1264,7 +1264,7 @@ export async function activateWorkflowVersion(
     organizationId,
     principalId,
     kind: DefinitionKind.Workflow,
-    definitionRef: workflowId,
+    definitionId: workflowId,
   });
   // "Use this version" is a library act: an unlisted definition runs only at
   // an exact published version until a person saves it as a workflow.

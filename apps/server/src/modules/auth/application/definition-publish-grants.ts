@@ -88,21 +88,26 @@ export async function agentHoldsPublishGrant(
   scope: Readonly<{
     organizationId: string;
     kind: DefinitionKind;
-    definitionRef: string;
+    /**
+     * The immutable id of the definition (for an artifact kind, its row id,
+     * never its key); null when it does not exist yet, which only a seat grant
+     * on every definition of the kind covers.
+     */
+    definitionId: string | null;
     accessTokenId: string | null;
   }>,
 ): Promise<boolean> {
   const found = await transaction.query(
     `select 1 from bakery.definition_publish_grants
       where organization_id = $1 and definition_kind = $2
-        and (definition_ref = $3
-             or (definition_ref is null and access_token_id is not null))
+        and (definition_id = $3::uuid
+             or (definition_id is null and access_token_id is not null))
         and (access_token_id is null or access_token_id = $4::uuid)
       limit 1`,
     [
       scope.organizationId,
       scope.kind,
-      scope.definitionRef,
+      scope.definitionId,
       scope.accessTokenId,
     ],
   );
@@ -122,7 +127,12 @@ export async function assertMayPublishDefinition(
     organizationId: string;
     principalId: string;
     kind: DefinitionKind;
-    definitionRef: string;
+    /**
+     * The immutable id of the definition (for an artifact kind, its row id,
+     * never its key); null when it does not exist yet, which only a seat grant
+     * on every definition of the kind covers.
+     */
+    definitionId: string | null;
   }>,
 ): Promise<ActionAttribution> {
   const attribution = attributeAction(context, scope.principalId);
@@ -131,7 +141,7 @@ export async function assertMayPublishDefinition(
     await agentHoldsPublishGrant(transaction, {
       organizationId: scope.organizationId,
       kind: scope.kind,
-      definitionRef: scope.definitionRef,
+      definitionId: scope.definitionId,
       accessTokenId: attribution.accessTokenId,
     })
   ) return attribution;

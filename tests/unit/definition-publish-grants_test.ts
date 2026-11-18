@@ -29,6 +29,8 @@ function stubTransaction(grantRows: number) {
   return { transaction, queries };
 }
 
+const DEFINITION_ID = "22222222-2222-4222-8222-222222222222";
+
 const person = {
   principal: { principalType: "human" },
   accessToken: undefined,
@@ -62,7 +64,12 @@ for (const kind of DEFINITION_KINDS) {
     const attribution = await assertMayPublishDefinition(
       transaction,
       person as never,
-      { organizationId: "org", principalId: "p", kind, definitionRef: "d" },
+      {
+        organizationId: "org",
+        principalId: "p",
+        kind,
+        definitionId: DEFINITION_ID,
+      },
     );
     assertEquals(attribution.actorKind, "person");
     assertEquals(queries.length, 0);
@@ -76,7 +83,7 @@ for (const kind of DEFINITION_KINDS) {
           organizationId: "org",
           principalId: "p",
           kind,
-          definitionRef: "d",
+          definitionId: DEFINITION_ID,
         }),
       StandardError,
     );
@@ -86,7 +93,12 @@ for (const kind of DEFINITION_KINDS) {
       DEFINITION_PUBLISH_REQUIRES_GRANT,
     );
     assertEquals(queries.length, 1);
-    assertEquals(queries[0].values, ["org", kind, "d", agent.accessToken.id]);
+    assertEquals(queries[0].values, [
+      "org",
+      kind,
+      DEFINITION_ID,
+      agent.accessToken.id,
+    ]);
   });
 
   Deno.test(`${kind}: an agent with a grant publishes as an agent`, async () => {
@@ -94,7 +106,12 @@ for (const kind of DEFINITION_KINDS) {
     const attribution = await assertMayPublishDefinition(
       transaction,
       agent as never,
-      { organizationId: "org", principalId: "p", kind, definitionRef: "d" },
+      {
+        organizationId: "org",
+        principalId: "p",
+        kind,
+        definitionId: DEFINITION_ID,
+      },
     );
     assertEquals(attribution.actorKind, "agent");
     assertEquals(attribution.accessTokenId, agent.accessToken.id);

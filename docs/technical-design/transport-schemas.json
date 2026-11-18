@@ -10720,9 +10720,9 @@
         },
         {
           "name": "definitionId",
-          "type": "string|null",
+          "type": "uuid|null",
           "required": false,
-          "description": "The one definition the grant covers: a workflow, agent or skill UUID, or an artifact kind key. Null or absent covers every definition of the kind and then requires accessTokenId, so no grant reaches every agent on every definition."
+          "description": "Immutable id of the one definition the grant covers: the workflow, agent, skill or artifact kind row id (an artifact kind is named by its id, never its key, so a kind recreated under a reused key does not inherit the grant). Null or absent covers every definition of the kind and then requires accessTokenId, so no grant reaches every agent on every definition."
         },
         {
           "name": "accessTokenId",
@@ -27520,7 +27520,7 @@
       "fieldTypes": {
         "id": "uuid",
         "definitionKind": "enum(workflow|agent|artifactKind|skill)",
-        "definitionId": "string|null",
+        "definitionId": "uuid|null",
         "accessTokenId": "uuid|null",
         "grantedBy": "uuid",
         "createdAt": "timestamp",
@@ -27534,7 +27534,7 @@
       "fieldDescriptions": {
         "id": "Stable UUID identifying the grant.",
         "definitionKind": "Kind of definition the grant covers.",
-        "definitionId": "Definition the grant covers (UUID, or an artifact kind key); null covers every definition of the kind for the named seat.",
+        "definitionId": "Immutable id of the definition the grant covers (for an artifact kind its row id, never its key); null covers every definition of the kind for the named seat.",
         "accessTokenId": "Seat (access token) the grant is limited to; null for any agent acting on the named definition.",
         "grantedBy": "Person who made the grant.",
         "createdAt": "When the grant was made.",

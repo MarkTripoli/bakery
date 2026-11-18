@@ -28,7 +28,7 @@ function assertPersonGrants(context: ActionContext, principalId: string) {
 type GrantRow = {
   id: string;
   definition_kind: string;
-  definition_ref: string | null;
+  definition_id: string | null;
   access_token_id: string | null;
   granted_by: string;
   created_at: Date | string;
@@ -36,13 +36,13 @@ type GrantRow = {
 };
 
 const GRANT_COLUMNS =
-  "id, definition_kind, definition_ref, access_token_id, granted_by, created_at, version";
+  "id, definition_kind, definition_id, access_token_id, granted_by, created_at, version";
 
 function toGrant(row: GrantRow) {
   return {
     id: row.id,
     definitionKind: row.definition_kind as DefinitionKind,
-    definitionId: row.definition_ref,
+    definitionId: row.definition_id,
     accessTokenId: row.access_token_id,
     grantedBy: row.granted_by,
     createdAt:
@@ -53,28 +53,29 @@ function toGrant(row: GrantRow) {
   };
 }
 
-/** Each kind's definition table, keyed by the column a grant names. */
-const DEFINITION_LOOKUP: Readonly<Record<DefinitionKind, string | null>> = {
+/** Each kind's definition table, looked up by the immutable row id a grant names. */
+const DEFINITION_LOOKUP: Readonly<Record<DefinitionKind, string>> = {
   workflow:
-    "select 1 from bakery.workflow_definitions where organization_id = $1 and id::text = $2",
+    "select 1 from bakery.workflow_definitions where organization_id = $1 and id = $2",
   agent:
-    "select 1 from bakery.agent_definitions where organization_id = $1 and id::text = $2",
-  skill:
-    "select 1 from bakery.skills where organization_id = $1 and id::text = $2",
-  // A kind's first publication creates it, so a grant may name a key that
-  // has no version yet.
-  artifactKind: null,
+    "select 1 from bakery.agent_definitions where organization_id = $1 and id = $2",
+  skill: "select 1 from bakery.skills where organization_id = $1 and id = $2",
+  // The kind's row id, not its key: a kind recreated under a reused key is a
+  // different kind and does not inherit the grant.
+  artifactKind:
+    "select 1 from bakery.artifact_kinds where organization_id = $1 and id = $2",
 };
 
 async function requireDefinition(
   transaction: PgTransactionClient,
   organizationId: string,
   kind: DefinitionKind,
-  ref: string,
+  definitionId: string,
 ): Promise<void> {
-  const sql = DEFINITION_LOOKUP[kind];
-  if (sql === null) return;
-  const found = await transaction.query(sql, [organizationId, ref]);
+  const found = await transaction.query(DEFINITION_LOOKUP[kind], [
+    organizationId,
+    definitionId,
+  ]);
   if (found.rows.length !== 1) {
     throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
   }
@@ -135,7 +136,7 @@ export async function createDefinitionPublishGrant(
   const existing = await transaction.query<{ id: string }>(
     `select id from bakery.definition_publish_grants
       where organization_id = $1 and definition_kind = $2
-        and coalesce(definition_ref, '') = coalesce($3::text, '')
+        and definition_id is not distinct from $3::uuid
         and access_token_id is not distinct from $4::uuid`,
     [organizationId, kind, ref, tokenId],
   );
@@ -150,7 +151,7 @@ export async function createDefinitionPublishGrant(
   }
   const row = (await transaction.query<GrantRow>(
     `insert into bakery.definition_publish_grants (
-       organization_id, definition_kind, definition_ref, access_token_id,
+       organization_id, definition_kind, definition_id, access_token_id,
        granted_by
      ) values ($1, $2, $3, $4, $5)
      returning ${GRANT_COLUMNS}`,
@@ -229,7 +230,7 @@ async function appendGrantFacts(
     traceId: context.traceId,
     details: {
       definitionKind: facts.row.definition_kind,
-      definitionId: facts.row.definition_ref,
+      definitionId: facts.row.definition_id,
       accessTokenId: facts.row.access_token_id,
     },
   });

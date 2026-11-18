@@ -394,7 +394,7 @@ export async function activateAgentVersion(
     organizationId,
     principalId,
     kind: DefinitionKind.Agent,
-    definitionRef: agentId,
+    definitionId: agentId,
   });
   if (current.version !== expectedVersion) {
     throw new StandardError({ code: "PRECONDITION_FAILED" });
@@ -537,7 +537,7 @@ export async function createAgentVersion(
     organizationId,
     principalId,
     kind: DefinitionKind.Agent,
-    definitionRef: agentId,
+    definitionId: agentId,
   });
   const max = await transaction.query<{ max: number }>(
     `select coalesce(max(revision), 0) as max

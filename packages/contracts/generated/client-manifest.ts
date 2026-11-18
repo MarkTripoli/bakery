@@ -19586,8 +19586,9 @@ export const clientManifest = {
           "anyOf": [
             {
               "type": "string",
-              "maxLength": 65536,
-              "description": "The one definition the grant covers: a workflow, agent or skill UUID, or an artifact kind key. Null or absent covers every definition of the kind and then requires accessTokenId, so no grant reaches every agent on every definition."
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Immutable id of the one definition the grant covers: the workflow, agent, skill or artifact kind row id (an artifact kind is named by its id, never its key, so a kind recreated under a reused key does not inherit the grant). Null or absent covers every definition of the kind and then requires accessTokenId, so no grant reaches every agent on every definition."
             },
             {
               "type": "null",
@@ -69766,8 +69767,9 @@ export const clientManifest = {
           "anyOf": [
             {
               "type": "string",
-              "maxLength": 65536,
-              "description": "Definition the grant covers (UUID, or an artifact kind key); null covers every definition of the kind for the named seat."
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Immutable id of the definition the grant covers (for an artifact kind its row id, never its key); null covers every definition of the kind for the named seat."
             },
             {
               "type": "null",
