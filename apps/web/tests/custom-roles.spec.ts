@@ -388,6 +388,19 @@ for (
       for (let index = 0; index < (await areas.count()); index += 1) {
         await expect(areas.nth(index)).toHaveAttribute("data-state", "closed");
       }
+      // Save role and Cancel are one size: same height, same type.
+      const save = panel.getByRole("button", { name: "Save role" });
+      const cancel = panel.getByRole("button", { name: "Cancel" });
+      const [saveBox, cancelBox] = [
+        await save.boundingBox(),
+        await cancel.boundingBox(),
+      ];
+      expect(Math.round(saveBox!.height)).toBe(Math.round(cancelBox!.height));
+      expect(
+        await save.evaluate((element) => getComputedStyle(element).fontSize),
+      ).toBe(
+        await cancel.evaluate((element) => getComputedStyle(element).fontSize),
+      );
       await shot(page, "custom-roles-form-closed");
       await access.locator("summary").click();
       await expect(access.getByLabel("principal:read")).toBeVisible();

@@ -62,7 +62,10 @@
 /* A form's Save and Cancel keep one height and their own width. */
 .ui-access-settings [data-form-actions] .ui-button {
   box-sizing: border-box;
-  min-block-size: 36px;
+  font: var(--type-control);
+  line-height: normal;
+  min-block-size: max(var(--size-control), var(--target-min));
+  padding: var(--space-2) var(--space-3);
 }
 .ui-access-settings__section {
   display: flex;
