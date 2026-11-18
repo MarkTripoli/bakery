@@ -21,6 +21,10 @@ create table bakery.plugin_packages (
   provenance jsonb not null,
   -- private or public. Creation is private; the catalog declares no update
   -- action in this issue, so a row cannot be flipped to public by an omission.
+  -- The vocabulary, the non-blank rules and the digest format are validated in
+  -- TypeScript (packages/contracts/src/plugin-sdk.ts), not by CHECK
+  -- constraints: docs/engineering-rules.md gives PostgreSQL storage structure
+  -- and relational integrity only, and keeps domain validation in the app.
   visibility text not null default 'private',
   -- unlisted, listed or withdrawn. Same reasoning as visibility: not settable
   -- from the create input, so it cannot be raised by a caller.
@@ -32,14 +36,6 @@ create table bakery.plugin_packages (
     unique (organization_id, id),
   constraint plugin_packages_organization_name_unique
     unique (organization_id, name),
-  constraint plugin_packages_name_not_blank
-    check (btrim(name) <> ''),
-  constraint plugin_packages_display_name_not_blank
-    check (btrim(display_name) <> ''),
-  constraint plugin_packages_visibility_known
-    check (visibility in ('private', 'public')),
-  constraint plugin_packages_listing_status_known
-    check (listing_status in ('unlisted', 'listed', 'withdrawn')),
   constraint plugin_packages_organization_fk
     foreign key (organization_id)
     references bakery.organizations (id) on delete cascade
@@ -83,17 +79,6 @@ create table bakery.plugin_versions (
     unique (plugin_package_id, version_name),
   constraint plugin_versions_package_digest_unique
     unique (plugin_package_id, bundle_digest),
-  constraint plugin_versions_version_name_not_blank
-    check (btrim(version_name) <> ''),
-  constraint plugin_versions_sdk_range_not_blank
-    check (btrim(sdk_range) <> ''),
-  constraint plugin_versions_bundle_object_ref_not_blank
-    check (btrim(bundle_object_ref) <> ''),
-  -- A lowercase hex SHA-256 and nothing else. A digest that is not 64 hex
-  -- characters cannot be the output of the verifier, so storing one would make
-  -- the column a claim rather than a check.
-  constraint plugin_versions_bundle_digest_sha256
-    check (bundle_digest ~ '^[0-9a-f]{64}$'),
   constraint plugin_versions_package_fk
     foreign key (organization_id, plugin_package_id)
     references bakery.plugin_packages (organization_id, id) on delete cascade

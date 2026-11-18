@@ -737,3 +737,109 @@ Deno.test("a package list pages by cursor without repeating or losing a row", ()
     for (const id of created) assert(seen.has(id));
     assertEquals(cursor, null);
   }));
+
+Deno.test("a cursor cannot be replayed against another package or filter", () =>
+  withPluginFixture(async (fixture, store) => {
+    // Two packages, each with enough versions to page. A cursor issued while
+    // paging one must not be accepted by the other: a bare row id re-anchored
+    // the second package's page at a row it never contained.
+    const makePackage = async (name: string) => {
+      const created = await call(fixture, "/v1/plugin-packages", {
+        method: "POST",
+        body: packageBody({ name }),
+      });
+      assertEquals(created.status, 201, await created.clone().text());
+      const pkg = await created.json();
+      for (const versionName of ["1.0.0", "1.0.1", "1.0.2"]) {
+        // Fresh bytes per version: a digest is unique within a package, so three
+        // versions cannot share one archive any more than two packages can.
+        const bytes = new TextEncoder().encode(
+          `cursor bytes ${name} ${versionName} ${crypto.randomUUID()}`,
+        );
+        const bundle = await uploadBundle(fixture, store, bytes);
+        const version = await call(
+          fixture,
+          `/v1/plugin-packages/${pkg.id}/versions`,
+          { method: "POST", body: versionBody(bundle, { versionName }) },
+        );
+        assertEquals(version.status, 201, await version.clone().text());
+      }
+      return pkg.id as string;
+    };
+    const first = await makePackage("paging-a");
+    const second = await makePackage("paging-b");
+
+    const page = await call(
+      fixture,
+      `/v1/plugin-packages/${first}/versions?limit=1`,
+      { method: "GET" },
+    );
+    assertEquals(page.status, 200, await page.clone().text());
+    const cursor = (await page.json()).nextCursor as string;
+    assert(cursor.length > 0, "the first page offers a cursor");
+
+    // Replaying it against the other package is refused, and refused as a
+    // client error rather than by silently returning a page anchored to a row
+    // from the wrong package.
+    const replayed = await call(
+      fixture,
+      `/v1/plugin-packages/${second}/versions?limit=1&cursor=${
+        encodeURIComponent(cursor)
+      }`,
+      { method: "GET" },
+    );
+    assertEquals(replayed.status, 400, await replayed.clone().text());
+
+    // A cursor is also not a package id: swapping it for the other package's
+    // cursor still works, which proves the refusal above was the binding and
+    // not a broken cursor.
+    const otherPage = await call(
+      fixture,
+      `/v1/plugin-packages/${second}/versions?limit=1`,
+      { method: "GET" },
+    );
+    assertEquals(otherPage.status, 200);
+    const otherCursor = (await otherPage.json()).nextCursor as string;
+    const continued = await call(
+      fixture,
+      `/v1/plugin-packages/${second}/versions?limit=1&cursor=${
+        encodeURIComponent(otherCursor)
+      }`,
+      { method: "GET" },
+    );
+    assertEquals(continued.status, 200, await continued.clone().text());
+  }));
+
+Deno.test("a malformed cursor is a client error, not a server error", () =>
+  withPluginFixture(async (fixture) => {
+    // A cursor is a value a caller can type. Before it was signed, a
+    // non-uuid reached a `::uuid` cast and the request answered 500, which
+    // tells the caller nothing and pages an operator.
+    for (
+      const cursor of [
+        "not-a-uuid",
+        "00000000-0000-0000-0000-000000000000",
+        "%%%",
+      ]
+    ) {
+      const response = await call(
+        fixture,
+        `/v1/plugin-packages?limit=1&cursor=${encodeURIComponent(cursor)}`,
+        { method: "GET" },
+      );
+      const problem = await response.clone().json();
+      assertEquals(
+        response.status,
+        400,
+        `cursor ${cursor} answered ${response.status} (${
+          JSON.stringify(problem)
+        }), expected 400`,
+      );
+      assert(
+        problem.code !== "INTERNAL",
+        `cursor ${cursor} was reported as a server error: ${
+          JSON.stringify(problem)
+        }`,
+      );
+    }
+  }));

@@ -1,4 +1,5 @@
 import { assertEquals, assertThrows } from "@std/assert";
+import { contractSchemas } from "../../packages/contracts/src/contracts.ts";
 import {
   compareVersions,
   parseSdkRange,
@@ -92,4 +93,84 @@ Deno.test("the host SDK version satisfies its own minor-pinned range", () => {
   // rather than a throw - refusing the build would be the activation check's
   // job, not the parser's.
   assertEquals(satisfiesSdkRange("^2.0.0"), false);
+});
+
+Deno.test("the package and version vocabularies are validated in the contracts", () => {
+  // These rules used to be CHECK constraints on 0193's tables. PostgreSQL owns
+  // storage structure and relational integrity only, so the rules moved here,
+  // where a refusal is a described validation error rather than a driver
+  // exception. Each case below is one of the constraints that was removed.
+  const pkg = contractSchemas.PluginPackageCreate;
+  const packageBase = {
+    name: "weather-tools",
+    displayName: "Weather tools",
+    license: "MIT",
+    provenance: { author: "someone" },
+  };
+  assertEquals(pkg.safeParse(packageBase).success, true);
+  for (
+    const [field, value] of [
+      ["name", "   "],
+      ["name", ""],
+      ["displayName", "  "],
+    ] as const
+  ) {
+    assertEquals(
+      pkg.safeParse({ ...packageBase, [field]: value }).success,
+      false,
+      `${field} accepted ${
+        JSON.stringify(value)
+      }, so the non-blank rule is gone`,
+    );
+  }
+
+  const version = contractSchemas.PluginVersionCreate;
+  const versionBase = {
+    versionName: "1.0.0",
+    sdkRange: "^1.0.0",
+    manifest: {},
+    bundleObjectRef: "bundles/a/1.0.0.tgz",
+    bundleDigest: "a".repeat(64),
+    sourceEvidence: {},
+    buildEvidence: {},
+  };
+  assertEquals(version.safeParse(versionBase).success, true);
+  for (
+    const [label, patch] of [
+      // The digest rule: lowercase hex, exactly 64 characters.
+      ["uppercase digest", { bundleDigest: "A".repeat(64) }],
+      ["short digest", { bundleDigest: "a".repeat(63) }],
+      ["long digest", { bundleDigest: "a".repeat(65) }],
+      ["non-hex digest", { bundleDigest: "z".repeat(64) }],
+      ["blank version name", { versionName: " " }],
+      ["blank sdk range", { sdkRange: "  " }],
+      ["blank bundle ref", { bundleObjectRef: "\t" }],
+    ] as const
+  ) {
+    assertEquals(
+      version.safeParse({ ...versionBase, ...patch }).success,
+      false,
+      `${label} was accepted, so its rule is not enforced`,
+    );
+  }
+
+  // The output vocabularies are closed too: a stored value outside them would
+  // reach a client that cannot render it.
+  assertEquals(
+    contractSchemas.PluginPackage.safeParse({
+      id: crypto.randomUUID(),
+      organizationId: crypto.randomUUID(),
+      name: "p",
+      displayName: "P",
+      provenance: {},
+      license: "MIT",
+      visibility: "public-ish",
+      listingStatus: "unlisted",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      version: 1,
+    }).success,
+    false,
+    "an unknown visibility was accepted",
+  );
 });

@@ -19,6 +19,13 @@ export function createPluginPackageRoutes(options: {
   bundles?: Pick<ScopedOrganizationBlobStore, "stat" | "read">;
   browserSession: MiddlewareHandler<{ Variables: AuthVariables }>;
   publicBaseUrl: string;
+  /**
+   * Signs list cursors. A cursor that only repeated a row id could be replayed
+   * against another package or another filter and re-anchor the page, so the
+   * cursor is opaque and bound to the action, the caller, the organization and
+   * the ordering it was issued under.
+   */
+  cursorSecret: string;
 }) {
   const app = new Hono<{ Variables: AuthVariables }>();
   app.use("/v1/plugin-packages", options.browserSession);
@@ -28,7 +35,10 @@ export function createPluginPackageRoutes(options: {
     createApiRouter({
       registry: createPluginPackageActionRegistry(
         options.database,
-        createPluginPackageHandlers({ bundles: options.bundles }),
+        createPluginPackageHandlers({
+          bundles: options.bundles,
+          cursorSecret: options.cursorSecret,
+        }),
       ),
       publicBaseUrl: options.publicBaseUrl,
       createContext: createActionContext,

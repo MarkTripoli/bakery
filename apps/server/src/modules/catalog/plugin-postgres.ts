@@ -7,6 +7,11 @@ import {
   SdkRangeSyntaxError,
 } from "@bakery/contracts/plugin-sdk";
 import type { PgTransactionClient } from "../../platform/database.ts";
+import {
+  type CursorBinding,
+  decodeCursor,
+  encodeCursor,
+} from "../../platform/cursor.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import {
   POSTGRES_UNIQUE_VIOLATION,
@@ -128,32 +133,79 @@ function violatedConstraint(error: unknown): string | null {
   return null;
 }
 
+/**
+ * Orders packages newest first, tie-breaking on id.
+ *
+ * The shared cursor primitive carries a `createdAt` position and closes the set
+ * of orderings it accepts, so a list that ordered by `updated_at` could not use
+ * it without widening that set for every caller. Creation order is also the
+ * honest answer for a catalog page: when the package was published.
+ */
+const PACKAGES_ORDERING = "createdAt:desc,id:desc";
+
+/** Orders versions newest first, tie-breaking on id. */
+const VERSIONS_ORDERING = "createdAt:desc,id:desc";
+
+/**
+ * A page of packages, with a cursor that is opaque and bound to this query.
+ *
+ * The cursor used to be the last row's bare id. That is both forgeable and
+ * unbound: the id of a package in one page could be replayed against a
+ * different organization or filter and re-anchor the page somewhere the caller
+ * never saw, and a value that is not a uuid reached a `::uuid` cast and became a
+ * 500. It is now signed and bound to the action, the caller, the organization
+ * and the ordering, so a foreign or tampered cursor is a 400, and the position
+ * travels as an encoded timestamp rather than a value the query casts blindly.
+ */
 export async function listPluginPackages(
   context: ActionContext,
   search: { cursor?: string; limit?: number },
+  secret: string,
 ): Promise<{ items: PluginPackage[]; nextCursor: string | null }> {
-  const { transaction, organizationId } = requireWorkTransaction(context);
+  const { transaction, organizationId, principalId } = requireWorkTransaction(
+    context,
+  );
   const limit = search.limit ?? 25;
-  // The cursor is the last visible row's id; the ordering tiebreak is the id
-  // itself, so a page boundary cannot skip or repeat a package that shares an
-  // updated_at with another.
-  const rows = await transaction.query<PackageRow>(
-    `select ${PACKAGE_COLUMNS}, p.organization_id
+  const binding: CursorBinding = {
+    action: "pluginPackages.list",
+    principalId,
+    organizationId,
+    ordering: PACKAGES_ORDERING,
+    // This list takes no filters, so one constant names the whole surface: a
+    // cursor issued for a filtered list could never match it.
+    filters: "{}",
+    schemaVersion: 1,
+  };
+  const position = await decodeCursor(secret, search.cursor, binding);
+  const rows = await transaction.query<
+    PackageRow & { cursor_created_at: string }
+  >(
+    `select ${PACKAGE_COLUMNS}, p.organization_id,
+            to_char(
+              p.created_at at time zone 'UTC',
+              'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'
+            ) as cursor_created_at
        from bakery.plugin_packages p
       where p.organization_id = $1
-        and ($2::uuid is null or (p.updated_at, p.id) < (
-          select b.updated_at, b.id from bakery.plugin_packages b
-           where b.organization_id = $1 and b.id = $2
-        ))
-      order by p.updated_at desc, p.id desc
-      limit $3`,
-    [organizationId, search.cursor ?? null, limit + 1],
+        and ($2::timestamptz is null or (p.created_at, p.id) < ($2, $3::uuid))
+      order by p.created_at desc, p.id desc
+      limit $4`,
+    [
+      organizationId,
+      position?.createdAt ?? null,
+      position?.id ?? null,
+      limit + 1,
+    ],
   );
   const visible = rows.rows.slice(0, limit);
+  const last = visible.at(-1);
   return {
     items: visible.map((row) => toPackage(row, organizationId)),
-    nextCursor: rows.rows.length > limit && visible.length > 0
-      ? visible[visible.length - 1].id
+    nextCursor: rows.rows.length > limit && last
+      ? await encodeCursor(secret, binding, {
+        createdAt: last.cursor_created_at,
+        id: last.id,
+      })
       : null,
   };
 }
@@ -217,35 +269,67 @@ export async function createPluginPackage(
   }
 }
 
+/**
+ * A page of one package's versions, with a cursor bound to that package.
+ *
+ * The package is part of the cursor's binding, not just the query: a cursor
+ * issued while paging one package must not be accepted by another, which is the
+ * re-anchoring a bare id allowed across packages as well as organizations.
+ */
 export async function listPluginVersions(
   context: ActionContext,
   search: { cursor?: string; limit?: number },
   packageId: string,
+  secret: string,
 ): Promise<{ items: PluginVersion[]; nextCursor: string | null }> {
-  const { transaction, organizationId } = requireWorkTransaction(context);
+  const { transaction, organizationId, principalId } = requireWorkTransaction(
+    context,
+  );
   const limit = search.limit ?? 25;
   // The package is read first so a version list for an unknown or foreign
   // package is a 404 rather than an empty page, which would read as "this
   // package has no versions" to a caller who cannot see it at all.
   await assertPackageHeld(transaction, organizationId, packageId);
+  const binding: CursorBinding = {
+    action: "pluginPackages.listVersions",
+    principalId,
+    organizationId,
+    ordering: VERSIONS_ORDERING,
+    filters: JSON.stringify({ packageId }),
+    schemaVersion: 1,
+  };
+  const position = await decodeCursor(secret, search.cursor, binding);
 
-  const rows = await transaction.query<VersionRow>(
-    `select ${VERSION_COLUMNS}
+  const rows = await transaction.query<
+    VersionRow & { cursor_created_at: string }
+  >(
+    `select ${VERSION_COLUMNS},
+            to_char(
+              v.created_at at time zone 'UTC',
+              'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'
+            ) as cursor_created_at
        from bakery.plugin_versions v
       where v.organization_id = $1 and v.plugin_package_id = $2
-        and ($3::uuid is null or (v.created_at, v.id) < (
-          select b.created_at, b.id from bakery.plugin_versions b
-           where b.organization_id = $1 and b.id = $3
-        ))
+        and ($3::timestamptz is null or (v.created_at, v.id) < ($3, $4::uuid))
       order by v.created_at desc, v.id desc
-      limit $4`,
-    [organizationId, packageId, search.cursor ?? null, limit + 1],
+      limit $5`,
+    [
+      organizationId,
+      packageId,
+      position?.createdAt ?? null,
+      position?.id ?? null,
+      limit + 1,
+    ],
   );
   const visible = rows.rows.slice(0, limit);
+  const last = visible.at(-1);
   return {
     items: visible.map((row) => toVersion(row, organizationId)),
-    nextCursor: rows.rows.length > limit && visible.length > 0
-      ? visible[visible.length - 1].id
+    nextCursor: rows.rows.length > limit && last
+      ? await encodeCursor(secret, binding, {
+        createdAt: last.cursor_created_at,
+        id: last.id,
+      })
       : null,
   };
 }

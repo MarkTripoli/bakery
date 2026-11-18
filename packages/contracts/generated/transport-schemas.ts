@@ -7411,7 +7411,9 @@ const transportSchemas = {
           "type": "string",
           "required": true,
           "bounds": {
-            "maxLength": 200
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^(?!\\s)(?=.*\\S)"
           },
           "description": "Stable identifier for this package, unique within the publishing organization; used to reference the package from version and install operations."
         },
@@ -7420,7 +7422,9 @@ const transportSchemas = {
           "type": "string",
           "required": true,
           "bounds": {
-            "maxLength": 200
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^(?!\\s)(?=.*\\S)"
           },
           "description": "Human-readable name for this package shown in install and catalog listings, independent of its stable name."
         },
@@ -7455,7 +7459,9 @@ const transportSchemas = {
           "type": "string",
           "required": true,
           "bounds": {
-            "maxLength": 200
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^(?!\\s)(?=.*\\S)"
           },
           "description": "Version label for this release, unique per package (for example a semantic version); immutable once published."
         },
@@ -7464,7 +7470,9 @@ const transportSchemas = {
           "type": "string",
           "required": true,
           "bounds": {
-            "maxLength": 200
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^(?!\\s)(?=.*\\S)"
           },
           "description": "Range of plugin SDK versions this release is compatible with; installation is blocked when the host's SDK version falls outside this range."
         },
@@ -7482,7 +7490,9 @@ const transportSchemas = {
           "type": "string",
           "required": true,
           "bounds": {
-            "maxLength": 2000
+            "maxLength": 2000,
+            "minLength": 1,
+            "pattern": "^(?!\\s)(?=.*\\S)"
           },
           "description": "Storage key of this version's validated, immutable bundle archive in R2 or the local filesystem; the archive bytes themselves are never stored in Postgres."
         },
@@ -7491,7 +7501,9 @@ const transportSchemas = {
           "type": "string",
           "required": true,
           "bounds": {
-            "maxLength": 64
+            "maxLength": 64,
+            "minLength": 64,
+            "pattern": "^[0-9a-f]{64}$"
           },
           "description": "SHA-256 digest of the bundle archive at bundleObjectRef, unique per package; verified before the archive is extracted or installed so a tampered or corrupted bundle is rejected."
         },

@@ -655,6 +655,7 @@ export function createApp(options: {
         : {}),
       browserSession,
       publicBaseUrl: options.config.publicBaseUrl,
+      cursorSecret: options.config.auth.secret,
     }),
   );
   app.route(

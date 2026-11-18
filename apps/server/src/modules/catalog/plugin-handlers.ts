@@ -16,14 +16,20 @@ import {
  * disagree with the path it was sent to.
  */
 export function createPluginPackageHandlers(
-  dependencies: PluginVersionDependencies,
+  dependencies: PluginVersionDependencies & { cursorSecret: string },
 ): PluginPackageActionHandlers {
   return {
-    listPackages: listPluginPackages,
+    listPackages: (context, input) =>
+      listPluginPackages(context, input, dependencies.cursorSecret),
     getPackage: (context) => getPluginPackage(context, packageId(context)),
     createPackage: createPluginPackage,
     listVersions: (context, input) =>
-      listPluginVersions(context, input, packageId(context)),
+      listPluginVersions(
+        context,
+        input,
+        packageId(context),
+        dependencies.cursorSecret,
+      ),
     createVersion: (context, input) =>
       createPluginVersion(context, input, packageId(context), dependencies),
   };
