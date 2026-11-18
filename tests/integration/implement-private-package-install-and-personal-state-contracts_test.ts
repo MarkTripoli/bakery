@@ -810,6 +810,57 @@ Deno.test("a cursor cannot be replayed against another package or filter", () =>
     assertEquals(continued.status, 200, await continued.clone().text());
   }));
 
+Deno.test("a list cursor is bound to the organization that issued it", () =>
+  withPluginFixture(async (fixture) => {
+    // The package list carries no filters, so `organizationId` is the only
+    // thing separating one tenant's page from another's in the cursor binding.
+    // A member of a second, real organization is authorized to call this list,
+    // so a cursor issued in the first organization can only be refused by the
+    // binding: without it, the second organization pages with a position taken
+    // from rows it cannot see.
+    // Two packages so that a page of one has a real continuation cursor.
+    for (const name of ["cursor-tenant-a", "cursor-tenant-a-2"]) {
+      const created = await call(fixture, "/v1/plugin-packages", {
+        method: "POST",
+        body: packageBody({ name }),
+      });
+      assertEquals(created.status, 201, await created.clone().text());
+    }
+
+    const firstPage = await call(fixture, "/v1/plugin-packages?limit=1", {
+      method: "GET",
+    });
+    assertEquals(firstPage.status, 200, await firstPage.clone().text());
+    const paged = (await firstPage.json()).nextCursor as string | null;
+    assert(paged, "the first organization's list offers a cursor");
+
+    const other = await secondOrganization(fixture);
+    const replayed = await fixture.app.fetch(
+      new Request(
+        `${fixture.config.publicBaseUrl}/v1/plugin-packages?limit=1&cursor=${
+          encodeURIComponent(paged)
+        }`,
+        {
+          method: "GET",
+          headers: {
+            Origin: fixture.config.publicBaseUrl,
+            "Bakery-Organization-Id": other.organizationId,
+            Cookie: fixture.adminCookie,
+          },
+        },
+      ),
+    );
+    const problem = await replayed.clone().json();
+    assertEquals(
+      replayed.status,
+      400,
+      `another organization's cursor answered ${replayed.status} (${
+        JSON.stringify(problem)
+      }), expected 400`,
+    );
+    assertEquals(problem.code, "INVALID_CURSOR");
+  }));
+
 Deno.test("a malformed cursor is a client error, not a server error", () =>
   withPluginFixture(async (fixture) => {
     // A cursor is a value a caller can type. Before it was signed, a

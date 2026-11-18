@@ -425,7 +425,17 @@ export type AuthoritySnapshot = Readonly<{
     available: boolean;
     binding: Readonly<Record<string, unknown>>;
     applicationId?: string;
+    /**
+     * The Bakery repository record id. This is what an `into_bakery` grant's
+     * `repositoryId` names, so grant matching compares it against that.
+     */
     repositoryId?: string;
+    /**
+     * The provider's own numeric repository id, which is what a token for this
+     * resource is narrowed to. A different id from `repositoryId` above, and
+     * never a substitute for it.
+     */
+    providerRepositoryId?: string;
   }>;
   grants: readonly IntegrationGrantRecord[];
   policyRevision: number;
@@ -803,7 +813,10 @@ export type BoundInvocation = Readonly<{
     kind: string;
     binding: Readonly<Record<string, unknown>>;
     applicationId?: string;
+    /** The Bakery repository record id an inbound grant targets. */
     repositoryId?: string;
+    /** The provider's numeric id a token is narrowed to. */
+    providerRepositoryId?: string;
   }>;
   grantId: string;
   policyRevision: number;
@@ -987,6 +1000,9 @@ export async function authorizeInvocation(
       ...(resource.repositoryId === undefined
         ? {}
         : { repositoryId: resource.repositoryId }),
+      ...(resource.providerRepositoryId === undefined
+        ? {}
+        : { providerRepositoryId: resource.providerRepositoryId }),
     },
     grantId: grant.grantId,
     policyRevision: snapshot.policyRevision,

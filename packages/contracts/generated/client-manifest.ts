@@ -18333,13 +18333,17 @@ export const clientManifest = {
       "properties": {
         "name": {
           "type": "string",
+          "minLength": 1,
           "maxLength": 200,
-          "description": "PluginPackageCreate.name must contain at most 200 characters."
+          "pattern": "^(?!\\s)(?=.*\\S)",
+          "description": "PluginPackageCreate.name must match the pattern ^(?!\\s)(?=.*\\S)."
         },
         "displayName": {
           "type": "string",
+          "minLength": 1,
           "maxLength": 200,
-          "description": "PluginPackageCreate.displayName must contain at most 200 characters."
+          "pattern": "^(?!\\s)(?=.*\\S)",
+          "description": "PluginPackageCreate.displayName must match the pattern ^(?!\\s)(?=.*\\S)."
         },
         "license": {
           "type": "string",
@@ -18515,13 +18519,17 @@ export const clientManifest = {
       "properties": {
         "versionName": {
           "type": "string",
+          "minLength": 1,
           "maxLength": 200,
-          "description": "PluginVersionCreate.versionName must contain at most 200 characters."
+          "pattern": "^(?!\\s)(?=.*\\S)",
+          "description": "PluginVersionCreate.versionName must match the pattern ^(?!\\s)(?=.*\\S)."
         },
         "sdkRange": {
           "type": "string",
+          "minLength": 1,
           "maxLength": 200,
-          "description": "PluginVersionCreate.sdkRange must contain at most 200 characters."
+          "pattern": "^(?!\\s)(?=.*\\S)",
+          "description": "PluginVersionCreate.sdkRange must match the pattern ^(?!\\s)(?=.*\\S)."
         },
         "manifest": {
           "description": "PluginVersionCreate.manifest must contain at most 131072 UTF-8 bytes.",
@@ -18565,13 +18573,17 @@ export const clientManifest = {
         },
         "bundleObjectRef": {
           "type": "string",
+          "minLength": 1,
           "maxLength": 2000,
-          "description": "PluginVersionCreate.bundleObjectRef must contain at most 2000 characters."
+          "pattern": "^(?!\\s)(?=.*\\S)",
+          "description": "PluginVersionCreate.bundleObjectRef must match the pattern ^(?!\\s)(?=.*\\S)."
         },
         "bundleDigest": {
           "type": "string",
+          "minLength": 64,
           "maxLength": 64,
-          "description": "PluginVersionCreate.bundleDigest must contain at most 64 characters."
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "PluginVersionCreate.bundleDigest must match the pattern ^[0-9a-f]{64}$."
         },
         "sourceEvidence": {
           "description": "PluginVersionCreate.sourceEvidence must contain at most 32000 UTF-8 bytes.",
@@ -68505,9 +68517,10 @@ export const clientManifest = {
             "run_stage",
             "merge",
             "deploy",
-            "human_approval"
+            "human_approval",
+            "run_step"
           ],
-          "description": "What the approval authorizes: plan_revision today; merge and deploy are unsupported."
+          "description": "What the approval authorizes: a plan revision, a run stage, or a run step (human.approval); merge and deploy are unsupported."
         },
         "subjectId": {
           "type": "string",
@@ -69275,9 +69288,10 @@ export const clientManifest = {
                   "run_stage",
                   "merge",
                   "deploy",
-                  "human_approval"
+                  "human_approval",
+                  "run_step"
                 ],
-                "description": "What the approval authorizes: plan_revision today; merge and deploy are unsupported."
+                "description": "What the approval authorizes: a plan revision, a run stage, or a run step (human.approval); merge and deploy are unsupported."
               },
               "subjectId": {
                 "type": "string",

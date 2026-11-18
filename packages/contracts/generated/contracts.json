@@ -55921,13 +55921,17 @@
           "properties": {
             "name": {
               "type": "string",
+              "minLength": 1,
               "maxLength": 200,
-              "description": "PluginPackageCreate.name must contain at most 200 characters."
+              "pattern": "^(?!\\s)(?=.*\\S)",
+              "description": "PluginPackageCreate.name must match the pattern ^(?!\\s)(?=.*\\S)."
             },
             "displayName": {
               "type": "string",
+              "minLength": 1,
               "maxLength": 200,
-              "description": "PluginPackageCreate.displayName must contain at most 200 characters."
+              "pattern": "^(?!\\s)(?=.*\\S)",
+              "description": "PluginPackageCreate.displayName must match the pattern ^(?!\\s)(?=.*\\S)."
             },
             "license": {
               "type": "string",
@@ -56101,13 +56105,17 @@
           "properties": {
             "versionName": {
               "type": "string",
+              "minLength": 1,
               "maxLength": 200,
-              "description": "PluginVersionCreate.versionName must contain at most 200 characters."
+              "pattern": "^(?!\\s)(?=.*\\S)",
+              "description": "PluginVersionCreate.versionName must match the pattern ^(?!\\s)(?=.*\\S)."
             },
             "sdkRange": {
               "type": "string",
+              "minLength": 1,
               "maxLength": 200,
-              "description": "PluginVersionCreate.sdkRange must contain at most 200 characters."
+              "pattern": "^(?!\\s)(?=.*\\S)",
+              "description": "PluginVersionCreate.sdkRange must match the pattern ^(?!\\s)(?=.*\\S)."
             },
             "manifest": {
               "description": "PluginVersionCreate.manifest must contain at most 131072 UTF-8 bytes.",
@@ -56151,13 +56159,17 @@
             },
             "bundleObjectRef": {
               "type": "string",
+              "minLength": 1,
               "maxLength": 2000,
-              "description": "PluginVersionCreate.bundleObjectRef must contain at most 2000 characters."
+              "pattern": "^(?!\\s)(?=.*\\S)",
+              "description": "PluginVersionCreate.bundleObjectRef must match the pattern ^(?!\\s)(?=.*\\S)."
             },
             "bundleDigest": {
               "type": "string",
+              "minLength": 64,
               "maxLength": 64,
-              "description": "PluginVersionCreate.bundleDigest must contain at most 64 characters."
+              "pattern": "^[0-9a-f]{64}$",
+              "description": "PluginVersionCreate.bundleDigest must match the pattern ^[0-9a-f]{64}$."
             },
             "sourceEvidence": {
               "description": "PluginVersionCreate.sourceEvidence must contain at most 32000 UTF-8 bytes.",
@@ -208550,9 +208562,10 @@
                 "run_stage",
                 "merge",
                 "deploy",
-                "human_approval"
+                "human_approval",
+                "run_step"
               ],
-              "description": "What the approval authorizes: plan_revision today; merge and deploy are unsupported."
+              "description": "What the approval authorizes: a plan revision, a run stage, or a run step (human.approval); merge and deploy are unsupported."
             },
             "subjectId": {
               "type": "string",
@@ -209316,9 +209329,10 @@
                       "run_stage",
                       "merge",
                       "deploy",
-                      "human_approval"
+                      "human_approval",
+                      "run_step"
                     ],
-                    "description": "What the approval authorizes: plan_revision today; merge and deploy are unsupported."
+                    "description": "What the approval authorizes: a plan revision, a run stage, or a run step (human.approval); merge and deploy are unsupported."
                   },
                   "subjectId": {
                     "type": "string",
@@ -217177,7 +217191,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:1a621a58684d3cb501a5a528468f6aee279f94f1eadea42563259257568bfee7",
+  "compatibilityDigest": "sha256:4cc7f7f231a01ca2973fbc286f4835dbafded08006c964c3efc5bf6aa2151636",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -238064,13 +238078,17 @@
       "properties": {
         "name": {
           "type": "string",
+          "minLength": 1,
           "maxLength": 200,
-          "description": "PluginPackageCreate.name must contain at most 200 characters."
+          "pattern": "^(?!\\s)(?=.*\\S)",
+          "description": "PluginPackageCreate.name must match the pattern ^(?!\\s)(?=.*\\S)."
         },
         "displayName": {
           "type": "string",
+          "minLength": 1,
           "maxLength": 200,
-          "description": "PluginPackageCreate.displayName must contain at most 200 characters."
+          "pattern": "^(?!\\s)(?=.*\\S)",
+          "description": "PluginPackageCreate.displayName must match the pattern ^(?!\\s)(?=.*\\S)."
         },
         "license": {
           "type": "string",
@@ -238246,13 +238264,17 @@
       "properties": {
         "versionName": {
           "type": "string",
+          "minLength": 1,
           "maxLength": 200,
-          "description": "PluginVersionCreate.versionName must contain at most 200 characters."
+          "pattern": "^(?!\\s)(?=.*\\S)",
+          "description": "PluginVersionCreate.versionName must match the pattern ^(?!\\s)(?=.*\\S)."
         },
         "sdkRange": {
           "type": "string",
+          "minLength": 1,
           "maxLength": 200,
-          "description": "PluginVersionCreate.sdkRange must contain at most 200 characters."
+          "pattern": "^(?!\\s)(?=.*\\S)",
+          "description": "PluginVersionCreate.sdkRange must match the pattern ^(?!\\s)(?=.*\\S)."
         },
         "manifest": {
           "description": "PluginVersionCreate.manifest must contain at most 131072 UTF-8 bytes.",
@@ -238296,13 +238318,17 @@
         },
         "bundleObjectRef": {
           "type": "string",
+          "minLength": 1,
           "maxLength": 2000,
-          "description": "PluginVersionCreate.bundleObjectRef must contain at most 2000 characters."
+          "pattern": "^(?!\\s)(?=.*\\S)",
+          "description": "PluginVersionCreate.bundleObjectRef must match the pattern ^(?!\\s)(?=.*\\S)."
         },
         "bundleDigest": {
           "type": "string",
+          "minLength": 64,
           "maxLength": 64,
-          "description": "PluginVersionCreate.bundleDigest must contain at most 64 characters."
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "PluginVersionCreate.bundleDigest must match the pattern ^[0-9a-f]{64}$."
         },
         "sourceEvidence": {
           "description": "PluginVersionCreate.sourceEvidence must contain at most 32000 UTF-8 bytes.",
@@ -391051,9 +391077,10 @@
             "run_stage",
             "merge",
             "deploy",
-            "human_approval"
+            "human_approval",
+            "run_step"
           ],
-          "description": "What the approval authorizes: plan_revision today; merge and deploy are unsupported."
+          "description": "What the approval authorizes: a plan revision, a run stage, or a run step (human.approval); merge and deploy are unsupported."
         },
         "subjectId": {
           "type": "string",
@@ -391821,9 +391848,10 @@
                   "run_stage",
                   "merge",
                   "deploy",
-                  "human_approval"
+                  "human_approval",
+                  "run_step"
                 ],
-                "description": "What the approval authorizes: plan_revision today; merge and deploy are unsupported."
+                "description": "What the approval authorizes: a plan revision, a run stage, or a run step (human.approval); merge and deploy are unsupported."
               },
               "subjectId": {
                 "type": "string",
