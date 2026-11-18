@@ -49,6 +49,7 @@ Deno.test("live authority projections keep identity and organization access sepa
   ]);
   assertEquals(fields(json("Principal")), [
     "createdAt",
+    "createdByPrincipalId",
     "disabledAt",
     "displayName",
     "id",
