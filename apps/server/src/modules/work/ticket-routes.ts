@@ -30,6 +30,7 @@ export function createTicketRoutes(
       "/v1/ticket-sources",
       "/v1/external-tickets",
       "/v1/ticket-task-links",
+      "/v1/ticket-requests",
     ]
   ) {
     app.use(path, options.session);

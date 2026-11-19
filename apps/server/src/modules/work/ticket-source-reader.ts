@@ -179,6 +179,19 @@ export type TicketStatusRead =
   | { kind: "unsupported" }
   | TicketReadFailure;
 
+/** One label the provider holds; `id` is the opaque id routing rules store. */
+export type TicketLabel = { id: string; name: string; color: string | null };
+
+/**
+ * One page of the provider's labels (#69). A provider without labels answers
+ * `unsupported`, never an empty page, so a page can tell "none set up" from
+ * "this tracker has no labels".
+ */
+export type TicketLabelPage =
+  | { kind: "present"; labels: TicketLabel[]; hasNext: boolean }
+  | { kind: "unsupported" }
+  | TicketReadFailure;
+
 export interface TicketSourceReader {
   readIssue(
     handle: TicketSourceHandle,
@@ -232,6 +245,12 @@ export interface TicketSourceReader {
     request: { page: number; since: string | null },
     signal: AbortSignal,
   ): Promise<TicketIssueListPage>;
+  /** One page (1-based) of the labels the source's container holds, read live. */
+  readLabels(
+    handle: TicketSourceHandle,
+    request: { page: number },
+    signal: AbortSignal,
+  ): Promise<TicketLabelPage>;
 }
 
 /**

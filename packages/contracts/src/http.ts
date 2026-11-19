@@ -330,6 +330,14 @@ export const DRAFT_EDIT_REFUSAL_REASONS = Object.freeze(
       // An agent acting without a grant, or on its own work or lineage (#414).
       "agent_power_requires_grant",
       "agent_target_own_work",
+      // An agent starting a run or creating a task without the run_start power
+      // along its spawn chain (#413).
+      "spawn_requires_grant",
+      // An agent steering without the steer power, its own run, or a reviewer
+      // (#413).
+      "steer_requires_grant",
+      "steer_own_run",
+      "steer_reviewer_unavailable",
     ]),
   } as const,
 );
@@ -529,7 +537,7 @@ export function toProblem(
     ...(existingResourceId === undefined ? {} : { existingResourceId }),
     ...(requiredScopes === undefined ? {} : { requiredScopes }),
     ...((code === "DEPENDENCY_UNAVAILABLE" ||
-        code === "PROVIDER_QUOTA_EXCEEDED") &&
+        code === "PROVIDER_QUOTA_EXCEEDED" || code === "RATE_LIMITED") &&
         typeof rawParams?.retryAfterSeconds === "number" &&
         Number.isInteger(rawParams.retryAfterSeconds) &&
         rawParams.retryAfterSeconds >= 1 && rawParams.retryAfterSeconds <= 3600
@@ -820,7 +828,12 @@ function emitSuccess(
 
 export type ActionContextSeed = Pick<
   ActionContext,
-  "principal" | "locale" | "sessionId" | "accessToken" | "transport"
+  | "principal"
+  | "locale"
+  | "sessionId"
+  | "accessToken"
+  | "transport"
+  | "clientAddress"
 >;
 function requestContext(
   context: Context,

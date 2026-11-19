@@ -41,6 +41,8 @@ export const AuthImplementedAction = Object.freeze(
     InstallationAdministratorsList: "installationAdministrators.list",
     InstallationAdministratorsCreate: "installationAdministrators.create",
     InstallationAdministratorsRevoke: "installationAdministrators.revoke",
+    PasswordResetLinksCreate: "passwordResetLinks.create",
+    PasswordResetsRedeem: "passwordResets.redeem",
     AuditEventsList: "auditEvents.list",
     AuditEventsExport: "auditEvents.export",
     AuditEventsStream: "auditEvents.stream",
@@ -389,6 +391,7 @@ export const TicketImplementedAction = Object.freeze(
     TicketSourcesUpdate: "ticketSources.update",
     TicketSourcesPreview: "ticketSources.preview",
     TicketSourcesLookupPerson: "ticketSources.lookupPerson",
+    TicketSourcesLabels: "ticketSources.labels",
     TicketSourcesSync: "ticketSources.sync",
     TicketRoutingRulesGet: "ticketRoutingRules.get",
     TicketRoutingRulesReplace: "ticketRoutingRules.replace",
@@ -399,6 +402,8 @@ export const TicketImplementedAction = Object.freeze(
     TicketTaskLinksList: "ticketTaskLinks.list",
     TicketTaskLinksResyncNote: "ticketTaskLinks.resyncNote",
     TicketRequestsCreate: "ticketRequests.create",
+    TicketRequestsList: "ticketRequests.list",
+    TicketRequestsGet: "ticketRequests.get",
   } as const satisfies Record<string, CatalogActionName>,
 );
 export const ticketImplementedActions = Object.freeze(

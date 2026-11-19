@@ -157,6 +157,12 @@ import {
   createApprovalRoutes,
 } from "./modules/conversation/approval-routes.ts";
 
+/** The auth provider's password hashing, read from its initialized context; undefined for a provider that exposes none. */
+function providerPasswordHasher(auth: AuthHttpProvider) {
+  const context = auth.$context;
+  return context ? async () => (await context).password : undefined;
+}
+
 // The inbox is derived from committed domain events, so every process that
 // serves requests registers the projection once, before any event is written.
 registerNotificationProjection();
@@ -339,6 +345,7 @@ export function createApp(options: {
   const runControlRegistry = createRunControlRegistry({
     database: options.pgDatabase,
     secret: options.config.auth.secret,
+    agentSpawn: options.config.agentSpawn,
   });
   const approvalRegistry = createApprovalRegistry({
     database: options.pgDatabase,
@@ -387,6 +394,7 @@ export function createApp(options: {
     options.taskHandlers ??
       createWorkTaskHandlers(options.config.auth.secret, {
         budget: options.config.budget,
+        agentSpawn: options.config.agentSpawn,
       }),
     {
       authorityRunner: new PostgresAuthorityRunner(options.pgDatabase),
@@ -422,6 +430,7 @@ export function createApp(options: {
     installationSettings,
     availableLocales: availableLocalesFor(options.config.environment),
     publicBaseUrl: options.config.publicBaseUrl,
+    passwordHasher: providerPasswordHasher(auth),
   });
   app.route(
     "/",
@@ -627,6 +636,7 @@ export function createApp(options: {
       secret: options.config.auth.secret,
       skillFileStore,
       budget: options.config.budget,
+      agentSpawn: options.config.agentSpawn,
       inngest: options.config.inngest,
       secretsKey: options.config.secretsKey,
       secretsFetch: options.secretsFetch,
@@ -897,6 +907,7 @@ export function createApp(options: {
       publicBaseUrl: options.config.publicBaseUrl,
       secret: options.config.auth.secret,
       budget: options.config.budget,
+      agentSpawn: options.config.agentSpawn,
       inngest: options.config.inngest,
       secretsKey: options.config.secretsKey,
       secretsFetch: options.secretsFetch,

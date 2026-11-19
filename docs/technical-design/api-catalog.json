@@ -3717,6 +3717,52 @@
     },
     {
       "group": "Installation administration",
+      "method": "POST",
+      "path": "/v1/installation/password-resets",
+      "action": "passwordResetLinks.create",
+      "access": "Installation administrator",
+      "permission": "installationAdministrator:manage",
+      "input": "PasswordResetLinkCreate",
+      "output": "PasswordResetLinkIssued",
+      "event": "",
+      "mcp": null,
+      "idempotency": "none; the link is returned once and never replayed",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope"
+    },
+    {
+      "group": "Access",
+      "method": "POST",
+      "path": "/v1/password-resets/redemptions",
+      "action": "passwordResets.redeem",
+      "access": "Public",
+      "permission": null,
+      "input": "PasswordResetRedemption",
+      "output": "NoContent",
+      "event": "",
+      "mcp": null,
+      "idempotency": "none; a link redeems at most once",
+      "errors": [
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "VALIDATION_FAILED",
+        "RATE_LIMITED",
+        "MALFORMED_REQUEST",
+        "INTERNAL"
+      ]
+    },
+    {
+      "group": "Installation administration",
       "method": "GET",
       "path": "/v1/installation/audit-events",
       "action": "installationAuditEvents.list",
@@ -8628,6 +8674,73 @@
         "INVALID_CURSOR",
         "MALFORMED_REQUEST",
         "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Tickets",
+      "method": "GET",
+      "path": "/v1/ticket-requests",
+      "action": "ticketRequests.list",
+      "access": "Developer",
+      "permission": "externalTicket:read",
+      "input": "TicketRequestQuery",
+      "output": "Page<TicketRequestView>",
+      "event": "",
+      "mcp": null,
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Tickets",
+      "method": "GET",
+      "path": "/v1/ticket-requests/{id}",
+      "action": "ticketRequests.get",
+      "access": "Developer",
+      "permission": "externalTicket:read",
+      "input": "IdPath",
+      "output": "TicketRequestView",
+      "event": "",
+      "mcp": null,
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Tickets",
+      "method": "GET",
+      "path": "/v1/ticket-sources/{id}/labels",
+      "action": "ticketSources.labels",
+      "access": "Developer",
+      "permission": "ticketSource:read",
+      "input": "TicketSourceLabelQuery",
+      "output": "Page<TicketSourceLabel>",
+      "event": "",
+      "mcp": null,
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED",
+        "DEPENDENCY_UNAVAILABLE"
       ],
       "organizationContext": "required_authenticated_context"
     },

@@ -4400,5 +4400,7 @@
   "integrations.linear.permission.write": "⟪Bakery can change Linear issues and post comments.⟫",
   "integrations.linear.permission.other": "⟪Linear granted {scope} access, which Bakery does not use.⟫",
   "integrations.linear.resource.project": "⟪A Linear project⟫",
-  "integrations.linear.resource.team": "⟪A Linear team⟫"
+  "integrations.linear.resource.team": "⟪A Linear team⟫",
+  "notifications.landing.arrived": "⟪Opened from a notification.⟫",
+  "notifications.landing.partGone": "⟪The part this notification was about is no longer here.⟫"
 }

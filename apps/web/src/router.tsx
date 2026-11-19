@@ -98,7 +98,9 @@ import { AddPasskeyPage } from "./pages/AddPasskeyPage.tsx";
 import { ReauthPage } from "./pages/ReauthPage.tsx";
 import { ConnectedClientsPage } from "./pages/ConnectedClientsPage.tsx";
 import { RevokeClientPage } from "./pages/RevokeClientPage.tsx";
+import { NotificationOpening } from "./notifications/NotificationOpening.tsx";
 import { NotificationsPage } from "./notifications/NotificationsPage.tsx";
+import { type LandingSearch, landingSearch } from "./notifications/landing.ts";
 import { isNotificationView } from "./notifications/presentation.ts";
 import { OAuthConsentPage } from "./pages/OAuthConsentPage.tsx";
 import { createConsentGateway } from "./app/consent-gateway.ts";
@@ -1049,9 +1051,25 @@ const taskNewRoute = createRoute({
 const taskDetailRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/tasks/$taskId",
+  // `at`, `gone`, `n` and `r` carry a notification's landing (see landing.ts).
+  validateSearch: (search: Record<string, unknown>) => landingSearch(search),
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
-  component: () => <TasksPage taskId={taskDetailRoute.useParams().taskId} />,
+  component: () => {
+    const landing = taskDetailRoute.useSearch();
+    const navigate = taskDetailRoute.useNavigate();
+    return (
+      <TasksPage
+        taskId={taskDetailRoute.useParams().taskId}
+        landing={landing}
+        stripLanding={() =>
+          void navigate({
+            search: (previous) => ({ ...previous, n: undefined, r: undefined }),
+            replace: true,
+          })}
+      />
+    );
+  },
   errorComponent: ProtectedRouteError,
 });
 
@@ -1621,15 +1639,30 @@ const artifactRetrievalRoute = createRoute({
   path: "/tasks/$taskId/artifacts/$artifactId",
   validateSearch: (
     search: Record<string, unknown>,
-  ): { version?: string; comment?: string } => ({
+  ): { version?: string; comment?: string } & LandingSearch => ({
     version: typeof search.version === "string" ? search.version : undefined,
     comment: typeof search.comment === "string" ? search.comment : undefined,
+    ...landingSearch(search),
   }),
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
   component: () => {
     const { artifactId, taskId } = artifactRetrievalRoute.useParams();
-    return <ArtifactRetrievalPage artifactId={artifactId} taskId={taskId} />;
+    const { version: _version, comment: _comment, ...landing } =
+      artifactRetrievalRoute.useSearch();
+    const navigate = artifactRetrievalRoute.useNavigate();
+    return (
+      <ArtifactRetrievalPage
+        artifactId={artifactId}
+        taskId={taskId}
+        landing={landing}
+        stripLanding={() =>
+          void navigate({
+            search: (previous) => ({ ...previous, n: undefined, r: undefined }),
+            replace: true,
+          })}
+      />
+    );
   },
   errorComponent: ProtectedRouteError,
 });
@@ -1855,17 +1888,60 @@ const notificationsRoute = createRoute({
   path: "/notifications",
   validateSearch: (
     search: Record<string, unknown>,
-  ): { view?: "all" | "unread" | "mentions"; item?: string } => ({
+  ): {
+    view?: "all" | "unread" | "mentions";
+    item?: string;
+    open?: string;
+    r?: number;
+  } => ({
     view: isNotificationView(search.view) ? search.view : undefined,
     item: typeof search.item === "string" && isUuid(search.item)
       ? search.item
+      : undefined,
+    // `open` is a row being opened: resolved now, then replaced by its place.
+    open: typeof search.open === "string" && isUuid(search.open)
+      ? search.open
+      : undefined,
+    r: Number.isInteger(Number(search.r)) && Number(search.r) >= 1
+      ? Number(search.r)
       : undefined,
   }),
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
   component: () => {
-    const { view, item } = notificationsRoute.useSearch();
+    const { view, item, open, r } = notificationsRoute.useSearch();
     const navigate = notificationsRoute.useNavigate();
+    const landNavigate = useNavigate();
+    if (open !== undefined) {
+      return (
+        <NotificationOpening
+          id={open}
+          revision={r ?? null}
+          onLand={(destination) => {
+            const { route, search } = destination;
+            void (route.to === "/tasks/$taskId"
+              ? landNavigate({
+                to: route.to,
+                params: route.params,
+                search,
+                replace: true,
+              })
+              : landNavigate({
+                to: route.to,
+                params: route.params,
+                search,
+                replace: true,
+              }));
+          }}
+          onBack={() =>
+            void navigate({
+              to: NOTIFICATIONS_PATH,
+              search: {},
+              replace: true,
+            })}
+        />
+      );
+    }
     return (
       <NotificationsPage
         item={item ?? null}

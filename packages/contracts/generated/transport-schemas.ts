@@ -7324,6 +7324,76 @@ const transportSchemas = {
       "pagination": "pagination",
       "description": "Query for the links between external tickets and Bakery tasks, from either side, with each link's role and the sync health of Bakery's status note on the ticket."
     },
+    "TicketRequestQuery": {
+      "fields": [
+        {
+          "name": "externalTicketId",
+          "type": "uuid",
+          "required": true,
+          "description": "Lists the admission generations of this one external ticket; a ticket outside the caller's organization answers 404, exactly as a missing one."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from a previous page's nextCursor, bound to the caller and the ticket; pass it back verbatim and never construct it."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum number of requests in one page, capped at 100; defaults to 25 when omitted."
+        }
+      ],
+      "rules": [
+        "Keyset pages newest request first, ordered by createdAt then id."
+      ],
+      "pagination": "pagination",
+      "description": "Query for the start requests (admission generations) of one external ticket, newest first, each with its progress, pause state and routed targets (#69)."
+    },
+    "TicketSourceLabelQuery": {
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "Ticket source whose provider labels are read; supplied via the request's {id} path segment."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from a previous page's nextCursor; it names the provider's next page, is bound to the caller and the source, and must be passed back verbatim."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 100
+          },
+          "description": "Maximum number of labels in one page, capped at 100; defaults to 100. The provider's own page size decides where a page ends, so a page may hold fewer."
+        }
+      ],
+      "rules": [
+        "A live provider read, never cached; a provider failure answers 503 DEPENDENCY_UNAVAILABLE, a provider without labels 422 labels_unsupported."
+      ],
+      "pagination": "pagination",
+      "description": "Query for the labels the ticket source's provider holds right now, so a routing rule or trigger can name one by its stable id (#69)."
+    },
     "TicketTaskLinkNoteSync": {
       "fields": [],
       "rules": [
@@ -11240,9 +11310,9 @@ const transportSchemas = {
       "fields": [
         {
           "name": "power",
-          "type": "enum(decide|run_control|run_start)",
+          "type": "enum(decide|run_control|run_start|steer|steer_reviewer)",
           "required": true,
-          "description": "The off-by-default power being granted: decide (approve, reject or request changes where a person would), run_control (pause, resume, cancel, interrupt or retry a run) or run_start (start a run, still subject to count, depth and budget checks)."
+          "description": "The off-by-default power being granted: decide (approve, reject or request changes where a person would), run_control (pause, resume, cancel, interrupt or retry a run) run_start (start a run, still subject to count, depth and budget checks) steer (send a note or a steer to a run the agent spawned, never its own and never a reviewer's) or steer_reviewer (also steer a reviewer's step, which labels the review steered so it no longer counts as independent)."
         },
         {
           "name": "workflowId",
@@ -11309,6 +11379,40 @@ const transportSchemas = {
         }
       ],
       "description": "Makes the caller the completer of a workflow step, or restarts it. Allowed only for a step of a compiled-plan run whose job is still queued with no live attempt, and only for a caller holding run control; a step with a live attempt is refused with STATE_CONFLICT `attempt_live` and must be stopped through run control first. `complete` also needs the action to produce an artifact. A job with a budget reservation and a finished attempt is refused with `budget_unsettled` in either mode while the reservation is still held, because that attempt may already have spent against it. Once reconciliation settles it, `complete` goes through; `restart` does not: a restart reuses the held reservation, so a funded job that has had a finished attempt is never restartable (`budget_not_reserved` once the reservation is settled or released). `restart` of any funded job also needs its reservation held, and a funded job with no reservation is refused with `budget_not_reserved`. A job whose action has no budget can be completed or restarted after any number of attempts."
+    },
+    "PasswordResetLinkCreate": {
+      "fields": [
+        {
+          "name": "principalId",
+          "type": "uuid",
+          "required": true,
+          "description": "Enabled human principal whose password the link resets; any installation person, whichever organizations they belong to."
+        }
+      ],
+      "description": "Installation administrator's request for a one-hour, single-use password reset link for one person. Issuing revokes that person's earlier unused links."
+    },
+    "PasswordResetRedemption": {
+      "fields": [
+        {
+          "name": "token",
+          "type": "secretString",
+          "required": true,
+          "bounds": {
+            "maxLength": 256
+          },
+          "description": "Reset token from the link's token query parameter, sent exactly as issued. The server stores only its SHA-256 digest."
+        },
+        {
+          "name": "newPassword",
+          "type": "secretString",
+          "required": true,
+          "bounds": {
+            "maxLength": 1024
+          },
+          "description": "The person's new sign-in password; it must meet the same length rule as sign-up and password change, and is hashed by the auth provider before storage."
+        }
+      ],
+      "description": "Unauthenticated redemption of a password reset link: sets the new password, consumes the link and signs the person out of every browser session. An unknown, used, expired or revoked link gets one identical refusal."
     }
   },
   "projections": {
@@ -24856,6 +24960,132 @@ const transportSchemas = {
     "Page<TicketRequest>": {
       "pageOf": "TicketRequest"
     },
+    "TicketRequestView": {
+      "projection": "ticket_requests",
+      "fields": [
+        "id",
+        "externalTicketId",
+        "ticketTaskLinkId",
+        "intent",
+        "origin",
+        "requestedByPrincipalId",
+        "triggerLabelName",
+        "disposition",
+        "dispositionReasonCode",
+        "pausedAt",
+        "pausedReason",
+        "progress",
+        "workflowRunId",
+        "createdAt",
+        "updatedAt",
+        "version",
+        "targets"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "externalTicketId": "uuid",
+        "ticketTaskLinkId": "uuid",
+        "intent": "enum(plan|start)",
+        "origin": "enum(manual|adoption|webhook|poll)",
+        "requestedByPrincipalId": "uuid|null",
+        "triggerLabelName": "string|null",
+        "disposition": "enum(pending|waiting|admitted|active|suspended|rejected|completed|failed|canceled)",
+        "dispositionReasonCode": "enum(held|label_missing|status_missing|status_unsupported|label_withdrawn|predecessor_open|closed_unmerged|proof_unavailable|inaccessible|links_truncated|provider_unavailable|no_delegation|actor_not_allowlisted|actor_role_insufficient|actor_unverifiable|principal_inactive|source_disabled|connection_not_enabled|installation_not_enabled|resource_not_selected|repository_archived|no_active_profile|preset_setup_required|acceptance_changed|ticket_closed|ticket_gone|ticket_moved|pull_request_not_ticket|repository_mismatch|requirements_too_large|has_sub_issues|run_completed|run_failed|run_canceled|task_completed|task_failed|task_canceled)|null",
+        "pausedAt": "timestamp|null",
+        "pausedReason": "enum(edited_after_setup|label_removed|hold_label_added|dependency_unreadable)|null",
+        "progress": "enum(pending|waiting|admitted|active|suspended|completed|failed|canceled|rejected)",
+        "workflowRunId": "uuid|null",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp",
+        "version": "integer",
+        "targets": "TicketRequestViewTarget[]"
+      },
+      "nullableFields": [
+        "requestedByPrincipalId",
+        "triggerLabelName",
+        "dispositionReasonCode",
+        "pausedAt",
+        "pausedReason",
+        "workflowRunId"
+      ],
+      "description": "One start request (admission generation) of an external ticket as the ticket's history shows it (#69): who or what started it, the stored disposition with a machine-readable reason, whether its run was paused and why, and one progress value computed from the disposition and the run's state.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of this ticket request.",
+        "externalTicketId": "External ticket this request admitted.",
+        "ticketTaskLinkId": "Link between the ticket and the task this request owns.",
+        "intent": "Requested scope: plan stops after the plan for review, start plans and then runs.",
+        "origin": "How the request began: manual for an explicit request by a member, adoption for an explicit request on an issue that already carried the request label, webhook for a provider delivery, poll for a source sync.",
+        "requestedByPrincipalId": "Principal that asked for a manual or adoption start; null for a webhook or poll start.",
+        "triggerLabelName": "The request label that started a webhook, poll or adoption request, as the issue carried it at admission; null for a manual start and for requests admitted before the label was recorded.",
+        "disposition": "Stored lifecycle state of the request.",
+        "dispositionReasonCode": "Machine-readable reason behind the disposition: a readiness reason for a suspended request, or run_*/task_* for one that ended with its run or task; null while none is recorded.",
+        "pausedAt": "When Bakery asked the request's live run to pause after the request was suspended; null when no pause was requested.",
+        "pausedReason": "Why the run was paused, from the suspension reason: edited_after_setup when the acceptance criteria changed, label_removed when the request label was withdrawn, hold_label_added when the hold label was set, dependency_unreadable when a blocker could not be read. Null when not paused or paused for another reason, which dispositionReasonCode names.",
+        "progress": "One progress value for display, computed by the server from the disposition and the run: a nonterminal request whose run finished shows the run's end, a queued run shows admitted, a running run active, a paused run suspended, a run waiting for input, capacity or a block waiting.",
+        "workflowRunId": "Workflow run the request owns; null before one starts.",
+        "createdAt": "When the request was admitted.",
+        "updatedAt": "When the request last changed.",
+        "version": "Monotonic revision of the request.",
+        "targets": "Repository-scoped children pinned at admission, ordered by role then repository."
+      }
+    },
+    "Page<TicketRequestView>": {
+      "pageOf": "TicketRequestView"
+    },
+    "TicketRequestViewTarget": {
+      "projection": "ticket_request_targets",
+      "fields": [
+        "repositoryId",
+        "role",
+        "routingRuleId",
+        "routingRuleVersion",
+        "childTaskId"
+      ],
+      "fieldTypes": {
+        "repositoryId": "uuid",
+        "role": "string",
+        "routingRuleId": "uuid|null",
+        "routingRuleVersion": "integer|null",
+        "childTaskId": "uuid|null"
+      },
+      "nullableFields": [
+        "routingRuleId",
+        "routingRuleVersion",
+        "childTaskId"
+      ],
+      "description": "One repository a ticket request was routed to, as pinned at admission.",
+      "fieldDescriptions": {
+        "repositoryId": "Repository this target is scoped to.",
+        "role": "Role the repository plays; default for the fallback to the source's own repository.",
+        "routingRuleId": "Rule that routed the ticket here as pinned at admission, or null for the fallback.",
+        "routingRuleVersion": "Version of that rule at admission, or null for the fallback.",
+        "childTaskId": "Child task that runs this target, or null for the fallback, which runs on the request's own task."
+      }
+    },
+    "TicketSourceLabel": {
+      "fields": [
+        "id",
+        "name",
+        "color"
+      ],
+      "fieldTypes": {
+        "id": "string",
+        "name": "string",
+        "color": "string|null"
+      },
+      "nullableFields": [
+        "color"
+      ],
+      "description": "One label the ticket source's provider holds, read live (#69).",
+      "fieldDescriptions": {
+        "id": "The provider's stable, opaque label id; the value a routing rule stores, which survives a rename.",
+        "name": "The label's current name.",
+        "color": "The label's colour as six hex digits without a leading #, or null when the provider gives none."
+      }
+    },
+    "Page<TicketSourceLabel>": {
+      "pageOf": "TicketSourceLabel"
+    },
     "PluginPackage": {
       "projection": "plugin_packages",
       "fields": [
@@ -28693,7 +28923,7 @@ const transportSchemas = {
       ],
       "fieldTypes": {
         "id": "uuid",
-        "power": "enum(decide|run_control|run_start)",
+        "power": "enum(decide|run_control|run_start|steer|steer_reviewer)",
         "workflowId": "uuid|null",
         "accessTokenId": "uuid|null",
         "grantedBy": "uuid",
@@ -28707,7 +28937,7 @@ const transportSchemas = {
       "description": "One grant of an off-by-default agent power (O52): which power, which workflow and seat it covers, and the person who granted it. Revoking deletes it; the audit log keeps both.",
       "fieldDescriptions": {
         "id": "Stable UUID identifying the grant.",
-        "power": "The power granted: decide, run_control or run_start.",
+        "power": "The power granted: decide, run_control, run_start, steer or steer_reviewer.",
         "workflowId": "Immutable id of the workflow that holds the power, as an agent's own workflow and as a target workflow; null covers every workflow for the named seat.",
         "accessTokenId": "Seat (access token) the grant is limited to; null for any agent session of the named workflow.",
         "grantedBy": "Person who made the grant.",
@@ -28801,6 +29031,24 @@ const transportSchemas = {
       "fieldDescriptions": {
         "runId": "UUID of the run these offers belong to.",
         "offers": "The open choices, empty when no step of the run is stalled behind an incident."
+      }
+    },
+    "PasswordResetLinkIssued": {
+      "fields": [
+        "id",
+        "url",
+        "expiresAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "url": "secretString",
+        "expiresAt": "timestamp"
+      },
+      "description": "A newly issued password reset link. The URL carries the only copy of the token and is returned in this response alone; it is never stored, replayed or readable again.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of the reset link record, as the audit trail names it.",
+        "url": "Absolute web URL of the reset page with the one-time token; hand it to the person over a trusted channel.",
+        "expiresAt": "UTC timestamp one hour after issue, after which the link no longer works."
       }
     }
   },
