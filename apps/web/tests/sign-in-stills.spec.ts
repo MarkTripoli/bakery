@@ -13,6 +13,12 @@ const STATES = [
   ["new-accounts-paused", "join-disabled", "registration-paused"],
   ["change-password", "password-default", "change-password"],
   ["account-and-security", "security-hub-default", "security-hub"],
+  ["passkeys-empty", "passkeys-default", "passkeys-none"],
+  ["connected-clients", "clients-default", "connected-clients"],
+  ["connected-clients-empty", "clients-empty", "security-empty"],
+  ["profile", "profile-default", "profile-settings"],
+  ["access-levels", "access-default", "access-settings"],
+  ["access-levels-no-access", "access-no-access", "access-no-grant"],
 ] as const;
 
 for (const [name, specimen, marker] of STATES) {
