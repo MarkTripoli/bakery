@@ -134,6 +134,12 @@ importers:
       '@bakery/i18n':
         specifier: workspace:*
         version: link:../../packages/i18n
+      '@bakery/integration-linear':
+        specifier: workspace:*
+        version: link:../../packages/integration-linear
+      '@bakery/integration-sdk':
+        specifier: workspace:*
+        version: link:../../packages/integration-sdk
       '@bakery/ui':
         specifier: workspace:*
         version: link:../../packages/ui
