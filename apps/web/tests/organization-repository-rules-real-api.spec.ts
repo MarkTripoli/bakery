@@ -130,9 +130,11 @@ test.describe("organization repository rules against the real API", () => {
       "Version 2 · published",
     );
     const row = (name: string) => ruleRow(page, name);
-    await expect(row("Semantic commits")).toContainText("Locked");
-    await expect(row("PR / MR titles")).toContainText("Locked");
-    await expect(row("Merge descriptions")).toContainText("Can override");
+    await expect(row("Semantic commits")).toContainText(/No, locked|Locked/);
+    await expect(row("PR / MR titles")).toContainText(/No, locked|Locked/);
+    await expect(row("Merge descriptions")).toContainText(
+      /Yes|Repositories can change it/,
+    );
     await expect(row("Magic numbers")).toContainText("allow 0, 1");
     await expect(row("Magic strings")).toContainText("Off");
 

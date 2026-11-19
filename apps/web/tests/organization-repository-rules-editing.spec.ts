@@ -316,7 +316,7 @@ test.describe("organization repository rules: editing", () => {
     await openEditor(page, "Semantic commits");
     await expect(
       page.getByText(
-        "A shared starting point for every repository in this organization.",
+        "Rules every repository in this organization starts with.",
       ),
     ).toHaveCount(0);
     const cancel = page.getByRole("button", { name: "Cancel" });

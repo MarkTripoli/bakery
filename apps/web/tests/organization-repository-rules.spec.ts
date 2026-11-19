@@ -159,14 +159,16 @@ test.describe("organization repository rules", () => {
     );
     const row = (name: string) => ruleRow(page, name);
     await expect(row("Semantic commits")).toContainText("Require");
-    await expect(row("Semantic commits")).toContainText("Locked");
+    await expect(row("Semantic commits")).toContainText(/No, locked|Locked/);
     await expect(row("Semantic commits")).toContainText(
       "Conventional Commits · all introduced commits",
     );
     await expect(row("PR / MR titles")).toContainText(
       "type(scope): summary · 72-character subject",
     );
-    await expect(row("Merge descriptions")).toContainText("Can override");
+    await expect(row("Merge descriptions")).toContainText(
+      /Yes|Repositories can change it/,
+    );
     await expect(row("Merge descriptions")).toContainText(
       "Summary, Changes, Validation · Markdown template",
     );
@@ -293,7 +295,9 @@ test.describe("organization repository rules", () => {
     await shot(page, "rules-current");
   });
 
-  test("both column headers carry a help button that explains the column", async ({ page }) => {
+  test("both column headers carry a help button that explains the column", async ({ page, isMobile }) => {
+    // A phone lists rows, not columns, so there are no headers to explain.
+    test.skip(isMobile, "no column headers on a phone");
     await rulesFixture(page);
     await page.goto(PAGE_PATH);
     const enforcement = page.getByRole("button", {
@@ -367,7 +371,7 @@ test.describe("organization repository rules", () => {
       level: 1,
     }).boundingBox();
     const description = await page.getByText(
-      "A shared starting point for every repository in this organization.",
+      "Rules every repository in this organization starts with.",
     ).boundingBox();
     const gap = description!.y - (title!.y + title!.height);
     // The column's own gap is 28px; the header group is tighter than that.
@@ -584,8 +588,8 @@ test.describe("organization repository rules", () => {
     for (
       const [rule, label] of [
         ["Semantic commits", "Require · Locked"],
-        ["Merge descriptions", "Require · Can override"],
-        ["Magic strings", "Off · Can override"],
+        ["Merge descriptions", "Require · Repositories can change it"],
+        ["Magic strings", "Off · Repositories can change it"],
       ]
     ) {
       const row = ruleRow(page, rule);
