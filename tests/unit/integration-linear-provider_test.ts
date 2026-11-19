@@ -29,7 +29,7 @@ import {
 const secret = new TextEncoder().encode("linear-webhook-secret");
 const body = (value: unknown) =>
   new TextEncoder().encode(JSON.stringify(value));
-const signatureFor = (raw: Uint8Array, key = secret) =>
+const signatureFor = (raw: Uint8Array, key: Uint8Array = secret) =>
   new Uint8Array(createHmac("sha256", key).update(raw).digest());
 
 /** The host's verifier, as `apps/server` supplies it: HMAC then constant time. */

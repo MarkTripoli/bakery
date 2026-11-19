@@ -5,11 +5,29 @@ import {
   defineServerProvider,
   IntegrationActivationError,
 } from "../../packages/integration-sdk/provider.ts";
-import type { ProviderManifest } from "../../packages/integration-sdk/provider.ts";
+import type {
+  ProviderManifest,
+  ServerImpl,
+  ServerProvider,
+} from "../../packages/integration-sdk/provider.ts";
 import {
   linearProviderManifest,
   linearServerProvider,
 } from "../../packages/integration-linear/src/server/mod.ts";
+
+/**
+ * The Linear implementation, retyped for the tests that widen the manifest to
+ * `ProviderManifest`. A widened manifest no longer names its connect kind, so the
+ * conditional `ConnectFor` falls to its last arm; the value is still Linear's own.
+ */
+const widenedImpl = linearServerProvider.impl as unknown as ServerImpl<
+  ProviderManifest
+>;
+
+/** Linear as the activated list holds it, with the manifest widened. */
+const widenedLinear = linearServerProvider as unknown as ServerProvider<
+  ProviderManifest
+>;
 
 /**
  * `activateProviders` (rail B8, chapter 09 section 12.4).
@@ -28,7 +46,7 @@ const otherProvider = defineServerProvider(
     integrationId: "bakery.gitlab",
     providerUuid: "00000000-0000-5000-8000-000000000001",
   } as ProviderManifest,
-  linearServerProvider.impl,
+  widenedImpl,
 );
 
 Deno.test("the real registry activates and answers by slug and gate id", () => {
@@ -90,7 +108,7 @@ Deno.test("a duplicate slug, gate id or uuid is refused, naming the first owner"
             integrationId: "bakery.other",
             providerUuid: "00000000-0000-5000-8000-000000000002",
           } as ProviderManifest,
-          linearServerProvider.impl,
+          widenedImpl,
         ),
       ],
       [
@@ -101,7 +119,7 @@ Deno.test("a duplicate slug, gate id or uuid is refused, naming the first owner"
             slug: "other",
             providerUuid: "00000000-0000-5000-8000-000000000003",
           } as ProviderManifest,
-          linearServerProvider.impl,
+          widenedImpl,
         ),
       ],
       [
@@ -112,7 +130,7 @@ Deno.test("a duplicate slug, gate id or uuid is refused, naming the first owner"
             slug: "other",
             integrationId: "bakery.other",
           } as ProviderManifest,
-          linearServerProvider.impl,
+          widenedImpl,
         ),
       ],
     ] as const
@@ -142,7 +160,7 @@ Deno.test("every defect is collected, so one run names them all", () => {
       ...linearProviderManifest,
       providerUuid: "00000000-0000-5000-8000-000000000004",
     } as ProviderManifest,
-    { ...linearServerProvider.impl, hostProfile: "  " },
+    { ...widenedImpl, hostProfile: "  " },
   );
   const error = assertThrows(
     () => activateProviders([broken, linearServerProvider]),
@@ -157,7 +175,7 @@ Deno.test("a manifest that fails the schema is refused before its ports are judg
   // boundary at runtime, so it is re-validated rather than trusted.
   const wrong = defineServerProvider(
     { ...linearProviderManifest, slug: "Not A Slug" } as ProviderManifest,
-    linearServerProvider.impl,
+    widenedImpl,
   );
   const error = assertThrows(
     () => activateProviders([wrong]),
@@ -170,7 +188,7 @@ Deno.test("a manifest that fails the schema is refused before its ports are judg
 });
 
 Deno.test("the activated set is frozen in both directions", () => {
-  const activated = activatedProviders([linearServerProvider, otherProvider]);
+  const activated = activatedProviders([widenedLinear, otherProvider]);
   assertEquals(activated.providers.length, 2);
   assertEquals(activated.get("gitlab")?.manifest.slug, "gitlab");
   // The list decides what the gate routes to, so a caller that appended to it would
