@@ -79,7 +79,10 @@ const ADMIN_MINIMUM_ACCESS = [
 
 const DEVELOPER_MINIMUM_ACCESS = [
   "Developer",
+  // Developer is the floor (permissions.ts): the action's own guard raises the
+  // bar to Admin for the organization case, so a developer holds the key.
   "Developer for personal; Admin for organization",
+  "Owner for personal; Admin for organization",
   "Developer or Worker (pinned version + current lease)",
   "Developer+action grant",
   "Authorized owner/member",

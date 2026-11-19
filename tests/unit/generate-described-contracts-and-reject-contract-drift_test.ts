@@ -894,15 +894,18 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
     "a83b7ec57da9bf29078c23b24d3cdda776f255fe",
     "9da88825036edcc588db4c2ac892297a8638b8cb",
     "968c2ab9257fad06adb6132eb743a4f62c578e17",
+    "6eefa213893fcce48b6511332ef3798e3524602b",
   ];
   const approvedDigest =
-    "sha256:ed93d6ab9c60fe57f298963e296af917252d61894392c63eec098f47242eb94d";
+    "sha256:5178d631d0dfff391ce01c4b044cb87ed2684f95e529dba270b3a7aea30440c8";
   // Every approval this one displaced, in order. They are history: none of
   // them may pass again, or a stale digest would silently re-authorise a delta
   // nobody reviewed.
   const rejectedPriorDigests = [
     // Newest first, matching the file: a displaced approval is prepended, so the
     // approval this change removed from force heads the history it joins.
+    // Displaced by the #400 re-bind onto main 6eefa2138 (#721 and #710 merged).
+    "sha256:ed93d6ab9c60fe57f298963e296af917252d61894392c63eec098f47242eb94d",
     // Displaced by the #400 re-bind onto main 9da888250 (#706 merged; the same
     // renamed input field, only the base and the digest moved).
     "sha256:d6aa2d82f6414d196b7ee0780b964513e0c25772e3b499c65c775e04a7fa43c7",
