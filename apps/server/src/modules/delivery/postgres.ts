@@ -735,7 +735,7 @@ function toPullRequest(row: PullRequestRow, mayMerge: boolean) {
 export const PULL_REQUEST_MERGE_METHOD = "squash" as const;
 
 /** Whether the caller holds the permission to merge a pull request. */
-function callerMayMerge(context: ActionContext): boolean {
+export function callerMayMerge(context: ActionContext): boolean {
   const actor = (context as Partial<AuthorizedActionContext>).authority;
   if (!actor || !("organizationId" in actor)) return false;
   return effectivePermissions(actor as OrganizationActor).includes(

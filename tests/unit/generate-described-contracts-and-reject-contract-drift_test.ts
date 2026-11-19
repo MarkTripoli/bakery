@@ -884,16 +884,17 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
   // The approval currently in force: the base it was bound to, and the digest
   // of the tree it authorises.
   const approvedBases = [
-    "3b8d4ef5651aeb7feb2a38518001271c1436646f",
+    "3e67ca6d20efb88bf8b1ce763e7dd95af1ef4bee",
   ];
   const approvedDigest =
-    "sha256:fde2bf41e3caf11df66620b7a2a88273a0a65d334f02a2ee432fde53c0d59580";
+    "sha256:96f61e8e97de1017f73baa0427a42d08504695e327abceb3a1a3e92db4829707";
   // Every approval this one displaced, in order. They are history: none of
   // them may pass again, or a stale digest would silently re-authorise a delta
   // nobody reviewed.
   const rejectedPriorDigests = [
     // Newest first, matching the file: a displaced approval is prepended, so the
     // approval this change removed from force heads the history it joins.
+    "sha256:fde2bf41e3caf11df66620b7a2a88273a0a65d334f02a2ee432fde53c0d59580",
     // Displaced by the #69 ticket preview, link reads and status note re-bind.
     "sha256:c22cd3f2f4e54fa2a414d3d24c1f9872c04df3eaead7354f46ea1cfaea241c5d",
     // Displaced by the #26 probe re-bind: RouteHealth gains reasonSince and the
