@@ -64,6 +64,20 @@ WEB_AUTH_SEED_PASSWORD=Browser-Admin-Passw0rd-1 deno run --allow-env --allow-net
   tests/helpers/web-auth-seed.ts browser-admin@example.test
 ```
 
+### Owner maintenance: storage purges
+
+An Admin "Delete forever" of a record-area file only queues a request; the
+bytes are cleared by the `storage-purges` task, which connects with
+`DATABASE_URL` as the database owner (the API holds only the runtime role).
+
+- Schedule: the `storage-purges` service in `infra/compose.yaml` runs it
+  every 600 seconds after `migrate` succeeds. The server image runs it once
+  with `bash infra/railway/server-entrypoint.sh storage-purges`, for an
+  external cron.
+- By hand, after section 3's exports: `pnpm --filter @bakery/server storage-purges`.
+  It prints `{"completed":N,"versionsPurged":M}`. Run as any role other than
+  the owner it fails with AUTH_FORBIDDEN and changes nothing.
+
 ## 5. Run a browser spec
 
 Playwright starts the Vite dev server itself (`pnpm dev` on `$BAKERY_WEB_PORT`).

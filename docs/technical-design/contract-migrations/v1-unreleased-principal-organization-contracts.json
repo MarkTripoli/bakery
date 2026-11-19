@@ -1,13 +1,22 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "a83b7ec57da9bf29078c23b24d3cdda776f255fe"
+    "94e8c0e8c04f896c3f56374303ac9853d21405aa"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:0af27ea622064da472975b42034ebb6706ba64e6175512437fff8bf75ffe9cfa",
-  "reason": "#431 private skills re-bind by dev-workflows on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main a83b7ec57da9bf29078c23b24d3cdda776f255fe: every Skill response gains two required fields, scope (global, organization or personal, shown as Shared by Bakery, Organization and Private) and ownerPrincipalId, skills.create takes an optional scope, workflowVersions.create and workflowVersions.update take an optional confirmPersonalSkillUse list, skills.useGrants.list and skills.useGrants.delete are new actions, and the access of skills.create, skills.update and skillVersions.create becomes personal-for-the-owner and organization-for-Admin under the new skill:author permission. The breaking drift is the two newly required response fields; no request field, route or status code is removed. The approval it displaced at sha256:1bb20d3e4b8b522b20bd353fb37d4c1b62b79f41d754036ea28804c650d7a9dc is preserved unchanged first below.",
+  "targetCompatibilityDigest": "sha256:74939f698da35840e7aba037034e0e3452c6e17c35fd0790a3c9a0e37886e3d4",
+  "reason": "#431 private skills re-bind by dev-workflows on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main a83b7ec57da9bf29078c23b24d3cdda776f255fe: every Skill response gains two required fields, scope (global, organization or personal, shown as Shared by Bakery, Organization and Private) and ownerPrincipalId, skills.create takes an optional scope, workflowVersions.create and workflowVersions.update take an optional confirmPersonalSkillUse list, skills.useGrants.list and skills.useGrants.delete are new actions, and the access of skills.create, skills.update and skillVersions.create becomes personal-for-the-owner and organization-for-Admin under the new skill:author permission. The breaking drift is the two newly required response fields; no request field, route or status code is removed. The approval it displaced at sha256:1bb20d3e4b8b522b20bd353fb37d4c1b62b79f41d754036ea28804c650d7a9dc is preserved unchanged first below. Re-bound again by dev-workflows on 2026-11-19 to main 94e8c0e8c04f896c3f56374303ac9853d21405aa when #431 PR1 opened (main moved past a83b7ec57; #654 added the same two access values, no new drift); the breaking drift is unchanged and the approval it displaced at sha256:0af27ea622064da472975b42034ebb6706ba64e6175512437fff8bf75ffe9cfa is preserved first below.",
   "priorApprovals": [
+    {
+      "fromBaseRefs": [
+        "a83b7ec57da9bf29078c23b24d3cdda776f255fe"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:0af27ea622064da472975b42034ebb6706ba64e6175512437fff8bf75ffe9cfa",
+      "reason": "#431 private skills re-bind by dev-workflows on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main a83b7ec57da9bf29078c23b24d3cdda776f255fe: every Skill response gains two required fields, scope (global, organization or personal, shown as Shared by Bakery, Organization and Private) and ownerPrincipalId, skills.create takes an optional scope, workflowVersions.create and workflowVersions.update take an optional confirmPersonalSkillUse list, skills.useGrants.list and skills.useGrants.delete are new actions, and the access of skills.create, skills.update and skillVersions.create becomes personal-for-the-owner and organization-for-Admin under the new skill:author permission. The breaking drift is the two newly required response fields; no request field, route or status code is removed. The approval it displaced at sha256:1bb20d3e4b8b522b20bd353fb37d4c1b62b79f41d754036ea28804c650d7a9dc is preserved unchanged first below."
+    },
     {
       "fromBaseRefs": [
         "eb7d1ee5befefbc8fd94a97a66f18fb01d215b4f"
