@@ -4,6 +4,7 @@ import type { ActionContext } from "../../packages/contracts/src/action-registry
 import { withPgTransaction } from "../../apps/server/src/platform/database.ts";
 import { admitRouteContinuation } from "../../apps/server/src/modules/execution/route-continuation-admit.ts";
 import {
+  closeWorkerFixture,
   openWorkerFixture,
   registeredWorker,
   type WorkerFixture,
@@ -311,8 +312,39 @@ async function refusedWith(
   );
 }
 
+/**
+ * Teardown. The rows this file seeds hold restrictive foreign keys to each other
+ * (a continuation to its incident and routes, an incident to its route), so they go
+ * in dependency order before the fixture removes the organization. The fixture is
+ * then released, or the next test waits on this one forever.
+ */
 async function done(seeded: Seeded) {
-  await seeded.fixture.close?.();
+  const pg = database(seeded.fixture);
+  const organizationId = seeded.fixture.organizationId;
+  try {
+    await pg.query(
+      "delete from bakery.route_continuations where organization_id = $1",
+      [organizationId],
+    );
+    await pg.query(
+      "update bakery.provider_routes set incident_id = null where organization_id = $1",
+      [organizationId],
+    );
+    await pg.query(
+      "delete from bakery.provider_incidents where organization_id = $1",
+      [organizationId],
+    );
+    await pg.query(
+      "delete from bakery.provider_routes where organization_id = $1",
+      [organizationId],
+    );
+    await pg.query(
+      "delete from bakery.model_provider_accounts where organization_id = $1",
+      [organizationId],
+    );
+  } finally {
+    await closeWorkerFixture(seeded.fixture);
+  }
 }
 
 Deno.test("admit: a queued step is re-pinned and re-priced in place, with one reservation and no account moved", async () => {
