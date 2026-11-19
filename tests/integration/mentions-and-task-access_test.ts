@@ -7,19 +7,16 @@ import {
 } from "../../apps/server/src/platform/database.ts";
 import { createConversationRegistry } from "../../apps/server/src/modules/conversation/index.ts";
 import {
-  assertScope,
-  readScopedEvents,
-} from "../../apps/server/src/modules/work/event-stream.ts";
-import {
   authTestOrigin,
   openAuthFixture,
   signSessionCookie,
 } from "../helpers/auth.ts";
 
 /**
- * #73: mentions that share one conversation, per-conversation access, the
- * inbox-changed signal and mark-all-read with undo, all through the real
- * routes, the real authority runner and real Postgres.
+ * #73: mentions that share one conversation and per-conversation access,
+ * through the real routes, the real authority runner and real Postgres. The
+ * inbox signal and mark-all-read undo are main's, proven in
+ * notification-inbox-signal-and-undo_test.ts.
  */
 
 type Fixture = Awaited<ReturnType<typeof openAuthFixture>>;
@@ -677,133 +674,6 @@ Deno.test("mentions share one conversation atomically and only with authority", 
         );
         // Removing a grant never removes inherited access.
         assertEquals((await send(dev, {})).status, 201);
-      },
-    );
-
-    await t.step(
-      "mark all read is snapshot bounded and undoable once",
-      async () => {
-        const countOf = async (who: Person) =>
-          (await json<{ unread: number }>(
-            await call(fixture, who.cookie, orgA, "/v1/notifications/count"),
-            200,
-          )).unread;
-        const unread = await countOf(dev);
-        assert(unread >= 2);
-        const signalsBefore = await count(
-          fixture,
-          "from bakery.domain_events where recipient_id = $1",
-          [dev.principalId],
-        );
-        const marked = await json<
-          { marked: number; remainingUnread: number; batchId: string | null }
-        >(
-          await call(fixture, dev.cookie, orgA, "/v1/notifications/read-all", {
-            method: "POST",
-            body: { readBefore: new Date(Date.now() + 1000).toISOString() },
-          }),
-          201,
-        );
-        assertEquals(marked.marked, unread);
-        assertEquals(marked.remainingUnread, 0);
-        assert(marked.batchId !== null);
-        assertEquals(await countOf(dev), 0);
-        assertEquals(
-          await count(
-            fixture,
-            "from bakery.domain_events where recipient_id = $1",
-            [dev.principalId],
-          ),
-          signalsBefore + 1,
-        );
-        // Another person cannot undo this press.
-        assertEquals(
-          (await call(
-            fixture,
-            writer.cookie,
-            orgA,
-            "/v1/notifications/read-all/undo",
-            { method: "POST", body: { batchId: marked.batchId } },
-          )).status,
-          404,
-        );
-        const undone = await json<{ restored: number; unread: number }>(
-          await call(
-            fixture,
-            dev.cookie,
-            orgA,
-            "/v1/notifications/read-all/undo",
-            { method: "POST", body: { batchId: marked.batchId } },
-          ),
-          200,
-        );
-        assertEquals(undone.restored, unread);
-        assertEquals(undone.unread, unread);
-        assertEquals(await countOf(dev), unread);
-        const again = await call(
-          fixture,
-          dev.cookie,
-          orgA,
-          "/v1/notifications/read-all/undo",
-          { method: "POST", body: { batchId: marked.batchId } },
-        );
-        assertEquals(again.status, 409);
-        await again.body?.cancel();
-      },
-    );
-
-    await t.step(
-      "the inbox signal reaches only its own recipient",
-      async () => {
-        const highwater = await fixture.pgDatabase.query<{ seq: string }>(
-          "select coalesce(max(organization_sequence), 0)::text as seq from bakery.domain_events where organization_id = $1",
-          [orgA],
-        );
-        const seq = highwater.rows[0]!.seq;
-        const read = (id: string) =>
-          readScopedEvents(
-            fixture.pgDatabase as never,
-            orgA,
-            [{ type: "inbox", id: id as never }],
-            "0",
-            seq,
-            500,
-          );
-        const mine = await read(dev.principalId);
-        assert(mine.length > 0);
-        assert(
-          mine.every((event) =>
-            event.event_type === "notifications.inbox_changed"
-          ),
-        );
-        const conversationEvents = await readScopedEvents(
-          fixture.pgDatabase as never,
-          orgA,
-          [{ type: "conversation", id: conversation as never }],
-          "0",
-          seq,
-          500,
-        );
-        assert(
-          conversationEvents.every((event) =>
-            event.event_type !== "notifications.inbox_changed"
-          ),
-          "a chat subscription never sees inbox signals",
-        );
-        let refused = false;
-        try {
-          await assertScope(fixture.pgDatabase as never, orgA as never, {
-            type: "inbox",
-            id: viewer.principalId as never,
-          }, dev.principalId);
-        } catch (error) {
-          refused = (error as { code?: string }).code === "RESOURCE_NOT_FOUND";
-        }
-        assert(refused, "subscribing to another person's inbox is not found");
-        await assertScope(fixture.pgDatabase as never, orgA as never, {
-          type: "inbox",
-          id: dev.principalId as never,
-        }, dev.principalId);
       },
     );
   } finally {

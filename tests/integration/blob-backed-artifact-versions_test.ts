@@ -33,6 +33,12 @@ function memoryStore() {
       assertEquals(found.byteLength, expectedSize);
       return Promise.resolve(found);
     },
+    stat(organizationId, sha256) {
+      const found = objects.get(key(organizationId, sha256));
+      return Promise.resolve(
+        found === undefined ? null : { sizeBytes: found.byteLength },
+      );
+    },
     recover() {
       return Promise.resolve();
     },
@@ -314,6 +320,15 @@ function objectStore(): SkillObjectStore & {
       if (await sha256Bytes(found) !== expectedSha256) {
         throw new Error("SKILL_FILE_DIGEST_MISMATCH");
       }
+    },
+    stat(objectKey: string) {
+      const found = objects.get(objectKey);
+      return Promise.resolve(
+        found === undefined ? null : { sizeBytes: found.byteLength },
+      );
+    },
+    delete(objectKey) {
+      return Promise.resolve(objects.delete(objectKey));
     },
     async *list() {
       for (const [objectKey, content] of objects) {

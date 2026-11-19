@@ -81,7 +81,49 @@ export type AdmittedRepositoryProfile = RepositoryExecutionPins & {
 };
 
 // Identical canonical JSON convention to profile/observation publication.
-function canonical(value: unknown, omitRootKey?: string): string {
+/**
+ * Root keys a job's stored input carries that the run snapshot does not derive:
+ * the repository profile frozen at admission, and the notes left for the step
+ * before it started (#412), which the server adds once at admission.
+ */
+const ADMISSION_ADDED_ROOT_KEYS: readonly string[] = [
+  "repositoryProfile",
+  "stepNotes",
+];
+
+/**
+ * True when a job's `stepNotes` are exactly the notes recorded as delivered to
+ * that job, in delivery order, or both are empty.
+ *
+ * `stepNotes` is left out of the snapshot comparison because the snapshot
+ * cannot derive it, and the harnesses put it into the agent's prompt. So it is
+ * verified here against the append-only delivery records the server wrote when
+ * it created the job: a list nobody delivered, or an edited one, is refused.
+ */
+async function stepNotesMatchDeliveries(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  jobId: string,
+  input: Record<string, unknown>,
+): Promise<boolean> {
+  const delivered = await transaction.query<{ body: string }>(
+    `select note.body
+       from bakery.run_step_note_deliveries delivery
+       join bakery.run_step_notes note
+         on note.organization_id = delivery.organization_id
+        and note.id = delivery.note_id
+      where delivery.organization_id = $1 and delivery.job_id = $2
+      order by note.created_at, note.id`,
+    [organizationId, jobId],
+  );
+  return canonical(input.stepNotes ?? []) ===
+    canonical(delivered.rows.map((row) => row.body));
+}
+
+function canonical(
+  value: unknown,
+  omitRootKeys: readonly string[] = [],
+): string {
   const normalize = (entry: unknown): unknown => {
     if (
       entry === null || typeof entry === "string" || typeof entry === "boolean"
@@ -91,7 +133,7 @@ function canonical(value: unknown, omitRootKey?: string): string {
     if (entry !== null && typeof entry === "object") {
       const sorted: Record<string, unknown> = {};
       for (const key of Object.keys(entry).sort()) {
-        if (entry === value && key === omitRootKey) continue;
+        if (entry === value && omitRootKeys.includes(key)) continue;
         const child = (entry as Record<string, unknown>)[key];
         if (child !== undefined) sorted[key] = normalize(child);
       }
@@ -904,7 +946,7 @@ export function executionJobInputMatchesSnapshot(
       authorized.input !== null && typeof authorized.input === "object" &&
       !Array.isArray(authorized.input) &&
       !Object.hasOwn(authorized.input, "repositoryProfile") &&
-      canonical(input, "repositoryProfile") === canonical(authorized.input);
+      canonical(input, ["repositoryProfile"]) === canonical(authorized.input);
   } catch {
     return false;
   }
@@ -1459,7 +1501,6 @@ export async function admitRepositoryExecutionJob(
       repositoryProfile?: unknown;
       stepAgents?: unknown;
     };
-    task_type: string;
     step_key: string;
     step_dispatch: unknown;
     step_outputs: unknown;
@@ -1477,7 +1518,7 @@ export async function admitRepositoryExecutionJob(
             job.application_id, job.repository_id, job.repository_profile_id,
             job.repository_profile_revision, job.repository_profile_digest,
             job.observation_id, job.observation_digest, job.base_sha,
-            run.snapshot, task.task_type, task.repository_id as task_repository_id,
+            run.snapshot, task.repository_id as task_repository_id,
             step.step_key, step.dispatch as step_dispatch,
             coalesce(outputs.step_outputs, '{}'::jsonb) as step_outputs,
             job.action, job.input, job.requirements, job.agent_version_id,
@@ -1543,7 +1584,14 @@ export async function admitRepositoryExecutionJob(
       authorized.input === null || typeof authorized.input !== "object" ||
       Array.isArray(authorized.input) ||
       Object.hasOwn(authorized.input, "repositoryProfile") ||
-      canonical(input, "repositoryProfile") !== canonical(authorized.input)
+      canonical(input, ADMISSION_ADDED_ROOT_KEYS) !==
+        canonical(authorized.input) ||
+      !await stepNotesMatchDeliveries(
+        transaction,
+        organizationId,
+        jobId,
+        input as Record<string, unknown>,
+      )
     ) unavailable();
     frozenAgent = authorized.agent;
     requiredCapabilities = authorized.requiredCapabilities;
@@ -1564,8 +1612,9 @@ export async function admitRepositoryExecutionJob(
       await digest(frozenAgent.config) !== frozenAgent.digest)
   ) unavailable();
   if (row.snapshot.executionMode === "cloud_only") {
+    // Work type is an organization label the kernel never branches on (O23):
+    // any run whose steps need no repository may be claimed without one.
     if (
-      row.task_type !== "maintenance" ||
       row.snapshot.repositoryProfile !== null ||
       row.application_id !== null || row.repository_id !== null ||
       row.repository_profile_id !== null ||

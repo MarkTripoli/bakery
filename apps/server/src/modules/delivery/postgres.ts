@@ -29,7 +29,7 @@ import { requireWorkTransaction } from "../work/work-transaction.ts";
 import {
   DECISION_REVIEW_STATUSES,
   type DecisionReviewStatus,
-} from "./repair-loop.ts";
+} from "../review-loop/decision.ts";
 
 function isDecisionReviewStatus(value: string): value is DecisionReviewStatus {
   return (DECISION_REVIEW_STATUSES as readonly string[]).includes(value);
@@ -697,8 +697,9 @@ function toPullRequest(row: PullRequestRow) {
 
 /**
  * `pullRequests.list`: the organization's tracked pull requests, oldest
- * registration first, keyed by creation time and id. Repository, task and run
- * filters narrow the page and are bound into the cursor. Another
+ * registration first, keyed by creation time and id. Repository, task, run
+ * and ticket filters narrow the page and are bound into the cursor; the
+ * ticket filter (#69) keeps pull requests of tasks linked to that ticket. Another
  * organization's pull requests never match the `organization_id` predicate,
  * so a foreign filter id reads as an empty page.
  */
@@ -714,6 +715,7 @@ export function createPullRequestsListHandler(secret: string) {
       repositoryId: input.repositoryId ?? null,
       taskId: input.taskId ?? null,
       runId: input.runId ?? null,
+      externalTicketId: input.externalTicketId ?? null,
     };
     const binding: CursorBinding = {
       action: "pullRequests.list",
@@ -738,12 +740,16 @@ export function createPullRequestsListHandler(secret: string) {
           and ($2::uuid is null or repository_id = $2::uuid)
           and ($3::uuid is null or task_id = $3::uuid)
           and ($4::uuid is null or run_id = $4::uuid)
+          and ($7::uuid is null or task_id in (
+                select link.task_id from bakery.ticket_task_links as link
+                 where link.organization_id = $1
+                   and link.external_ticket_id = $7::uuid))
           and (
             $5::timestamptz is null or
             (created_at, id) > ($5::timestamptz, $6::uuid)
           )
         order by created_at asc, id asc
-        limit $7`,
+        limit $8`,
       [
         organizationId,
         filters.repositoryId,
@@ -751,6 +757,7 @@ export function createPullRequestsListHandler(secret: string) {
         filters.runId,
         position?.createdAt ?? null,
         position?.id ?? null,
+        filters.externalTicketId,
         limit + 1,
       ],
     );

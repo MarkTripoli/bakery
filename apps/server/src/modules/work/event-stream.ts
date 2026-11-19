@@ -6,6 +6,11 @@ import {
 } from "@bakery/contracts/contracts";
 import { StandardError } from "@bakery/contracts/http";
 import type { PgTransactionClient } from "../../platform/database.ts";
+import type { OrganizationActor } from "../auth/application/authority.ts";
+import {
+  authorize,
+  isOrganizationMember,
+} from "../auth/application/authorize.ts";
 
 export type SyncScopeType = z.output<
   typeof contractSchemas.SyncQuery
@@ -78,6 +83,36 @@ export const EVENT_SCOPES: Readonly<
           and status = 'active'`,
   }),
 });
+
+/**
+ * Who may read the events stream for these scopes. `event:read` opens every
+ * scope (each still checked by assertScope). Without it, a current human
+ * member with a system role may still connect, but only to subscribe to their
+ * own inbox: it returns false, and the caller then refuses every other scope
+ * with assertInboxOnlyScope, so the inbox exception never widens into
+ * application, task or conversation activity.
+ */
+export function assertEventAccess(
+  actor: OrganizationActor,
+): boolean {
+  try {
+    authorize(actor, "event:read", { action: "events.connect" });
+    return true;
+  } catch (denied) {
+    if (!isOrganizationMember(actor)) throw denied;
+    return false;
+  }
+}
+
+/**
+ * The scope check for a subscriber without event:read: only their own inbox.
+ * Any other scope answers exactly like one that does not exist.
+ */
+export function assertInboxOnlyScope(scope: SyncScope): void {
+  if (scope.type !== "inbox") {
+    throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  }
+}
 
 /**
  * Confirms the scope exists in this organization. An inbox scope is personal:

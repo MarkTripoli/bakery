@@ -1,6 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
 import {
   CHECK_ID,
+  JOB_ID,
   type Options,
   type Profile,
   REPOSITORY_ID,
@@ -1299,5 +1300,515 @@ test.describe("a locked repository's versions", () => {
     await expect(page.getByText("Works from other branches")).toHaveCount(0);
     await page.mouse.move(700, 700);
     await shot(page, "unlocked-version-rows", [], { windowOnly: true });
+  });
+});
+
+test.describe("names, testing a name, and details for support", () => {
+  const NAMES: Options["names"] = [
+    { role: "api", alias: "backend", note: "from the wiki" },
+    { role: "service" },
+    { role: "billing", other: true },
+    { role: "old", archived: true },
+  ];
+  const card = (page: Page) => page.getByTestId("repository-names");
+  const sheet = (page: Page) => page.getByRole("dialog", { name: "Names" });
+  const open = async (page: Page, options: Options = {}) => {
+    const fixture = await repositoryFixture(page, options);
+    await page.goto(`/projects/repositories/${REPOSITORY_ID}`);
+    await expect(card(page)).toBeVisible({ timeout: 20_000 });
+    return fixture;
+  };
+
+  test("the card lists this repository's names only, says they give no access, and offers Change names", async ({ page }) => {
+    await open(page, { names: NAMES });
+    await expect(card(page)).toContainText("Names for this repository");
+    await expect(card(page)).toContainText(
+      "Names do not give anyone access. They only tell agents which repository is meant.",
+    );
+    await expect(card(page).getByTestId("name-api")).toContainText("api");
+    await expect(card(page).getByTestId("name-api")).toContainText(
+      "also: backend",
+    );
+    await expect(card(page).getByTestId("name-service")).toBeVisible();
+    // Another repository's name and an archived name are not here.
+    await expect(card(page)).not.toContainText("billing");
+    await expect(card(page)).not.toContainText("old");
+    await expect(
+      card(page).getByRole("button", { name: "Change names" }),
+    ).toBeVisible();
+    await page.mouse.move(700, 700);
+    await shot(page, "repository-names");
+  });
+
+  test("with no names the card says so and offers Add a name", async ({ page }) => {
+    await open(page);
+    await expect(card(page)).toContainText("No names yet.");
+    await expect(card(page).getByRole("button", { name: "Add a name" }))
+      .toBeVisible();
+  });
+
+  test("adding a name sends it trimmed, with a key, and shows it on the card", async ({ page }) => {
+    const { seen } = await open(page);
+    await card(page).getByRole("button", { name: "Add a name" }).click();
+    await sheet(page).getByRole("button", { name: "Add a name" }).click();
+    await sheet(page).getByLabel(/^Name\*?$/).fill("  api  ");
+    await sheet(page).getByLabel("Other names").fill("backend");
+    await sheet(page).getByRole("button", { name: "Save name" }).click();
+    await expect(card(page).getByTestId("name-api")).toContainText(
+      "also: backend",
+    );
+    expect(seen.nameWrites).toHaveLength(1);
+    expect(seen.nameWrites[0].body).toMatchObject({
+      role: "api",
+      alias: "backend",
+      provenance: null,
+      repositoryId: REPOSITORY_ID,
+    });
+    expect(seen.nameWrites[0].key).not.toBeNull();
+  });
+
+  test("a name is required, and nothing is sent without one", async ({ page }) => {
+    const { seen } = await open(page);
+    await card(page).getByRole("button", { name: "Add a name" }).click();
+    await sheet(page).getByRole("button", { name: "Add a name" }).click();
+    await sheet(page).getByRole("button", { name: "Save name" }).click();
+    await expect(sheet(page).getByText("Enter a name.")).toBeVisible();
+    await expect(sheet(page).getByLabel(/^Name\*?$/))
+      .toHaveAttribute(
+        "aria-invalid",
+        "true",
+      );
+    expect(seen.nameWrites).toHaveLength(0);
+  });
+
+  test("editing keeps the form's values, offers Save only for a change, and sends the version", async ({ page }) => {
+    const { seen } = await open(page, { names: NAMES });
+    await card(page).getByRole("button", { name: "Change names" }).click();
+    await sheet(page).getByRole("button", { name: "Edit api" }).click();
+    await expect(sheet(page).getByLabel(/^Name\*?$/)).toHaveValue(
+      "api",
+    );
+    await expect(sheet(page).getByLabel("Other names")).toHaveValue("backend");
+    await expect(sheet(page).getByLabel("Note")).toHaveValue("from the wiki");
+    const save = sheet(page).getByRole("button", { name: "Save changes" });
+    await expect(save).toBeDisabled();
+    await sheet(page).getByLabel("Other names").fill("backend, core");
+    await expect(save).toBeEnabled();
+    await save.click();
+    await expect(sheet(page).getByText("also: backend, core")).toBeVisible();
+    expect(seen.nameWrites).toHaveLength(1);
+    expect(seen.nameWrites[0].method).toBe("PATCH");
+    expect(seen.nameWrites[0].ifMatch).toBe("1");
+    expect(seen.nameWrites[0].body).toMatchObject({
+      expectedVersion: 1,
+      role: "api",
+      alias: "backend, core",
+    });
+  });
+
+  test("archiving a name takes it off the card and Restore brings it back", async ({ page }) => {
+    const { seen } = await open(page, { names: NAMES });
+    await card(page).getByRole("button", { name: "Change names" }).click();
+    await sheet(page).getByRole("button", { name: "Archive service" }).click();
+    await expect(
+      sheet(page).getByTestId("name-row-service").getByText("Archived"),
+    ).toBeVisible();
+    expect(seen.nameWrites[0].body.archivedAt).not.toBeNull();
+    await expect(card(page).getByTestId("name-service")).toHaveCount(0);
+    await sheet(page).getByRole("button", { name: "Restore service" }).click();
+    await expect(
+      sheet(page).getByTestId("name-row-service").getByText("Archived"),
+    ).toHaveCount(0);
+    expect(seen.nameWrites[1].body.archivedAt).toBeNull();
+    await page.mouse.move(700, 700);
+    await shot(page, "repository-names-sheet");
+  });
+
+  test("a name that is already used says so and applies nothing", async ({ page }) => {
+    await open(page, { nameWrite: "conflict" });
+    await card(page).getByRole("button", { name: "Add a name" }).click();
+    await sheet(page).getByRole("button", { name: "Add a name" }).click();
+    await sheet(page).getByLabel(/^Name\*?$/).fill("api");
+    await sheet(page).getByRole("button", { name: "Save name" }).click();
+    await expect(
+      sheet(page).getByText(
+        "“api” is already used in this application. Names must be unique in an application.",
+      ),
+    ).toBeVisible();
+    await expect(sheet(page).getByLabel(/^Name\*?$/)).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
+    await expect(card(page).getByTestId("name-api")).toHaveCount(0);
+  });
+
+  test("a retry after a lost answer keeps its key", async ({ page }) => {
+    const { seen } = await open(page, { nameWrite: "down" });
+    await card(page).getByRole("button", { name: "Add a name" }).click();
+    await sheet(page).getByRole("button", { name: "Add a name" }).click();
+    await sheet(page).getByLabel(/^Name\*?$/).fill("api");
+    await sheet(page).getByRole("button", { name: "Save name" }).click();
+    await expect(
+      sheet(page).getByText("The change could not be saved. Try again."),
+    ).toBeVisible();
+    await sheet(page).getByRole("button", { name: "Save name" }).click();
+    await expect.poll(() => seen.nameWrites.length).toBe(2);
+    expect(seen.nameWrites[1].key).toBe(seen.nameWrites[0].key);
+  });
+
+  test("a member sees the names and cannot change them; neither can anyone on an archived repository", async ({ page }) => {
+    await open(page, { names: NAMES, role: "developer" });
+    await expect(card(page).getByTestId("name-api")).toBeVisible();
+    await expect(
+      card(page).getByRole("button", { name: "Change names" }),
+    ).toHaveCount(0);
+  });
+
+  test("an archived repository's names cannot be changed", async ({ page }) => {
+    await open(page, { names: NAMES, archived: true });
+    await expect(
+      card(page).getByRole("button", { name: "Change names" }),
+    ).toHaveCount(0);
+  });
+
+  const test_ = async (page: Page, name: string) => {
+    const more = page.getByRole("button", { name: /^More/ }).first();
+    await more.click();
+    // The entries are plain buttons in the popover (the Menu says so itself).
+    await page.getByRole("button", { name: "Test a name", exact: true })
+      .click();
+    const dialog = page.getByRole("alertdialog", {
+      name: "Which repository does a name point to?",
+    });
+    await expect(dialog).toBeVisible();
+    if (name !== "") {
+      await dialog.getByLabel(/^Name\*?$/).fill(name);
+    }
+    await dialog.getByRole("button", { name: "Check" }).click();
+    return dialog;
+  };
+
+  test("Test a name says which repository agents would get", async ({ page }) => {
+    const { seen } = await open(page, { names: NAMES });
+    const dialog = await test_(page, "api");
+    await expect(dialog.getByTestId("test-name-result")).toContainText(
+      "“api” points to this repository.",
+    );
+    expect(seen.resolves).toEqual([{ role: "api" }]);
+    await page.mouse.move(700, 700);
+    await shot(page, "repository-test-name");
+  });
+
+  test("a name of another repository is named, and a missing one says no repository has it", async ({ page }) => {
+    await open(page, { resolve: "other" });
+    const dialog = await test_(page, "billing");
+    await expect(dialog.getByTestId("test-name-result")).toContainText(
+      "“billing” points to acme/billing.",
+    );
+  });
+
+  test("no match, an archived repository, an ambiguous name and a foreign one each say so", async ({ page }) => {
+    await open(page, { resolve: "none" });
+    const dialog = await test_(page, "x");
+    await expect(dialog.getByTestId("test-name-result")).toContainText(
+      "Nothing in this application is called “x”.",
+    );
+  });
+
+  test("an ambiguous name says more than one repository has it", async ({ page }) => {
+    await open(page, { resolve: "ambiguous" });
+    const dialog = await test_(page, "api");
+    await expect(dialog.getByTestId("test-name-result")).toContainText(
+      "“api” matches more than one repository",
+    );
+  });
+
+  test("an archived repository's name and a foreign name", async ({ page }) => {
+    await open(page, { resolve: "archived" });
+    const dialog = await test_(page, "old");
+    await expect(dialog.getByTestId("test-name-result")).toContainText(
+      "That name points to a repository that is archived.",
+    );
+  });
+
+  test("a name from another application is its own answer", async ({ page }) => {
+    await open(page, { resolve: "foreign" });
+    const dialog = await test_(page, "x");
+    await expect(dialog.getByTestId("test-name-result")).toContainText(
+      "That name belongs to another application.",
+    );
+  });
+
+  test("testing with no name asks for one and sends nothing", async ({ page }) => {
+    const { seen } = await open(page);
+    const dialog = await test_(page, "");
+    await expect(dialog.getByText("Enter a name.")).toBeVisible();
+    expect(seen.resolves).toHaveLength(0);
+  });
+
+  test("Details for support are closed until opened, open with a line to quote from, and leave out what the page has not read", async ({ page }) => {
+    await open(page, { profiles: SETTINGS, active: 2 });
+    const details = page.getByTestId("support-details");
+    await expect(details.getByText(REPOSITORY_ID)).toBeHidden();
+    await details.getByRole("button", { name: "Details for support" }).click();
+    await expect(details.getByText(REPOSITORY_ID)).toBeVisible();
+    await expect(details).toContainText("Settings version in use");
+    await expect(details).toContainText("GitHub repository ID");
+    // Each known value has its own Copy, named for what it copies.
+    await expect(details.getByRole("button", { name: "Copy Repository ID" }))
+      .toBeVisible();
+    await expect(details.getByText("Quote these when asking for help."))
+      .toBeVisible();
+    // No check is known, so those rows are not there.
+    await expect(details.getByText("Not known")).toHaveCount(0);
+    await expect(details).not.toContainText("Check job");
+  });
+
+  test("with a check in the address its job and result are in the details", async ({ page }) => {
+    await repositoryFixture(page, {
+      profiles: SETTINGS,
+      active: 2,
+      existingCheck: true,
+    });
+    await page.goto(
+      `/projects/repositories/${REPOSITORY_ID}?check=${CHECK_ID}`,
+    );
+    const details = page.getByTestId("support-details");
+    await details.getByRole("button", { name: "Details for support" }).click();
+    await expect(details.getByText(JOB_ID)).toBeVisible({ timeout: 15_000 });
+    await expect(details.getByText("c".repeat(40))).toBeVisible();
+  });
+
+  test("More holds Test a name and Rules is still visible beside it", async ({ page }) => {
+    await open(page);
+    await expect(page.getByRole("button", { name: "Rules" })).toBeVisible();
+    await expect(page.getByRole("button", { name: /^More/ }).first())
+      .toBeVisible();
+  });
+});
+
+test.describe("archive and restore from More", () => {
+  const more = (page: Page) =>
+    page.getByRole("button", { name: /^More/ }).first();
+  const openMore = async (page: Page, options: Options = {}) => {
+    const fixture = await repositoryFixture(page, options);
+    await page.goto(`/projects/repositories/${REPOSITORY_ID}`);
+    await expect(more(page)).toBeVisible({ timeout: 20_000 });
+    await more(page).click();
+    return fixture;
+  };
+
+  test("an administrator archives after confirming, and sees it archived", async ({ page }) => {
+    const fixture = await openMore(page);
+    await page.getByRole("button", { name: "Archive repository", exact: true })
+      .click();
+    const dialog = page.getByRole("alertdialog", {
+      name: "Archive acme/api-service?",
+    });
+    await expect(dialog).toContainText(
+      "Bakery stops working in it. Tasks already running finish.",
+    );
+    await expect(dialog).toContainText("You can restore it.");
+    await dialog.getByRole("button", { name: "Archive", exact: true }).click();
+    await expect(
+      page.getByText(
+        "This repository is archived, so its settings cannot be changed.",
+      ),
+    ).toBeVisible();
+    const sent = fixture.seen.updates.at(-1)!;
+    expect(sent.ifMatch).toBe('"v1"');
+    expect(typeof sent.body.archivedAt).toBe("string");
+  });
+
+  test("cancel archives nothing", async ({ page }) => {
+    const fixture = await openMore(page);
+    await page.getByRole("button", { name: "Archive repository", exact: true })
+      .click();
+    await page.getByRole("alertdialog").getByRole("button", {
+      name: "Cancel",
+      exact: true,
+    }).click();
+    await expect(page.getByRole("alertdialog")).toHaveCount(0);
+    expect(fixture.seen.updates).toEqual([]);
+  });
+
+  test("a restore needs no confirmation and clears the archived notice", async ({ page }) => {
+    const fixture = await openMore(page, { archived: true });
+    await page.getByRole("button", { name: "Restore repository", exact: true })
+      .click();
+    await expect(
+      page.getByText(
+        "This repository is archived, so its settings cannot be changed.",
+      ),
+    ).toHaveCount(0);
+    const sent = fixture.seen.updates.at(-1)!;
+    expect(sent.body.archivedAt).toBeNull();
+  });
+
+  test("a stale archive says someone else changed it and archives nothing", async ({ page }) => {
+    await openMore(page, { use: "conflict" });
+    await page.getByRole("button", { name: "Archive repository", exact: true })
+      .click();
+    const dialog = page.getByRole("alertdialog");
+    await dialog.getByRole("button", { name: "Archive", exact: true }).click();
+    await expect(dialog).toContainText("Someone else changed this just now");
+  });
+
+  test("a retry after a lost answer sends the same body under the same key", async ({ page }) => {
+    const fixture = await openMore(page, { use: "down" });
+    const archive = () =>
+      page.getByRole("button", { name: "Archive repository", exact: true });
+    await archive().click();
+    const dialog = page.getByRole("alertdialog");
+    await dialog.getByRole("button", { name: "Archive", exact: true }).click();
+    await expect(dialog).toContainText("That did not work. Try again.");
+    await dialog.getByRole("button", { name: "Archive", exact: true }).click();
+    await expect.poll(() => fixture.seen.updates.length).toBe(2);
+    const [first, second] = fixture.seen.updates;
+    expect(second.key).not.toBeNull();
+    expect(second.key).toBe(first.key);
+    expect(second.body.archivedAt).toBe(first.body.archivedAt);
+  });
+
+  test("after a refusal the next try is a new intent with a new key", async ({ page }) => {
+    const fixture = await openMore(page, { use: "conflict" });
+    await page.getByRole("button", { name: "Archive repository", exact: true })
+      .click();
+    const dialog = page.getByRole("alertdialog");
+    await dialog.getByRole("button", { name: "Archive", exact: true }).click();
+    await expect(dialog).toContainText("Someone else changed this");
+    await dialog.getByRole("button", { name: "Archive", exact: true }).click();
+    await expect.poll(() => fixture.seen.updates.length).toBe(2);
+    const [first, second] = fixture.seen.updates;
+    expect(second.key).not.toBe(first.key);
+  });
+
+  test("only an administrator is offered Archive", async ({ page }) => {
+    await openMore(page, { role: "member" });
+    await expect(
+      page.getByRole("button", { name: "Test a name", exact: true }),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Archive repository" }))
+      .toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Restore repository" }))
+      .toHaveCount(0);
+  });
+});
+
+test.describe("change the default branch from More", () => {
+  const more = (page: Page) =>
+    page.getByRole("button", { name: /^More/ }).first();
+  const openEdit = async (page: Page, options: Options = {}) => {
+    const fixture = await repositoryFixture(page, options);
+    await page.goto(`/projects/repositories/${REPOSITORY_ID}`);
+    await expect(more(page)).toBeVisible({ timeout: 20_000 });
+    await more(page).click();
+    await page.getByRole("button", {
+      name: "Change default branch",
+      exact: true,
+    })
+      .click();
+    return {
+      fixture,
+      dialog: page.getByRole("alertdialog", { name: "Change default branch" }),
+    };
+  };
+
+  test("Change default branch is first in the menu and the dialog starts untouched", async ({ page }) => {
+    await repositoryFixture(page, {});
+    await page.goto(`/projects/repositories/${REPOSITORY_ID}`);
+    await more(page).click();
+    const items = page.getByRole("button", {
+      name:
+        /^(Change default branch|Test a name|Archive repository|Restore repository)$/,
+    });
+    await expect(items.first()).toHaveText("Change default branch");
+    await page.getByRole("button", {
+      name: "Change default branch",
+      exact: true,
+    })
+      .click();
+    const dialog = page.getByRole("alertdialog", {
+      name: "Change default branch",
+    });
+    await expect(dialog.getByLabel(/^Default branch/)).toHaveValue("main");
+    await expect(dialog.getByLabel(/^Name/)).toHaveCount(0);
+    await expect(dialog.getByRole("button", { name: "Save changes" }))
+      .toBeDisabled();
+  });
+
+  test("saving sends only the branch with the version, then shows it", async ({ page }) => {
+    const { fixture, dialog } = await openEdit(page);
+    await dialog.getByLabel(/^Default branch/).fill("develop");
+    await expect(dialog.getByRole("button", { name: "Save changes" }))
+      .toBeEnabled();
+    await dialog.getByRole("button", { name: "Save changes" }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(page.getByText("Changes saved")).toBeVisible();
+    await expect(page.getByText(/default branch develop/)).toBeVisible();
+    const sent = fixture.seen.updates.at(-1)!;
+    expect(sent.ifMatch).toBe('"v1"');
+    expect(sent.body).toEqual({ defaultBranch: "develop" });
+  });
+
+  test("an empty branch says what to enter and sends nothing", async ({ page }) => {
+    const { fixture, dialog } = await openEdit(page);
+    await dialog.getByLabel(/^Default branch/).fill("");
+    await dialog.getByLabel(/^Default branch/).press("Enter");
+    await expect(dialog.getByText("Enter a branch.")).toBeVisible();
+    expect(fixture.seen.updates).toEqual([]);
+  });
+
+  test("a retry after a lost answer keeps its key; a refusal starts a new intent", async ({ page }) => {
+    const lost = await openEdit(page, { use: "down" });
+    await lost.dialog.getByLabel(/^Default branch/).fill("develop");
+    await lost.dialog.getByRole("button", { name: "Save changes" }).click();
+    await expect(lost.dialog).toContainText("That did not work. Try again.");
+    await lost.dialog.getByRole("button", { name: "Save changes" }).click();
+    await expect.poll(() => lost.fixture.seen.updates.length).toBe(2);
+    const [a, b] = lost.fixture.seen.updates;
+    expect(b.key).toBe(a.key);
+    await page.unrouteAll({ behavior: "ignoreErrors" });
+    const refused = await openEdit(page, { use: "conflict" });
+    await refused.dialog.getByLabel(/^Default branch/).fill("develop");
+    await refused.dialog.getByRole("button", { name: "Save changes" }).click();
+    await expect(refused.dialog).toContainText(
+      "changed while you were editing",
+    );
+    await refused.dialog.getByRole("button", { name: "Save changes" }).click();
+    await expect.poll(() => refused.fixture.seen.updates.length).toBe(2);
+    const [c, d] = refused.fixture.seen.updates;
+    expect(d.key).not.toBe(c.key);
+  });
+
+  test("a version that moved says so, with Reload, and keeps the dialog", async ({ page }) => {
+    const { dialog } = await openEdit(page, { use: "conflict" });
+    await dialog.getByLabel(/^Default branch/).fill("develop");
+    await dialog.getByRole("button", { name: "Save changes" }).click();
+    await expect(dialog).toContainText(
+      "This repository changed while you were editing. Reload to see the latest.",
+    );
+    await expect(dialog.getByRole("button", { name: "Reload" })).toBeVisible();
+  });
+
+  test("Cancel sends nothing; an archived repository and a non-administrator have no Change default branch", async ({ page }) => {
+    const { fixture, dialog } = await openEdit(page);
+    await dialog.getByRole("button", { name: "Cancel" }).click();
+    await expect(dialog).toHaveCount(0);
+    expect(fixture.seen.updates).toEqual([]);
+    await page.unrouteAll({ behavior: "ignoreErrors" });
+    await repositoryFixture(page, { archived: true });
+    await page.goto(`/projects/repositories/${REPOSITORY_ID}`);
+    await more(page).click();
+    await expect(
+      page.getByRole("button", { name: "Change default branch", exact: true }),
+    ).toHaveCount(0);
+    await page.unrouteAll({ behavior: "ignoreErrors" });
+    await repositoryFixture(page, { role: "member" });
+    await page.goto(`/projects/repositories/${REPOSITORY_ID}`);
+    await more(page).click();
+    await expect(
+      page.getByRole("button", { name: "Change default branch", exact: true }),
+    ).toHaveCount(0);
   });
 });

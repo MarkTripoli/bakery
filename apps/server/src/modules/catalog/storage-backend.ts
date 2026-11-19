@@ -204,6 +204,14 @@ export class DatabaseSkillObjectStore implements SkillObjectStore {
     );
   }
 
+  async stat(objectKey: string): Promise<{ sizeBytes: number } | null> {
+    return await (await this.#active()).store.stat(objectKey);
+  }
+
+  async delete(objectKey: string): Promise<boolean> {
+    return await (await this.#active()).store.delete(objectKey);
+  }
+
   async recover(
     objectKey: string,
     expectedSha256: string,

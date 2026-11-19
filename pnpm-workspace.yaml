@@ -6,3 +6,5 @@ onlyBuiltDependencies: []
 
 overrides:
   "@better-auth/oauth-provider": 1.7.3
+patchedDependencies:
+  loro-codemirror@0.3.3: patches/loro-codemirror@0.3.3.patch

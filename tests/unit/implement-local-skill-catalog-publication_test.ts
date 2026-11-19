@@ -38,6 +38,9 @@ import { repositoryRulesBakeryMigrationSource } from "../../apps/server/src/modu
 import { artifactKindsBakeryMigrationSource } from "../../apps/server/src/modules/artifact-kinds/migrations.ts";
 import { integrationsBakeryMigrationSource } from "../../apps/server/src/modules/integrations/migrations.ts";
 import { deliveryBakeryMigrationSource } from "../../apps/server/src/modules/delivery/migrations.ts";
+import { mcpBakeryMigrationSource } from "../../apps/server/src/modules/mcp/migrations.ts";
+import { knowledgeBakeryMigrationSource } from "../../apps/server/src/modules/knowledge/migrations.ts";
+import { catalogBakeryMigrationSource } from "../../apps/server/src/modules/catalog/migrations.ts";
 import { authBakeryMigrationSource } from "../../apps/server/src/modules/auth/migrations.ts";
 import { projectsBakeryMigrationSource } from "../../apps/server/src/modules/projects/migrations.ts";
 import { workBakeryMigrationSource } from "../../apps/server/src/modules/work/migrations.ts";
@@ -53,6 +56,9 @@ Deno.test("Bakery migrations follow the globally unique migration sequence", asy
     ...await loadMigrations(artifactKindsBakeryMigrationSource),
     ...await loadMigrations(integrationsBakeryMigrationSource),
     ...await loadMigrations(deliveryBakeryMigrationSource),
+    ...await loadMigrations(mcpBakeryMigrationSource),
+    ...await loadMigrations(knowledgeBakeryMigrationSource),
+    ...await loadMigrations(catalogBakeryMigrationSource),
   ];
   for (
     const [version, error] of [
@@ -195,7 +201,34 @@ Deno.test("Bakery migrations follow the globally unique migration sequence", asy
       "0176_artifact_draft_comments",
       "0177_artifact_draft_comment_publications",
       "0178_artifact_draft_references",
-      "0184_mentions_and_conversation_access",
+      "0179_workflow_copy_lineage",
+      "0180_mcp_servers_and_connections",
+      "0181_mcp_capability_snapshots_and_bindings",
+      "0182_memory_entries_and_revisions",
+      "0183_unlisted_definitions_and_definition_proposals",
+      "0184_inbox_signal_and_read_batches",
+      "0185_event_export",
+      "0186_definition_publish_grants_and_proposal_supersession",
+      "0187_human_approval_owner_waits_and_outcomes",
+      "0189_project_scope_profiles",
+      "0190_memory_one_active_entry_per_topic",
+      "0191_delivery_identity_per_attempt",
+      "0193_plugin_packages_and_versions",
+      "0196_workflow_stop_step_grant",
+      "0198_domain_event_run_requested_lookup",
+      "0200_plugin_installs_grants_and_state",
+      "0203_provider_routes_and_incidents",
+      "0205_ticket_routing",
+      "0206_provider_neutral_ticket_sources",
+      "0213_run_step_notes",
+      "0217_workflow_version_starts",
+      "0218_plugin_bundle_retention",
+      "0220_provider_route_commands",
+      "0228_provider_probe_writers",
+      "0230_route_continuations",
+      "0231_agent_power_grants",
+      "0232_storage_entries",
+      "0239_mentions_and_conversation_access",
     ],
   );
 });

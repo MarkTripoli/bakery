@@ -240,7 +240,37 @@ async function settingsFixture(page: Page, options: SettingsOptions = {}) {
       return options.preview === "unavailable"
         ? route.fulfill(problem(503, "DEPENDENCY_UNAVAILABLE"))
         : route.fulfill(
-          json({ operationId: uuid(950), status: "queued" }, 202),
+          json({
+            sourceId: WEB_SOURCE,
+            policyRevision: 1,
+            draft: false,
+            evaluatedAt: "2026-11-10T12:00:00.000Z",
+            counts: { wouldStart: 1, planOnly: 0, held: 0, blocked: 2 },
+            issues: [
+              {
+                number: 1,
+                title: "Ready",
+                outcome: "would_start",
+                verdict: "ready",
+                reasons: [],
+              },
+              {
+                number: 2,
+                title: "Waiting",
+                outcome: "blocked",
+                verdict: "waiting",
+                reasons: ["predecessor_open"],
+              },
+              {
+                number: 3,
+                title: "Refused",
+                outcome: "blocked",
+                verdict: "rejected",
+                reasons: ["has_sub_issues"],
+              },
+            ],
+            skipped: 0,
+          }, 201),
         );
     },
   );
@@ -381,7 +411,7 @@ for (
       expect(sent.automatic).toEqual({ enabled: true });
       expect(sent.delegation).toEqual({
         principalId: uuid(910),
-        githubActorIds: ["4242"],
+        externalActorIds: ["4242"],
       });
       await expect(page.getByText(/Only for labels added after/)).toBeVisible();
       await shot(page, "issue-settings-automatic", [], { windowOnly: true });
@@ -413,7 +443,7 @@ for (
       ).toHaveCount(0);
     });
 
-    test("the preview reads the saved settings only, and counts from one read of the issues", async ({ page }) => {
+    test("the preview reads the saved settings only, and counts from its own answer", async ({ page }) => {
       const seen = await settingsFixture(page);
       await openSettings(page);
       const preview = page.getByRole("button", { name: "Preview" });
@@ -433,8 +463,8 @@ for (
       await expect(page.getByText("cannot start")).toBeVisible();
       await expect(page.getByText(/From checks read/)).toBeVisible();
       expect(seen.counts.previews).toBe(1);
-      // One read for the counts, not one per issue.
-      expect(seen.lists).toHaveLength(1);
+      // The counts are the preview's answer: no read of the issues behind it.
+      expect(seen.lists).toHaveLength(0);
       await shot(page, "issue-settings-preview", [], { windowOnly: true });
     });
 

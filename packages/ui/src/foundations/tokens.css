@@ -1,4 +1,4 @@
-/* Generated from Paper 01M1X504XVC45FC0VDK857A37D revision paper:49fea8f7; pages:14-0,15-0,16-0,V-0; accessed:2026-09-17; digest 59d36d349376a83b9916102281644bb72e8292ec156c4c492bd11f6780c7c72a. */
+/* Generated from Paper 01M1X504XVC45FC0VDK857A37D revision paper:49fea8f7; pages:14-0,15-0,16-0,V-0; accessed:2026-09-17; digest dd8369ac825c89f4142937ba49896841836f5b1352f88048665ffee249ae69d4. */
 :root {
   --border-default: 1px;
   --border-emphasis: 2px;
@@ -161,6 +161,12 @@
   --color-fg-tertiary: #6B7686;
   --color-focus: #0B63C6;
   --color-logo-plate: #F5F6F8;
+  --color-presence-1: #2563EB;
+  --color-presence-2: #C2410C;
+  --color-presence-3: #15803D;
+  --color-presence-4: #7E22CE;
+  --color-presence-5: #BE185D;
+  --color-presence-6: #0F766E;
   --color-preview-ink: #000000;
   --color-primary: #141A24;
   --color-primary-foreground: #FFFFFF;

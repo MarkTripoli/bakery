@@ -17,9 +17,12 @@ import {
 import {
   defineAction,
   defineIntegration,
+  graphqlBody,
+  graphqlBodyCarriesDocument,
   IntegrationActivationError,
   IntegrationContractError,
   isDefinedIntegration,
+  isGraphqlRead,
   validateIntegration,
 } from "@bakery/integration-sdk";
 import type { DefinedAction } from "@bakery/integration-sdk";
@@ -264,11 +267,164 @@ Deno.test("request template effect, method and idempotency parity", () => {
       ),
   };
   assert(parse(post).success);
+  // A plain REST POST cannot claim to be a read: only a verified graphql
+  // document may, so read-only metadata still cannot hide a mutation.
   assert(!parse({ ...post, effect: "read" }).success);
   assert(!parse({ ...template(), effect: "write" }).success);
   assert(!parse({ ...template(), idempotent: false }).success);
   assert(!parse({ ...template(), method: "HEAD", effect: "write" }).success);
   assert(!parse({ ...template(), body: post.body }).success);
+});
+
+Deno.test("a graphql request may be a read only when its document is a query", () => {
+  const parse = (value: unknown) => requestTemplateSchema.safeParse(value);
+  const graphql = (patch: Record<string, unknown> = {}) => ({
+    ...template(),
+    kind: "graphql" as const,
+    method: "POST" as const,
+    idempotent: true,
+    pathTemplate: "/graphql",
+    pathParams: {},
+    query: [],
+    graphqlQuery: "query Issue($id: String!) { issue(id: $id) { id } }",
+    input: (z.strictObject({
+      variables: (z.strictObject({
+        id: z.string().describe(FIXTURE_DESCRIPTION),
+      })).describe(FIXTURE_DESCRIPTION),
+    })).describe(FIXTURE_DESCRIPTION),
+    body: (z.strictObject({
+      variables: (z.strictObject({
+        id: z.string().describe(FIXTURE_DESCRIPTION),
+      })).describe(FIXTURE_DESCRIPTION),
+    })).describe(FIXTURE_DESCRIPTION),
+    effect: "read" as const,
+    ...patch,
+  });
+
+  assert(parse(graphql()).success);
+  assert(parse(graphql({ effect: "write" })).success);
+
+  // A mutation is never a read, whichever way it is spelled. The comma and
+  // subscription rows are qa3's cases from PR #655, where an earlier regex
+  // guard let them through: commas are insignificant whitespace in GraphQL, and
+  // a chained subscription streams.
+  for (
+    const document of [
+      "mutation Close($id: String!) { issueClose(id: $id) { ok } }",
+      '  mutation { issueClose(id: "1") { ok } }',
+      // A document chains operations, so a query first does not make it a read.
+      'query Q { a } mutation M { issueClose(id: "1") { ok } }',
+      "query Q { a }mutation M { b }",
+      // Commas are insignificant whitespace in GraphQL.
+      "query Q { a },mutation M { b }",
+      "query Q { a },\nmutation M { b }",
+      "{ a },mutation M { b }",
+      // A byte-order mark is whitespace too.
+      "query Q { a }\uFEFFmutation M { b }",
+      "query Q { a } subscription S { b }",
+      // A comment ends at either line terminator, so a lone carriage return ends
+      // it too and the text after it is structure, not comment.
+      "query Q { a } # n\rmutation M { b }",
+      "query Q { a } # n\r\nmutation M { b }",
+      "query Q { a } # n\r\nsubscription S { b }",
+      "subscription S { b }",
+      "mutation M { b }",
+      // Braces that do not balance are not a document to vouch for.
+      "query Q { a",
+      "query Q { a } }",
+      "   ",
+      // An unterminated literal runs to the end of the document, so the write
+      // inside it is consumed and the braces no longer balance: refused too.
+      'query Q { a(id: "x } mutation M { b }',
+      'query Q { a(id: """x } mutation M { b }',
+    ]
+  ) {
+    assert(
+      !parse(graphql({ graphqlQuery: document })).success,
+      `a read accepted a write document: ${document}`,
+    );
+  }
+
+  // The other direction, so the guard is not simply refusing everything: these
+  // shapes are reads and must stay accepted.
+  for (
+    const document of [
+      "query Q { a }",
+      "{ a }",
+      "query Q($id: ID!) { node(id: $id) { id } }",
+      // A field may legitimately be named mutation inside a selection.
+      "query Q { mutation }",
+      // A fragment definition is part of a read, not an operation that writes.
+      "fragment F on Issue { id }",
+      // The word inside a string or a comment must not refuse the document.
+      'query Q { node(id: "mutation") { id } }',
+      "# a mutation in a comment\nquery Q { a }",
+      // The same with a lone carriage return, and a comment after a real query.
+      "# a mutation in a comment\rquery Q { a }",
+      "query Q { a } # n\r",
+      // A block string is one literal, so its braces and quotes are not structure.
+      'query Q { a """} """ }',
+      // An escaped quote does not close the string.
+      'query Q { a(id: "x\\"") }',
+    ]
+  ) {
+    assert(
+      parse(graphql({ graphqlQuery: document })).success,
+      `a read document was refused: ${document}`,
+    );
+  }
+
+  // The broker must build the body from the template, not from the caller. If
+  // the caller's body were sent through, `effect: read` would be a claim about
+  // a document nobody sends: a template could declare a query and post a
+  // mutation in the body, skipping the write and approval gates reads bypass.
+  {
+    const sent = JSON.parse(
+      JSON.stringify(
+        graphqlBody("query Q($n: Int!) { issues(first: $n) { id } }", {
+          n: 5,
+        }),
+      ),
+    ) as { query: string; variables: Record<string, unknown> };
+    assertEquals(sent.query, "query Q($n: Int!) { issues(first: $n) { id } }");
+    assertEquals(sent.variables, { n: 5 });
+    // The document sent is the one that was checked as a read.
+    assert(isGraphqlRead(sent.query), "the sent document must be the query");
+
+    for (const key of ["query", "mutation", "document", "operationName"]) {
+      assert(
+        graphqlBodyCarriesDocument({ [key]: "mutation M { b }" }),
+        `a body key ${key} must be refused`,
+      );
+      assertThrows(
+        () => graphqlBody("query Q { a }", { [key]: "mutation M { b }" }),
+        Error,
+        "GRAPHQL_BODY_CARRIES_DOCUMENT",
+      );
+    }
+    // Only the envelope keys are refused; an ordinary variable name is fine.
+    assert(!graphqlBodyCarriesDocument({ first: 5, filter: "open" }));
+    assert(!graphqlBodyCarriesDocument(null));
+    assert(!graphqlBodyCarriesDocument("query Q { a }"));
+    // A variable that is innocently named still cannot smuggle one in: only
+    // these four names are refused, so the check is on the envelope keys.
+    assertEquals(
+      Object.keys(graphqlBody("query Q { a }", { first: 1 })),
+      ["query", "variables"],
+    );
+  }
+
+  // The endpoint, method and body are fixed, so the caller cannot steer it.
+  assert(!parse(graphql({ method: "GET" })).success);
+  assert(
+    !parse(graphql({ pathTemplate: "/v1/graphql" })).success,
+    "a graphql request reached a non-endpoint path",
+  );
+  assert(!parse(graphql({ query: ["id"] })).success);
+  assert(!parse(graphql({ body: undefined })).success);
+  assert(!parse(graphql({ graphqlQuery: undefined })).success);
+  // graphql reads must still be idempotent, like GET.
+  assert(!parse(graphql({ idempotent: false })).success);
 });
 
 Deno.test("request template bounds response bytes", () => {
@@ -920,6 +1076,7 @@ Deno.test("real deployed registry activates and discovery lists bakery.github", 
   assertEquals(found[0]!.scopes, { required: [], optional: [] });
   assertEquals(found[0]!.actions, [
     { id: "github.issue.comment.create", version: 1, effect: "write" },
+    { id: "github.issue.comment.update", version: 1, effect: "write" },
   ]);
   assert(Object.isFrozen(registry));
   assert(Object.isFrozen(found));
@@ -953,6 +1110,7 @@ Deno.test("activation rejects unbranded, duplicate and unknown-profile integrati
   ]);
   assertEquals(activationDefects([githubIntegration, githubIntegration]), [
     "duplicate-provider",
+    "duplicate-action",
     "duplicate-action",
   ]);
   const other = fixtureIntegration({ id: "fixture.other" });
@@ -1152,7 +1310,11 @@ Deno.test("capability report: baseline is available, granted and schema-valid", 
   const port = countingPort(() => snapshotFor(digest));
   const report = await computeConnectionCapabilities(registry, port, KEY);
   assertEquals(report.activation, "ready");
-  assertEquals(report.actions.length, 1);
+  assertEquals(
+    report.actions.map((action) => action.actionId),
+    ["github.issue.comment.create", "github.issue.comment.update"],
+  );
+  assert(report.actions.every((action) => action.available));
   const [entry] = report.actions;
   assertEquals(entry!.actionId, "github.issue.comment.create");
   assertEquals(entry!.effect, "write");

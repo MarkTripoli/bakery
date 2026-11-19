@@ -1,0 +1,13 @@
+{
+  "name": "@bakery/workflow-sdk",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./mod.ts"
+  },
+  "scripts": {
+    "build": "deno check mod.ts",
+    "typecheck": "deno check mod.ts"
+  }
+}

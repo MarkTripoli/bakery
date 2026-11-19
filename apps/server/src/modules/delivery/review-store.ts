@@ -11,7 +11,8 @@ import {
 } from "@bakery/persistence/repository-admission";
 import type { PgTransactionClient } from "../../platform/database.ts";
 import { formatMicroUsd, parseMicroUsd } from "../work/budget.ts";
-import { reviewLoopSteps } from "./loop-steps.ts";
+import { activeLoopElapsedMs } from "../work/human-approval-store.ts";
+import { reviewLoopSteps } from "../review-loop/loop-steps.ts";
 import {
   isPlanRunSnapshot,
   loopSnapshotOf,
@@ -21,7 +22,7 @@ import type {
   DecisionBudget,
   DecisionReviewStatus,
   PriorDecision,
-} from "./repair-loop.ts";
+} from "../review-loop/decision.ts";
 
 /**
  * The only module that writes `review_cycles`, `review_findings` and
@@ -450,24 +451,24 @@ export function candidateImplementer(
 }
 
 /**
- * Milliseconds since the run's first review cycle was recorded, on the
- * database clock. Null before any cycle exists. Callers record the cycle first,
- * so the first review of a run measures a few milliseconds, never a missing
- * value, and a later review measures the whole loop.
+ * Milliseconds the run's loop has been active, on the database clock. Null
+ * before any cycle exists. Callers record the cycle first, so the first review
+ * of a run measures a few milliseconds, never a missing value, and a later
+ * review measures the whole loop.
+ *
+ * Time spent waiting on a person is excluded. A run blocked on a human approval
+ * is not looping, and charging that wait to the loop would make a slow approver
+ * look like a slow implementation - the number exists to measure the work, not
+ * the queue in front of it.
  */
 export async function loopElapsedMs(
   transaction: PgTransactionClient,
   input: { readonly organizationId: string; readonly runId: string },
 ): Promise<number | null> {
-  const result = await transaction.query<{ elapsed_ms: string | null }>(
-    `select ceil(extract(epoch from (clock_timestamp() - min(created_at))) *
-                 1000)::bigint::text as elapsed_ms
-       from bakery.review_cycles
-      where organization_id = $1 and run_id = $2`,
-    [input.organizationId, input.runId],
-  );
-  const value = result.rows[0]?.elapsed_ms;
-  return value === null || value === undefined ? null : Number(value);
+  return await activeLoopElapsedMs(transaction, {
+    organizationId: input.organizationId,
+    runId: input.runId,
+  });
 }
 
 /** The reservation a step's frozen agent holds, as micro-USD; 0 when unbilled. */

@@ -11,6 +11,14 @@ import {
   StandardError,
   unprocessable,
 } from "@bakery/contracts/http";
+import {
+  ACTOR_ROLE_RANK_ACT,
+  TICKET_PREVIEW_ISSUE_LIMIT,
+} from "@bakery/contracts/ticket-admission";
+import {
+  parsePreviewFilters,
+  storedTicketSourcePolicy,
+} from "./ticket-policy.ts";
 import type {
   TicketRequestOrigin,
   TicketSourcePolicy,
@@ -39,6 +47,7 @@ import type {
   TicketSourceHandle,
   TicketSourceReader,
 } from "./ticket-source-reader.ts";
+import { ticketRef } from "./ticket-source-reader.ts";
 import { requireWorkTransaction } from "./work-transaction.ts";
 
 /**
@@ -62,8 +71,8 @@ import { requireWorkTransaction } from "./work-transaction.ts";
  * never a throw: the handler decides what it means for that issue.
  */
 
-/** Issues one preview reads and records. */
-export const PREVIEW_ISSUE_LIMIT = 25;
+/** Issues one preview reads and judges. */
+export const PREVIEW_ISSUE_LIMIT = TICKET_PREVIEW_ISSUE_LIMIT;
 
 export type TicketOperationDependencies = {
   reader: TicketSourceReader;
@@ -116,7 +125,10 @@ type ReadPlan =
   | {
     kind: "preview";
     handle: TicketSourceHandle;
+    /** The draft policy when the input carries one, else the saved one; the prefetch reads for it. */
     policy: TicketSourcePolicy;
+    /** Issue numbers to read instead of the provider's first page; null reads the page. */
+    numbers: number[] | null;
   }
   | {
     kind: "sync";
@@ -133,10 +145,12 @@ type ReadPlan =
     origin: TicketRequestOrigin;
   };
 
-function isEmptyObject(value: unknown): boolean {
-  return value !== null && typeof value === "object" &&
-    !Array.isArray(value) && Object.keys(value).length === 0;
-}
+/**
+ * A provider login as the source's provider accepts it: letters, digits and
+ * single hyphens, never at either end. The schema bounds its length (1-39);
+ * anything else is refused before the provider is asked.
+ */
+const PROVIDER_LOGIN = /^[A-Za-z0-9](?:-?[A-Za-z0-9])*$/;
 
 export function preconditionFailed(reason: string): StandardError {
   return new StandardError({
@@ -157,19 +171,33 @@ async function probe(
   if (!id) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
   const fields = (input ?? {}) as Record<string, unknown>;
   if (actionName === "ticketSources.lookupPerson") {
+    const login = String(fields.login);
+    if (!PROVIDER_LOGIN.test(login)) {
+      throw unprocessable(["login"], "login_invalid");
+    }
     const { handle } = await readSourceHandle(transaction, organizationId, id);
-    return { kind: "person", handle, login: String(fields.login) };
+    return { kind: "person", handle, login };
   }
   if (actionName === "ticketSources.preview") {
-    if (fields.filters !== undefined && !isEmptyObject(fields.filters)) {
-      throw unprocessable(["filters"], "filters_unsupported");
-    }
+    // A refused filter or draft reads nothing. The handler parses both again
+    // in its own transaction and checks the draft's delegation there.
+    const filters = parsePreviewFilters(fields.filters);
     const { source, handle } = await readSourceHandle(
       transaction,
       organizationId,
       id,
     );
-    return { kind: "preview", handle, policy: source.policy };
+    const policy = fields.policy === undefined || fields.policy === null
+      ? source.policy
+      : storedTicketSourcePolicy(fields.policy, source.policy, new Date());
+    return {
+      kind: "preview",
+      handle,
+      policy,
+      numbers: filters.numbers === undefined
+        ? null
+        : [...new Set(filters.numbers)],
+    };
   }
   if (actionName === "ticketSources.sync") {
     const selection = await selectSyncCandidates(
@@ -247,7 +275,11 @@ async function readProvider(
           await prefetchTicketReads(
             reader,
             handle,
-            { number, policy: sourcePolicy, origin: "poll" },
+            {
+              ref: ticketRef(number),
+              policy: sourcePolicy,
+              origin: "poll",
+            },
             signal,
           ),
         ] as const,
@@ -266,15 +298,18 @@ async function readProvider(
     };
   }
   if (plan.kind === "preview") {
-    const page: TicketIssueListPage = await reader.listIssues(
-      plan.handle,
-      { page: 1, since: null },
-      signal,
-    );
-    if (page.kind === "unavailable") throw dependencyUnavailable(page);
-    const numbers = page.numbers.slice(0, PREVIEW_ISSUE_LIMIT).map((item) =>
-      item.number
-    );
+    let numbers = plan.numbers;
+    if (numbers === null) {
+      const page: TicketIssueListPage = await reader.listIssues(
+        plan.handle,
+        { page: 1, since: null },
+        signal,
+      );
+      if (page.kind === "unavailable") throw dependencyUnavailable(page);
+      numbers = page.numbers.slice(0, PREVIEW_ISSUE_LIMIT).map((item) =>
+        item.number
+      );
+    }
     return {
       kind: "preview",
       issues: await prefetchAll(plan.handle, numbers, plan.policy),
@@ -285,7 +320,11 @@ async function readProvider(
     prefetch: await prefetchTicketReads(
       reader,
       plan.handle,
-      { number: plan.number, policy: plan.policy, origin: plan.origin },
+      {
+        ref: ticketRef(plan.number),
+        policy: plan.policy,
+        origin: plan.origin,
+      },
       signal,
     ),
   };
@@ -373,6 +412,6 @@ export function lookupTicketSourcePerson(context: ActionContext): {
     login,
     externalUserId: role.userId,
     permission: role.permission,
-    canTrigger: role.permission === "write" || role.permission === "admin",
+    canTrigger: role.rank >= ACTOR_ROLE_RANK_ACT,
   };
 }

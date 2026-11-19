@@ -21,6 +21,12 @@ const row = {
   origin_kind: "authored",
   origin_catalog_key: null,
   origin_catalog_version: null,
+  origin_source_workflow_id: null,
+  origin_source_version_id: null,
+  origin_source_digest: null,
+  visibility: "listed",
+  origin_conversation_id: null,
+  origin_turn_id: null,
 };
 
 Deno.test("an authored definition's read shape satisfies the Workflow contract", () => {
@@ -29,6 +35,9 @@ Deno.test("an authored definition's read shape satisfies the Workflow contract",
     kind: "authored",
     catalogKey: null,
     catalogVersion: null,
+    sourceWorkflowId: null,
+    sourceVersionId: null,
+    sourceDigest: null,
   });
   const parsed = contractSchemas.Workflow.safeParse(shape);
   assertEquals(parsed.success, true, JSON.stringify(parsed.error?.issues));
@@ -46,7 +55,43 @@ Deno.test("a catalog definition's read shape carries its key and revision and sa
     kind: "catalog",
     catalogKey: "fixed-coding",
     catalogVersion: 3,
+    sourceWorkflowId: null,
+    sourceVersionId: null,
+    sourceDigest: null,
   });
+  const parsed = contractSchemas.Workflow.safeParse(shape);
+  assertEquals(parsed.success, true, JSON.stringify(parsed.error?.issues));
+});
+
+Deno.test("a copy's read shape names its source and satisfies the contract", () => {
+  const shape = toWorkflowDefinition({
+    ...row,
+    origin_kind: "copy",
+    origin_source_workflow_id: "22222222-2222-4222-8222-222222222222",
+    origin_source_version_id: "33333333-3333-4333-8333-333333333333",
+    origin_source_digest: "a".repeat(64),
+  });
+  assertEquals(shape.origin, {
+    kind: "copy",
+    catalogKey: null,
+    catalogVersion: null,
+    sourceWorkflowId: "22222222-2222-4222-8222-222222222222",
+    sourceVersionId: "33333333-3333-4333-8333-333333333333",
+    sourceDigest: "a".repeat(64),
+  });
+  const parsed = contractSchemas.Workflow.safeParse(shape);
+  assertEquals(parsed.success, true, JSON.stringify(parsed.error?.issues));
+});
+
+Deno.test("an unlisted coordinator definition's read shape satisfies the contract", () => {
+  const shape = toWorkflowDefinition({
+    ...row,
+    origin_kind: "coordinator",
+    visibility: "unlisted",
+    origin_conversation_id: "22222222-2222-4222-8222-222222222222",
+    origin_turn_id: "33333333-3333-4333-8333-333333333333",
+  });
+  assertEquals(shape.visibility, "unlisted");
   const parsed = contractSchemas.Workflow.safeParse(shape);
   assertEquals(parsed.success, true, JSON.stringify(parsed.error?.issues));
 });

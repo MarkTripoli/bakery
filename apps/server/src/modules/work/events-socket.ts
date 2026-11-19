@@ -24,11 +24,11 @@ import {
   requireOrganizationIdValue,
   resolveOrganizationActor,
 } from "../auth/adapters/authority-postgres.ts";
-import { authorize } from "../auth/application/authorize.ts";
 import {
   type AuthenticatedSubject,
   IdentityResolutionError,
 } from "../auth/application/identity.ts";
+import { authorize } from "../auth/application/authorize.ts";
 import { readSessionToken } from "../auth/middleware.ts";
 import type { SessionStore } from "../auth/adapters/postgres.ts";
 import {
@@ -36,6 +36,8 @@ import {
   SessionAssurance,
 } from "../auth/domain/assurance.ts";
 import {
+  assertEventAccess,
+  assertInboxOnlyScope,
   assertScope,
   type ClockRow,
   isOutsideRetention,
@@ -753,7 +755,7 @@ export function createEventsSocketHandler(
             principalValue,
             organizationValue,
           );
-          authorize(actor, "event:read", { action: "events.connect" });
+          assertEventAccess(actor);
           return await readEventClock(transaction, organizationValue);
         },
         undefined,
@@ -1115,14 +1117,14 @@ export function createEventsSocketHandler(
   async function authorizeMembership(
     transaction: PgTransactionClient,
     state: ConnectionState,
-  ): Promise<void> {
+  ): Promise<boolean> {
     try {
       const actor = await resolveOrganizationActor(
         transaction,
         state.principalId,
         state.organizationId,
       );
-      authorize(actor, "event:read", { action: "events.connect" });
+      return assertEventAccess(actor);
     } catch (error) {
       if (
         error instanceof StandardError && error.code === "RESOURCE_NOT_FOUND"
@@ -1140,9 +1142,10 @@ export function createEventsSocketHandler(
     scopes: readonly SyncScope[],
     clock: ClockRow,
   ): Promise<void> {
-    await authorizeMembership(transaction, state);
+    const fullAccess = await authorizeMembership(transaction, state);
     for (const scope of scopes) {
       try {
+        if (!fullAccess) assertInboxOnlyScope(scope);
         await assertScope(
           transaction,
           state.organizationId,
@@ -1334,8 +1337,9 @@ export function createEventsSocketHandler(
     const outcome = await withPgTransaction<SubscriptionOutcome>(
       options.database,
       async (transaction) => {
-        await authorizeMembership(transaction, state);
+        const fullAccess = await authorizeMembership(transaction, state);
         for (const scope of normalizedScopes) {
+          if (!fullAccess) assertInboxOnlyScope(scope);
           await assertScope(
             transaction,
             state.organizationId,

@@ -2090,7 +2090,7 @@
       ],
       "description": "Filters the external write effects (issue comments, webhook deliveries and other outbound provider actions) visible to the caller, typically to audit what a specific workflow run triggered."
     },
-    "GitHubWebhook": {
+    "IntegrationWebhook": {
       "fields": [
         {
           "name": "deliveryId",
@@ -2661,8 +2661,8 @@
         {
           "name": "sourceArtifactVersionId",
           "type": "uuid",
-          "required": false,
-          "description": "Exact artifact version whose evidence justifies this memory revision; promotion requires this to name real evidence and pass a conflict scan before the revision is accepted."
+          "required": true,
+          "description": "Exact artifact version whose evidence justifies this memory revision. Required: a revision with no evidence is an opinion, not a memory, and promotion refuses it before it is stored."
         }
       ],
       "description": "Adds a new revision to an existing memory entry and advances its current-revision pointer through the normal compare-and-swap path."
@@ -2684,10 +2684,9 @@
           "required": false,
           "enum": [
             "active",
-            "superseded",
-            "retracted"
+            "retired"
           ],
-          "description": "Lifecycle state of the memory entry: \"active\" while retrievable, \"superseded\" once replaced by newer learning, or \"retracted\" if withdrawn as incorrect."
+          "description": "Lifecycle state of the memory entry, using the projection's own vocabulary: \"active\" while retrievable, or \"retired\" once withdrawn. Why it was retired - replaced by newer learning or withdrawn as incorrect - belongs in the next revision's required reason, which is where the history keeps it."
         }
       ],
       "description": "Edits a memory entry's subject or lifecycle status without creating a new revision; use MemoryRevisionCreate to change its content."
@@ -2888,6 +2887,53 @@
         }
       ],
       "description": "Creates a new named definition (workflow, agent, or automation) with a unique slug, display name, and description; it starts with no active version until one is published and assigned."
+    },
+    "WorkflowCopy": {
+      "fields": [
+        {
+          "name": "slug",
+          "type": "slug",
+          "required": true,
+          "bounds": {
+            "maxLength": 100
+          },
+          "description": "URL-safe unique identifier for the copy within the organization; the copy is a new definition, so it cannot reuse the source's slug."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 200
+          },
+          "description": "Display name shown for the copy wherever workflows are listed for selection."
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 2000
+          },
+          "description": "Free-text summary of the copy's purpose, shown in pickers and the catalog."
+        },
+        {
+          "name": "sourceVersionId",
+          "type": "uuid",
+          "required": false,
+          "description": "The version of the source workflow to copy: a published version or a draft of that workflow. Defaults to the source's active version; a source with no active version and no version named is refused."
+        },
+        {
+          "name": "expectedDigest",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 128
+          },
+          "description": "Digest of the source version the caller read; the copy is refused with STATE_CONFLICT digest_mismatch if the version's digest differs, so a changed draft is never copied as something else."
+        }
+      ],
+      "description": "Copies a workflow into a new organization-owned definition with one inactive draft, atomically. Only the semantic definition is carried over: no activation, run, effect, trigger, grant or credential. The copy's origin records the source definition, version and digest; a later change to the source never reaches the copy."
     },
     "PermissionGrantCreate": {
       "fields": [
@@ -3288,6 +3334,12 @@
           "description": "Restrict results to pull requests opened by this workflow run; pull requests registered without a run never match."
         },
         {
+          "name": "externalTicketId",
+          "type": "uuid",
+          "required": false,
+          "description": "Restrict results to pull requests of tasks linked to this external ticket through ticket_task_links, primary or reference. A ticket with no linked task, or one outside the caller's organization, matches nothing rather than revealing whether it exists."
+        },
+        {
           "name": "cursor",
           "type": "string",
           "required": false,
@@ -3623,6 +3675,15 @@
             "maxBytes": 100000
           },
           "description": "Initial input values for the pinned workflow version's entry step, recorded immutably in the run's snapshot alongside its pinned config and skill references."
+        },
+        {
+          "name": "inputPaths",
+          "type": "json",
+          "required": false,
+          "bounds": {
+            "maxBytes": 20000
+          },
+          "description": "Storage paths that fill declared run inputs, as an object from input name to absolute storage path. Admission resolves each path in the caller's organization to the file's current version, puts that version id in the named input (which the workflow must declare as a uuid and which `inputs` must not also supply), pins the version and its digest, and records the path only as a label: the run keeps the pin, so a later move or new version never changes it. A path that does not resolve to a file with a current version is refused with the same error whether it is missing or belongs to another organization. A preset run rejects inputPaths with 422."
         },
         {
           "name": "approvalId",
@@ -3991,7 +4052,7 @@
             "worker",
             "inbox"
           ],
-          "description": "Kind of resource the snapshot is scoped to: an organization-wide application feed, one repository, one task, one conversation, one worker enrollment (Admin status feed), or one worker machine (safe status feed). \"inbox\" is events-only: its id must be the caller's own principal id and it carries only notifications.inbox_changed signals; snapshots reject it."
+          "description": "Kind of resource the snapshot is scoped to: an organization-wide application feed, one repository, one task, one conversation, one worker enrollment (Admin status feed), or one worker machine (safe status feed). \"inbox\" is events-only: its id must be the caller's own principal id, any member may subscribe to their own, and it carries only notifications.inbox_changed signals; snapshots reject it."
         },
         {
           "name": "scopeId",
@@ -5663,6 +5724,46 @@
       ],
       "description": "Activates one published version of a workflow definition under the definition's optimistic-concurrency version. The version is re-checked against the latest organization rules like a publication, so a version published before a `require` rule existed is refused with the same typed UNPROCESSABLE issue and the active version stays unchanged."
     },
+    "WorkflowListingCreate": {
+      "fields": [
+        {
+          "name": "versionId",
+          "type": "uuid",
+          "required": true,
+          "description": "Published version of the unlisted source definition to copy; a draft or unknown version is refused."
+        },
+        {
+          "name": "slug",
+          "type": "slug",
+          "required": false,
+          "bounds": {
+            "maxLength": 100
+          },
+          "description": "Slug for the new library definition; omitted generates copy-<uuid>. A slug already used in the organization fails with STATE_CONFLICT."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 200
+          },
+          "description": "Library name for the new definition; omitted keeps the source definition's name."
+        }
+      ],
+      "description": "Save as workflow: copies one published version of an unlisted definition into a new listed definition with its own draft, through the same copy writer as Make a copy, whose origin is copy naming the source definition, version and digest. The unlisted source and its runs are unchanged. If-Match is the source definition's version (stale: PRECONDITION_FAILED). Only a person may save; an agent is refused with AUTH_FORBIDDEN, a listed source is STATE_CONFLICT workflow_already_listed, and a source version already copied is STATE_CONFLICT workflow_copy_exists with existingResourceId naming that copy. An Idempotency-Key replay returns the original 201."
+    },
+    "WorkflowDefinitionProposalDecision": {
+      "fields": [
+        {
+          "name": "decision",
+          "type": "enum(accept|reject)",
+          "required": true,
+          "description": "accept writes the proposed definition into its unlisted draft through the editor's draft operations (creating the unlisted definition for a first proposal); reject records the decision and writes nothing."
+        }
+      ],
+      "description": "A person decides one waiting definition proposal under its If-Match version. An agent is refused with AUTH_FORBIDDEN; a decided proposal is STATE_CONFLICT; a draft changed since the proposal is PRECONDITION_FAILED and the proposal stays waiting."
+    },
     "SkillVersionPath": {
       "fields": [
         {
@@ -7102,19 +7203,28 @@
     "TicketPreviewCreate": {
       "fields": [
         {
+          "name": "policy",
+          "type": "json",
+          "required": false,
+          "bounds": {
+            "maxBytes": 65536
+          },
+          "description": "Draft TicketSourcePolicy version 1 document to evaluate instead of the saved one, validated exactly as ticketSources.update validates a replacement policy (422 ticket_source_policy_invalid, or delegation_principal_unknown for a delegation principal outside the organization). automatic.since is stamped as saving would stamp it, so the draft is judged by the window it would get. The draft is never stored and moves no revision; omitted, the saved policy is evaluated."
+        },
+        {
           "name": "filters",
           "type": "json",
           "required": false,
           "bounds": {
             "maxBytes": 16000
           },
-          "description": "Optional filter criteria, such as labels or repositories, narrowing which candidate tickets the preview evaluates, without changing the source's saved policy."
+          "description": "Optional TicketPreviewFilters object narrowing the issues the preview evaluates, without changing the policy: labels (1 to 10 label names; only issues carrying at least one are evaluated) and numbers (1 to 25 issue numbers, evaluated instead of the provider's first page of open issues). Unknown keys answer 422 filters_invalid; an empty object is the same as no filters."
         }
       ],
       "rules": [
-        "Returns a durable preview operation; never admits or starts matching tickets."
+        "Evaluates and returns; writes no ticket, report, link, request, task or run and never stores the draft policy."
       ],
-      "description": "Requests a preview of which external tickets and repositories would match this ticket source's current policy; returns a durable operation and never admits or starts any matching ticket."
+      "description": "Asks how this ticket source's issues would be judged now, under the saved policy or a draft one, at most 25 issues from one provider read. The answer is computed and returned; nothing is admitted, started or recorded."
     },
     "TicketSyncCreate": {
       "fields": [],
@@ -7175,6 +7285,60 @@
       ],
       "pagination": "pagination",
       "description": "Query parameters for listing this organization's cached external ticket snapshots; results reflect the last synchronized state, not a live provider fetch."
+    },
+    "TicketTaskLinkQuery": {
+      "fields": [
+        {
+          "name": "externalTicketId",
+          "type": "uuid",
+          "required": false,
+          "description": "Lists the links of this one external ticket: every task linked to it. Exactly one of externalTicketId and taskId is required (422 ticket_task_link_scope_required otherwise); a ticket outside the caller's organization answers 404."
+        },
+        {
+          "name": "taskId",
+          "type": "uuid",
+          "required": false,
+          "description": "Lists the links of this one Bakery task: every external ticket it is linked to, at most one of them as primary. Exactly one of externalTicketId and taskId is required; a task outside the caller's organization answers 404."
+        },
+        {
+          "name": "role",
+          "type": "enum(primary|reference)",
+          "required": false,
+          "description": "Keeps only links with this role: primary for the link an admission created (the task was started from the ticket), reference for a link a person added. Omitted, both roles are listed."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from a previous page's nextCursor, bound to the caller and the filters in force; pass it back verbatim and never construct it."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum number of links in one page, capped at 100; defaults to 25 when omitted."
+        }
+      ],
+      "rules": [
+        "Exactly one of externalTicketId and taskId; keyset pages newest link first."
+      ],
+      "pagination": "pagination",
+      "description": "Query for the links between external tickets and Bakery tasks, from either side, with each link's role and the sync health of Bakery's status note on the ticket."
+    },
+    "TicketTaskLinkNoteSync": {
+      "fields": [],
+      "rules": [
+        "Idempotency-Key and If-Match on the link version required; refused while a write of the same link is in flight; never refused because the note is already posted."
+      ],
+      "description": "Asks Bakery to bring its status note on the ticket of one primary link up to date: the note already posted is rewritten in place by the provider's update action, one the provider no longer has (deleted there) is posted again under a new id and the link's lastProblemCode says note_recreated, and a link with none gets its first. Every call writes; no digest of the posted text is kept. The note is written by the source provider's registered comment action as the caller, through the integration gate and the effect ledger, so the caller needs that action's grant on the repository; a write the gate or the provider refuses is recorded on the link as failed with its problem code, not answered as an error."
     },
     "TicketReadinessCreate": {
       "fields": [
@@ -7334,7 +7498,9 @@
           "type": "string",
           "required": true,
           "bounds": {
-            "maxLength": 200
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^(?!\\s)(?=.*\\S)"
           },
           "description": "Stable identifier for this package, unique within the publishing organization; used to reference the package from version and install operations."
         },
@@ -7343,7 +7509,9 @@
           "type": "string",
           "required": true,
           "bounds": {
-            "maxLength": 200
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^(?!\\s)(?=.*\\S)"
           },
           "description": "Human-readable name for this package shown in install and catalog listings, independent of its stable name."
         },
@@ -7378,7 +7546,9 @@
           "type": "string",
           "required": true,
           "bounds": {
-            "maxLength": 200
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^(?!\\s)(?=.*\\S)"
           },
           "description": "Version label for this release, unique per package (for example a semantic version); immutable once published."
         },
@@ -7387,7 +7557,9 @@
           "type": "string",
           "required": true,
           "bounds": {
-            "maxLength": 200
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^(?!\\s)(?=.*\\S)"
           },
           "description": "Range of plugin SDK versions this release is compatible with; installation is blocked when the host's SDK version falls outside this range."
         },
@@ -7405,7 +7577,9 @@
           "type": "string",
           "required": true,
           "bounds": {
-            "maxLength": 2000
+            "maxLength": 2000,
+            "minLength": 1,
+            "pattern": "^(?!\\s)(?=.*\\S)"
           },
           "description": "Storage key of this version's validated, immutable bundle archive in R2 or the local filesystem; the archive bytes themselves are never stored in Postgres."
         },
@@ -7414,7 +7588,9 @@
           "type": "string",
           "required": true,
           "bounds": {
-            "maxLength": 64
+            "maxLength": 64,
+            "minLength": 64,
+            "pattern": "^[0-9a-f]{64}$"
           },
           "description": "SHA-256 digest of the bundle archive at bundleObjectRef, unique per package; verified before the archive is extracted or installed so a tampered or corrupted bundle is rejected."
         },
@@ -7875,7 +8051,7 @@
       ],
       "description": "Fixed OAuth callback shared by GitHub authorization and Slack identity-link completion; the bound, single-use state is claimed atomically before any code exchange, so callback fields alone can never select an organization, connection or installation."
     },
-    "GitHubSetupCallback": {
+    "IntegrationSetupCallback": {
       "fields": [
         {
           "name": "state",
@@ -9757,7 +9933,7 @@
       ],
       "description": "Starts GitHub App registration through GitHub's manifest flow for this Bakery installation. The App's URLs derive from the deployment's public base URL; credentials never travel through this request."
     },
-    "GitHubManifestCallback": {
+    "IntegrationManifestCallback": {
       "fields": [
         {
           "name": "code",
@@ -9902,7 +10078,7 @@
             "minLength": 1,
             "maxLength": 39
           },
-          "description": "The person's username on the ticket source's provider, as typed; supplied via the request's {login} path segment."
+          "description": "The person's username on the ticket source's provider, as typed; supplied via the request's {login} path segment. Letters, digits and single hyphens only, never starting or ending with a hyphen; any other login is refused 422 with issue code login_invalid on login, before any provider read."
         }
       ],
       "description": "Path parameters naming one ticket source and a provider username to look up on its repository (#69)."
@@ -10629,6 +10805,509 @@
       ],
       "description": "Lists the agent sessions that belong to one run step, so a client can reach a session by run rather than by an id it already knows."
     },
+    "NotificationUndoMarkAllRead": {
+      "fields": [
+        {
+          "name": "batchId",
+          "type": "uuid",
+          "required": true,
+          "description": "The batchId a mark-all-read call returned. Only that press of the authenticated recipient can be undone, once, within 10 minutes."
+        }
+      ],
+      "rules": [
+        "Restores unread only on rows that press marked and nothing has changed since; a row read or unread again in the meantime keeps its newer state. A second undo or an expired batch fails with STATE_CONFLICT; another recipient's or an unknown batch is RESOURCE_NOT_FOUND."
+      ],
+      "description": "Undoes the recipient's last mark-all-read press within its bound, so the Undo toast can restore exactly what was marked."
+    },
+    "DefinitionPublishGrantCreate": {
+      "fields": [
+        {
+          "name": "definitionKind",
+          "type": "enum(workflow|agent|artifactKind|skill)",
+          "required": true,
+          "description": "Kind of definition the grant covers: a workflow, an agent, an artifact kind or a skill."
+        },
+        {
+          "name": "definitionId",
+          "type": "uuid|null",
+          "required": false,
+          "description": "Immutable id of the one definition the grant covers: the workflow, agent, skill or artifact kind row id (an artifact kind is named by its id, never its key, so a kind recreated under a reused key does not inherit the grant). Null or absent covers every definition of the kind and then requires accessTokenId, so no grant reaches every agent on every definition."
+        },
+        {
+          "name": "accessTokenId",
+          "type": "uuid|null",
+          "required": false,
+          "description": "The one seat (access token) the grant is limited to. Null or absent lets any agent acting on the named definition publish it."
+        }
+      ],
+      "rules": [
+        "A person with a browser session only; an agent is refused (O51: delegating authority is never an agent's act).",
+        "An unknown or foreign definition and an unknown, revoked or foreign token both answer RESOURCE_NOT_FOUND.",
+        "A second grant for the same kind, definition and seat is STATE_CONFLICT with reason publish_grant_exists."
+      ],
+      "description": "Grants agents the off-by-default power to publish versions of, and \"Use this version\" for, one definition or one seat (chapter 25 O52). Agents author drafts without a grant; a grant never lets an agent decide a proposal."
+    },
+    "ScopeProfileCheckCommand": {
+      "description": "One check command a project's scope profile offers to steps as a default; the id is stable so a run's evidence names the command that produced it.",
+      "fields": [
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "description": "Stable lowercase kebab-case identifier of the check, unique within the profile."
+        },
+        {
+          "name": "command",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "description": "Shell command text the check runs. The profile owns the policy; the kernel never interprets the text."
+        }
+      ]
+    },
+    "ProjectScopeProfilePut": {
+      "fields": [
+        {
+          "name": "checkCommands",
+          "type": "ScopeProfileCheckCommand[]",
+          "required": true,
+          "bounds": {
+            "maxItems": 64
+          },
+          "description": "Every check command the profile offers to steps as a default, in profile order; the list replaces the published one, and an empty list publishes no checks."
+        },
+        {
+          "name": "rules",
+          "type": "json[]",
+          "required": true,
+          "description": "Every rule entry the profile supplies, replacing the published list; the rule library, not the kernel, gives each entry its meaning."
+        }
+      ],
+      "rules": [
+        "Organization admin. Idempotency-Key is required. When the project has a published profile a strong If-Match with its revision is required (428 when missing, 412 when stale); before the first save If-Match must be absent.",
+        "A project in another organization, or one that does not exist, answers 404. Check ids must be unique (422 UNPROCESSABLE)."
+      ],
+      "description": "Publishes the next revision of one project's scope profile: the step defaults every later run of the project inherits and pins at admission."
+    },
+    "ProviderRouteQuery": {
+      "fields": [
+        {
+          "name": "status",
+          "type": "enum",
+          "required": false,
+          "enum": [
+            "active",
+            "disabled",
+            "revoked"
+          ],
+          "description": "Restricts the page to routes in this lifecycle state; a revoked or disabled route is readable but never probed or admitted for new work."
+        },
+        {
+          "name": "health",
+          "type": "enum",
+          "required": false,
+          "enum": [
+            "healthy",
+            "degraded",
+            "open",
+            "unverified"
+          ],
+          "description": "Restricts the page to routes in this circuit state: healthy (closed, inference proven), degraded (failing below the open threshold), open (paused, probing), or unverified (reachable but no inference proof yet)."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque keyset cursor for the next page of routes; bound to the caller's organization and the same status and health filters, so it is rejected if replayed under a different query."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum number of provider routes returned per page; defaults to 25 and cannot exceed 100."
+        }
+      ],
+      "description": "Filters and page position for listing the organization's provider routes. Routes are organization-scoped addresses for one provider endpoint, model, harness and credential binding, so this page never spans organizations."
+    },
+    "ProviderIncidentQuery": {
+      "fields": [
+        {
+          "name": "routeId",
+          "type": "uuid",
+          "required": false,
+          "description": "Restricts the page to incidents recorded against one provider route; omit to list incidents across every route the caller can see."
+        },
+        {
+          "name": "status",
+          "type": "enum",
+          "required": false,
+          "enum": [
+            "open",
+            "recovered",
+            "superseded"
+          ],
+          "description": "Restricts the page to incidents in this state: open (still failing), recovered (probes proved the route again), or superseded (a newer incident generation replaced it without recovery)."
+        },
+        {
+          "name": "severity",
+          "type": "enum",
+          "required": false,
+          "enum": [
+            "degraded",
+            "outage"
+          ],
+          "description": "Restricts the page to degraded incidents, where the route still serves some work, or outage incidents, where it serves none."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque keyset cursor for the next page of incidents; bound to the caller's organization and the same route, status and severity filters."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum number of provider incidents returned per page; defaults to 25 and cannot exceed 100."
+        }
+      ],
+      "description": "Filters and page position for listing provider incidents. An incident is one durable record per affected route and generation, not one per failed attempt, so duplicate and stale probe results do not multiply rows."
+    },
+    "TicketRoutingRuleInput": {
+      "fields": [
+        {
+          "name": "labelId",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "description": "The provider's stable id of one label of the ticket source (for example a numeric label id written as a string), exactly as the source's ticket reader reports it. Rules match this id, never the name, so renaming the label keeps its routing."
+        },
+        {
+          "name": "labelName",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "description": "Display name of the label, shown in settings and in readiness evidence; never matched. Send the current name to rename it; a rename alone changes nothing about routing."
+        },
+        {
+          "name": "repositoryId",
+          "type": "uuid",
+          "required": true,
+          "description": "Bakery repository the label routes to. It must belong to the ticket source's application and must not be archived when the rules are saved; otherwise the whole replacement answers 422."
+        },
+        {
+          "name": "role",
+          "type": "slug",
+          "required": true,
+          "bounds": {
+            "maxLength": 63
+          },
+          "description": "Role the repository plays for a routed ticket, such as backend or frontend. The application must bind this repository to this role with an alias (applicationRepositoryRoles.set), because the target runs as a lane of a coordination plan that names it by that alias. Within one ticket a role must resolve to one repository and a repository to one role, or admission is blocked as ambiguous."
+        },
+        {
+          "name": "presetId",
+          "type": "enum",
+          "required": false,
+          "enum": [
+            "fixed-coding"
+          ],
+          "description": "Workflow preset the routed repository target runs; omitted means fixed-coding, the only preset admission runs. The preset's revision and digest are pinned on each admitted target."
+        }
+      ],
+      "description": "One routing rule as a client sends it: a provider label id and its display name, the repository it routes to, that repository's role and the preset it runs."
+    },
+    "TicketRoutingRulesReplace": {
+      "fields": [
+        {
+          "name": "rules",
+          "type": "TicketRoutingRuleInput[]",
+          "required": true,
+          "bounds": {
+            "maxItems": 50
+          },
+          "description": "The complete rule set of the ticket source, at most 50 rules, each (labelId, repositoryId) pair at most once. An empty list removes every rule, so tickets route to the source's own repository again."
+        }
+      ],
+      "rules": [
+        "Idempotency-Key and If-Match against the ticket source version required. A replacement that changes any rule advances the source's policy revision and version once; an identical replacement changes nothing. Active requests keep the targets they were admitted with."
+      ],
+      "description": "Replaces the label routing rules of one ticket source as a whole, under compare-and-swap on the source version."
+    },
+    "ProviderRouteCreate": {
+      "fields": [
+        {
+          "name": "provider",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 64
+          },
+          "description": "Provider key this route sends to, lowercase and stable (for example the name an operator matches against a status page); it is not a display label."
+        },
+        {
+          "name": "endpoint",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 2048
+          },
+          "description": "Provider endpoint host and path the route calls. It must be an https URL with no credentials, query or fragment, on a fully-qualified public name (at least one dot) or a public address, and not on port 0; a loopback, private, link-local or internal host is refused as unprocessable, because the server calls it."
+        },
+        {
+          "name": "region",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 64
+          },
+          "description": "Provider region the endpoint serves; omit for a provider with no regional endpoints."
+        },
+        {
+          "name": "model",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 200
+          },
+          "description": "Model identifier pinned for work admitted on this route."
+        },
+        {
+          "name": "harness",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "pi",
+            "claude_code",
+            "codex",
+            "mastra"
+          ],
+          "description": "Harness path that executes work on this route: pi, claude_code, codex or mastra."
+        },
+        {
+          "name": "billingRoute",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "subscription",
+            "api_metered",
+            "local"
+          ],
+          "description": "Billing route the route's spend follows: subscription, api_metered or local."
+        },
+        {
+          "name": "providerAccountId",
+          "type": "uuid",
+          "required": false,
+          "description": "Provider account of this organization whose identity and quota observation the route uses; omit for a route with no verified account, which then reports usage as unknown rather than zero."
+        },
+        {
+          "name": "workerBindingId",
+          "type": "uuid",
+          "required": false,
+          "description": "Machine provider binding of this organization that places the route; omit for a route served without a machine binding."
+        },
+        {
+          "name": "credentialLocation",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "harness_host",
+            "bakery_secret"
+          ],
+          "description": "Where the credential is kept: harness_host (the machine holds it) or bakery_secret (Bakery holds a secret reference). The credential value is never part of a route."
+        }
+      ],
+      "description": "Registers one organization-scoped provider route: the endpoint, region, model, harness and credential binding that outbound work is admitted against. A new route starts active and unverified with no incident; identity fields cannot change afterwards, so a different endpoint or model is a new route. Account and binding ids must belong to the same organization."
+    },
+    "ProviderRouteUpdate": {
+      "fields": [
+        {
+          "name": "status",
+          "type": "enum",
+          "required": false,
+          "enum": [
+            "active",
+            "disabled",
+            "revoked"
+          ],
+          "description": "Moves the route between active and disabled, or revokes it. A disabled route stays readable but is not probed or admitted for new work; revoked is permanent and cannot be undone."
+        },
+        {
+          "name": "region",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "bounds": {
+            "maxLength": 64
+          },
+          "description": "Replaces the route's region; set to null to clear it. Omit to leave the current region unchanged."
+        }
+      ],
+      "description": "Compare-and-swap partial update to a provider route's lifecycle status or region; unset fields are left unchanged and an update that changes nothing is refused. The route's identity (provider, endpoint, model, harness, billing route, credential location, account and binding) is immutable."
+    },
+    "LibrarySearchQuery": {
+      "fields": [
+        {
+          "name": "query",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "description": "Text to find, matched case-insensitively as a substring of a skill, agent or artifact name or of a skill or agent description; wildcard characters in it are matched literally."
+        },
+        {
+          "name": "kind",
+          "type": "enum",
+          "required": false,
+          "enum": [
+            "skill",
+            "agent",
+            "artifact"
+          ],
+          "description": "Restricts the search to one kind of library item (skill, agent or artifact); omit to search all three."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from a prior library.search page; bound to this operation, the caller and organization, the same query text and the same kind filter, so it is rejected if any of them change."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum number of hits returned per page; defaults to 25 and cannot exceed 100."
+        }
+      ],
+      "pagination": "pagination",
+      "rules": [
+        "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind the cursor to this operation, current principal and organization scope, query text, kind filter and ordering; validate and reauthorize before the keyset query."
+      ],
+      "description": "Text query over the organization library: skills, agents and artifacts found by name or description, newest first."
+    },
+    "RunStepNoteCreate": {
+      "fields": [
+        {
+          "name": "body",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 4000
+          },
+          "description": "The note text the step's agent receives with its input when the step starts. It is recorded in the work item's decisions ledger and cannot add tools, grants, skills or a role."
+        },
+        {
+          "name": "clientNoteId",
+          "type": "uuid",
+          "required": false,
+          "description": "Caller-generated identifier that makes a retry of the same note return the original note instead of writing a second one. Defaults to the request Idempotency-Key."
+        }
+      ],
+      "description": "Leaves a note for a workflow step that has not started yet, addressed by the run id and step key in the path. The agent that runs the step receives the note once, with its input; a step that has already started refuses the note with a state conflict, and a steer on its live session is the way to reach it."
+    },
+    "AgentPowerGrantCreate": {
+      "fields": [
+        {
+          "name": "power",
+          "type": "enum(decide|run_control|run_start)",
+          "required": true,
+          "description": "The off-by-default power being granted: decide (approve, reject or request changes where a person would), run_control (pause, resume, cancel, interrupt or retry a run) or run_start (start a run, still subject to count, depth and budget checks)."
+        },
+        {
+          "name": "workflowId",
+          "type": "uuid|null",
+          "required": false,
+          "description": "Immutable id of a workflow that holds the power in two senses: an agent session running a step of it may use the power, and an agent may use the power on its runs. An agent acts on a target only when both its own workflow and the target's hold the grant, so one grant cannot reach every workflow. Null or absent covers every workflow and then requires accessTokenId, so no grant reaches every agent on every workflow."
+        },
+        {
+          "name": "accessTokenId",
+          "type": "uuid|null",
+          "required": false,
+          "description": "The one seat (access token) the grant is limited to. Null or absent lets any agent session of the named workflow use the power."
+        }
+      ],
+      "rules": [
+        "A person with a browser session only; an agent is refused (O51: delegating authority is never an agent's act).",
+        "An unknown or foreign workflow and an unknown, revoked or foreign token both answer RESOURCE_NOT_FOUND.",
+        "A second grant for the same power, workflow and seat is STATE_CONFLICT with reason agent_power_grant_exists."
+      ],
+      "description": "Grants agents an off-by-default power for one workflow or one seat (chapter 25 O52). Every use is labelled as an agent's action, and a grant never lets an agent act on its own output."
+    },
+    "RunStepTakeOver": {
+      "fields": [
+        {
+          "name": "mode",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "complete"
+          ],
+          "description": "How the person takes the step over. `complete` makes the person the step's completer by naming an existing artifact version as its result; a restart with a fresh agent is a later mode."
+        },
+        {
+          "name": "artifactId",
+          "type": "uuid",
+          "required": true,
+          "description": "Identifier of an existing artifact of this run's task that becomes the step's result. The artifact must exist in the organization and belong to the run's task."
+        },
+        {
+          "name": "versionId",
+          "type": "uuid",
+          "required": true,
+          "description": "Identifier of the immutable artifact version of that artifact that becomes the step's result. The server reads its content digest from its own record; the caller never supplies one."
+        },
+        {
+          "name": "reason",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 2000
+          },
+          "description": "Why the person took the step over, recorded verbatim in the work item's decisions ledger."
+        }
+      ],
+      "description": "Makes the caller the completer of a workflow step instead of its agent. Allowed only for a step of a compiled-plan run whose action produces an artifact, whose job is still queued with no live attempt, and only for a caller holding run control; a step with a live attempt is refused with STATE_CONFLICT `attempt_live` and must be stopped through run control first."
+    },
     "MentionCandidateQuery": {
       "fields": [
         {
@@ -10716,20 +11395,6 @@
         "Idempotency-Key and If-Match required; If-Match is the grant version the caller last saw and a stale version fails with PRECONDITION_FAILED. Needs the caller's own sharing authority (conversation:share); a mention-only recipient cannot revoke. Removes only the direct grant; inherited access is untouched. Audited."
       ],
       "description": "Removes one person's mention-granted access to one conversation under compare-and-set on the grant version."
-    },
-    "NotificationUndoMarkAllRead": {
-      "fields": [
-        {
-          "name": "batchId",
-          "type": "uuid",
-          "required": true,
-          "description": "The batchId a mark-all-read call returned. Only that press of the authenticated recipient can be undone, once, within 10 minutes."
-        }
-      ],
-      "rules": [
-        "Restores unread only on rows that press marked and nothing has changed since; a row read or unread again in the meantime keeps its newer state. A second undo, an expired batch or another recipient's batch fails: STATE_CONFLICT for undone or expired, RESOURCE_NOT_FOUND for unknown."
-      ],
-      "description": "Undoes the recipient's last mark-all-read press within its bound, so the Undo toast can restore exactly what was marked."
     }
   },
   "projections": {
@@ -15254,11 +15919,11 @@
         "organizationId": "UUID of the organization that owns this record.",
         "externalTicketId": "UUID identifying the related external ticket resource.",
         "taskId": "UUID identifying the related task resource.",
-        "role": "Access role assigned to this ticket task link record.",
-        "statusCommentExternalId": "UUID identifying the related status comment external resource. May be null when unavailable.",
-        "lastSyncedRunRevision": "Last synced run revision value recorded for this ticket task link record. May be null when unavailable.",
-        "syncHealth": "Current lifecycle state of this ticket task link record.",
-        "lastProblemCode": "Bounded string|null value identifying or describing this ticket task link record. May be null when unavailable.",
+        "role": "primary for the link an admission created (the task was started from the ticket; at most one per task), reference for a link a person added (the task mentions the ticket).",
+        "statusCommentExternalId": "The provider's id of Bakery's status note on the ticket, as the comment action confirmed it; null until a note is posted.",
+        "lastSyncedRunRevision": "Run revision the status note last described; null until a note records one.",
+        "syncHealth": "State of Bakery's status note on the ticket: unknown before any write, pending while a write is in flight, healthy once the provider confirmed the note, failed when the last write was refused (lastProblemCode says why).",
+        "lastProblemCode": "Fixed lowercase code of the last note write that did not go as asked: a failure (for example auth_forbidden when the caller holds no grant for the provider's comment action) with syncHealth failed, or note_recreated with syncHealth healthy when the earlier note was gone on the provider and a new one replaced it; null after a note rewritten or first posted as asked, and before any write.",
         "createdAt": "Timestamp recording when the created event occurred for this ticket task link record.",
         "updatedAt": "Timestamp recording the last update to this ticket task link record.",
         "version": "Monotonic revision used to order or conditionally update this ticket task link record."
@@ -18590,7 +19255,8 @@
         "createdAt",
         "updatedAt",
         "version",
-        "origin"
+        "origin",
+        "visibility"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -18602,7 +19268,8 @@
         "updatedAt": "timestamp",
         "version": "integer",
         "description": "string|null",
-        "origin": "WorkflowOrigin"
+        "origin": "WorkflowOrigin",
+        "visibility": "enum(listed|unlisted)"
       },
       "nullableFields": [
         "activeVersionId",
@@ -18619,32 +19286,122 @@
         "updatedAt": "UTC timestamp when the record was last updated.",
         "version": "Optimistic-concurrency version used when updating the record.",
         "description": "Free-text summary of what the workflow does, shown in pickers and the catalog; null when the author left it blank. Set on create and replaced wholesale on update.",
-        "origin": "Where this definition came from, as {kind, catalogKey, catalogVersion}: kind is authored (written in this organization), catalog (installed from the code-owned catalog; system managed and locked against organization edits) or copy; catalogKey and catalogVersion name the catalog item and release revision for a catalog origin and are null otherwise. Set when the definition is created and never changed."
+        "origin": "Where this definition came from, as {kind, catalogKey, catalogVersion}: kind is authored (written in this organization), catalog (installed from the code-owned catalog; system managed and locked against organization edits) or copy; catalogKey and catalogVersion name the catalog item and release revision for a catalog origin and are null otherwise. Set when the definition is created and never changed.",
+        "visibility": "listed definitions appear in the library list and can be made the active version; unlisted ones (coordinator proposals a person accepted) are readable by id and runnable only at an exact published version. Save as workflow copies one into a new listed definition and leaves the unlisted source unchanged. Outside every digest. Omitted by servers that predate it."
       },
       "optionalFields": [
-        "description"
+        "description",
+        "visibility"
       ]
     },
     "WorkflowOrigin": {
       "fields": [
         "kind",
         "catalogKey",
-        "catalogVersion"
+        "catalogVersion",
+        "sourceWorkflowId",
+        "sourceVersionId",
+        "sourceDigest",
+        "conversationId",
+        "turnId"
       ],
       "fieldTypes": {
-        "kind": "authored|catalog|copy",
+        "kind": "authored|catalog|copy|coordinator",
         "catalogKey": "string|null",
-        "catalogVersion": "integer|null"
+        "catalogVersion": "integer|null",
+        "sourceWorkflowId": "uuid|null",
+        "sourceVersionId": "uuid|null",
+        "sourceDigest": "string|null",
+        "conversationId": "uuid|null",
+        "turnId": "uuid|null"
       },
       "nullableFields": [
         "catalogKey",
-        "catalogVersion"
+        "catalogVersion",
+        "sourceWorkflowId",
+        "sourceVersionId",
+        "sourceDigest",
+        "conversationId",
+        "turnId"
       ],
       "description": "Where a workflow definition came from: written in the organization (authored), installed from the code-owned catalog (catalog, system managed and locked against organization edits) or copied from another definition (copy). A catalog origin names the catalog item and release revision it was installed from; the other kinds carry nulls. Set when the definition is created and never changed.",
       "fieldDescriptions": {
-        "kind": "Origin kind: authored, catalog or copy.",
+        "kind": "Origin kind: authored, catalog or copy. coordinator: a coordinator proposal a person accepted in a conversation, which also names conversationId and turnId.",
         "catalogKey": "Stable key of the catalog item a catalog definition was installed from; null for authored and copied definitions.",
-        "catalogVersion": "Release revision of the catalog item the definition was installed from; null for authored and copied definitions."
+        "catalogVersion": "Release revision of the catalog item the definition was installed from; null for authored and copied definitions.",
+        "sourceWorkflowId": "Stable UUID of the workflow definition a copy was taken from; null unless the kind is copy.",
+        "sourceVersionId": "Stable UUID of the version (published, or a draft) the copy was taken from; null unless the kind is copy.",
+        "sourceDigest": "Digest of the source version at the moment of the copy, so a later source update can be compared with the fork; null unless the kind is copy.",
+        "conversationId": "Conversation whose coordinator proposed this definition; null unless kind is coordinator. Omitted by servers that predate it.",
+        "turnId": "Coordinator turn that proposed this definition; null unless kind is coordinator. Omitted by servers that predate it."
+      },
+      "optionalFields": [
+        "conversationId",
+        "turnId"
+      ]
+    },
+    "WorkflowDefinitionProposal": {
+      "fields": [
+        "id",
+        "conversationId",
+        "turnId",
+        "workflowId",
+        "baseDraftVersion",
+        "name",
+        "definition",
+        "digest",
+        "state",
+        "decidedBy",
+        "decidedAt",
+        "supersededByVersionId",
+        "createdAt",
+        "updatedAt",
+        "version"
+      ],
+      "optionalFields": [
+        "supersededByVersionId"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "conversationId": "uuid",
+        "turnId": "uuid",
+        "workflowId": "uuid|null",
+        "baseDraftVersion": "integer|null",
+        "name": "string",
+        "definition": "json",
+        "digest": "string",
+        "state": "enum(waiting|accepted|rejected|superseded)",
+        "decidedBy": "uuid|null",
+        "decidedAt": "timestamp|null",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp",
+        "version": "integer",
+        "supersededByVersionId": "uuid|null"
+      },
+      "nullableFields": [
+        "workflowId",
+        "baseDraftVersion",
+        "decidedBy",
+        "decidedAt",
+        "supersededByVersionId"
+      ],
+      "description": "One workflow definition a coordinator turn proposed, waiting for a person to accept or reject it whole. Accepting writes it through the editor's own draft operations into an unlisted definition; nothing runs, publishes or activates.",
+      "fieldDescriptions": {
+        "id": "Stable UUID identifying the proposal.",
+        "conversationId": "Conversation whose coordinator made the proposal.",
+        "turnId": "Coordinator turn that emitted the definitionProposal effect.",
+        "workflowId": "Unlisted definition the proposal edits, or that accepting it created; null for a new-definition proposal not yet accepted.",
+        "baseDraftVersion": "Draft version the proposal was made against; accepting refuses with PRECONDITION_FAILED when the draft has moved on. Null when the target had no draft.",
+        "name": "Plain-language name the coordinator gave the proposed workflow.",
+        "definition": "Complete proposed workflow definition document, stored as canonical JSON.",
+        "digest": "SHA-256 of the canonical proposed definition.",
+        "state": "waiting until a person decides; then accepted or rejected, or superseded when the draft it was made against was published first. Never changed again once settled.",
+        "decidedBy": "Person who decided the proposal; null while waiting.",
+        "decidedAt": "When the proposal was decided or superseded; null while waiting.",
+        "createdAt": "When the proposal was recorded.",
+        "updatedAt": "When the proposal last changed.",
+        "version": "Optimistic-concurrency version a decision must name in If-Match.",
+        "supersededByVersionId": "Published workflow version that superseded this proposal: publishing deletes the draft the proposal was made against, so the proposal is settled in the same transaction instead of waiting forever. Null otherwise."
       }
     },
     "WorkflowVersion": {
@@ -19004,7 +19761,7 @@
         "organizationRevision": "Organization rules revision resolved against; 0 means no organization revision is published yet.",
         "entries": "Effective rule entries in canonical rule-key order, each with its provenance and source organization revision.",
         "supersededOverrides": "Proposed overrides that would be inactive under an organization lock; always empty when the preview has no lock conflicts.",
-        "digest": "Lowercase SHA-256 of the canonical effective entries and organization revision."
+        "digest": "Rules fingerprint the proposed rules would have: computed exactly as the effective-rules read's digest and a run check's policyDigest, over the active profile's fixed policy and these entries."
       }
     },
     "RuleSampleFinding": {
@@ -19099,7 +19856,8 @@
         "digest",
         "repositoryVersion",
         "checkers",
-        "providerProtection"
+        "providerProtection",
+        "hasFixedPolicy"
       ],
       "fieldTypes": {
         "repositoryId": "uuid",
@@ -19111,11 +19869,15 @@
         "digest": "sha256",
         "repositoryVersion": "positiveInteger",
         "checkers": "RepositoryRuleCheckers",
-        "providerProtection": "RepositoryProviderProtection"
+        "providerProtection": "RepositoryProviderProtection",
+        "hasFixedPolicy": "boolean"
       },
       "nullableFields": [
         "profileId",
         "profileRevision"
+      ],
+      "optionalFields": [
+        "hasFixedPolicy"
       ],
       "description": "The rules in force for one repository: the organization's latest published baseline layered with the overrides of the repository's active profile, one entry per applicable rule with its provenance, plus overrides inactive under an organization lock. Resolved in one snapshot, so every entry's organization revision equals the response's organizationRevision. A repository with no active profile resolves with no overrides.",
       "fieldDescriptions": {
@@ -19125,10 +19887,11 @@
         "organizationRevision": "Organization rules revision resolved against; 0 means no organization revision is published yet.",
         "entries": "Effective rule entries in canonical rule-key order, each with its provenance and source organization revision; a locked entry is the organization entry with provenance locked_by_organization.",
         "supersededOverrides": "Saved repository overrides that are inactive because the organization currently locks the rule; they stay in the profile and take effect again if the lock is dropped.",
-        "digest": "Lowercase SHA-256 of the canonical effective entries and organization revision; superseded overrides are excluded.",
+        "digest": "Rules fingerprint: equals the policyDigest a check of a run admitted under these rules records (effective policy digest over the active profile's fixed policy, its trusted checker and the effective entries; organization revision and superseded overrides are excluded). Without a fixed policy no check records one and the value matches no run.",
         "repositoryVersion": "Current repository version; the response ETag is \"v<version>\", the If-Match value profile activation requires.",
         "checkers": "Bakery checker availability for the effective rules.",
-        "providerProtection": "Git provider branch protection state, separate from Bakery enforcement."
+        "providerProtection": "Git provider branch protection state, separate from Bakery enforcement.",
+        "hasFixedPolicy": "True when the active profile has a fixed policy, so runs admitted under these rules record a check policyDigest equal to digest. When false, runs admitted under these rules record no check, so no run will match digest."
       }
     },
     "RepositoryRuleCheckers": {
@@ -19957,6 +20720,7 @@
         "topic",
         "tags",
         "currentRevisionId",
+        "sourceState",
         "status",
         "createdAt",
         "updatedAt",
@@ -19968,6 +20732,7 @@
         "topic": "string",
         "tags": "json",
         "currentRevisionId": "uuid|null",
+        "sourceState": "enum(available|deleted|no_access|unknown)",
         "status": "enum(proposed|active|retired)",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
@@ -19983,6 +20748,7 @@
         "topic": "Topic used to organize the memory entry.",
         "tags": "Labels used to classify the record.",
         "currentRevisionId": "Stable UUID linking this record to the related current revision entity.",
+        "sourceState": "Whether the artifact version cited by the current revision is available, deleted, not readable by this reader (no_access) or unknown, judged against the reader's live access at read time.",
         "status": "Current lifecycle status of the record.",
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
@@ -19998,6 +20764,7 @@
         "body",
         "reason",
         "sourceArtifactVersionId",
+        "sourceState",
         "supersedesId",
         "confidence",
         "expiresAt",
@@ -20011,7 +20778,8 @@
         "memoryId": "uuid",
         "revision": "integer",
         "body": "string",
-        "sourceArtifactVersionId": "uuid",
+        "sourceArtifactVersionId": "uuid|null",
+        "sourceState": "enum(available|deleted|no_access|unknown)",
         "supersedesId": "uuid|null",
         "confidence": "decimal",
         "expiresAt": "timestamp|null",
@@ -20024,15 +20792,17 @@
       "nullableFields": [
         "supersedesId",
         "expiresAt",
-        "reason"
+        "reason",
+        "sourceArtifactVersionId"
       ],
-      "description": "One versioned, confidence-scored statement belonging to a memory entry, created by memoryRevisions.create; confidence reflects model judgment rather than verified fact, and a revision can supersede an earlier one or carry its own expiry after which it stops being offered as active context.",
+      "description": "One versioned, confidence-scored statement belonging to a memory entry, created by memoryRevisions.create; confidence reflects model judgment rather than verified fact, and a revision can supersede an earlier one or carry its own expiry after which it stops being offered as active context. sourceArtifactVersionId is null if and only if sourceState is no_access.",
       "fieldDescriptions": {
         "id": "Stable UUID identifying the memory revision record.",
         "memoryId": "Stable UUID linking this record to the related memory entity.",
         "revision": "Monotonic revision number used to order updates to the record.",
         "body": "User-visible body content carried by the record.",
-        "sourceArtifactVersionId": "Stable UUID linking this record to the related source artifact version entity.",
+        "sourceArtifactVersionId": "Artifact version whose evidence justifies this revision. Invariant: sourceArtifactVersionId is null if and only if sourceState is no_access, so a reader who cannot read artifact versions is never shown the id and every other state names it.",
+        "sourceState": "Whether the cited artifact version is available, deleted (its content was purged), not readable by this reader (no_access) or unknown, judged against the reader's live access at read time rather than at write time. sourceArtifactVersionId is null if and only if sourceState is no_access.",
         "supersedesId": "Stable UUID linking this record to the related supersedes entity.",
         "confidence": "Confidence assigned to the revision.",
         "expiresAt": "UTC timestamp when the record expires.",
@@ -21686,7 +22456,9 @@
         "serverTime",
         "sealedCredentialOperation",
         "agentSessionId",
-        "contextInputs"
+        "contextInputs",
+        "traceparent",
+        "sessionCredential"
       ],
       "optionalFields": [
         "workerSessionId",
@@ -21694,7 +22466,9 @@
         "leaseDurationSeconds",
         "serverTime",
         "agentSessionId",
-        "contextInputs"
+        "contextInputs",
+        "traceparent",
+        "sessionCredential"
       ],
       "fieldTypes": {
         "jobId": "uuid",
@@ -21718,7 +22492,9 @@
         "serverTime": "timestamp",
         "sealedCredentialOperation": "SealedCredentialOperation|null",
         "agentSessionId": "uuid",
-        "contextInputs": "StepContextInput[]"
+        "contextInputs": "StepContextInput[]",
+        "traceparent": "traceparent",
+        "sessionCredential": "secretString"
       },
       "sensitiveFields": [
         "leaseToken"
@@ -21769,7 +22545,9 @@
         "serverTime": "PostgreSQL-authoritative claim time used to derive a monotonic lease deadline.",
         "sealedCredentialOperation": "Required nullable daemon-only prepared credential operation. Null for every non-identity action; never copied into job input or a subprocess.",
         "agentSessionId": "Server-created harness session the result must reference.",
-        "contextInputs": "Input slots the step declared, pinned at admission: the worker materializes exactly these bytes into its context directory and never re-fetches the artifact, so the digest it verifies is the one admission pinned."
+        "contextInputs": "Input slots the step declared, pinned at admission: the worker materializes exactly these bytes into its context directory and never re-fetches the artifact, so the digest it verifies is the one admission pinned.",
+        "traceparent": "W3C trace context of the request that caused this work, so the worker continues the caller's trace instead of starting an unrelated one.",
+        "sessionCredential": "The session operation credential for this attempt, handed off at claim and never again: the server stores only its digest, and a claim replay revokes it and returns none. The agent presents it on the tool gateway to call Bakery operations as the principal it acts for - the run's requester, never the worker host. It dies with the attempt lease and must never be copied into job input, a log, an artifact or a subprocess environment."
       }
     },
     "LeaseState": {
@@ -22641,12 +23419,12 @@
         "id"
       ],
       "fieldTypes": {
-        "type": "enum(application|repository|task|conversation)",
+        "type": "enum(application|repository|task|conversation|inbox)",
         "id": "uuid"
       },
-      "description": "One of up to four resource scopes a WebSocket client names on subscribe, pairing a resource kind (application, repository, task, or conversation) with its ID; events for that scope are intersected with the connection's live access on every delivery, not just at subscribe time.",
+      "description": "One of up to four resource scopes a WebSocket client names on subscribe, pairing a resource kind (application, repository, task, conversation, or the caller's own inbox) with its ID; events for that scope are intersected with the connection's live access on every delivery, not just at subscribe time.",
       "fieldDescriptions": {
-        "type": "Resource kind the subscription follows: application, repository, task or conversation; each scope is intersected with live access before delivery.",
+        "type": "Resource kind the subscription follows: application, repository, task or conversation, each intersected with live access before delivery; or inbox, whose id must be the caller's own principal id and which carries only notifications.inbox_changed signals.",
         "id": "Stable UUID identifying the scope record."
       }
     },
@@ -22668,7 +23446,8 @@
         "resetRequired",
         "retainedFrom",
         "retryWithoutAfter",
-        "reason"
+        "reason",
+        "existingResourceId"
       ],
       "fieldTypes": {
         "type": "uri",
@@ -22687,7 +23466,8 @@
         "resetRequired": "boolean",
         "retainedFrom": "decimalString",
         "retryWithoutAfter": "boolean",
-        "reason": "string"
+        "reason": "string",
+        "existingResourceId": "uuid"
       },
       "bounds": {
         "additionalMembersMaxBytes": 8000,
@@ -22705,7 +23485,8 @@
         "resetRequired",
         "retainedFrom",
         "retryWithoutAfter",
-        "reason"
+        "reason",
+        "existingResourceId"
       ],
       "additionalProperties": "bounded JSON extension members; server allowlists by problem type, client ignores unknown members",
       "rules": [
@@ -22734,7 +23515,8 @@
         "resetRequired": "Whether the client must discard its local state and request a fresh snapshot.",
         "retainedFrom": "Earliest retained event sequence that can be used to establish a fresh sync position.",
         "retryWithoutAfter": "Whether the client should retry the sync request without its after cursor.",
-        "reason": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; for a refused draft edit, why: text_changed or draft_moved_on on a 412, or for a refused draft comment anchor comment_quote_mismatch, comment_anchor_stale or comment_anchor_splits_character on a 412; agent_edit_requires_suggestion or suggestion_decision_requires_person on a 403. Absent when the problem has no named rule."
+        "reason": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; for a refused draft edit, why: text_changed or draft_moved_on on a 412, or for a refused draft comment anchor comment_quote_mismatch, comment_anchor_stale or comment_anchor_splits_character on a 412, or for a refused ticket operation source_policy_changed or requirements_changed on a 412; agent_edit_requires_suggestion, suggestion_decision_requires_person, definition_proposal_decision_requires_person or workflow_listing_requires_person on a 403. Absent when the problem has no named rule.",
+        "existingResourceId": "Identifier of the existing resource a 409 STATE_CONFLICT points the caller to instead of creating another: for reason workflow_copy_exists, the listed definition already copied from that source version. Absent for every other problem."
       }
     },
     "ProviderUsageSummary": {
@@ -24045,7 +24827,7 @@
         "lastSyncedRunRevision",
         "lastProblemCode"
       ],
-      "description": "An explicit, same-organization link between one external ticket and one Bakery task, carrying its role (primary or reference) and per-link sync health. Returned by ticketTaskLinks.create; a ticket/task pair is unique, at most one link per task is primary, and linking alone starts no work and widens no audience.",
+      "description": "An explicit, same-organization link between one external ticket and one Bakery task, carrying its role (primary or reference) and the state of Bakery's status note on the ticket. Returned by ticketTaskLinks.create, ticketTaskLinks.list and ticketTaskLinks.resyncNote; a ticket/task pair is unique, at most one link per task is primary, and linking alone starts no work and widens no audience.",
       "fieldDescriptions": {
         "id": "Stable UUID identifying this ticket task link record.",
         "organizationId": "UUID of the organization that owns this record.",
@@ -24087,7 +24869,8 @@
         "pauseRequestedAt",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "targets"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -24110,7 +24893,8 @@
         "pauseRequestedAt": "timestamp|null",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "targets": "TicketRequestTarget[]"
       },
       "nullableFields": [
         "authorityPrincipalId",
@@ -24143,14 +24927,16 @@
         "pauseRequestedAt": "Timestamp when a cooperative pause was enqueued for this request's live run attempt after the request was suspended. Null when no pause was requested, for example when the request has no run, no live attempt exists, or the adapter cannot pause. Omitted by servers that predate it.",
         "createdAt": "Timestamp recording when the created event occurred for this ticket request record.",
         "updatedAt": "Timestamp recording the last update to this ticket request record.",
-        "version": "Monotonic revision used to order or conditionally update this ticket request record."
+        "version": "Monotonic revision used to order or conditionally update this ticket request record.",
+        "targets": "Repository-scoped children pinned at admission, one per routed repository and ordered by role: the union of the matched routing rules deduplicated by repository, or the source's own repository when no rule matched. Never retargeted by a later rule or policy edit. Omitted by servers that predate label routing."
       },
       "optionalFields": [
         "origin",
         "dispositionReason",
         "readinessReportId",
         "pinnedPreset",
-        "pauseRequestedAt"
+        "pauseRequestedAt",
+        "targets"
       ]
     },
     "Page<TicketRequest>": {
@@ -24672,6 +25458,114 @@
         "reconciliationId": "Stable UUID linking this record to the related reconciliation entity.",
         "effectId": "Stable UUID linking this record to the related effect entity.",
         "status": "Current lifecycle status of the record."
+      }
+    },
+    "TicketPreviewResult": {
+      "fields": [
+        "sourceId",
+        "policyRevision",
+        "draft",
+        "evaluatedAt",
+        "counts",
+        "issues",
+        "skipped"
+      ],
+      "fieldTypes": {
+        "sourceId": "uuid",
+        "policyRevision": "integer",
+        "draft": "boolean",
+        "evaluatedAt": "timestamp",
+        "counts": "TicketPreviewCounts",
+        "issues": "TicketPreviewIssue[]",
+        "skipped": "integer"
+      },
+      "description": "What ticketSources.preview computed for one ticket source: how each evaluated issue would be judged under the saved or draft policy, and the totals. Nothing behind it is stored, so a second preview evaluates again from fresh provider reads.",
+      "fieldDescriptions": {
+        "sourceId": "The ticket source the preview evaluated.",
+        "policyRevision": "The saved policy revision at evaluation time. A draft is judged against the source as it is at this revision and would advance it once saved.",
+        "draft": "True when the request carried a draft policy and the answer describes it; false when it describes the saved policy.",
+        "evaluatedAt": "Server time the evaluation ran; the answer describes the issues as the provider returned them just before it.",
+        "counts": "Totals over issues, one bucket per issue.",
+        "issues": "One entry per evaluated issue in provider list order (or in the order of filters.numbers), at most 25.",
+        "skipped": "Issues that were read but could not be evaluated, for example one whose read failed mid-page; they are in no count."
+      },
+      "fieldBounds": {
+        "issues": {
+          "maxItems": 25
+        },
+        "skipped": {
+          "min": 0
+        }
+      }
+    },
+    "TicketPreviewCounts": {
+      "fields": [
+        "wouldStart",
+        "planOnly",
+        "held",
+        "blocked"
+      ],
+      "fieldTypes": {
+        "wouldStart": "integer",
+        "planOnly": "integer",
+        "held": "integer",
+        "blocked": "integer"
+      },
+      "description": "Per-bucket totals of one ticket preview; every evaluated issue is in exactly one bucket.",
+      "fieldDescriptions": {
+        "wouldStart": "Issues whose every check passes and whose label asks for work to start.",
+        "planOnly": "Issues whose every check passes and whose label asks only for a plan.",
+        "held": "Issues carrying the hold label; the hold wins over every other label.",
+        "blocked": "Issues that are not held and fail or wait on at least one check; each one's reasons say which."
+      },
+      "fieldBounds": {
+        "wouldStart": {
+          "min": 0
+        },
+        "planOnly": {
+          "min": 0
+        },
+        "held": {
+          "min": 0
+        },
+        "blocked": {
+          "min": 0
+        }
+      }
+    },
+    "TicketPreviewIssue": {
+      "fields": [
+        "number",
+        "title",
+        "outcome",
+        "verdict",
+        "reasons"
+      ],
+      "fieldTypes": {
+        "number": "integer",
+        "title": "string|null",
+        "outcome": "enum(would_start|plan_only|held|blocked)",
+        "verdict": "enum(ready|waiting|rejected)",
+        "reasons": "string[]"
+      },
+      "nullableFields": [
+        "title"
+      ],
+      "description": "How one issue would be judged by the previewed policy, as a poll would judge it: its bucket, the readiness verdict and the reason codes of every check that did not pass.",
+      "fieldDescriptions": {
+        "number": "The issue number on the provider.",
+        "title": "The issue title as read, or null when the issue could not be read (gone, moved or a pull request).",
+        "outcome": "would_start or plan_only when every check passes (by the label's intent), held when the hold label is present, blocked otherwise.",
+        "verdict": "The readiness verdict the evaluation produced: ready when every check passes, rejected when any check rejects, waiting otherwise.",
+        "reasons": "Distinct TicketReasonCode values of the checks that did not pass, in check order; empty when the verdict is ready."
+      },
+      "fieldBounds": {
+        "number": {
+          "min": 1
+        },
+        "reasons": {
+          "maxItems": 12
+        }
       }
     },
     "TicketOperationReceipt": {
@@ -26021,7 +26915,7 @@
         "runId": "uuid|null",
         "prompt": "string",
         "status": "enum(open|answered|expired|withdrawn|superseded|revoked|consumed)",
-        "subjectType": "enum(plan_revision|run_stage|merge|deploy|human_approval)",
+        "subjectType": "enum(plan_revision|run_stage|merge|deploy|human_approval|run_step)",
         "subjectId": "uuid",
         "subjectDigest": "sha256",
         "scope": "json",
@@ -26062,7 +26956,7 @@
         "runId": "UUID of the run that consumed the approval, or null while unconsumed.",
         "prompt": "Human-readable request shown to the approver.",
         "status": "Lifecycle: open, answered (decided), expired, withdrawn, superseded by a newer revision, revoked or consumed by a run.",
-        "subjectType": "What the approval authorizes: plan_revision today; merge and deploy are unsupported.",
+        "subjectType": "What the approval authorizes: a plan revision, a run stage, or a run step (human.approval); merge and deploy are unsupported.",
         "subjectId": "UUID of the exact subject, the plan revision id for plan approvals.",
         "subjectDigest": "SHA-256 digest of the subject the approval is bound to.",
         "scope": "Stage scope the approval applies to, for example the plan stage.",
@@ -27082,6 +27976,9 @@
         "revision",
         "batchId"
       ],
+      "optionalFields": [
+        "batchId"
+      ],
       "fieldTypes": {
         "marked": "integer",
         "remainingUnread": "integer",
@@ -27374,6 +28271,624 @@
       },
       "description": "One page of the agent sessions that belong to a run step, newest page last."
     },
+    "NotificationUndoMarkAllReadResult": {
+      "fields": [
+        "restored",
+        "unread",
+        "revision"
+      ],
+      "fieldTypes": {
+        "restored": "integer",
+        "unread": "integer",
+        "revision": "integer"
+      },
+      "nullableFields": [],
+      "fieldBounds": {
+        "restored": {
+          "min": 0
+        },
+        "unread": {
+          "min": 0
+        }
+      },
+      "fieldDescriptions": {
+        "restored": "How many items became unread again.",
+        "unread": "The unread total after the undo.",
+        "revision": "The newest inbox revision after the undo, for ordering against other responses and events."
+      },
+      "description": "Outcome of undoing one mark-all-read press."
+    },
+    "DefinitionPublishGrant": {
+      "fields": [
+        "id",
+        "definitionKind",
+        "definitionId",
+        "accessTokenId",
+        "grantedBy",
+        "createdAt",
+        "version"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "definitionKind": "enum(workflow|agent|artifactKind|skill)",
+        "definitionId": "uuid|null",
+        "accessTokenId": "uuid|null",
+        "grantedBy": "uuid",
+        "createdAt": "timestamp",
+        "version": "integer"
+      },
+      "nullableFields": [
+        "definitionId",
+        "accessTokenId"
+      ],
+      "description": "One grant of the agent publish power (O52): which definition kind and definition it covers, which seat it is limited to, and the person who granted it. Revoking deletes it; the audit log keeps both.",
+      "fieldDescriptions": {
+        "id": "Stable UUID identifying the grant.",
+        "definitionKind": "Kind of definition the grant covers.",
+        "definitionId": "Immutable id of the definition the grant covers (for an artifact kind its row id, never its key); null covers every definition of the kind for the named seat.",
+        "accessTokenId": "Seat (access token) the grant is limited to; null for any agent acting on the named definition.",
+        "grantedBy": "Person who made the grant.",
+        "createdAt": "When the grant was made.",
+        "version": "Optimistic-concurrency version a revoke must name in If-Match."
+      }
+    },
+    "ProjectScopeProfile": {
+      "fields": [
+        "applicationId",
+        "revision",
+        "digest",
+        "checkCommands",
+        "rules",
+        "updatedAt"
+      ],
+      "fieldTypes": {
+        "applicationId": "uuid",
+        "revision": "integer",
+        "digest": "sha256|null",
+        "checkCommands": "ScopeProfileCheckCommand[]",
+        "rules": "json[]",
+        "updatedAt": "timestamp|null"
+      },
+      "nullableFields": [
+        "digest",
+        "updatedAt"
+      ],
+      "description": "A project's published scope profile (one-engine O23): the step defaults its runs inherit. A project that has published none reads as the empty baseline at revision 0.",
+      "fieldDescriptions": {
+        "applicationId": "Project (application) the profile belongs to; a profile never supplies defaults to another project.",
+        "revision": "Published revision, 0 for the empty baseline; submit it as If-Match when saving again.",
+        "digest": "SHA-256 hex of the canonical profile content, which a run pins at admission; null for the empty baseline.",
+        "checkCommands": "Check commands offered to steps as defaults, in profile order.",
+        "rules": "Rule entries the profile supplies, in profile order.",
+        "updatedAt": "When the profile was last published, or null for the empty baseline."
+      }
+    },
+    "Page<ProviderIncident>": {
+      "pageOf": "ProviderIncident",
+      "description": "Cursor page of provider incidents, newest first, returned by `GET /v1/provider-incidents`. `nextCursor: null` marks the last page; there are no page numbers or offsets."
+    },
+    "Page<ProviderRoute>": {
+      "pageOf": "ProviderRoute",
+      "description": "Cursor page of the organization's provider routes with their current circuit state and incident generation, returned by `GET /v1/provider-routes`. `nextCursor: null` marks the last page; there are no page numbers or offsets."
+    },
+    "ProviderIncident": {
+      "fields": [
+        "id",
+        "routeId",
+        "generation",
+        "status",
+        "severity",
+        "reason",
+        "firstFailureAt",
+        "lastFailureAt",
+        "lastProbeAt",
+        "nextProbeAt",
+        "evidenceWatermark",
+        "affectedTaskCount",
+        "recoveredTaskCount",
+        "switchedTaskCount",
+        "stillBlockedTaskCount",
+        "openedAt",
+        "closedAt",
+        "updatedAt",
+        "version"
+      ],
+      "nullableFields": [
+        "reason",
+        "lastProbeAt",
+        "nextProbeAt",
+        "evidenceWatermark",
+        "closedAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "routeId": "uuid",
+        "generation": "integer",
+        "status": "enum(open|recovered|superseded)",
+        "severity": "enum(degraded|outage)",
+        "reason": "enum(rate_limited|credential_invalid|quota_exhausted|transport_failure|provider_error|timeout|reachable_inference_unverified)",
+        "firstFailureAt": "timestamp",
+        "lastFailureAt": "timestamp",
+        "lastProbeAt": "timestamp",
+        "nextProbeAt": "timestamp",
+        "evidenceWatermark": "string",
+        "affectedTaskCount": "integer",
+        "recoveredTaskCount": "integer",
+        "switchedTaskCount": "integer",
+        "stillBlockedTaskCount": "integer",
+        "openedAt": "timestamp",
+        "closedAt": "timestamp",
+        "updatedAt": "timestamp",
+        "version": "integer"
+      },
+      "description": "One durable provider incident, recorded once per affected route and generation. Duplicate and stale probe results update this record instead of opening another, and a result carrying an older generation cannot close a newer incident. The record carries the evidence watermark, the probe schedule and the recovery tallies so an operator can see what is paused, what resumed, what switched and what is still blocked without reading provider output. It is the record a continuation choice names, so a stale choice can be rejected against the generation it was offered at.",
+      "fieldDescriptions": {
+        "id": "Stable UUID identifying the incident record.",
+        "routeId": "UUID of the provider route this incident is scoped to.",
+        "generation": "Monotonic generation for the route's incident line at the moment this incident opened. A probe result, notification or continuation choice carrying a lower generation is stale.",
+        "status": "Incident state: open (the route is still failing), recovered (probes proved the route again), or superseded (a newer generation replaced this incident without recovery).",
+        "severity": "degraded (the route still serves some work) or outage (the route serves none).",
+        "reason": "Typed cause recorded when the incident opened, or null when it opened without a classified reason: rate_limited, credential_invalid, quota_exhausted, transport_failure, provider_error, timeout, or reachable_inference_unverified.",
+        "firstFailureAt": "UTC timestamp of the first classified failure in this generation.",
+        "lastFailureAt": "UTC timestamp of the most recent classified failure in this generation.",
+        "lastProbeAt": "UTC timestamp of the most recent saved probe result for this incident; null when no probe has run yet.",
+        "nextProbeAt": "UTC timestamp at which the next probe becomes claimable; null when probing has stopped.",
+        "evidenceWatermark": "Opaque bounded reference to the deduplicated evidence that keeps this incident current; never a credential, prompt or raw provider error.",
+        "affectedTaskCount": "Number of tasks paused by this incident, counted once per task however many probe results arrive.",
+        "recoveredTaskCount": "Number of paused tasks that resumed automatically once the route recovered.",
+        "switchedTaskCount": "Number of paused tasks continued on a different route through an authorized switch.",
+        "stillBlockedTaskCount": "Number of paused tasks that remain blocked, for example because recovery is no longer eligible or an operator paused them.",
+        "openedAt": "UTC timestamp when the incident opened.",
+        "closedAt": "UTC timestamp when the incident recovered or was superseded; null while it is open.",
+        "updatedAt": "UTC timestamp of the last change to the incident record.",
+        "version": "Optimistic concurrency version, incremented on every write to the incident record."
+      }
+    },
+    "ProviderRoute": {
+      "fields": [
+        "id",
+        "provider",
+        "endpoint",
+        "region",
+        "model",
+        "harness",
+        "billingRoute",
+        "providerAccountId",
+        "workerBindingId",
+        "credentialLocation",
+        "status",
+        "health",
+        "incidentId",
+        "incidentGeneration",
+        "lastProbeAt",
+        "nextProbeAt",
+        "inferenceVerifiedAt",
+        "createdAt",
+        "updatedAt",
+        "version"
+      ],
+      "nullableFields": [
+        "region",
+        "providerAccountId",
+        "workerBindingId",
+        "incidentId",
+        "lastProbeAt",
+        "nextProbeAt",
+        "inferenceVerifiedAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "provider": "string",
+        "region": "string",
+        "model": "string",
+        "harness": "enum(pi|claude_code|codex|mastra)",
+        "billingRoute": "enum(subscription|api_metered|local)",
+        "providerAccountId": "uuid",
+        "workerBindingId": "uuid",
+        "credentialLocation": "enum(harness_host|bakery_secret)",
+        "status": "enum(active|disabled|revoked)",
+        "health": "enum(healthy|degraded|open|unverified)",
+        "incidentId": "uuid",
+        "incidentGeneration": "integer",
+        "lastProbeAt": "timestamp",
+        "nextProbeAt": "timestamp",
+        "inferenceVerifiedAt": "timestamp",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp",
+        "version": "integer",
+        "endpoint": "string"
+      },
+      "bounds": {
+        "endpointMaxBytes": 2048
+      },
+      "description": "One organization-scoped provider route: the provider endpoint, region, model, harness and credential binding that outbound work is admitted against. A route is the unit an outage is scoped to, so one expired credential, one 429 or one broken network never declares the organization down. Health and the current incident generation are projected here so a listing needs no per-route health read; the incident's own evidence and probe schedule live in RouteHealth and ProviderIncident. Credentials are never returned, only where they are kept.",
+      "fieldDescriptions": {
+        "id": "Stable UUID identifying the provider route record.",
+        "provider": "Provider key this route sends to.",
+        "endpoint": "Configured provider endpoint host and path the route calls; never a URL carrying a credential or query secret.",
+        "region": "Provider region the endpoint serves; null when the provider has no regional endpoints.",
+        "model": "Model identifier pinned for work admitted on this route.",
+        "harness": "Harness path that executes work on this route: pi, claude_code, codex or mastra.",
+        "billingRoute": "Billing route the route's spend follows: subscription, api_metered or local.",
+        "providerAccountId": "Provider account whose identity and quota observation the route uses; null for a route with no verified account, which must report usage as unknown rather than zero.",
+        "workerBindingId": "Machine provider binding that places this route, when one does; null for a route served without a machine binding.",
+        "credentialLocation": "Where the credential is kept: harness_host (the machine holds it) or bakery_secret (Bakery holds it as a secret reference). The credential value itself is never returned.",
+        "status": "Route lifecycle: active (eligible for new work and probes), disabled (temporarily withdrawn, kept readable), or revoked (permanently withdrawn, never probed again).",
+        "health": "Current circuit state for the route: healthy (closed after proven inference), degraded (failing but below the open threshold), open (paused while probing), or unverified (reachable, inference not yet proven).",
+        "incidentId": "Current incident for this route; null while no incident is open.",
+        "incidentGeneration": "Monotonic generation for this route's incident line. A probe result or a continuation choice carrying an older generation is stale and cannot close a newer incident or commit a switch.",
+        "lastProbeAt": "UTC timestamp of the most recent probe that completed and was saved under the current generation; null when no probe has run.",
+        "nextProbeAt": "UTC timestamp at which the next probe becomes claimable; null when probing is stopped because the route is revoked, disabled, or nothing is waiting on it.",
+        "inferenceVerifiedAt": "UTC timestamp when an already-authorized request last proved the route's inference path end to end; null means reachable-but-unverified, and a status page or health read never sets it.",
+        "createdAt": "UTC timestamp when the route record was created.",
+        "updatedAt": "UTC timestamp of the last change to the route record.",
+        "version": "Optimistic concurrency version, incremented on every write to the route record."
+      },
+      "fieldBounds": {
+        "endpoint": {
+          "pattern": "^(?!.*[@#])(?!.*[?&][^\\s]*(?:token|secret|key|signature|credential|password)=)[a-z][a-z0-9+.-]*://[^\\s]+$"
+        }
+      }
+    },
+    "RouteHealth": {
+      "fields": [
+        "routeId",
+        "health",
+        "reason",
+        "reasonSince",
+        "consecutiveFailures",
+        "consecutiveInferenceTrials",
+        "evidenceWatermark",
+        "lastFailureAt",
+        "lastSuccessAt",
+        "lastProbeAt",
+        "nextProbeAt",
+        "probeLeaseExpiresAt",
+        "corroboration",
+        "incidentId",
+        "incidentGeneration",
+        "inferenceVerifiedAt",
+        "updatedAt"
+      ],
+      "nullableFields": [
+        "reason",
+        "evidenceWatermark",
+        "lastFailureAt",
+        "lastSuccessAt",
+        "lastProbeAt",
+        "nextProbeAt",
+        "probeLeaseExpiresAt",
+        "incidentId",
+        "inferenceVerifiedAt",
+        "reasonSince"
+      ],
+      "fieldTypes": {
+        "routeId": "uuid",
+        "health": "enum(healthy|degraded|open|unverified)",
+        "reason": "enum(rate_limited|credential_invalid|quota_exhausted|transport_failure|provider_error|timeout|reachable_inference_unverified|redirected)",
+        "consecutiveFailures": "integer",
+        "consecutiveInferenceTrials": "integer",
+        "evidenceWatermark": "string",
+        "lastFailureAt": "timestamp",
+        "lastSuccessAt": "timestamp",
+        "lastProbeAt": "timestamp",
+        "nextProbeAt": "timestamp",
+        "probeLeaseExpiresAt": "timestamp",
+        "corroboration": "enum(none|status_page)",
+        "incidentId": "uuid",
+        "incidentGeneration": "integer",
+        "inferenceVerifiedAt": "timestamp",
+        "updatedAt": "timestamp",
+        "reasonSince": "timestamp"
+      },
+      "description": "The monitoring view of one provider route: circuit state, the typed reason for it, the bounded evidence watermark, the probe schedule and the current incident generation. It exists so a caller can answer why a route is paused and when it will be probed without reading free-form provider output. A status-page corroboration and a successful health read are reachability evidence only; neither proves the inference path, which is why inferenceVerifiedAt is separate and only an already-authorized trial sets it.",
+      "fieldDescriptions": {
+        "routeId": "UUID of the provider route this health view describes.",
+        "health": "Circuit state: healthy (closed), degraded (failing below the open threshold), open (paused and probing), or unverified (reachable, inference not yet proven).",
+        "reason": "Typed reason for the current state, or null while the route is healthy: rate_limited (the provider asked us to slow down), credential_invalid (the credential is rejected), quota_exhausted (the account's allowance is spent), transport_failure (connection-level failure), provider_error (a classified provider 5xx), timeout (the deadline passed), reachable_inference_unverified (the endpoint answers but no authorized request has proven inference), or redirected (the endpoint answered with a redirect the probe does not follow, which proves nothing and keeps the route unverified until a probe proves it reachable again).",
+        "consecutiveFailures": "Failures since the last success, reset to zero by a saved probe success; this is what crosses the open threshold.",
+        "consecutiveInferenceTrials": "Consecutive successful authorized inference trials since the route opened; two are required before the circuit closes and waiting work is released.",
+        "evidenceWatermark": "Opaque bounded reference to the evidence that produced this state, so duplicate observations can be deduplicated; it never carries a credential, prompt or raw provider error.",
+        "lastFailureAt": "UTC timestamp of the most recent classified failure; null when none is recorded under the current generation.",
+        "lastSuccessAt": "UTC timestamp of the most recent successful probe or trial; null when none is recorded.",
+        "lastProbeAt": "UTC timestamp of the most recent saved probe result; null when no probe has run.",
+        "nextProbeAt": "UTC timestamp at which the next probe becomes claimable; null when probing is stopped.",
+        "probeLeaseExpiresAt": "UTC timestamp when the current probe lease lapses, after which another process may claim the probe; null when no probe is in flight. This is what makes duplicate wakes take one lease rather than several probes.",
+        "corroboration": "Whether an external status page corroborates the incident: none, or status_page. Corroboration never authorizes recovery on its own.",
+        "incidentId": "Current incident for this route; null while no incident is open.",
+        "incidentGeneration": "Monotonic incident generation for this route. A probe result saved against an older generation is stale and must not change this view.",
+        "inferenceVerifiedAt": "UTC timestamp when an already-authorized request last proved the inference path; null while inference is unproven.",
+        "updatedAt": "UTC timestamp of the last health change.",
+        "reasonSince": "UTC timestamp at which the current reason began, so a reason that holds (a redirect, a run of timeouts) reads as how long, not just that; null while there is no reason."
+      }
+    },
+    "TicketRoutingRule": {
+      "projection": "ticket_routing_rules",
+      "fields": [
+        "id",
+        "organizationId",
+        "ticketSourceId",
+        "labelId",
+        "labelName",
+        "repositoryId",
+        "role",
+        "presetId",
+        "version",
+        "createdAt",
+        "updatedAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "organizationId": "uuid",
+        "ticketSourceId": "uuid",
+        "labelId": "string",
+        "repositoryId": "uuid",
+        "role": "string",
+        "presetId": "enum(fixed-coding)",
+        "version": "integer",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp",
+        "labelName": "string"
+      },
+      "nullableFields": [],
+      "description": "One label routing rule of a ticket source: tickets carrying the label are routed to the repository in the given role.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of the rule; an unchanged rule keeps it across replacements, and admitted targets pin it.",
+        "organizationId": "UUID of the organization that owns the rule.",
+        "ticketSourceId": "UUID of the ticket source the rule belongs to.",
+        "labelId": "Provider label id the rule matches, compared exactly with the label ids on a ticket.",
+        "repositoryId": "UUID of the repository the label routes to.",
+        "role": "Role the repository plays for a routed ticket.",
+        "presetId": "Workflow preset the routed target runs.",
+        "version": "Edit count of this rule, starting at 1; admitted targets pin it.",
+        "createdAt": "UTC timestamp when the rule was first saved.",
+        "updatedAt": "UTC timestamp when the rule last changed.",
+        "labelName": "Display name of the label as last saved; shown only, never matched."
+      }
+    },
+    "TicketRoutingRuleSet": {
+      "projection": "ticket_routing_rules",
+      "fields": [
+        "ticketSourceId",
+        "policyRevision",
+        "version",
+        "rules"
+      ],
+      "fieldTypes": {
+        "ticketSourceId": "uuid",
+        "policyRevision": "integer",
+        "version": "integer",
+        "rules": "TicketRoutingRule[]"
+      },
+      "nullableFields": [],
+      "description": "The complete label routing rule set of one ticket source, with the source's policy revision and version. Send version as If-Match to replace it; pass policyRevision as expectedSourcePolicyRevision to admit under these rules.",
+      "fieldDescriptions": {
+        "ticketSourceId": "UUID of the ticket source.",
+        "policyRevision": "Ticket source policy revision the rules belong to; every rule change advances it.",
+        "version": "Ticket source version; the If-Match value a replacement must send.",
+        "rules": "Every rule of the source, at most 50, ordered by label key and then repository id."
+      }
+    },
+    "TicketRequestTarget": {
+      "projection": "ticket_request_targets",
+      "fields": [
+        "repositoryId",
+        "role",
+        "routingRuleId",
+        "routingRuleVersion",
+        "sourcePolicyRevision",
+        "pinnedPreset",
+        "coordinationPlanId",
+        "childTaskId"
+      ],
+      "fieldTypes": {
+        "repositoryId": "uuid",
+        "role": "string",
+        "routingRuleId": "uuid|null",
+        "routingRuleVersion": "integer|null",
+        "sourcePolicyRevision": "integer",
+        "pinnedPreset": "json",
+        "coordinationPlanId": "uuid|null",
+        "childTaskId": "uuid|null"
+      },
+      "nullableFields": [
+        "routingRuleId",
+        "routingRuleVersion",
+        "coordinationPlanId",
+        "childTaskId"
+      ],
+      "description": "One repository-scoped child of an admitted ticket request, pinned at admission and run as a child task of the request's coordination plan. Later rule or policy edits never change it.",
+      "fieldDescriptions": {
+        "repositoryId": "UUID of the repository this child is scoped to; a request holds each repository at most once.",
+        "role": "Role the repository plays for the request; default when the ticket matched no rule and fell back to the source's own repository.",
+        "routingRuleId": "UUID of the rule that routed the ticket here as pinned at admission (the rule may since have been deleted), or null for the fallback to the source's repository.",
+        "routingRuleVersion": "Version of that rule at admission, or null for the fallback.",
+        "sourcePolicyRevision": "Ticket source policy revision the child was admitted under.",
+        "pinnedPreset": "Workflow preset identity (id, revision, digest) the child was admitted with.",
+        "coordinationPlanId": "Ticket-origin coordination plan whose lane runs this target, or null for the fallback to the source's repository, which runs on the request's own task.",
+        "childTaskId": "Child task of the request's task that runs this target in its repository, or null for the fallback. The request completes only when every child task completes and fails when any fails."
+      }
+    },
+    "LibrarySearchHit": {
+      "fields": [
+        "kind",
+        "id",
+        "name",
+        "description",
+        "createdAt"
+      ],
+      "fieldTypes": {
+        "kind": "enum(skill|agent|artifact)",
+        "id": "uuid",
+        "name": "string",
+        "description": "string|null",
+        "createdAt": "timestamp"
+      },
+      "nullableFields": [
+        "description"
+      ],
+      "description": "One library item matched by library.search: its kind, identity and name, plus its description when the kind has one, so a caller can pick a hit and then read it with the kind's own get operation.",
+      "fieldDescriptions": {
+        "kind": "Which library the hit belongs to: skill, agent or artifact.",
+        "id": "Stable UUID of the matched record, usable with that kind's get operation.",
+        "name": "Human-readable name of the matched record.",
+        "description": "Free-text description of the matched record; null for artifacts, which carry none.",
+        "createdAt": "UTC timestamp when the matched record was created."
+      }
+    },
+    "Page<LibrarySearchHit>": {
+      "pageOf": "LibrarySearchHit",
+      "description": "Cursor page of library search hits, newest first, returned by GET /v1/library/search. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, totalPages or offsets."
+    },
+    "RunStepNote": {
+      "fields": [
+        "id",
+        "runId",
+        "stepKey",
+        "authorId",
+        "body",
+        "createdAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "runId": "uuid",
+        "stepKey": "string",
+        "authorId": "uuid",
+        "body": "string",
+        "createdAt": "timestamp"
+      },
+      "description": "One note left for a workflow step that had not started, with who left it and when; the step's agent receives it once with its input.",
+      "fieldDescriptions": {
+        "id": "Stable UUID identifying the note.",
+        "runId": "Stable UUID of the run whose step the note is for.",
+        "stepKey": "Key of the run step the note is addressed to.",
+        "authorId": "Stable UUID of the principal who left the note.",
+        "body": "The note text, at most 4000 characters.",
+        "createdAt": "When the note was recorded."
+      }
+    },
+    "AgentPowerGrant": {
+      "fields": [
+        "id",
+        "power",
+        "workflowId",
+        "accessTokenId",
+        "grantedBy",
+        "createdAt",
+        "version"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "power": "enum(decide|run_control|run_start)",
+        "workflowId": "uuid|null",
+        "accessTokenId": "uuid|null",
+        "grantedBy": "uuid",
+        "createdAt": "timestamp",
+        "version": "integer"
+      },
+      "nullableFields": [
+        "workflowId",
+        "accessTokenId"
+      ],
+      "description": "One grant of an off-by-default agent power (O52): which power, which workflow and seat it covers, and the person who granted it. Revoking deletes it; the audit log keeps both.",
+      "fieldDescriptions": {
+        "id": "Stable UUID identifying the grant.",
+        "power": "The power granted: decide, run_control or run_start.",
+        "workflowId": "Immutable id of the workflow that holds the power, as an agent's own workflow and as a target workflow; null covers every workflow for the named seat.",
+        "accessTokenId": "Seat (access token) the grant is limited to; null for any agent session of the named workflow.",
+        "grantedBy": "Person who made the grant.",
+        "createdAt": "When the grant was made.",
+        "version": "Optimistic-concurrency version a revoke must name in If-Match."
+      }
+    },
+    "RouteContinuationTarget": {
+      "fields": [
+        "routeId",
+        "provider",
+        "model",
+        "harness",
+        "billingRoute",
+        "health",
+        "eligible",
+        "ineligibleReason"
+      ],
+      "nullableFields": [
+        "ineligibleReason"
+      ],
+      "fieldTypes": {
+        "routeId": "uuid",
+        "provider": "string",
+        "model": "string",
+        "harness": "enum(pi|claude_code|codex|mastra)",
+        "billingRoute": "enum(subscription|api_metered|local)",
+        "health": "enum(healthy|degraded|open|unverified)",
+        "eligible": "boolean",
+        "ineligibleReason": "enum(different_harness|route_not_active|route_open)"
+      },
+      "description": "One route a stalled step could continue on, with whether it may and, when it may not, the one reason. Every other route of the organization is listed, eligible or not, so a person choosing can see why a route is not offered instead of wondering where it went.",
+      "fieldDescriptions": {
+        "routeId": "UUID of the candidate provider route.",
+        "provider": "Provider key the candidate route sends to.",
+        "model": "Model identifier the candidate route pins; a continuation runs the step on this model.",
+        "harness": "Harness path the candidate route executes on: pi, claude_code, codex or mastra.",
+        "billingRoute": "Billing route the candidate route's spend follows: subscription, api_metered or local.",
+        "health": "The candidate route's current circuit state. Degraded (still serves some work) and unverified (no inference proof yet) routes stay eligible and are shown as such, so a person sees how much to trust a target before choosing it.",
+        "eligible": "True when the step may continue on this route. A degraded or unverified route is eligible, shown with its health so the person choosing weighs it; only a route that is open, not active or on another harness is refused.",
+        "ineligibleReason": "Why the route cannot take the step, or null when eligible: different_harness (a continuation keeps the step's harness), route_not_active (disabled or revoked), or route_open (the route has its own open incident)."
+      }
+    },
+    "RouteContinuationOffer": {
+      "fields": [
+        "runStepId",
+        "stepKey",
+        "incidentId",
+        "incidentGeneration",
+        "sourceRouteId",
+        "runVersion",
+        "estimatedIncrementalCost",
+        "targets"
+      ],
+      "nullableFields": [
+        "estimatedIncrementalCost"
+      ],
+      "fieldTypes": {
+        "runStepId": "uuid",
+        "stepKey": "string",
+        "incidentId": "uuid",
+        "incidentGeneration": "integer",
+        "sourceRouteId": "uuid",
+        "runVersion": "integer",
+        "estimatedIncrementalCost": "decimalString|null",
+        "targets": "RouteContinuationTarget[]"
+      },
+      "description": "One choice a run is waiting on: a step pinned to a route that has an open incident, and the routes it could continue on. The incident generation and the run version are what a later submission names, so a choice made against an incident that has since recovered, or a run that has since changed, is recognised as stale and commits nothing.",
+      "fieldDescriptions": {
+        "runStepId": "UUID of the run step whose provider is down.",
+        "stepKey": "The step's key within the workflow, for display.",
+        "incidentId": "UUID of the open incident the step is stalled behind.",
+        "incidentGeneration": "The incident's generation when this offer was made; a submission carrying a lower or different generation is stale.",
+        "sourceRouteId": "UUID of the route the step is currently pinned to, whose incident this is.",
+        "runVersion": "The run's version when this offer was made, so a submission can be refused if the run changed in between.",
+        "estimatedIncrementalCost": "Estimated extra spend of continuing on another route, as a decimal string in USD, or null while no estimate exists; the budget recheck that fills it is a later slice.",
+        "targets": "Every other route of the organization, each marked eligible or not with the reason."
+      }
+    },
+    "RouteContinuationOffers": {
+      "fields": [
+        "runId",
+        "offers"
+      ],
+      "nullableFields": [],
+      "fieldTypes": {
+        "runId": "uuid",
+        "offers": "RouteContinuationOffer[]"
+      },
+      "description": "The route continuations a run is waiting on: one offer per step that is pinned to a route with an open incident and has not already been continued for that incident. Empty when nothing is stalled. It is a read of current state, never a decision: nothing is admitted, paused or charged by reading it.",
+      "fieldDescriptions": {
+        "runId": "UUID of the run these offers belong to.",
+        "offers": "The open choices, empty when no step of the run is stalled behind an incident."
+      }
+    },
     "MentionCandidate": {
       "projection": "principals",
       "fields": [
@@ -27469,33 +28984,6 @@
     "Page<ConversationAccessGrant>": {
       "pageOf": "ConversationAccessGrant",
       "description": "Cursor page of live direct grants on one conversation, oldest first. `nextCursor: null` marks the last page."
-    },
-    "NotificationUndoMarkAllReadResult": {
-      "fields": [
-        "restored",
-        "unread",
-        "revision"
-      ],
-      "fieldTypes": {
-        "restored": "integer",
-        "unread": "integer",
-        "revision": "integer"
-      },
-      "nullableFields": [],
-      "fieldBounds": {
-        "restored": {
-          "min": 0
-        },
-        "unread": {
-          "min": 0
-        }
-      },
-      "fieldDescriptions": {
-        "restored": "How many items became unread again.",
-        "unread": "The unread total after the undo.",
-        "revision": "The newest inbox revision after the undo, for ordering against other responses and events."
-      },
-      "description": "Outcome of undoing one mark-all-read press."
     }
   },
   "pageEnvelope": {
@@ -27886,7 +29374,7 @@
         "runId": "uuid",
         "stepId": "uuid",
         "jobId": "uuid",
-        "attemptId": "uuid",
+        "attemptId": "uuid|null",
         "status": "enum(completed|failed|canceled)"
       },
       "inngestTrigger": "bakery/job.completed.v1",
@@ -27957,6 +29445,15 @@
       "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
     },
     "memory.revised": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "memory.source_changed": {
       "schemaVersion": 1,
       "payloadFields": {
         "resourceId": "uuid",
@@ -28343,6 +29840,24 @@
       "inngestTrigger": null,
       "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
     },
+    "workflowDefinitionProposal.proposed": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "workflowDefinitionProposal.decided": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
     "conversation.turn_changed": {
       "schemaVersion": 1,
       "payloadFields": {
@@ -28651,6 +30166,24 @@
       "inngestTrigger": null,
       "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
     },
+    "human.approval.decided": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "workflow.stopped": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
     "approval.decided": {
       "schemaVersion": 1,
       "payloadFields": {
@@ -28748,7 +30281,70 @@
         "resourceVersion": "integer"
       },
       "inngestTrigger": null,
-      "description": "Content-free signal that one recipient's notification list or unread count changed (an item arrived, was read or unread, or a mark-all ran or was undone). resourceId is the recipient principal and resourceVersion the newest inbox revision. It is delivered only to that principal's inbox subscription; clients re-read notifications.count and notifications.list."
+      "description": "Content-free signal that one recipient's notification list or unread count changed (an item arrived, was read or unread, or a mark-all ran or was undone). resourceId is the recipient principal and resourceVersion the newest inbox revision. It is delivered only to that principal's own inbox subscription; clients re-read notifications.count and notifications.list."
+    },
+    "workflowDefinitionProposal.superseded": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "definitionPublishGrant.created": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "definitionPublishGrant.deleted": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "providerRoutes.created": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "providerRoutes.updated": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "agentPowerGrant.created": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "agentPowerGrant.deleted": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
     },
     "conversations.access_changed": {
       "schemaVersion": 1,

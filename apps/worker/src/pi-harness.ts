@@ -1,4 +1,5 @@
 import { join, relative, resolve } from "node:path";
+import { withStepNotes } from "./step-notes-prompt.ts";
 import {
   boundedNativeDiagnostic,
   enforceWorkerFixedPolicy,
@@ -36,6 +37,7 @@ import {
   requireCleanHarnessWorktree,
   sha256Hex,
   spawnHarnessProcess,
+  traceEnvironment,
   withHarnessRestore,
 } from "./harness-common.ts";
 import { provenCanceledOutcome, type PublishArtifact } from "./task-brief.ts";
@@ -1520,9 +1522,12 @@ async function executePiHarness(
   ].join(" ");
   const prompt = repair !== undefined
     ? buildRepairPrompt(repair)
-    : instructions === undefined
-    ? basePrompt
-    : `${basePrompt}\n\nTask instructions:\n${instructions}`;
+    : withStepNotes(
+      instructions === undefined
+        ? basePrompt
+        : `${basePrompt}\n\nTask instructions:\n${instructions}`,
+      input,
+    );
   const commitMessage = repair !== undefined
     ? repairCommitMessage(repair.revision)
     : `bakery: plan artifact ${planArtifact}`;
@@ -1570,10 +1575,7 @@ async function executePiHarness(
         "The Pi harness could not complete the bounded task",
       );
     }
-    const childEnvironment = {
-      HOME: config.home,
-      PI_CODING_AGENT_DIR: config.agentDir,
-    };
+    const childEnvironment = piChildEnvironment(config, assignment);
     const versionProbe = await probeHarnessVersion(
       options.piExecutable ?? "pi",
       worktree,
@@ -1977,5 +1979,24 @@ export function createPiHarnessExecutor(
           });
       });
     },
+  };
+}
+
+/**
+ * The child environment for one Pi turn. Named and exported so a test can
+ * assert what the adapter launches with; inlined, a mutant that dropped the
+ * trace spread passed every test.
+ */
+export function piChildEnvironment(
+  config: { readonly home: string; readonly agentDir: string },
+  assignment: { readonly traceparent?: string },
+):
+  & Readonly<{ HOME: string; PI_CODING_AGENT_DIR: string }>
+  & Record<string, string> {
+  return {
+    HOME: config.home,
+    PI_CODING_AGENT_DIR: config.agentDir,
+    // The harness continues the trace that caused this work.
+    ...traceEnvironment(assignment),
   };
 }

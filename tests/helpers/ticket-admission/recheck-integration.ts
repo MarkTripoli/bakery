@@ -1,3 +1,4 @@
+import { ticketRef } from "../../../apps/server/src/modules/work/ticket-source-reader.ts";
 /**
  * Issue 82 integration lane: recheck, advance and pause on real Postgres.
  * Transactions run as the application role; the reader is in memory. AC3 is
@@ -5,6 +6,14 @@
  * immutable report and no lost evidence, and every applied decision writes its
  * audit row and domain event in the same transaction.
  */
+function containerOf(repository: string) {
+  return {
+    kind: "repository",
+    externalId: repository,
+    displayName: repository,
+  };
+}
+
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import { StandardError } from "../../../packages/contracts/src/http.ts";
 import { approvalPolicyDigest } from "../../../apps/server/src/modules/work/stage-policy.ts";
@@ -117,7 +126,7 @@ async function admitWebhook(
       blockedBy: [{
         id: blocker,
         number: 3,
-        repositoryFullName: fx.repositoryFullName,
+        container: containerOf(fx.repositoryFullName),
       }],
     });
     setProof(fx, blocker, "satisfied");
@@ -182,7 +191,7 @@ export const setAllowlist = (
 ) =>
   fx.owner.query(
     `update bakery.ticket_sources
-        set policy = jsonb_set(policy, '{delegation,githubActorIds}', $3::jsonb),
+        set policy = jsonb_set(policy, '{delegation,externalActorIds}', $3::jsonb),
             policy_revision = policy_revision + 1, version = version + 1
       where organization_id = $1 and id = $2`,
     [fx.organizationId, sourceId, JSON.stringify(ids)],
@@ -963,7 +972,7 @@ Deno.test("issue 82 recheck: provider reads never happen inside a transaction, a
       return await prefetchTicketReads(
         fx.reader,
         handle,
-        { number, policy: source.policy, origin: "poll" },
+        { ref: ticketRef(number), policy: source.policy, origin: "poll" },
         call.signal,
       );
     };

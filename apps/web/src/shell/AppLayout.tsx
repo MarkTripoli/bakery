@@ -48,7 +48,6 @@ import { useSession } from "../app/session-context.tsx";
 import {
   artifactFixturePerson,
   isNorthwindFixturePath,
-  isOnboardingFixturePath,
   isWorkFixturePath,
   NORTHWIND_FIXTURE_PROFILE,
   SHELL_FIXTURE_IDENTITY,
@@ -598,8 +597,6 @@ function ShellFrame() {
     return <Outlet />;
   }
 
-  const chromeless = viewport === "phone" &&
-    isOnboardingFixturePath(pathname);
   // A page that draws its own phone header replaces the shell's top bar.
   const pageHeader = viewport === "phone" && slots?.phoneHeader === "page";
   const shellVariant = viewport === "phone"
@@ -659,7 +656,7 @@ function ShellFrame() {
         : organizationSettings
         ? "organization"
         : undefined}
-      bottomNavigation={topLevel && !chromeless
+      bottomNavigation={topLevel
         ? (
           <UI.BottomNav
             currentPath={navigationPath}
@@ -745,7 +742,7 @@ function ShellFrame() {
       }
       skipLinkLabel={translate("shell.navigation.skipToContent")}
       state={status === "pending" ? "loading" : "default"}
-      topBar={chromeless || pageHeader ? undefined : (
+      topBar={pageHeader ? undefined : (
         <UI.TopBar
           actions={
             <>

@@ -4,8 +4,10 @@ import {
   coerceQueryInput,
 } from "@bakery/contracts/action-registry";
 import { contractSchemas } from "@bakery/contracts/contracts";
+import type { WebhookIngress } from "@bakery/integration-sdk";
 import { IntegrationsImplementedAction } from "@bakery/contracts/implemented-actions";
 import {
+  type ActionContextSeed,
   createApiRouter,
   getTraceId,
   problemResponse,
@@ -16,6 +18,10 @@ import { type AuthVariables, createActionContext } from "../auth/middleware.ts";
 import { createIntegrationsActionRegistry } from "./actions.ts";
 import { mountIntakeRoute } from "./intake-routes.ts";
 import type { InstallationTokenBroker } from "./token-broker.ts";
+import type {
+  ActiveIntegrationRegistry,
+  ProviderRequestPort,
+} from "../catalog/integration-gate.ts";
 import {
   createFetchGitHubAppClient,
   type GitHubAppClient,
@@ -110,6 +116,21 @@ export function createIntegrationsRoutes(options: {
   /** The process's token broker; one per registry when absent. */
   broker?: InstallationTokenBroker;
   cursorSecret: string;
+  /**
+   * The process's activated integration registry, bound once in `app.ts`. The
+   * invoke door is the only route that needs it: it resolves the connection's
+   * provider by name through it instead of re-deriving which providers exist.
+   */
+  integrationRegistry: ActiveIntegrationRegistry;
+  /** The provider request port the invoke door sends through. */
+  providerRequests?: ProviderRequestPort;
+  /**
+   * The ingress port that verifies and classifies a signed webhook delivery.
+   *
+   * Passed through from the composition root, which is the one place that
+   * names which provider serves the webhook path.
+   */
+  ingress: WebhookIngress;
 }) {
   const registry = createIntegrationsActionRegistry(options.database, {
     publicBaseUrl: options.publicBaseUrl,
@@ -117,6 +138,10 @@ export function createIntegrationsRoutes(options: {
     github: options.githubAppClient ?? createFetchGitHubAppClient(),
     cursorSecret: options.cursorSecret,
     broker: options.broker,
+    integrationRegistry: options.integrationRegistry,
+    ...(options.providerRequests === undefined
+      ? {}
+      : { providerRequests: options.providerRequests }),
   });
   const app = new Hono<{ Variables: AuthVariables }>();
   app.use("/v1/integration-app-registrations/github", options.browserSession);
@@ -138,9 +163,9 @@ export function createIntegrationsRoutes(options: {
         context,
         registry,
         options.publicBaseUrl,
-        IntegrationsImplementedAction.GitHubManifestCallback,
+        IntegrationsImplementedAction.IntegrationManifestCallback,
         (query) =>
-          coerceQueryInput(contractSchemas.GitHubManifestCallback, query),
+          coerceQueryInput(contractSchemas.IntegrationManifestCallback, query),
       ),
   );
   app.get(
@@ -150,11 +175,14 @@ export function createIntegrationsRoutes(options: {
         context,
         registry,
         options.publicBaseUrl,
-        IntegrationsImplementedAction.GitHubSetup,
+        IntegrationsImplementedAction.IntegrationSetup,
         (query) => {
           const input = githubQuery(query, SETUP_QUERY);
           if (!SETUP_ACTIONS.has(input.setupAction)) delete input.setupAction;
-          return coerceQueryInput(contractSchemas.GitHubSetupCallback, input);
+          return coerceQueryInput(
+            contractSchemas.IntegrationSetupCallback,
+            input,
+          );
         },
       ),
   );
@@ -165,7 +193,7 @@ export function createIntegrationsRoutes(options: {
         context,
         registry,
         options.publicBaseUrl,
-        IntegrationsImplementedAction.GitHubCallback,
+        IntegrationsImplementedAction.IntegrationAuthorizationCallback,
         (query) =>
           coerceQueryInput(
             contractSchemas.OAuthCallback,
@@ -180,13 +208,23 @@ export function createIntegrationsRoutes(options: {
     database: options.database,
     secretsKey: options.secretsKey,
     publicBaseUrl: options.publicBaseUrl,
+    ingress: options.ingress,
   });
   app.route(
     "/",
     createApiRouter({
       registry,
       publicBaseUrl: options.publicBaseUrl,
-      createContext: createActionContext,
+      // The invoke door drives the effect ledger, which opens its own
+      // transactions (lease claim, effect row, dispatch) and therefore needs the
+      // pool, not the authority transaction. `createActionContext` seeds the
+      // principal and nothing else, so without this the door's own
+      // `contextDatabase` guard answered INTERNAL on every granted call.
+      createContext: (context) =>
+        ({
+          ...createActionContext(context),
+          database: options.database,
+        }) as ActionContextSeed & { database: PgDatabase },
     }),
   );
   return app;

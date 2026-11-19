@@ -26,12 +26,16 @@ import {
   workflowActionBinding,
 } from "@bakery/persistence";
 import type { ReviewLoopLimits } from "@bakery/persistence/repository-admission";
-import { planReviewLoopLimits } from "../delivery/plan-review-loop.ts";
+import { planReviewLoopLimits } from "../review-loop/limits.ts";
 import type { PgTransactionClient } from "../../platform/database.ts";
 import { nextOrganizationSequence } from "../../platform/event-clock.ts";
 import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
 import { requireWorkTransaction } from "./work-transaction.ts";
-import { pinDeclaredRunInputs } from "./run-input-pins.ts";
+import {
+  pinDeclaredRunInputs,
+  recordInputPaths,
+  resolveInputPaths,
+} from "./run-input-pins.ts";
 import { requestRunStart } from "./run-start.ts";
 import { resolveDependencyReadiness } from "./dependency-readiness.ts";
 import {
@@ -43,6 +47,7 @@ import {
   toTask,
 } from "./postgres.ts";
 import {
+  deriveRunWorkspaceRequirement,
   extractFixedWorkflowSteps,
   type FixedWorkflowStep,
   insertRunSteps,
@@ -50,8 +55,13 @@ import {
   stepReferencesEarlierOutput,
   WorkflowNotExecutableError,
   WorkflowNotFixedError,
-  workflowRequiresRepository,
 } from "./run-steps.ts";
+import {
+  resolveScopeProfileDefaults,
+  type ScopeProfileDefaults,
+  type WorkspaceRequirement,
+} from "@bakery/contracts/scope-profiles";
+import { readProjectScopeProfile } from "../projects/scope-profiles.ts";
 import {
   isModelAction,
   parseMicroUsd,
@@ -68,6 +78,7 @@ import {
 import { admitStagePolicy } from "./stage-admission.ts";
 import { ticketRequestBlocksRun } from "./ticket-run-guard.ts";
 import { pinEffectiveRepositoryRules } from "../repository-rules/pinned.ts";
+import { fixedPolicyPins as fixedPolicyPinsOf } from "../repository-rules/policy-digest.ts";
 import {
   assertPlanSatisfiesRules,
   assertStepsSatisfyRules,
@@ -293,6 +304,16 @@ type RunSnapshot = {
   /** Present only for a coordination lane child: plan identity and typed handoffs. */
   coordination?: LaneCoordinationSnapshot;
   /**
+   * The workspaces the run's steps declare, derived once at admission (O23).
+   * `required: false` is a run that mounts no repository.
+   */
+  workspaceRequirement?: WorkspaceRequirement;
+  /**
+   * The project's scope profile defaults the run inherits, pinned by revision
+   * and digest at admission; revision 0 is the empty baseline.
+   */
+  scopeProfile?: ScopeProfileDefaults & { applicationId: string };
+  /**
    * Present only for a compiled-plan run: the frozen document and its pin, the
    * `$task` the plan reads, the agents its steps run as and each action's
    * fallback agent. Written by `writePlanRun`, which reads it back as the
@@ -315,6 +336,8 @@ function buildRunSnapshot(options: {
   stepActions: RunSnapshot["stepActions"];
   dependencies: readonly RunDependencySnapshot[];
   reviewLoop: ReviewLoopLimits | null;
+  workspaceRequirement: WorkspaceRequirement;
+  scopeProfile: NonNullable<RunSnapshot["scopeProfile"]>;
 }): RunSnapshot {
   const admission = resolveDependencyReadiness(options.dependencies);
   return {
@@ -334,6 +357,8 @@ function buildRunSnapshot(options: {
       reason: admission.reason,
     },
     ...(options.reviewLoop === null ? {} : { reviewLoop: options.reviewLoop }),
+    workspaceRequirement: options.workspaceRequirement,
+    scopeProfile: options.scopeProfile,
   };
 }
 
@@ -1015,11 +1040,21 @@ export async function createRunCommand(
   const budgetLimitUsd = validateBudgetLimitUsd(
     input.budgetLimitUsd ?? preset?.defaultBudgetLimitUsd,
   );
-  const inputs = preset
+  const suppliedInputs = preset
     ? presetBriefInputs(task, approvedPlan)
     : input.inputs === undefined
     ? null
     : input.inputs;
+  validateRunInputs(suppliedInputs);
+  // A storage path an input names is resolved now, to the version it points at,
+  // and the run keeps that pin; the path stays only as a label.
+  if (preset && input.inputPaths !== undefined) {
+    throw unprocessable(["inputPaths"], "input_paths_not_allowed_with_preset");
+  }
+  const { inputs, resolved: resolvedInputPaths } = await resolveInputPaths(
+    transaction,
+    { organizationId, inputs: suppliedInputs, inputPaths: input.inputPaths },
+  );
   validateRunInputs(inputs);
 
   let profile: ProfileRow | null = null;
@@ -1041,18 +1076,44 @@ export async function createRunCommand(
     );
   }
 
-  let repositoryRequired: boolean;
+  // One derivation of what the run needs (O23): the steps decide, not the
+  // work type. A run whose steps need no repository runs without one.
+  let workspaceRequirement: WorkspaceRequirement;
   try {
-    repositoryRequired = workflowRequiresRepository(workflow.normalized_spec);
+    workspaceRequirement = deriveRunWorkspaceRequirement(
+      workflow.normalized_spec,
+    );
   } catch (error) {
     throw new Error("WORKFLOW_VERSION_INVALID", { cause: error });
   }
-  if (input.executionMode === "cloud_only" && repositoryRequired) {
+  if (input.executionMode === "cloud_only" && workspaceRequirement.required) {
     throw new StandardError({
       code: "STATE_CONFLICT",
       params: { reason: "repository_required" },
     });
   }
+  // Step defaults come from the project's scope profile, not the repository
+  // profile (O23): every run of the project pins the published revision, and a
+  // project that has published none runs on the empty baseline.
+  const storedScopeProfile = await readProjectScopeProfile(
+    transaction,
+    organizationId,
+    task.application_id,
+  );
+  const scopeProfile = {
+    applicationId: task.application_id,
+    ...resolveScopeProfileDefaults({
+      organizationId,
+      applicationId: task.application_id,
+      profile: storedScopeProfile === null ? null : {
+        applicationId: storedScopeProfile.applicationId,
+        revision: storedScopeProfile.revision,
+        digest: storedScopeProfile.digest,
+        checkCommands: storedScopeProfile.checkCommands,
+        rules: storedScopeProfile.rules,
+      },
+    }),
+  };
   // The fixed executor runs a flat list of actions. A compiler-grammar version
   // that has container nodes is one it cannot run: it is a compiled plan, and
   // the engine decides each of its steps as the run goes.
@@ -1182,10 +1243,9 @@ export async function createRunCommand(
   const fixedPolicy = profile?.config.schemaVersion === 2
     ? profile.config.fixedPolicy
     : undefined;
-  const fixedPolicyPins = fixedPolicy === undefined ? {} : {
-    fixedPolicyDigest: await sha256Hex(canonicalJson(fixedPolicy)),
-    trustedCheckerConfigDigest: fixedPolicy.trustedChecker.configDigest,
-  };
+  const fixedPolicyPins = fixedPolicy === undefined
+    ? {}
+    : await fixedPolicyPinsOf(fixedPolicy);
   // The one rules read of this admission (organization baseline and pinned
   // profile together). The snapshot freezes it; nothing reads rules again.
   const pinnedRules = profile === null
@@ -1261,6 +1321,8 @@ export async function createRunCommand(
     ])),
     dependencies: dependencySnapshot,
     reviewLoop,
+    workspaceRequirement,
+    scopeProfile,
   });
   const laneSnapshot: RunSnapshot = lane === null ? builtSnapshot : {
     ...builtSnapshot,
@@ -1331,6 +1393,11 @@ export async function createRunCommand(
     organizationId,
     runId: run.id,
     inputs,
+  });
+  await recordInputPaths(transaction, {
+    organizationId,
+    runId: run.id,
+    resolved: resolvedInputPaths,
   });
   const taskUpdate = await transaction.query<{ id: string; version: number }>(
     `update bakery.tasks

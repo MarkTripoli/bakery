@@ -79,7 +79,7 @@ export function sortIssueRefs(
   refs: readonly TicketIssueRef[],
 ): TicketIssueRef[] {
   return [...refs].sort((left, right) =>
-    compareText(left.repositoryFullName, right.repositoryFullName) ||
+    compareText(left.container.externalId, right.container.externalId) ||
     left.number - right.number || compareText(left.id, right.id)
   );
 }
@@ -146,7 +146,7 @@ export function normalizeSnapshot(
       state: input.state,
       stateReason: input.stateReason,
       locked: input.locked,
-      repositoryFullName: input.repositoryFullName,
+      container: input.container,
       links: context.links,
     },
     body,
@@ -197,7 +197,7 @@ export async function dependencyDigest(
     return {
       id: blocker.id,
       number: blocker.number,
-      repositoryFullName: blocker.repositoryFullName,
+      container: blocker.container,
       proof: proof === undefined ? "missing" : proof.kind,
       mergeSha: proof?.kind === "satisfied" ? proof.mergeSha : null,
     };

@@ -27,8 +27,10 @@ function machineLink(attempt: JobAttemptRead) {
   );
 }
 
-export function StreamOutput({ stream, onUsageChange, onReload }: {
+export function StreamOutput({ stream, onUsageChange, onReload, quiet }: {
   readonly stream: OutputStream;
+  /** The thread above is the live region, so this panel announces nothing. */
+  readonly quiet?: boolean;
   readonly onReload: () => void;
   readonly onUsageChange: (usage: JobAttemptRead["outcome"]["usage"]) => void;
 }) {
@@ -283,6 +285,7 @@ export function StreamOutput({ stream, onUsageChange, onReload }: {
       }}
       output={{
         title: t("tasks.run.output.title"),
+        announce: quiet !== true,
         entries,
         state,
         statusLabel: state === "complete" || state === "interrupted" ||

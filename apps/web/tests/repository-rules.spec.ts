@@ -60,6 +60,8 @@ type Effective = {
   providerProtection: { state: string; reason: string | null };
   organizationRevision: number;
   profileRevision: number | null;
+  /** False when the repository's settings name no checks. */
+  hasFixedPolicy?: boolean;
 };
 
 /** The five rules as one repository sees them: two locked, two inherited, one overridden. */
@@ -266,6 +268,20 @@ test.describe("repository rules: the effective rules of one repository", () => {
     await expect(rule(page, "Magic numbers")).toContainText(
       "Only this repository",
     );
+  });
+
+  test("the fingerprint's help drops the sentence about runs when the settings name no checks", async ({ page }) => {
+    await rulesFixture(page, { rules: effective({ hasFixedPolicy: false }) });
+    await page.goto(RULES_PATH);
+    const help = details(page).getByRole("button", {
+      name: "About the rules fingerprint",
+    });
+    await help.hover();
+    const text = page.getByRole("tooltip").filter({
+      hasText: "Identifies the exact rules in force.",
+    });
+    await expect(text).toBeVisible();
+    await expect(text).not.toContainText("Each run records");
   });
 
   test("the rules fingerprint can be copied", async ({ page, context }) => {
@@ -647,7 +663,7 @@ test.describe("repository rules: the effective rules of one repository", () => {
     });
     await fingerprintHelp.hover();
     const fingerprintText = page.getByRole("tooltip").filter({
-      hasText: "Each run records the same value",
+      hasText: "Each run records the fingerprint it started with",
     });
     await expect(fingerprintText).toBeVisible();
     expect(await isSeen(fingerprintText)).toBe(true);
@@ -823,6 +839,100 @@ test.describe("repository rules: the effective rules of one repository", () => {
       nodes.filter((node) => node.scrollHeight > node.clientHeight + 1).length
     );
     expect(cut).toBe(0);
+  });
+
+  test("a long rule summary shows all of it on request, by keyboard or tap, with no title", async ({ page }) => {
+    const sections = Array.from(
+      { length: 16 },
+      (_, index) => `Required section number ${index + 1}`,
+    );
+    const base = effective();
+    await rulesFixture(page, {
+      rules: {
+        ...base,
+        entries: base.entries.map((entry) =>
+          entry.ruleKey === "changeRequest.description"
+            ? {
+              ...entry,
+              options: {
+                ...(entry.options as object),
+                requiredSections: sections,
+              },
+            }
+            : entry
+        ),
+      },
+    });
+    await page.goto(RULES_PATH);
+    const row = rule(page, "Merge descriptions");
+    await expect(row.locator("[title]")).toHaveCount(0);
+    const show = row.getByRole("button", {
+      name: "Show all of Merge descriptions",
+    });
+    await expect(show).toHaveAttribute("aria-expanded", "false");
+    // Keyboard focus on the control, then the whole text.
+    await show.focus();
+    await expect(show).toBeFocused();
+    await page.keyboard.press("Enter");
+    const hide = row.getByRole("button", {
+      name: "Show less of Merge descriptions",
+    });
+    await expect(hide).toHaveAttribute("aria-expanded", "true");
+    await expect(hide).toBeFocused();
+    await expect(row).toContainText("Required section number 16");
+    await hide.click();
+    await expect(show).toHaveAttribute("aria-expanded", "false");
+    // A summary that fits has no control.
+    await expect(
+      rule(page, "Semantic commits").getByRole("button", { name: /Show all/ }),
+    ).toHaveCount(0);
+  });
+
+  test("evidence: a long rule summary cut, focused and shown whole", async ({ page }) => {
+    test.skip(
+      !process.env.BAKERY_EVIDENCE_DIR,
+      "only captures stills when asked to",
+    );
+    const sections = Array.from(
+      { length: 16 },
+      (_, index) => `Required section number ${index + 1}`,
+    );
+    const base = effective();
+    await rulesFixture(page, {
+      rules: {
+        ...base,
+        entries: base.entries.map((entry) =>
+          entry.ruleKey === "changeRequest.description"
+            ? {
+              ...entry,
+              options: {
+                ...(entry.options as object),
+                requiredSections: sections,
+              },
+            }
+            : entry
+        ),
+      },
+    });
+    await page.goto(RULES_PATH);
+    const only = isPhone(page) ? "mobile" : "desktop";
+    const show = rule(page, "Merge descriptions").getByRole("button", {
+      name: "Show all of Merge descriptions",
+    });
+    await expect(show).toBeVisible();
+    await shot(page, "203-rules-summary-cut", [], { only });
+    await show.focus();
+    await expect(show).toBeFocused();
+    await shot(page, "203-rules-summary-focused", [], { only });
+    // A full-page capture can take focus away; put it back before the key.
+    await show.focus();
+    await page.keyboard.press("Enter");
+    await expect(
+      rule(page, "Merge descriptions").getByRole("button", {
+        name: "Show less of Merge descriptions",
+      }),
+    ).toHaveAttribute("aria-expanded", "true");
+    await shot(page, "203-rules-summary-expanded", [], { only });
   });
 
   test("the help buttons are plain icons, the warning badge is amber and Version details reads like Checks", async ({ page }) => {

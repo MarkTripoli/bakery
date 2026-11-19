@@ -159,7 +159,7 @@ export async function shootAll(
  * single-step run has no selector and needs nothing.
  */
 export async function selectImplementStep(page: Page) {
-  const picker = page.getByRole("combobox", { name: /^Output step/ });
+  const picker = page.getByRole("combobox", { name: /^Step$/ });
   const ready = await expect.poll(async () => {
     if (await picker.count() === 0) return false;
     return (await picker.locator("option").allTextContents()).includes(

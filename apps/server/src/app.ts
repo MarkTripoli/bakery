@@ -5,8 +5,20 @@ import {
 } from "./modules/catalog/storage-backend.ts";
 import { createSkillStorageRoutes } from "./modules/catalog/skill-storage-actions.ts";
 import { createAgentsRoutes } from "./modules/agents/index.ts";
+import { createProviderReadRoutes } from "./modules/execution/provider-read-routes.ts";
+import { createRouteContinuationRoutes } from "./modules/execution/route-continuations.ts";
 import { createRepositoryRulesRoutes } from "./modules/repository-rules/index.ts";
 import { createArtifactKindsRoutes } from "./modules/artifact-kinds/index.ts";
+import { createMemoryRoutes } from "./modules/knowledge/memory-routes.ts";
+import { createPluginPackageRoutes } from "./modules/catalog/plugin-routes.ts";
+import { githubIngress } from "./modules/catalog/integration-providers/github-ingress.ts";
+import {
+  TICKET_NOTE_ACTION,
+  TICKET_NOTE_UPDATE_ACTION,
+} from "./modules/catalog/integration-providers/github.ts";
+import { createGateTicketNoteWriter } from "./modules/integrations/ticket-notes.ts";
+import type { TicketNoteWriter } from "./modules/work/ticket-notes.ts";
+import { createPluginInstallRoutes } from "./modules/catalog/plugin-install-routes.ts";
 import { createDeliveryRoutes } from "./modules/delivery/index.ts";
 import {
   createFetchGitHubAppClient,
@@ -17,12 +29,19 @@ import {
   type GitHubAppClient,
   type InstallationTokenBroker,
 } from "./modules/integrations/index.ts";
+import { createProviderRequestPort } from "./modules/integrations/credential-port.ts";
+import { GITHUB_PROVIDER } from "./modules/integrations/registry.ts";
+import { selectTicketSourceReader } from "./modules/work/ticket-reader-selection.ts";
+import { readAppCredentials } from "./modules/integrations/callbacks.ts";
+import { loadSnapshot } from "./modules/catalog/authority-snapshot-postgres.ts";
+import { withPgTransaction } from "./platform/database.ts";
 import { createWorkflowsRoutes } from "./modules/workflows/index.ts";
 import { createAutomationsRoutes } from "./modules/workflows/automations/routes.ts";
 import {
   activateDeployedIntegrations,
   createCatalogRoutes,
   deployedIntegrations,
+  deployedProviders,
 } from "./modules/catalog/index.ts";
 import {
   createSkillSourceAdapter,
@@ -108,6 +127,13 @@ import {
 } from "./modules/projects/index.ts";
 
 import { createExecutionRoutes } from "./modules/execution/index.ts";
+import { createRunControlRegistry } from "./modules/execution/control.ts";
+import { createCatalogActionRegistry } from "./modules/catalog/actions.ts";
+import { createCatalogHandlers } from "./modules/catalog/persistence.ts";
+import { createAgentsActionRegistry } from "./modules/agents/actions.ts";
+import { createAgentsHandlers } from "./modules/agents/postgres.ts";
+import { createSessionToolRegistry } from "./modules/execution/session-registry.ts";
+import { sessionOperationScopes } from "./modules/execution/session-tools.ts";
 import {
   createArtifactPreviewHost,
   createPreviewHostDispatch,
@@ -125,7 +151,10 @@ import {
   createConversationRoutes,
 } from "./modules/conversation/index.ts";
 import { createCoordinationRoutes } from "./modules/work/coordination-routes.ts";
-import { createApprovalRoutes } from "./modules/conversation/approval-routes.ts";
+import {
+  createApprovalRegistry,
+  createApprovalRoutes,
+} from "./modules/conversation/approval-routes.ts";
 
 export function createApp(options: {
   /**
@@ -152,6 +181,8 @@ export function createApp(options: {
   ticketReader?: TicketSourceReader;
   /** Fact index sync candidates come from; the stored-fact index by default. */
   ticketFactIndex?: TicketFactIndex;
+  /** Writes Bakery's status note on a ticket; the integration gate by default, an in-memory one in tests. */
+  ticketNoteWriter?: TicketNoteWriter;
   draftIsolation?: DraftIsolation;
   skillFileStore?: SkillFileStoreOperations;
   /** Verification probe override; tests inject one so none reaches a provider. */
@@ -182,6 +213,8 @@ export function createApp(options: {
   // start disagreeing.
   const integrationRegistry = activateDeployedIntegrations(
     deployedIntegrations,
+    undefined,
+    deployedProviders,
   );
   if (!options.config.auth) throw new Error(AuthErrorCode.ConfigRequired);
   const installationSettings = options.installationSettings ??
@@ -212,6 +245,27 @@ export function createApp(options: {
       github: githubAppClient,
       secretsKey: options.config.secretsKey,
     });
+  // The provider request port the invoke door sends through. Assembled here, once
+  // per process, so the door cannot be wired without a credential source: the
+  // store and the sender are created together or not at all.
+  const providerRequests = createProviderRequestPort({
+    database: options.pgDatabase,
+    broker: installationTokenBroker,
+    readAppCredentials,
+    // The same broker the port mints through, so the counter the broker compares
+    // against is the counter the door read.
+    generationOf: (connectionId) =>
+      installationTokenBroker.generation(connectionId),
+    registry: integrationRegistry,
+    fetch: globalThis.fetch,
+    snapshotPort: {
+      load: (key) =>
+        withPgTransaction(
+          options.pgDatabase,
+          (transaction) => loadSnapshot(transaction, integrationRegistry, key),
+        ),
+    },
+  });
   const integrations = {
     github: githubAppClient,
     secretsKey: options.config.secretsKey,
@@ -274,10 +328,45 @@ export function createApp(options: {
   );
   // Shared by the REST routers and the MCP catalog tools, so both transports
   // run the same registry instances.
+  // One approvals registry for the routes and for the session tools, so an
+  // agent's decision runs the same handler and guard a person's does.
+  // Run control for the session tools: the same handlers and guard as the route.
+  const runControlRegistry = createRunControlRegistry({
+    database: options.pgDatabase,
+    secret: options.config.auth.secret,
+  });
+  const approvalRegistry = createApprovalRegistry({
+    database: options.pgDatabase,
+    cursorSecret: options.config.auth.secret,
+  });
   const conversationRegistry = createConversationRegistry({
     database: options.pgDatabase,
     cursorSecret: options.config.auth.secret,
   });
+  /**
+   * The catalog operations, built here once so the worker tool gateway and the
+   * catalog routes share a single registration. Two registrations would be two
+   * handlers to keep in step, and the first disagreement would make a session
+   * call something different from the route the rest of the product calls.
+   */
+  const catalogRegistry = createCatalogActionRegistry(
+    createCatalogHandlers(options.config.auth.secret, {
+      normalizeSourceLocator: options.skillSourceLocatorNormalizer,
+    }),
+    {
+      authorityRunner: new PostgresAuthorityRunner(options.pgDatabase),
+      commandRunner: createPostgresCommandRunner(),
+      includeSkillVersionPublication: false,
+    },
+  );
+  /**
+   * Agent operations, built here for the same reason as the catalog ones: the
+   * worker tool gateway must call the same registration the agent routes serve.
+   */
+  const agentsRegistry = createAgentsActionRegistry(
+    options.pgDatabase,
+    createAgentsHandlers(options.config.auth.secret),
+  );
   const artifactActions = createArtifactActions({
     database: options.pgDatabase,
     publicBaseUrl: options.config.publicBaseUrl,
@@ -539,6 +628,21 @@ export function createApp(options: {
       artifactPreviewOrigin: previewOrigin,
       artifactActions,
       integrations,
+      // The tool gateway's operations: whatever these registries already
+      // implement, narrowed to the operation map a session is defined by.
+      // Composed rather than re-registered so a session calls the same handler
+      // and the same authority guard as the route the rest of the product uses.
+      sessionTools: createSessionToolRegistry({
+        registries: [
+          taskRegistry,
+          catalogRegistry,
+          agentsRegistry,
+          artifactActions.registry,
+          approvalRegistry,
+          runControlRegistry,
+        ],
+        offered: sessionOperationScopes(),
+      }),
       ...(skillFileStore
         ? {
           skillImport: {
@@ -582,6 +686,7 @@ export function createApp(options: {
       session: tokenSession,
       publicBaseUrl: options.config.publicBaseUrl,
       cursorSecret: options.config.auth.secret,
+      registry: approvalRegistry,
     }),
   );
   const projects = new Hono<{ Variables: AuthVariables }>();
@@ -618,6 +723,23 @@ export function createApp(options: {
   );
   app.route(
     "/",
+    createProviderReadRoutes({
+      database: options.pgDatabase,
+      browserSession,
+      publicBaseUrl: options.config.publicBaseUrl,
+      cursorSecret: options.config.auth.secret,
+    }),
+  );
+  app.route(
+    "/",
+    createRouteContinuationRoutes({
+      database: options.pgDatabase,
+      browserSession,
+      publicBaseUrl: options.config.publicBaseUrl,
+    }),
+  );
+  app.route(
+    "/",
     createRepositoryRulesRoutes({
       database: options.pgDatabase,
       browserSession,
@@ -629,6 +751,37 @@ export function createApp(options: {
     "/",
     createArtifactKindsRoutes({
       database: options.pgDatabase,
+      browserSession,
+      publicBaseUrl: options.config.publicBaseUrl,
+      cursorSecret: options.config.auth.secret,
+    }),
+  );
+  app.route(
+    "/",
+    createMemoryRoutes({
+      database: options.pgDatabase,
+      browserSession,
+      publicBaseUrl: options.config.publicBaseUrl,
+    }),
+  );
+  app.route(
+    "/",
+    createPluginInstallRoutes({
+      database: options.pgDatabase,
+      browserSession,
+      publicBaseUrl: options.config.publicBaseUrl,
+      cursorSecret: options.config.auth.secret,
+    }),
+  );
+  app.route(
+    "/",
+    createPluginPackageRoutes({
+      database: options.pgDatabase,
+      // Absent when no object store is configured; publishing a version then
+      // fails closed rather than recording a digest nobody can verify.
+      ...(skillFileStore
+        ? { bundles: new ScopedOrganizationBlobStore(skillFileStore) }
+        : {}),
       browserSession,
       publicBaseUrl: options.config.publicBaseUrl,
       cursorSecret: options.config.auth.secret,
@@ -651,12 +804,36 @@ export function createApp(options: {
       session: tokenSession,
       publicBaseUrl: options.config.publicBaseUrl,
       cursorSecret: options.config.auth.secret,
-      reader: options.ticketReader ?? createTicketSourceReader({
-        ...integrations,
-        database: options.pgDatabase,
-      }),
+      // Chosen per source, by the provider its connection names: a build that
+      // deploys one provider's reader must not read another provider's sources
+      // with it. A provider with no reader here fails closed rather than falling
+      // back to whichever reader a map happened to yield first.
+      reader: options.ticketReader ?? selectTicketSourceReader(
+        new Map([
+          [
+            GITHUB_PROVIDER,
+            createTicketSourceReader({
+              ...integrations,
+              database: options.pgDatabase,
+            }),
+          ],
+        ]),
+      ),
       factIndex: options.ticketFactIndex ?? createTicketFactIndex(),
       budget: options.config.budget,
+      // The composition root names the provider whose comment action writes
+      // the note, as it names the webhook ingress below.
+      noteWriter: options.ticketNoteWriter ?? createGateTicketNoteWriter({
+        database: options.pgDatabase,
+        registry: integrationRegistry,
+        providerRequests,
+        noteActions: {
+          github: {
+            create: TICKET_NOTE_ACTION,
+            update: TICKET_NOTE_UPDATE_ACTION,
+          },
+        },
+      }),
     }),
   );
   app.route(
@@ -677,6 +854,14 @@ export function createApp(options: {
       githubAppClient,
       broker: installationTokenBroker,
       cursorSecret: options.config.auth.secret,
+      // The webhook path is GitHub's, so the composition root - the one place
+      // that already names the GitHub App client above - names its ingress too.
+      ingress: githubIngress,
+      // The one activated registry this process owns, bound above and handed to
+      // the invoke door. Every consumer now reads the same set of deployed
+      // providers instead of re-deriving one.
+      integrationRegistry,
+      providerRequests,
     }),
   );
   app.route(
@@ -684,6 +869,7 @@ export function createApp(options: {
     createWorkflowsRoutes({
       database: options.pgDatabase,
       browserSession,
+      tokenSession,
       publicBaseUrl: options.config.publicBaseUrl,
       cursorSecret: options.config.auth.secret,
     }),
@@ -750,6 +936,7 @@ export function createApp(options: {
       skillFileRoot: options.config.skillFileRoot?.root,
       skillFileStore,
       normalizeSourceLocator: options.skillSourceLocatorNormalizer,
+      registry: catalogRegistry,
     }),
   );
   return app;

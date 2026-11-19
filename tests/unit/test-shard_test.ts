@@ -76,7 +76,7 @@ Deno.test("shard discovery matches Deno's default test file pattern", () => {
   for (
     const name of [
       "access-bindings_test.ts",
-      "projects-onboarding-page_test.tsx",
+      "signed-in-page_test.tsx",
       "widget.test.ts",
       "test.ts",
       "worker_test.mjs",
@@ -98,7 +98,7 @@ Deno.test("shard discovery matches Deno's default test file pattern", () => {
     assert(!testFilePattern.test(name), `${name} is not a test file`);
   }
   assert(
-    testFilePattern.test("tests/unit/projects-onboarding-page_test.tsx"),
+    testFilePattern.test("tests/unit/signed-in-page_test.tsx"),
     "the .tsx unit test is discovered",
   );
 });

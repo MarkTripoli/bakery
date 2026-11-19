@@ -19,6 +19,7 @@ import {
   TicketStoredReportSchema,
 } from "@bakery/contracts/ticket-admission";
 import type { PgTransactionClient } from "../../platform/database.ts";
+import { repositoryContainer } from "./ticket-container.ts";
 import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
 import {
   parseOffsetInstant,
@@ -119,7 +120,7 @@ export type TicketSource = {
   organizationId: string;
   connectionId: string;
   resourceId: string;
-  applicationId: string;
+  applicationId: string | null;
   repositoryId: string | null;
   externalContainerId: string;
   enabled: boolean;
@@ -136,7 +137,7 @@ type TicketSourceRow = {
   organization_id: string;
   integration_connection_id: string;
   integration_resource_id: string;
-  application_id: string;
+  application_id: string | null;
   repository_id: string | null;
   external_container_id: string;
   enabled: boolean;
@@ -325,9 +326,10 @@ export async function readSourceScope(
     installation_id: string;
     external_id: string;
     display_name: string;
+    provider: string;
   }>(
     `select connection.installation_id, resource.external_id,
-            resource.display_name
+            resource.display_name, connection.provider
        from bakery.integration_connections as connection
        join bakery.integration_resources as resource
          on resource.connection_id = connection.id
@@ -343,6 +345,7 @@ export async function readSourceScope(
       organizationId: source.organizationId,
       connectionId: source.connectionId,
       resourceId: source.resourceId,
+      provider: row.provider,
       repositoryFullName: row.display_name,
       externalRepositoryId: row.external_id,
     },
@@ -400,6 +403,25 @@ const TICKET_COLUMNS = `id, organization_id, ticket_source_id,
   external_ticket_id, key, number, snapshot, requirements_digest,
   provider_update_marker, state, version`;
 
+/**
+ * Brings a stored snapshot up to the current shape.
+ *
+ * Snapshots written before the container generalisation carry
+ * `repositoryFullName` and no container. They are only rewritten when the ticket
+ * is next observed, so a read has to understand both shapes or an old ticket
+ * would report no container at all and fail every comparison that uses one.
+ */
+function normalisedSnapshot(stored: TicketSnapshot): TicketSnapshot {
+  if (stored.container !== undefined) return stored;
+  const legacy = (stored as { repositoryFullName?: unknown })
+    .repositoryFullName;
+  if (typeof legacy !== "string") return stored;
+  return {
+    ...stored,
+    container: repositoryContainer(legacy),
+  };
+}
+
 function toTicket(row: TicketRowRaw): TicketRow {
   return {
     id: row.id,
@@ -408,7 +430,7 @@ function toTicket(row: TicketRowRaw): TicketRow {
     externalTicketId: row.external_ticket_id,
     key: row.key,
     number: row.number,
-    snapshot: row.snapshot,
+    snapshot: normalisedSnapshot(row.snapshot),
     requirementsDigest: row.requirements_digest,
     providerUpdateMarker: row.provider_update_marker,
     state: row.state,
@@ -471,7 +493,10 @@ export async function upsertExternalTicket(
       },
     });
   }
-  const repositoryFullName = observation.snapshot.repositoryFullName;
+  // The stored container names the ticket's home in provider terms; GitHub's
+  // own key and URL are still built here, which is what `TicketsPort.present()`
+  // takes over in a later slice.
+  const repositoryFullName = observation.snapshot.container.displayName;
   const identity = [
     `${repositoryFullName}#${observation.number}`,
     String(observation.number),
@@ -1104,6 +1129,123 @@ export async function insertRequest(
   }
 }
 
+/** One scoped child of a request as stored. */
+export type TicketRequestTarget = {
+  repositoryId: string;
+  role: string;
+  routingRuleId: string | null;
+  routingRuleVersion: number | null;
+  sourcePolicyRevision: number;
+  pinnedPreset: TicketPresetPin;
+  coordinationPlanId: string | null;
+  childTaskId: string | null;
+};
+
+/**
+ * Inserts the scoped children of a request just admitted, one per routed
+ * repository. They are insert-only: a later rule or policy edit, a re-pin or
+ * an upgrade never writes them again, so an admitted request is never
+ * retargeted. The unique (request, repository) key is the floor under the
+ * resolver's deduplication.
+ */
+export async function insertRequestTargets(
+  transaction: PgTransactionClient,
+  facts: {
+    organizationId: string;
+    requestId: string;
+    sourcePolicyRevision: number;
+    pinnedPreset: TicketPresetPin;
+    targets: readonly {
+      repositoryId: string;
+      role: string;
+      ruleId: string | null;
+      ruleVersion: number | null;
+      coordinationPlanId: string | null;
+      childTaskId: string | null;
+    }[];
+  },
+): Promise<void> {
+  for (const target of facts.targets) {
+    await transaction.query(
+      `insert into bakery.ticket_request_targets (
+         id, organization_id, ticket_request_id, repository_id, role,
+         routing_rule_id, routing_rule_version, source_policy_revision,
+         pinned_preset, coordination_plan_id, child_task_id
+       ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11)`,
+      [
+        crypto.randomUUID(),
+        facts.organizationId,
+        facts.requestId,
+        target.repositoryId,
+        target.role,
+        target.ruleId,
+        target.ruleVersion,
+        facts.sourcePolicyRevision,
+        JSON.stringify(facts.pinnedPreset),
+        target.coordinationPlanId,
+        target.childTaskId,
+      ],
+    );
+  }
+}
+
+/**
+ * Status of the ticket-origin coordination plan a request's targets run in,
+ * or null when the request runs on its own task.
+ */
+export async function requestPlanStatus(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  requestId: string,
+): Promise<string | null> {
+  const result = await transaction.query<{ status: string }>(
+    `select plan.status from bakery.ticket_request_targets as target
+       join bakery.coordination_plans as plan
+         on plan.organization_id = target.organization_id
+        and plan.id = target.coordination_plan_id
+      where target.organization_id = $1 and target.ticket_request_id = $2
+      limit 1`,
+    [organizationId, requestId],
+  );
+  return result.rows[0]?.status ?? null;
+}
+
+/** The scoped children of one request, ordered by role then repository. */
+export async function requestTargets(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  requestId: string,
+): Promise<TicketRequestTarget[]> {
+  const result = await transaction.query<{
+    repository_id: string;
+    role: string;
+    routing_rule_id: string | null;
+    routing_rule_version: number | null;
+    source_policy_revision: number;
+    pinned_preset: unknown;
+    coordination_plan_id: string | null;
+    child_task_id: string | null;
+  }>(
+    `select repository_id, role, routing_rule_id, routing_rule_version,
+            source_policy_revision, pinned_preset, coordination_plan_id,
+            child_task_id
+       from bakery.ticket_request_targets
+      where organization_id = $1 and ticket_request_id = $2
+      order by role, repository_id`,
+    [organizationId, requestId],
+  );
+  return result.rows.map((row) => ({
+    repositoryId: row.repository_id,
+    role: row.role,
+    routingRuleId: row.routing_rule_id,
+    routingRuleVersion: row.routing_rule_version,
+    sourcePolicyRevision: row.source_policy_revision,
+    pinnedPreset: TicketPresetPinSchema.parse(row.pinned_preset),
+    coordinationPlanId: row.coordination_plan_id,
+    childTaskId: row.child_task_id,
+  }));
+}
+
 /** The request columns a lifecycle step may change. */
 export type TicketRequestPatch = {
   intent?: TicketRequestIntent;
@@ -1223,7 +1365,7 @@ export async function taskHasUnconsumedApproval(
 /** The task a request owns, locked `for update`. */
 export type LockedTask = {
   id: string;
-  applicationId: string;
+  applicationId: string | null;
   repositoryId: string | null;
   conversationId: string;
   version: number;
@@ -1245,7 +1387,7 @@ export async function lockTaskForUpdate(
 ): Promise<LockedTask> {
   const result = await transaction.query<{
     id: string;
-    application_id: string;
+    application_id: string | null;
     repository_id: string | null;
     conversation_id: string;
     version: number;
@@ -1359,4 +1501,62 @@ export async function findAvailableApproval(
     [organizationId, taskId, PLAN_STAGE, policyDigest],
   );
   return result.rows[0]?.id ?? null;
+}
+
+/** Marks a link's status note as being written (#69); returns the link's new version. */
+export async function claimLinkNote(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  linkId: string,
+): Promise<number> {
+  const claimed = await transaction.query<{ version: number }>(
+    `update bakery.ticket_task_links
+        set sync_health = 'pending', updated_at = now(), version = version + 1
+      where organization_id = $1 and id = $2
+      returning version`,
+    [organizationId, linkId],
+  );
+  return claimed.rows[0].version;
+}
+
+/** What one note write left on its link. */
+export type LinkNoteOutcome = {
+  syncHealth: "healthy" | "failed";
+  /** The provider's comment id when healthy; kept unchanged when failed. */
+  externalId: string | null;
+  problemCode: string | null;
+};
+
+/**
+ * Records a note write on the link claimed at `claimedVersion` (#69); the
+ * row in the shape `columns` names, or null when the claim no longer holds.
+ */
+export async function recordLinkNote<Row>(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  linkId: string,
+  claimedVersion: number,
+  outcome: LinkNoteOutcome,
+  columns: string,
+): Promise<Row | null> {
+  const updated = await transaction.query<Row & Record<string, unknown>>(
+    `update bakery.ticket_task_links
+        set sync_health = $4,
+            status_comment_external_id = case when $4 = 'healthy' then $5
+              else status_comment_external_id end,
+            last_problem_code = $6,
+            updated_at = now(), version = version + 1
+      where organization_id = $1 and id = $2 and version = $3
+        and sync_health = 'pending'
+      returning ${columns}`,
+    [
+      organizationId,
+      linkId,
+      claimedVersion,
+      outcome.syncHealth,
+      outcome.externalId,
+      outcome.problemCode,
+    ],
+  );
+  return updated.rows[0] ?? null;
 }

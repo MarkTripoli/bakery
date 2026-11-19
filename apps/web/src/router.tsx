@@ -102,10 +102,9 @@ import { NotificationsPage } from "./notifications/NotificationsPage.tsx";
 import { isNotificationView } from "./notifications/presentation.ts";
 import { OAuthConsentPage } from "./pages/OAuthConsentPage.tsx";
 import { createConsentGateway } from "./app/consent-gateway.ts";
-import { ProjectsOnboardingPage } from "./pages/ProjectsOnboardingPage.tsx";
-import { useProjectsOnboardingLabels } from "./pages/projects-onboarding/useProjectsOnboardingLabels.ts";
 import { ApiBoundaryFixture } from "./fixtures/ApiBoundaryFixture.tsx";
 import { MachinesFixture } from "./fixtures/MachinesFixture.tsx";
+import { SessionThreadFixture } from "./fixtures/SessionThreadFixture.tsx";
 import {
   authFixtureStates,
   AuthStateFixture,
@@ -125,7 +124,6 @@ import {
   WorkSessionFixture,
 } from "./fixtures/WorkFixture.tsx";
 import {
-  ProjectsOnboardingFixture,
   TaskConversationFixture,
   TaskCoordinationFixture,
 } from "./fixtures/E06Fixture.tsx";
@@ -472,25 +470,6 @@ export const routeCoverage = [
     ],
   },
   {
-    id: "projects-onboarding",
-    path: "/projects/onboarding",
-    classification: "production",
-    states: [
-      "loading",
-      "ready",
-      "empty",
-      "error",
-      "forbidden",
-      "conflict",
-      "disabled",
-      "stale",
-      "offline",
-      "reconnecting",
-      "long-copy",
-      "unavailable",
-    ],
-  },
-  {
     id: "repository",
     path: "/projects/repositories/$repositoryId",
     classification: "production",
@@ -804,6 +783,20 @@ export const routeCoverage = [
     states: ["default"],
   },
   {
+    id: "fixture-session-thread",
+    path: "/__fixtures__/session-thread/$state",
+    classification: "fixture",
+    states: [
+      "default",
+      "loading",
+      "empty",
+      "error",
+      "failed",
+      "complete",
+      "reconnecting",
+    ],
+  },
+  {
     id: "fixture-api-boundary",
     path: "/__fixtures__/api-boundary",
     classification: "fixture",
@@ -986,12 +979,6 @@ export const routeCoverage = [
     states: ["default", "empty", "partial", "stale", "workflow", "ticket"],
   },
   {
-    id: "fixture-work-onboarding",
-    path: "/__fixtures__/work/onboarding/$state",
-    classification: "fixture",
-    states: ["default"],
-  },
-  {
     id: "fixture-artifacts-artifact",
     path: "/__fixtures__/artifacts/artifact/$state",
     classification: "fixture",
@@ -1033,10 +1020,6 @@ const rootRoute = createRootRouteWithContext<RouterContext>()({
   notFoundComponent: RouteNotFound,
   pendingComponent: RoutePending,
 });
-function projectsOnboardingComponent() {
-  const labels = useProjectsOnboardingLabels();
-  return <ProjectsOnboardingPage labels={labels} />;
-}
 
 const projectsRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -1044,31 +1027,6 @@ const projectsRoute = createRoute({
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
   component: ProjectsPage,
-  errorComponent: ProtectedRouteError,
-});
-
-const projectsOnboardingRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: "/projects/onboarding",
-  validateSearch: (search: Record<string, unknown>) => ({
-    application: typeof search.application === "string" &&
-        isUuid(search.application)
-      ? search.application
-      : undefined,
-    repository: typeof search.repository === "string" &&
-        isUuid(search.repository)
-      ? search.repository
-      : undefined,
-    profile: typeof search.profile === "string" && isUuid(search.profile)
-      ? search.profile
-      : undefined,
-  }),
-  beforeLoad: ({ context, location, search }) => {
-    requireSession(context.session, location);
-    // The list of projects is its own page; this one is a repository's setup.
-    if (search.repository === undefined) throw redirect({ to: "/projects" });
-  },
-  component: projectsOnboardingComponent,
   errorComponent: ProtectedRouteError,
 });
 
@@ -2009,6 +1967,12 @@ const machinesDetailFixtureRoute = createRoute({
   path: "/__fixtures__/machines/detail",
   component: MachinesFixture,
 });
+const sessionThreadFixtureRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/__fixtures__/session-thread/$state",
+  component: SessionThreadFixture,
+});
+
 const apiBoundaryRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/__fixtures__/api-boundary",
@@ -2141,12 +2105,6 @@ const workCoordinationRoute = createRoute({
   component: TaskCoordinationFixture,
 });
 
-const workOnboardingRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: "/__fixtures__/work/onboarding/$state",
-  component: ProjectsOnboardingFixture,
-});
-
 const artifactFixtureRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/__fixtures__/artifacts/artifact/$state",
@@ -2159,6 +2117,7 @@ const artifactFixtureRoute = createRoute({
 
 const developmentRoutes = [
   machinesFixtureRoute,
+  sessionThreadFixtureRoute,
   machinesDetailFixtureRoute,
   artifactFixtureRoute,
   apiBoundaryRoute,
@@ -2182,7 +2141,6 @@ const developmentRoutes = [
   workSessionRoute,
   workConversationRoute,
   workCoordinationRoute,
-  workOnboardingRoute,
   createRoute({
     getParentRoute: () => rootRoute,
     path: "/__fixtures__/artifacts/task-run/$state",
@@ -2238,7 +2196,6 @@ const routeTree = rootRoute.addChildren([
   settingsAuditRoute,
   settingsScimRoute,
   projectsRoute,
-  projectsOnboardingRoute,
   artifactRetrievalRoute,
   securityRoute,
   sessionsRoute,

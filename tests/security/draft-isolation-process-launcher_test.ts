@@ -11,6 +11,15 @@ import {
   type LauncherOptions,
 } from "../helpers/draft-launcher.ts";
 
+/**
+ * The longest total deadline the launcher's systemd backstop accepts: the
+ * backstop is both budgets plus a second, capped at 30 s (issue 271), so a
+ * deadline above this makes `createDraftIsolation` refuse the configuration
+ * with SYSTEMD_BACKSTOP_OUT_OF_RANGE. "Lifted" in the memory cases below means
+ * as far out as the configuration allows, never an unbounded 30 or 60 s.
+ */
+const LIFTED_DEADLINE_MS = 29_000 - DRAFT_LIMITS.workerStartupMs;
+
 const fixture = (name: string) =>
   new URL(`../fixtures/draft-workers/${name}`, import.meta.url).pathname;
 
@@ -105,7 +114,7 @@ Deno.test("a worker whose JavaScript heap keeps growing is ended by its memory b
   // the deadline lifted. The V8 flag itself is pinned by the launcher unit
   // test.
   await withLauncher(
-    { workerPath: fixture("heap.ts"), totalDeadlineMs: 60_000 },
+    { workerPath: fixture("heap.ts"), totalDeadlineMs: LIFTED_DEADLINE_MS },
     async (isolation) => {
       const error = await assertRejects(
         () => isolation.initialize("x"),
@@ -122,7 +131,7 @@ Deno.test("off-heap memory is bounded too: an ArrayBuffer flood ends the worker"
   // set by the launcher must end this worker by itself, well before the time
   // bound (deadline lifted), not after it has allocated gigabytes.
   await withLauncher(
-    { workerPath: fixture("memory.ts"), totalDeadlineMs: 30_000 },
+    { workerPath: fixture("memory.ts"), totalDeadlineMs: LIFTED_DEADLINE_MS },
     async (isolation) => {
       const started = performance.now();
       const error = await assertRejects(

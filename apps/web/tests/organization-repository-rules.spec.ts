@@ -155,18 +155,20 @@ test.describe("organization repository rules", () => {
     }
 
     await expect(page.getByTestId("org-rules-current")).toContainText(
-      "Published revision 3",
+      "Version 3 · published",
     );
     const row = (name: string) => ruleRow(page, name);
     await expect(row("Semantic commits")).toContainText("Require");
-    await expect(row("Semantic commits")).toContainText("Locked");
+    await expect(row("Semantic commits")).toContainText(/No, locked|Locked/);
     await expect(row("Semantic commits")).toContainText(
       "Conventional Commits · all introduced commits",
     );
     await expect(row("PR / MR titles")).toContainText(
       "type(scope): summary · 72-character subject",
     );
-    await expect(row("Merge descriptions")).toContainText("Can override");
+    await expect(row("Merge descriptions")).toContainText(
+      /Yes|Not locked/,
+    );
     await expect(row("Merge descriptions")).toContainText(
       "Summary, Changes, Validation · Markdown template",
     );
@@ -176,10 +178,10 @@ test.describe("organization repository rules", () => {
 
     const history = historyRows(page);
     await expect(history).toHaveCount(2);
-    // Newest first, each with the start of its digest.
-    await expect(history.nth(0)).toContainText(digest("3").slice(0, 8));
-    // The table cell is the bare number; a phone row titles it "Revision 3".
-    await expect(history.nth(0)).toHaveText(/^(Revision )?3/);
+    // Newest first, and no hash is shown at any width.
+    await expect(history.nth(0)).not.toContainText(digest("3").slice(0, 8));
+    // The table cell is the bare number; a phone row titles it "Version 3".
+    await expect(history.nth(0)).toHaveText(/^(Version )?3/);
   });
 
   test("loads older revisions with the cursor", async ({ page }) => {
@@ -187,10 +189,10 @@ test.describe("organization repository rules", () => {
     await page.goto(PAGE_PATH);
     const history = historyRows(page);
     await expect(history).toHaveCount(2);
-    await page.getByRole("button", { name: "Load more revisions" }).click();
+    await page.getByRole("button", { name: "Load older versions" }).click();
     await expect(history).toHaveCount(3);
     await expect(
-      page.getByRole("button", { name: "Load more revisions" }),
+      page.getByRole("button", { name: "Load older versions" }),
     ).toHaveCount(0);
     // The last page removed the button that had focus: focus goes to the first
     // row that load added, so a reader goes on from where they were.
@@ -209,7 +211,7 @@ test.describe("organization repository rules", () => {
     ).toHaveCount(0);
     // The empty state already says nothing is published: no History to repeat it.
     await expect(page.getByRole("heading", { name: "History" })).toHaveCount(0);
-    await expect(page.getByRole("table", { name: "Published revisions" }))
+    await expect(page.getByRole("table", { name: "Published versions" }))
       .toHaveCount(0);
   });
 
@@ -278,13 +280,115 @@ test.describe("organization repository rules", () => {
     await expect(page.getByRole("alert")).toHaveCount(0);
   });
 
-  test("a digest never wraps onto a second line", async ({ page }) => {
+  test("no column shows a raw hash, and the words revision and digest are gone", async ({ page }) => {
     await rulesFixture(page);
     await page.goto(PAGE_PATH);
-    const digestBox = await historyRows(page).nth(0)
-      .locator('[data-ui-component="dataText"]').boundingBox();
-    // One line of the data face, not two.
-    expect(digestBox!.height).toBeLessThan(26);
+    const content = page.locator('[data-testid="org-repository-rules"]');
+    await expect(content).toContainText("Version 3 · published");
+    await expect(content).toContainText(
+      "Edit a rule, review what will change, then publish.",
+    );
+    await expect(content).not.toContainText(/revision|digest/i);
+    await expect(content).not.toContainText(digest("3").slice(0, 8));
+    await expect(page.getByRole("columnheader", { name: "Digest" }))
+      .toHaveCount(0);
+    await shot(page, "rules-current");
+  });
+
+  test("on a phone the column help is one closed disclosure under the version line", async ({ page, isMobile }) => {
+    test.skip(!isMobile, "desktop keeps the header help buttons");
+    await rulesFixture(page);
+    await page.goto(PAGE_PATH);
+    const disclosure = page.locator("details", {
+      hasText: "What Require, Warn, Guide and Off mean",
+    });
+    const summary = disclosure.locator("summary");
+    await expect(summary).toBeVisible();
+    await expect(disclosure).not.toHaveAttribute("open", "");
+    await expect(
+      page.getByText("Require blocks delivery until the check passes."),
+    )
+      .toBeHidden();
+    await shot(page, "rules-help-phone-closed", [], {
+      only: "mobile",
+      windowOnly: true,
+    });
+    await summary.click();
+    await expect(disclosure).toHaveAttribute("open", "");
+    await expect(
+      page.getByText("Require blocks delivery until the check passes."),
+    )
+      .toBeVisible();
+    await expect(
+      page.getByText("Locked rules apply to every repository as set here."),
+    )
+      .toBeVisible();
+    await shot(page, "rules-help-phone-open", [], {
+      only: "mobile",
+      windowOnly: true,
+    });
+  });
+
+  test("desktop has no phone disclosure", async ({ page, isMobile }) => {
+    test.skip(isMobile, "a phone has the disclosure");
+    await rulesFixture(page);
+    await page.goto(PAGE_PATH);
+    await expect(page.locator("details", {
+      hasText: "What Require, Warn, Guide and Off mean",
+    })).toHaveCount(0);
+  });
+
+  test("both column headers carry a help button that explains the column", async ({ page, isMobile }) => {
+    // A phone lists rows, not columns, so there are no headers to explain.
+    test.skip(isMobile, "no column headers on a phone");
+    await rulesFixture(page);
+    await page.goto(PAGE_PATH);
+    const enforcement = page.getByRole("button", {
+      name: "About enforcement",
+    });
+    // Each help button sits beside its header text, on the same line.
+    for (
+      const [column, help] of [
+        ["Enforcement", enforcement],
+        [
+          "Repositories can change it",
+          page.getByRole("button", {
+            name: "About what repositories can change",
+          }),
+        ],
+      ] as const
+    ) {
+      const text = await page.getByRole("columnheader", { name: column })
+        .locator("span").first().boundingBox();
+      const button = await help.boundingBox();
+      expect(text && button).toBeTruthy();
+      const apart = Math.abs(
+        (button!.y + button!.height / 2) - (text!.y + text!.height / 2),
+      );
+      expect(apart).toBeLessThan(text!.height);
+    }
+    await enforcement.click();
+    await expect(
+      page.getByText("Require blocks delivery until the check passes."),
+    )
+      .toBeVisible();
+    await shot(page, "rules-help-enforcement", [], {
+      only: "desktop",
+      windowOnly: true,
+    });
+    await page.keyboard.press("Escape");
+    await page.getByRole("button", {
+      name: "About what repositories can change",
+    })
+      .click();
+    await expect(
+      page.getByText("Locked rules apply to every repository as set here."),
+    )
+      .toBeVisible();
+    await shot(page, "rules-help-access", [], {
+      only: "desktop",
+      windowOnly: true,
+    });
   });
 
   test("a failed read says so and offers no rules", async ({ page }) => {
@@ -312,7 +416,7 @@ test.describe("organization repository rules", () => {
       return box!.x + box!.width;
     };
     const rules = await rightEdge("Organization rules");
-    const history = await rightEdge("Published revisions");
+    const history = await rightEdge("Published versions");
     expect(Math.abs(rules - history)).toBeLessThanOrEqual(1);
   });
 
@@ -320,7 +424,7 @@ test.describe("organization repository rules", () => {
     test.skip(isMobile, "a phone shows lists, which carry no caption");
     await rulesFixture(page);
     await page.goto(PAGE_PATH);
-    for (const name of ["Organization rules", "Published revisions"]) {
+    for (const name of ["Organization rules", "Published versions"]) {
       const table = page.getByRole("table", { name });
       await expect(table).toBeVisible();
       const caption = await table.locator("caption").boundingBox();
@@ -337,7 +441,7 @@ test.describe("organization repository rules", () => {
       level: 1,
     }).boundingBox();
     const description = await page.getByText(
-      "A shared starting point for every repository in this organization.",
+      "Rules every repository in this organization starts with.",
     ).boundingBox();
     const gap = description!.y - (title!.y + title!.height);
     // The column's own gap is 28px; the header group is tighter than that.
@@ -365,9 +469,9 @@ test.describe("organization repository rules", () => {
     await page.goto(PAGE_PATH);
     const history = historyRows(page);
     await expect(history).toHaveCount(2);
-    await page.getByRole("button", { name: "Load more revisions" }).click();
+    await page.getByRole("button", { name: "Load older versions" }).click();
     const notice = page.getByRole("alert").filter({
-      hasText: "Older revisions could not be loaded.",
+      hasText: "Older versions could not be loaded.",
     });
     await expect(notice).toBeVisible();
     // The button became this notice: its Try again takes focus.
@@ -377,7 +481,7 @@ test.describe("organization repository rules", () => {
     // Nothing already shown is lost, and the failure is not offered as another Load more.
     await expect(history).toHaveCount(2);
     await expect(
-      page.getByRole("button", { name: "Load more revisions" }),
+      page.getByRole("button", { name: "Load older versions" }),
     ).toHaveCount(0);
     state.failMoreHistory = false;
     await notice.getByRole("button", { name: "Try again" }).click();
@@ -393,7 +497,7 @@ test.describe("organization repository rules", () => {
     await page.goto(PAGE_PATH);
     await expect(ruleRow(page, "Semantic commits")).toBeVisible();
     const failure = page.getByRole("alert").filter({
-      hasText: "The revision history could not be loaded.",
+      hasText: "The version history could not be loaded.",
     });
     await expect(failure).toBeVisible();
     await shot(page, "rules-history-load-failed");
@@ -415,14 +519,18 @@ test.describe("organization repository rules", () => {
     await page.goto(PAGE_PATH);
     await expect(ruleRow(page, "Semantic commits")).toBeVisible();
     await expect(page.getByTestId("org-rules-history-loading")).toBeVisible();
-    await expect(page.getByRole("columnheader", { name: "Revision" }))
+    await expect(page.getByRole("columnheader", { name: "Version" }))
       .toHaveCount(0);
     release();
     await expect(page.getByTestId("org-rules-history-loading")).toHaveCount(0);
     await expect(historyRows(page)).toHaveCount(2);
   });
 
-  test("a rule summary is clamped to two lines with the whole text as its title", async ({ page }) => {
+  test("a long rule summary is clamped, with a control that shows all of it and no title", async ({ page, isMobile }) => {
+    test.skip(
+      isMobile,
+      "a phone row opens the editor instead; see the next test",
+    );
     const sections = Array.from(
       { length: 16 },
       (_, index) => `Required section number ${index + 1}`,
@@ -437,23 +545,110 @@ test.describe("organization repository rules", () => {
     );
     await rulesFixture(page, { entries });
     await page.goto(PAGE_PATH);
-    const summary = ruleRow(page, "Merge descriptions").locator(
-      '[data-lines="2"]',
-    );
-    await expect(summary).toHaveAttribute(
-      "title",
-      /Required section number 16/,
-    );
+    const row = ruleRow(page, "Merge descriptions");
+    const summary = row.locator('[data-lines="2"]');
     const { height, lineHeight } = await summary.evaluate((node) => ({
       height: node.getBoundingClientRect().height,
       lineHeight: parseFloat(getComputedStyle(node).lineHeight),
     }));
     // Two lines and no more: a 16-section list does not grow the row without limit.
     expect(height).toBeLessThanOrEqual(lineHeight * 2 + 1);
+    // No tooltip: the whole text is not hidden behind a hover.
+    await expect(row.locator("[title]")).toHaveCount(0);
+    // The control is reachable by keyboard and names the rule it opens.
+    const show = row.getByRole("button", {
+      name: "Show all of Merge descriptions",
+    });
+    await expect(show).toHaveAttribute("aria-expanded", "false");
+    await expect(show).toHaveText("Show all");
+    await show.focus();
+    await page.keyboard.press("Enter");
+    const hide = row.getByRole("button", {
+      name: "Show less of Merge descriptions",
+    });
+    await expect(hide).toHaveAttribute("aria-expanded", "true");
+    await expect(hide).toHaveText("Show less");
+    await expect(hide).toBeFocused();
+    await expect(row).toContainText("Required section number 16");
+    const open = await row.locator(".ui-expandable-text .ui-text").evaluate((
+      node,
+    ) => node.getBoundingClientRect().height);
+    expect(open).toBeGreaterThan(lineHeight * 2 + 1);
+    await page.keyboard.press("Space");
+    await expect(show).toHaveAttribute("aria-expanded", "false");
+    // A rule whose summary fits has no control and no reserved space.
+    await expect(
+      ruleRow(page, "Semantic commits").getByRole("button", {
+        name: /Show all/,
+      }),
+    ).toHaveCount(0);
     // The rule's name is not clamped.
-    await expect(ruleRow(page, "Merge descriptions")).toContainText(
-      "Merge descriptions",
+    await expect(row).toContainText("Merge descriptions");
+  });
+
+  test("on a phone the long summary is described by the row and carries no title", async ({ page, isMobile }) => {
+    test.skip(!isMobile, "a wide screen shows the control in the table");
+    const sections = Array.from(
+      { length: 16 },
+      (_, index) => `Required section number ${index + 1}`,
     );
+    const entries = RULE_ENTRIES.map((entry) =>
+      entry.ruleKey === "changeRequest.description"
+        ? {
+          ...entry,
+          options: { ...(entry.options as object), requiredSections: sections },
+        }
+        : entry
+    );
+    await rulesFixture(page, { entries });
+    await page.goto(PAGE_PATH);
+    const row = ruleRow(page, "Merge descriptions");
+    await expect(row.locator("[title]")).toHaveCount(0);
+    // The row's control is described by the summary, so it is announced whole
+    // after "Edit Merge descriptions"; there is no button inside the row button.
+    const control = row.getByRole("button");
+    await expect(control).toHaveCount(1);
+    await expect(control).toHaveAccessibleDescription(
+      /Required section number 16/,
+    );
+  });
+
+  test("evidence: a long rule summary cut and shown whole, and the phone row", async ({ page, isMobile }) => {
+    test.skip(
+      !process.env.BAKERY_EVIDENCE_DIR,
+      "only captures stills when asked to",
+    );
+    const sections = Array.from(
+      { length: 16 },
+      (_, index) => `Required section number ${index + 1}`,
+    );
+    const entries = RULE_ENTRIES.map((entry) =>
+      entry.ruleKey === "changeRequest.description"
+        ? {
+          ...entry,
+          options: { ...(entry.options as object), requiredSections: sections },
+        }
+        : entry
+    );
+    await rulesFixture(page, { entries });
+    await page.goto(PAGE_PATH);
+    const row = ruleRow(page, "Merge descriptions");
+    await expect(row).toBeVisible();
+    if (isMobile) {
+      await shot(page, "203-org-rules-phone-row", [], { only: "mobile" });
+      return;
+    }
+    const show = row.getByRole("button", {
+      name: "Show all of Merge descriptions",
+    });
+    await shot(page, "203-org-rules-summary-cut", [], { only: "desktop" });
+    // A full-page capture can take focus away; focus the control afterwards.
+    await show.focus();
+    await page.keyboard.press("Enter");
+    await expect(
+      row.getByRole("button", { name: "Show less of Merge descriptions" }),
+    ).toHaveAttribute("aria-expanded", "true");
+    await shot(page, "203-org-rules-summary-expanded", [], { only: "desktop" });
   });
 
   test("on a phone the enforcement and access label is shown whole", async ({ page, isMobile }) => {
@@ -463,8 +658,8 @@ test.describe("organization repository rules", () => {
     for (
       const [rule, label] of [
         ["Semantic commits", "Require · Locked"],
-        ["Merge descriptions", "Require · Can override"],
-        ["Magic strings", "Off · Can override"],
+        ["Merge descriptions", "Require · Not locked"],
+        ["Magic strings", "Off · Not locked"],
       ]
     ) {
       const row = ruleRow(page, rule);

@@ -297,7 +297,9 @@ function safeUnavailableReason(value: unknown): string | undefined {
  * The only reasons a refused draft edit may name (#71): a 412
  * PRECONDITION_FAILED says the anchored text changed or the draft moved on; a
  * 403 AUTH_FORBIDDEN says an agent must suggest instead of editing a shared
- * draft, or that suggestion decisions belong to people. An exact allowlist.
+ * draft, or that suggestion decisions belong to people. Non-draft refusals
+ * that tell a person why an act was refused share it (#420, #649). An exact
+ * allowlist.
  */
 export const DRAFT_EDIT_REFUSAL_REASONS = Object.freeze(
   {
@@ -314,10 +316,20 @@ export const DRAFT_EDIT_REFUSAL_REASONS = Object.freeze(
       "target_ambiguous",
       // A send-to-agent thread whose root changed since it was read (#28).
       "thread_version_changed",
+      // A ticket operation whose source policy revision, or whose requirements
+      // digest, moved past what the caller last saw (#649).
+      "source_policy_changed",
+      "requirements_changed",
     ]),
     AUTH_FORBIDDEN: new Set([
       "agent_edit_requires_suggestion",
       "suggestion_decision_requires_person",
+      // Coordinator proposals and save as workflow are a person's acts (#420).
+      "definition_proposal_decision_requires_person",
+      "workflow_listing_requires_person",
+      // An agent acting without a grant, or on its own work or lineage (#414).
+      "agent_power_requires_grant",
+      "agent_target_own_work",
     ]),
   } as const,
 );
@@ -327,6 +339,28 @@ function safeRefusalReason(
 ): string | undefined {
   return typeof value === "string" &&
       (DRAFT_EDIT_REFUSAL_REASONS[code] as ReadonlySet<string>).has(value)
+    ? value
+    : undefined;
+}
+/**
+ * STATE_CONFLICT reasons that name an existing resource the caller should open
+ * instead of creating another one (#420: save as workflow refuses a second
+ * copy of the same source version). Only these reasons echo
+ * `existingResourceId`, and only as a UUID.
+ */
+export const EXISTING_RESOURCE_CONFLICT_REASONS: ReadonlySet<string> = new Set(
+  ["workflow_copy_exists"],
+);
+function safeExistingResourceId(
+  reason: string | undefined,
+  value: unknown,
+): string | undefined {
+  return reason !== undefined &&
+      EXISTING_RESOURCE_CONFLICT_REASONS.has(reason) &&
+      typeof value === "string" &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(
+        value,
+      )
     ? value
     : undefined;
 }
@@ -446,6 +480,9 @@ export function toProblem(
         standard?.code === "AUTH_FORBIDDEN"
     ? safeRefusalReason(standard.code, rawParams?.reason)
     : undefined;
+  const existingResourceId = standard?.code === "STATE_CONFLICT"
+    ? safeExistingResourceId(reason, rawParams?.existingResourceId)
+    : undefined;
   const requiredScopes = code === "INSUFFICIENT_SCOPE" &&
       Array.isArray(rawParams?.requiredScopes)
     ? rawParams.requiredScopes.filter((scope): scope is string =>
@@ -489,6 +526,7 @@ export function toProblem(
     ...(refineScope === undefined ? {} : { refineScope }),
     ...(resetMetadata ?? {}),
     ...(reason === undefined ? {} : { reason }),
+    ...(existingResourceId === undefined ? {} : { existingResourceId }),
     ...(requiredScopes === undefined ? {} : { requiredScopes }),
     ...((code === "DEPENDENCY_UNAVAILABLE" ||
         code === "PROVIDER_QUOTA_EXCEEDED") &&
@@ -717,7 +755,11 @@ export function createNormalizedCommandMetadata(
   // PUT that creates when absent and replaces when present: If-Match is
   // parsed when sent and the handler decides whether it was required.
   const conditionalPutActions: ReadonlySet<ActionDefinition["name"]> = new Set(
-    ["integrationAppRegistrations.put", "skillStorageSettings.put"],
+    [
+      "integrationAppRegistrations.put",
+      "scopeProfiles.put",
+      "skillStorageSettings.put",
+    ],
   );
   const patchNeedsIfMatch = (method === "PATCH" &&
     action.explicitIdempotency !== "key") ||

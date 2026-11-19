@@ -12,7 +12,7 @@ import {
 import type { PgTransactionClient } from "../../platform/database.ts";
 import { authorize } from "../auth/application/authorize.ts";
 import { organizationActor } from "./auth-attempts.ts";
-import { GITHUB_PROVIDER_ID } from "./postgres.ts";
+import { identityForProviderId, providerManifestForId } from "./registry.ts";
 
 type Connection = z.output<typeof contractSchemas.IntegrationConnection>;
 type Resource = z.output<typeof contractSchemas.IntegrationResource>;
@@ -121,17 +121,42 @@ export async function getConnection(
 
 /**
  * integrationConnections.create: generic creation serves declared non-OAuth
- * secret providers only. GitHub binds through a completed auth attempt, so a
- * posted GitHub provider id (and with it any installation id in settings) is
- * STATE_CONFLICT; no other provider is registered yet, so any other id is
- * RESOURCE_NOT_FOUND. Nothing is written either way.
+ * secret providers only.
+ *
+ * The rule is read off the deployed provider rather than off a provider name: a
+ * provider whose `connect` is `oauth2` or `github-app` binds through a completed
+ * auth attempt, so posting its id is `STATE_CONFLICT` with
+ * `auth_attempt_required`, and a provider whose `connect` is `api-token` is the
+ * one case this door serves. Written as a name check, registering a second provider
+ * would have silently meant "unknown provider" for the door and a hard-coded
+ * exception for the first - which is the shape the provider tier exists to remove.
+ * The first version of this change forgot the legacy tier and answered 404 for
+ * GitHub, which the integration lane caught: the identity decides whether the
+ * provider exists, the manifest decides how it connects.
+ *
+ * No provider declares `api-token` yet, so that arm answers RESOURCE_NOT_FOUND
+ * rather than pretending to store a secret: a provider arriving with one lands in
+ * the slice that also teaches this writer to seal it.
+ *
+ * An id that is not a deployed provider is RESOURCE_NOT_FOUND, because a caller may
+ * be holding a stale row id and "no such provider" is the honest answer.
  */
 export function createConnection(
   context: ActionContext,
   input: z.output<typeof contractSchemas.IntegrationConnectionCreate>,
 ): never {
   organizationActor(context);
-  if (input.providerId === GITHUB_PROVIDER_ID) {
+  const identity = identityForProviderId(input.providerId);
+  if (identity === undefined) {
+    throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  }
+  // A provider package declares its own connect kind. A provider still described by
+  // the legacy definition tier declares no connect kind here at all, and the one it
+  // has is an app install - the same "auth attempt required" answer - so the two
+  // tiers are read for the same question rather than one being special-cased.
+  const manifest = providerManifestForId(input.providerId);
+  const connectKind = manifest?.connect.kind ?? "auth-attempt";
+  if (connectKind !== "api-token") {
     throw new StandardError({
       code: "STATE_CONFLICT",
       params: { reason: "auth_attempt_required" },

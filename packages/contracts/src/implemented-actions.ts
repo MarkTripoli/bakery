@@ -114,6 +114,8 @@ export const ExecutionImplementedAction = Object.freeze(
     SessionsList: "sessions.list",
     SessionsFeed: "sessions.feed",
     SessionsSteer: "sessions.steer",
+    RunStepsNote: "runSteps.note",
+    RunStepsTakeOver: "runSteps.takeOver",
     TranscriptStatus: "outputStreams.transcript",
   } as const satisfies Record<string, CatalogActionName>,
 );
@@ -226,6 +228,8 @@ export const ProjectsImplementedAction = Object.freeze(
     RolesList: "projects.roles.list",
     RolesResolve: "projects.roles.resolve",
     RolesUpdate: "projects.roles.update",
+    ScopeProfilesGet: "scopeProfiles.get",
+    ScopeProfilesPut: "scopeProfiles.put",
   } as const satisfies Record<string, CatalogActionName>,
 );
 
@@ -242,6 +246,61 @@ export const AgentImplementedAction = Object.freeze(
 );
 export const agentImplementedActions = Object.freeze(
   Object.values(AgentImplementedAction),
+);
+
+/**
+ * The provider route and incident reads (#26 slice 2).
+ *
+ * Slice 1 published the contracts and deliberately left every action out of this
+ * set, so a catalogue entry could not tell a caller a feature existed with no
+ * handler behind it. These five have handlers now, and nothing else about them
+ * moves: they are reads, they take no body and they write no row.
+ */
+export const ProviderReadsImplementedAction = Object.freeze(
+  {
+    ProviderRoutesList: "providerRoutes.list",
+    ProviderRoutesGet: "providerRoutes.get",
+    ProviderRoutesHealth: "providerRoutes.health",
+    ProviderIncidentsList: "providerIncidents.list",
+    ProviderIncidentsGet: "providerIncidents.get",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const providerReadsImplementedActions = Object.freeze(
+  Object.values(ProviderReadsImplementedAction),
+);
+
+/**
+ * The provider route writes (#26 slice 2, writes).
+ *
+ * Kept apart from the reads because they are commands: Admin access, an
+ * idempotency key, and an `If-Match` version on the update. An incident is not
+ * here on purpose. Nothing a caller says opens or closes one; the host does,
+ * after judging a probe result, so there is no operation to name.
+ */
+export const ProviderWritesImplementedAction = Object.freeze(
+  {
+    ProviderRoutesCreate: "providerRoutes.create",
+    ProviderRoutesUpdate: "providerRoutes.update",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const providerWritesImplementedActions = Object.freeze(
+  Object.values(ProviderWritesImplementedAction),
+);
+
+/**
+ * The route continuation offers (#26 slice 6a).
+ *
+ * A read only: which steps of a run are stalled behind a provider incident and
+ * which routes they could continue on. Admission is the next slice, and it is a
+ * command of its own, so nothing here decides, pauses or charges anything.
+ */
+export const RouteContinuationsImplementedAction = Object.freeze(
+  {
+    RouteContinuationsList: "routeContinuations.list",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const routeContinuationsImplementedActions = Object.freeze(
+  Object.values(RouteContinuationsImplementedAction),
 );
 
 export const RepositoryRulesImplementedAction = Object.freeze(
@@ -274,11 +333,11 @@ export const IntegrationsImplementedAction = Object.freeze(
     IntegrationAppRegistrationsGet: "integrationAppRegistrations.get",
     IntegrationAppRegistrationsBegin: "integrationAppRegistrations.begin",
     IntegrationAppRegistrationsPut: "integrationAppRegistrations.put",
-    GitHubManifestCallback: "integrationAuth.githubManifestCallback",
+    IntegrationManifestCallback: "integrationAuth.manifestCallback",
     IntegrationAuthAttemptsCreate: "integrationAuthAttempts.create",
     IntegrationAuthAttemptsGet: "integrationAuthAttempts.get",
-    GitHubSetup: "integrationAuth.githubSetup",
-    GitHubCallback: "integrationAuth.githubCallback",
+    IntegrationSetup: "integrationAuth.setup",
+    IntegrationAuthorizationCallback: "integrationAuth.authorizationCallback",
     IntegrationConnectionsGet: "integrationConnections.get",
     IntegrationConnectionsCreate: "integrationConnections.create",
     IntegrationConnectionsList: "integrationConnections.list",
@@ -292,10 +351,11 @@ export const IntegrationsImplementedAction = Object.freeze(
     IntegrationConnectionsRemove: "integrationConnections.remove",
     IntegrationResourcesUpdate: "integrationResources.update",
     IntegrationConnectionsCheck: "integrationConnections.check",
+    IntegrationConnectionsInvoke: "integrationConnections.invoke",
     IntegrationDiscoveriesCreate: "integrationDiscoveries.create",
     IntegrationInstallationsList: "integrationInstallations.list",
     IntegrationInstallationsGet: "integrationInstallations.get",
-    IntakeGithub: "intake.github",
+    IntakeWebhook: "intake.webhook",
   } as const satisfies Record<string, CatalogActionName>,
 );
 export const integrationsImplementedActions = Object.freeze(
@@ -333,10 +393,14 @@ export const TicketImplementedAction = Object.freeze(
     TicketSourcesPreview: "ticketSources.preview",
     TicketSourcesLookupPerson: "ticketSources.lookupPerson",
     TicketSourcesSync: "ticketSources.sync",
+    TicketRoutingRulesGet: "ticketRoutingRules.get",
+    TicketRoutingRulesReplace: "ticketRoutingRules.replace",
     ExternalTicketsList: "externalTickets.list",
     ExternalTicketsGet: "externalTickets.get",
     TicketReadinessCreate: "ticketReadiness.create",
     TicketTaskLinksCreate: "ticketTaskLinks.create",
+    TicketTaskLinksList: "ticketTaskLinks.list",
+    TicketTaskLinksResyncNote: "ticketTaskLinks.resyncNote",
     TicketRequestsCreate: "ticketRequests.create",
   } as const satisfies Record<string, CatalogActionName>,
 );
@@ -365,6 +429,7 @@ export const WorkflowImplementedAction = Object.freeze(
     WorkflowsGet: "workflows.get",
     WorkflowsCreate: "workflows.create",
     WorkflowsUpdate: "workflows.update",
+    WorkflowsCopy: "workflows.copy",
     WorkflowVersionsList: "workflowVersions.list",
     WorkflowVersionsGet: "workflowVersions.get",
     WorkflowVersionsCreate: "workflowVersions.create",
@@ -372,6 +437,14 @@ export const WorkflowImplementedAction = Object.freeze(
     WorkflowVersionsPublish: "workflowVersions.publish",
     WorkflowActivationsCreate: "workflowActivations.create",
     WorkflowsValidate: "workflows.validate",
+    WorkflowListingsCreate: "workflowListings.create",
+    WorkflowDefinitionProposalsGet: "workflowDefinitionProposals.get",
+    WorkflowDefinitionProposalDecisionsCreate:
+      "workflowDefinitionProposalDecisions.create",
+    DefinitionPublishGrantsCreate: "definitionPublishGrants.create",
+    DefinitionPublishGrantsDelete: "definitionPublishGrants.delete",
+    AgentPowerGrantsCreate: "agentPowerGrants.create",
+    AgentPowerGrantsDelete: "agentPowerGrants.delete",
   } as const satisfies Record<string, CatalogActionName>,
 );
 export const workflowImplementedActions = Object.freeze(
@@ -495,6 +568,7 @@ export const CatalogImplementedAction = Object.freeze(
     SkillsCreate: "skills.create",
     SkillsUpdate: "skills.update",
     SkillVersionsCreate: "skillVersions.create",
+    LibrarySearch: "library.search",
   } as const satisfies Record<string, CatalogActionName>,
 );
 export const catalogImplementedActions = Object.freeze(
@@ -504,6 +578,47 @@ export const catalogIdentityImplementedActions = Object.freeze(
   Object.values(CatalogImplementedAction).filter((action) =>
     action !== CatalogImplementedAction.SkillVersionsCreate
   ),
+);
+
+export const PluginPackageImplementedAction = Object.freeze(
+  {
+    PluginPackagesList: "pluginPackages.list",
+    PluginPackagesCreate: "pluginPackages.create",
+    PluginPackagesGet: "pluginPackages.get",
+    PluginVersionsList: "pluginVersions.list",
+    PluginVersionsCreate: "pluginVersions.create",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const pluginPackageImplementedActions = Object.freeze(
+  Object.values(PluginPackageImplementedAction),
+);
+
+export const PluginInstallImplementedAction = Object.freeze(
+  {
+    PluginInstallsList: "pluginInstalls.list",
+    PluginInstallsCreate: "pluginInstalls.create",
+    PluginInstallsGet: "pluginInstalls.get",
+    PluginInstallsUpdate: "pluginInstalls.update",
+    PluginStateGet: "pluginState.get",
+    PluginStatePut: "pluginState.put",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const pluginInstallImplementedActions = Object.freeze(
+  Object.values(PluginInstallImplementedAction),
+);
+
+export const MemoryImplementedAction = Object.freeze(
+  {
+    MemoriesList: "memories.list",
+    MemoriesGet: "memories.get",
+    MemoriesCreate: "memories.create",
+    MemoriesUpdate: "memories.update",
+    MemoryRevisionsCreate: "memoryRevisions.create",
+    MemoryRevisionsList: "memoryRevisions.list",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const memoryImplementedActions = Object.freeze(
+  Object.values(MemoryImplementedAction),
 );
 
 export const authImplementedActions = Object.freeze(
@@ -534,6 +649,9 @@ export const implementedActions = Object.freeze(
     ...attemptReadImplementedActions,
     ...projectsImplementedActions,
     ...agentImplementedActions,
+    ...providerReadsImplementedActions,
+    ...providerWritesImplementedActions,
+    ...routeContinuationsImplementedActions,
     ...repositoryRulesImplementedActions,
     ...artifactKindImplementedActions,
     ...integrationsImplementedActions,
@@ -547,8 +665,11 @@ export const implementedActions = Object.freeze(
     ...draftImplementedActions,
     ...secretsImplementedActions,
     ...catalogImplementedActions,
+    ...pluginPackageImplementedActions,
+    ...pluginInstallImplementedActions,
     ...skillStorageImplementedActions,
     ...blobUploadImplementedActions,
+    ...memoryImplementedActions,
   ] as const,
 );
 

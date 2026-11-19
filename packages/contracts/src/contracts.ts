@@ -562,6 +562,22 @@ function byteLength(value: unknown, serializedJson = false): number {
   return new TextEncoder().encode(encoded ?? "").length;
 }
 
+/**
+ * A constraint sentence on top of whatever the field already said.
+ *
+ * Describing a bounded field with only the constraint dropped the field's own
+ * meaning from the published contract (`CheckRun.checkName` published as
+ * "must contain at most 100 characters" and nothing else). A reader needs both:
+ * what the field is, and what it accepts.
+ */
+function constrained<T extends Schema>(schema: T, sentence: string): T {
+  const existing = (schema as unknown as Node).description;
+  return described(
+    schema,
+    text(existing) ? `${existing} ${sentence}` : sentence,
+  );
+}
+
 function bounded<T extends Schema>(
   schema: T,
   bounds: JsonObject,
@@ -580,13 +596,13 @@ function bounded<T extends Schema>(
     ? ((result as unknown as Node)._def?.innerType as Node)?._def?.type
     : kind;
   if (boundedKind === "string" && typeof bounds.minLength === "number") {
-    result = described(
+    result = constrained(
       (result as z.ZodString).min(bounds.minLength),
       `${path} must contain at least ${bounds.minLength} characters.`,
     );
   }
   if (boundedKind === "string" && typeof bounds.maxLength === "number") {
-    result = described(
+    result = constrained(
       (result as z.ZodString).max(bounds.maxLength),
       `${path} must contain at most ${bounds.maxLength} characters.`,
     );
@@ -595,7 +611,7 @@ function bounded<T extends Schema>(
   // descriptor could promise a shape (0172 moved `taskType` from a closed set
   // to a kebab-case token here) and the only enforcement was min/max length.
   if (boundedKind === "string" && typeof bounds.pattern === "string") {
-    result = described(
+    result = constrained(
       (result as z.ZodString).regex(
         new RegExp(bounds.pattern),
         `${path} must match the pattern ${bounds.pattern}.`,
@@ -626,7 +642,7 @@ function bounded<T extends Schema>(
       ...(lowerBytes === undefined ? {} : { "x-utf8-min-bytes": lowerBytes }),
       ...(upperBytes === undefined ? {} : { "x-utf8-max-bytes": upperBytes }),
     });
-    result = described(
+    result = constrained(
       refined,
       lowerBytes !== undefined && upperBytes !== undefined
         ? `${path} must contain between ${lowerBytes} and ${upperBytes} UTF-8 bytes.`
@@ -636,13 +652,13 @@ function bounded<T extends Schema>(
     );
   }
   if (boundedKind === "array" && typeof bounds.minItems === "number") {
-    result = described(
+    result = constrained(
       (result as z.ZodArray).min(bounds.minItems),
       `${path} must contain at least ${bounds.minItems} items.`,
     );
   }
   if (boundedKind === "array" && typeof bounds.maxItems === "number") {
-    result = described(
+    result = constrained(
       (result as z.ZodArray).max(bounds.maxItems),
       `${path} must contain at most ${bounds.maxItems} items.`,
     );
@@ -651,7 +667,7 @@ function bounded<T extends Schema>(
     boundedKind === "array" &&
     bounds.uniqueItems === true
   ) {
-    result = described(
+    result = constrained(
       (result as z.ZodArray).refine(
         (items) => new Set(items).size === items.length,
         `${path} must contain unique items.`,
@@ -663,7 +679,7 @@ function bounded<T extends Schema>(
     boundedKind === "number" &&
     typeof bounds.min === "number"
   ) {
-    result = described(
+    result = constrained(
       (result as z.ZodNumber).min(bounds.min),
       `${path} must be at least ${bounds.min}.`,
     );
@@ -672,7 +688,7 @@ function bounded<T extends Schema>(
     boundedKind === "number" &&
     typeof bounds.max === "number"
   ) {
-    result = described(
+    result = constrained(
       (result as z.ZodNumber).max(bounds.max),
       `${path} must be at most ${bounds.max}.`,
     );
@@ -777,6 +793,21 @@ function namedFormat(base: string): Schema | undefined {
         "Invalid credential format.",
       ).describe(
         "Write-only credential, no control characters or whitespace; at most 4096 UTF-8 bytes.",
+      );
+    case "traceparent":
+      // The W3C version-00 layout and nothing looser. A worker that receives a
+      // malformed context would either drop it or, worse, join an unrelated
+      // trace, so the wire type refuses it here rather than at the far end.
+      //
+      // W3C also makes an all-zero trace id or parent id invalid: a zero id is
+      // what a writer emits when it has no context, so accepting one would mean
+      // joining a trace that does not exist. Refusing it here keeps the wire
+      // type and parseTraceparent agreeing on what a context is.
+      return z.string().regex(
+        /^(?!00-0{32}-|00-[0-9a-f]{32}-0{16}-)00-[0-9a-f]{32}-[0-9a-f]{16}-0[01]$/,
+        "Invalid trace context.",
+      ).describe(
+        "W3C trace context (version 00) as trace-id, parent-id and sampled flag.",
       );
     case "secretString":
       return described(
@@ -1054,10 +1085,22 @@ function primitive(
   ) {
     schema = resolveNamed(base, source, stack.concat(base));
   } else schema = namedFormat(base);
+  // The worker action enum applies to every field named `action` EXCEPT the
+  // integration action id, which names a registered integration action
+  // (`github.issue.comment.create`) of which there are hundreds.
+  //
+  // The rule used to be `path.endsWith(".action")`, which rewrote the
+  // integration id to the six-value worker enum and made every real id a
+  // MALFORMED_REQUEST at the transport boundary. Deleting the branch outright
+  // fixed that and broke the other direction: `Job.action`, `Jobs`,
+  // `Page<Job>` items and `JobAssignment.action` all lost their enum and became
+  // unconstrained 64 KiB strings. The exemption is one path, not the rule.
+  const workerActionField = path.endsWith(".action") &&
+    !path.endsWith("IntegrationAction.action");
   if (path === "JobAssignment.action" && record(source.workerActions)) {
     schema = z.enum(Object.keys(source.workerActions) as [string, ...string[]]);
   } else if (
-    path.endsWith(".action") && !Array.isArray(field.enum) &&
+    workerActionField && !Array.isArray(field.enum) &&
     base !== "enum" && !base.startsWith("enum(")
   ) {
     schema = z.enum([

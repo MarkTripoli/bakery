@@ -24,6 +24,10 @@
     "path": "/library/workflows/$workflowId"
   },
   {
+    "id": "library-workflow-editor",
+    "path": "/library/workflows/$workflowId/edit"
+  },
+  {
     "id": "library-builtin",
     "path": "/library/built-in/$presetId"
   },
@@ -40,6 +44,14 @@
     "path": "/issues/$issueId"
   },
   {
+    "id": "issue-settings",
+    "path": "/issues/settings"
+  },
+  {
+    "id": "issue-settings-detail",
+    "path": "/issues/settings/$sourceId"
+  },
+  {
     "id": "machines",
     "path": "/machines"
   },
@@ -50,6 +62,10 @@
   {
     "id": "machine-detail",
     "path": "/machines/$machineId"
+  },
+  {
+    "id": "notifications",
+    "path": "/notifications"
   },
   {
     "id": "status",
@@ -78,10 +94,6 @@
   {
     "id": "projects",
     "path": "/projects"
-  },
-  {
-    "id": "projects-onboarding",
-    "path": "/projects/onboarding"
   },
   {
     "id": "repository",
@@ -134,6 +146,14 @@
   {
     "id": "settings-organization-access",
     "path": "/settings/organization/access"
+  },
+  {
+    "id": "settings-organization-access-invitations",
+    "path": "/settings/organization/access/invitations"
+  },
+  {
+    "id": "settings-organization-service-accounts",
+    "path": "/settings/organization/service-accounts"
   },
   {
     "id": "settings-organization-roles",
@@ -194,6 +214,10 @@
   {
     "id": "reauth",
     "path": "/account/reauthenticate"
+  },
+  {
+    "id": "clients-redirect",
+    "path": "/settings/clients"
   },
   {
     "id": "settings-organization-integrations-clients",
@@ -1210,10 +1234,6 @@
   {
     "id": "fixture-work-coordination:ticket",
     "path": "/__fixtures__/work/coordination/ticket"
-  },
-  {
-    "id": "fixture-work-onboarding:default",
-    "path": "/__fixtures__/work/onboarding/default"
   },
   {
     "id": "fixture-artifacts-artifact:default",

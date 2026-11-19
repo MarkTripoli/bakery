@@ -1,6 +1,8 @@
 import { StandardError } from "@bakery/contracts/http";
 import { retryAfterSeconds } from "../../platform/retry-after.ts";
 import {
+  graphqlBody,
+  graphqlBodyCarriesDocument,
   parsePathTemplate,
   type RequestTemplate,
 } from "@bakery/integration-sdk";
@@ -34,12 +36,41 @@ export type OpaqueCredential = string & { readonly [credentialBrand]: true };
 export const opaqueCredential = (value: string): OpaqueCredential =>
   value as OpaqueCredential;
 
+/**
+ * What a credential store needs to mint one credential.
+ *
+ * `subject` carries the invocation facts the broker already resolved - the
+ * install, the resource and its provider-side identifiers - because a credential
+ * store cannot derive them from ids alone without repeating the read (and the
+ * generation-capture ordering) that makes a stale-connection refusal reliable.
+ * It is advisory data, not authority: the broker has already authorized this
+ * invocation and re-checks it independently.
+ */
 export type CredentialRequest = Readonly<{
   organizationId: string;
   connectionId: string;
   resourceId: string;
   profileId: string;
   providerPermissions: Readonly<Record<string, "read" | "write">>;
+  /**
+   * The connection's invalidation generation as it stood BEFORE the authority
+   * snapshot was loaded.
+   *
+   * The snapshot decides everything a token is narrowed to - the resource, the
+   * grants, the repository id - and the broker's own read of the rows happens
+   * later. Capturing the generation at credential time would sign off on a
+   * snapshot that an edit landed after: the edit moves the generation, the
+   * broker compares it to the newer value and sees nothing wrong. Capturing it
+   * before the snapshot means any such edit moves the generation away from the
+   * value carried here, and the broker refuses.
+   */
+  generation: number;
+  subject: Readonly<{
+    installId: string;
+    resourceKind: string;
+    applicationId?: string;
+    repositoryId?: string;
+  }>;
 }>;
 
 /** Resolves a short-lived credential for one connection and resource. Called only after authorization and validation. */
@@ -52,6 +83,12 @@ export type BrokerDeps = Readonly<{
   credentials: CredentialPort;
   fetch: typeof fetch;
   snapshotPort: AuthoritySnapshotPort;
+  /**
+   * The connection's invalidation generation, read before the authority
+   * snapshot. Without it the credential is resolved against a snapshot nothing
+   * pins, and an edit between the two is invisible.
+   */
+  generationOf?: (connectionId: string) => number;
   /** Wall-clock deadline for one provider request; default 15 seconds. */
   deadlineMs?: number;
   /** Default abort signal when the caller passes none. */
@@ -210,7 +247,12 @@ export function createBrokerWithProfiles(
     allowed?: readonly Readonly<{ id: string; version: number }>[],
     callerSignal?: AbortSignal,
   ): Promise<unknown> {
-    // 1. Fresh snapshot; revocation, disablement or scope loss denies here.
+    // 1. The connection's generation BEFORE the snapshot is read. The snapshot
+    // authorizes the whole request, including the resource and the ids a token
+    // is narrowed to, so an edit that lands while it is loading must be visible
+    // as a generation change at credential time rather than invisible.
+    const generation = deps.generationOf?.(bound.connectionId) ?? null;
+    // 2. Fresh snapshot; revocation, disablement or scope loss denies here.
     const evaluation = await reauthorizeBound(
       deps.registry,
       deps.snapshotPort,
@@ -336,7 +378,30 @@ export function createBrokerWithProfiles(
       }
     }
     let body: string | undefined;
-    if (template.body) {
+    if (template.kind === "graphql") {
+      // The document comes from the template and the caller supplies variables
+      // only. Sending the caller's body through here would make `effect: read`
+      // a claim about a document nobody sends, so a template could post a
+      // mutation from a read and skip the write and approval gates.
+      // An absent document is refused rather than defaulted: sending "" would
+      // be a request the template never declared.
+      const document = template.graphqlQuery;
+      if (document === undefined) {
+        throw unprocessable("a graphql request needs a document");
+      }
+      if (!template.body) throw unprocessable("a graphql request needs a body");
+      const parsedBody = template.body.safeParse(bodyInput);
+      if (!parsedBody.success) throw unprocessable("invalid request body");
+      if (graphqlBodyCarriesDocument(parsedBody.data)) {
+        throw unprocessable("a graphql body may not carry a document");
+      }
+      body = JSON.stringify(
+        graphqlBody(document, parsedBody.data as Record<string, unknown>),
+      );
+      if (new TextEncoder().encode(body).byteLength > MAX_REQUEST_BODY_BYTES) {
+        throw unprocessable("request body too large");
+      }
+    } else if (template.body) {
       const parsedBody = template.body.safeParse(bodyInput);
       if (!parsedBody.success) throw unprocessable("invalid request body");
       body = JSON.stringify(parsedBody.data);
@@ -355,6 +420,20 @@ export function createBrokerWithProfiles(
       resourceId: bound.resource.id,
       profileId: profile.id,
       providerPermissions: template.providerPermissions,
+      // The generation captured before the snapshot, not one read now: a null
+      // means the broker was built without a generation source, and the
+      // credential port refuses rather than guessing.
+      generation: generation as number,
+      subject: {
+        installId: bound.installId,
+        resourceKind: bound.resource.kind,
+        ...(bound.resource.applicationId === undefined
+          ? {}
+          : { applicationId: bound.resource.applicationId }),
+        ...(bound.resource.providerRepositoryId === undefined
+          ? {}
+          : { repositoryId: bound.resource.providerRepositoryId }),
+      },
     });
     if (
       typeof credential !== "string" ||

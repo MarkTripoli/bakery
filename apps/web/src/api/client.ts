@@ -34,7 +34,10 @@ export type SafeProblem = Readonly<{
   resetRequired?: boolean;
   retainedFrom?: string;
   retryWithoutAfter?: boolean;
-  /** STATE_CONFLICT rule slug such as `app_mismatch`; never free text. */
+  /**
+   * A STATE_CONFLICT or PRECONDITION_FAILED rule slug such as `app_mismatch` or
+   * `source_policy_changed`; never free text.
+   */
   reason?: string;
   /** Stable issue codes of a 422, such as a storage probe outcome. */
   issueCodes?: readonly string[];
@@ -79,6 +82,8 @@ export type RunListResponse = ClientOutputMap["Page<Run>"];
 export type RunResponse = ClientOutputMap["Run"];
 export type RunControlCapabilities = ClientOutputMap["RunControlCapabilities"];
 export type RunStepListResponse = ClientOutputMap["Page<RunStep>"];
+export type AgentSessionPageResponse = ClientOutputMap["AgentSessionPage"];
+export type SessionFeedResponse = ClientOutputMap["SessionFeed"];
 export type CheckRunListResponse = ClientOutputMap["Page<CheckRun>"];
 export type ReviewCycleListResponse = ClientOutputMap["Page<ReviewCycle>"];
 export type ReviewFindingListResponse = ClientOutputMap["Page<ReviewFinding>"];
@@ -155,6 +160,8 @@ export type TicketSourceCreate = ClientInputMap["TicketSourceCreate"];
 export type TicketSourceUpdate = ClientInputMap["TicketSourceUpdate"];
 export type TicketOperationReceiptResponse =
   ClientOutputMap["TicketOperationReceipt"];
+export type TicketPreviewResultResponse =
+  ClientOutputMap["TicketPreviewResult"];
 export type TicketRequestResponse = ClientOutputMap["TicketRequest"];
 export type TicketRequestIntent = "start" | "plan";
 export type WorkerResponse = ClientOutputMap["WorkerHost"];
@@ -270,6 +277,16 @@ export type ArtifactCommentListResponse =
   ClientOutputMap["Page<ArtifactComment>"];
 export type ArtifactUpdate = ClientInputMap["ArtifactUpdate"];
 export type ArtifactPinResponse = ClientOutputMap["ArtifactPinResult"];
+/** The active shared draft of an artifact (`POST /v1/artifacts/{id}/drafts`). */
+export type DraftResponse = ClientOutputMap["Draft"];
+/** One publication of a draft checkpoint as a new immutable version. */
+export type DraftPublicationResponse = ClientOutputMap["DraftPublication"];
+export type DraftPublicationCreate = ClientInputMap["DraftPublicationCreate"];
+/** One agent suggestion on a draft, with the state it is in. */
+export type DraftSuggestionResponse = ClientOutputMap["DraftSuggestion"];
+/** A page of the agent suggestions made on a draft. */
+export type DraftSuggestionPageResponse =
+  ClientOutputMap["Page<DraftSuggestion>"];
 export type ArtifactStorageResponse = ClientOutputMap["ArtifactStorage"];
 export type ArtifactPreviewGrantResponse =
   ClientOutputMap["ArtifactPreviewGrant"];
@@ -514,6 +531,31 @@ export type BakeryApiClient = {
     ) => Promise<ApiResult<OutputReadPage>>;
     readonly socketUrl: (organizationId: string) => string;
   };
+  /** An agent session's own reads: who ran a step, and what the session did. */
+  readonly sessions: {
+    readonly list: (
+      organizationId: string,
+      runStepId: string,
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<AgentSessionPageResponse>>;
+    readonly feed: (
+      organizationId: string,
+      sessionId: string,
+      cursor?: string,
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<SessionFeedResponse>>;
+    /**
+     * Opens the session's server-sent event stream. It resumes after the last
+     * event id when one is given, and ends when the signal aborts or the
+     * connection drops; a refusal comes back as the read route's own problem.
+     */
+    readonly stream: (
+      organizationId: string,
+      sessionId: string,
+      lastEventId: string | undefined,
+      signal: AbortSignal,
+    ) => Promise<ApiResult<ReadableStream<Uint8Array>>>;
+  };
   readonly readiness: (
     signal?: AbortSignal,
   ) => Promise<ApiResult<HealthResponse>>;
@@ -724,13 +766,13 @@ export type BakeryApiClient = {
       readonly id: string;
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<TicketSourceResponse>>;
-    /** `POST /v1/ticket-sources/{id}/previews`: reads GitHub again with the saved settings and records what each issue needs. */
+    /** `POST /v1/ticket-sources/{id}/previews`: reads GitHub again and answers how each issue would be judged under the saved settings; stores nothing. */
     readonly preview: (options: {
       readonly organizationId: string;
       readonly sourceId: string;
       readonly idempotencyKey?: string;
       readonly signal?: AbortSignal;
-    }) => Promise<ApiResult<TicketOperationReceiptResponse>>;
+    }) => Promise<ApiResult<TicketPreviewResultResponse>>;
     /** `GET /v1/ticket-sources/{id}/people/{login}`: turns a GitHub username into the id the settings store. */
     readonly lookupPerson: (options: {
       readonly organizationId: string;
@@ -1503,6 +1545,59 @@ export type BakeryApiClient = {
   readonly updateArtifact: (
     options: UpdateArtifactOptions,
   ) => Promise<ApiResult<ArtifactPinResponse>>;
+  /** Opens (or returns) the artifact's shared draft; the same call from two people gives the same draft. */
+  readonly openArtifactDraft: (options: {
+    readonly organizationId: string;
+    readonly artifactId: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<DraftResponse>>;
+  /** Reads a draft as it stands: its current checkpoint, text digest and whether this person may publish. */
+  readonly getDraft: (options: {
+    readonly organizationId: string;
+    readonly draftId: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<DraftResponse>>;
+  /**
+   * Publishes one draft checkpoint as the next version. Natural idempotency:
+   * the same checkpoint gives the same version, never a second one.
+   */
+  readonly publishDraft: (options: {
+    readonly organizationId: string;
+    readonly draftId: string;
+    readonly input: DraftPublicationCreate;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<DraftPublicationResponse>>;
+  /** The publication of one checkpoint, if it happened (404 when it did not). */
+  readonly getDraftPublication: (options: {
+    readonly organizationId: string;
+    readonly draftId: string;
+    readonly checkpointId: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<DraftPublicationResponse>>;
+  /** One page of a draft's suggestions, optionally only those in one state. */
+  readonly listDraftSuggestions: (options: {
+    readonly organizationId: string;
+    readonly draftId: string;
+    readonly state?: "waiting" | "accepted" | "rejected" | "no_longer_fits";
+    readonly limit?: number;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<DraftSuggestionPageResponse>>;
+  /** Accepts one suggestion: the server applies it to the draft as this person's edit. */
+  readonly acceptDraftSuggestion: (options: {
+    readonly organizationId: string;
+    readonly draftId: string;
+    readonly suggestionId: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<DraftSuggestionResponse>>;
+  /** Rejects one suggestion: it leaves the list and the draft does not change. */
+  readonly rejectDraftSuggestion: (options: {
+    readonly organizationId: string;
+    readonly draftId: string;
+    readonly suggestionId: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<DraftSuggestionResponse>>;
+  /** The collaboration socket for one organization (`/v1/collaboration`). */
+  readonly collaborationSocketUrl: (organizationId: string) => string;
   readonly createMessage: (
     options: CreateMessageOptions,
   ) => Promise<ApiResult<MessageResponse>>;
@@ -1632,7 +1727,8 @@ function safeProblem(problem: ApiProblem): SafeProblem | null {
         retryWithoutAfter: true,
       }
       : {}),
-    ...(problem.code === "STATE_CONFLICT" &&
+    ...((problem.code === "STATE_CONFLICT" ||
+        problem.code === "PRECONDITION_FAILED") &&
         typeof problem.reason === "string" &&
         /^[a-z][a-z0-9_]{0,63}$/.test(problem.reason)
       ? { reason: problem.reason }
@@ -1819,6 +1915,16 @@ async function throwArtifactResponseError(response: Response): Promise<never> {
     throw new ApiTransportError("protocol", response.status);
   }
   throw new ApiProblemError(value as ApiProblem);
+}
+
+/** The problem a refused response carries, as the error a caller can classify. */
+async function problemOf(response: Response): Promise<unknown> {
+  try {
+    await throwArtifactResponseError(response);
+  } catch (error) {
+    return error;
+  }
+  return new ApiTransportError("protocol", response.status);
 }
 
 async function getArtifactContentResponse(
@@ -2420,6 +2526,66 @@ export function createBakeryApiClient({
         url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
         url.searchParams.set("organizationId", org);
         return url.href;
+      },
+    },
+    sessions: {
+      async list(org, runStepId, signal) {
+        const scoped = createBakeryClient({
+          baseUrl,
+          fetch: fetchImpl,
+          getContext: () => ({ organizationId: org }),
+        });
+        try {
+          return {
+            ok: true,
+            data: await scoped.actions["sessions.list"]({ runStepId }, {
+              signal,
+            }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async feed(org, sessionId, cursor, signal) {
+        const scoped = createBakeryClient({
+          baseUrl,
+          fetch: fetchImpl,
+          getContext: () => ({ organizationId: org }),
+        });
+        try {
+          return {
+            ok: true,
+            data: await scoped.actions["sessions.feed"](
+              { id: sessionId, ...(cursor === undefined ? {} : { cursor }) },
+              { signal },
+            ),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async stream(org, sessionId, lastEventId, signal) {
+        try {
+          const headers = new Headers({
+            Accept: "text/event-stream",
+            "Bakery-Organization-Id": org,
+          });
+          if (lastEventId !== undefined) {
+            headers.set("Last-Event-ID", lastEventId);
+          }
+          const response = await fetchImpl(
+            baseUrl.replace(/\/$/, "") + "/v1/sessions/" +
+              encodeURIComponent(sessionId) + "/feed/stream",
+            { method: "GET", credentials: "include", headers, signal },
+          );
+          if (!response.ok) return failed(await problemOf(response));
+          if (!response.body) {
+            return failed(new ApiTransportError("protocol", response.status));
+          }
+          return { ok: true, data: response.body };
+        } catch (error) {
+          return failed(error);
+        }
       },
     },
     async readiness(signal) {
@@ -3538,6 +3704,125 @@ export function createBakeryApiClient({
       } finally {
         organizationId = undefined;
       }
+    },
+
+    async openArtifactDraft(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["drafts.open"](
+          { id: options.artifactId },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async getDraft(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["drafts.get"](
+          { id: options.draftId },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async publishDraft(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["draftPublications.create"](
+          { id: options.draftId, ...options.input },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async getDraftPublication(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["draftPublications.get"](
+          { id: options.draftId, checkpointId: options.checkpointId },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listDraftSuggestions(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["draftSuggestions.list"](
+          {
+            id: options.draftId,
+            ...(options.state ? { state: options.state } : {}),
+            ...(options.limit ? { limit: options.limit } : {}),
+          },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async acceptDraftSuggestion(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["draftSuggestions.accept"](
+          { id: options.draftId, suggestionId: options.suggestionId },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async rejectDraftSuggestion(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["draftSuggestions.reject"](
+          { id: options.draftId, suggestionId: options.suggestionId },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    collaborationSocketUrl(org) {
+      const url = new URL(
+        `${baseUrl.replace(/\/$/, "")}/v1/collaboration`,
+        globalThis.location.origin,
+      );
+      url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+      url.searchParams.set("organizationId", org);
+      return url.href;
     },
 
     async createMessage(options) {

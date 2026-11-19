@@ -186,8 +186,8 @@ export const DecisionLedgerEntrySchema = z.object({
   subjectId: z.string().uuid().describe(
     "The exact run, step, approval or question the decision is about. A decision never applies to more than the one thing it names.",
   ),
-  decidedBy: z.string().uuid().describe(
-    "Principal who decided: a person, or an agent where the workflow grants that decision.",
+  decidedBy: z.string().uuid().nullable().describe(
+    "Principal who decided: a person, or an agent where the workflow grants that decision. Null when the system ended the entry, such as an approval that expired with nobody answering; the reason then says why.",
   ),
   decidedAt: z.string().datetime().describe(
     "UTC instant of the decision.",

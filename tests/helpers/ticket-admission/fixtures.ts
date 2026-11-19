@@ -1,3 +1,4 @@
+import { issueNumberFromRef } from "../../../apps/server/src/modules/integrations/ticket-reads.ts";
 /**
  * Shared fixtures for the issue 82 lanes. This is not a test module: it only
  * exports, and it registers no `Deno.test`.
@@ -42,8 +43,14 @@ import {
   type RecheckOrigin,
   type RecheckResult,
   recheckTicket,
+  recordReadiness,
 } from "../../../apps/server/src/modules/work/ticket-admission.ts";
 import type { TicketPrefetch } from "../../../apps/server/src/modules/work/ticket-prefetch.ts";
+import type {
+  TicketNoteRequest,
+  TicketNoteResult,
+  TicketNoteWriter,
+} from "../../../apps/server/src/modules/work/ticket-notes.ts";
 import type {
   IssueRef,
   PredecessorProof,
@@ -53,6 +60,7 @@ import type {
   TicketLabelProvenance,
   TicketLinksRead,
   TicketReadFailure,
+  TicketRef,
   TicketSourceHandle,
   TicketSourceReader,
 } from "../../../apps/server/src/modules/work/ticket-source-reader.ts";
@@ -99,7 +107,16 @@ export const AFTER_SINCE = "2026-07-01T00:00:00Z";
 export const BEFORE_SINCE = "2025-06-01T00:00:00Z";
 
 /** One call a reader received. */
-export type ReaderCall = { method: string; number: number | null };
+export type ReaderCall = {
+  method: string;
+  number: number | null;
+  /**
+   * Whether `readStatuses` was handed the issue snapshot by its caller, so a
+   * test can tell "used the read already in hand" from "asked the provider
+   * again". Undefined for every other method.
+   */
+  hadSnapshot?: boolean;
+};
 
 /** What `setIssue` accepts; every field has a default. */
 export type IssueInit = {
@@ -108,6 +125,11 @@ export type IssueInit = {
   title?: string;
   body?: string;
   labels?: string[];
+  /**
+   * Provider label ids, one per label; defaults to the names themselves.
+   * Null models a reader that names no label ids.
+   */
+  labelIds?: string[] | null;
   state?: "open" | "closed";
   stateReason?: string | null;
   repositoryFullName?: string;
@@ -120,6 +142,35 @@ type IssueSeed = Required<Omit<IssueInit, "repositoryFullName">> & {
   repositoryFullName: string | null;
 };
 
+/** The permission names a GitHub role can hold. */
+type RolePermission = "admin" | "write" | "read" | "none";
+
+/** GitHub's own ladder, the one the real reader maps into the contract band. */
+const GITHUB_ROLE_RANK: Record<RolePermission, number> = {
+  none: 0,
+  read: 1,
+  write: 2,
+  admin: 3,
+};
+
+/** A blocker reference as a test may state it: a repository, not a container. */
+type LegacyRef = { id: string; number: number; repositoryFullName: string };
+
+function asContainerRef(
+  ref: LegacyRef | IssueRef,
+): IssueRef {
+  if ("container" in ref) return ref;
+  return {
+    id: ref.id,
+    number: ref.number,
+    container: {
+      kind: "repository",
+      externalId: ref.repositoryFullName,
+      displayName: ref.repositoryFullName,
+    },
+  };
+}
+
 /** Scripted in-memory reader with a call log. */
 export type MemoryTicketReader = TicketSourceReader & {
   calls: ReaderCall[];
@@ -130,9 +181,20 @@ export type MemoryTicketReader = TicketSourceReader & {
   setIssue(init: IssueInit): void;
   /** Replaces the issue answer with gone, moved, pull_request or a failure. */
   setIssueRead(number: number, read: TicketIssueRead): void;
+  /**
+   * Blockers may be stated either way: a container, or the repository this
+   * GitHub-shaped double is standing in for.
+   */
   setLinks(
     number: number,
-    links: Partial<Extract<TicketLinksRead, { kind: "present" }>>,
+    links:
+      & Omit<
+        Partial<Extract<TicketLinksRead, { kind: "present" }>>,
+        "blockedBy"
+      >
+      & {
+        blockedBy?: (IssueRef | LegacyRef)[];
+      },
   ): void;
   setLinksRead(number: number, read: TicketLinksRead): void;
   setProof(
@@ -149,14 +211,50 @@ export type MemoryTicketReader = TicketSourceReader & {
     label: string,
     answer: TicketLabelProvenance,
   ): void;
-  setRole(login: string, answer: TicketActorRole): void;
+  /**
+   * A present role may omit its rank: this double is the provider, so it maps
+   * its own permission names to the contract's ladder the way the real reader
+   * does.
+   */
+  setRole(
+    login: string,
+    answer:
+      | Exclude<TicketActorRole, { kind: "present" }>
+      | {
+        kind: "present";
+        userId: string;
+        permission: RolePermission;
+        rank?: number;
+      },
+  ): void;
   /** Makes the next call of a method answer with a failure. */
   failNext(method: keyof TicketSourceReader, failure?: TicketReadFailure): void;
   callsOf(method: keyof TicketSourceReader): ReaderCall[];
   clearCalls(): void;
 };
 
+/**
+ * Whether a reference names the seeded ticket, when it names an id at all.
+ *
+ * The live reader refuses a key that resolves to a different id, so the double
+ * does too: without this a test could pass a mismatched id and be told a ticket
+ * that a real provider would have refused.
+ */
+const seededIds = new Map<number, string>();
+
+const knownId = (ref: TicketRef, number: number): boolean => {
+  if (ref.externalId === null) return true;
+  return seededIds.get(number) === ref.externalId;
+};
+
 const BASE_MARKER = Date.parse("2026-06-01T00:00:00.000Z");
+
+/** The failure shape the live reader answers with, built once so it reads the same. */
+const providerError = (): TicketReadFailure => ({
+  kind: "unavailable",
+  reason: "provider_error",
+  retryAfterSeconds: null,
+});
 
 export const UNAVAILABLE: TicketReadFailure = Object.freeze({
   kind: "unavailable",
@@ -176,8 +274,12 @@ export function createMemoryTicketReader(): MemoryTicketReader {
   const nextMarker = () =>
     new Date(BASE_MARKER + (++tick) * 1000).toISOString();
 
-  const enter = async (method: string, number: number | null) => {
-    const call = { method, number };
+  const enter = async (
+    method: string,
+    number: number | null,
+    extra?: { hadSnapshot?: boolean },
+  ) => {
+    const call = { method, number, ...extra };
     reader.calls.push(call);
     reader.onCall?.(call);
     await reader.pause?.(call);
@@ -190,12 +292,16 @@ export function createMemoryTicketReader(): MemoryTicketReader {
     onCall: null,
     pause: null,
     setIssue(init) {
+      seededIds.set(init.number, init.id ?? String(1000 + init.number));
       issues.set(init.number, {
         number: init.number,
         id: init.id ?? String(1000 + init.number),
         title: init.title ?? `Issue ${init.number}`,
         body: init.body ?? ACCEPTANCE_BODY,
         labels: init.labels ?? [],
+        labelIds: init.labelIds === null
+          ? null
+          : init.labelIds ?? init.labels ?? [],
         state: init.state ?? "open",
         stateReason: init.stateReason ?? null,
         repositoryFullName: init.repositoryFullName ?? null,
@@ -207,14 +313,20 @@ export function createMemoryTicketReader(): MemoryTicketReader {
       issues.set(number, read);
     },
     setLinks(number, partial) {
+      // This double stands in for the GitHub reader, which knows a ticket by
+      // its repository. The contract stores a container, so the conversion is
+      // the double's job, exactly as the real reader's is: a test can keep
+      // saying "owner/repo".
       links.set(number, {
         kind: "present",
         parent: null,
         subIssuesTotal: 0,
-        blockedBy: [],
         blockingTotal: 0,
         truncated: false,
         ...partial,
+        // After the spread: the caller's blockedBy is in the double's own
+        // vocabulary, and this is the line that converts it.
+        blockedBy: (partial.blockedBy ?? []).map(asContainerRef),
       });
     },
     setLinksRead(number, read) {
@@ -235,7 +347,12 @@ export function createMemoryTicketReader(): MemoryTicketReader {
       provenance.set(`${number}\u0000${label}`, answer);
     },
     setRole(login, answer) {
-      roles.set(login, answer);
+      roles.set(
+        login,
+        answer.kind === "present" && answer.rank === undefined
+          ? { ...answer, rank: GITHUB_ROLE_RANK[answer.permission] }
+          : answer as TicketActorRole,
+      );
     },
     failNext(method, failure = UNAVAILABLE) {
       failures.set(method, [...(failures.get(method) ?? []), failure]);
@@ -246,7 +363,15 @@ export function createMemoryTicketReader(): MemoryTicketReader {
     clearCalls() {
       reader.calls.length = 0;
     },
-    async readIssue(handle: TicketSourceHandle, number: number) {
+    async readIssue(handle: TicketSourceHandle, ref: TicketRef) {
+      // Seeded by GitHub's ordinal, and parsed by the same function the live
+      // reader uses, so the double cannot answer a question the real reader
+      // would refuse: a key that is not a number, or that now resolves to a
+      // different id, is unavailable rather than some other ticket.
+      const number = issueNumberFromRef(ref);
+      if (number === null || !knownId(ref, number)) {
+        return Promise.resolve(providerError());
+      }
       const failure = await enter("readIssue", number);
       if (failure) return Promise.resolve(failure);
       const seeded = issues.get(number);
@@ -263,18 +388,26 @@ export function createMemoryTicketReader(): MemoryTicketReader {
           body: seeded.body,
           bodyTooLarge: false,
           labels: seeded.labels,
+          ...(seeded.labelIds === null ? {} : { labelIds: seeded.labelIds }),
           state: seeded.state,
           stateReason: seeded.stateReason,
           locked: false,
-          repositoryFullName: seeded.repositoryFullName ??
-            handle.repositoryFullName,
+          container: {
+            kind: "repository",
+            externalId: seeded.repositoryFullName ?? handle.repositoryFullName,
+            displayName: seeded.repositoryFullName ?? handle.repositoryFullName,
+          },
         },
         providerUpdatedAt: seeded.updatedAt,
         visibility: seeded.visibility,
       });
     },
-    async readLinks(_handle, number) {
+    async readLinks(_handle, ref: TicketRef) {
+      const number = issueNumberFromRef(ref);
       const failure = await enter("readLinks", number);
+      if (number === null || !knownId(ref, number)) {
+        return Promise.resolve(providerError());
+      }
       if (failure) return Promise.resolve(failure);
       return Promise.resolve(
         links.get(number) ?? {
@@ -295,13 +428,48 @@ export function createMemoryTicketReader(): MemoryTicketReader {
           { kind: "proof_unavailable" as const, detail: "unseeded" },
       );
     },
-    async readLabelProvenance(_handle, number, label) {
+    async readLabelProvenance(_handle, ref: TicketRef, label) {
+      const number = issueNumberFromRef(ref);
       const failure = await enter("readLabelProvenance", number);
+      if (number === null || !knownId(ref, number)) {
+        return Promise.resolve(providerError());
+      }
       if (failure) return Promise.resolve(failure);
       return Promise.resolve(
         provenance.get(`${number}\u0000${label}`) ??
           { kind: "absent" as const },
       );
+    },
+    async readStatuses(_handle, ref: TicketRef, _signal, issue) {
+      const failure = await enter("readStatuses", null, {
+        hadSnapshot: issue !== undefined,
+      });
+      if (failure) return Promise.resolve(failure);
+      const number = issueNumberFromRef(ref);
+      if (number === null || !knownId(ref, number)) {
+        return Promise.resolve(providerError());
+      }
+      // A double stands in for the provider, so it answers the way GitHub does:
+      // the issue's own state, with the close reason when there is one.
+      const seed = issues.get(number);
+      if (seed === undefined) {
+        return Promise.resolve({ kind: "unsupported" as const });
+      }
+      if ("kind" in seed) {
+        return Promise.resolve({ kind: "unsupported" as const });
+      }
+      const reason = seed.stateReason ?? null;
+      return Promise.resolve({
+        kind: "present" as const,
+        statuses: [{
+          id: seed.state === "closed" && reason
+            ? `closed:${reason}`
+            : seed.state,
+          name: seed.state === "closed" && reason
+            ? `closed (${reason})`
+            : seed.state,
+        }],
+      });
     },
     async readActorRole(_handle, login) {
       const failure = await enter("readActorRole", null);
@@ -453,10 +621,15 @@ export type SourceCounts = {
 export type TicketFixture = Awaited<ReturnType<typeof openTicketFixture>>;
 
 export type PolicyOverrides = {
-  delegation?: boolean | { principalId?: string; githubActorIds?: string[] };
+  delegation?: boolean | { principalId?: string; externalActorIds?: string[] };
   automatic?: { enabled: boolean; since: string | null };
   approval?: "automatic" | "human_approval";
   requireAcceptanceCriteria?: boolean;
+  /**
+   * Statuses the source requires, by provider id. Omitted leaves readiness
+   * deciding on the label alone, which is what every existing source does.
+   */
+  statuses?: string[];
 };
 
 /**
@@ -465,13 +638,60 @@ export type PolicyOverrides = {
  * `budget` gives the app the server budget policy (so a ready issue can be
  * admitted over HTTP); `liveFactIndex` leaves the app its stored-fact index.
  */
+/**
+ * An in-memory status-note writer standing in for the provider: it keeps the
+ * comments it holds by id, rewrites one in place when the request names it,
+ * and posts a new one (recreated) when the named comment was deleted.
+ */
+export type MemoryNoteWriter = TicketNoteWriter & {
+  posts: TicketNoteRequest[];
+  /** The comments the fake provider holds: id to body. */
+  comments: Map<string, string>;
+  /** Answers of the next posts, oldest first; an empty queue posts comment ids 1001, 1002, ... */
+  next: TicketNoteResult[];
+  /** Awaited inside a post, before it answers; lets a test hold a write in flight. */
+  hold: Promise<void> | null;
+};
+
+export function createMemoryNoteWriter(): MemoryNoteWriter {
+  let counter = 1000;
+  const writer: MemoryNoteWriter = {
+    posts: [],
+    comments: new Map(),
+    next: [],
+    hold: null,
+    async post(request) {
+      writer.posts.push(request);
+      if (writer.hold !== null) await writer.hold;
+      const scripted = writer.next.shift();
+      if (scripted !== undefined) {
+        if (scripted.kind === "posted") {
+          writer.comments.set(scripted.externalId, request.body);
+        }
+        return scripted;
+      }
+      const existing = request.existingExternalId;
+      if (existing !== null && writer.comments.has(existing)) {
+        writer.comments.set(existing, request.body);
+        return { kind: "posted", externalId: existing, recreated: false };
+      }
+      const id = String(++counter);
+      writer.comments.set(id, request.body);
+      return { kind: "posted", externalId: id, recreated: existing !== null };
+    },
+  };
+  return writer;
+}
+
 export async function openTicketFixture(
   options: { label?: string; budget?: boolean; liveFactIndex?: boolean } = {},
 ) {
   const reader = createMemoryTicketReader();
   const facts = createMemoryFactIndex();
+  const notes = createMemoryNoteWriter();
   const f: GitHubAppFixture = await openGitHubAppFixture({
     ticketReader: reader,
+    ticketNoteWriter: notes,
     ticketFactIndex: options.liveFactIndex ? undefined : facts,
     env: options.budget ? presetBudgetEnv : undefined,
   });
@@ -515,7 +735,7 @@ export async function openTicketFixture(
         ? null
         : {
           principalId: f.developerId!,
-          githubActorIds: [LABELER_ID],
+          externalActorIds: [LABELER_ID],
           ...(overrides.delegation === true ? {} : overrides.delegation),
         };
       return {
@@ -526,6 +746,9 @@ export async function openTicketFixture(
         readiness: {
           requireAcceptanceCriteria: overrides.requireAcceptanceCriteria ??
             true,
+          ...(overrides.statuses === undefined
+            ? {}
+            : { statuses: overrides.statuses }),
         },
       };
     };
@@ -534,6 +757,7 @@ export async function openTicketFixture(
       f,
       reader,
       facts,
+      notes,
       organizationId: f.organizationId,
       adminId: f.adminId,
       developerId: f.developerId,
@@ -553,6 +777,12 @@ export async function openTicketFixture(
           policy?: TicketSourcePolicy;
           enabled?: boolean;
           repositoryId?: string | null;
+          /**
+           * The source's application. Defaults to the fixture's, and may be
+           * null: a provider-neutral source has none, and admission must still
+           * serialise on something.
+           */
+          applicationId?: string | null;
           /** The container id; unique per connection. Defaults to the resource's, then a numbered one. */
           externalContainerId?: string;
         } = {},
@@ -560,16 +790,18 @@ export async function openTicketFixture(
         const id = crypto.randomUUID();
         await f.pgDatabase.query(
           `insert into bakery.ticket_sources (
-             id, organization_id, integration_connection_id,
+             id, organization_id, provider, integration_connection_id,
              integration_resource_id, application_id, repository_id,
              external_container_id, enabled, policy
-           ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)`,
+           ) values ($1, $2, 'github', $3, $4, $5, $6, $7, $8, $9::jsonb)`,
           [
             id,
             f.organizationId,
             connection.connectionId,
             resource.id,
-            repository.applicationId,
+            options.applicationId === undefined
+              ? repository.applicationId
+              : options.applicationId,
             options.repositoryId === undefined
               ? repository.repositoryId
               : options.repositoryId,
@@ -838,6 +1070,9 @@ export function seedLabeler(
     kind: "present",
     userId: LABELER_ID,
     permission,
+    // GitHub's own ladder, so the helper states a real rank rather than a
+    // placeholder that would satisfy the type and prove nothing.
+    rank: { none: 0, read: 1, write: 2, admin: 3 }[permission],
   });
 }
 
@@ -888,4 +1123,35 @@ export async function insertBareTask(
     ],
   );
   return taskId;
+}
+
+/**
+ * Records every open seeded issue of a source as a poll would: a ticket row
+ * and a report each. `ticketSources.preview` stores nothing (#69), so tests
+ * that need recorded tickets go through `recordReadiness`, the path a poll
+ * takes, in automation mode.
+ */
+export async function recordOpenIssues(
+  fixture: Pick<TicketFixture, "reader" | "organizationId" | "automationDeps">,
+  sourceId: string,
+): Promise<void> {
+  const signal = new AbortController().signal;
+  const page = await fixture.reader.listIssues(
+    undefined as never,
+    { page: 1, since: null },
+    signal,
+  );
+  if (page.kind !== "present") throw new Error("the seeded page lists");
+  for (const { number } of page.numbers) {
+    await recordReadiness(fixture.automationDeps(), {
+      organizationId: fixture.organizationId,
+      sourceId,
+      number,
+      intent: null,
+      origin: "poll",
+      caller: null,
+      prefetch: null,
+      signal,
+    });
+  }
 }

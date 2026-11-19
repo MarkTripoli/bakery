@@ -156,7 +156,7 @@ JS
     set +a
     export HOME=/home/bakery-migrate DENO_DIR=/home/bakery-migrate/.cache/deno
     cd "$root/releases/$sha/apps/server"
-    runuser --preserve-environment -u bakery-migrate -- deno run --no-prompt --allow-env --allow-net --allow-read=src/platform/migrations,src/modules/auth/migrations,src/modules/work/migrations,src/modules/projects/migrations,src/modules/agents/migrations,src/modules/repository-rules/migrations,src/modules/integrations/migrations,src/modules/delivery/migrations src/tasks.ts migrate
+    runuser --preserve-environment -u bakery-migrate -- deno run --no-prompt --allow-env --allow-net --allow-read=src/platform/migrations,src/modules/auth/migrations,src/modules/work/migrations,src/modules/projects/migrations,src/modules/agents/migrations,src/modules/repository-rules/migrations,src/modules/artifact-kinds/migrations,src/modules/integrations/migrations,src/modules/delivery/migrations,src/modules/mcp/migrations,src/modules/knowledge/migrations,src/modules/catalog/migrations src/tasks.ts migrate
     ;;
   background)
     sha=${1:?sha required}

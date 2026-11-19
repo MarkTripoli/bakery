@@ -25,6 +25,12 @@ function row(overrides: Record<string, unknown> = {}) {
     origin_kind: "authored",
     origin_catalog_key: null,
     origin_catalog_version: null,
+    origin_source_workflow_id: null,
+    origin_source_version_id: null,
+    origin_source_digest: null,
+    visibility: "listed",
+    origin_conversation_id: null,
+    origin_turn_id: null,
     ...overrides,
   };
 }
@@ -35,7 +41,11 @@ Deno.test("an authored definition carries no catalog origin", () => {
     kind: "authored",
     catalogKey: null,
     catalogVersion: null,
+    sourceWorkflowId: null,
+    sourceVersionId: null,
+    sourceDigest: null,
   });
+  assertEquals(definition.visibility, "listed");
 });
 
 Deno.test("an installed definition carries the catalog key and version it came from", () => {
@@ -51,6 +61,9 @@ Deno.test("an installed definition carries the catalog key and version it came f
     kind: "catalog",
     catalogKey: "review",
     catalogVersion: 3,
+    sourceWorkflowId: null,
+    sourceVersionId: null,
+    sourceDigest: null,
   });
 });
 
@@ -86,4 +99,26 @@ Deno.test("origin is reported beside the fields it qualifies, not instead of the
   assertEquals(definition.name, "Review");
   assertEquals(definition.enabled, true);
   assertEquals(definition.version, 1);
+});
+
+Deno.test("a coordinator definition names the conversation and turn that proposed it and reads as unlisted", () => {
+  const definition = toWorkflowDefinition(
+    row({
+      origin_kind: "coordinator",
+      visibility: "unlisted",
+      origin_conversation_id: "22222222-2222-2222-2222-222222222222",
+      origin_turn_id: "33333333-3333-3333-3333-333333333333",
+    }),
+  );
+  assertEquals(definition.origin, {
+    kind: "coordinator",
+    catalogKey: null,
+    catalogVersion: null,
+    conversationId: "22222222-2222-2222-2222-222222222222",
+    turnId: "33333333-3333-3333-3333-333333333333",
+    sourceWorkflowId: null,
+    sourceVersionId: null,
+    sourceDigest: null,
+  });
+  assertEquals(definition.visibility, "unlisted");
 });

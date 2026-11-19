@@ -40,6 +40,7 @@ const skillFileStore = {
   recover: () => Promise.resolve(),
   putIfAbsent: () => Promise.resolve(),
   read: () => Promise.resolve(new Uint8Array()),
+  stat: () => Promise.resolve(null),
 } satisfies SkillFileStoreOperations;
 
 Deno.test("default Inngest registration keeps workflow and budget recovery handlers and adds the import handlers and the automation clock", () => {
@@ -58,7 +59,7 @@ Deno.test("default Inngest registration keeps workflow and budget recovery handl
     skillImport: { sourceAdapter, skillFileStore },
   });
 
-  assertEquals(functions.length, 13);
+  assertEquals(functions.length, 14);
   assertEquals(captured.map(({ config }) => config.id), [
     "bakery-fixed-workflow",
     "bakery-workflow-recovery",
@@ -69,15 +70,19 @@ Deno.test("default Inngest registration keeps workflow and budget recovery handl
     "bakery-conversation-turn",
     "bakery-conversation-turn-recovery",
     "bakery-audit-retention",
+    "bakery-provider-route-probe",
     "bakery-automation-tick",
     "bakery-automation-promote",
     "bakery-automation-intake",
     "bakery-dependency-release",
   ]);
   assertEquals(captured[5].config.triggers, [{ cron: "* * * * *" }]);
+  // The provider route probe: every minute, one run at a time.
   assertEquals(captured[9].config.triggers, [{ cron: "* * * * *" }]);
+  assertEquals(captured[9].config.concurrency, [{ limit: 1 }]);
   assertEquals(captured[10].config.triggers, [{ cron: "* * * * *" }]);
-  assertEquals(captured[11].config.triggers, [{
+  assertEquals(captured[11].config.triggers, [{ cron: "* * * * *" }]);
+  assertEquals(captured[12].config.triggers, [{
     event: "bakery/intake.received.v1",
   }]);
   assertEquals(captured[0].config.triggers, [
@@ -86,7 +91,7 @@ Deno.test("default Inngest registration keeps workflow and budget recovery handl
   assertEquals(captured[3].config.triggers, [
     { event: "bakery/skill.import.requested.v1" },
   ]);
-  assertEquals(captured[12].config.triggers, [
+  assertEquals(captured[13].config.triggers, [
     { event: "bakery/task.dependency_release_requested.v1" },
   ]);
 });

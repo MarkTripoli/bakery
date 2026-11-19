@@ -3,6 +3,7 @@ import { copyFileSync, mkdirSync, rmSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { type Browser, expect, type Page, test } from "@playwright/test";
 import { submitUntilAccepted } from "./helpers/api-retry.ts";
+import { laneBudgetMs } from "./helpers/lane-budget.ts";
 
 /**
  * Real-API proof of the gate and run-control side of the FS26 task loop
@@ -175,7 +176,7 @@ test.beforeEach(() => {
   );
 });
 
-test.describe.configure({ timeout: 240_000 });
+test.describe.configure({ timeout: laneBudgetMs(240_000) });
 
 test("a requested change on the current revision keeps the gated run from starting", async ({ browser }) => {
   const { context, page, task } = await planned(browser);

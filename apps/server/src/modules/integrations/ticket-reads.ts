@@ -7,6 +7,8 @@ import {
   type PgTransactionClient,
   withPgTransaction,
 } from "../../platform/database.ts";
+import { repositoryContainer } from "../work/ticket-container.ts";
+import { roleRank } from "../catalog/integration-providers/roles.ts";
 import type {
   IssueRef,
   PredecessorProof,
@@ -17,8 +19,10 @@ import type {
   TicketLabelProvenance,
   TicketLinksRead,
   TicketReadFailure,
+  TicketRef,
   TicketSourceHandle,
   TicketSourceReader,
+  TicketStatusRead,
 } from "../work/ticket-source-reader.ts";
 import { readAppCredentials } from "./callbacks.ts";
 import {
@@ -321,11 +325,17 @@ async function readIssueOrAbsent(
 const sameRepository = (left: string, right: string): boolean =>
   left.toLowerCase() === right.toLowerCase();
 
-/** The reference to a blocker the snapshot stores. */
+/**
+ * The reference to a blocker the snapshot stores.
+ *
+ * The provider names the blocker's home as a repository; the contract stores a
+ * container. The conversion belongs here, where a provider's own vocabulary
+ * meets the neutral one.
+ */
 const refOfBlocker = (blocker: GitHubBlocker): IssueRef => ({
   id: String(blocker.id),
   number: blocker.number,
-  repositoryFullName: blocker.repositoryFullName,
+  container: repositoryContainer(blocker.repositoryFullName),
 });
 
 /**
@@ -369,12 +379,34 @@ const COLLABORATOR_LOGIN = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/;
  * Builds the live reader. `dependencies.database` is read only for the
  * authority rows; every provider call runs outside a transaction.
  */
+/**
+ * The ordinal a GitHub read needs, from a provider-neutral reference.
+ *
+ * GitHub addresses a ticket by its per-repository number, so the neutral key is
+ * parsed rather than trusted: `ENG-42` reaching a GitHub reader is a caller
+ * mistake, and answering it with an issue number read out of someone else's
+ * name would be worse than refusing.
+ */
+export function issueNumberFromRef(ref: TicketRef): number | null {
+  // Exact, not tolerant: `Number` also reads " 1", "1.0", "0x1" and "1e0" as 1,
+  // so comparing the parse back to the key without trimming is what keeps a
+  // name a name. A key arrives from stored data and links, never from a person
+  // typing into a box, so there is no whitespace to forgive.
+  const parsed = Number(ref.externalKey);
+  return Number.isSafeInteger(parsed) && parsed > 0 &&
+      String(parsed) === ref.externalKey
+    ? parsed
+    : null;
+}
+
 export function createTicketSourceReader(
   dependencies: ReconcileDependencies,
 ): TicketSourceReader {
   const github = dependencies.github;
   return {
-    async readIssue(handle, number, signal): Promise<TicketIssueRead> {
+    async readIssue(handle, ref, signal): Promise<TicketIssueRead> {
+      const number = issueNumberFromRef(ref);
+      if (number === null) return failure("provider_error");
       return await withAccess(dependencies, handle, signal, async (access) => {
         const detail = await readIssueOrAbsent(
           dependencies,
@@ -390,6 +422,12 @@ export function createTicketSourceReader(
           return { kind: "pull_request" as const };
         }
         if (detail.number !== number) return failure("provider_error");
+        // The key resolved to a different ticket than the one asked for, which
+        // the id catches and the number alone cannot (repository renumbering, a
+        // moved issue, a link that since points elsewhere).
+        if (ref.externalId !== null && String(detail.id) !== ref.externalId) {
+          return failure("provider_error");
+        }
         // GitHub documents no label order, so a hold or execute label past the
         // bound may have been cut: the label list is incomplete, and an
         // incomplete list never reads as "not held". Fail closed, as the
@@ -404,13 +442,14 @@ export function createTicketSourceReader(
           body: detail.body,
           bodyTooLarge: detail.bodyTooLarge,
           labels: detail.labels,
+          ...(detail.labelIds === null ? {} : { labelIds: detail.labelIds }),
           state: detail.state,
           stateReason: detail.stateReason === null ||
               detail.stateReason.length === 0
             ? null
             : detail.stateReason.slice(0, 40),
           locked: detail.locked,
-          repositoryFullName: access.fullName,
+          container: repositoryContainer(access.fullName),
         });
         // An answer outside the contract is never admitted.
         if (!snapshot.success) return failure("provider_error");
@@ -427,7 +466,9 @@ export function createTicketSourceReader(
       });
     },
 
-    async readLinks(handle, number, signal): Promise<TicketLinksRead> {
+    async readLinks(handle, ref, signal): Promise<TicketLinksRead> {
+      const number = issueNumberFromRef(ref);
+      if (number === null) return failure("provider_error");
       return await withAccess(dependencies, handle, signal, async (access) => {
         const detail = await readIssueOrAbsent(
           dependencies,
@@ -439,6 +480,12 @@ export function createTicketSourceReader(
         // The caller read the issue first; an issue that vanished or became
         // a pull request since gives no links to rely on.
         if (detail.kind !== "issue") return failure("provider_error");
+        // The caller's reference may carry the id it believes this key has. A key
+        // that now resolves to another id is a ticket that moved, so its links
+        // belong to the wrong ticket and must not gate anything.
+        if (ref.externalId !== null && String(detail.id) !== ref.externalId) {
+          return failure("provider_error");
+        }
         let parent: IssueRef | null = null;
         if (
           detail.parent !== null &&
@@ -454,10 +501,13 @@ export function createTicketSourceReader(
           );
           if (read.kind === "unavailable") return read;
           if (read.kind === "issue") {
+            const parentContainer = repositoryContainer(
+              detail.parent.repositoryFullName,
+            );
             parent = {
               id: String(read.id),
               number: read.number,
-              repositoryFullName: detail.parent.repositoryFullName,
+              container: parentContainer,
             };
           }
         }
@@ -514,7 +564,7 @@ export function createTicketSourceReader(
         signal,
         async (access): Promise<PredecessorProof | TicketReadFailure> => {
           // The token reaches only the source repository.
-          if (!sameRepository(blocker.repositoryFullName, access.fullName)) {
+          if (!sameRepository(blocker.container.externalId, access.fullName)) {
             return { kind: "inaccessible" };
           }
           const issue = await readIssueOrAbsent(
@@ -629,10 +679,12 @@ export function createTicketSourceReader(
 
     async readLabelProvenance(
       handle,
-      number,
+      ref,
       label,
       signal,
     ): Promise<TicketLabelProvenance> {
+      const number = issueNumberFromRef(ref);
+      if (number === null) return failure("provider_error");
       return await withAccess(
         dependencies,
         handle,
@@ -670,6 +722,49 @@ export function createTicketSourceReader(
       );
     },
 
+    async readStatuses(
+      handle,
+      ref,
+      signal,
+      issue,
+    ): Promise<TicketStatusRead> {
+      // The caller has usually just read the issue; deriving the statuses from
+      // that snapshot costs nothing, while re-reading would spend a second
+      // provider call to learn what is already known.
+      let snapshot = issue;
+      if (snapshot === undefined) {
+        const read = await this.readIssue(handle, ref, signal);
+        // A pull request is not a ticket, and a gone or moved issue has no
+        // status to report; admission refuses on the issue read before it ever
+        // asks for a status, so `unsupported` here is the honest answer rather
+        // than a second failure type with no caller.
+        if (
+          read.kind === "pull_request" || read.kind === "gone" ||
+          read.kind === "moved"
+        ) {
+          return { kind: "unsupported" };
+        }
+        if (read.kind !== "present") return read;
+        snapshot = read.snapshot;
+      }
+      // An issue without a project board still has GitHub's own state, and both
+      // halves of it are stable vocabulary rather than display text: `open`, or
+      // `closed` together with the reason the issue was closed. A source policy
+      // therefore names `closed:completed` and keeps meaning the same thing
+      // after anybody renames a column.
+      const { state, stateReason } = snapshot;
+      return {
+        kind: "present",
+        statuses: [{
+          id: state === "closed" && stateReason
+            ? `closed:${stateReason}`
+            : state,
+          name: state === "closed" && stateReason
+            ? `closed (${stateReason})`
+            : state,
+        }],
+      };
+    },
     async readActorRole(handle, login, signal): Promise<TicketActorRole> {
       // A login GitHub cannot issue (a bot's `[bot]` suffix, spaces, slashes)
       // names no collaborator and never reaches a request path.
@@ -691,6 +786,9 @@ export function createTicketSourceReader(
             kind: "present",
             userId: String(read.userId),
             permission: read.permission,
+            // This provider's ladder, mapped once so admission compares a
+            // number and never a provider's role name.
+            rank: roleRank(read.permission),
           };
         },
       );

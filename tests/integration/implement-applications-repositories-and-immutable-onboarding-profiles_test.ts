@@ -35,6 +35,9 @@ import { repositoryRulesBakeryMigrationSource } from "../../apps/server/src/modu
 import { artifactKindsBakeryMigrationSource } from "../../apps/server/src/modules/artifact-kinds/migrations.ts";
 import { integrationsBakeryMigrationSource } from "../../apps/server/src/modules/integrations/migrations.ts";
 import { deliveryBakeryMigrationSource } from "../../apps/server/src/modules/delivery/migrations.ts";
+import { mcpBakeryMigrationSource } from "../../apps/server/src/modules/mcp/migrations.ts";
+import { knowledgeBakeryMigrationSource } from "../../apps/server/src/modules/knowledge/migrations.ts";
+import { catalogBakeryMigrationSource } from "../../apps/server/src/modules/catalog/migrations.ts";
 import { resolveRepositoryBinding } from "../../apps/server/src/modules/projects/binding.ts";
 import { migrateData } from "../../apps/server/src/platform/data-migrate.ts";
 import { PostgresAuthorityRunner } from "../../apps/server/src/modules/auth/adapters/authority-postgres.ts";
@@ -57,7 +60,6 @@ import {
   sha256Hex,
 } from "../../apps/server/src/platform/canonical-json.ts";
 import { contractSchemas } from "../../packages/contracts/src/contracts.ts";
-import { WORKFLOW_ACTION_METADATA } from "../../packages/contracts/src/workflow-action-registry.ts";
 import {
   RepositoryInspectionJobInputSchema,
   RepositoryInspectionReportSchema,
@@ -239,6 +241,9 @@ async function migrateTestDatabase(
       ...await loadMigrations(artifactKindsBakeryMigrationSource),
       ...await loadMigrations(integrationsBakeryMigrationSource),
       ...await loadMigrations(deliveryBakeryMigrationSource),
+      ...await loadMigrations(mcpBakeryMigrationSource),
+      ...await loadMigrations(knowledgeBakeryMigrationSource),
+      ...await loadMigrations(catalogBakeryMigrationSource),
     ];
     await migrate(owner, allMigrations, {
       through: "0031_issue42_execution_control_replay",
@@ -2154,6 +2159,32 @@ Deno.test(
       }],
     };
     const workflowDigest = await digestFor(workflowSpec);
+    // #400: a run created through the API is a compiled plan; the bare list
+    // above stays only as the data a hand-seeded run snapshot carries.
+    const planWorkflowId = crypto.randomUUID();
+    const planVersionId = crypto.randomUUID();
+    const planSpec = {
+      apiVersion: "bakery.dev/v1",
+      kind: "workflow",
+      name: "issue-46-admit-plan",
+      inputs: {
+        repositoryId: { type: "uuid", required: true },
+        message: { type: "string", required: true },
+      },
+      steps: [{
+        id: "flow",
+        steps: [{
+          id: "step_1",
+          uses: "quality.check",
+          with: {
+            repositoryId: "$input.repositoryId",
+            revision: "$input.message",
+            checks: ["source.integrity"],
+          },
+        }],
+      }],
+    };
+    const planDigest = await digestFor(planSpec);
     const profileDigest = await digestFor(profileConfig);
     const now = new Date("2026-09-27T00:00:00.000Z");
     let secondAppPg: PgDatabase | undefined;
@@ -2187,6 +2218,27 @@ Deno.test(
            set active_version_id = ${workflowVersionId}
          where organization_id = ${legacyJob.organizationId}
            and id = ${workflowId}`;
+      await owner`
+        insert into bakery.workflow_definitions (
+          id, organization_id, slug, name, description
+        ) values (
+          ${planWorkflowId}, ${legacyJob.organizationId}, 'issue-46-admit-plan',
+          'Issue 46 Admit Plan', ''
+        )`;
+      await owner`
+        insert into bakery.workflow_versions (
+          id, organization_id, workflow_id, revision, source_yaml,
+          normalized_spec, digest, status, created_by
+        ) values (
+          ${planVersionId}, ${legacyJob.organizationId}, ${planWorkflowId},
+          1, '', ${owner.json(planSpec)}, ${planDigest}, 'published',
+          ${legacyJob.principalId}
+        )`;
+      await owner`
+        update bakery.workflow_definitions
+           set active_version_id = ${planVersionId}
+         where organization_id = ${legacyJob.organizationId}
+           and id = ${planWorkflowId}`;
 
       const principal = {
         principalId: legacyJob.principalId,
@@ -2253,11 +2305,14 @@ Deno.test(
         "POST",
         `/v1/tasks/${apiTask.id}/runs`,
         {
-          workflowVersionId,
+          workflowVersionId: planVersionId,
           repositoryProfileId: legacyJob.profileId,
           executionMode: "repository",
           budgetLimitUsd: "0.005000",
-          inputs: { message: "from-api-snapshot" },
+          inputs: {
+            repositoryId: legacyJob.repositoryId,
+            message: "from-api-snapshot",
+          },
         },
       );
       assertEquals(apiRunResponse.status, 201);
@@ -2284,23 +2339,25 @@ Deno.test(
         database: secondAppPg,
         maxAttempts: 3,
       });
-      const logical = await repository.findNext(apiRun.id);
-      if (!logical) throw new Error("API_RUN_LOGICAL_KEY_MISSING");
-      assertEquals(
-        logical,
-        {
-          runId: apiRun.id,
-          stepKey: "step_1",
-          iteration: 0,
-          actionVersion: workflowVersionId,
-        } satisfies LogicalInvocationKey,
-      );
+      // A plan run appends its step rows as the engine decides them, so the
+      // engine owner comes first and the step key carries its container.
       const apiOwner = await repository.acquireEngineOwner(
         apiRun.id,
         "issue46-api-admit-owner",
         60_000,
       );
       if (!apiOwner) throw new Error("API_RUN_OWNER_MISSING");
+      const logical = await repository.findNext(apiRun.id, apiOwner);
+      if (!logical) throw new Error("API_RUN_LOGICAL_KEY_MISSING");
+      assertEquals(
+        logical,
+        {
+          runId: apiRun.id,
+          stepKey: "flow.step_1",
+          iteration: 0,
+          actionVersion: planVersionId,
+        } satisfies LogicalInvocationKey,
+      );
       const apiAdmissions = await Promise.all([
         repository.admit(logical, apiOwner),
         concurrentRepository.admit(logical, apiOwner),
@@ -2373,7 +2430,8 @@ Deno.test(
           },
         },
         status: "queued",
-        maxAttempts: 3,
+        // A plan step declares its own attempts: one when it declares no retry.
+        maxAttempts: 1,
       });
       const apiStateRows = await owner`
         select run.status as run_status,
@@ -2399,25 +2457,8 @@ Deno.test(
       assertEquals(apiState.admission.jobId, apiJobId);
       assertEquals(await repository.releaseEngineOwner(apiOwner), true);
 
-      const expectedApiRunSnapshot = {
-        schemaVersion: 1,
-        executionMode: "repository",
-        inputs: { message: "from-api-snapshot" },
-        stepAgents: {},
-        stepActions: {
-          step_1: {
-            action: "quality.check",
-            registryVersion: 1,
-            metadata: WORKFLOW_ACTION_METADATA["quality.check"],
-            capabilities: ["git", "shell", "browser"],
-          },
-        },
-        workflow: {
-          id: workflowVersionId,
-          revision: 1,
-          digest: workflowDigest,
-          normalizedSpec: workflowSpec,
-        },
+      // What the plan run froze about its repository, byte for byte.
+      const expectedApiRunPins = {
         repositoryProfile: {
           organizationId: legacyJob.organizationId,
           applicationId: legacyJob.applicationId,
@@ -2444,6 +2485,20 @@ Deno.test(
           status: "queued",
           reason: null,
         },
+        // #433: derived from the steps (quality.check holds git) and the
+        // project's scope profile, the empty baseline here.
+        workspaceRequirement: {
+          required: true,
+          workspaces: [],
+          reason: "a_step_requires_a_workspace",
+        },
+        scopeProfile: {
+          applicationId: legacyJob.applicationId,
+          revision: 0,
+          digest: "",
+          checkCommands: [],
+          rules: [],
+        },
       };
       const apiRunBeforeSwitchRows = await owner`
         select snapshot,
@@ -2458,13 +2513,29 @@ Deno.test(
       `;
       assertEquals(apiRunBeforeSwitchRows.length, 1);
       const apiRunBeforeSwitch = apiRunBeforeSwitchRows[0];
-      assertEquals(apiRunBeforeSwitch, {
-        snapshot: expectedApiRunSnapshot,
+      const { snapshot: apiSnapshotBefore, ...apiRunColumnsBefore } =
+        apiRunBeforeSwitch;
+      assertEquals(apiRunColumnsBefore, {
         applicationId: legacyJob.applicationId,
         repositoryId: legacyJob.repositoryId,
         profileId: legacyJob.profileId,
         profileRevision: 1,
         profileDigest,
+      });
+      assertEquals({
+        executionMode: apiSnapshotBefore.executionMode,
+        inputs: apiSnapshotBefore.inputs,
+        workflowDigest: apiSnapshotBefore.workflow.digest,
+        repositoryProfile: apiSnapshotBefore.repositoryProfile,
+        admission: apiSnapshotBefore.admission,
+      }, {
+        executionMode: "repository",
+        inputs: {
+          repositoryId: legacyJob.repositoryId,
+          message: "from-api-snapshot",
+        },
+        workflowDigest: planDigest,
+        ...expectedApiRunPins,
       });
       const originalProfileBeforeSwitchRows = await owner`
         select id,
@@ -2559,11 +2630,14 @@ Deno.test(
         "POST",
         `/v1/tasks/${mismatchTask.id}/runs`,
         {
-          workflowVersionId,
+          workflowVersionId: planVersionId,
           repositoryProfileId: legacyJob.profileId,
           executionMode: "repository",
           budgetLimitUsd: "0.005000",
-          inputs: { message: "mismatched-profile" },
+          inputs: {
+            repositoryId: legacyJob.repositoryId,
+            message: "mismatched-profile",
+          },
         },
       );
       assertEquals(mismatchRunResponse.status, 201);
@@ -2576,14 +2650,17 @@ Deno.test(
          where organization_id = ${legacyJob.organizationId}
            and id = ${mismatchRun.id}
       `;
-      const mismatchLogical = await repository.findNext(mismatchRun.id);
-      if (!mismatchLogical) throw new Error("MISMATCH_RUN_LOGICAL_KEY_MISSING");
       const mismatchOwner = await repository.acquireEngineOwner(
         mismatchRun.id,
         "issue46-mismatch-admit-owner",
         60_000,
       );
       if (!mismatchOwner) throw new Error("MISMATCH_RUN_OWNER_MISSING");
+      const mismatchLogical = await repository.findNext(
+        mismatchRun.id,
+        mismatchOwner,
+      );
+      if (!mismatchLogical) throw new Error("MISMATCH_RUN_LOGICAL_KEY_MISSING");
       const mismatchError = await assertRejects(() =>
         repository.admit(mismatchLogical, mismatchOwner)
       );
@@ -2695,7 +2772,7 @@ Deno.test(
       `;
       assertEquals(apiRunAfterSwitch.length, 1);
       assertEquals(apiRunAfterSwitch[0], apiRunBeforeSwitch);
-      assertEquals(apiRunAfterSwitch[0]?.snapshot, expectedApiRunSnapshot);
+      assertEquals(apiRunAfterSwitch[0]?.snapshot, apiSnapshotBefore);
       const apiJobsAfterSwitch = await owner`
         select id,
           application_id as "applicationId",
@@ -2734,9 +2811,8 @@ Deno.test(
         kind: "workflow",
         name: "issue46-cloud-only",
         steps: [{
-          id: "cloud_review",
-          uses: "mcp.discover",
-          with: { connectionId: crypto.randomUUID() },
+          id: "flow",
+          steps: [{ id: "cloud_step", uses: "workflow.noop", with: {} }],
         }],
       };
       await owner`
@@ -2759,7 +2835,10 @@ Deno.test(
         applicationId: legacyJob.applicationId,
         title: "Cloud-only compatibility",
         description: "",
-        taskType: "maintenance",
+        // Work type is an organization label (O23, #433): a feature task with
+        // no repository is admitted and its job queued exactly like the
+        // maintenance task the dropped rule once required.
+        taskType: "feature",
       });
       assertEquals(cloudTaskResponse.status, 201);
       const cloudTask = await cloudTaskResponse.json() as { id: string };
@@ -2774,25 +2853,24 @@ Deno.test(
           inputs: {},
         },
       );
-      assertEquals(cloudRunResponse.status, 201);
-      const cloudRun = await cloudRunResponse.json() as { id: string };
-      const cloudLogical = await repository.findNext(cloudRun.id);
-      if (!cloudLogical) throw new Error("CLOUD_LOGICAL_MISSING");
-      const cloudOwner = await repository.acquireEngineOwner(
-        cloudRun.id,
-        "issue46-cloud-only-owner",
-        60_000,
+      assertEquals(
+        cloudRunResponse.status,
+        201,
+        JSON.stringify(await cloudRunResponse.clone().json()),
       );
-      if (!cloudOwner) throw new Error("CLOUD_OWNER_MISSING");
-      const cloudAdmission = await repository.admit(cloudLogical, cloudOwner);
-      const cloudJobId = cloudAdmission.jobId;
-      if (cloudJobId === undefined) throw new Error("CLOUD_JOB_NOT_ADMITTED");
-      const cloudJobs = await owner`
+      const cloudRun = await cloudRunResponse.json() as { id: string };
+      // A cloud-only run mounts no repository, so nothing it freezes names one.
+      // (#400: the flat arm also admitted a worker job here and read its pins;
+      // a plan run's worker jobs all need a repository or a model agent, which
+      // this fixture does not seed, so the run row is what this arm can pin.)
+      const cloudRunRows = await owner`
         select application_id, repository_id, repository_profile_id,
           repository_profile_revision, repository_profile_digest,
-          observation_id, observation_digest, base_sha, action, status
-          from bakery.jobs where id = ${cloudJobId}`;
-      assertEquals(cloudJobs[0], {
+          observation_id, observation_digest, base_sha, status,
+          snapshot->>'executionMode' as execution_mode,
+          snapshot->'repositoryProfile' as repository_profile
+          from bakery.workflow_runs where id = ${cloudRun.id}`;
+      assertEquals(cloudRunRows[0], {
         application_id: null,
         repository_id: null,
         repository_profile_id: null,
@@ -2801,10 +2879,10 @@ Deno.test(
         observation_id: null,
         observation_digest: null,
         base_sha: null,
-        action: "mcp.discover",
         status: "queued",
+        execution_mode: "cloud_only",
+        repository_profile: null,
       });
-      assertEquals(await repository.releaseEngineOwner(cloudOwner), true);
 
       // A forged readiness string without a canonical policy and completed
       // authorized publication cannot authorize admission or queued-job reuse.
@@ -4991,14 +5069,24 @@ Deno.test("Observed task/run/job pins survive reinspection and incapable authent
         apiVersion: "bakery.dev/v1",
         kind: "workflow",
         name: "observed-execution",
+        // #400: a run is a compiled plan; a container makes the document one,
+        // and `$task.repositoryId` cannot bind a uuid field, so the
+        // repository is a required input.
+        inputs: {
+          repositoryId: { type: "uuid", required: true },
+          revision: { type: "string", required: true },
+        },
         steps: [{
-          id: "required_checks",
-          uses: "quality.check",
-          with: {
-            repositoryId: "$task.repositoryId",
-            revision: "$input.revision",
-            checks: "$input.checks",
-          },
+          id: "flow",
+          steps: [{
+            id: "required_checks",
+            uses: "quality.check",
+            with: {
+              repositoryId: "$input.repositoryId",
+              revision: "$input.revision",
+              checks: ["source.integrity"],
+            },
+          }],
         }],
       };
       await fixture.owner`
@@ -5019,7 +5107,10 @@ Deno.test("Observed task/run/job pins survive reinspection and incapable authent
         repositoryProfileId: original.profileId,
         executionMode: "repository",
         budgetLimitUsd: "0.005000",
-        inputs: { revision: source.snapshotSha, checks: ["source.integrity"] },
+        inputs: {
+          repositoryId: source.repositoryId,
+          revision: source.snapshotSha,
+        },
       };
       // Establish the historical run while its immutable profile is current.
       const runKey = crypto.randomUUID();
@@ -5030,7 +5121,11 @@ Deno.test("Observed task/run/job pins survive reinspection and incapable authent
         harness.organizationId,
         { "Idempotency-Key": runKey },
       );
-      assertEquals(runResponse.status, 201);
+      assertEquals(
+        runResponse.status,
+        201,
+        await runResponse.clone().text(),
+      );
       const runResponseBytes = await runResponse.clone().text();
       const run = contractSchemas.Run.parse(await runResponse.json());
       for (const [key, value] of Object.entries(pins)) {
@@ -5299,7 +5394,7 @@ Deno.test("Observed task/run/job pins survive reinspection and incapable authent
         repositoryProfileId: currentProfileId,
         executionMode: "repository",
         budgetLimitUsd: "0.005000",
-        inputs: { revision: source.snapshotSha, checks: ["source.integrity"] },
+        inputs: runInput.inputs,
       };
       for (
         const [label, profileId] of [["pending", pendingProfileId], [
@@ -5361,14 +5456,16 @@ Deno.test("Observed task/run/job pins survive reinspection and incapable authent
         database: fixture.appPg,
         maxAttempts: 2,
       });
-      const key = await adapter.findNext(run.id);
-      if (!key) throw new Error("OBSERVED_LOGICAL_KEY_MISSING");
       const owner = await adapter.acquireEngineOwner(
         run.id,
         crypto.randomUUID(),
         60_000,
       );
       if (!owner) throw new Error("OBSERVED_OWNER_MISSING");
+      // A plan run appends its step row as the engine decides it, under the
+      // engine owner, and records the dispatch beside the row.
+      const key = await adapter.findNext(run.id, owner);
+      if (!key) throw new Error("OBSERVED_LOGICAL_KEY_MISSING");
       const forgedSnapshot = structuredClone(storedRun.snapshot);
       forgedSnapshot.repositoryProfile.organizationId = crypto.randomUUID();
       await fixture.owner`update bakery.workflow_runs set snapshot = ${
@@ -5430,13 +5527,32 @@ Deno.test("Observed task/run/job pins survive reinspection and incapable authent
         })).length > 100_000,
         true,
       );
+      // A plan step's job input is the dispatch recorded with its row, so the
+      // caller input the run carries is read from there, not from the snapshot.
+      const [{ dispatch: storedDispatch }] = await fixture.owner`
+        select dispatch from bakery.run_steps where run_id = ${run.id}`;
+      const setDispatchRevision = async (revision: string) => {
+        await fixture.owner`update bakery.run_steps set dispatch = ${
+          fixture.owner.json({
+            ...storedDispatch,
+            input: { ...storedDispatch.input, revision },
+          })
+        } where run_id = ${run.id}`;
+      };
+      const restoreDispatch = async () => {
+        await fixture.owner`update bakery.run_steps set dispatch = ${
+          fixture.owner.json(storedDispatch)
+        } where run_id = ${run.id}`;
+      };
       nearLimitSnapshot.inputs.revision = nearLimitCaller.revision;
+      await setDispatchRevision(nearLimitCaller.revision);
       await fixture.owner`update bakery.workflow_runs set snapshot = ${
         fixture.owner.json(nearLimitSnapshot)
       } where id = ${run.id}`;
       const beforeOversizedAdmission = await executionState();
       await assertRejects(() => adapter.admit(key, owner));
       assertEquals(await executionState(), beforeOversizedAdmission);
+      await restoreDispatch();
       await fixture.owner`update bakery.workflow_runs set snapshot = ${
         fixture.owner.json(storedRun.snapshot)
       } where id = ${run.id}`;
@@ -5477,6 +5593,7 @@ Deno.test("Observed task/run/job pins survive reinspection and incapable authent
         if (defect === "transport-size") {
           substitutedInput.revision = nearLimitCaller.revision;
           substitutedSnapshot.inputs.revision = nearLimitCaller.revision;
+          await setDispatchRevision(nearLimitCaller.revision);
         }
         await fixture.owner`update bakery.workflow_runs set snapshot = ${
           fixture.owner.json(substitutedSnapshot)
@@ -5499,6 +5616,7 @@ Deno.test("Observed task/run/job pins survive reinspection and incapable authent
           )
         );
         assertEquals(await executionState(), beforeReuse);
+        await restoreDispatch();
       }
       await fixture.owner`update bakery.workflow_runs set snapshot = ${
         fixture.owner.json(storedRun.snapshot)
@@ -5754,35 +5872,52 @@ Deno.test("fixed repository policy is CAS-published, inspection-bound, pinned, e
       assertEquals(active.revision, 2);
       assertEquals(active.config.fixedPolicy, observedPolicy);
 
-      const workflowId = crypto.randomUUID();
-      const workflowVersionId = crypto.randomUUID();
-      const spec = {
-        apiVersion: "bakery.dev/v1",
-        kind: "workflow",
-        name: "fixed-policy-check",
-        steps: [{
-          id: "fixed_checks",
-          uses: "quality.check",
-          with: {
-            repositoryId: "$task.repositoryId",
-            revision: "$input.revision",
-            checks: "$input.checks",
+      // #400: a run is a compiled plan. The checks are literal in the plan
+      // (there is no array input), so each check set is its own version.
+      const planVersions = new Map<string, string>();
+      const planVersionFor = async (checks: string[]) => {
+        const known = planVersions.get(checks.join(","));
+        if (known !== undefined) return known;
+        const workflowId = crypto.randomUUID();
+        const workflowVersionId = crypto.randomUUID();
+        const slug = `fixed-policy-check-${planVersions.size}`;
+        const spec = {
+          apiVersion: "bakery.dev/v1",
+          kind: "workflow",
+          name: slug,
+          inputs: {
+            repositoryId: { type: "uuid", required: true },
+            revision: { type: "string", required: true },
           },
-        }],
+          steps: [{
+            id: "flow",
+            steps: [{
+              id: "fixed_checks",
+              uses: "quality.check",
+              with: {
+                repositoryId: "$input.repositoryId",
+                revision: "$input.revision",
+                checks,
+              },
+            }],
+          }],
+        };
+        await fixture.owner`
+          insert into bakery.workflow_definitions (id, organization_id, slug, name, description)
+          values (${workflowId}, ${harness.organizationId}, ${slug}, 'Fixed policy check', '')`;
+        await fixture.owner`
+          insert into bakery.workflow_versions (id, organization_id, workflow_id, revision, source_yaml, normalized_spec, digest, status, created_by)
+          values (${workflowVersionId}, ${harness.organizationId}, ${workflowId}, 1, '', ${
+          fixture.owner.json(spec)
+        }, ${await digestFor(
+          spec,
+        )}, 'published', ${fixture.legacyJob.principalId})`;
+        await fixture.owner`
+          update bakery.workflow_definitions set active_version_id = ${workflowVersionId}
+           where organization_id = ${harness.organizationId} and id = ${workflowId}`;
+        planVersions.set(checks.join(","), workflowVersionId);
+        return workflowVersionId;
       };
-      await fixture.owner`
-        insert into bakery.workflow_definitions (id, organization_id, slug, name, description)
-        values (${workflowId}, ${harness.organizationId}, 'fixed-policy-check', 'Fixed policy check', '')`;
-      await fixture.owner`
-        insert into bakery.workflow_versions (id, organization_id, workflow_id, revision, source_yaml, normalized_spec, digest, status, created_by)
-        values (${workflowVersionId}, ${harness.organizationId}, ${workflowId}, 1, '', ${
-        fixture.owner.json(spec)
-      }, ${await digestFor(
-        spec,
-      )}, 'published', ${fixture.legacyJob.principalId})`;
-      await fixture.owner`
-        update bakery.workflow_definitions set active_version_id = ${workflowVersionId}
-         where organization_id = ${harness.organizationId} and id = ${workflowId}`;
 
       const createTask = async (title: string) => {
         const response = await harness.memberRequest("POST", "/v1/tasks", {
@@ -5799,11 +5934,14 @@ Deno.test("fixed repository policy is CAS-published, inspection-bound, pinned, e
           "POST",
           `/v1/tasks/${taskId}/runs`,
           {
-            workflowVersionId,
+            workflowVersionId: await planVersionFor(checks),
             repositoryProfileId: active.profileId,
             executionMode: "repository",
             budgetLimitUsd: "0.005000",
-            inputs: { revision: source.snapshotSha, checks },
+            inputs: {
+              repositoryId: source.repositoryId,
+              revision: source.snapshotSha,
+            },
           },
         );
         assertEquals(response.status, 201, await response.clone().text());
@@ -5833,14 +5971,14 @@ Deno.test("fixed repository policy is CAS-published, inspection-bound, pinned, e
         database: fixture.appPg,
         maxAttempts: 2,
       });
-      const key = await adapter.findNext(run.id);
-      if (!key) throw new Error("FIXED_POLICY_KEY_MISSING");
       const owner = await adapter.acquireEngineOwner(
         run.id,
         crypto.randomUUID(),
         60_000,
       );
       if (!owner) throw new Error("FIXED_POLICY_OWNER_MISSING");
+      const key = await adapter.findNext(run.id, owner);
+      if (!key) throw new Error("FIXED_POLICY_KEY_MISSING");
       for (const defect of ["missing", "unauthorized"] as const) {
         const corrupt = structuredClone(stored.snapshot);
         if (defect === "missing") {
@@ -5887,14 +6025,14 @@ Deno.test("fixed repository policy is CAS-published, inspection-bound, pinned, e
 
       const missingTask = await createTask("Fixed policy missing requirement");
       const missingRun = await createRun(missingTask.id, ["lint.warn"]);
-      const missingKey = await adapter.findNext(missingRun.id);
-      if (!missingKey) throw new Error("FIXED_POLICY_MISSING_KEY");
       const missingOwner = await adapter.acquireEngineOwner(
         missingRun.id,
         crypto.randomUUID(),
         60_000,
       );
       if (!missingOwner) throw new Error("FIXED_POLICY_MISSING_OWNER");
+      const missingKey = await adapter.findNext(missingRun.id, missingOwner);
+      if (!missingKey) throw new Error("FIXED_POLICY_MISSING_KEY");
       await assertRejects(() => adapter.admit(missingKey, missingOwner));
       assertEquals(
         (await fixture.owner`
@@ -6528,7 +6666,7 @@ Deno.test("Data migration 0049 preserves frozen v1 execution, replay bytes and c
           "run",
           "--allow-env",
           "--allow-net",
-          "--allow-read=src/platform/migrations,src/modules/auth/migrations,src/modules/work/migrations,src/modules/projects/migrations,src/modules/agents/migrations,src/modules/repository-rules/migrations,src/modules/integrations/migrations,src/modules/delivery/migrations",
+          "--allow-read=src/platform/migrations,src/modules/auth/migrations,src/modules/work/migrations,src/modules/projects/migrations,src/modules/agents/migrations,src/modules/repository-rules/migrations,src/modules/artifact-kinds/migrations,src/modules/integrations/migrations,src/modules/delivery/migrations,src/modules/mcp/migrations,src/modules/knowledge/migrations,src/modules/catalog/migrations",
           "src/tasks.ts",
           task,
         ],

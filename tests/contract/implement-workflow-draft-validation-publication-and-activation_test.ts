@@ -285,12 +285,20 @@ Deno.test("ValidationReport parses with and without the optional analysis fields
 });
 
 const implementedWorkflowActions = [
+  "agentPowerGrants.create",
+  "agentPowerGrants.delete",
+  "definitionPublishGrants.create",
+  "definitionPublishGrants.delete",
   "workflowActivations.create",
+  "workflowDefinitionProposalDecisions.create",
+  "workflowDefinitionProposals.get",
+  "workflowListings.create",
   "workflowVersions.create",
   "workflowVersions.get",
   "workflowVersions.list",
   "workflowVersions.publish",
   "workflowVersions.update",
+  "workflows.copy",
   "workflows.create",
   "workflows.get",
   "workflows.list",
@@ -298,7 +306,7 @@ const implementedWorkflowActions = [
   "workflows.validate",
 ];
 
-Deno.test("workflows registry implements exactly the eleven definition, read, draft, publish, activate and validate actions", () => {
+Deno.test("workflows registry implements exactly the seventeen definition, read, draft, publish, activate, validate, copy, listing, proposal and publish-grant actions", () => {
   const unavailable = () => Promise.reject(new Error("not called"));
   const registry = createWorkflowsActionRegistry(
     {} as PgDatabase,
@@ -307,6 +315,7 @@ Deno.test("workflows registry implements exactly the eleven definition, read, dr
       getWorkflow: unavailable,
       createWorkflow: unavailable,
       updateWorkflow: unavailable,
+      copyWorkflow: unavailable,
       listVersions: unavailable,
       getVersion: unavailable,
       createVersion: unavailable,
@@ -314,6 +323,11 @@ Deno.test("workflows registry implements exactly the eleven definition, read, dr
       publishVersion: unavailable,
       activate: unavailable,
       validate: unavailable,
+      createListing: unavailable,
+      getProposal: unavailable,
+      decideProposal: unavailable,
+      createPublishGrant: unavailable,
+      deletePublishGrant: unavailable,
     } as unknown as WorkflowsActionHandlers,
   );
   assertEquals(

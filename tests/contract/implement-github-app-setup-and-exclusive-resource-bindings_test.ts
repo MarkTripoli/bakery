@@ -22,19 +22,21 @@ import type { PgDatabase } from "../../apps/server/src/platform/database.ts";
 import { GITHUB_PROVIDER_ID } from "../../apps/server/src/modules/integrations/postgres.ts";
 import { AuthAttemptVerifierCipherBindingSchema } from "../../apps/server/src/modules/secrets/crypto.ts";
 import { createFakeGitHubApp } from "../helpers/fake-github-app.ts";
+import { activateDeployedIntegrations } from "../../apps/server/src/modules/catalog/integration-gate.ts";
+import { deployedIntegrations } from "../../apps/server/src/modules/catalog/integration-gate-registry.ts";
 
 const expectedActions = [
   "integrationAppRegistrations.begin",
   "integrationAppRegistrations.get",
   "integrationAppRegistrations.put",
-  "integrationAuth.githubManifestCallback",
+  "integrationAuth.manifestCallback",
 ];
 const implementedIntegrationActions = [
   ...expectedActions,
   "integrationAuthAttempts.create",
   "integrationAuthAttempts.get",
-  "integrationAuth.githubSetup",
-  "integrationAuth.githubCallback",
+  "integrationAuth.setup",
+  "integrationAuth.authorizationCallback",
   "integrationConnections.create",
   "integrationConnections.get",
   "integrationConnections.list",
@@ -49,9 +51,10 @@ const implementedIntegrationActions = [
   "integrationResources.update",
   "integrationConnections.check",
   "integrationDiscoveries.create",
+  "integrationConnections.invoke",
   "integrationInstallations.list",
   "integrationInstallations.get",
-  "intake.github",
+  "intake.webhook",
 ].sort();
 
 Deno.test("integrations registry implements exactly its listed catalog actions with catalog parity", () => {
@@ -61,6 +64,7 @@ Deno.test("integrations registry implements exactly its listed catalog actions w
     publicBaseUrl: "https://bakery.example.test",
     github: createFakeGitHubApp().client,
     cursorSecret: "contract-test-cursor-secret-0123456789abcdef",
+    integrationRegistry: activateDeployedIntegrations(deployedIntegrations),
   });
   assertEquals(
     registry.list().map(({ name }) => name).sort(),
@@ -75,7 +79,7 @@ Deno.test("integrations registry implements exactly its listed catalog actions w
     implementedIntegrationActions,
   );
   const begin = registry.get("integrationAppRegistrations.begin");
-  const callback = registry.get("integrationAuth.githubManifestCallback");
+  const callback = registry.get("integrationAuth.manifestCallback");
   assertEquals(begin.policy.sessionOnly, true);
   assertEquals(callback.policy.sessionOnly, true);
   const put = registry.get("integrationAppRegistrations.put");
@@ -108,7 +112,7 @@ Deno.test("catalog declares installation-administrator operations with the desig
       "installationSetting:manage",
       "Idempotency-Key required; If-Match with the current version once a registration exists",
     ],
-    "integrationAuth.githubManifestCallback": [
+    "integrationAuth.manifestCallback": [
       "GET",
       "/v1/integration-auth/github/manifest-callback",
       "installationSetting:manage",
@@ -134,7 +138,7 @@ Deno.test("catalog declares installation-administrator operations with the desig
     assertEquals(entry.mcp, null, action);
   }
   assertEquals(
-    entries["integrationAuth.githubManifestCallback"].output,
+    entries["integrationAuth.manifestCallback"].output,
     "AuthRedirect",
   );
   const put = entries["integrationAppRegistrations.put"];
@@ -188,6 +192,7 @@ Deno.test("put parses If-Match only when sent and still requires an Idempotency-
     publicBaseUrl: "https://bakery.example.test",
     github: createFakeGitHubApp().client,
     cursorSecret: "contract-test-cursor-secret-0123456789abcdef",
+    integrationRegistry: activateDeployedIntegrations(deployedIntegrations),
   });
   const action = registry.get("integrationAppRegistrations.put");
   const request = (headers: Record<string, string>) =>
@@ -243,7 +248,7 @@ Deno.test("begin input accepts the optional choices and rejects unsafe values", 
 });
 
 Deno.test("callback input requires code and state and nothing else", () => {
-  const schema = contractSchemas.GitHubManifestCallback;
+  const schema = contractSchemas.IntegrationManifestCallback;
   assert(schema.safeParse({ code: "abc", state: "def" }).success);
   for (
     const invalid of [
@@ -439,7 +444,7 @@ Deno.test("generated JSON schemas describe every new field", async () => {
     const name of [
       "IntegrationAppRegistrationBegin",
       "IntegrationAppRegistrationPut",
-      "GitHubManifestCallback",
+      "IntegrationManifestCallback",
       "IntegrationAppRegistration",
       "IntegrationAppManifestStart",
       "AuthRedirect",
@@ -456,6 +461,7 @@ Deno.test("auth attempt operations match the catalog and create needs a browser 
     publicBaseUrl: "https://bakery.example.test",
     github: createFakeGitHubApp().client,
     cursorSecret: "contract-test-cursor-secret-0123456789abcdef",
+    integrationRegistry: activateDeployedIntegrations(deployedIntegrations),
   });
   const create = registry.get("integrationAuthAttempts.create");
   const get = registry.get("integrationAuthAttempts.get");
@@ -588,6 +594,7 @@ Deno.test("GitHub callbacks are bound-attempt browser redirects and the connecti
     publicBaseUrl: "https://bakery.example.test",
     github: createFakeGitHubApp().client,
     cursorSecret: "contract-test-cursor-secret-0123456789abcdef",
+    integrationRegistry: activateDeployedIntegrations(deployedIntegrations),
   });
   const entries = Object.fromEntries(
     catalogActions.map((entry) => [entry.action, entry]),
@@ -595,12 +602,12 @@ Deno.test("GitHub callbacks are bound-attempt browser redirects and the connecti
   for (
     const [name, path, input] of [
       [
-        "integrationAuth.githubSetup",
+        "integrationAuth.setup",
         "/v1/integration-auth/github/setup",
-        "GitHubSetupCallback",
+        "IntegrationSetupCallback",
       ],
       [
-        "integrationAuth.githubCallback",
+        "integrationAuth.authorizationCallback",
         "/v1/integration-auth/github/callback",
         "OAuthCallback",
       ],
@@ -650,7 +657,7 @@ Deno.test("GitHub callbacks are bound-attempt browser redirects and the connecti
 });
 
 Deno.test("callback inputs carry only the provider's redirect fields", () => {
-  const setup = contractSchemas.GitHubSetupCallback;
+  const setup = contractSchemas.IntegrationSetupCallback;
   assert(
     setup.safeParse({ state: "s", installationId: "1", setupAction: "install" })
       .success,
@@ -792,6 +799,7 @@ Deno.test("connection and resource lists are Developer cursor queries with the c
     publicBaseUrl: "https://bakery.example.test",
     github: createFakeGitHubApp().client,
     cursorSecret: "contract-test-cursor-secret-0123456789abcdef",
+    integrationRegistry: activateDeployedIntegrations(deployedIntegrations),
   });
   const entries = Object.fromEntries(
     catalogActions.map((entry) => [entry.action, entry]),
@@ -878,6 +886,7 @@ Deno.test("integrationConnections.create is an Admin command that names its GitH
     publicBaseUrl: "https://bakery.example.test",
     github: createFakeGitHubApp().client,
     cursorSecret: "contract-test-cursor-secret-0123456789abcdef",
+    integrationRegistry: activateDeployedIntegrations(deployedIntegrations),
   });
   const entry = catalogActions.find((item) =>
     item.action === "integrationConnections.create"
@@ -921,6 +930,7 @@ Deno.test("connection and resource edits are Admin PATCH commands needing Idempo
     publicBaseUrl: "https://bakery.example.test",
     github: createFakeGitHubApp().client,
     cursorSecret: "contract-test-cursor-secret-0123456789abcdef",
+    integrationRegistry: activateDeployedIntegrations(deployedIntegrations),
   });
   const entries = Object.fromEntries(
     catalogActions.map((entry) => [entry.action, entry]),
@@ -1000,6 +1010,7 @@ Deno.test("integrationConnections.check is an Admin POST command needing only Id
     publicBaseUrl: "https://bakery.example.test",
     github: createFakeGitHubApp().client,
     cursorSecret: "contract-test-cursor-secret-0123456789abcdef",
+    integrationRegistry: activateDeployedIntegrations(deployedIntegrations),
   });
   const action = registry.get("integrationConnections.check");
   assertEquals(action.method, "POST");

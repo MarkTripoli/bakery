@@ -9,7 +9,11 @@ import {
   planDispatchFromRow,
   repositoryExecutionRequirements,
 } from "@bakery/persistence/repository-admission";
-import { HUMAN_APPROVAL_EVENT } from "@bakery/contracts/human-approval";
+import {
+  HUMAN_APPROVAL_EVENT,
+  normalizeWorkflowStop,
+  WorkflowStopInputSchema,
+} from "@bakery/contracts/human-approval";
 import { isEngineProjectionAction } from "@bakery/contracts/workflow-action-registry";
 import { StandardError } from "@bakery/contracts/http";
 import { workerActionOutputCarriesSession } from "@bakery/contracts/contracts";
@@ -34,6 +38,7 @@ import {
 } from "@bakery/contracts/workflow-interpreter";
 import { canonicalJson } from "../../platform/canonical-json.ts";
 import { reconcileCoordinationForTerminalTask } from "../work/coordination-projection.ts";
+import { stopRun } from "../work/human-approval-store.ts";
 import {
   budgetContentDigest,
   type BudgetPolicy,
@@ -45,6 +50,10 @@ import {
   type LogicalInvocationKey,
 } from "./invocation-contract.ts";
 import { type AuthoritativeState, decideResume } from "./resume-decision.ts";
+import {
+  recordNotesDelivered,
+  undeliveredStepNotes,
+} from "../execution/step-notes.ts";
 import { runFixedWorkflow } from "./fixed-workflow.ts";
 import {
   nextPlanStep,
@@ -1172,6 +1181,122 @@ async function completeProjectionStep(
   return { key, terminal: true };
 }
 
+/** The one action this adapter settles by ending the run. */
+const WORKFLOW_STOP_ACTION = "workflow.stop";
+
+/** Audit operation recorded when the engine settles a `workflow.stop` step. */
+export const WORKFLOW_STOP_OPERATION = "workflow.stop.complete";
+
+/**
+ * Settles a `workflow.stop` step: it ends the run on purpose with a named
+ * outcome.
+ *
+ * A stop does not need a worker, like a projection, but it is not one: a
+ * projection's output is its input, while a stop changes the run. It is
+ * therefore settled here with the run's ending written in the same transaction,
+ * under the engine owner's fence, in this order:
+ *
+ * 1. take the step row (`for update`) so only one engine settles it,
+ * 2. refuse a run that has already ended, which is what stops a stop from
+ *    relabelling a canceled run as succeeded -- the defect that kept `stopRun`
+ *    without a producer,
+ * 3. write the ledger entry, the run's named outcome and the event, through the
+ *    one writer that already does exactly that,
+ * 4. complete the step with the normalized outcome, so the step row and the run
+ *    carry the same name.
+ *
+ * The step completes last on purpose: if any of the writes above fail, the
+ * transaction rolls back and the step is still pending, so a retry re-runs the
+ * whole ending rather than finding a completed step over a run that never ended.
+ */
+async function completeStopStep(
+  transaction: PgTransactionClient,
+  row: AdmissionStepRow,
+  key: LogicalInvocationKey,
+  input: unknown,
+  owner: EngineOwner | undefined,
+): Promise<AdmissionRecord> {
+  await requireEngineOwner(transaction, row.runId, owner);
+  const locked = await transaction.query<{ status: string; version: number }>(
+    `select step.status, step.version
+       from bakery.run_steps step
+       join bakery.workflow_runs run
+         on run.organization_id = step.organization_id and run.id = step.run_id
+      where step.organization_id = $1 and step.id = $2
+        and run.status in ('queued', 'running')
+        and step.status not in ('completed', 'failed', 'canceled', 'skipped')
+      for update of step`,
+    [row.organizationId, row.runStepId],
+  );
+  if (locked.rows[0] === undefined) return { key, terminal: true };
+
+  // The input is validated here, not by the worker that would have run it, so a
+  // malformed stop fails the run with the same projection-invalid code any other
+  // unvalidatable engine-side action uses. Nothing is written before this point.
+  let stop;
+  try {
+    stop = normalizeWorkflowStop(WorkflowStopInputSchema.parse(input ?? {}));
+  } catch (error) {
+    if (!(error instanceof Error)) throw error;
+    await projectFailure(
+      transaction,
+      row,
+      "WORKFLOW_STOP_INPUT_INVALID:The workflow.stop input is not the shape of its action.",
+      owner,
+    );
+    return { key, terminal: true };
+  }
+
+  await stopRun(transaction, {
+    organizationId: row.organizationId,
+    runId: row.runId,
+    taskId: row.taskId,
+    outcome: stop.outcome,
+    reason: stop.reason ??
+      "The workflow ended the run from a workflow.stop step.",
+    // A stop the engine reached on its own has no requesting person; the ledger
+    // already allows that for a system ending, and the audit row above names the
+    // step instead.
+    decidedBy: row.requestedBy ?? "system:workflow_stop",
+    traceId: originalTraceId(row),
+    applicationId: row.applicationId,
+    repositoryId: row.repositoryId,
+    conversationId: row.conversationId,
+  });
+
+  // The run is now ended by the writer above; the step records the same outcome
+  // so a reader of either row agrees about what this run ended as.
+  const completed = await transaction.query(
+    `update bakery.run_steps
+        set status = 'completed',
+            output = jsonb_build_object(
+              'outcome', $3::text,
+              'reason', $4::text
+            ),
+            started_at = coalesce(started_at, clock_timestamp()),
+            finished_at = clock_timestamp(), updated_at = clock_timestamp(),
+            version = version + 1
+      where organization_id = $1 and id = $2
+        and status not in ('completed', 'failed', 'canceled', 'skipped')`,
+    [row.organizationId, row.runStepId, stop.outcome, stop.reason ?? null],
+  );
+  if (completed.rowCount !== 1) {
+    throw new Error("WORKFLOW_STOP_STEP_UPDATE_FAILED");
+  }
+  const audited = await appendAudit(transaction, {
+    organizationId: row.organizationId,
+    principalId: row.requestedBy,
+    operation: WORKFLOW_STOP_OPERATION,
+    resourceType: "run_step",
+    resourceId: row.runStepId,
+    requestId: `stop:${row.runStepId}`,
+    traceId: originalTraceId(row),
+    details: { runId: row.runId, stepKey: key.stepKey, outcome: stop.outcome },
+  });
+  if (audited !== 1) throw new Error("WORKFLOW_STOP_AUDIT_INSERT_FAILED");
+  return { key, terminal: true };
+}
+
 async function projectFailure(
   transaction: PgTransactionClient,
   row: AdmissionStepRow,
@@ -1945,6 +2070,17 @@ export function createBakeryPostgresWorkflowRepository(options: {
             owner,
           );
         }
+        // A stop ends the run instead of running a worker, so it is settled here
+        // the same way a projection is: no job, no budget reservation.
+        if (planDispatch !== null && action === WORKFLOW_STOP_ACTION) {
+          return await completeStopStep(
+            transaction,
+            row,
+            key,
+            resolvedInput,
+            owner,
+          );
+        }
         workflowActionCapabilities(action, requiredCapabilities);
         assertActionAgentPolicy(requiredCapabilities, agent?.config ?? null);
         const value = jsonRecord(resolvedInput);
@@ -1959,7 +2095,18 @@ export function createBakeryPostgresWorkflowRepository(options: {
         const input = profileContext.success
           ? { ...value, repositoryProfile: profileContext.data }
           : value;
-        if (!executionJobInputFitsTransport(input)) {
+        // Notes left for this step before it started (#412) travel with the
+        // job's input; they are marked delivered below, only once the job
+        // exists. The budget digest is taken over `input`, without the notes.
+        const stepNotes = await undeliveredStepNotes(transaction, {
+          organizationId: row.organizationId,
+          runId: row.runId,
+          stepKey: row.stepKey,
+        });
+        const jobInput = stepNotes.length === 0
+          ? input
+          : { ...input, stepNotes: stepNotes.map((note) => note.body) };
+        if (!executionJobInputFitsTransport(jobInput)) {
           throw new StandardError({ code: "STATE_CONFLICT" });
         }
         await assertSecretIdentityRepositoryAdmission(transaction, {
@@ -2024,7 +2171,7 @@ export function createBakeryPostgresWorkflowRepository(options: {
         await transaction.query(
           "release savepoint workflow_budget_reservation",
         );
-        await transaction.query(
+        const createdJob = await transaction.query<{ id: string }>(
           `insert into bakery.jobs (
              organization_id, run_step_id, action, input, status,
              available_at, priority, max_attempts,
@@ -2036,12 +2183,13 @@ export function createBakeryPostgresWorkflowRepository(options: {
            ) values ($1, $2, $3, $4::jsonb, 'queued', now(), 0, $5,
                      $6, $7, $8, $9, $10, $11, $12, $13, $14::jsonb,
                      $15, $16::jsonb, $17::jsonb, $18::jsonb, $19)
-           on conflict (run_step_id, action) do nothing`,
+           on conflict (run_step_id, action) do nothing
+           returning id`,
           [
             row.organizationId,
             row.runStepId,
             action,
-            JSON.stringify(input ?? {}),
+            JSON.stringify(jobInput ?? {}),
             action === "secret.identity.read"
               ? 1
               : planDispatch?.retry.maxAttempts ?? options.maxAttempts,
@@ -2061,6 +2209,14 @@ export function createBakeryPostgresWorkflowRepository(options: {
             budgetReservation?.installationReservationId ?? null,
           ],
         );
+        const newJobId = createdJob.rows[0]?.id;
+        if (newJobId !== undefined && stepNotes.length > 0) {
+          await recordNotesDelivered(transaction, {
+            organizationId: row.organizationId,
+            jobId: newJobId,
+            noteIds: stepNotes.map((note) => note.id),
+          });
+        }
         if (agent && workerActionOutputCarriesSession(action)) {
           // Worker results must name a server-created session of this step.
           await transaction.query(

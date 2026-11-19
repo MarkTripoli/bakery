@@ -5,6 +5,7 @@ import type {
   ActionContext,
   CommandRunner,
 } from "@bakery/contracts/action-registry";
+import type { ActionRegistry } from "@bakery/contracts/action-registry";
 import { createApiRouter, StandardError } from "@bakery/contracts/http";
 import type { PgDatabase } from "../../platform/database.ts";
 import type { AuthVariables } from "../auth/middleware.ts";
@@ -12,6 +13,10 @@ import { createActionContext } from "../auth/middleware.ts";
 import { PostgresAuthorityRunner } from "../auth/adapters/authority-postgres.ts";
 import { createPostgresCommandRunner } from "../../platform/command-replay.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
+import {
+  assertMayPublishDefinition,
+  DefinitionKind,
+} from "../auth/application/definition-publish-grants.ts";
 import {
   createCatalogActionRegistry,
   createSkillVersionActionRegistry,
@@ -54,6 +59,12 @@ export function createCatalogRoutes(options: {
   skillFileRoot?: string;
   skillFileStore?: SkillFileStoreOperations;
   normalizeSourceLocator?: typeof normalizeSkillSourceLocator;
+  /**
+   * A registry built by the caller, so the same catalog operations can be
+   * composed into another surface (the worker tool gateway) without a second
+   * registration whose handler and authority could drift from these.
+   */
+  registry?: ActionRegistry;
 }) {
   const store = options.skillFileStore ??
     (options.skillFileRoot
@@ -132,11 +143,12 @@ export function createCatalogRoutes(options: {
   app.route(
     "/",
     createApiRouter({
-      registry: createCatalogActionRegistry(handlers, {
-        authorityRunner: postgresAuthority,
-        commandRunner: postgresCommandRunner,
-        includeSkillVersionPublication: false,
-      }),
+      registry: options.registry ??
+        createCatalogActionRegistry(handlers, {
+          authorityRunner: postgresAuthority,
+          commandRunner: postgresCommandRunner,
+          includeSkillVersionPublication: false,
+        }),
       publicBaseUrl: options.publicBaseUrl,
       createContext: createActionContext,
     }),
@@ -146,7 +158,16 @@ export function createCatalogRoutes(options: {
     createApiRouter({
       registry: createSkillVersionActionRegistry({
         createSkillVersion: async (context) => {
-          const { transaction } = requireWorkTransaction(context);
+          const { transaction, organizationId, principalId } =
+            requireWorkTransaction(context);
+          // A skill version is published on create: an agent needs a grant
+          // (O52, #421) before anything is finalized.
+          await assertMayPublishDefinition(transaction, context, {
+            organizationId,
+            principalId,
+            kind: DefinitionKind.Skill,
+            definitionId: context.params.id ?? null,
+          });
           const stage = (context as StagedActionContext)[
             publicationExecutionStage
           ];

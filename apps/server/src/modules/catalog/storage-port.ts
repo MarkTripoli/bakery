@@ -20,6 +20,27 @@ export interface SkillObjectStore {
     expectedSha256: string,
     expectedSize: number,
   ): Promise<void>;
+  /**
+   * The stored size of one object, or null when it is not there.
+   *
+   * `read` needs a size before it can verify bytes, so a caller that holds a
+   * digest but not a size - publishing a plugin version from an already
+   * uploaded bundle, for instance - has no other way to ask. Returning null
+   * rather than throwing keeps "absent" and "unreadable" apart at the call
+   * site.
+   */
+  stat(objectKey: string): Promise<{ sizeBytes: number } | null>;
+  /**
+   * Remove one object, answering whether it was there.
+   *
+   * Retention collection is the only caller: a bundle that nothing may install
+   * again is reclaimed here rather than left to an out-of-band sweep, because
+   * a sweep has no way to know that an install no longer pins it. Deleting an
+   * absent key is not an error - a purged version may be collected twice after
+   * a crash between the store call and the row update - so `false` reports
+   * "there was nothing to reclaim", not "the call failed".
+   */
+  delete(objectKey: string): Promise<boolean>;
   list(): AsyncIterable<SkillObject>;
 }
 
@@ -133,6 +154,17 @@ export interface OrganizationBlobStore {
     sha256: string,
     expectedSize: number,
   ): Promise<Uint8Array>;
+  /**
+   * Size of this organization's blob under `sha256`, or null when absent.
+   *
+   * The caller names a digest, never a path, so there is no call in which a
+   * caller supplies a key and therefore none in which it supplies another
+   * tenant's.
+   */
+  stat(
+    organizationId: string,
+    sha256: string,
+  ): Promise<{ sizeBytes: number } | null>;
   recover(
     organizationId: string,
     sha256: string,

@@ -47,6 +47,22 @@ export const noop = (id: string, extra: Step = {}): Step => ({
   ...extra,
 });
 
+/**
+ * A `workflow.stop` step: it ends the run on purpose with a named outcome
+ * rather than continuing, so a plan that reaches it has no step after it that
+ * could run.
+ */
+export const stop = (
+  id: string,
+  input: Record<string, unknown> = {},
+  extra: Step = {},
+): Step => ({
+  id,
+  uses: "workflow.stop",
+  with: input,
+  ...extra,
+});
+
 export function stateOf(
   over: Partial<RunState> & { steps?: Map<string, StepRecord> } = {},
 ): RunState {

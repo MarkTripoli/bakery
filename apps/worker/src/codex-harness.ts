@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { withStepNotes } from "./step-notes-prompt.ts";
 import { enforceWorkerFixedPolicy, type WorkerExecutor } from "./executor.ts";
 import type { ExecutionOutcome } from "./executor.ts";
 import type { NativeOutputSink } from "./native-output.ts";
@@ -26,6 +27,7 @@ import {
   repairRevisionMismatch,
   requireCleanHarnessWorktree,
   runBoundedHarness,
+  traceEnvironment,
   withHarnessRestore,
 } from "./harness-common.ts";
 import { provenCanceledOutcome, type PublishArtifact } from "./task-brief.ts";
@@ -275,9 +277,12 @@ async function executeCodexHarness(
     : undefined;
   const prompt = repair !== undefined
     ? buildRepairPrompt(repair)
-    : instructions === undefined
-    ? basePrompt
-    : `${basePrompt}\n\nTask instructions:\n${instructions}`;
+    : withStepNotes(
+      instructions === undefined
+        ? basePrompt
+        : `${basePrompt}\n\nTask instructions:\n${instructions}`,
+      input,
+    );
   const commitMessage = repair !== undefined
     ? repairCommitMessage(repair.revision)
     : `bakery: plan artifact ${planArtifact}`;
@@ -319,7 +324,7 @@ async function executeCodexHarness(
         "The Codex harness could not complete the bounded task",
       );
     }
-    const childEnvironment = { HOME: dirs.home, CODEX_HOME: dirs.codexHome };
+    const childEnvironment = codexChildEnvironment(dirs, assignment);
     const versionProbe = await probeHarnessVersion(
       codexExecutable,
       worktree,
@@ -535,5 +540,22 @@ export function createCodexHarnessExecutor(
         ).finally(harnessBusy.release);
       });
     },
+  };
+}
+
+/**
+ * The child environment for one Codex turn. Named and exported so a test can
+ * assert what the adapter launches with; inlined, a mutant that dropped the
+ * trace spread passed every test.
+ */
+export function codexChildEnvironment(
+  dirs: { readonly home: string; readonly codexHome: string },
+  assignment: { readonly traceparent?: string },
+): Readonly<{ HOME: string; CODEX_HOME: string }> & Record<string, string> {
+  return {
+    HOME: dirs.home,
+    CODEX_HOME: dirs.codexHome,
+    // The harness continues the trace that caused this work.
+    ...traceEnvironment(assignment),
   };
 }

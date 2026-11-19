@@ -17,9 +17,13 @@ import {
 } from "./modules/execution/control.ts";
 import { createApp } from "./app.ts";
 import {
-  createServerTelemetry,
+  createServerTelemetryFromConfig,
   SERVER_TELEMETRY_CLOSE_MS,
 } from "./platform/telemetry.ts";
+import {
+  startOperationalMetricSampling,
+  stopSamplingThenCloseTelemetry,
+} from "./platform/operational-metrics.ts";
 import {
   isPreviewRequestHost,
   previewHostname,
@@ -183,9 +187,23 @@ async function runServer(config: RuntimeConfig): Promise<void> {
   });
   const eventsSocketRegistry = createEventsSocketRegistry();
   const secretsFetch = createSecretIdentityProviderFixtureFetch(config);
-  // No sink yet: events cost a counter and nothing is queued. A sink is wired
-  // by the slice that adds one, and nothing here depends on it.
-  const telemetry = createServerTelemetry();
+  // The sink comes from configuration: rotated structured logs, an optional OTLP
+  // destination, or neither. With neither, export stays disabled and an event
+  // costs a counter and nothing is queued - the behaviour before this slice.
+  // Read with the rest of the runtime configuration, so the app never reads the
+  // environment itself (#306).
+  const telemetry = createServerTelemetryFromConfig(config.telemetry);
+  // Sampling the ledger is what puts an application metric in the registry at
+  // all; before this, the registry held zero series and nothing flushed.
+  const operationalMetrics = startOperationalMetricSampling({
+    // The Postgres pool, not the tagged-template client: the sample is one raw
+    // aggregate, and it must not join a caller's transaction.
+    database: pgDatabase,
+    telemetry,
+    // Per-destination export failures are counted by the sink and published from
+    // here, because a metric write from inside the sink is refused as reentrant.
+    sink: telemetry.sink,
+  });
   const app = createApp({
     telemetry,
     config,
@@ -228,7 +246,13 @@ async function runServer(config: RuntimeConfig): Promise<void> {
           eventsSocketRegistry.closeAll(1001, "server shutdown");
           await server.shutdown();
         } finally {
-          await telemetry.close(SERVER_TELEMETRY_CLOSE_MS).catch(() => {});
+          // Stop sampling before the final flush, so the last metric record is
+          // the last sample rather than a reading of a database already closing.
+          await stopSamplingThenCloseTelemetry({
+            sampling: operationalMetrics,
+            closeTelemetry: () =>
+              telemetry.close(SERVER_TELEMETRY_CLOSE_MS).catch(() => {}),
+          });
           await Promise.all([
             closePgDatabase(pgDatabase),
             closeDatabase(database),

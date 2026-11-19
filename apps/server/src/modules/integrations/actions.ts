@@ -25,6 +25,17 @@ import {
   unprocessable,
 } from "@bakery/contracts/http";
 import { PostgresAuthorityRunner } from "../auth/adapters/authority-postgres.ts";
+import type {
+  ActiveIntegrationRegistry,
+  ProviderRequestPort,
+} from "../catalog/integration-gate.ts";
+import { denyAllProviderRequests } from "../catalog/integration-gate.ts";
+import {
+  authorizeActionGrant,
+  connectionInvokeDeps,
+  invokeConnectionAction,
+  toConnectionInvokeResponse,
+} from "./invoke.ts";
 import {
   createPostgresCommandRunner,
   readCompletedCommandReplay,
@@ -111,6 +122,14 @@ export type IntegrationsRegistryDependencies = IntegrationsDependencies & {
    * reconciliation; a registry without one creates its own.
    */
   broker?: InstallationTokenBroker;
+  /**
+   * The process's activated integration registry. Required for the invoke door:
+   * its absence is what left `invokeIntegration` with no production caller, so
+   * the dependency is explicit here rather than defaulted.
+   */
+  integrationRegistry: ActiveIntegrationRegistry;
+  /** The provider request port the invoke door sends through. */
+  providerRequests?: ProviderRequestPort;
 };
 
 const preparationSlot = Symbol("private GitHub App registration preparation");
@@ -124,7 +143,7 @@ const intakeSlot = Symbol("verified GitHub webhook delivery");
 type IntakeContext = ActionContext & { [intakeSlot]?: PreparedDelivery };
 
 /**
- * Hands a signature-verified delivery to the registered `intake.github`
+ * Hands a signature-verified delivery to the registered `intake.webhook`
  * action. The receiving route calls this only after the HMAC over the exact
  * body bytes checked out; the slot is a private symbol, so no request body,
  * header or query can set it.
@@ -462,10 +481,13 @@ export function createIntegrationsAuthorityRunner(
       }
       // Bound-attempt callbacks derive their organization from the attempt,
       // which the shared runner refuses; the callback runner owns them.
-      if (action.name === IntegrationsImplementedAction.GitHubSetup) {
+      if (action.name === IntegrationsImplementedAction.IntegrationSetup) {
         return await callbacks.setup(action, context, input, next);
       }
-      if (action.name === IntegrationsImplementedAction.GitHubCallback) {
+      if (
+        action.name ===
+          IntegrationsImplementedAction.IntegrationAuthorizationCallback
+      ) {
         return await callbacks.callback(action, context, input, next);
       }
       if (
@@ -482,11 +504,12 @@ export function createIntegrationsAuthorityRunner(
         );
       }
       if (
-        action.name !== IntegrationsImplementedAction.GitHubManifestCallback
+        action.name !==
+          IntegrationsImplementedAction.IntegrationManifestCallback
       ) {
         return await authority.run(action, context, input, next);
       }
-      const parsed = contractSchemas.GitHubManifestCallback.parse(input);
+      const parsed = contractSchemas.IntegrationManifestCallback.parse(input);
       if (!isGitHubManifestCode(parsed.code)) {
         throw new StandardError({ code: "MALFORMED_REQUEST" });
       }
@@ -600,6 +623,10 @@ export function createIntegrationsActionRegistry(
     createPostgresCommandRunner(),
     "natural-idempotency",
   );
+  const invokeDeps = connectionInvokeDeps(
+    dependencies.integrationRegistry,
+    dependencies.providerRequests ?? denyAllProviderRequests,
+  );
   const policy = {
     access: ActionAccess.InstallationAdministrator,
     organizationContext:
@@ -634,10 +661,10 @@ export function createIntegrationsActionRegistry(
     policy: { ...policy, type: ActionKind.Command, sessionOnly: true },
     handler: (context) => putRegistration(context, putPreparation(context)),
   }).register({
-    name: IntegrationsImplementedAction.GitHubManifestCallback,
+    name: IntegrationsImplementedAction.IntegrationManifestCallback,
     method: HttpMethod.Get,
     path: "/v1/integration-auth/github/manifest-callback",
-    input: contractSchemas.GitHubManifestCallback,
+    input: contractSchemas.IntegrationManifestCallback,
     output: contractSchemas.AuthRedirect,
     policy: { ...policy, type: ActionKind.Command, sessionOnly: true },
     handler: (context) => storeRegistration(context, preparation(context)),
@@ -680,20 +707,20 @@ export function createIntegrationsActionRegistry(
     sessionOnly: true,
   } as const;
   registry.register({
-    name: IntegrationsImplementedAction.GitHubSetup,
+    name: IntegrationsImplementedAction.IntegrationSetup,
     method: HttpMethod.Get,
     path: "/v1/integration-auth/github/setup",
-    input: contractSchemas.GitHubSetupCallback,
+    input: contractSchemas.IntegrationSetupCallback,
     output: contractSchemas.AuthRedirect,
     policy: boundAttempt,
     handler: (context) =>
       bindConnection(
         context,
-        IntegrationsImplementedAction.GitHubSetup,
+        IntegrationsImplementedAction.IntegrationSetup,
         bindingPreparation(context),
       ),
   }).register({
-    name: IntegrationsImplementedAction.GitHubCallback,
+    name: IntegrationsImplementedAction.IntegrationAuthorizationCallback,
     method: HttpMethod.Get,
     path: "/v1/integration-auth/github/callback",
     input: contractSchemas.OAuthCallback,
@@ -702,7 +729,7 @@ export function createIntegrationsActionRegistry(
     handler: (context) =>
       bindConnection(
         context,
-        IntegrationsImplementedAction.GitHubCallback,
+        IntegrationsImplementedAction.IntegrationAuthorizationCallback,
         bindingPreparation(context),
       ),
   }).register({
@@ -867,6 +894,41 @@ export function createIntegrationsActionRegistry(
     explicitIdempotency: "key",
     successStatus: 202,
     handler: createDiscovery,
+  }).register({
+    name: IntegrationsImplementedAction.IntegrationConnectionsInvoke,
+    method: HttpMethod.Post,
+    path: "/v1/integration-connections/:id/actions",
+    input: contractSchemas.IntegrationAction,
+    output: contractSchemas.ActionResult,
+    // The catalog declares `Developer+action grant`: a Developer may invoke, but
+    // only for an action the caller holds an exact grant for, which the gate
+    // checks. Not `adminEdit` - invoking an action is not editing the connection.
+    policy: {
+      access: ActionAccess.DeveloperAndActionGrant,
+      // The tier's `+action grant` half: a Developer holds the role but also has
+      // to hold a live grant for this exact action and resource. The gate below
+      // re-reads the whole snapshot for binding, health and availability.
+      authorize: authorizeActionGrant,
+      // A connection belongs to an organization, so this is a real organization
+      // context: `None` is refused outright by PostgresAuthorityRunner, which
+      // would have made the route 403 for everyone including the connection's own
+      // Admin. The gate still re-reads authority per invocation; this says which
+      // context the request is authorized in, not what it is allowed to do.
+      organizationContext:
+        OrganizationContextPolicy.RequiredAuthenticatedContext,
+      type: ActionKind.Command,
+    },
+    // The ledger derives the effect key from the invocation facts, so a retried
+    // send with the same facts replays one effect instead of mutating twice.
+    explicitIdempotency: "key",
+    // The catalog declares one output shape for this route (`ActionResult`) and
+    // the framework enforces one success status, so the read and write arms are
+    // projected onto it: a write reports its effect id in `externalEffectId`.
+    successStatus: 200,
+    handler: async (context, input) =>
+      toConnectionInvokeResponse(
+        await invokeConnectionAction(context, invokeDeps, input),
+      ),
   });
   // Host-owned installations: the installation administrators' policy the
   // App registration routes use, never an organization role.
@@ -891,10 +953,10 @@ export function createIntegrationsActionRegistry(
   // GitHub's signed webhook: no session and no organization; the raw-body
   // route verifies the signature and hands the delivery through the slot.
   registry.register({
-    name: IntegrationsImplementedAction.IntakeGithub,
+    name: IntegrationsImplementedAction.IntakeWebhook,
     method: HttpMethod.Post,
     path: GitHubAppPath.Webhook,
-    input: contractSchemas.GitHubWebhook,
+    input: contractSchemas.IntegrationWebhook,
     output: contractSchemas.WebhookReceipt,
     policy: {
       type: ActionKind.Command,

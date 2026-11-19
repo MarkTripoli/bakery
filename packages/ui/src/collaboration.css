@@ -1186,6 +1186,12 @@
   font: var(--type-caption);
   min-inline-size: 0;
 }
+/* The send control stays at the end even with no hint beside it: without this
+   it sat at the start of the toolbar, which reads as a misplaced primary
+   action rather than the end of the message. */
+.ui-message-composer__action {
+  margin-inline-start: auto;
+}
 .ui-message-composer__footnote {
   color: var(--color-fg-muted);
   font: var(--type-caption);
@@ -1834,4 +1840,679 @@
 .ui-pane-section dd code {
   overflow-wrap: anywhere;
   word-break: break-word;
+}
+
+/* Activity line: one event in a session thread or run timeline. */
+.ui-activity-line {
+  list-style: none;
+  margin: 0;
+}
+
+.ui-activity-line__row {
+  align-items: center;
+  background: none;
+  box-sizing: border-box;
+  border: var(--border-none);
+  border-radius: var(--radius-control);
+  color: var(--color-fg-muted);
+  display: flex;
+  flex-wrap: wrap;
+  font: var(--type-hint);
+  gap: var(--space-2);
+  inline-size: 100%;
+  min-block-size: calc(var(--space-6) + var(--space-1));
+  padding-block: var(--space-1);
+  padding-inline: var(--space-1);
+  text-align: start;
+}
+
+button.ui-activity-line__row {
+  cursor: pointer;
+}
+
+button.ui-activity-line__row:hover {
+  background: var(--color-surface-subtle);
+  color: var(--color-fg);
+}
+
+.ui-activity-line__row:focus-visible {
+  outline: var(--focus-width) solid var(--color-focus);
+  outline-offset: var(--focus-offset-inset);
+}
+
+@media (pointer: coarse) {
+  .ui-activity-line__row {
+    min-block-size: var(--target-coarse);
+  }
+}
+
+.ui-activity-line__icon {
+  display: inline-flex;
+  flex: none;
+}
+
+/* The sentence takes its own width, so a chevron sits right after it and the
+   time column stays on one right-hand edge for every row. */
+.ui-activity-line__text {
+  flex: 0 1 auto;
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+.ui-activity-line__time {
+  color: var(--color-fg-muted);
+  flex: none;
+  font: var(--type-meta);
+  font-variant-numeric: tabular-nums;
+  margin-inline-start: auto;
+  min-inline-size: var(--space-12);
+  text-align: end;
+  white-space: nowrap;
+}
+
+.ui-activity-line__chevron {
+  color: var(--color-fg-tertiary);
+  display: inline-flex;
+  flex: none;
+  transition: transform var(--duration-disclosure) var(--ease-standard);
+}
+
+.ui-activity-line__chevron[data-expanded="true"] {
+  transform: rotate(180deg);
+}
+
+.ui-activity-line[data-tone="danger"] .ui-activity-line__icon {
+  color: var(--color-destructive);
+}
+
+/* A failure is not red alone: the icon is a different shape and the sentence
+   is full-colour text, so it reads by shape and weight too. */
+.ui-activity-line[data-tone="danger"] .ui-activity-line__row {
+  color: var(--color-fg);
+}
+
+.ui-activity-line[data-tone="success"] .ui-activity-line__icon {
+  color: var(--color-status-success);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-activity-line__chevron {
+    transition-duration: var(--duration-reduced);
+  }
+}
+
+/* Session thread: one column of messages, each owning the work it caused. */
+.ui-session-thread {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  inline-size: 100%;
+  position: relative;
+}
+
+.ui-session-thread__help {
+  inset-block-start: 0;
+  inset-inline-end: 0;
+  position: absolute;
+}
+
+@media (pointer: coarse) {
+  .ui-session-thread__help {
+    display: none;
+  }
+}
+
+/* The shortcuts button sits over the thread's top end corner, so the first
+   message keeps that corner clear of its name and time. */
+.ui-session-thread__turns > .ui-session-thread__turn:first-child header {
+  padding-inline-end: var(--space-8);
+}
+
+@media (pointer: coarse) {
+  .ui-session-thread__turns > .ui-session-thread__turn:first-child header {
+    padding-inline-end: var(--space-0);
+  }
+}
+
+.ui-session-thread__bar {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.ui-session-thread__shortcut {
+  display: block;
+}
+
+.ui-session-thread__turns {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ui-session-thread__turn {
+  border-radius: var(--radius-surface);
+}
+
+.ui-session-thread__turn:focus-visible {
+  outline: var(--focus-width) solid var(--color-focus);
+  outline-offset: var(--focus-offset-inset);
+}
+
+.ui-session-thread__turn[data-position="far"] {
+  content-visibility: auto;
+  contain-intrinsic-size: auto var(--space-16);
+}
+
+.ui-session-thread__turn[data-highlighted="true"] {
+  outline: var(--focus-width) solid var(--color-focus);
+  outline-offset: var(--focus-offset-inset);
+}
+
+.ui-session-thread__started {
+  color: var(--color-fg-muted);
+  font: var(--type-hint);
+  margin: 0;
+}
+
+.ui-session-thread__receipt {
+  color: var(--color-fg-muted);
+  font: var(--type-meta);
+  margin: var(--space-2) 0 0;
+}
+
+/* The agent speaks in plain text on the page; a person's message is the only
+   boxed thing, so a reader sees who is speaking before reading a word. */
+.ui-conversation-message[data-appearance="plain"] {
+  background: none;
+  border: var(--border-none);
+  padding: 0;
+}
+
+.ui-conversation-message[data-appearance="plain"] header {
+  justify-content: flex-start;
+}
+
+.ui-conversation-message[data-appearance="plain"] strong {
+  font: var(--type-label);
+}
+
+.ui-conversation-message[data-appearance="plain"] .ui-conversation-message__body {
+  max-inline-size: var(--layout-measure-prose);
+}
+
+.ui-session-thread .ui-conversation-message[data-appearance="card"] {
+  max-inline-size: none;
+  background: var(--color-surface);
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-surface);
+  padding: var(--space-3) var(--space-4);
+}
+
+.ui-session-thread__work {
+  border-inline-start: var(--border-default) solid var(--color-border);
+  margin-block-start: var(--space-2);
+  margin-inline-start: var(--space-2);
+  padding-inline-start: var(--space-3);
+}
+
+.ui-session-thread__summary {
+  align-items: center;
+  background: none;
+  border: var(--border-none);
+  border-radius: var(--radius-control);
+  color: var(--color-fg-muted);
+  cursor: pointer;
+  display: flex;
+  font: var(--type-hint);
+  gap: var(--space-2);
+  min-block-size: calc(var(--space-6) + var(--space-1));
+  padding-inline: var(--space-1);
+  text-align: start;
+}
+
+.ui-session-thread__summary:hover {
+  background: var(--color-surface-subtle);
+  color: var(--color-fg);
+}
+
+.ui-session-thread__summary:focus-visible {
+  outline: var(--focus-width) solid var(--color-focus);
+  outline-offset: var(--focus-offset-inset);
+}
+
+@media (pointer: coarse) {
+  .ui-session-thread__summary {
+    min-block-size: var(--target-coarse);
+  }
+}
+
+.ui-session-thread__chevron {
+  color: var(--color-fg-tertiary);
+  display: inline-flex;
+  transition: transform var(--duration-disclosure) var(--ease-standard);
+}
+
+.ui-session-thread__chevron[data-expanded="false"] {
+  transform: rotate(-90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-session-thread__chevron {
+    transition-duration: var(--duration-reduced);
+  }
+}
+
+.ui-session-thread__steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* Fine print that ends a turn's work: not a step, so no icon and no time. */
+.ui-session-thread__usage {
+  color: var(--color-fg-muted);
+  font: var(--type-meta);
+  font-variant-numeric: tabular-nums;
+  margin: var(--space-1) 0 0;
+  padding-inline: var(--space-1);
+}
+
+/* Names, paths and terminal text are data: the platform's mono face. */
+.ui-activity-line .ui-data-text {
+  display: inline;
+  font: var(--type-data);
+  inline-size: auto;
+}
+
+/* A path always fits one line: the folder truncates, the file name never. */
+.ui-session-path {
+  display: inline-flex;
+  font: var(--type-data);
+  max-inline-size: 100%;
+  min-inline-size: 0;
+  vertical-align: bottom;
+  white-space: nowrap;
+}
+
+.ui-session-path__folder {
+  flex: 0 1 auto;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ui-session-path__name {
+  flex: none;
+}
+
+/* Beside its verb the path takes the rest of the line and its folder truncates;
+   it only drops to its own line when even the file name does not fit. */
+.ui-activity-line:has(.ui-session-path) .ui-session-path {
+  flex: 1 1 calc(var(--space-12) * 2);
+}
+
+.ui-activity-line:has(.ui-session-path) .ui-activity-line__text {
+  display: flex;
+  flex: 1 1 calc(var(--space-12) * 2);
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  min-inline-size: 0;
+  white-space: nowrap;
+}
+
+.ui-session-thread__end {
+  align-items: center;
+  border-block-start: var(--border-default) solid var(--color-border);
+  color: var(--color-fg);
+  display: flex;
+  flex-wrap: wrap;
+  font: var(--type-hint);
+  gap: var(--space-2);
+  padding-block-start: var(--space-3);
+}
+
+.ui-session-thread__end[data-outcome="completed"] svg {
+  color: var(--color-status-success);
+}
+
+.ui-session-thread__end[data-outcome="failed"] svg {
+  color: var(--color-destructive);
+}
+
+.ui-session-thread__end[data-outcome="cancelled"] svg {
+  color: var(--color-fg-muted);
+}
+
+.ui-session-thread__reason {
+  color: var(--color-fg-muted);
+}
+
+.ui-session-thread__bottom {
+  block-size: 1px;
+}
+
+.ui-session-thread__jump {
+  display: flex;
+  inset-block-end: var(--space-2);
+  justify-content: center;
+  position: sticky;
+}
+
+/* Now line: the one polite live region, sitting above the composer. */
+.ui-session-now {
+  align-items: center;
+  color: var(--color-fg-muted);
+  display: flex;
+  flex-wrap: wrap;
+  font: var(--type-hint);
+  gap: var(--space-2);
+  margin: 0;
+  padding-inline: var(--space-1);
+}
+
+.ui-session-now[data-tone="danger"] {
+  align-items: flex-start;
+  color: var(--color-fg);
+  padding-block: var(--space-2);
+}
+
+.ui-session-now__mark {
+  align-items: center;
+  display: inline-flex;
+  flex: none;
+}
+
+.ui-session-now__dot {
+  background: var(--color-status-success);
+  border-radius: var(--radius-circle);
+  block-size: var(--space-2);
+  inline-size: var(--space-2);
+}
+
+.ui-session-now[data-tone="idle"] .ui-session-now__dot {
+  background: var(--color-fg-disabled);
+}
+
+.ui-session-now[data-tone="danger"] .ui-session-now__mark {
+  color: var(--color-destructive);
+}
+
+.ui-session-now[data-tone="warning"] .ui-session-now__mark {
+  color: var(--color-status-warning);
+}
+
+/* The sentence takes what is left; a control after it drops to the next line
+   when there is no room for both, instead of overflowing. */
+.ui-session-now__text {
+  flex: 1 1 min-content;
+  min-inline-size: 0;
+  overflow-wrap: break-word;
+}
+
+.ui-session-now__elapsed {
+  color: var(--color-fg-muted);
+  flex: none;
+  font: var(--type-meta);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The slow pulse on a running line is the "Thinking" cue. It is the dot that
+   pulses, never the text: fading text would drop below the contrast minimum. It
+   stops under reduced motion. */
+.ui-session-now[data-tone="active"] .ui-session-now__dot {
+  animation: ui-session-shimmer calc(var(--duration-transition) * 5)
+    var(--ease-standard) infinite alternate;
+}
+
+@keyframes ui-session-shimmer {
+  to {
+    opacity: 0.56;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-session-now[data-tone="active"] .ui-session-now__dot {
+    animation: none;
+  }
+}
+
+/* Terminal output under a step: monospace, scrolls its own overflow. */
+.ui-session-thread__terminal {
+  box-sizing: border-box;
+  background: var(--color-surface-subtle);
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-surface);
+  color: var(--color-fg);
+  font: var(--type-data);
+  margin: var(--space-1) 0 var(--space-2) var(--space-6);
+  max-block-size: calc(var(--space-12) * 5);
+  overflow: auto;
+  overflow-wrap: anywhere;
+  padding: var(--space-3);
+  white-space: pre-wrap;
+}
+
+.ui-session-thread__terminal:focus-visible {
+  outline: var(--focus-width) solid var(--color-focus);
+  outline-offset: var(--focus-offset-inset);
+}
+
+/* A running line for another step is a button: it switches to that step. */
+.ui-session-now__select {
+  background: none;
+  border: var(--border-none);
+  color: inherit;
+  cursor: pointer;
+  flex: 1 1 min-content;
+  font: inherit;
+  min-inline-size: 0;
+  padding: 0;
+  text-align: start;
+}
+
+@media (pointer: coarse) {
+  .ui-session-now__select {
+    min-block-size: var(--target-coarse);
+  }
+}
+
+.ui-session-now__select:focus-visible {
+  outline: var(--focus-width) solid var(--color-focus);
+  outline-offset: var(--focus-offset-inset);
+}
+
+/* A control after the sentence never wraps its own label. */
+.ui-session-now .ui-button {
+  flex: none;
+  white-space: nowrap;
+}
+
+/* Who is editing a shared document, and where this person's changes stand. */
+.ui-presence-row {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  min-inline-size: 0;
+}
+.ui-presence-row__people {
+  align-items: center;
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  max-inline-size: 100%;
+  padding: var(--space-1);
+}
+/* A person's ring: their presence colour, the same as their caret. */
+.ui-presence-row__people [data-presence-color] {
+  outline: var(--focus-width) solid transparent;
+  outline-offset: var(--border-default);
+}
+.ui-presence-row__people [data-presence-color="1"] {
+  outline-color: var(--color-presence-1);
+}
+.ui-presence-row__people [data-presence-color="2"] {
+  outline-color: var(--color-presence-2);
+}
+.ui-presence-row__people [data-presence-color="3"] {
+  outline-color: var(--color-presence-3);
+}
+.ui-presence-row__people [data-presence-color="4"] {
+  outline-color: var(--color-presence-4);
+}
+.ui-presence-row__people [data-presence-color="5"] {
+  outline-color: var(--color-presence-5);
+}
+.ui-presence-row__people [data-presence-color="6"] {
+  outline-color: var(--color-presence-6);
+}
+.ui-presence-row__more {
+  color: var(--color-fg-muted);
+  font: var(--type-hint);
+}
+.ui-presence-row__status {
+  color: var(--color-fg-muted);
+  /* A readable width before it shares the row: on a phone it wraps to its own
+     line instead of being squeezed beside the avatars. */
+  flex: 1 1 14rem;
+  font: var(--type-hint);
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+.ui-presence-row__save {
+  align-items: center;
+  color: var(--color-fg-muted);
+  display: inline-flex;
+  font: var(--type-hint);
+  gap: var(--space-1);
+  margin-inline-start: auto;
+  max-inline-size: 100%;
+  min-inline-size: 0;
+}
+.ui-presence-row__save > span {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+.ui-presence-row__save[data-tone="warning"] {
+  color: var(--color-fg);
+}
+.ui-presence-row__save[data-tone="error"] {
+  color: var(--color-destructive);
+}
+
+/* One suggestion from an agent, beside the text it would change. */
+.ui-suggestion-card {
+  background: var(--color-surface-raised);
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-surface);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-inline-size: 0;
+  padding: var(--space-3);
+}
+.ui-suggestion-card__heading {
+  font: var(--type-label);
+  margin: var(--space-0);
+}
+.ui-suggestion-card__summary {
+  font: var(--type-body);
+  margin: var(--space-0);
+  overflow-wrap: anywhere;
+}
+.ui-suggestion-card__origin {
+  color: var(--color-fg-muted);
+  font: var(--type-hint);
+  margin: var(--space-0);
+  overflow-wrap: anywhere;
+}
+.ui-suggestion-card__message {
+  align-items: flex-start;
+  display: flex;
+  font: var(--type-hint);
+  gap: var(--space-1);
+  margin: var(--space-0);
+}
+.ui-suggestion-card__message[data-tone="error"] {
+  color: var(--color-destructive);
+}
+.ui-suggestion-card__message > span {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+/* The chosen card: the same outline as keyboard focus, so it reads as "this one". */
+.ui-suggestion-card[data-variant="selected"] {
+  outline: var(--focus-width) solid var(--color-focus);
+  outline-offset: var(--focus-offset);
+}
+.ui-suggestion-card[tabindex]:focus-visible {
+  outline: var(--focus-width) solid var(--color-focus);
+  outline-offset: var(--focus-offset);
+}
+.ui-suggestion-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* An empty thread's card is as wide as the thread that will fill it. */
+.ui-session-thread .ui-empty-state {
+  max-inline-size: none;
+}
+
+.ui-document-editor {
+  background: var(--color-surface);
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-surface);
+  color: var(--color-fg);
+  inline-size: 100%;
+  max-inline-size: var(--layout-content);
+  min-inline-size: 0;
+}
+.ui-document-editor .cm-editor {
+  background: transparent;
+  color: inherit;
+  font: var(--type-field);
+}
+.ui-document-editor .cm-editor.cm-focused {
+  outline: var(--focus-width) solid var(--color-focus);
+  outline-offset: var(--focus-offset);
+}
+.ui-document-editor .cm-scroller {
+  font: inherit;
+  min-block-size: 16rem;
+  overflow-wrap: anywhere;
+}
+.ui-document-editor .cm-content {
+  caret-color: var(--color-fg);
+  padding: var(--space-3) var(--space-4);
+}
+.ui-document-editor .cm-line {
+  padding: 0;
+}
+/* The text a chosen suggestion would change. */
+.ui-document-editor .ui-document-editor__suggested {
+  background: var(--color-status-warning-surface);
+  border-radius: var(--radius-control);
+  outline: var(--focus-width) solid var(--color-status-warning);
+  outline-offset: var(--space-0);
+}
+.ui-document-editor .cm-placeholder {
+  color: var(--color-fg-muted);
+}
+.ui-document-editor .cm-selectionBackground,
+.ui-document-editor .cm-editor.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground {
+  background: var(--color-selection);
+}
+.ui-document-editor[data-state="readOnly"] {
+  background: var(--color-surface-subtle);
+}
+
+/* Rows kept on screen while a filter or page change loads. */
+.ui-task-inbox[data-state="loading"] .ui-task-inbox__results {
+  opacity: 0.56;
 }

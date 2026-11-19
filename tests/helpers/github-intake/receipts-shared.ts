@@ -14,9 +14,13 @@ import {
 } from "../github-app-registration.ts";
 import { createIntegrationsActionRegistry } from "../../../apps/server/src/modules/integrations/actions.ts";
 import { mountIntakeRoute } from "../../../apps/server/src/modules/integrations/intake-routes.ts";
+import { githubIngress } from "../../../apps/server/src/modules/catalog/integration-providers/github-ingress.ts";
 import type { PgDatabase } from "../../../apps/server/src/platform/database.ts";
+import type { WebhookIngress } from "@bakery/integration-sdk";
 import type { AuthVariables } from "../../../apps/server/src/modules/auth/middleware.ts";
 import { deliveryRequest } from "./signed-delivery.ts";
+import { activateDeployedIntegrations } from "../../../apps/server/src/modules/catalog/integration-gate.ts";
+import { deployedIntegrations } from "../../../apps/server/src/modules/catalog/integration-gate-registry.ts";
 
 export const webhookUrl = `${authTestOrigin}/v1/webhooks/github`;
 export const SHA_A = "a".repeat(40);
@@ -347,6 +351,8 @@ export function receiverApp(
     deadlineMs?: number;
     /** `null` mounts no secrets key; the default is the fixture's. */
     secretsKey?: GitHubAppFixture["secretsKey"] | null;
+    /** Replaces the GitHub ingress, so a test can watch what the route hands over. */
+    ingress?: WebhookIngress;
   } = {},
 ): Hono<{ Variables: AuthVariables }> {
   const database = options.database ?? f.runtimePgDatabase!;
@@ -360,11 +366,13 @@ export function receiverApp(
       secretsKey,
       github: f.github.client,
       cursorSecret: "intake-receipts-test-cursor-secret-0123456789",
+      integrationRegistry: activateDeployedIntegrations(deployedIntegrations),
     }),
     database,
     secretsKey,
     publicBaseUrl: authTestOrigin,
     deadlineMs: options.deadlineMs,
+    ingress: options.ingress ?? githubIngress,
   });
   return app;
 }
