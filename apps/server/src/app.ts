@@ -29,6 +29,7 @@ import {
   activateDeployedIntegrations,
   createCatalogRoutes,
   deployedIntegrations,
+  deployedProviders,
 } from "./modules/catalog/index.ts";
 import {
   createSkillSourceAdapter,
@@ -188,6 +189,8 @@ export function createApp(options: {
   // start disagreeing.
   const integrationRegistry = activateDeployedIntegrations(
     deployedIntegrations,
+    undefined,
+    deployedProviders,
   );
   if (!options.config.auth) throw new Error(AuthErrorCode.ConfigRequired);
   const installationSettings = options.installationSettings ??
