@@ -299,18 +299,22 @@ test.describe("organization repository rules", () => {
     test.skip(!isMobile, "desktop keeps the header help buttons");
     await rulesFixture(page);
     await page.goto(PAGE_PATH);
-    const summary = page.getByRole("button", {
-      name: "What Require, Warn, Guide and Off mean",
+    const disclosure = page.locator("details", {
+      hasText: "What Require, Warn, Guide and Off mean",
     });
+    const summary = disclosure.locator("summary");
     await expect(summary).toBeVisible();
-    await expect(summary).toHaveAttribute("aria-expanded", "false");
+    await expect(disclosure).not.toHaveAttribute("open", "");
     await expect(
       page.getByText("Require blocks delivery until the check passes."),
     )
       .toBeHidden();
-    await shot(page, "rules-help-phone-closed", [], { windowOnly: true });
+    await shot(page, "rules-help-phone-closed", [], {
+      only: "mobile",
+      windowOnly: true,
+    });
     await summary.click();
-    await expect(summary).toHaveAttribute("aria-expanded", "true");
+    await expect(disclosure).toHaveAttribute("open", "");
     await expect(
       page.getByText("Require blocks delivery until the check passes."),
     )
@@ -319,15 +323,18 @@ test.describe("organization repository rules", () => {
       page.getByText("Locked rules apply to every repository as set here."),
     )
       .toBeVisible();
-    await shot(page, "rules-help-phone-open", [], { windowOnly: true });
+    await shot(page, "rules-help-phone-open", [], {
+      only: "mobile",
+      windowOnly: true,
+    });
   });
 
   test("desktop has no phone disclosure", async ({ page, isMobile }) => {
     test.skip(isMobile, "a phone has the disclosure");
     await rulesFixture(page);
     await page.goto(PAGE_PATH);
-    await expect(page.getByRole("button", {
-      name: "What Require, Warn, Guide and Off mean",
+    await expect(page.locator("details", {
+      hasText: "What Require, Warn, Guide and Off mean",
     })).toHaveCount(0);
   });
 
