@@ -5,7 +5,10 @@ import {
   issueCredentialForAttempt,
   type MintedSessionCredential,
 } from "./session-claim-credential.ts";
-import { revokeAttemptCredentials } from "./session-credential-store.ts";
+import {
+  attemptCredentialPrincipal,
+  revokeAttemptCredentials,
+} from "./session-credential-store.ts";
 import { StandardError } from "@bakery/contracts/http";
 import { workerActionOutputCarriesSession } from "@bakery/contracts/contracts";
 import { DEFAULT_LEASE_SECONDS } from "@bakery/persistence";
@@ -253,21 +256,47 @@ export async function executeClaim(
           const replayed = contractSchemas.JobAssignment.parse(
             await unprotect(options.secret, replay.responseCiphertext),
           ) as Assignment;
-          // The token is served exactly once, on the response that minted it.
-          // A replay re-serves the stored ciphertext, so handing it back whole
-          // would make "returned once" false: the token would be readable from
-          // the replay store for as long as the replay lives. The credential is
-          // revoked and the replay carries none, because a worker that lost its
-          // token should claim again rather than recover a secret from a cache.
-          await revokeAttemptCredentials(context.transaction, {
-            organizationId: identity.host.organizationId,
-            attemptId: replay.attemptId,
-          });
+          // The stored ciphertext carries the token the first claim minted, so
+          // re-serving it would make "returned once" false. The old credential
+          // is revoked and a fresh one minted for the response alone: a worker
+          // whose first response was lost keeps working tools, and the new
+          // token is never written to the replay store (only its digest is
+          // stored, in the credential row).
           const {
             sessionCredential: _withheld,
             ...withoutCredential
           } = replayed;
-          const response = withoutCredential as Assignment;
+          let response = withoutCredential as Assignment;
+          await revokeAttemptCredentials(context.transaction, {
+            organizationId: identity.host.organizationId,
+            attemptId: replay.attemptId,
+          });
+          const priorPrincipal = await attemptCredentialPrincipal(
+            context.transaction,
+            {
+              organizationId: identity.host.organizationId,
+              attemptId: replay.attemptId,
+            },
+          );
+          if (
+            priorPrincipal !== null && replayed.workerSessionId != null &&
+            replayed.sessionCredential !== undefined
+          ) {
+            const fresh = await issueCredentialForAttempt(context.transaction, {
+              organizationId: identity.host.organizationId,
+              attemptId: replay.attemptId,
+              actsForPrincipalId: priorPrincipal.principalId,
+              actsForPrincipalType: priorPrincipal.principalType,
+              workerSessionId: replayed.workerSessionId,
+              workerSessionGeneration: BigInt(
+                replayed.workerSessionGeneration ?? "1",
+              ),
+              fence: BigInt(replayed.fence),
+              leaseTokenHash: await sha256Hex(replayed.leaseToken),
+              leaseExpiresAt: new Date(replayed.leaseExpiresAt),
+            });
+            response = { ...response, sessionCredential: fresh.token };
+          }
           return { status: 200 as const, response, replayed: true };
         }
         throw new Error("WORKER_CLAIM_REPLAY_INVALID");

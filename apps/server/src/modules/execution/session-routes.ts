@@ -48,7 +48,11 @@ function readSessionCredential(headers: Headers): string {
   const value = headers.get(SESSION_CREDENTIAL_HEADER)?.trim();
   // A call without one is refused by the same code as a wrong one: telling a
   // caller its token is merely missing would let it probe.
-  if (!value) throw new SessionOperationError("SESSION_CREDENTIAL_INVALID");
+  if (!value) {
+    throw sessionRefusal(
+      new SessionOperationError("SESSION_CREDENTIAL_INVALID"),
+    );
+  }
   return value;
 }
 
@@ -79,12 +83,25 @@ export type SessionRouteOptions =
  * a database: the claim is the only input, and the answer must be the person
  * the run is for rather than the worker host that picked the job up.
  */
+const ORGANIZATION_HEADER = "Bakery-Organization-Id";
+
 export function sessionDispatchPrincipal(
   claim: SessionOperationClaim,
-): Readonly<{ principalId: string; principalType: string }> {
+): Readonly<{
+  principalId: string;
+  principalType: string;
+  displayName: string;
+}> {
   return {
     principalId: claim.actsForPrincipalId,
     principalType: claim.actsForPrincipalType,
+    // The action's authority guard rebuilds its subject from this and refuses
+    // one it cannot name. Omitting the name made every dispatched call fail
+    // inside the guard with AUTH_FORBIDDEN - for an admin as well as an
+    // outsider - so the route looked strict while refusing all work, and the
+    // "a session never exceeds the person" test passed because nothing ever
+    // succeeded in the first place.
+    displayName: claim.actsForPrincipalDisplayName ?? "",
   };
 }
 
@@ -93,8 +110,15 @@ export function dispatchedContext(
   attemptId: string,
   claim: SessionOperationClaim,
 ): ActionContext {
+  // The action's guard reads the organization from the header, not the path, so
+  // the dispatched request must carry it. Without it every call refused with
+  // AUTH_FORBIDDEN before authority was even consulted.
+  // The claim's organization always wins: a header the worker sent must not
+  // widen the session beyond the organization the attempt was claimed in.
+  const dispatched = new Request(request.url, request);
+  dispatched.headers.set(ORGANIZATION_HEADER, claim.organizationId);
   return {
-    request,
+    request: dispatched,
     params: { id: attemptId },
     requestId: request.headers.get("x-request-id") ?? crypto.randomUUID(),
     traceId: request.headers.get("traceparent") ?? crypto.randomUUID(),
@@ -106,6 +130,45 @@ export function dispatchedContext(
   };
 }
 
+/**
+ * Turns a session policy refusal into the typed problem a client can act on.
+ *
+ * Without this a bogus token, a token for another attempt and an unoffered tool
+ * all surfaced as 500 INTERNAL: a client could not tell a refusal from a fault
+ * and on-call was paged for bad tokens. Anything else is rethrown untouched.
+ */
+export function sessionRefusal(error: unknown): unknown {
+  if (error instanceof SessionToolError) {
+    return new StandardError({
+      code: error.code === "SESSION_TOOL_UNKNOWN"
+        ? "RESOURCE_NOT_FOUND"
+        : "AUTH_FORBIDDEN",
+      cause: error,
+    });
+  }
+  if (error instanceof SessionOperationError) {
+    switch (error.code) {
+      case "SESSION_CREDENTIAL_INVALID":
+        return new StandardError({ code: "AUTH_INVALID", cause: error });
+      case "SESSION_CREDENTIAL_EXPIRED":
+      case "SESSION_CREDENTIAL_FENCE_STALE":
+        return new StandardError({ code: "AUTH_EXPIRED", cause: error });
+      case "SESSION_SCOPE_DENIED":
+      case "SESSION_CREDENTIAL_NO_PRINCIPAL":
+        return new StandardError({ code: "AUTH_FORBIDDEN", cause: error });
+    }
+  }
+  return error;
+}
+
+async function refusing<T>(run: () => Promise<T>): Promise<T> {
+  try {
+    return await run();
+  } catch (error) {
+    throw sessionRefusal(error);
+  }
+}
+
 export function createSessionRoutes(
   options: SessionRouteOptions,
 ): Hono<{ Variables: AuthVariables }> {
@@ -114,17 +177,19 @@ export function createSessionRoutes(
   app.get(SESSION_TOOLS_PATH, async (context) => {
     const attemptId = context.req.param("id") ?? "";
     const token = readSessionCredential(context.req.raw.headers);
-    const tools = await workerTransaction(
-      options.database,
-      context.req.raw.headers,
-      (transaction, identity) =>
-        listSessionToolsForCredential({
-          transaction,
-          identity,
-          attemptId,
-          credentialToken: token,
-          registry: options.sessionTools.list(),
-        }),
+    const tools = await refusing(() =>
+      workerTransaction(
+        options.database,
+        context.req.raw.headers,
+        (transaction, identity) =>
+          listSessionToolsForCredential({
+            transaction,
+            identity,
+            attemptId,
+            credentialToken: token,
+            registry: options.sessionTools.list(),
+          }),
+      )
     );
     return context.json({ tools });
   });
@@ -141,25 +206,27 @@ export function createSessionRoutes(
     const tool = body.tool;
     const request = context.req.raw;
 
-    const result = await workerTransaction(
-      options.database,
-      context.req.raw.headers,
-      (transaction, identity) =>
-        callSessionTool({
-          transaction,
-          identity,
-          attemptId,
-          credentialToken: token,
-          registry: options.sessionTools.list(),
-          tool,
-          arguments: body.arguments ?? {},
-          execute: (offered, claim) =>
-            options.sessionTools.execute(
-              offered.name,
-              dispatchedContext(request, attemptId, claim),
-              body.arguments ?? {},
-            ),
-        }),
+    const result = await refusing(() =>
+      workerTransaction(
+        options.database,
+        context.req.raw.headers,
+        (transaction, identity) =>
+          callSessionTool({
+            transaction,
+            identity,
+            attemptId,
+            credentialToken: token,
+            registry: options.sessionTools.list(),
+            tool,
+            arguments: body.arguments ?? {},
+            execute: (offered, claim) =>
+              options.sessionTools.execute(
+                offered.name,
+                dispatchedContext(request, attemptId, claim),
+                body.arguments ?? {},
+              ),
+          }),
+      )
     );
     return context.json(result);
   });

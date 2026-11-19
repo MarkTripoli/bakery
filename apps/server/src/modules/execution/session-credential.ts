@@ -40,6 +40,18 @@ export type SessionOperationClaim = Readonly<{
    * looking at a human or a service.
    */
   actsForPrincipalType: string;
+  /**
+   * The acting person's display name, joined at resolve time.
+   *
+   * Dispatched actions run their own authority guard as this person, and that
+   * guard refuses a subject it cannot name. Carrying it means a session call is
+   * judged by the same rule as a person's own request instead of failing inside
+   * the guard for a reason that has nothing to do with authority.
+   *
+   * Optional on the issuer and filled at resolve time: the credential row stores
+   * no name, so minting cannot know it and must not invent one.
+   */
+  actsForPrincipalDisplayName?: string;
   /** The worker session and generation that claimed the attempt. */
   workerSessionId: string;
   workerSessionGeneration: bigint;

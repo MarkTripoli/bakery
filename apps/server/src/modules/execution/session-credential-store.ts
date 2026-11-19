@@ -132,14 +132,19 @@ export async function resolveSessionCredential(
 ): Promise<{ id: string; claim: SessionOperationClaim }> {
   const tokenHash = await sha256Hex(token);
   const result = await tx.query<
-    RawRow & { tokenHash: string; actsForPrincipalType?: string }
+    RawRow & {
+      tokenHash: string;
+      actsForPrincipalType?: string;
+      actsForPrincipalDisplayName?: string;
+    }
   >(
     // The principal's type is joined rather than stored: the credential row
     // already names the person, `bakery.principals` already knows what kind of
     // principal it is, and a copied column would be a second truth that a
     // rename or a re-typed principal could silently desynchronise.
     `select ${COLUMNS},
-            credential_principal.principal_type as "actsForPrincipalType"
+            credential_principal.principal_type as "actsForPrincipalType",
+            credential_principal.display_name as "actsForPrincipalDisplayName"
        from bakery.session_operation_credentials as credential
        join bakery.principals as credential_principal
          on credential_principal.id = credential.acts_for_principal_id
@@ -161,6 +166,10 @@ export async function resolveSessionCredential(
       attemptId: stored.attemptId,
       actsForPrincipalId: stored.actsForPrincipalId,
       actsForPrincipalType: row.actsForPrincipalType ?? "worker",
+      // Reloaded here so the dispatched action's authority guard has a typed
+      // subject: it refuses a principal without a name, which is how a session
+      // call could look authorised and be refused by its own guard instead.
+      actsForPrincipalDisplayName: row.actsForPrincipalDisplayName ?? "",
       workerSessionId: stored.workerSessionId,
       workerSessionGeneration: stored.workerSessionGeneration,
       fence: stored.fence,
@@ -263,4 +272,29 @@ export async function revokeAttemptCredentials(
     throw new StandardError({ code: "INTERNAL" });
   }
   return result.rowCount;
+}
+
+/**
+ * The person and kind a claimed attempt's credential acted for, revoked or not.
+ *
+ * A replayed claim needs them to mint a fresh credential, and the only durable
+ * record of who the run was for is the credential row the first claim wrote.
+ * Revoked rows count, because the replay revokes the old one before it asks.
+ */
+export async function attemptCredentialPrincipal(
+  tx: PgTransactionClient,
+  input: Readonly<{ organizationId: string; attemptId: string }>,
+): Promise<{ principalId: string; principalType: string } | null> {
+  const result = await tx.query<{ principalId: string; principalType: string }>(
+    `select credential.acts_for_principal_id as "principalId",
+            credential_principal.principal_type as "principalType"
+       from bakery.session_operation_credentials as credential
+       join bakery.principals as credential_principal
+         on credential_principal.id = credential.acts_for_principal_id
+      where credential.organization_id = $1 and credential.attempt_id = $2
+      order by credential.created_at desc
+      limit 1`,
+    [input.organizationId, input.attemptId],
+  );
+  return result.rows[0] ?? null;
 }
