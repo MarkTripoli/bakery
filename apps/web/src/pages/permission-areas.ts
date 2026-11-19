@@ -123,6 +123,7 @@ export const RESOURCE_AREAS = {
   organizationInvitation: "access",
   organizationMembership: "access",
   organizationRole: "access",
+  group: "access",
   principal: "access",
   accessBinding: "access",
   accessToken: "access",

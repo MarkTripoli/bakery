@@ -2,6 +2,7 @@ export { createTaskCommand, updateTaskCommand } from "./postgres.ts";
 export { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
 export { workBakeryMigrationSource } from "./migrations.ts";
 export { createTicketRoutes } from "./ticket-routes.ts";
+export { createGroupRoutes } from "./group-routes.ts";
 export { createNotificationRoutes } from "./notification-routes.ts";
 export { registerNotificationProjection } from "./notification-projection.ts";
 

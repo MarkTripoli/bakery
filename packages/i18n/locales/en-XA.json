@@ -4403,5 +4403,6 @@
   "integrations.linear.resource.team": "⟦À Ļïñëàŕ ŧëàɱ ŧë⟧",
   "notifications.landing.arrived": "⟦Ôþëñëð ƒŕôɱ à ñôŧïƒïçàŧïôñ. ŧëšŧ çô⟧",
   "notifications.landing.partGone": "⟦Ŧĥë þàŕŧ ŧĥïš ñôŧïƒïçàŧïôñ ŵàš àƀôûŧ ïš ñô ļôñĝëŕ ĥëŕë. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
-  "settings.roles.verb.share": "⟦Ĝïṽë àñð ŕëɱôṽë ôŧĥëŕ þëôþļë'š àççëšš ŧô {things} ŧëšŧ çôþÿ ŧëšŧŧ⟧"
+  "settings.roles.verb.share": "⟦Ĝïṽë àñð ŕëɱôṽë ôŧĥëŕ þëôþļë'š àççëšš ŧô {things} ŧëšŧ çôþÿ ŧëšŧŧ⟧",
+  "settings.roles.thing.group": "⟦ĝŕôûþš…⟧"
 }
