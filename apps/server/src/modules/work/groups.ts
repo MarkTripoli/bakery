@@ -17,7 +17,7 @@ import { requireWorkTransaction } from "./work-transaction.ts";
  *
  * The shape of the handle and the length limits are owned here, not by CHECK
  * constraints. The handle is fixed at creation: the application role has no
- * UPDATE on `mention_name` (migration 0234), so renaming it is impossible even
+ * UPDATE on `mention_name` (migration 0243), so renaming it is impossible even
  * from a bug.
  */
 
