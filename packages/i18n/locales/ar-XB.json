@@ -4326,5 +4326,6 @@
   "artifact.edit.draft.helpLabel": "⟪About the draft⟫",
   "artifact.edit.draft.help": "⟪Everyone editing sees changes as they are typed. The published version does not change until a new one is published.⟫",
   "artifact.edit.draft.line": "⟪Version {version} is published. Your team is editing the next one.⟫",
-  "artifact.edit.draft.lineNone": "⟪Nothing is published yet.⟫"
+  "artifact.edit.draft.lineNone": "⟪Nothing is published yet.⟫",
+  "settings.roles.thing.library": "⟪search results in the Library⟫"
 }

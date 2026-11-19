@@ -2052,6 +2052,7 @@
   "settings.roles.thing.skillFile": "skill files",
   "settings.roles.thing.skillSource": "skill sources",
   "settings.roles.thing.skillVersion": "skill versions",
+  "settings.roles.thing.library": "search results in the Library",
   "settings.roles.thing.evaluationCase": "evaluation cases",
   "settings.roles.thing.evaluationDefinition": "evaluation definitions",
   "settings.roles.thing.evaluationResult": "evaluation results",
