@@ -362,11 +362,15 @@ Deno.test("issue 82 schema: migration 0145 creates the five tables with named co
 
 Deno.test("issue 82 schema: a redelivery with no registration is still a duplicate", async () => {
   await withFixture(async (f) => {
-    // 0201 makes registration_id nullable, and a plain unique treats every null
+    // 0206 makes registration_id nullable, and a plain unique treats every null
     // as distinct -- so without NULLS NOT DISTINCT a provider that verifies a
     // webhook with a shared secret would land the same redelivery twice and its
     // receipt would prove nothing. The control insert keeps the constraint from
     // passing by refusing every row.
+    // Unique per run: the fixture database is reused across runs, so a fixed
+    // delivery id would collide with the previous run's row and the first
+    // insert would fail before the duplicate rule was ever exercised.
+    const run = crypto.randomUUID();
     const receipt = (delivery: string) =>
       f.pgDatabase.query(
         `insert into bakery.inbound_events
@@ -376,18 +380,22 @@ Deno.test("issue 82 schema: a redelivery with no registration is still a duplica
                  'issues', 'accepted', now() + interval '1 day')`,
         [delivery],
       );
-    await receipt("delivery-null-1");
-    const refused = await assertRejects(() => receipt("delivery-null-1"));
-    assert(
-      String((refused as { cause?: unknown }).cause ?? refused).includes(
-        "23505",
-      ),
+    await receipt(`delivery-null-1-${run}`);
+    const refused = await assertRejects(() =>
+      receipt(`delivery-null-1-${run}`)
+    ) as { code?: string };
+    // Assert the SQLSTATE, not "some error": a constraint that refused every
+    // row would also throw, and only 23505 says the duplicate was recognised.
+    assertEquals(
+      refused.code,
+      "23505",
       "the second null-registration receipt is a duplicate",
     );
-    await receipt("delivery-null-2");
+    await receipt(`delivery-null-2-${run}`);
     const rows = await f.pgDatabase.query<{ count: string }>(
       `select count(*) as count from bakery.inbound_events
-        where registration_id is null and external_delivery_id like 'delivery-null-%'`,
+        where registration_id is null and external_delivery_id like $1`,
+      [`delivery-null-%-${run}`],
     );
     assertEquals(rows.rows[0].count, "2", "distinct deliveries still land");
   });

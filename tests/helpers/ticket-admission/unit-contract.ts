@@ -297,13 +297,13 @@ Deno.test("issue 82 contract: the receipt key refuses a duplicate that names no 
   // the tree would say so.
   const sql = await Deno.readTextFile(
     new URL(
-      "../../../apps/server/src/modules/work/migrations/bakery/0201_provider_neutral_ticket_sources.sql",
+      "../../../apps/server/src/modules/work/migrations/bakery/0206_provider_neutral_ticket_sources.sql",
       import.meta.url,
     ),
   );
   const receipt = /add constraint inbound_events_delivery_unique([\s\S]*?);/
     .exec(sql);
-  assert(receipt, "0201 rebuilds the receipt key");
+  assert(receipt, "0206 rebuilds the receipt key");
   assert(
     /unique\s+nulls\s+not\s+distinct\s*\(registration_id,\s*external_delivery_id\)/i
       .test(receipt[1]),

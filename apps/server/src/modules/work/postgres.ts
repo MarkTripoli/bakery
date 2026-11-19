@@ -169,21 +169,11 @@ export function toTask(row: TaskRow) {
     planningOnly: row.planning_only,
   };
 }
-/**
- * Serialises two writers that both need the source's application row.
- *
- * A provider-neutral source has no application at all (0201), so there is no
- * row to lock and nothing to order against: the call answers without a query
- * rather than refusing, because refusing would make every such source unable to
- * admit a ticket. A null here is "this source has no application", which is a
- * stated fact on the row, not a missing value.
- */
 export async function lockApplication(
   transaction: PgTransactionClient,
   organizationId: string,
-  applicationId: string | null,
+  applicationId: string,
 ): Promise<void> {
-  if (applicationId === null) return;
   const result = await transaction.query(
     `select id from bakery.applications
      where organization_id = $1 and id = $2

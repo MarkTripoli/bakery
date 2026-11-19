@@ -622,6 +622,12 @@ export async function openTicketFixture(
           policy?: TicketSourcePolicy;
           enabled?: boolean;
           repositoryId?: string | null;
+          /**
+           * The source's application. Defaults to the fixture's, and may be
+           * null: a provider-neutral source has none, and admission must still
+           * serialise on something.
+           */
+          applicationId?: string | null;
           /** The container id; unique per connection. Defaults to the resource's, then a numbered one. */
           externalContainerId?: string;
         } = {},
@@ -638,7 +644,9 @@ export async function openTicketFixture(
             f.organizationId,
             connection.connectionId,
             resource.id,
-            repository.applicationId,
+            options.applicationId === undefined
+              ? repository.applicationId
+              : options.applicationId,
             options.repositoryId === undefined
               ? repository.repositoryId
               : options.repositoryId,
