@@ -1,6 +1,7 @@
 import type { Page } from "@playwright/test";
 import {
   MOCK_ORGANIZATION_ID,
+  MOCK_PRINCIPAL_ID,
   mockAuthenticatedSession,
 } from "./mock-session.ts";
 
@@ -135,7 +136,48 @@ export const CLOSED: Seed[] = [
   { number: 190, title: "Old checkout bug", state: "closed", verdict: null },
 ];
 
+/** Work Bakery started from one issue: its request, the repositories it went to, the note. */
+export type WorkSeed = {
+  /** The issue number the work belongs to. */
+  issue: number;
+  progress:
+    | "pending"
+    | "waiting"
+    | "admitted"
+    | "active"
+    | "suspended"
+    | "completed"
+    | "failed"
+    | "canceled"
+    | "rejected";
+  origin?: "manual" | "adoption" | "webhook" | "poll";
+  /** Started by the signed-in person (default) or by somebody else. */
+  byMe?: boolean;
+  triggerLabel?: string | null;
+  reason?: string | null;
+  pausedReason?:
+    | "edited_after_setup"
+    | "label_removed"
+    | "hold_label_added"
+    | "dependency_unreadable"
+    | null;
+  /** One entry per repository the work went to. */
+  targets?: {
+    role: string;
+    repository: string;
+    status?: string;
+    pulls?: { number: number; status: "open" | "merged" | "closed" }[];
+  }[];
+  note?: {
+    health: "unknown" | "pending" | "healthy" | "failed";
+    problem?: string | null;
+  };
+  /** Tasks that only mention the issue. */
+  mentioned?: { title: string; status: string }[];
+};
+
 export type Options = {
+  work?: WorkSeed;
   open?: Seed[];
   closed?: Seed[];
   sources?: "none" | "healthy" | "degraded" | "authRequired" | "unknown";
@@ -163,6 +205,8 @@ export async function issuesFixture(page: Page, options: Options = {}) {
     /** Issues somebody else already started. */
     running: new Set<number>(),
     starts: [] as { intent: string; revision: number; digest: string }[],
+    /** Retries of Bakery's note on the issue. */
+    resyncs: 0,
   };
   await page.route(
     `**/v1/organizations/${MOCK_ORGANIZATION_ID}/effective-access`,
@@ -357,6 +401,243 @@ export async function issuesFixture(page: Page, options: Options = {}) {
           updatedAt: "2026-01-01T00:00:00.000Z",
           version: 1,
         }),
+      });
+    },
+  );
+  const work = options.work;
+  const stamp = "2026-01-01T00:00:00.000Z";
+  const issueId = work ? uuid(work.issue) : null;
+  const linkId = uuid(8000);
+  const taskId = uuid(8100);
+  const targets = (work?.targets ?? []).map((target, index) => ({
+    ...target,
+    repositoryId: uuid(8200 + index),
+    childTaskId: uuid(8300 + index),
+  }));
+  const tasks = new Map<string, Record<string, unknown>>();
+  const taskRow = (id: string, title: string, status: string) => ({
+    id,
+    applicationId: uuid(904),
+    repositoryId: null,
+    conversationId: uuid(8400),
+    parentTaskId: null,
+    title,
+    description: "",
+    taskType: "task",
+    status,
+    priority: 50,
+    createdBy: MOCK_PRINCIPAL_ID,
+    currentRunId: null,
+    archivedAt: null,
+    createdAt: stamp,
+    updatedAt: stamp,
+    version: 1,
+    repositoryProfileId: null,
+    repositoryProfileRevision: null,
+    repositoryProfileDigest: null,
+    observationId: null,
+    observationDigest: null,
+    baseSha: null,
+    approvalPolicy: null,
+    planningOnly: false,
+  });
+  if (work) {
+    tasks.set(
+      taskId,
+      taskRow(taskId, "Fix the login redirect", "active"),
+    );
+    targets.forEach((target) =>
+      tasks.set(
+        target.childTaskId,
+        taskRow(target.childTaskId, target.role, target.status ?? "active"),
+      )
+    );
+  }
+  const mentionedLinks = (work?.mentioned ?? []).map((entry, index) => {
+    const id = uuid(8500 + index);
+    tasks.set(id, taskRow(id, entry.title, entry.status));
+    return {
+      id: uuid(8600 + index),
+      organizationId: MOCK_ORGANIZATION_ID,
+      externalTicketId: issueId,
+      taskId: id,
+      role: "reference",
+      statusCommentExternalId: null,
+      lastSyncedRunRevision: null,
+      syncHealth: "unknown",
+      lastProblemCode: null,
+      createdAt: stamp,
+      updatedAt: stamp,
+      version: 1,
+    };
+  });
+  let note = work?.note ?? { health: "healthy" as const };
+  const page_ = (items: unknown[]) =>
+    JSON.stringify({ items, nextCursor: null });
+  const ownLink = () => ({
+    id: linkId,
+    organizationId: MOCK_ORGANIZATION_ID,
+    externalTicketId: issueId,
+    taskId,
+    role: "primary",
+    statusCommentExternalId: note.health === "unknown" ? null : "note-1",
+    lastSyncedRunRevision: null,
+    syncHealth: note.health,
+    lastProblemCode: note.problem ?? null,
+    createdAt: stamp,
+    updatedAt: stamp,
+    version: 3,
+  });
+  await page.route(
+    (url) => url.pathname === "/v1/ticket-requests",
+    (route) => {
+      const asked = new URL(route.request().url()).searchParams.get(
+        "externalTicketId",
+      );
+      const items = work && asked === issueId
+        ? [{
+          id: uuid(8700),
+          externalTicketId: issueId,
+          ticketTaskLinkId: linkId,
+          intent: "start",
+          origin: work.origin ?? "manual",
+          requestedByPrincipalId: (work.origin ?? "manual") === "webhook" ||
+              (work.origin ?? "manual") === "poll"
+            ? null
+            : work.byMe === false
+            ? uuid(8800)
+            : MOCK_PRINCIPAL_ID,
+          triggerLabelName: work.triggerLabel ?? null,
+          disposition: work.progress === "active" ? "active" : work.progress,
+          dispositionReasonCode: work.reason ?? null,
+          pausedAt: work.pausedReason ? stamp : null,
+          pausedReason: work.pausedReason ?? null,
+          progress: work.progress,
+          workflowRunId: null,
+          createdAt: new Date(Date.now() - 12 * 60_000).toISOString(),
+          updatedAt: stamp,
+          version: 1,
+          targets: targets.map((target) => ({
+            repositoryId: target.repositoryId,
+            role: target.role,
+            routingRuleId: null,
+            routingRuleVersion: null,
+            childTaskId: target.childTaskId,
+          })),
+        }]
+        : [];
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: page_(items),
+      });
+    },
+  );
+  await page.route(
+    (url) => url.pathname === "/v1/ticket-task-links",
+    (route) => {
+      const asked = new URL(route.request().url()).searchParams.get(
+        "externalTicketId",
+      );
+      const items = work && asked === issueId
+        ? [ownLink(), ...mentionedLinks]
+        : [];
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: page_(items),
+      });
+    },
+  );
+  await page.route(
+    (url) => /^\/v1\/ticket-task-links\/[^/]+\/note-syncs$/.test(url.pathname),
+    (route) => {
+      seen.resyncs += 1;
+      note = { health: "healthy" };
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(ownLink()),
+      });
+    },
+  );
+  await page.route(
+    (url) => /^\/v1\/tasks\/[^/]+$/.test(url.pathname),
+    (route) => {
+      const row = tasks.get(
+        new URL(route.request().url()).pathname.split("/")[3]!,
+      );
+      return route.fulfill(
+        row
+          ? {
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify(row),
+          }
+          : problem(404, "NOT_FOUND"),
+      );
+    },
+  );
+  await page.route(
+    (url) => /^\/v1\/repositories\/[^/]+$/.test(url.pathname),
+    (route) => {
+      const id = new URL(route.request().url()).pathname.split("/")[3]!;
+      const target = targets.find((entry) => entry.repositoryId === id);
+      // Not one of this work's repositories: leave it to a route the spec added.
+      if (!target) return route.fallback();
+      return route.fulfill(
+        target
+          ? {
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({
+              id,
+              applicationId: uuid(904),
+              slug: null,
+              integrationConnectionId: uuid(901),
+              providerRepoId: id,
+              owner: "acme",
+              name: target.repository,
+              defaultBranch: "main",
+              activeProfileId: null,
+              archivedAt: null,
+              createdAt: stamp,
+              updatedAt: stamp,
+              nextProfileRevision: 1,
+              standing: "ready",
+              version: 1,
+            }),
+          }
+          : problem(404, "NOT_FOUND"),
+      );
+    },
+  );
+  await page.route(
+    (url) => url.pathname === "/v1/pull-requests",
+    (route) => {
+      const asked = new URL(route.request().url()).searchParams.get("taskId");
+      const target = targets.find((entry) => entry.childTaskId === asked);
+      const items = (target?.pulls ?? []).map((pull) => ({
+        id: uuid(8900 + pull.number),
+        taskId: asked,
+        repositoryId: target!.repositoryId,
+        providerNumber: pull.number,
+        url: `https://github.com/acme/${
+          target!.repository
+        }/pull/${pull.number}`,
+        headSha: "a".repeat(40),
+        baseSha: "b".repeat(40),
+        status: pull.status,
+        mergedSha: pull.status === "merged" ? "c".repeat(40) : null,
+        createdAt: stamp,
+        updatedAt: stamp,
+        version: 1,
+        runId: null,
+      }));
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: page_(items),
       });
     },
   );
