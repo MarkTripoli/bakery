@@ -684,3 +684,56 @@ Deno.test("removal: the last verified provider is refused while SSO is required,
     );
   });
 });
+
+Deno.test("removal: the stop-requiring flag alone never ends SSO; it only counts when the removal really locks the organization out", async () => {
+  await withOidc(async ({ issuer, f }) => {
+    assertEquals((await registerOidc(f, issuer)).status, 200);
+    assertEquals(
+      (await registerOidc(f, issuer, {
+        providerId: "oidc-two",
+        domain: "two.example.test",
+      })).status,
+      200,
+    );
+    await markDomainVerified(f, "oidc-acme");
+    await markDomainVerified(f, "oidc-two");
+    assertEquals(
+      (await authPost(f, "/api/auth/bakery-sso/enforcement", {
+        organizationId: f.organizationId,
+        enforce: true,
+      }, f.adminCookie)).status,
+      200,
+    );
+    const before = await auditRows(f, "auth.sso", f.organizationId);
+
+    // Two verified providers and SSO required: removing one does not leave the
+    // organization without a way in, so the flag is ignored. SSO stays required
+    // and exactly one audit row (the removal) is written.
+    const removed = await authPost(f, "/api/auth/sso/delete-provider", {
+      providerId: "oidc-two",
+      stopRequiringSso: true,
+    }, f.adminCookie);
+    assertEquals(removed.status, 200, await removed.clone().text());
+    const overview = await (await authGet(
+      f,
+      `/api/auth/bakery-sso/providers?organizationId=${f.organizationId}`,
+      f.adminCookie,
+    )).json() as {
+      enforce: boolean;
+      providers: { providerId: string }[];
+    };
+    assertEquals(overview.enforce, true);
+    assertEquals(overview.providers.map((p) => p.providerId), ["oidc-acme"]);
+    const written = (await auditRows(f, "auth.sso", f.organizationId)).slice(
+      before.length,
+    );
+    assertEquals(written.map((row) => row.operation), [
+      "auth.sso.provider.delete",
+    ]);
+    // Members are still refused on password sign-in: SSO was not switched off.
+    assertEquals(
+      (await passwordSignIn(f, f.developerEmail, f.password)).status,
+      403,
+    );
+  });
+});
