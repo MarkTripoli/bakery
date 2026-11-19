@@ -11,6 +11,7 @@ import {
   appendDomainEvent,
   carriesPlanRuntime,
 } from "@bakery/persistence";
+import { releaseCanceledUnclaimedJobReservation } from "../work/budget.ts";
 import { appendDecision } from "../work/human-approval-store.ts";
 import {
   RUN_STEP_COLUMNS,
@@ -155,6 +156,12 @@ export async function takeOverRunStep(
   );
   const jobVersion = canceled.rows[0]?.version;
   if (jobVersion === undefined) conflict("job_not_queued");
+  // The job will never run, so the money held for it goes back in this same
+  // transaction.
+  await releaseCanceledUnclaimedJobReservation(transaction, {
+    organizationId,
+    jobId: jobRow.id,
+  });
 
   const settled = await transaction.query<RunStepRow>(
     `update bakery.run_steps

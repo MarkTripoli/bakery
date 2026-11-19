@@ -3,6 +3,7 @@ import {
   readDatabaseConfig,
   readEnvironmentSnapshot,
 } from "@bakery/config";
+import { releaseCanceledUnclaimedJobReservation } from "../work/budget.ts";
 import { StandardError } from "@bakery/contracts/http";
 import { COORDINATOR_TURN_ACTION } from "@bakery/contracts/coordinator-turn";
 import { releaseCoordinatorJobReservation } from "@bakery/persistence";
@@ -456,6 +457,11 @@ export async function cancelQueuedJobsOfRun(
     if (version === undefined) {
       throw new StandardError({ code: "STATE_CONFLICT" });
     }
+    // A queued job that never ran gives back what was held for it.
+    await releaseCanceledUnclaimedJobReservation(transaction, {
+      organizationId: input.organizationId,
+      jobId: id,
+    });
     const last = await transaction.query<{ id: string }>(
       `select id from bakery.job_attempts
         where organization_id = $1 and job_id = $2
@@ -575,6 +581,10 @@ export async function cancelRunWithoutAttempt(
     if (version === undefined) {
       throw new StandardError({ code: "STATE_CONFLICT" });
     }
+    await releaseCanceledUnclaimedJobReservation(transaction, {
+      organizationId: input.organizationId,
+      jobId: job.id,
+    });
     canceledJobs.push({ id: job.id, version });
   }
   await cancelRunLifecycle(transaction, {

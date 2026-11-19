@@ -10,6 +10,8 @@ import {
   seedPresetRepository,
   startPresetRun,
 } from "../helpers/fixed-coding-preset.ts";
+import { withPgTransaction } from "../../packages/persistence/src/postgres.ts";
+import { cancelQueuedJobsOfRun } from "../../apps/server/src/modules/execution/coordination.ts";
 import { createBakeryPostgresWorkflowRepository } from "../../apps/server/src/modules/workflow-adapter/bakery-postgres-store.ts";
 
 // #412 slice 3a. Chapter 25 section 9 (O20): a person becomes a step's
@@ -176,6 +178,8 @@ Deno.test("AC: a person completes a queued artifact step, and the engine goes on
     );
     assertEquals(events.rows.length, 1);
     assertEquals(events.rows[0].status, "completed");
+    // The job was never claimed, so the event names no attempt.
+    assertEquals(events.rows[0].attemptId, null);
 
     const next = await s.workflow.findNext(s.run.id, s.owner);
     assert(next !== undefined, "the run has a next step");
@@ -251,4 +255,116 @@ Deno.test("AC: a step with a live attempt, another task's artifact or a non-arti
       "takeover_unsupported_action",
     );
     await unchanged();
+  }));
+
+// A job canceled before any worker took it gives back what was held for it,
+// on every path that cancels one. Each test starts from a real funded model
+// job (`implement`, admitted queued) and reads the money back.
+
+/** The run with `brief` completed by a person and `implement` admitted queued. */
+async function queuedImplementStep(fixture: Fixture, label: string) {
+  const s = await queuedBriefStep(fixture, label);
+  const artifact = await artifactFor(fixture, s.taskId);
+  const done = await takeOver(fixture, s.run.id, s.key.stepKey, {
+    mode: "complete",
+    artifactId: artifact.artifactId,
+    versionId: artifact.versionId,
+  });
+  assertEquals(done.status, 201, await done.clone().text());
+  const next = await s.workflow.findNext(s.run.id, s.owner);
+  assert(next !== undefined, "the run has an implement step");
+  const admitted = await s.workflow.admit(next, s.owner);
+  assert(admitted.jobId, "the implement step is admitted with a job");
+  return { ...s, implementKey: next, implementJobId: admitted.jobId };
+}
+
+/** What is held for the job, and the run account's reserved total. */
+async function held(fixture: Fixture, runId: string, jobId: string) {
+  const reservation = await fixture.pgDatabase.query<
+    { reservation: string; intent: string; reserved: string }
+  >(
+    `select reservation.status as reservation, intent.status as intent,
+            (select reserved_usd::text from bakery.budget_accounts
+              where scope = 'run' and run_id = $2) as reserved
+       from bakery.jobs job
+       join bakery.budget_reservations reservation
+         on reservation.id = job.installation_reservation_id
+       join bakery.budget_action_intents intent
+         on intent.installation_reservation_id = job.installation_reservation_id
+      where job.id = $1`,
+    [jobId, runId],
+  );
+  return reservation.rows[0];
+}
+
+Deno.test("AC: taking over a queued step gives back its held budget in the same transaction", () =>
+  withFixture(async (fixture) => {
+    const s = await queuedImplementStep(fixture, "takeover-release");
+    const before = await held(fixture, s.run.id, s.implementJobId);
+    assertEquals([before.reservation, before.intent], ["held", "held"]);
+    assert(Number(before.reserved) > 0, "something is held for the step");
+
+    // Label the funded job as an artifact action so the takeover accepts it;
+    // the reservation under test is the real one admission made.
+    await fixture.pgDatabase.query(
+      `update bakery.jobs set action = 'rpi.design' where id = $1`,
+      [s.implementJobId],
+    );
+    const artifact = await artifactFor(fixture, s.taskId);
+    const response = await takeOver(
+      fixture,
+      s.run.id,
+      s.implementKey.stepKey,
+      {
+        mode: "complete",
+        artifactId: artifact.artifactId,
+        versionId: artifact.versionId,
+      },
+    );
+    assertEquals(response.status, 201, await response.clone().text());
+
+    const after = await held(fixture, s.run.id, s.implementJobId);
+    assertEquals([after.reservation, after.intent], ["released", "released"]);
+    assertEquals(Number(after.reserved), 0);
+  }));
+
+Deno.test("AC: canceling a run with a queued funded job gives back its held budget", () =>
+  withFixture(async (fixture) => {
+    const s = await queuedImplementStep(fixture, "cancel-release");
+    const before = await held(fixture, s.run.id, s.implementJobId);
+    assertEquals([before.reservation, before.intent], ["held", "held"]);
+
+    const response = await apiCall(
+      fixture,
+      fixture,
+      "POST",
+      `/v1/runs/${s.run.id}/controls`,
+      { body: { action: "cancel" } },
+    );
+    assert(response.status < 300, await response.clone().text());
+
+    const after = await held(fixture, s.run.id, s.implementJobId);
+    assertEquals([after.reservation, after.intent], ["released", "released"]);
+    assertEquals(Number(after.reserved), 0);
+  }));
+
+Deno.test("AC: cancelQueuedJobsOfRun gives back the held budget of the queued jobs it cancels", () =>
+  withFixture(async (fixture) => {
+    const s = await queuedImplementStep(fixture, "queued-release");
+    const before = await held(fixture, s.run.id, s.implementJobId);
+    assertEquals([before.reservation, before.intent], ["held", "held"]);
+
+    await withPgTransaction(
+      fixture.pgDatabase,
+      (transaction) =>
+        cancelQueuedJobsOfRun(transaction, {
+          organizationId: fixture.organizationId,
+          runId: s.run.id,
+          traceId: crypto.randomUUID().replaceAll("-", ""),
+        }),
+    );
+
+    const after = await held(fixture, s.run.id, s.implementJobId);
+    assertEquals([after.reservation, after.intent], ["released", "released"]);
+    assertEquals(Number(after.reserved), 0);
   }));
