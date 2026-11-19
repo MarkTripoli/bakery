@@ -30,7 +30,7 @@ async function runBounded(command: Deno.Command): Promise<Deno.CommandStatus> {
 }
 
 Deno.test(
-  "a killed worker held implement step is recovered once by the restarted worker",
+  "a killed worker held implement step is not run again by the restarted worker",
   async () => {
     const dockerHost = Deno.env.get("DOCKER_HOST")?.trim();
     if (!dockerHost) throw new Error("DOCKER_HOST_REQUIRED");

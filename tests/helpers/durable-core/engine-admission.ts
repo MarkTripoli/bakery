@@ -89,11 +89,6 @@ export type EngineAdmission = {
   readonly observation: EngineAdmissionObservation;
 };
 
-export type SecretIdentityEngineAdmission = EngineAdmission & {
-  readonly applicationId: string;
-  readonly secretId: string;
-};
-
 export async function postJson(
   client: Client,
   path: string,
@@ -344,29 +339,31 @@ async function createWorkflow(
   stack: DurableCoreStack,
   organizationId: string,
   principalId: string,
-  action: {
-    readonly uses: "harness.implement" | "secret.identity.read";
-    readonly with: Readonly<Record<string, string>>;
-  } = {
-    uses: "harness.implement",
-    with: {
-      repositoryId: "$task.repositoryId",
-      planArtifact: crypto.randomUUID(),
-    },
-  },
 ): Promise<{ workflowId: string; workflowVersionId: string }> {
   const workflowId = crypto.randomUUID();
   const workflowVersionId = crypto.randomUUID();
   const suffix = workflowId.slice(0, 8);
+  // Every run is a compiled plan: a sequence container holds the one worker
+  // step, and the repository comes in as a declared run input (a plan cannot
+  // bind a uuid field from the task).
   const spec = {
     apiVersion: "bakery.dev/v1",
     kind: "workflow",
     name: `durable-core-${suffix}`,
-    workflow: { kind: "fixed" },
+    inputs: {
+      repositoryId: { type: "uuid", required: true },
+      taskId: { type: "uuid", required: false },
+    },
     steps: [{
-      id: "worker",
-      uses: action.uses,
-      with: action.with,
+      id: "flow",
+      steps: [{
+        id: "worker",
+        uses: "harness.implement",
+        with: {
+          repositoryId: "$input.repositoryId",
+          planArtifact: crypto.randomUUID(),
+        },
+      }],
     }],
   };
   const digest = await sha256Hex(canonicalJson(spec));
@@ -1630,8 +1627,7 @@ async function waitForEngineAdmission(
 
 async function admitEngineOwnedActionRun(
   stack: DurableCoreStack,
-  identity?: { readonly credential: string },
-): Promise<EngineAdmission | SecretIdentityEngineAdmission> {
+): Promise<EngineAdmission> {
   await waitForEngineFunctionRegistration(stack);
   const clients = await authenticatedClients(stack);
   const application = await responseJson(
@@ -1652,31 +1648,7 @@ async function admitEngineOwnedActionRun(
   if (typeof applicationId !== "string" || !UUID.test(applicationId)) {
     throw new Error("DURABLE_CORE_ADMISSION_APPLICATION_ID_MISSING");
   }
-  let secretId: string | undefined;
-  if (identity) {
-    const secret = await responseJson(
-      await postJson(
-        clients.producer,
-        "/v1/secrets",
-        {
-          applicationId,
-          name: "Controlled full-stack identity fixture",
-          provider: "github",
-          value: identity.credential,
-          allowedPrincipalIds: [clients.identity.principalId],
-          allowedActions: ["identity.read"],
-        },
-        `durable-core-secret-${crypto.randomUUID()}`,
-      ),
-      201,
-      "SECRET_CREATE",
-    );
-    if (typeof secret.id !== "string" || !UUID.test(secret.id)) {
-      throw new Error("DURABLE_CORE_ADMISSION_SECRET_ID_MISSING");
-    }
-    secretId = secret.id;
-  }
-  const agentVersionId = secretId ? undefined : await createModelAgentVersion(
+  const agentVersionId = await createModelAgentVersion(
     stack,
     clients.identity.organizationId,
     clients.identity.principalId,
@@ -1692,9 +1664,6 @@ async function admitEngineOwnedActionRun(
     stack,
     clients.identity.organizationId,
     clients.identity.principalId,
-    secretId
-      ? { uses: "secret.identity.read", with: { secretRef: secretId } }
-      : undefined,
   );
   const task = await responseJson(
     await postJson(
@@ -1723,8 +1692,8 @@ async function admitEngineOwnedActionRun(
         workflowVersionId: workflow.workflowVersionId,
         executionMode: "repository",
         repositoryProfileId: repository.repositoryProfileId,
-        budgetLimitUsd: secretId ? "0.005000" : "0.500000",
-        inputs: secretId ? {} : { taskId },
+        budgetLimitUsd: "0.500000",
+        inputs: { taskId, repositoryId: repository.repositoryId },
       },
       `durable-core-run-${crypto.randomUUID()}`,
     ),
@@ -1750,27 +1719,17 @@ async function admitEngineOwnedActionRun(
   assertEquals(admitted.job.taskId, taskId);
   assertEquals(admitted.job.workflowId, workflow.workflowId);
   assertEquals(admitted.job.workflowVersionId, workflow.workflowVersionId);
-  const result = {
+  return {
     clients,
     job: admitted.job,
     observation: admitted.observation,
   };
-  return secretId ? { ...result, applicationId, secretId } : result;
 }
 
 export async function admitEngineOwnedRun(
   stack: DurableCoreStack,
 ): Promise<EngineAdmission> {
-  return await admitEngineOwnedActionRun(stack) as EngineAdmission;
-}
-
-export async function admitEngineOwnedSecretIdentityRun(
-  stack: DurableCoreStack,
-  credential: string,
-): Promise<SecretIdentityEngineAdmission> {
-  return await admitEngineOwnedActionRun(stack, {
-    credential,
-  }) as SecretIdentityEngineAdmission;
+  return await admitEngineOwnedActionRun(stack);
 }
 
 export async function waitForEngineInvocation(
