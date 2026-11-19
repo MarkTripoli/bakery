@@ -455,10 +455,16 @@ const NOTICE_COPY: Readonly<
 /** What a merge request says once it has ended other than by working. */
 const MERGE_NOTICE_COPY: Readonly<
   Record<
-    "conflict" | "forbidden" | "error" | "unreachable" | "notMerged",
+    | "conflict"
+    | "forbidden"
+    | "error"
+    | "unreachable"
+    | "notMerged"
+    | "noAnswer",
     MessageKey
   >
 > = {
+  noAnswer: "tasks.delivery.merge.notice.noAnswer",
   conflict: "tasks.delivery.merge.notice.conflict",
   forbidden: "tasks.delivery.merge.notice.forbidden",
   error: "tasks.delivery.merge.notice.error",
@@ -570,9 +576,9 @@ function ReadyView(
   };
   const confirmMerge = async () => {
     if (merge === null) return;
-    const outcome = await onMerge(merge);
-    // A refusal that can be tried again keeps the dialog and says why in it.
-    if (outcome === "error" || outcome === "forbidden") return;
+    await onMerge(merge);
+    // The dialog closes with the answer, whatever it was; what happened is said
+    // once, in the card, where the person looks next.
     setMergeOpen(false);
     focusAfterPaint(() =>
       document.querySelector("dialog[open]") !== null ? null : (
@@ -886,11 +892,7 @@ function ReadyView(
         }
         onOpenChange={(open) => !open && !mergeWorking && setMergeOpen(false)}
         open={mergeOpen && merge !== null}
-        state={mergeWorking
-          ? "confirming"
-          : mergePhase === "error" || mergePhase === "forbidden"
-          ? "error"
-          : "open"}
+        state={mergeWorking ? "confirming" : "open"}
         title={t("tasks.delivery.merge.confirm.title", {
           number: merge?.providerNumber ?? 0,
         })}
@@ -909,16 +911,6 @@ function ReadyView(
           </UI.Text>
           <UI.Text>{t("tasks.delivery.merge.confirm.changed")}</UI.Text>
           <UI.Text>{t("tasks.delivery.merge.confirm.final")}</UI.Text>
-          {mergeOpen && mergeNotice !== null &&
-            (mergePhase === "error" || mergePhase === "forbidden") && (
-            <UI.InlineNotice
-              data-testid="delivery-merge-dialog-notice"
-              role="alert"
-              {...mergeNoticeProps}
-            >
-              {t(mergeNotice)}
-            </UI.InlineNotice>
-          )}
         </UI.Stack>
       </UI.AlertDialog>
       <UI.Dialog

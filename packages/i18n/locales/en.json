@@ -4433,5 +4433,6 @@
   "tasks.delivery.merge.notice.unreachable": "GitHub could not be reached. The outcome is still unknown. Try again in a moment.",
   "tasks.delivery.merge.notice.notMerged": "GitHub did not merge it. You can merge again.",
   "tasks.delivery.merge.notice.conflict": "The pull request changed just now. The latest is shown.",
-  "tasks.delivery.merge.notice.forbidden": "Someone who can merge in this repository can do it here."
+  "tasks.delivery.merge.notice.forbidden": "Someone who can merge in this repository can do it here.",
+  "tasks.delivery.merge.notice.noAnswer": "Bakery did not get an answer, so the merge may or may not have started. What it recorded is shown here."
 }

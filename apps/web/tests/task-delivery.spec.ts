@@ -229,6 +229,27 @@ const pullRequestRow = (
   createdAt: at(6),
   updatedAt: at(6),
   version: 1,
+  // What the server says about merging: may this person, and with what method.
+  mayMerge: true,
+  mergeMethod: "squash",
+  ...over,
+});
+
+const mergeAttemptRow = (
+  state: "merged" | "refused" | "unknown",
+  over: Record<string, unknown> = {},
+) => ({
+  id: uuid(800),
+  pullRequestId: uuid(600 + 482),
+  providerNumber: 482,
+  repositoryId: uuid(13),
+  baseBranch: "main",
+  expectedHeadSha: NEW,
+  state,
+  providerStatus: state === "refused" ? 405 : null,
+  mergedSha: state === "merged" ? sha("9") : null,
+  createdAt: at(7),
+  settledAt: state === "unknown" ? null : at(7),
   ...over,
 });
 
@@ -239,6 +260,8 @@ type Scenario = {
   decisions?: ReturnType<typeof decisionRow>[];
   /** The task's pull requests, as `pullRequests.list` returns them (oldest first). */
   pullRequests?: ReturnType<typeof pullRequestRow>[];
+  /** The chosen pull request's merge attempts, newest first. */
+  mergeAttempts?: ReturnType<typeof mergeAttemptRow>[];
 };
 const page_ = <T>(items: T[]) => ({ items, nextCursor: null });
 
@@ -421,6 +444,12 @@ async function mockDelivery(page: Page, scenario: Scenario) {
   await page.route(
     "**/v1/pull-requests?*",
     (route) => route.fulfill({ json: page_(scenario.pullRequests ?? []) }),
+  );
+  // The attempts read: none unless the scenario serves some. Read per request,
+  // so a test that settles an attempt changes what the next read returns.
+  await page.route(
+    "**/v1/merge-attempts?*",
+    (route) => route.fulfill({ json: page_(scenario.mergeAttempts ?? []) }),
   );
 }
 
@@ -1423,7 +1452,7 @@ test("before approval the after-approval group and its badge are not drawn", asy
   await expect(page.getByTestId("delivery-outcome-badge")).toHaveCount(0);
 });
 
-test("an approved run with a pull request open says so, badges Waiting for merge and links to GitHub", async ({ page }) => {
+test("an approved run with a pull request open says so, badges Ready to merge and links to GitHub", async ({ page }) => {
   await openApproved(page, { pullRequests: [pullRequestRow(482)] });
   const section = page.getByTestId("delivery-section");
   await expect(pullRequestStep(page)).toContainText(
@@ -1431,7 +1460,7 @@ test("an approved run with a pull request open says so, badges Waiting for merge
   );
   await expect(mergeStep(page)).toContainText("Not merged yet.");
   await expect(page.getByTestId("delivery-outcome-badge")).toHaveText(
-    "Waiting for merge",
+    "Ready to merge",
   );
   await expect(section).toContainText(
     "Releases are not tracked in Bakery yet.",
@@ -1685,3 +1714,347 @@ test("still: the task's other pull requests, closed and opened", async ({ page }
     await fresh.close();
   }
 });
+
+// ---- merging from Bakery (#57).
+
+type Merged = { merges: Array<Record<string, unknown>>; reconciles: number };
+
+/** Opens an approved candidate whose pull request and attempts the test owns. */
+async function openMerge(
+  page: Page,
+  scenario: Scenario,
+  answers: {
+    merge?: (route: Route) => Promise<void> | void;
+    reconcile?: (route: Route) => Promise<void> | void;
+  } = {},
+): Promise<Merged> {
+  const seen: Merged = { merges: [], reconciles: 0 };
+  await mockRun(page);
+  await mockDelivery(page, scenario);
+  await mockApprovals(page, [approvedRow()]);
+  await page.route("**/v1/pull-requests/*/merge", async (route) => {
+    seen.merges.push(route.request().postDataJSON() as Record<string, unknown>);
+    if (answers.merge) return await answers.merge(route);
+    await route.fulfill({ json: mergeAttemptRow("merged") });
+  });
+  await page.route("**/v1/merge-attempts/reconcile", async (route) => {
+    seen.reconciles += 1;
+    if (answers.reconcile) return await answers.reconcile(route);
+    await route.fulfill({ json: { reconciled: 0, merged: 0, refused: 0 } });
+  });
+  await page.goto(`/tasks/${id}`);
+  await expect(afterApprovalHeading(page)).toBeVisible();
+  return seen;
+}
+
+test("an approved candidate at the reviewed head offers Merge, asks first, and sends the head and method it saw once", async ({ page }) => {
+  const scenario: Scenario = { ...CLEAN, pullRequests: [pullRequestRow(482)] };
+  const seen = await openMerge(page, scenario, {
+    merge: async (route) => {
+      // The server records the merge; the next reads say so.
+      scenario.pullRequests = [
+        pullRequestRow(482, { status: "merged", mergedSha: sha("9") }),
+      ];
+      scenario.mergeAttempts = [mergeAttemptRow("merged")];
+      await route.fulfill({ json: mergeAttemptRow("merged") });
+    },
+  });
+  const now = nowCard(page);
+  await expect(now).toContainText("Ready to merge");
+  await expect(now).toContainText(
+    "Checks and the review passed for commit 91d0aa3, and it was approved.",
+  );
+  await button(now, "Merge").click();
+  const dialog = page.getByRole("alertdialog", {
+    name: "Merge pull request #482?",
+  });
+  await expect(dialog).toContainText(
+    "Bakery merges commit 91d0aa3 exactly, as a squash merge.",
+  );
+  await expect(dialog).toContainText("A merge cannot be undone from Bakery.");
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(dialog).toBeHidden();
+  expect(seen.merges).toHaveLength(0);
+  await button(now, "Merge").click();
+  await button(dialog, "Merge").click();
+  await expect(mergeStep(page)).toContainText("Merged as 9999999");
+  expect(seen.merges).toHaveLength(1);
+  // The page sends the head and the method the pull request served, and
+  // nothing else: it never chooses either.
+  expect(seen.merges[0]).toEqual({
+    expectedHeadSha: NEW,
+    mergeMethod: "squash",
+  });
+  await expect(page.locator("#delivery-now-title")).toBeFocused();
+});
+
+test("someone who may not merge is told so and is offered no button", async ({ page }) => {
+  await openMerge(page, {
+    ...CLEAN,
+    pullRequests: [pullRequestRow(482, { mayMerge: false })],
+  });
+  const now = nowCard(page);
+  await expect(now).toContainText("Ready to merge");
+  await expect(now).toContainText(
+    "Someone who can merge in this repository can do it here.",
+  );
+  await expect(now.getByRole("button")).toHaveCount(0);
+});
+
+test("an attempt whose outcome is unknown says so after a reload, offers only Check again, and never Merge", async ({ page }) => {
+  const scenario: Scenario = {
+    ...CLEAN,
+    pullRequests: [pullRequestRow(482)],
+    mergeAttempts: [mergeAttemptRow("unknown")],
+  };
+  const seen = await openMerge(page, scenario);
+  const now = nowCard(page);
+  await expect(now).toContainText("Bakery does not know whether this merged");
+  await expect(now).toContainText(
+    "Checking again never sends a second merge.",
+  );
+  await expect(button(now, "Check again")).toBeVisible();
+  await expect(now.getByRole("button", { name: "Merge", exact: true }))
+    .toHaveCount(0);
+  await expect(page.getByTestId("delivery-outcome-badge")).toHaveText(
+    "Merge unknown",
+  );
+  await expect(mergeStep(page)).toContainText(
+    "Bakery cannot tell whether these changes were merged.",
+  );
+  // A reload shows the same: the answer is read, not remembered by the page.
+  await page.reload();
+  await expect(nowCard(page)).toContainText(
+    "Bakery does not know whether this merged",
+  );
+  expect(seen.merges).toHaveLength(0);
+});
+
+test("Check again settles an unknown merge by reading GitHub and never sends a merge", async ({ page }) => {
+  const scenario: Scenario = {
+    ...CLEAN,
+    pullRequests: [pullRequestRow(482)],
+    mergeAttempts: [mergeAttemptRow("unknown")],
+  };
+  const seen = await openMerge(page, scenario, {
+    reconcile: async (route) => {
+      scenario.mergeAttempts = [mergeAttemptRow("refused")];
+      await route.fulfill({ json: { reconciled: 1, merged: 0, refused: 1 } });
+    },
+  });
+  const now = nowCard(page);
+  await button(now, "Check again").click();
+  await expect(now).toContainText("GitHub refused the merge");
+  await expect(page.getByTestId("delivery-merge-notice")).toContainText(
+    "GitHub did not merge it. You can merge again.",
+  );
+  expect(seen.reconciles).toBe(1);
+  expect(seen.merges).toHaveLength(0);
+});
+
+test("Check again that cannot reach GitHub keeps the outcome unknown and says so", async ({ page }) => {
+  await openMerge(
+    page,
+    {
+      ...CLEAN,
+      pullRequests: [pullRequestRow(482)],
+      mergeAttempts: [mergeAttemptRow("unknown")],
+    },
+    {
+      reconcile: (route) =>
+        route.fulfill({
+          status: 502,
+          contentType: "application/problem+json",
+          json: problemBody(502, "PROVIDER_UNAVAILABLE"),
+        }),
+    },
+  );
+  const now = nowCard(page);
+  await button(now, "Check again").click();
+  await expect(page.getByTestId("delivery-merge-notice")).toContainText(
+    "GitHub could not be reached. The outcome is still unknown.",
+  );
+  await expect(now).toContainText("Bakery does not know whether this merged");
+});
+
+test("a refused merge says so, links to GitHub and offers Merge as a secondary action", async ({ page }) => {
+  await openMerge(page, {
+    ...CLEAN,
+    pullRequests: [pullRequestRow(482)],
+    mergeAttempts: [mergeAttemptRow("refused")],
+  });
+  const now = nowCard(page);
+  await expect(now).toContainText("GitHub refused the merge");
+  await expect(mergeStep(page)).toContainText("GitHub refused the merge.");
+  await expect(now.getByRole("link", { name: /Open on GitHub/ }))
+    .toHaveAttribute("href", "https://github.com/o/r/pull/482");
+  await expect(button(now, "Merge")).toBeVisible();
+});
+
+test("a pull request that moved after the approval is not offered to merge, and says which commits", async ({ page }) => {
+  await openMerge(page, {
+    ...CLEAN,
+    pullRequests: [pullRequestRow(482, { headSha: OLD })],
+  });
+  const now = nowCard(page);
+  await expect(now).toContainText("Not merged: the pull request changed");
+  await expect(now).toContainText("Commit 91d0aa3 was approved");
+  await expect(now).toContainText("now ends at 4be19c2");
+  await expect(now.getByRole("button")).toHaveCount(0);
+});
+
+for (
+  const [name, status, code, says] of [
+    [
+      "the pull request changed under it",
+      409,
+      "STATE_CONFLICT",
+      "The pull request changed just now. The latest is shown.",
+    ],
+    [
+      "this person may not merge",
+      403,
+      "AUTH_FORBIDDEN",
+      "Someone who can merge in this repository can do it here.",
+    ],
+    [
+      "the pull request is gone",
+      404,
+      "RESOURCE_NOT_FOUND",
+      "The merge was not started. Nothing changed. Try again.",
+    ],
+  ] as const
+) {
+  test(`a merge refused because ${name} says so once, in the card, and starts nothing`, async ({ page }) => {
+    const seen = await openMerge(
+      page,
+      { ...CLEAN, pullRequests: [pullRequestRow(482)] },
+      {
+        merge: (route) =>
+          route.fulfill({
+            status,
+            contentType: "application/problem+json",
+            json: problemBody(status, code),
+          }),
+      },
+    );
+    const now = nowCard(page);
+    await button(now, "Merge").click();
+    await button(
+      page.getByRole("alertdialog", { name: "Merge pull request #482?" }),
+      "Merge",
+    ).click();
+    await expect(page.getByTestId("delivery-merge-notice")).toContainText(
+      says,
+    );
+    await expect(page.getByTestId("delivery-merge-notice")).not.toContainText(
+      "did not get an answer",
+    );
+    expect(seen.merges).toHaveLength(1);
+  });
+}
+
+test("a merge whose answer never arrived says so, never that nothing changed, and reads back what was recorded", async ({ page }) => {
+  const scenario: Scenario = { ...CLEAN, pullRequests: [pullRequestRow(482)] };
+  const seen = await openMerge(page, scenario, {
+    merge: async (route) => {
+      // The server got it and recorded an attempt it could not settle, but the
+      // answer was lost on the way back.
+      scenario.mergeAttempts = [mergeAttemptRow("unknown")];
+      await route.fulfill({
+        status: 503,
+        contentType: "application/problem+json",
+        json: problemBody(503, "UNAVAILABLE"),
+      });
+    },
+  });
+  const now = nowCard(page);
+  await button(now, "Merge").click();
+  await button(page.getByRole("alertdialog"), "Merge").click();
+  await expect(page.getByTestId("delivery-merge-notice")).toContainText(
+    "Bakery did not get an answer, so the merge may or may not have started.",
+  );
+  await expect(page.getByTestId("delivery-merge-notice")).not.toContainText(
+    "Nothing changed",
+  );
+  // What it recorded is what the card says now: unknown, with Check again.
+  await expect(now).toContainText("Bakery does not know whether this merged");
+  await expect(button(now, "Check again")).toBeVisible();
+  expect(seen.merges).toHaveLength(1);
+});
+
+test("offline, merging is disabled", async ({ page, context }) => {
+  await openMerge(page, { ...CLEAN, pullRequests: [pullRequestRow(482)] });
+  await context.setOffline(true);
+  await expect(button(nowCard(page), "Merge")).toBeDisabled();
+});
+
+test("the merge states have no accessibility violations and fit a 390px screen", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openMerge(page, { ...CLEAN, pullRequests: [pullRequestRow(482)] });
+  await expect(button(nowCard(page), "Merge")).toBeVisible();
+  const overflow = await page.evaluate(() =>
+    document.documentElement.scrollWidth > globalThis.innerWidth
+  );
+  expect(overflow).toBe(false);
+  const results = await new AxeBuilder({ page }).analyze();
+  expect(results.violations).toEqual([]);
+});
+
+const MERGE_STILLS = [
+  ["ready", { pullRequests: [pullRequestRow(482)] }],
+  [
+    "no-permission",
+    { pullRequests: [pullRequestRow(482, { mayMerge: false })] },
+  ],
+  [
+    "unknown",
+    {
+      pullRequests: [pullRequestRow(482)],
+      mergeAttempts: [mergeAttemptRow("unknown")],
+    },
+  ],
+  [
+    "refused",
+    {
+      pullRequests: [pullRequestRow(482)],
+      mergeAttempts: [mergeAttemptRow("refused")],
+    },
+  ],
+  ["moved", { pullRequests: [pullRequestRow(482, { headSha: OLD })] }],
+] as const;
+
+for (const [name, scenario] of MERGE_STILLS) {
+  test(`still: merge, ${name}`, async ({ page }) => {
+    test.skip(STILLS === undefined, "BAKERY_STILLS_DIR is not set");
+    test.setTimeout(laneBudgetMs(120_000));
+    for (const scheme of ["light", "dark"] as const) {
+      for (
+        const [size, width, height] of [["1440", 1440, 900], [
+          "390",
+          390,
+          844,
+        ]] as const
+      ) {
+        const fresh = await page.context().newPage();
+        await fresh.emulateMedia({ colorScheme: scheme });
+        await fresh.setViewportSize({ width, height });
+        await openMerge(fresh, { ...CLEAN, ...scenario });
+        await nowCard(fresh).scrollIntoViewIfNeeded();
+        await fresh.screenshot({
+          path: `${STILLS}/merge-${name}-${size}-${scheme}.png`,
+          animations: "disabled",
+        });
+        if (name === "ready" && size === "1440" && scheme === "light") {
+          await button(nowCard(fresh), "Merge").click();
+          await fresh.getByRole("alertdialog").waitFor();
+          await fresh.screenshot({
+            path: `${STILLS}/merge-confirm-1440-light.png`,
+            animations: "disabled",
+          });
+        }
+        await fresh.close();
+      }
+    }
+  });
+}

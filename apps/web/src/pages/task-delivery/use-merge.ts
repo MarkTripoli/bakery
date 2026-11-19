@@ -13,7 +13,10 @@ import type { MergeView } from "./model.ts";
  * - `unreachable`: Bakery could not reach GitHub to check, so the outcome is
  *   still unknown;
  * - `notMerged`: a check settled the attempt as not merged, so a merge can be
- *   asked for again.
+ *   asked for again;
+ * - `noAnswer`: the answer never arrived (a lost connection or a server error),
+ *   so the merge may or may not have started. The page says so and reads back
+ *   what Bakery recorded; it never says "nothing changed".
  */
 export type MergePhase =
   | "idle"
@@ -22,7 +25,8 @@ export type MergePhase =
   | "forbidden"
   | "error"
   | "unreachable"
-  | "notMerged";
+  | "notMerged"
+  | "noAnswer";
 
 /**
  * Sends the person's request to merge, and the request to check an unknown
@@ -67,8 +71,8 @@ export function useMerge(refresh: () => Promise<void>) {
       }
       const failure = commandFailure(result.error);
       // An answer that never arrived is an unknown outcome: the attempt may
-      // exist. Reading it back shows "does not know", never a second merge.
-      const ended: MergePhase = failure === "unknown" ? "idle" : failure;
+      // exist. Reading it back shows what Bakery recorded, never a second merge.
+      const ended: MergePhase = failure === "unknown" ? "noAnswer" : failure;
       void refresh();
       setPhase(ended);
       return ended;
