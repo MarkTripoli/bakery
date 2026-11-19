@@ -60,6 +60,8 @@ type Effective = {
   providerProtection: { state: string; reason: string | null };
   organizationRevision: number;
   profileRevision: number | null;
+  /** False when the repository's settings name no checks. */
+  hasFixedPolicy?: boolean;
 };
 
 /** The five rules as one repository sees them: two locked, two inherited, one overridden. */
@@ -266,6 +268,20 @@ test.describe("repository rules: the effective rules of one repository", () => {
     await expect(rule(page, "Magic numbers")).toContainText(
       "Only this repository",
     );
+  });
+
+  test("the fingerprint's help drops the sentence about runs when the settings name no checks", async ({ page }) => {
+    await rulesFixture(page, { rules: effective({ hasFixedPolicy: false }) });
+    await page.goto(RULES_PATH);
+    const help = details(page).getByRole("button", {
+      name: "About the rules fingerprint",
+    });
+    await help.hover();
+    const text = page.getByRole("tooltip").filter({
+      hasText: "Identifies the exact rules in force.",
+    });
+    await expect(text).toBeVisible();
+    await expect(text).not.toContainText("Each run records");
   });
 
   test("the rules fingerprint can be copied", async ({ page, context }) => {
@@ -647,7 +663,7 @@ test.describe("repository rules: the effective rules of one repository", () => {
     });
     await fingerprintHelp.hover();
     const fingerprintText = page.getByRole("tooltip").filter({
-      hasText: "Each run records the same value",
+      hasText: "Each run records the fingerprint it started with",
     });
     await expect(fingerprintText).toBeVisible();
     expect(await isSeen(fingerprintText)).toBe(true);

@@ -22,6 +22,7 @@ export function FingerprintRow(
     testId,
     noHelp,
     copyFailedText,
+    note,
   }: Readonly<{
     /** The whole value: what Copy puts on the clipboard. */
     fingerprint: string;
@@ -39,6 +40,8 @@ export function FingerprintRow(
     noHelp?: boolean;
     /** What is said when the clipboard refuses; the fingerprint's sentence when left out. */
     copyFailedText?: string;
+    /** One muted line under the row's name, for example where the value first applied. */
+    note?: string;
   }>,
 ) {
   const { translate: t } = useI18n();
@@ -90,7 +93,7 @@ export function FingerprintRow(
               </UI.DataText>
             </UI.Stack>
           )
-          : undefined}
+          : note}
         title={
           <>
             <UI.VisuallyHidden as="div" role="status">
