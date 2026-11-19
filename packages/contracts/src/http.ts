@@ -529,7 +529,7 @@ export function toProblem(
     ...(existingResourceId === undefined ? {} : { existingResourceId }),
     ...(requiredScopes === undefined ? {} : { requiredScopes }),
     ...((code === "DEPENDENCY_UNAVAILABLE" ||
-        code === "PROVIDER_QUOTA_EXCEEDED") &&
+        code === "PROVIDER_QUOTA_EXCEEDED" || code === "RATE_LIMITED") &&
         typeof rawParams?.retryAfterSeconds === "number" &&
         Number.isInteger(rawParams.retryAfterSeconds) &&
         rawParams.retryAfterSeconds >= 1 && rawParams.retryAfterSeconds <= 3600
