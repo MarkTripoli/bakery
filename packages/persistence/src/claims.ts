@@ -88,6 +88,16 @@ export type ClaimableJob = {
   installationReservationId: string | null;
   /** Oldest server-created harness session for the job's run step, if any. */
   agentSessionId: string | null;
+  /**
+   * The person this work is done for: the run's `requested_by`.
+   *
+   * The session credential's `actsForPrincipalId` comes from here, never from
+   * the worker's own identity. A worker acts for the person who started the
+   * run, and O50 requires the audit to name that person rather than the host
+   * that happened to pick the job up. Null when the job has no run - a
+   * coordinator turn or an onboarding job - and the caller decides then.
+   */
+  actsForPrincipalId: string | null;
   currentFence: string | number;
 };
 
@@ -344,7 +354,17 @@ export function createClaimsRepository(
                and session.run_step_id = jobs.run_step_id
              order by session.created_at asc, session.id asc
              limit 1
-          ) as agent_session_id
+          ) as agent_session_id,
+          (
+            select candidate_run.requested_by
+              from bakery.run_steps claim_step
+              join bakery.workflow_runs candidate_run
+                on candidate_run.organization_id = claim_step.organization_id
+               and candidate_run.id = claim_step.run_id
+             where claim_step.organization_id = jobs.organization_id
+               and claim_step.id = jobs.run_step_id
+             limit 1
+          ) as acts_for_principal_id
        from bakery.jobs as jobs
        where organization_id = $1 and status = 'queued'
          and available_at <= clock_timestamp()
@@ -445,6 +465,7 @@ export function createClaimsRepository(
           installation_reservation_id: string | null;
           current_fence: string | number;
           agent_session_id: string | null;
+          acts_for_principal_id: string | null;
         }>("fetch forward 1 from claim_candidates");
         const row = jobs.rows[0];
         if (!row) {
@@ -578,6 +599,7 @@ export function createClaimsRepository(
           billing: row.billing,
           installationReservationId: row.installation_reservation_id,
           agentSessionId: row.agent_session_id,
+          actsForPrincipalId: row.acts_for_principal_id,
           currentFence: row.current_fence,
         };
       }

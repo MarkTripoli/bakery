@@ -1,4 +1,10 @@
 import { z } from "zod";
+import type { PgTransactionClient } from "@bakery/persistence";
+import { sha256Hex } from "../../platform/canonical-json.ts";
+import {
+  issueCredentialForAttempt,
+  type MintedSessionCredential,
+} from "./session-claim-credential.ts";
 import { StandardError } from "@bakery/contracts/http";
 import { workerActionOutputCarriesSession } from "@bakery/contracts/contracts";
 import { DEFAULT_LEASE_SECONDS } from "@bakery/persistence";
@@ -41,6 +47,12 @@ export type ClaimResult =
 export type ClaimUnitOfWorkContext = {
   readonly identity: ClaimIdentity;
   readonly persistence: ClaimsRepository;
+  /**
+   * The claim's own transaction, so work that must commit with the lease can.
+   * The session credential is minted here: a credential written outside this
+   * transaction could name an attempt that was never leased.
+   */
+  readonly transaction: PgTransactionClient;
 };
 
 export type ClaimUnitOfWork = {
@@ -64,7 +76,12 @@ function requestMetadata(headers: Headers): RequestMetadata {
   return { requestId, traceId };
 }
 
-function assignmentFromJob(
+/**
+ * Builds the envelope a worker receives. Exported so a test can assert what
+ * actually reaches the wire: a field declared in the contract but never filled
+ * in here is the "built and never called" defect with extra steps.
+ */
+export function assignmentFromJob(
   job: ClaimableJob,
   attemptId: string,
   hostId: string,
@@ -76,6 +93,7 @@ function assignmentFromJob(
   leaseDurationSeconds: number,
   serverTime: Date | string,
   sealedCredentialOperation: SealedCredentialOperation | null,
+  sessionCredential: MintedSessionCredential | null,
 ): Assignment {
   const assignment = {
     jobId: job.id,
@@ -101,6 +119,9 @@ function assignmentFromJob(
     leaseDurationSeconds,
     serverTime: iso(serverTime),
     sealedCredentialOperation,
+    // Handed back once, here, and never stored in the clear. Absent for a host
+    // without a session: the credential names the session that made the call.
+    sessionCredential: sessionCredential?.token ?? null,
     // Only actions whose result names a session receive the server-created one.
     ...(job.agentSessionId === null ||
         !workerActionOutputCarriesSession(job.action)
@@ -136,7 +157,8 @@ export async function executeClaim(
   return await options.unitOfWork.run(
     options.headers,
     input.workerHostId,
-    async ({ identity, persistence }) => {
+    async (context) => {
+      const { identity, persistence } = context;
       await persistence.acquireClaimLock(
         identity.host.id,
         input.claimKey,
@@ -281,6 +303,28 @@ export async function executeClaim(
         }
         throw new Error("JOB_ATTEMPT_INSERT_FAILED");
       }
+      // The session operation credential is minted in this transaction, so the
+      // attempt and the credential it authorises appear together or not at all.
+      // A credential issued outside the claim could name an attempt that was
+      // never leased, which is authority for work that does not exist.
+      const sessionCredential = identity.host.workerSessionId === null
+        ? null
+        : await issueCredentialForAttempt(context.transaction, {
+          organizationId: identity.host.organizationId,
+          attemptId: lease.attemptId,
+          // The person the agent acts for is the run's requester, not the host
+          // that picked the job up: O50 audits the principal, and a worker
+          // identity would name the machine.
+          actsForPrincipalId: job.actsForPrincipalId ??
+            identity.host.principalId,
+          workerSessionId: identity.host.workerSessionId,
+          workerSessionGeneration: BigInt(
+            identity.host.workerSessionGeneration ?? "1",
+          ),
+          fence,
+          leaseTokenHash: await sha256Hex(leaseToken),
+          leaseExpiresAt: lease.expiresAt,
+        });
       let sealedCredentialOperation: SealedCredentialOperation | null = null;
       if (job.action === "secret.identity.read") {
         if (identity.host.workerSessionId === null) {
@@ -311,6 +355,7 @@ export async function executeClaim(
         DEFAULT_LEASE_SECONDS,
         lease.serverTime,
         sealedCredentialOperation,
+        sessionCredential,
       );
       await persistence.recordAssignment({
         organizationId: identity.host.organizationId,

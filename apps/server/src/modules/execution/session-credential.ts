@@ -70,7 +70,13 @@ export class SessionOperationError extends Error {
       | "SESSION_CREDENTIAL_INVALID"
       | "SESSION_CREDENTIAL_EXPIRED"
       | "SESSION_CREDENTIAL_FENCE_STALE"
-      | "SESSION_SCOPE_DENIED",
+      | "SESSION_SCOPE_DENIED"
+      /**
+       * A claim that cannot name the person it acts for gets no credential.
+       * O50 requires the audit to name that principal, and an unattributable
+       * audit row is worse than a failed claim because it looks like evidence.
+       */
+      | "SESSION_CREDENTIAL_NO_PRINCIPAL",
   ) {
     super(code);
     this.name = "SessionOperationError";

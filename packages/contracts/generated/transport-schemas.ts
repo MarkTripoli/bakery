@@ -21962,7 +21962,8 @@ const transportSchemas = {
         "serverTime",
         "sealedCredentialOperation",
         "agentSessionId",
-        "contextInputs"
+        "contextInputs",
+        "sessionCredential"
       ],
       "optionalFields": [
         "workerSessionId",
@@ -21970,7 +21971,8 @@ const transportSchemas = {
         "leaseDurationSeconds",
         "serverTime",
         "agentSessionId",
-        "contextInputs"
+        "contextInputs",
+        "sessionCredential"
       ],
       "fieldTypes": {
         "jobId": "uuid",
@@ -21994,7 +21996,8 @@ const transportSchemas = {
         "serverTime": "timestamp",
         "sealedCredentialOperation": "SealedCredentialOperation|null",
         "agentSessionId": "uuid",
-        "contextInputs": "StepContextInput[]"
+        "contextInputs": "StepContextInput[]",
+        "sessionCredential": "secretString"
       },
       "sensitiveFields": [
         "leaseToken"
@@ -22045,7 +22048,8 @@ const transportSchemas = {
         "serverTime": "PostgreSQL-authoritative claim time used to derive a monotonic lease deadline.",
         "sealedCredentialOperation": "Required nullable daemon-only prepared credential operation. Null for every non-identity action; never copied into job input or a subprocess.",
         "agentSessionId": "Server-created harness session the result must reference.",
-        "contextInputs": "Input slots the step declared, pinned at admission: the worker materializes exactly these bytes into its context directory and never re-fetches the artifact, so the digest it verifies is the one admission pinned."
+        "contextInputs": "Input slots the step declared, pinned at admission: the worker materializes exactly these bytes into its context directory and never re-fetches the artifact, so the digest it verifies is the one admission pinned.",
+        "sessionCredential": "The session operation credential for this attempt, handed back once at claim and never again: the server stores only its digest. The agent presents it on the tool gateway to call Bakery operations as the principal it acts for. It dies with the attempt lease and must never be copied into job input, a log, an artifact or a subprocess environment."
       }
     },
     "LeaseState": {

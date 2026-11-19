@@ -185003,6 +185003,12 @@
                 "additionalProperties": false,
                 "description": "Input slots the step declared, pinned at admission: the worker materializes exactly these bytes into its context directory and never re-fetches the artifact, so the digest it verifies is the one admission pinned. Each array item follows this format."
               }
+            },
+            "sessionCredential": {
+              "description": "The session operation credential for this attempt, handed back once at claim and never again: the server stores only its digest. The agent presents it on the tool gateway to call Bakery operations as the principal it acts for. It dies with the attempt lease and must never be copied into job input, a log, an artifact or a subprocess environment.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 65536
             }
           },
           "required": [
@@ -218886,7 +218892,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:fc6128799994a7ec2ab43bc364c1f126b47537717d43b7e6770761889a3a9684",
+  "compatibilityDigest": "sha256:c8a4d3282e02a3b196797f64e4b8738b0d3668a758adef8215394331f3050736",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -368768,6 +368774,12 @@
             "additionalProperties": false,
             "description": "Input slots the step declared, pinned at admission: the worker materializes exactly these bytes into its context directory and never re-fetches the artifact, so the digest it verifies is the one admission pinned. Each array item follows this format."
           }
+        },
+        "sessionCredential": {
+          "description": "The session operation credential for this attempt, handed back once at claim and never again: the server stores only its digest. The agent presents it on the tool gateway to call Bakery operations as the principal it acts for. It dies with the attempt lease and must never be copied into job input, a log, an artifact or a subprocess environment.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536
         }
       },
       "required": [
