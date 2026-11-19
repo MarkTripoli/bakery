@@ -7,6 +7,7 @@ import {
   type PgTransactionClient,
   withPgTransaction,
 } from "../../platform/database.ts";
+import { repositoryContainer } from "../work/ticket-container.ts";
 import { githubRoleRank } from "../work/ticket-source-reader.ts";
 import type {
   IssueRef,
@@ -332,11 +333,7 @@ const sameRepository = (left: string, right: string): boolean =>
 const refOfBlocker = (blocker: GitHubBlocker): IssueRef => ({
   id: String(blocker.id),
   number: blocker.number,
-  container: {
-    kind: "repository",
-    externalId: blocker.repositoryFullName,
-    displayName: blocker.repositoryFullName,
-  },
+  container: repositoryContainer(blocker.repositoryFullName),
 });
 
 /**
@@ -421,11 +418,7 @@ export function createTicketSourceReader(
             ? null
             : detail.stateReason.slice(0, 40),
           locked: detail.locked,
-          container: {
-            kind: "repository",
-            externalId: access.fullName,
-            displayName: access.fullName,
-          },
+          container: repositoryContainer(access.fullName),
         });
         // An answer outside the contract is never admitted.
         if (!snapshot.success) return failure("provider_error");
@@ -469,11 +462,9 @@ export function createTicketSourceReader(
           );
           if (read.kind === "unavailable") return read;
           if (read.kind === "issue") {
-            const parentContainer = {
-              kind: "repository",
-              externalId: detail.parent.repositoryFullName,
-              displayName: detail.parent.repositoryFullName,
-            };
+            const parentContainer = repositoryContainer(
+              detail.parent.repositoryFullName,
+            );
             parent = {
               id: String(read.id),
               number: read.number,

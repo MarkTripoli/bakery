@@ -19,6 +19,7 @@ import {
   TicketStoredReportSchema,
 } from "@bakery/contracts/ticket-admission";
 import type { PgTransactionClient } from "../../platform/database.ts";
+import { repositoryContainer } from "./ticket-container.ts";
 import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
 import {
   parseOffsetInstant,
@@ -415,11 +416,7 @@ function normalisedSnapshot(stored: TicketSnapshot): TicketSnapshot {
   if (typeof legacy !== "string") return stored;
   return {
     ...stored,
-    container: {
-      kind: "repository",
-      externalId: legacy,
-      displayName: legacy,
-    },
+    container: repositoryContainer(legacy),
   };
 }
 
