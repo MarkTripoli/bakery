@@ -32,7 +32,21 @@ import {
   assertImplementedActionRegistry,
   BlobUploadImplementedAction,
   blobUploadImplementedActions,
+  StorageImplementedAction,
+  storageImplementedActions,
 } from "@bakery/contracts/implemented-actions";
+import {
+  copyStorageEntry,
+  createStorageFolder,
+  createTrashLister,
+  getStorageSettings,
+  moveStorageEntry,
+  purgeStorageEntry,
+  putStorageFile,
+  putStorageSettings,
+  restoreStorageEntry,
+  trashStorageEntry,
+} from "./storage-working-areas.ts";
 import type { AuthorizedActionContext } from "../auth/application/authority.ts";
 import { authorize } from "../auth/application/authorize.ts";
 import { PostgresAuthorityRunner } from "../auth/adapters/authority-postgres.ts";
@@ -118,6 +132,34 @@ const blobWritePolicy = {
     );
   },
 } as const;
+
+/**
+ * Writing files and folders into working areas is the same write a blob upload
+ * is, open to any member who may create artifacts. The folder policy, not the
+ * role, decides where (storage-areas.ts).
+ */
+function storageWritePolicy(action: CatalogActionName) {
+  return {
+    type: ActionKind.Command,
+    access: ActionAccess.Developer,
+    organizationContext: OrganizationContextPolicy.RequiredAuthenticatedContext,
+    authorize: (context: ActionContext) => {
+      requireArtifactPermission(context, "artifact:create", action);
+    },
+  } as const;
+}
+
+/** Storage limits and the purge are an organization Admin's. */
+function storageAdminPolicy(action: CatalogActionName) {
+  return {
+    type: ActionKind.Command,
+    access: ActionAccess.Admin,
+    organizationContext: OrganizationContextPolicy.RequiredAuthenticatedContext,
+    authorize: (context: ActionContext) => {
+      requireArtifactPermission(context, "artifact:manage", action);
+    },
+  } as const;
+}
 
 const extractionPolicy = {
   ...readPolicy,
@@ -489,13 +531,149 @@ export function createArtifactActions(
       handler: (context) =>
         blobUploads.completeUpload(context, { id: context.params.id }),
     });
+  registerStorageActions(registry, options.secret);
   registerCommentActions(registry, options.secret, options.blobStore);
   assertRegisteredActions(registry);
   assertImplementedActionRegistry(registry, [
     ...artifactImplementedActions,
     ...blobUploadImplementedActions,
+    ...storageImplementedActions,
   ]);
   return { registry, authority, handlers };
+}
+
+/** The working-area actions over the storage tree (#447). */
+function registerStorageActions(registry: ActionRegistry, secret: string) {
+  const listTrash = createTrashLister(secret);
+  const A = StorageImplementedAction;
+  registry
+    .register({
+      name: A.StorageFilesPut,
+      method: HttpMethod.Put,
+      path: "/v1/storage/files",
+      input: contractSchemas.StorageFilePut,
+      output: contractSchemas.StorageEntry,
+      explicitIdempotency: "key",
+      policy: storageWritePolicy(A.StorageFilesPut),
+      handler: async (context, input) =>
+        contractSchemas.StorageEntry.parse(
+          await putStorageFile(context, input),
+        ),
+    })
+    .register({
+      name: A.StorageFoldersCreate,
+      method: HttpMethod.Post,
+      path: "/v1/storage/folders",
+      input: contractSchemas.StorageFolderCreate,
+      output: contractSchemas.StorageEntry,
+      explicitIdempotency: "key",
+      policy: storageWritePolicy(A.StorageFoldersCreate),
+      handler: async (context, input) =>
+        contractSchemas.StorageEntry.parse(
+          await createStorageFolder(context, input),
+        ),
+    })
+    .register({
+      name: A.StorageEntriesCopy,
+      method: HttpMethod.Post,
+      path: "/v1/storage/entries/:id/copy",
+      input: contractSchemas.StorageEntryDestination,
+      output: contractSchemas.StorageEntry,
+      explicitIdempotency: "key",
+      policy: storageWritePolicy(A.StorageEntriesCopy),
+      handler: async (context, input) =>
+        contractSchemas.StorageEntry.parse(
+          await copyStorageEntry(context, input),
+        ),
+    })
+    .register({
+      name: A.StorageEntriesMove,
+      method: HttpMethod.Post,
+      path: "/v1/storage/entries/:id/move",
+      input: contractSchemas.StorageEntryDestination,
+      output: contractSchemas.StorageEntry,
+      explicitIdempotency: "key-and-if-match",
+      successStatus: 200,
+      policy: storageWritePolicy(A.StorageEntriesMove),
+      handler: async (context, input) =>
+        contractSchemas.StorageEntry.parse(
+          await moveStorageEntry(context, input),
+        ),
+    })
+    .register({
+      name: A.StorageEntriesTrash,
+      method: HttpMethod.Delete,
+      path: "/v1/storage/entries/:id",
+      input: contractSchemas.IdPath,
+      output: contractSchemas.StorageEntry,
+      explicitIdempotency: "key-and-if-match",
+      policy: storageWritePolicy(A.StorageEntriesTrash),
+      handler: async (context) =>
+        contractSchemas.StorageEntry.parse(await trashStorageEntry(context)),
+    })
+    .register({
+      name: A.StorageEntriesRestore,
+      method: HttpMethod.Post,
+      path: "/v1/storage/entries/:id/restore",
+      input: contractSchemas.IdPath,
+      output: contractSchemas.StorageEntry,
+      explicitIdempotency: "key-and-if-match",
+      successStatus: 200,
+      policy: storageWritePolicy(A.StorageEntriesRestore),
+      handler: async (context) =>
+        contractSchemas.StorageEntry.parse(await restoreStorageEntry(context)),
+    })
+    .register({
+      name: A.StorageTrashList,
+      method: HttpMethod.Get,
+      path: "/v1/storage/trash",
+      input: contractSchemas.CursorQuery,
+      output: contractSchemas["Page<StorageEntry>"],
+      policy: readPolicy,
+      handler: async (context, input) =>
+        contractSchemas["Page<StorageEntry>"].parse(
+          await listTrash(context, input),
+        ),
+    })
+    .register({
+      name: A.StorageSettingsGet,
+      method: HttpMethod.Get,
+      path: "/v1/storage/settings",
+      input: contractSchemas.Empty,
+      output: contractSchemas.StorageSettings,
+      policy: readPolicy,
+      handler: async (context) =>
+        contractSchemas.StorageSettings.parse(
+          await getStorageSettings(context),
+        ),
+    })
+    .register({
+      name: A.StorageSettingsPut,
+      method: HttpMethod.Put,
+      path: "/v1/storage/settings",
+      input: contractSchemas.StorageSettingsPut,
+      output: contractSchemas.StorageSettings,
+      explicitIdempotency: "key",
+      policy: storageAdminPolicy(A.StorageSettingsPut),
+      handler: async (context, input) =>
+        contractSchemas.StorageSettings.parse(
+          await putStorageSettings(context, input),
+        ),
+    })
+    .register({
+      name: A.StorageEntriesPurge,
+      method: HttpMethod.Post,
+      path: "/v1/storage/entries/:id/purge",
+      input: contractSchemas.IdPath,
+      output: contractSchemas.StoragePurgeResult,
+      explicitIdempotency: "key",
+      successStatus: 200,
+      policy: storageAdminPolicy(A.StorageEntriesPurge),
+      handler: async (context) =>
+        contractSchemas.StoragePurgeResult.parse(
+          await purgeStorageEntry(context),
+        ),
+    });
 }
 
 export function createArtifactResourceRoutes(
@@ -517,6 +695,7 @@ export function createArtifactResourceRoutes(
   // is refused as an anonymous one - a 403 that looks like a permission problem
   // and is really a missing middleware.
   app.use("/v1/blobs/*", session);
+  app.use("/v1/storage/*", session);
   app.onError((error, context) =>
     problemResponse(context, error, { publicBaseUrl: options.publicBaseUrl })
   );
