@@ -75,6 +75,7 @@ const input = (over: Partial<DeliveryInput> = {}): DeliveryInput => ({
   approvals: [],
   pullRequests: [],
   mergeAttempts: [],
+  mergeUnavailable: false,
   approvalsUnavailable: false,
   revisionHeadSha: null,
   baseSha: "a7254e7cccccccccccccccccccccccccccccccc",
@@ -822,4 +823,12 @@ Deno.test("merging never hides a stop or a paused run, except an unknown outcome
     ],
   }));
   assertEquals(stopped.now.kind, "stopped");
+});
+
+Deno.test("attempts that could not be read offer no merge: an unknown outcome might be hiding", () => {
+  const model = deliveryModel(approvedWithPullRequest({
+    mergeUnavailable: true,
+  }));
+  assertEquals(model.merge, null);
+  assertEquals(model.now, { kind: "approved" });
 });

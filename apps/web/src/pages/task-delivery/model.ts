@@ -263,6 +263,11 @@ export type DeliveryInput = Readonly<{
   pullRequests: readonly DeliveryPullRequest[];
   /** The chosen pull request's merge attempts, newest first. */
   mergeAttempts: readonly DeliveryMergeAttempt[];
+  /**
+   * The chosen pull request is open but its merge attempts could not be read.
+   * An unknown outcome might be hidden there, so no merge is offered.
+   */
+  mergeUnavailable: boolean;
   paused: boolean;
 }>;
 
@@ -478,7 +483,9 @@ export function mergeView(
     approval,
     outOfDate,
     headSha,
+    unavailable,
   }: Readonly<{
+    unavailable: boolean;
     pullRequest: DeliveryPullRequest | undefined;
     attempts: readonly DeliveryMergeAttempt[];
     approval: ApprovalView | null;
@@ -487,6 +494,7 @@ export function mergeView(
   }>,
 ): MergeView | null {
   if (pullRequest === undefined || pullRequest.status !== "open") return null;
+  if (unavailable) return null;
   const newest = attempts[0];
   const base = {
     pullRequestId: pullRequest.id,
@@ -651,6 +659,7 @@ export function deliveryModel(input: DeliveryInput): DeliveryModel {
     approval,
     outOfDate,
     headSha,
+    unavailable: input.mergeUnavailable,
   });
   const after = afterApproval(input.pullRequests, input.runId);
   return {
