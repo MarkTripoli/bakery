@@ -110,7 +110,12 @@ export function issueSessionOperationCredential(input: {
   organizationId: string;
   attemptId: string;
   actsForPrincipalId: string;
-  actsForPrincipalType: string;
+  /**
+   * Optional on the issuer only, so a caller that holds no principal row is not
+   * forced to invent a type; the claim path always supplies the real one. The
+   * fallback is the narrowest type, never the widest.
+   */
+  actsForPrincipalType?: string;
   workerSessionId: string;
   workerSessionGeneration: bigint;
   fence: bigint;
@@ -139,7 +144,7 @@ export function issueSessionOperationCredential(input: {
       organizationId: input.organizationId,
       attemptId: input.attemptId,
       actsForPrincipalId: input.actsForPrincipalId,
-      actsForPrincipalType: input.actsForPrincipalType,
+      actsForPrincipalType: input.actsForPrincipalType ?? "worker",
       workerSessionId: input.workerSessionId,
       workerSessionGeneration: input.workerSessionGeneration,
       fence: input.fence,
