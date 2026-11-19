@@ -115,7 +115,15 @@ export function dispatchedContext(
   // AUTH_FORBIDDEN before authority was even consulted.
   // The claim's organization always wins: a header the worker sent must not
   // widen the session beyond the organization the attempt was claimed in.
-  const dispatched = new Request(request.url, request);
+  // Built from the method and headers alone: the call's body was already read
+  // to find the tool, and copying a request whose body is used throws.
+  const dispatched = new Request(request.url, {
+    method: request.method === "GET" || request.method === "HEAD"
+      ? request.method
+      : "POST",
+    headers: new Headers(request.headers),
+    signal: request.signal,
+  });
   dispatched.headers.set(ORGANIZATION_HEADER, claim.organizationId);
   return {
     request: dispatched,

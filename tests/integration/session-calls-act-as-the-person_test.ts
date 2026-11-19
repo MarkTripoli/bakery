@@ -74,15 +74,19 @@ Deno.test("a session acts as the person: the admin is served", () =>
     assertEquals(response.status, 200, text);
   }));
 
-Deno.test("a session for someone with no membership is not served", () =>
+Deno.test("a session for a person with no membership is not served", () =>
   withWorkerFixture(async (fixture) => {
-    const outsiderId = crypto.randomUUID();
-    await fixture.pgDatabase.query(
-      `insert into bakery.principals (id, display_name, principal_type)
-       values ($1, 'outsider', 'human')`,
-      [outsiderId],
+    const { worker, assignment } = await claimFor(
+      fixture,
+      fixture.principalId,
     );
-    const { worker, assignment } = await claimFor(fixture, outsiderId);
+    // The person loses access after the run starts. A session never exceeds
+    // the person, so it loses it too: the guard reads live membership.
+    await fixture.pgDatabase.query(
+      `delete from bakery.organization_memberships
+        where organization_id = $1 and principal_id = $2`,
+      [fixture.organizationId, fixture.principalId],
+    );
     const response = await callTool(
       fixture,
       worker,
@@ -91,7 +95,6 @@ Deno.test("a session for someone with no membership is not served", () =>
       "agents.list",
     );
     const text = await response.text();
-    // The person cannot see the organization, so neither can their session.
     assertEquals(response.status, 404, text);
   }));
 

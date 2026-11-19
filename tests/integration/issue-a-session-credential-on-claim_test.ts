@@ -105,7 +105,7 @@ Deno.test("only the digest is stored, never the token", () =>
     assertEquals(stored.length, 64, "the stored value is not a sha-256 digest");
   }));
 
-Deno.test("a replayed claim does not re-serve the token and revokes it", () =>
+Deno.test("a replayed claim revokes the old token and mints a fresh one", () =>
   withWorkerFixture(async (fixture) => {
     const worker = await registeredWorker(fixture, { slots: 1 });
     await seedFundedModelJob(
@@ -125,32 +125,29 @@ Deno.test("a replayed claim does not re-serve the token and revokes it", () =>
     const replay = await claimAssignment(fixture, worker, {
       claimKey,
     }) as unknown as { attemptId?: string; sessionCredential?: string };
-    // The token is served once. A replay reads the stored ciphertext, so
-    // returning it whole would make that promise false for as long as the
-    // replay record lives - and would hand a second copy to anyone who could
-    // re-issue the same claim key.
+    // The stored ciphertext carries the first token, so re-serving it would make
+    // "returned once" false. A worker whose first response was lost still needs
+    // a working credential, so the replay mints a new one for this response only.
     assert(
-      replay.sessionCredential === undefined,
-      "a replayed claim re-served the token",
+      typeof replay.sessionCredential === "string" &&
+        replay.sessionCredential !== first.sessionCredential,
+      "a replayed claim must carry a fresh token, not the old one or none",
     );
     assertEquals(replay.attemptId, first.attemptId);
 
-    // Revoked, not merely withheld.
-    const resolved = await withPgTransaction(
-      fixture.pgDatabase,
-      async (transaction) => {
+    const resolveToken = (token: string) =>
+      withPgTransaction(fixture.pgDatabase, async (transaction) => {
         try {
-          return await resolveSessionCredential(
-            transaction,
-            first.sessionCredential ?? "",
-          );
+          return await resolveSessionCredential(transaction, token);
         } catch (error) {
           return error as Error;
         }
-      },
-    );
+      });
     assert(
-      resolved instanceof Error,
+      (await resolveToken(first.sessionCredential)) instanceof Error,
       "the token from the first claim still resolves after a replay",
     );
+    const fresh = await resolveToken(replay.sessionCredential);
+    assert(!(fresh instanceof Error), "the replay's token does not resolve");
+    assertEquals(fresh.claim.attemptId, first.attemptId);
   }));
