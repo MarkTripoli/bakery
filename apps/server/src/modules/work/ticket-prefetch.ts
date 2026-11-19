@@ -10,6 +10,7 @@ import type {
   TicketIssueRead,
   TicketLabelProvenance,
   TicketLinksRead,
+  TicketRef,
   TicketSourceHandle,
   TicketSourceReader,
 } from "./ticket-source-reader.ts";
@@ -58,7 +59,12 @@ export type TicketPrefetch = {
 
 /** What a prefetch needs to know about the call it serves. */
 export type TicketPrefetchRequest = {
-  number: number;
+  /**
+   * Which ticket to read. A reference rather than an ordinal: the poll and the
+   * webhook both know the key the person quotes, and only GitHub's readers care
+   * that the key is a number.
+   */
+  ref: TicketRef;
   policy: TicketSourcePolicy;
   origin: TicketRequestOrigin;
 };
@@ -117,7 +123,7 @@ export async function prefetchTicketReads(
   request: TicketPrefetchRequest,
   signal: AbortSignal,
 ): Promise<TicketPrefetch> {
-  const issue = await reader.readIssue(handle, request.number, signal);
+  const issue = await reader.readIssue(handle, request.ref, signal);
   if (issue.kind !== "present") {
     return {
       issue,
@@ -128,7 +134,7 @@ export async function prefetchTicketReads(
       provenanceLabel: null,
     };
   }
-  const links = await reader.readLinks(handle, request.number, signal);
+  const links = await reader.readLinks(handle, request.ref, signal);
   const blockers: IssueRef[] = links.kind === "present" ? links.blockedBy : [];
   const proofs = await mapPool(
     blockers,
@@ -146,7 +152,7 @@ export async function prefetchTicketReads(
     if (provenanceLabel !== null) {
       provenance = await reader.readLabelProvenance(
         handle,
-        request.number,
+        request.ref,
         provenanceLabel,
         signal,
       );

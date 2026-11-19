@@ -40,6 +40,7 @@ import type {
   TicketSourceHandle,
   TicketSourceReader,
 } from "./ticket-source-reader.ts";
+import { githubTicketRef } from "./ticket-source-reader.ts";
 import { requireWorkTransaction } from "./work-transaction.ts";
 
 /**
@@ -259,7 +260,11 @@ async function readProvider(
           await prefetchTicketReads(
             reader,
             handle,
-            { number, policy: sourcePolicy, origin: "poll" },
+            {
+              ref: githubTicketRef(number),
+              policy: sourcePolicy,
+              origin: "poll",
+            },
             signal,
           ),
         ] as const,
@@ -297,7 +302,11 @@ async function readProvider(
     prefetch: await prefetchTicketReads(
       reader,
       plan.handle,
-      { number: plan.number, policy: plan.policy, origin: plan.origin },
+      {
+        ref: githubTicketRef(plan.number),
+        policy: plan.policy,
+        origin: plan.origin,
+      },
       signal,
     ),
   };

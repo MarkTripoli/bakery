@@ -53,6 +53,7 @@ import type {
   TicketLabelProvenance,
   TicketLinksRead,
   TicketReadFailure,
+  TicketRef,
   TicketSourceHandle,
   TicketSourceReader,
 } from "../../../apps/server/src/modules/work/ticket-source-reader.ts";
@@ -320,7 +321,14 @@ export function createMemoryTicketReader(): MemoryTicketReader {
     clearCalls() {
       reader.calls.length = 0;
     },
-    async readIssue(handle: TicketSourceHandle, number: number) {
+    async readIssue(handle: TicketSourceHandle, ref: TicketRef) {
+      // The double is seeded by GitHub's ordinal, so it reads the key the same
+      // way the live reader does; a key that is not a number answers the way a
+      // missing ticket does rather than throwing.
+      const number = Number(ref.externalKey);
+      if (!Number.isSafeInteger(number)) {
+        return Promise.resolve({ kind: "gone" as const });
+      }
       const failure = await enter("readIssue", number);
       if (failure) return Promise.resolve(failure);
       const seeded = issues.get(number);
@@ -351,7 +359,8 @@ export function createMemoryTicketReader(): MemoryTicketReader {
         visibility: seeded.visibility,
       });
     },
-    async readLinks(_handle, number) {
+    async readLinks(_handle, ref: TicketRef) {
+      const number = Number(ref.externalKey);
       const failure = await enter("readLinks", number);
       if (failure) return Promise.resolve(failure);
       return Promise.resolve(
@@ -373,7 +382,8 @@ export function createMemoryTicketReader(): MemoryTicketReader {
           { kind: "proof_unavailable" as const, detail: "unseeded" },
       );
     },
-    async readLabelProvenance(_handle, number, label) {
+    async readLabelProvenance(_handle, ref: TicketRef, label) {
+      const number = Number(ref.externalKey);
       const failure = await enter("readLabelProvenance", number);
       if (failure) return Promise.resolve(failure);
       return Promise.resolve(

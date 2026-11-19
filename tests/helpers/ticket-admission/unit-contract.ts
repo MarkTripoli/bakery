@@ -1,3 +1,4 @@
+import { ticketRef } from "../../../apps/server/src/modules/work/ticket-source-reader.ts";
 import { assert, assertEquals, assertFalse } from "@std/assert";
 import { z } from "zod";
 import {
@@ -771,9 +772,9 @@ Deno.test("issue 82 contract: the reader port types accept every documented answ
       Promise.resolve({ kind: "present", numbers: [], hasNext: false }),
   };
   const signal = new AbortController().signal;
-  const issue = await reader.readIssue(handle, 1, signal);
+  const issue = await reader.readIssue(handle, ticketRef(1), signal);
   assertEquals(issue.kind, "gone");
-  const links = await reader.readLinks(handle, 1, signal);
+  const links = await reader.readLinks(handle, ticketRef(1), signal);
   assertEquals(links.kind, "unavailable");
   const index: TicketFactIndex = {
     listIssueNumbers: () => Promise.resolve([]),

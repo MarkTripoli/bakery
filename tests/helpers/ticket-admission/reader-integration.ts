@@ -29,6 +29,7 @@ import type {
   TicketReadFailure,
   TicketSourceHandle,
 } from "../../../apps/server/src/modules/work/ticket-source-reader.ts";
+import { ticketRef } from "../../../apps/server/src/modules/work/ticket-source-reader.ts";
 import { defaultTicketSourcePolicy } from "../../../packages/contracts/src/ticket-admission.ts";
 import {
   fakeCommitSha,
@@ -239,7 +240,7 @@ Deno.test("issue 82 reader: readIssue returns the bounded snapshot and calls the
       locked: false,
       container: containerOf(s.fullName),
     };
-    assertEquals(await s.reader.readIssue(s.handle, 1, signal()), {
+    assertEquals(await s.reader.readIssue(s.handle, ticketRef(1), signal()), {
       kind: "present",
       snapshot: expected,
       providerUpdatedAt: isoAt(0),
@@ -249,11 +250,19 @@ Deno.test("issue 82 reader: readIssue returns the bounded snapshot and calls the
     // Private when GitHub says private, and also when it says nothing: unknown
     // is never read as public.
     s.f.github.seedIssueDetail(s.repositoryId, 1, { repositoryPrivate: true });
-    const privateRead = await s.reader.readIssue(s.handle, 1, signal());
+    const privateRead = await s.reader.readIssue(
+      s.handle,
+      ticketRef(1),
+      signal(),
+    );
     assert(privateRead.kind === "present");
     assertEquals(privateRead.visibility, "private");
     s.f.github.seedIssueDetail(s.repositoryId, 1, { repositoryPrivate: null });
-    const unknownRead = await s.reader.readIssue(s.handle, 1, signal());
+    const unknownRead = await s.reader.readIssue(
+      s.handle,
+      ticketRef(1),
+      signal(),
+    );
     assert(unknownRead.kind === "present");
     assertEquals(unknownRead.visibility, "private");
 
@@ -265,7 +274,7 @@ Deno.test("issue 82 reader: readIssue returns the bounded snapshot and calls the
       locked: true,
       updatedAt: at(1),
     });
-    const closed = await s.reader.readIssue(s.handle, 2, signal());
+    const closed = await s.reader.readIssue(s.handle, ticketRef(2), signal());
     assert(closed.kind === "present");
     assertEquals(
       [
@@ -284,7 +293,7 @@ Deno.test("issue 82 reader: an oversized body is reported and kept as no text", 
     s.f.github.seedIssueDetail(s.repositoryId, 1, {
       body: "a".repeat(65_537),
     });
-    const read = await s.reader.readIssue(s.handle, 1, signal());
+    const read = await s.reader.readIssue(s.handle, ticketRef(1), signal());
     assert(read.kind === "present");
     assertEquals([read.snapshot.bodyTooLarge, read.snapshot.body], [true, ""]);
 
@@ -292,7 +301,7 @@ Deno.test("issue 82 reader: an oversized body is reported and kept as no text", 
     s.f.github.seedIssueDetail(s.repositoryId, 1, {
       body: "\u{1F600}".repeat(65_536),
     });
-    const whole = await s.reader.readIssue(s.handle, 1, signal());
+    const whole = await s.reader.readIssue(s.handle, ticketRef(1), signal());
     assert(whole.kind === "present");
     assertEquals(whole.snapshot.bodyTooLarge, false);
     assertEquals([...whole.snapshot.body].length, 65_536);
@@ -373,7 +382,7 @@ Deno.test("issue 82 reader: a label list past the bound is unavailable, so a hol
       });
     }
 
-    const complete = await s.reader.readIssue(s.handle, 1, signal());
+    const complete = await s.reader.readIssue(s.handle, ticketRef(1), signal());
     assert(complete.kind === "present");
     assertEquals(complete.snapshot.labels, areas(50));
     const clear = await evaluateReadiness(
@@ -388,7 +397,11 @@ Deno.test("issue 82 reader: a label list past the bound is unavailable, so a hol
     );
 
     for (const number of [2, 3]) {
-      const cut = await s.reader.readIssue(s.handle, number, signal());
+      const cut = await s.reader.readIssue(
+        s.handle,
+        ticketRef(number),
+        signal(),
+      );
       // Its own reason: the report must not read as a GitHub outage.
       assertEquals(cut, unavailable("labels_truncated"), `issue ${number}`);
       const report = await evaluateReadiness(
@@ -417,16 +430,16 @@ Deno.test("issue 82 reader: a pull request, a deleted, a missing and a transferr
     });
     s.f.github.deleteIssue(s.repositoryId, 2);
     s.f.github.transferIssue(s.repositoryId, 3);
-    assertEquals(await s.reader.readIssue(s.handle, 1, signal()), {
+    assertEquals(await s.reader.readIssue(s.handle, ticketRef(1), signal()), {
       kind: "pull_request",
     });
-    assertEquals(await s.reader.readIssue(s.handle, 2, signal()), {
+    assertEquals(await s.reader.readIssue(s.handle, ticketRef(2), signal()), {
       kind: "gone",
     });
-    assertEquals(await s.reader.readIssue(s.handle, 3, signal()), {
+    assertEquals(await s.reader.readIssue(s.handle, ticketRef(3), signal()), {
       kind: "moved",
     });
-    assertEquals(await s.reader.readIssue(s.handle, 99, signal()), {
+    assertEquals(await s.reader.readIssue(s.handle, ticketRef(99), signal()), {
       kind: "gone",
     });
   });
@@ -439,11 +452,11 @@ Deno.test("issue 82 reader: a renamed repository is unavailable, not a gone or m
     // the new one; the repository id check keeps the ticket from being "moved".
     s.f.github.renameRepository(s.repositoryId, "renamed-after-setup");
     assertEquals(
-      await s.reader.readIssue(s.handle, 1, signal()),
+      await s.reader.readIssue(s.handle, ticketRef(1), signal()),
       unavailable("provider_error"),
     );
     assertEquals(
-      await s.reader.readLinks(s.handle, 1, signal()),
+      await s.reader.readLinks(s.handle, ticketRef(1), signal()),
       unavailable("provider_error"),
     );
   });
@@ -471,15 +484,17 @@ Deno.test("issue 82 reader: a gone or moved issue is unavailable when the reposi
     // The repository still has the handle's numeric id: the issue is gone or
     // moved, as the plain reads say.
     const same = s.readerWith(sameId.client);
-    assertEquals(await same.readIssue(s.handle, 2, signal()), { kind: "gone" });
-    assertEquals(await same.readIssue(s.handle, 3, signal()), {
+    assertEquals(await same.readIssue(s.handle, ticketRef(2), signal()), {
+      kind: "gone",
+    });
+    assertEquals(await same.readIssue(s.handle, ticketRef(3), signal()), {
       kind: "moved",
     });
     assertEquals(
       await same.readPredecessorProof(s.handle, refOf(s, deleted), signal()),
       { kind: "inaccessible" },
     );
-    const parentless = await same.readLinks(s.handle, 1, signal());
+    const parentless = await same.readLinks(s.handle, ticketRef(1), signal());
     assert(parentless.kind === "present");
     assertEquals(parentless.parent, null);
     assertEquals(sameId.identityReads(), 4, "each absent answer was checked");
@@ -488,27 +503,27 @@ Deno.test("issue 82 reader: a gone or moved issue is unavailable when the reposi
     // nothing is known about the issue: the caller retries after discovery.
     const other = s.readerWith(otherId.client);
     assertEquals(
-      await other.readIssue(s.handle, 2, signal()),
+      await other.readIssue(s.handle, ticketRef(2), signal()),
       unavailable("provider_error"),
       "a gone issue",
     );
     assertEquals(
-      await other.readIssue(s.handle, 3, signal()),
+      await other.readIssue(s.handle, ticketRef(3), signal()),
       unavailable("provider_error"),
       "a moved issue",
     );
     assertEquals(
-      await other.readLinks(s.handle, 2, signal()),
+      await other.readLinks(s.handle, ticketRef(2), signal()),
       unavailable("provider_error"),
       "the links of a gone issue",
     );
     assertEquals(
-      await other.readLinks(s.handle, 3, signal()),
+      await other.readLinks(s.handle, ticketRef(3), signal()),
       unavailable("provider_error"),
       "the links of a moved issue",
     );
     assertEquals(
-      await other.readLinks(s.handle, 1, signal()),
+      await other.readLinks(s.handle, ticketRef(1), signal()),
       unavailable("provider_error"),
       "a parent that is gone",
     );
@@ -523,7 +538,8 @@ Deno.test("issue 82 reader: a gone or moved issue is unavailable when the reposi
 
     // A present issue never asks which repository answered.
     assert(
-      (await other.readIssue(s.handle, 1, signal())).kind === "present",
+      (await other.readIssue(s.handle, ticketRef(1), signal())).kind ===
+        "present",
     );
     assertEquals(
       await other.readPredecessorProof(s.handle, refOf(s, live), signal()),
@@ -552,7 +568,7 @@ Deno.test("issue 82 reader: readLinks returns the parent with its id, the blocke
       { number: 3 },
       { number: 9, repositoryFullName: "elsewhere/other-repo" },
     ]);
-    assertEquals(await s.reader.readLinks(s.handle, 1, signal()), {
+    assertEquals(await s.reader.readLinks(s.handle, ticketRef(1), signal()), {
       kind: "present",
       parent: {
         id: String(parent.id),
@@ -574,7 +590,7 @@ Deno.test("issue 82 reader: readLinks returns the parent with its id, the blocke
 
     // A sub-issue count above zero is reported for the epic check.
     s.f.github.seedIssueDetail(s.repositoryId, 3, { subIssuesTotal: 3 });
-    const epic = await s.reader.readLinks(s.handle, 3, signal());
+    const epic = await s.reader.readLinks(s.handle, ticketRef(3), signal());
     assert(epic.kind === "present");
     assertEquals([epic.subIssuesTotal, epic.truncated], [3, false]);
   });
@@ -585,7 +601,7 @@ Deno.test("issue 82 reader: no blockers means no blocker request, and a parent t
     // Issue 5 exists in this repository too: a parent named as issue 5 of
     // another repository must not be read as this repository's issue 5.
     seedIssues(s, { number: 1 }, { number: 2 }, { number: 5 });
-    const none = await s.reader.readLinks(s.handle, 1, signal());
+    const none = await s.reader.readLinks(s.handle, ticketRef(1), signal());
     assertEquals(
       none,
       {
@@ -605,7 +621,11 @@ Deno.test("issue 82 reader: no blockers means no blocker request, and a parent t
       parentIssueUrl:
         "https://api.github.com/repos/elsewhere/other-repo/issues/5",
     });
-    const elsewhere = await s.reader.readLinks(s.handle, 1, signal());
+    const elsewhere = await s.reader.readLinks(
+      s.handle,
+      ticketRef(1),
+      signal(),
+    );
     assert(elsewhere.kind === "present");
     assertEquals(elsewhere.parent, null);
     assertEquals(readCalls(s, "other-repo"), 0);
@@ -620,7 +640,7 @@ Deno.test("issue 82 reader: no blockers means no blocker request, and a parent t
     s.f.github.seedIssueDetail(s.repositoryId, 2, {
       parentIssueUrl: `https://api.github.com/repos/${s.fullName}/issues/77`,
     });
-    const missing = await s.reader.readLinks(s.handle, 2, signal());
+    const missing = await s.reader.readLinks(s.handle, ticketRef(2), signal());
     assert(missing.kind === "present");
     assertEquals(missing.parent, null);
   });
@@ -635,7 +655,7 @@ Deno.test("issue 82 reader: a blocker list that is cut, miscounted or unreported
       1,
       Array.from({ length: 60 }, (_, index) => ({ number: 100 + index })),
     );
-    const cut = await s.reader.readLinks(s.handle, 1, signal());
+    const cut = await s.reader.readLinks(s.handle, ticketRef(1), signal());
     assert(cut.kind === "present");
     assertEquals([cut.blockedBy.length, cut.truncated], [50, true]);
 
@@ -645,7 +665,7 @@ Deno.test("issue 82 reader: a blocker list that is cut, miscounted or unreported
       1,
       Array.from({ length: 101 }, (_, index) => ({ number: 100 + index })),
     );
-    const paged = await s.reader.readLinks(s.handle, 1, signal());
+    const paged = await s.reader.readLinks(s.handle, ticketRef(1), signal());
     assert(paged.kind === "present");
     assertEquals([paged.blockedBy.length, paged.truncated], [50, true]);
 
@@ -653,11 +673,11 @@ Deno.test("issue 82 reader: a blocker list that is cut, miscounted or unreported
     s.f.github.seedBlockedBy(s.repositoryId, 1, [{ number: 100 }, {
       number: 101,
     }]);
-    const complete = await s.reader.readLinks(s.handle, 1, signal());
+    const complete = await s.reader.readLinks(s.handle, ticketRef(1), signal());
     assert(complete.kind === "present");
     assertEquals([complete.blockedBy.length, complete.truncated], [2, false]);
     const miscounted = await s.readerWith(withDetail(s, { blockedByTotal: 5 }))
-      .readLinks(s.handle, 1, signal());
+      .readLinks(s.handle, ticketRef(1), signal());
     assert(miscounted.kind === "present");
     assertEquals(miscounted.truncated, true);
 
@@ -666,7 +686,7 @@ Deno.test("issue 82 reader: a blocker list that is cut, miscounted or unreported
     const uncounted = await s.readerWith(
       withDetail(s, { blockedByTotal: null }),
     )
-      .readLinks(s.handle, 1, signal());
+      .readLinks(s.handle, ticketRef(1), signal());
     assert(uncounted.kind === "present");
     assertEquals([uncounted.blockedBy.length, uncounted.truncated], [2, true]);
   });
@@ -681,14 +701,14 @@ Deno.test("issue 82 reader: an unreported blocker count is unknown, so dependenc
     // The list shows no blocker: an open issue the installation cannot see
     // would be left out of it, and only the count could tell.
     s.f.github.seedBlockedBy(s.repositoryId, 1, []);
-    const issue = await s.reader.readIssue(s.handle, 1, signal());
+    const issue = await s.reader.readIssue(s.handle, ticketRef(1), signal());
     assert(issue.kind === "present");
     const dependencies = (links: TicketLinksRead) =>
       evaluateReadiness(manualStartInput(issue, s.fullName, links));
 
     // Control: GitHub reports a count of zero, the links are complete and the
     // ticket is ready.
-    const counted = await s.reader.readLinks(s.handle, 1, signal());
+    const counted = await s.reader.readLinks(s.handle, ticketRef(1), signal());
     assert(counted.kind === "present");
     assertEquals([counted.blockedBy, counted.truncated], [[], false]);
     const ready = await dependencies(counted);
@@ -700,7 +720,7 @@ Deno.test("issue 82 reader: an unreported blocker count is unknown, so dependenc
     // No count: unknown is never zero, whatever the list shows.
     const uncounted = await s.readerWith(
       withDetail(s, { blockedByTotal: null }),
-    ).readLinks(s.handle, 1, signal());
+    ).readLinks(s.handle, ticketRef(1), signal());
     assert(uncounted.kind === "present");
     assertEquals([uncounted.blockedBy, uncounted.truncated], [[], true]);
     const waiting = await dependencies(uncounted);
@@ -717,7 +737,7 @@ Deno.test("issue 82 reader: an unreported sub-issue count is unknown, not zero, 
     seedIssues(s, { number: 1 });
     const unknownSubIssues = await s.readerWith(
       withDetail(s, { subIssuesTotal: null }),
-    ).readLinks(s.handle, 1, signal());
+    ).readLinks(s.handle, ticketRef(1), signal());
     assert(unknownSubIssues.kind === "present");
     assertEquals(
       [unknownSubIssues.subIssuesTotal, unknownSubIssues.truncated],
@@ -726,7 +746,7 @@ Deno.test("issue 82 reader: an unreported sub-issue count is unknown, not zero, 
     );
     const unknownBlocking = await s.readerWith(
       withDetail(s, { blockingTotal: null }),
-    ).readLinks(s.handle, 1, signal());
+    ).readLinks(s.handle, ticketRef(1), signal());
     assert(unknownBlocking.kind === "present");
     assertEquals(
       [unknownBlocking.blockingTotal, unknownBlocking.truncated],
@@ -740,11 +760,11 @@ Deno.test("issue 82 reader: links of a deleted issue or a pull request are unava
     seedIssues(s, { number: 1, pullRequest: true }, { number: 2 });
     s.f.github.deleteIssue(s.repositoryId, 2);
     assertEquals(
-      await s.reader.readLinks(s.handle, 1, signal()),
+      await s.reader.readLinks(s.handle, ticketRef(1), signal()),
       unavailable("provider_error"),
     );
     assertEquals(
-      await s.reader.readLinks(s.handle, 2, signal()),
+      await s.reader.readLinks(s.handle, ticketRef(2), signal()),
       unavailable("provider_error"),
     );
   });
@@ -777,7 +797,12 @@ Deno.test("issue 82 reader: label provenance sorts events locally, so the latest
       createdAt: at(1),
     });
     assertEquals(
-      await s.reader.readLabelProvenance(s.handle, 1, LABEL, signal()),
+      await s.reader.readLabelProvenance(
+        s.handle,
+        ticketRef(1),
+        LABEL,
+        signal(),
+      ),
       {
         kind: "applied",
         actorId: "22",
@@ -804,7 +829,7 @@ Deno.test("issue 82 reader: label provenance sorts events locally, so the latest
     });
     const tie = await s.reader.readLabelProvenance(
       s.handle,
-      2,
+      ticketRef(2),
       LABEL,
       signal(),
     );
@@ -827,7 +852,7 @@ Deno.test("issue 82 reader: a relabel after an unlabel is applied by the relabel
     });
     const relabeled = await s.reader.readLabelProvenance(
       s.handle,
-      1,
+      ticketRef(1),
       LABEL,
       signal(),
     );
@@ -841,7 +866,12 @@ Deno.test("issue 82 reader: a relabel after an unlabel is applied by the relabel
     seedEvent(s, 2, { event: "labeled", label: LABEL, createdAt: at(1) });
     seedEvent(s, 2, { event: "unlabeled", label: LABEL, createdAt: at(2) });
     assertEquals(
-      await s.reader.readLabelProvenance(s.handle, 2, LABEL, signal()),
+      await s.reader.readLabelProvenance(
+        s.handle,
+        ticketRef(2),
+        LABEL,
+        signal(),
+      ),
       {
         kind: "absent",
       },
@@ -855,7 +885,12 @@ Deno.test("issue 82 reader: a relabel after an unlabel is applied by the relabel
       createdAt: at(2),
     });
     assertEquals(
-      await s.reader.readLabelProvenance(s.handle, 3, LABEL, signal()),
+      await s.reader.readLabelProvenance(
+        s.handle,
+        ticketRef(3),
+        LABEL,
+        signal(),
+      ),
       {
         kind: "absent",
       },
@@ -879,7 +914,12 @@ Deno.test("issue 82 reader: a ghost applier is unverifiable only while it is the
       createdAt: at(2),
     });
     assertEquals(
-      await s.reader.readLabelProvenance(s.handle, 1, LABEL, signal()),
+      await s.reader.readLabelProvenance(
+        s.handle,
+        ticketRef(1),
+        LABEL,
+        signal(),
+      ),
       {
         kind: "unverifiable",
         reason: "ghost_actor",
@@ -900,7 +940,7 @@ Deno.test("issue 82 reader: a ghost applier is unverifiable only while it is the
     });
     const real = await s.reader.readLabelProvenance(
       s.handle,
-      2,
+      ticketRef(2),
       LABEL,
       signal(),
     );
@@ -929,7 +969,7 @@ Deno.test("issue 82 reader: a page with no kept event and a next page is walked,
     labeled(1);
     const walked = await s.reader.readLabelProvenance(
       s.handle,
-      1,
+      ticketRef(1),
       LABEL,
       signal(),
     );
@@ -940,7 +980,12 @@ Deno.test("issue 82 reader: a page with no kept event and a next page is walked,
     noise(2, 500);
     labeled(2);
     assertEquals(
-      await s.reader.readLabelProvenance(s.handle, 2, LABEL, signal()),
+      await s.reader.readLabelProvenance(
+        s.handle,
+        ticketRef(2),
+        LABEL,
+        signal(),
+      ),
       {
         kind: "unverifiable",
         reason: "events_incomplete",
@@ -953,7 +998,12 @@ Deno.test("issue 82 reader: a page with no kept event and a next page is walked,
     labeled(3);
     noise(3, 500);
     assertEquals(
-      await s.reader.readLabelProvenance(s.handle, 3, LABEL, signal()),
+      await s.reader.readLabelProvenance(
+        s.handle,
+        ticketRef(3),
+        LABEL,
+        signal(),
+      ),
       {
         kind: "unverifiable",
         reason: "events_incomplete",
@@ -965,7 +1015,7 @@ Deno.test("issue 82 reader: a page with no kept event and a next page is walked,
     noise(4, 499);
     const exact = await s.reader.readLabelProvenance(
       s.handle,
-      4,
+      ticketRef(4),
       LABEL,
       signal(),
     );
@@ -1412,12 +1462,12 @@ const READ_CASES: ReadCase[] = [
   {
     name: "readIssue",
     route: "issue",
-    call: (s) => s.reader.readIssue(s.handle, 1, signal()),
+    call: (s) => s.reader.readIssue(s.handle, ticketRef(1), signal()),
   },
   {
     name: "readLinks",
     route: "issue",
-    call: (s) => s.reader.readLinks(s.handle, 1, signal()),
+    call: (s) => s.reader.readLinks(s.handle, ticketRef(1), signal()),
   },
   {
     name: "readPredecessorProof",
@@ -1432,7 +1482,8 @@ const READ_CASES: ReadCase[] = [
   {
     name: "readLabelProvenance",
     route: "issue-events",
-    call: (s) => s.reader.readLabelProvenance(s.handle, 1, LABEL, signal()),
+    call: (s) =>
+      s.reader.readLabelProvenance(s.handle, ticketRef(1), LABEL, signal()),
   },
   {
     name: "readActorRole",
@@ -1485,7 +1536,7 @@ Deno.test("issue 82 reader: a provider failure on any read is an unavailable ans
       );
     }
     // Nothing failed stays failed: the next read is a plain success.
-    const again = await s.reader.readIssue(s.handle, 1, signal());
+    const again = await s.reader.readIssue(s.handle, ticketRef(1), signal());
     assertEquals(again.kind, "present");
   });
 });
@@ -1527,12 +1578,14 @@ Deno.test("issue 82 reader: a request GitHub never answers is a timeout, and an 
     seedIssues(s, { number: 1 });
     s.f.github.failNext("issue", "hang");
     assertEquals(
-      await s.reader.readIssue(s.handle, 1, signal()),
+      await s.reader.readIssue(s.handle, ticketRef(1), signal()),
       unavailable("timeout"),
     );
     const aborted = new AbortController();
     aborted.abort();
-    await assertRejects(() => s.reader.readIssue(s.handle, 1, aborted.signal));
+    await assertRejects(() =>
+      s.reader.readIssue(s.handle, ticketRef(1), aborted.signal)
+    );
   }, { requestTimeoutMs: 150 });
 });
 
@@ -1540,22 +1593,22 @@ Deno.test("issue 82 reader: a token GitHub rejects is dropped so the next read m
   await withSource(async (s) => {
     seedIssues(s, { number: 1 });
     assertEquals(
-      (await s.reader.readIssue(s.handle, 1, signal())).kind,
+      (await s.reader.readIssue(s.handle, ticketRef(1), signal())).kind,
       "present",
     );
     assertEquals(s.f.github.tokenRequests.length, 1);
     assertEquals(
-      (await s.reader.readIssue(s.handle, 1, signal())).kind,
+      (await s.reader.readIssue(s.handle, ticketRef(1), signal())).kind,
       "present",
     );
     assertEquals(s.f.github.tokenRequests.length, 1, "the token is cached");
     s.f.github.failNext("issue", "unauthorized");
     assertEquals(
-      await s.reader.readIssue(s.handle, 1, signal()),
+      await s.reader.readIssue(s.handle, ticketRef(1), signal()),
       unavailable("forbidden"),
     );
     assertEquals(
-      (await s.reader.readIssue(s.handle, 1, signal())).kind,
+      (await s.reader.readIssue(s.handle, ticketRef(1), signal())).kind,
       "present",
     );
     assertEquals(s.f.github.tokenRequests.length, 2, "minted afresh");
@@ -1576,9 +1629,9 @@ Deno.test("issue 82 reader: every read uses one token narrowed to the repository
       issues: "read",
       pull_requests: "read",
     });
-    await s.reader.readIssue(s.handle, 1, signal());
-    await s.reader.readLinks(s.handle, 1, signal());
-    await s.reader.readLabelProvenance(s.handle, 1, LABEL, signal());
+    await s.reader.readIssue(s.handle, ticketRef(1), signal());
+    await s.reader.readLinks(s.handle, ticketRef(1), signal());
+    await s.reader.readLabelProvenance(s.handle, ticketRef(1), LABEL, signal());
     await s.reader.readActorRole(s.handle, "alice", signal());
     await s.reader.listIssues(s.handle, { page: 1, since: null }, signal());
     await s.reader.readPredecessorProof(
@@ -1608,7 +1661,7 @@ Deno.test("issue 82 reader: a source that lost its authority makes no provider c
     seedIssues(s, { number: 1 });
     // A read first, so a cached token exists: it must not be reused either.
     assertEquals(
-      (await s.reader.readIssue(s.handle, 1, signal())).kind,
+      (await s.reader.readIssue(s.handle, ticketRef(1), signal())).kind,
       "present",
     );
     const change = (sql: string, id: string) => s.f.pgDatabase.query(sql, [id]);
@@ -1724,7 +1777,7 @@ Deno.test("issue 82 reader: a source that lost its authority makes no provider c
       assertEquals(s.f.github.tokenRequests.length, tokens, scenario.name);
       await scenario.restore();
       assertEquals(
-        (await s.reader.readIssue(s.handle, 1, signal())).kind,
+        (await s.reader.readIssue(s.handle, ticketRef(1), signal())).kind,
         "present",
         `${scenario.name} restored`,
       );
@@ -1738,7 +1791,7 @@ Deno.test("issue 82 reader: a handle for another repository than the resource ro
     const before = s.f.github.calls.length;
     const wrongRepository = { ...s.handle, externalRepositoryId: "1" };
     assertEquals(
-      await s.reader.readIssue(wrongRepository, 1, signal()),
+      await s.reader.readIssue(wrongRepository, ticketRef(1), signal()),
       unavailable("forbidden"),
     );
     const wrongOrganization = {
@@ -1746,7 +1799,7 @@ Deno.test("issue 82 reader: a handle for another repository than the resource ro
       organizationId: crypto.randomUUID(),
     };
     assertEquals(
-      await s.reader.readIssue(wrongOrganization, 1, signal()),
+      await s.reader.readIssue(wrongOrganization, ticketRef(1), signal()),
       unavailable("forbidden"),
     );
     const wrongConnection = {
@@ -1754,7 +1807,7 @@ Deno.test("issue 82 reader: a handle for another repository than the resource ro
       connectionId: crypto.randomUUID(),
     };
     assertEquals(
-      await s.reader.readIssue(wrongConnection, 1, signal()),
+      await s.reader.readIssue(wrongConnection, ticketRef(1), signal()),
       unavailable("forbidden"),
     );
     assertEquals(s.f.github.calls.length, before);
@@ -1776,7 +1829,7 @@ Deno.test("issue 82 reader: an edit of the connection between the rows and the t
     };
     const raced = s.readerWith(s.f.github.client, racing);
     assertEquals(
-      await raced.readIssue(s.handle, 1, signal()),
+      await raced.readIssue(s.handle, ticketRef(1), signal()),
       unavailable("forbidden"),
     );
     assertEquals(s.f.github.calls.length, 0);
@@ -1784,13 +1837,13 @@ Deno.test("issue 82 reader: an edit of the connection between the rows and the t
     // An edit still in progress refuses too, and the read resumes after it.
     const end = s.f.broker.beginEdit(s.handle.connectionId);
     assertEquals(
-      await s.reader.readIssue(s.handle, 1, signal()),
+      await s.reader.readIssue(s.handle, ticketRef(1), signal()),
       unavailable("forbidden"),
     );
     assertEquals(s.f.github.calls.length, 0);
     end();
     assertEquals(
-      (await s.reader.readIssue(s.handle, 1, signal())).kind,
+      (await s.reader.readIssue(s.handle, ticketRef(1), signal())).kind,
       "present",
     );
   });
@@ -2112,3 +2165,58 @@ async function openSecondResource(s: Source): Promise<{ id: string }> {
   );
   return found.rows[0];
 }
+
+Deno.test("issue 82 reader: a key this provider cannot address is refused, not read as some other ticket", async () => {
+  await withSource(async (s) => {
+    // The reader is now addressed by a provider-neutral reference, so a key from
+    // another tracker can reach it. `ENG-42` has no issue number in it; reading
+    // `NaN` would answer about nothing, and stripping the letters would answer
+    // about issue 42 - a different ticket, silently. The refusal is the only
+    // answer that cannot be wrong.
+    // The last four are the ones `Number` would happily read as 1: a key is a
+    // name, not a number literal, so "1.0" and "0x1" must not resolve to the
+    // same ticket as "1".
+    for (
+      const key of [
+        "ENG-42",
+        "issue-7",
+        "",
+        "2.5",
+        "-3",
+        " 1",
+        "1.0",
+        "0x1",
+        "1e0",
+      ]
+    ) {
+      assertEquals(
+        await s.reader.readIssue(s.handle, ticketRef(key), signal()),
+        unavailable("provider_error"),
+        `readIssue refuses ${JSON.stringify(key)}`,
+      );
+      assertEquals(
+        await s.reader.readLinks(s.handle, ticketRef(key), signal()),
+        unavailable("provider_error"),
+        `readLinks refuses ${JSON.stringify(key)}`,
+      );
+      assertEquals(
+        await s.reader.readLabelProvenance(
+          s.handle,
+          ticketRef(key),
+          "bakery:execute",
+          signal(),
+        ),
+        unavailable("provider_error"),
+        `readLabelProvenance refuses ${JSON.stringify(key)}`,
+      );
+    }
+
+    // And a key that is a number still resolves, so the refusal is about the
+    // key's shape rather than about references in general.
+    seedIssues(s, { number: 1 });
+    assertEquals(
+      (await s.reader.readIssue(s.handle, ticketRef(1), signal())).kind,
+      "present",
+    );
+  });
+});
