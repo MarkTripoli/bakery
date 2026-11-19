@@ -1143,3 +1143,39 @@ Deno.test("issue 71 receipts: a deadline that fires between two database stateme
     assertEquals(await rowCounts(f), NO_ROWS, "everything rolled back");
   });
 });
+
+Deno.test("issue 408 ingress: the port decides verification, and the receipt is still the host's", async () => {
+  await withFixture(async (f) => {
+    // The receiver now runs every delivery through the provider ingress port.
+    // These three cases are the contract between the port and the receipt: a
+    // valid delivery reaches a receipt, a bad signature writes nothing, and a
+    // replayed id is acknowledged rather than applied twice.
+    const r = await enabledReceiver(f);
+    const body = noisyIssues(r);
+
+    // Valid delivery: one receipt, routed.
+    const deliveryId = crypto.randomUUID();
+    const accepted = await receipt(r, { event: "issues", body, deliveryId });
+    assertEquals(accepted.status, "accepted");
+    assertEquals((await rowCounts(f)).receipts, 1);
+
+    // Bad signature: refused, and nothing is written. The refusal is the one
+    // code the port answers for every verify failure, so the caller cannot tell
+    // a wrong secret from a forgery.
+    const forged = await send(r, {
+      event: "issues",
+      body,
+      deliveryId: crypto.randomUUID(),
+      secret: "not-the-secret",
+    });
+    assertEquals(forged.status, 401);
+    assertEquals((await forged.json()).code, "AUTH_INVALID");
+    assertEquals((await rowCounts(f)).receipts, 1, "nothing new was written");
+
+    // Replayed id: the same delivery again is a duplicate, not a second receipt.
+    const replayed = await receipt(r, { event: "issues", body, deliveryId });
+    assertEquals(replayed.status, "duplicate");
+    assertEquals(replayed.eventId, accepted.eventId);
+    assertEquals((await rowCounts(f)).receipts, 1);
+  });
+});

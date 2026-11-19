@@ -72,6 +72,15 @@ export function admitDelivery(
     /** Candidate secrets: more than one during a rotation window. */
     secrets: readonly Uint8Array[];
     now: Date;
+    /**
+     * Called once the secrets have been used, whatever the outcome.
+     *
+     * The caller owns what a secret's lifetime is: the stored webhook secret is
+     * wiped here rather than left in memory after a comparison that may have
+     * failed. This module does not read or wipe the bytes itself, because a port
+     * that owned a secret's lifetime would be a second rule about secrets.
+     */
+    releaseSecrets?: () => void;
   },
 ): AdmittedDelivery {
   // The declared ceiling is the provider's own bound, and the caller enforces
@@ -81,7 +90,14 @@ export function admitDelivery(
     throw new StandardError({ code: "BODY_TOO_LARGE" });
   }
 
-  const verified = ingress.verify(input);
+  let verified: ReturnType<WebhookIngress["verify"]>;
+  try {
+    verified = ingress.verify(input);
+  } finally {
+    // Runs after the comparison has finished, on every path: a failed
+    // verification must not leave the candidate secret in memory either.
+    input.releaseSecrets?.();
+  }
   if (!verified.ok) {
     // One answer for every failure. A caller that could tell "wrong secret"
     // from "forged" could use a delivery endpoint to test candidate secrets.
