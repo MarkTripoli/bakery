@@ -44,6 +44,12 @@ export type Behaviour = {
   }[];
   /** What deciding a suggestion does: succeeds, fails or is refused. Default succeeds. */
   readonly decide?: "ok" | "fail" | "forbidden";
+  /** Decisions that succeed before every later one fails (a bulk run that stops partway). */
+  readonly decideFailAfter?: number;
+  /** What accepting each suggestion says, in order: "no_longer_fits" is not a failure. */
+  readonly acceptStates?: readonly ("accepted" | "no_longer_fits")[];
+  /** Reading the list: works, fails at once, is refused, or fails from the second read on. */
+  readonly suggestionsRead?: "ok" | "fail" | "forbidden" | "fail-later";
   /**
    * The answer to each publish request in turn: ok creates version 3, moved is
    * a 412 (the text moved on), lost is a 503 that may have happened, and
@@ -197,9 +203,18 @@ export async function openEditor(
     ),
   ];
   const decisions: { id: string; action: "accept" | "reject" }[] = [];
+  let listReads = 0;
   await page.route(
     `**/v1/drafts/${DRAFT}/suggestions*`,
     (route) => {
+      listReads += 1;
+      const mode = behaviour.suggestionsRead ?? "ok";
+      if (mode === "forbidden") {
+        return route.fulfill(problem(403, "AUTH_FORBIDDEN"));
+      }
+      if (mode === "fail" || (mode === "fail-later" && listReads > 1)) {
+        return route.fulfill(problem(503, "SERVICE_UNAVAILABLE"));
+      }
       const state = new URL(route.request().url()).searchParams.get("state");
       return route.fulfill(json({
         items: suggestionItems.filter((item) => !state || item.state === state),
@@ -221,12 +236,18 @@ export async function openEditor(
       if (behaviour.decide === "forbidden") {
         return route.fulfill(problem(403, "AUTH_FORBIDDEN"));
       }
-      if (behaviour.decide === "fail") {
+      if (
+        behaviour.decide === "fail" ||
+        (behaviour.decideFailAfter !== undefined &&
+          decisions.length >= behaviour.decideFailAfter)
+      ) {
         return route.fulfill(problem(503, "SERVICE_UNAVAILABLE"));
       }
-      decisions.push({ id, action });
       const item = suggestionItems.find((entry) => entry.id === id)!;
-      item.state = action === "accept" ? "accepted" : "rejected";
+      const given = behaviour.acceptStates?.[decisions.length];
+      decisions.push({ id, action });
+      item.state = action === "accept" ? given ?? "accepted" : "rejected";
+      if (item.state === "no_longer_fits") item.refusalReason = "text_changed";
       return route.fulfill(json(item));
     },
   );

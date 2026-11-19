@@ -44,6 +44,8 @@ export type ArtifactRetrievalViewProps = {
   readonly notices?: readonly UI.ArtifactLayoutNotice[];
   readonly banner?: ReactNode;
   readonly evidence: ArtifactEvidence;
+  /** Stays in view above the comments while the text scrolls (a draft's suggestions). */
+  readonly aside?: ReactNode;
   readonly preview: ReactNode;
   readonly discussion: ReactNode;
   readonly comments: {
@@ -153,6 +155,7 @@ export function ArtifactRetrievalView(props: ArtifactRetrievalViewProps) {
             </div>
           </>
         }
+        aside={props.aside}
         comments={!isPhone
           ? props.discussion
           : commentsOpen

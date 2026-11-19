@@ -2437,6 +2437,9 @@ button.ui-activity-line__row:hover {
   gap: var(--space-1);
   margin: var(--space-0);
 }
+.ui-suggestion-card__message[data-tone="error"] {
+  color: var(--color-destructive);
+}
 .ui-suggestion-card__message > span {
   min-inline-size: 0;
   overflow-wrap: anywhere;
@@ -2495,7 +2498,8 @@ button.ui-activity-line__row:hover {
 .ui-document-editor .ui-document-editor__suggested {
   background: var(--color-status-warning-surface);
   border-radius: var(--radius-control);
-  box-shadow: 0 0 0 1px var(--color-status-warning);
+  outline: var(--focus-width) solid var(--color-status-warning);
+  outline-offset: var(--space-0);
 }
 .ui-document-editor .cm-placeholder {
   color: var(--color-fg-muted);

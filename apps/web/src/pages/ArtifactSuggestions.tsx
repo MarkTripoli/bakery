@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { LoroDoc } from "loro-crdt/base64";
 import * as UI from "@bakery/ui";
 import { useBakeryApi } from "../api/context.tsx";
@@ -20,56 +27,82 @@ const MAX_PAGES = 3;
 /** Accept all and Reject all are offered from this many suggestions. */
 const BULK_FROM = 3;
 
-type Failure = "accept" | "reject";
-type Bulk = null | "accept" | "reject";
+type Action = "accept" | "reject";
+type Range = { readonly from: number; readonly to: number };
+
+/** The result line after Accept all / Reject all. */
+type Result = Readonly<{
+  action: Action;
+  done: number;
+  total: number;
+  /** Skipped because they no longer fit: not a failure, the run went on. */
+  skipped: number;
+  /** The run stopped at a failure and left the rest unchanged. */
+  stopped: boolean;
+}>;
+
+export type SuggestionsState = ReturnType<typeof useSuggestions>;
 
 /**
- * What agents suggested on this draft, beside the text they point at (#71):
- * a card for each suggestion still waiting, no longer fitting or of unknown
- * outcome, in document order. Nothing is applied until a person accepts it.
+ * What agents suggested on this draft (#71): read on open, on focus, after a
+ * decision and every 30 seconds (not while a bulk run is going), and decided
+ * one at a time or all together. Nothing is applied until a person accepts it.
  */
-export function ArtifactSuggestions(
+export function useSuggestions(
   { document, documentTick, draftId, onSelectRange }: {
     readonly document: LoroDoc;
     /** Changes whenever the text does, so the order follows it. */
     readonly documentTick: number;
     readonly draftId: string;
     /** The range the chosen card points at, or null when none is chosen. */
-    readonly onSelectRange: (
-      range: { readonly from: number; readonly to: number } | null,
-    ) => void;
+    readonly onSelectRange: (range: Range | null) => void;
   },
 ) {
   const api = useBakeryApi();
   const scope = useProtectedScope();
-  const { translate: t, locale } = useI18n();
+  const { translate: t } = useI18n();
   const organizationId = scope.organizationId;
   const [items, setItems] = useState<readonly DraftSuggestionResponse[]>([]);
+  // loading until the first answer; failed when the latest read did not work.
+  const [phase, setPhase] = useState<"loading" | "ready" | "failed">(
+    "loading",
+  );
+  const [retrying, setRetrying] = useState(false);
+  // Access removed: the editor says so; nothing is listed.
+  const [hidden, setHidden] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [working, setWorking] = useState<ReadonlySet<string>>(new Set());
-  const [failures, setFailures] = useState<ReadonlyMap<string, Failure>>(
+  const [failures, setFailures] = useState<ReadonlyMap<string, Action>>(
     new Map(),
   );
   const [denied, setDenied] = useState(false);
-  const [bulk, setBulk] = useState<Bulk>(null);
-  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulk, setBulk] = useState<Action | null>(null);
+  const [bulkRunning, setBulkRunning] = useState<Action | null>(null);
+  const [result, setResult] = useState<Result | null>(null);
   const [announcement, setAnnouncement] = useState("");
   const seen = useRef<Set<string> | null>(null);
+  const running = useRef(false);
 
   const read = useCallback(async () => {
-    if (organizationId === null) return;
+    if (organizationId === null || running.current) return;
     const all: DraftSuggestionResponse[] = [];
     let cursor: string | undefined;
     for (let page = 0; page < MAX_PAGES; page += 1) {
-      const result = await api.listDraftSuggestions({
+      const answer = await api.listDraftSuggestions({
         organizationId,
         draftId,
         limit: 100,
         ...(cursor ? { cursor } : {}),
       });
-      if (!result.ok) return;
-      all.push(...result.data.items);
-      cursor = result.data.nextCursor ?? undefined;
+      if (!answer.ok) {
+        if (
+          answer.error.kind === "problem" && answer.error.problem.status === 403
+        ) setHidden(true);
+        else setPhase("failed");
+        return;
+      }
+      all.push(...answer.data.items);
+      cursor = answer.data.nextCursor ?? undefined;
       if (!cursor) break;
     }
     const listed = listedSuggestions(all);
@@ -87,6 +120,8 @@ export function ArtifactSuggestions(
     }
     seen.current = new Set(listed.map((item) => item.id));
     setItems(all);
+    setHidden(false);
+    setPhase("ready");
   }, [api, draftId, organizationId, t]);
 
   // Read on open, when the tab is back in view, and now and then.
@@ -108,6 +143,150 @@ export function ArtifactSuggestions(
     [document, documentTick, items],
   );
 
+  const retry = async () => {
+    setRetrying(true);
+    await read();
+    setRetrying(false);
+  };
+
+  const choose = (item: DraftSuggestionResponse): boolean => {
+    setResult(null);
+    const next = selected === item.id ? null : item.id;
+    setSelected(next);
+    onSelectRange(next === null ? null : suggestionRange(document, item));
+    return next !== null;
+  };
+
+  /** One decision. Returns the suggestion's state after it, or null when it failed. */
+  const decide = async (
+    item: DraftSuggestionResponse,
+    action: Action,
+  ): Promise<DraftSuggestionResponse["state"] | null> => {
+    if (organizationId === null) return null;
+    setWorking((current) => new Set(current).add(item.id));
+    setFailures((current) => {
+      const next = new Map(current);
+      next.delete(item.id);
+      return next;
+    });
+    const options = { organizationId, draftId, suggestionId: item.id };
+    const answer = action === "accept"
+      ? await api.acceptDraftSuggestion(options)
+      : await api.rejectDraftSuggestion(options);
+    setWorking((current) => {
+      const next = new Set(current);
+      next.delete(item.id);
+      return next;
+    });
+    if (answer.ok) {
+      if (selected === item.id) {
+        setSelected(null);
+        onSelectRange(null);
+      }
+      return answer.data.state;
+    }
+    if (
+      answer.error.kind === "problem" && answer.error.problem.status === 403
+    ) setDenied(true);
+    else setFailures((current) => new Map(current).set(item.id, action));
+    return null;
+  };
+
+  const decideOne = async (item: DraftSuggestionResponse, action: Action) => {
+    setResult(null);
+    await decide(item, action);
+    await read();
+  };
+
+  /** Every waiting suggestion in order; stops at the first failure. */
+  const decideAll = async (action: Action) => {
+    setBulk(null);
+    setResult(null);
+    const waiting = listed.filter((entry) => entry.state === "waiting");
+    running.current = true;
+    setBulkRunning(action);
+    let done = 0;
+    let skipped = 0;
+    let stopped = false;
+    for (const item of waiting) {
+      const after = await decide(item, action);
+      if (after === null) {
+        stopped = true;
+        break;
+      }
+      if (after === "no_longer_fits") skipped += 1;
+      else done += 1;
+    }
+    running.current = false;
+    setBulkRunning(null);
+    const summary: Result = {
+      action,
+      done,
+      total: waiting.length,
+      skipped,
+      stopped,
+    };
+    setResult(summary);
+    setAnnouncement(resultText(summary, t));
+    await read();
+  };
+
+  return {
+    listed,
+    phase,
+    retrying,
+    hidden,
+    selected,
+    working,
+    failures,
+    denied,
+    bulk,
+    bulkRunning,
+    result,
+    announcement,
+    waiting: listed.filter((item) => item.state === "waiting").length,
+    choose,
+    retry,
+    check: read,
+    decideOne,
+    decideAll,
+    askBulk: setBulk,
+    dismissResult: () => setResult(null),
+  };
+}
+
+type Translate = ReturnType<typeof useI18n>["translate"];
+
+/** The sentence for the end of Accept all / Reject all. */
+function resultText(result: Result, t: Translate): string {
+  const verb = result.action === "accept" ? "accepted" : "rejected";
+  if (!result.stopped && result.skipped === 0) {
+    return t(`artifact.edit.suggestions.bulk.${verb}All`, {
+      count: result.total,
+    });
+  }
+  if (result.stopped) {
+    return t(`artifact.edit.suggestions.bulk.${verb}Stopped`, {
+      done: result.done,
+      total: result.total,
+    });
+  }
+  return t(`artifact.edit.suggestions.bulk.${verb}Skipped`, {
+    done: result.done,
+    total: result.total,
+    skipped: result.skipped,
+  });
+}
+
+/** The cards, their notices and the questions of Accept all / Reject all. */
+export function SuggestionsPanel(
+  { afterChoose, state }: {
+    readonly state: SuggestionsState;
+    /** Called when a card is chosen, so a sheet can close. */
+    readonly afterChoose?: () => void;
+  },
+) {
+  const { translate: t, locale } = useI18n();
   const time = useMemo(
     () =>
       new Intl.DateTimeFormat(locale, {
@@ -116,70 +295,28 @@ export function ArtifactSuggestions(
       }),
     [locale],
   );
+  const {
+    listed,
+    phase,
+    retrying,
+    hidden,
+    selected,
+    working,
+    failures,
+    denied,
+    bulk,
+    bulkRunning,
+    result,
+    announcement,
+    waiting,
+  } = state;
 
-  const choose = (item: DraftSuggestionResponse) => {
-    const next = selected === item.id ? null : item.id;
-    setSelected(next);
-    onSelectRange(next === null ? null : suggestionRange(document, item));
-  };
-
-  const decide = async (
-    item: DraftSuggestionResponse,
-    action: Failure,
-  ): Promise<boolean> => {
-    if (organizationId === null) return false;
-    setWorking((current) => new Set(current).add(item.id));
-    setFailures((current) => {
-      const next = new Map(current);
-      next.delete(item.id);
-      return next;
-    });
-    const options = { organizationId, draftId, suggestionId: item.id };
-    const result = action === "accept"
-      ? await api.acceptDraftSuggestion(options)
-      : await api.rejectDraftSuggestion(options);
-    setWorking((current) => {
-      const next = new Set(current);
-      next.delete(item.id);
-      return next;
-    });
-    if (result.ok) {
-      if (selected === item.id) {
-        setSelected(null);
-        onSelectRange(null);
-      }
-      return true;
-    }
-    if (
-      result.error.kind === "problem" && result.error.problem.status === 403
-    ) {
-      setDenied(true);
-    } else {
-      setFailures((current) => new Map(current).set(item.id, action));
-    }
-    return false;
-  };
-
-  const decideOne = async (
-    item: DraftSuggestionResponse,
-    action: Failure,
-  ) => {
-    await decide(item, action);
-    await read();
-  };
-
-  const decideAll = async (action: Failure) => {
-    setBulk(null);
-    setBulkBusy(true);
-    // Only the ones still waiting can be decided; the others have their own words.
-    for (const item of listed.filter((entry) => entry.state === "waiting")) {
-      if (!(await decide(item, action))) break;
-    }
-    setBulkBusy(false);
-    await read();
-  };
-
-  if (listed.length === 0 && !denied) {
+  if (hidden) return null;
+  const firstFailed = phase === "failed" && listed.length === 0;
+  const stale = phase === "failed" && listed.length > 0;
+  const busy = bulkRunning !== null;
+  // Nothing to show: the first read is under way, or the list is empty.
+  if (listed.length === 0 && !firstFailed && result === null && !denied) {
     return announcement
       ? (
         <UI.VisuallyHidden aria-live="polite" as="div" role="status">
@@ -189,7 +326,6 @@ export function ArtifactSuggestions(
       : null;
   }
 
-  const waiting = listed.filter((item) => item.state === "waiting").length;
   const summaryOf = (item: DraftSuggestionResponse): string => {
     const change = suggestionChange(item);
     return change === "add"
@@ -214,28 +350,45 @@ export function ArtifactSuggestions(
       })
       : t("artifact.edit.suggestions.originNoName", { time: when });
   };
+  const tryAgain = (): ReactNode => (
+    <UI.Button
+      disabled={retrying}
+      onClick={() => void state.retry()}
+      variant="outline"
+    >
+      {retrying
+        ? t("artifact.edit.suggestions.loading")
+        : t("artifact.edit.retry")}
+    </UI.Button>
+  );
 
   return (
     <UI.Stack data-testid="draft-suggestions" gap="compact">
       <UI.Inline gap="compact" variant="between">
         <UI.Heading level="subsection" rank={2}>
-          {t("artifact.edit.suggestions.title", { count: listed.length })}
+          {firstFailed
+            ? t("artifact.edit.suggestions.titleNoCount")
+            : t("artifact.edit.suggestions.title", { count: listed.length })}
         </UI.Heading>
         {waiting >= BULK_FROM && !denied && (
           <UI.Inline gap="compact">
             <UI.Button
-              disabled={bulkBusy}
-              onClick={() => setBulk("accept")}
+              disabled={busy}
+              onClick={() => state.askBulk("accept")}
               variant="outline"
             >
-              {t("artifact.edit.suggestions.acceptAll")}
+              {bulkRunning === "accept"
+                ? t("artifact.edit.suggestions.accepting")
+                : t("artifact.edit.suggestions.acceptAll")}
             </UI.Button>
             <UI.Button
-              disabled={bulkBusy}
-              onClick={() => setBulk("reject")}
+              disabled={busy}
+              onClick={() => state.askBulk("reject")}
               variant="outline"
             >
-              {t("artifact.edit.suggestions.rejectAll")}
+              {bulkRunning === "reject"
+                ? t("artifact.edit.suggestions.rejecting")
+                : t("artifact.edit.suggestions.rejectAll")}
             </UI.Button>
           </UI.Inline>
         )}
@@ -243,8 +396,28 @@ export function ArtifactSuggestions(
       <UI.VisuallyHidden aria-live="polite" as="div" role="status">
         {announcement}
       </UI.VisuallyHidden>
+      {firstFailed && (
+        <UI.InlineNotice action={tryAgain()} tone="error">
+          {t("artifact.edit.suggestions.loadFailed")}
+        </UI.InlineNotice>
+      )}
+      {stale && (
+        <UI.InlineNotice action={tryAgain()} tone="warning">
+          {t("artifact.edit.suggestions.stale")}
+        </UI.InlineNotice>
+      )}
+      {result && (
+        <UI.InlineNotice
+          onDismiss={state.dismissResult}
+          tone={result.stopped || result.skipped > 0
+            ? "warning"
+            : "information"}
+        >
+          {resultText(result, t)}
+        </UI.InlineNotice>
+      )}
       {denied && (
-        <UI.InlineNotice tone="error">
+        <UI.InlineNotice tone="information">
           {t("artifact.edit.suggestions.noRight")}
         </UI.InlineNotice>
       )}
@@ -260,60 +433,60 @@ export function ArtifactSuggestions(
             </UI.Stack>
           )
           : (
-            <UI.Stack gap="tight" key={item.id}>
-              <UI.SuggestionCard
-                acceptLabel={t("artifact.edit.suggestions.accept")}
-                checkAgainLabel={t("core.actions.checkAgain")}
-                data-testid={`suggestion-${item.id}`}
-                heading={headingOf(item)}
-                message={kind === "outdated"
-                  ? t(
-                    item.refusalReason === "draft_moved_on"
-                      ? "artifact.edit.suggestions.outdatedPublished"
-                      : "artifact.edit.suggestions.outdated",
-                  )
-                  : kind === "unknown"
-                  ? t("artifact.edit.suggestions.unknown")
-                  : undefined}
-                onAccept={() => void decideOne(item, "accept")}
-                onCheckAgain={() => void read()}
-                onReject={() => void decideOne(item, "reject")}
-                onSelect={() => choose(item)}
-                origin={originOf(item)}
-                rejectLabel={t("artifact.edit.suggestions.reject")}
-                selected={selected === item.id}
-                state={working.has(item.id) ? "working" : kind}
-                summary={
-                  <UI.ExpandableText
-                    hideLabel={t("core.actions.showLess")}
-                    showLabel={t("core.actions.showAll")}
-                    variant="body"
-                  >
-                    {summaryOf(item)}
-                  </UI.ExpandableText>
-                }
-              />
-              {failure && (
-                <UI.InlineNotice tone="error">
-                  {t(
-                    failure === "accept"
-                      ? "artifact.edit.suggestions.acceptFailed"
-                      : "artifact.edit.suggestions.rejectFailed",
-                  )}
-                </UI.InlineNotice>
-              )}
-            </UI.Stack>
+            <UI.SuggestionCard
+              acceptLabel={t("artifact.edit.suggestions.accept")}
+              checkAgainLabel={t("core.actions.checkAgain")}
+              data-testid={`suggestion-${item.id}`}
+              error={failure
+                ? t(
+                  failure === "accept"
+                    ? "artifact.edit.suggestions.acceptFailed"
+                    : "artifact.edit.suggestions.rejectFailed",
+                )
+                : undefined}
+              heading={headingOf(item)}
+              key={item.id}
+              message={kind === "outdated"
+                ? t(
+                  item.refusalReason === "draft_moved_on"
+                    ? "artifact.edit.suggestions.outdatedPublished"
+                    : "artifact.edit.suggestions.outdated",
+                )
+                : kind === "unknown"
+                ? t("artifact.edit.suggestions.unknown")
+                : undefined}
+              onAccept={() => void state.decideOne(item, "accept")}
+              onCheckAgain={() => void state.check()}
+              onReject={() => void state.decideOne(item, "reject")}
+              onSelect={() => {
+                if (state.choose(item)) afterChoose?.();
+                else afterChoose?.();
+              }}
+              origin={originOf(item)}
+              rejectLabel={t("artifact.edit.suggestions.reject")}
+              selected={selected === item.id}
+              state={working.has(item.id) || busy ? "working" : kind}
+              summary={
+                <UI.ExpandableText
+                  hideLabel={t("core.actions.showLess")}
+                  showLabel={t("core.actions.showAll")}
+                  variant="body"
+                >
+                  {summaryOf(item)}
+                </UI.ExpandableText>
+              }
+            />
           );
       })}
       <UI.AlertDialog
         cancelAction={
-          <UI.Button onClick={() => setBulk(null)} variant="outline">
+          <UI.Button onClick={() => state.askBulk(null)} variant="outline">
             {t("core.actions.cancel")}
           </UI.Button>
         }
         confirmAction={
           <UI.Button
-            onClick={() => bulk && void decideAll(bulk)}
+            onClick={() => bulk && void state.decideAll(bulk)}
             variant="primary"
           >
             {t(
@@ -324,7 +497,7 @@ export function ArtifactSuggestions(
             )}
           </UI.Button>
         }
-        onOpenChange={(open) => !open && setBulk(null)}
+        onOpenChange={(open) => !open && state.askBulk(null)}
         open={bulk !== null}
         title={t(
           bulk === "reject"

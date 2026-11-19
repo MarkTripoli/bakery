@@ -6,6 +6,7 @@ import {
   useSyncExternalStore,
 } from "react";
 import { EditorView } from "@codemirror/view";
+import { createPortal } from "react-dom";
 import * as UI from "@bakery/ui";
 import { useBakeryApi } from "../api/context.tsx";
 import type { DraftResponse } from "../api/client.ts";
@@ -19,7 +20,7 @@ import {
 } from "../collaboration/editor-binding.ts";
 import { peopleOf } from "../collaboration/people.ts";
 import { usePublish } from "./ArtifactPublish.tsx";
-import { ArtifactSuggestions } from "./ArtifactSuggestions.tsx";
+import { SuggestionsPanel, useSuggestions } from "./ArtifactSuggestions.tsx";
 import {
   CollaborationSession,
   DOCUMENT_LIMIT_BYTES,
@@ -41,8 +42,10 @@ const PRESENCE_COLORS = [1, 2, 3, 4, 5, 6] as const;
  * what became of text the server did not keep (#71).
  */
 export function ArtifactEditor(
-  { artifactId, onViewVersion, publishedVersion, taskId }: {
+  { artifactId, onViewVersion, publishedVersion, suggestionsHost, taskId }: {
     readonly artifactId: string;
+    /** The side column's element for the suggestions; null on a phone (a sheet then). */
+    readonly suggestionsHost: HTMLElement | null;
     /** Leaves the editor for the version page (after "View version"). */
     readonly onViewVersion: () => void;
     /** The version number last published, or null when nothing is. */
@@ -116,21 +119,30 @@ export function ArtifactEditor(
       draftId={opened.draft.id}
       onViewVersion={onViewVersion}
       publishedVersion={publishedVersion}
+      suggestionsHost={suggestionsHost}
       taskId={taskId}
     />
   );
 }
 
 function OpenDraft(
-  { artifactId, canPublish, draftId, onViewVersion, publishedVersion, taskId }:
-    {
-      readonly artifactId: string;
-      readonly canPublish: boolean;
-      readonly draftId: string;
-      readonly onViewVersion: () => void;
-      readonly publishedVersion: number | null;
-      readonly taskId: string;
-    },
+  {
+    artifactId,
+    canPublish,
+    draftId,
+    onViewVersion,
+    publishedVersion,
+    suggestionsHost,
+    taskId,
+  }: {
+    readonly artifactId: string;
+    readonly canPublish: boolean;
+    readonly draftId: string;
+    readonly onViewVersion: () => void;
+    readonly publishedVersion: number | null;
+    readonly suggestionsHost: HTMLElement | null;
+    readonly taskId: string;
+  },
 ) {
   const api = useBakeryApi();
   const scope = useProtectedScope();
@@ -162,6 +174,7 @@ function OpenDraft(
         onViewVersion={onViewVersion}
         publishedVersion={publishedVersion}
         session={session}
+        suggestionsHost={suggestionsHost}
         taskId={taskId}
       />
     )
@@ -184,8 +197,10 @@ function DraftEditor(
     onViewVersion,
     publishedVersion,
     session,
+    suggestionsHost,
     taskId,
   }: {
+    readonly suggestionsHost: HTMLElement | null;
     readonly artifactId: string;
     readonly canPublish: boolean;
     readonly draftId: string;
@@ -290,6 +305,22 @@ function DraftEditor(
     null;
   // The editor's own view, for returning focus to the text after publishing.
   const editorView = useRef<EditorView | null>(null);
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+  const chosenRange = useRef<{ from: number; to: number } | null>(null);
+  const suggestions = useSuggestions({
+    document: session.document,
+    documentTick: snapshot.documentVersion + typedAt,
+    draftId,
+    onSelectRange: (range) => {
+      chosenRange.current = range;
+      if (editorView.current) showSuggestedRange(editorView.current, range);
+    },
+  });
+  const reshowChosen = () => {
+    if (editorView.current && chosenRange.current) {
+      showSuggestedRange(editorView.current, chosenRange.current);
+    }
+  };
   const publish = usePublish({
     artifactId,
     canPublish,
@@ -426,14 +457,40 @@ function DraftEditor(
             : t("artifact.edit.refused.one")}
         </UI.InlineNotice>
       )}
-      <ArtifactSuggestions
-        document={session.document}
-        documentTick={snapshot.documentVersion + typedAt}
-        draftId={draftId}
-        onSelectRange={(range) => {
-          if (editorView.current) showSuggestedRange(editorView.current, range);
-        }}
-      />
+      {suggestionsHost === null &&
+        suggestions.listed.length + (suggestions.phase === "failed" ? 1 : 0) >
+          0 &&
+        (
+          <UI.Button
+            data-testid="suggestions-open"
+            onClick={() => setSuggestionsOpen(true)}
+            variant="outline"
+          >
+            {suggestions.phase === "failed" && suggestions.listed.length === 0
+              ? t("artifact.edit.suggestions.titleNoCount")
+              : t("artifact.edit.suggestions.title", {
+                count: suggestions.listed.length,
+              })}
+          </UI.Button>
+        )}
+      {suggestionsHost !== null &&
+        createPortal(<SuggestionsPanel state={suggestions} />, suggestionsHost)}
+      <UI.Sheet
+        dismissLabel={t("artifact.edit.suggestions.sheetClose")}
+        onOpenChange={setSuggestionsOpen}
+        open={suggestionsHost === null && suggestionsOpen}
+        title={t("artifact.edit.suggestions.titleNoCount")}
+        variant="side"
+      >
+        <SuggestionsPanel
+          afterChoose={() => {
+            setSuggestionsOpen(false);
+            // Once the sheet is gone, show the text the card points at.
+            globalThis.requestAnimationFrame(() => reshowChosen());
+          }}
+          state={suggestions}
+        />
+      </UI.Sheet>
       {bytesUsed >= DOCUMENT_LIMIT_BYTES && (
         <UI.InlineNotice tone="warning">
           {t("artifact.edit.limit")}
