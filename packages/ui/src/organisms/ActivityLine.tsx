@@ -79,6 +79,10 @@ export function ActivityLine(
     <li
       className="ui-activity-line"
       data-tone={tone}
+      data-variant={tone}
+      data-state={detail
+        ? (detail.expanded ? "expanded" : "collapsed")
+        : undefined}
       data-ui-component="activityLine"
       {...props}
     >

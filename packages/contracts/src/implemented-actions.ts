@@ -114,6 +114,7 @@ export const ExecutionImplementedAction = Object.freeze(
     SessionsList: "sessions.list",
     SessionsFeed: "sessions.feed",
     SessionsSteer: "sessions.steer",
+    RunStepsNote: "runSteps.note",
     TranscriptStatus: "outputStreams.transcript",
   } as const satisfies Record<string, CatalogActionName>,
 );
@@ -524,6 +525,7 @@ export const CatalogImplementedAction = Object.freeze(
     SkillsCreate: "skills.create",
     SkillsUpdate: "skills.update",
     SkillVersionsCreate: "skillVersions.create",
+    LibrarySearch: "library.search",
   } as const satisfies Record<string, CatalogActionName>,
 );
 export const catalogImplementedActions = Object.freeze(
