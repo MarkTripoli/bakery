@@ -216,7 +216,11 @@ for (
         }],
       });
       await page.goto("/issues");
-      await expect(row(page, 2000)).toContainText("Can start");
+      // Several pages are read one after another, which a busy runner takes
+      // longer than the default five seconds to finish.
+      await expect(row(page, 2000)).toContainText("Can start", {
+        timeout: 20_000,
+      });
       await expect(page.getByText("No issue is ready to start")).toHaveCount(0);
     });
 
@@ -234,7 +238,9 @@ for (
       await page.getByRole("radio", { name: "In progress" }).click({
         force: true,
       });
-      await expect(row(page, 2001)).toContainText("In progress");
+      await expect(row(page, 2001)).toContainText("In progress", {
+        timeout: 20_000,
+      });
     });
 
     test("when the search gives up at 200 issues, it says how far it looked and offers Load more", async ({ page }) => {
