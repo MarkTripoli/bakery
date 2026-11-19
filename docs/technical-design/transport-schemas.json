@@ -3314,6 +3314,12 @@
           "description": "Restrict results to pull requests opened by this workflow run; pull requests registered without a run never match."
         },
         {
+          "name": "externalTicketId",
+          "type": "uuid",
+          "required": false,
+          "description": "Restrict results to pull requests of tasks linked to this external ticket through ticket_task_links, primary or reference. A ticket with no linked task, or one outside the caller's organization, matches nothing rather than revealing whether it exists."
+        },
+        {
           "name": "cursor",
           "type": "string",
           "required": false,
@@ -7177,19 +7183,28 @@
     "TicketPreviewCreate": {
       "fields": [
         {
+          "name": "policy",
+          "type": "json",
+          "required": false,
+          "bounds": {
+            "maxBytes": 65536
+          },
+          "description": "Draft TicketSourcePolicy version 1 document to evaluate instead of the saved one, validated exactly as ticketSources.update validates a replacement policy (422 ticket_source_policy_invalid, or delegation_principal_unknown for a delegation principal outside the organization). automatic.since is stamped as saving would stamp it, so the draft is judged by the window it would get. The draft is never stored and moves no revision; omitted, the saved policy is evaluated."
+        },
+        {
           "name": "filters",
           "type": "json",
           "required": false,
           "bounds": {
             "maxBytes": 16000
           },
-          "description": "Optional filter criteria, such as labels or repositories, narrowing which candidate tickets the preview evaluates, without changing the source's saved policy."
+          "description": "Optional TicketPreviewFilters object narrowing the issues the preview evaluates, without changing the policy: labels (1 to 10 label names; only issues carrying at least one are evaluated) and numbers (1 to 25 issue numbers, evaluated instead of the provider's first page of open issues). Unknown keys answer 422 filters_invalid; an empty object is the same as no filters."
         }
       ],
       "rules": [
-        "Returns a durable preview operation; never admits or starts matching tickets."
+        "Evaluates and returns; writes no ticket, report, link, request, task or run and never stores the draft policy."
       ],
-      "description": "Requests a preview of which external tickets and repositories would match this ticket source's current policy; returns a durable operation and never admits or starts any matching ticket."
+      "description": "Asks how this ticket source's issues would be judged now, under the saved policy or a draft one, at most 25 issues from one provider read. The answer is computed and returned; nothing is admitted, started or recorded."
     },
     "TicketSyncCreate": {
       "fields": [],
@@ -7250,6 +7265,60 @@
       ],
       "pagination": "pagination",
       "description": "Query parameters for listing this organization's cached external ticket snapshots; results reflect the last synchronized state, not a live provider fetch."
+    },
+    "TicketTaskLinkQuery": {
+      "fields": [
+        {
+          "name": "externalTicketId",
+          "type": "uuid",
+          "required": false,
+          "description": "Lists the links of this one external ticket: every task linked to it. Exactly one of externalTicketId and taskId is required (422 ticket_task_link_scope_required otherwise); a ticket outside the caller's organization answers 404."
+        },
+        {
+          "name": "taskId",
+          "type": "uuid",
+          "required": false,
+          "description": "Lists the links of this one Bakery task: every external ticket it is linked to, at most one of them as primary. Exactly one of externalTicketId and taskId is required; a task outside the caller's organization answers 404."
+        },
+        {
+          "name": "role",
+          "type": "enum(primary|reference)",
+          "required": false,
+          "description": "Keeps only links with this role: primary for the link an admission created (the task was started from the ticket), reference for a link a person added. Omitted, both roles are listed."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from a previous page's nextCursor, bound to the caller and the filters in force; pass it back verbatim and never construct it."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum number of links in one page, capped at 100; defaults to 25 when omitted."
+        }
+      ],
+      "rules": [
+        "Exactly one of externalTicketId and taskId; keyset pages newest link first."
+      ],
+      "pagination": "pagination",
+      "description": "Query for the links between external tickets and Bakery tasks, from either side, with each link's role and the sync health of Bakery's status note on the ticket."
+    },
+    "TicketTaskLinkNoteSync": {
+      "fields": [],
+      "rules": [
+        "Idempotency-Key and If-Match on the link version required; refused while a write of the same link is in flight; never refused because the note is already posted."
+      ],
+      "description": "Asks Bakery to bring its status note on the ticket of one primary link up to date: the note already posted is rewritten in place by the provider's update action, one the provider no longer has (deleted there) is posted again under a new id and the link's lastProblemCode says note_recreated, and a link with none gets its first. Every call writes; no digest of the posted text is kept. The note is written by the source provider's registered comment action as the caller, through the integration gate and the effect ledger, so the caller needs that action's grant on the repository; a write the gate or the provider refuses is recorded on the link as failed with its problem code, not answered as an error."
     },
     "TicketReadinessCreate": {
       "fields": [
@@ -15753,11 +15822,11 @@
         "organizationId": "UUID of the organization that owns this record.",
         "externalTicketId": "UUID identifying the related external ticket resource.",
         "taskId": "UUID identifying the related task resource.",
-        "role": "Access role assigned to this ticket task link record.",
-        "statusCommentExternalId": "UUID identifying the related status comment external resource. May be null when unavailable.",
-        "lastSyncedRunRevision": "Last synced run revision value recorded for this ticket task link record. May be null when unavailable.",
-        "syncHealth": "Current lifecycle state of this ticket task link record.",
-        "lastProblemCode": "Bounded string|null value identifying or describing this ticket task link record. May be null when unavailable.",
+        "role": "primary for the link an admission created (the task was started from the ticket; at most one per task), reference for a link a person added (the task mentions the ticket).",
+        "statusCommentExternalId": "The provider's id of Bakery's status note on the ticket, as the comment action confirmed it; null until a note is posted.",
+        "lastSyncedRunRevision": "Run revision the status note last described; null until a note records one.",
+        "syncHealth": "State of Bakery's status note on the ticket: unknown before any write, pending while a write is in flight, healthy once the provider confirmed the note, failed when the last write was refused (lastProblemCode says why).",
+        "lastProblemCode": "Fixed lowercase code of the last note write that did not go as asked: a failure (for example auth_forbidden when the caller holds no grant for the provider's comment action) with syncHealth failed, or note_recreated with syncHealth healthy when the earlier note was gone on the provider and a new one replaced it; null after a note rewritten or first posted as asked, and before any write.",
         "createdAt": "Timestamp recording when the created event occurred for this ticket task link record.",
         "updatedAt": "Timestamp recording the last update to this ticket task link record.",
         "version": "Monotonic revision used to order or conditionally update this ticket task link record."
@@ -24661,7 +24730,7 @@
         "lastSyncedRunRevision",
         "lastProblemCode"
       ],
-      "description": "An explicit, same-organization link between one external ticket and one Bakery task, carrying its role (primary or reference) and per-link sync health. Returned by ticketTaskLinks.create; a ticket/task pair is unique, at most one link per task is primary, and linking alone starts no work and widens no audience.",
+      "description": "An explicit, same-organization link between one external ticket and one Bakery task, carrying its role (primary or reference) and the state of Bakery's status note on the ticket. Returned by ticketTaskLinks.create, ticketTaskLinks.list and ticketTaskLinks.resyncNote; a ticket/task pair is unique, at most one link per task is primary, and linking alone starts no work and widens no audience.",
       "fieldDescriptions": {
         "id": "Stable UUID identifying this ticket task link record.",
         "organizationId": "UUID of the organization that owns this record.",
@@ -25292,6 +25361,114 @@
         "reconciliationId": "Stable UUID linking this record to the related reconciliation entity.",
         "effectId": "Stable UUID linking this record to the related effect entity.",
         "status": "Current lifecycle status of the record."
+      }
+    },
+    "TicketPreviewResult": {
+      "fields": [
+        "sourceId",
+        "policyRevision",
+        "draft",
+        "evaluatedAt",
+        "counts",
+        "issues",
+        "skipped"
+      ],
+      "fieldTypes": {
+        "sourceId": "uuid",
+        "policyRevision": "integer",
+        "draft": "boolean",
+        "evaluatedAt": "timestamp",
+        "counts": "TicketPreviewCounts",
+        "issues": "TicketPreviewIssue[]",
+        "skipped": "integer"
+      },
+      "description": "What ticketSources.preview computed for one ticket source: how each evaluated issue would be judged under the saved or draft policy, and the totals. Nothing behind it is stored, so a second preview evaluates again from fresh provider reads.",
+      "fieldDescriptions": {
+        "sourceId": "The ticket source the preview evaluated.",
+        "policyRevision": "The saved policy revision at evaluation time. A draft is judged against the source as it is at this revision and would advance it once saved.",
+        "draft": "True when the request carried a draft policy and the answer describes it; false when it describes the saved policy.",
+        "evaluatedAt": "Server time the evaluation ran; the answer describes the issues as the provider returned them just before it.",
+        "counts": "Totals over issues, one bucket per issue.",
+        "issues": "One entry per evaluated issue in provider list order (or in the order of filters.numbers), at most 25.",
+        "skipped": "Issues that were read but could not be evaluated, for example one whose read failed mid-page; they are in no count."
+      },
+      "fieldBounds": {
+        "issues": {
+          "maxItems": 25
+        },
+        "skipped": {
+          "min": 0
+        }
+      }
+    },
+    "TicketPreviewCounts": {
+      "fields": [
+        "wouldStart",
+        "planOnly",
+        "held",
+        "blocked"
+      ],
+      "fieldTypes": {
+        "wouldStart": "integer",
+        "planOnly": "integer",
+        "held": "integer",
+        "blocked": "integer"
+      },
+      "description": "Per-bucket totals of one ticket preview; every evaluated issue is in exactly one bucket.",
+      "fieldDescriptions": {
+        "wouldStart": "Issues whose every check passes and whose label asks for work to start.",
+        "planOnly": "Issues whose every check passes and whose label asks only for a plan.",
+        "held": "Issues carrying the hold label; the hold wins over every other label.",
+        "blocked": "Issues that are not held and fail or wait on at least one check; each one's reasons say which."
+      },
+      "fieldBounds": {
+        "wouldStart": {
+          "min": 0
+        },
+        "planOnly": {
+          "min": 0
+        },
+        "held": {
+          "min": 0
+        },
+        "blocked": {
+          "min": 0
+        }
+      }
+    },
+    "TicketPreviewIssue": {
+      "fields": [
+        "number",
+        "title",
+        "outcome",
+        "verdict",
+        "reasons"
+      ],
+      "fieldTypes": {
+        "number": "integer",
+        "title": "string|null",
+        "outcome": "enum(would_start|plan_only|held|blocked)",
+        "verdict": "enum(ready|waiting|rejected)",
+        "reasons": "string[]"
+      },
+      "nullableFields": [
+        "title"
+      ],
+      "description": "How one issue would be judged by the previewed policy, as a poll would judge it: its bucket, the readiness verdict and the reason codes of every check that did not pass.",
+      "fieldDescriptions": {
+        "number": "The issue number on the provider.",
+        "title": "The issue title as read, or null when the issue could not be read (gone, moved or a pull request).",
+        "outcome": "would_start or plan_only when every check passes (by the label's intent), held when the hold label is present, blocked otherwise.",
+        "verdict": "The readiness verdict the evaluation produced: ready when every check passes, rejected when any check rejects, waiting otherwise.",
+        "reasons": "Distinct TicketReasonCode values of the checks that did not pass, in check order; empty when the verdict is ready."
+      },
+      "fieldBounds": {
+        "number": {
+          "min": 1
+        },
+        "reasons": {
+          "maxItems": 12
+        }
       }
     },
     "TicketOperationReceipt": {

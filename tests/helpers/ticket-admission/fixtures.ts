@@ -42,8 +42,14 @@ import {
   type RecheckOrigin,
   type RecheckResult,
   recheckTicket,
+  recordReadiness,
 } from "../../../apps/server/src/modules/work/ticket-admission.ts";
 import type { TicketPrefetch } from "../../../apps/server/src/modules/work/ticket-prefetch.ts";
+import type {
+  TicketNoteRequest,
+  TicketNoteResult,
+  TicketNoteWriter,
+} from "../../../apps/server/src/modules/work/ticket-notes.ts";
 import type {
   IssueRef,
   PredecessorProof,
@@ -588,13 +594,60 @@ export type PolicyOverrides = {
  * `budget` gives the app the server budget policy (so a ready issue can be
  * admitted over HTTP); `liveFactIndex` leaves the app its stored-fact index.
  */
+/**
+ * An in-memory status-note writer standing in for the provider: it keeps the
+ * comments it holds by id, rewrites one in place when the request names it,
+ * and posts a new one (recreated) when the named comment was deleted.
+ */
+export type MemoryNoteWriter = TicketNoteWriter & {
+  posts: TicketNoteRequest[];
+  /** The comments the fake provider holds: id to body. */
+  comments: Map<string, string>;
+  /** Answers of the next posts, oldest first; an empty queue posts comment ids 1001, 1002, ... */
+  next: TicketNoteResult[];
+  /** Awaited inside a post, before it answers; lets a test hold a write in flight. */
+  hold: Promise<void> | null;
+};
+
+export function createMemoryNoteWriter(): MemoryNoteWriter {
+  let counter = 1000;
+  const writer: MemoryNoteWriter = {
+    posts: [],
+    comments: new Map(),
+    next: [],
+    hold: null,
+    async post(request) {
+      writer.posts.push(request);
+      if (writer.hold !== null) await writer.hold;
+      const scripted = writer.next.shift();
+      if (scripted !== undefined) {
+        if (scripted.kind === "posted") {
+          writer.comments.set(scripted.externalId, request.body);
+        }
+        return scripted;
+      }
+      const existing = request.existingExternalId;
+      if (existing !== null && writer.comments.has(existing)) {
+        writer.comments.set(existing, request.body);
+        return { kind: "posted", externalId: existing, recreated: false };
+      }
+      const id = String(++counter);
+      writer.comments.set(id, request.body);
+      return { kind: "posted", externalId: id, recreated: existing !== null };
+    },
+  };
+  return writer;
+}
+
 export async function openTicketFixture(
   options: { label?: string; budget?: boolean; liveFactIndex?: boolean } = {},
 ) {
   const reader = createMemoryTicketReader();
   const facts = createMemoryFactIndex();
+  const notes = createMemoryNoteWriter();
   const f: GitHubAppFixture = await openGitHubAppFixture({
     ticketReader: reader,
+    ticketNoteWriter: notes,
     ticketFactIndex: options.liveFactIndex ? undefined : facts,
     env: options.budget ? presetBudgetEnv : undefined,
   });
@@ -660,6 +713,7 @@ export async function openTicketFixture(
       f,
       reader,
       facts,
+      notes,
       organizationId: f.organizationId,
       adminId: f.adminId,
       developerId: f.developerId,
@@ -1025,4 +1079,35 @@ export async function insertBareTask(
     ],
   );
   return taskId;
+}
+
+/**
+ * Records every open seeded issue of a source as a poll would: a ticket row
+ * and a report each. `ticketSources.preview` stores nothing (#69), so tests
+ * that need recorded tickets go through `recordReadiness`, the path a poll
+ * takes, in automation mode.
+ */
+export async function recordOpenIssues(
+  fixture: Pick<TicketFixture, "reader" | "organizationId" | "automationDeps">,
+  sourceId: string,
+): Promise<void> {
+  const signal = new AbortController().signal;
+  const page = await fixture.reader.listIssues(
+    undefined as never,
+    { page: 1, since: null },
+    signal,
+  );
+  if (page.kind !== "present") throw new Error("the seeded page lists");
+  for (const { number } of page.numbers) {
+    await recordReadiness(fixture.automationDeps(), {
+      organizationId: fixture.organizationId,
+      sourceId,
+      number,
+      intent: null,
+      origin: "poll",
+      caller: null,
+      prefetch: null,
+      signal,
+    });
+  }
 }

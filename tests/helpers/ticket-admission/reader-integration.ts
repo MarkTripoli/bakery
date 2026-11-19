@@ -79,6 +79,7 @@ async function openSource(options: { requestTimeoutMs?: number } = {}) {
       connectionId: r.connection.connectionId,
       resourceId: r.resource.id,
       repositoryFullName: r.resource.display_name,
+      provider: "github",
       externalRepositoryId: r.resource.external_id,
     };
     const readerWith = (
