@@ -115,18 +115,19 @@ const noControlAudit = async (fixture: AgentFixture) =>
 Deno.test("an agent never controls its own run", () =>
   withWorkerFixture(async (fixture) => {
     const session = await agentSession(fixture, { granted: "run_control" });
-    // Bounded: without the own-work guard the cancel stops the agent's own
-    // session and never returns, so a hang is a failure, not a stuck test.
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const response = await Promise.race([
-      cancel(session, session.own.runId),
-      new Promise<never>((_, reject) => {
-        timer = setTimeout(
-          () => reject(new Error("cancelling its own run did not return")),
-          30_000,
-        );
-      }),
-    ]).finally(() => clearTimeout(timer));
+    // Without the own-work guard the cancel stops the agent's own session and
+    // never returns, and the stuck request then blocks teardown too, so a
+    // race around the call cannot fail the test. A watchdog ends the run at
+    // once with the reason instead of hanging.
+    const watchdog = setTimeout(() => {
+      console.error(
+        "FAIL: cancelling the agent's own run did not return; is the own-work guard missing?",
+      );
+      Deno.exit(1);
+    }, 60_000);
+    const response = await cancel(session, session.own.runId).finally(() =>
+      clearTimeout(watchdog)
+    );
     assertEquals(response.status, 403, await response.text());
     assertEquals(
       await runStatus(fixture, session.own.runId) === "canceled",
