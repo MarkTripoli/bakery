@@ -153,6 +153,10 @@ export function dispatchedContext(
     // and names the attempt, which is how a guarded power finds the workflow the
     // agent runs under.
     agentSession: { attemptId },
+    // Lets an action that reads across surfaces leave out the ones this
+    // credential has no scope for, so a narrowed session cannot read through a
+    // wider operation what its own narrower one would refuse.
+    sessionScopes: claim.scopes,
   };
 }
 

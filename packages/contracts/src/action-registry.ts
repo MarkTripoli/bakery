@@ -108,6 +108,14 @@ export type ActionContext = {
    */
   agentSession?: Readonly<{ attemptId: string }>;
   /**
+   * Operation scopes the session credential holds, set only when an agent's
+   * session dispatched this call on behalf of a person. It can only narrow what
+   * an action returns, never widen it: an action that reads across several
+   * surfaces leaves out the ones whose scope is missing. Absent for a person's
+   * own request, which is bounded by their permissions alone.
+   */
+  sessionScopes?: readonly string[];
+  /**
    * Effective locale resolved for this request (person preference, then
    * `Accept-Language`, then `en`). Carries no authorization meaning.
    */

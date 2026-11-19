@@ -2696,6 +2696,28 @@
       "organizationContext": "required_authenticated_context"
     },
     {
+      "group": "Library",
+      "method": "GET",
+      "path": "/v1/library/search",
+      "action": "library.search",
+      "access": "Developer",
+      "permission": "library:read",
+      "organizationContext": "required_authenticated_context",
+      "input": "LibrarySearchQuery",
+      "output": "Page<LibrarySearchHit>",
+      "event": "",
+      "mcp": "bakery_library_search",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ]
+    },
+    {
       "group": "Skills",
       "method": "GET",
       "path": "/v1/skills/{id}",

@@ -65,6 +65,10 @@ const OPERATION_SCOPES: Readonly<Record<string, OperationScope>> = Object
     "approvals.decide": "approvals.decide",
     // Controlling a run is off by default too (O52); same grant-then-scope rule.
     "runs.control": "runs.control",
+    // One text search across skills, agents and artifacts. It has the list
+    // operations' guard, and leaves artifacts out for a session without
+    // `artifacts.read` (the dispatched context carries the session's scopes).
+    "library.search": "library.read",
   });
 
 /**
