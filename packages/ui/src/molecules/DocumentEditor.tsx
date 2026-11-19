@@ -97,6 +97,16 @@ export function DocumentEditor(
   );
 }
 
+/**
+ * Read-only keeps the field focusable (it stays editable as far as the browser
+ * is concerned), so the caret and the selection survive a moment of "Catching
+ * up…"; the state refuses the typing and the attribute tells assistive tech.
+ */
 function accessExtension(readOnly: boolean): Extension {
-  return [EditorState.readOnly.of(readOnly), EditorView.editable.of(!readOnly)];
+  return [
+    EditorState.readOnly.of(readOnly),
+    EditorView.contentAttributes.of(
+      readOnly ? { "aria-readonly": "true" } : {},
+    ),
+  ];
 }

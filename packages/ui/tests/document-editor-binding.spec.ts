@@ -25,7 +25,9 @@ test.describe("DocumentEditor", () => {
 
     const readOnly = page.getByRole("textbox", { name: "Read-only document" });
     await expect(readOnly).toHaveAttribute("aria-readonly", "true");
+    // Focusable, so the caret survives a read-only moment; typing is refused.
     await readOnly.click();
+    await expect(readOnly).toBeFocused();
     await page.keyboard.type("nope");
     await expect(readOnly).toHaveText("Nobody can type here.");
   });
