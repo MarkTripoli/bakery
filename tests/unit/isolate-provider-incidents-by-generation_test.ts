@@ -95,6 +95,7 @@ const probe = (
     generation,
     observedAt: NOW,
     nextProbeAt: NEXT,
+    incidents: "on",
     outcome,
   });
 
@@ -322,6 +323,7 @@ Deno.test("a null next probe time stops probing on all three", async () => {
     generation: 0,
     observedAt: NOW,
     nextProbeAt: null,
+    incidents: "on",
     outcome: failure("w1"),
   });
   for (const { sql, values } of writes(recorded)) {
@@ -332,4 +334,119 @@ Deno.test("a null next probe time stops probing on all three", async () => {
       sql,
     );
   }
+});
+
+// -- incidents off: the probe's mode until the inference-trial slice -----------
+
+const probeOff = (
+  transaction: ReturnType<typeof stand>["transaction"],
+  generation: number,
+  outcome: ProbeOutcome,
+) =>
+  recordProbeResult(transaction as never, {
+    organizationId: ORG,
+    routeId: ROUTE,
+    generation,
+    observedAt: NOW,
+    nextProbeAt: NEXT,
+    incidents: "off",
+    outcome,
+  });
+
+Deno.test("with incidents off, an unreachable probe opens no incident and leaves the route's circuit alone", async () => {
+  for (
+    const outcome of [
+      failure("w1"),
+      failure("w2", "degraded"),
+      { ...failure("w3"), reason: "provider_error" as const },
+    ]
+  ) {
+    const { transaction, recorded } = stand({ route: route() });
+    const result = await probeOff(transaction, 0, outcome);
+    assertEquals(result, { kind: "updated", incidentId: null, generation: 0 });
+    // No incident is read for update, inserted or changed.
+    assert(
+      !recorded.some(({ sql }) => /bakery\.provider_incidents/.test(sql)),
+      outcome.evidenceWatermark,
+    );
+    const routeUpdate = writes(recorded).find(({ sql }) =>
+      /update bakery\.provider_routes/.test(sql)
+    )!;
+    // Health stays what it was, the incident and generation are unchanged, the
+    // inference flag is off: only the probe times move.
+    assertEquals(routeUpdate.values[2], "unverified");
+    assertEquals(routeUpdate.values[3], null);
+    assertEquals(routeUpdate.values[4], 0);
+    assertEquals(routeUpdate.values[6], false);
+    assert(routeUpdate.values.includes(NEXT));
+  }
+});
+
+Deno.test("with incidents off, a failure is still counted, explained and scheduled", async () => {
+  const { transaction, recorded } = stand({
+    route: route(),
+    health: { evidence_watermark: "w-old", consecutive_failures: 2 },
+  });
+  await probeOff(transaction, 0, failure("w-new"));
+  const healthUpsert = writes(recorded).find(({ sql }) =>
+    /insert into bakery\.provider_route_health/.test(sql)
+  )!;
+  // health, reason, consecutive failures, schedule.
+  assertEquals(healthUpsert.values[2], "unverified");
+  assertEquals(healthUpsert.values[3], "timeout");
+  assertEquals(healthUpsert.values[4], 3);
+  assert(healthUpsert.values.includes(NEXT));
+});
+
+Deno.test("with incidents off, a failure on a route that already has an open incident does not extend it", async () => {
+  const { transaction, recorded } = stand(openWorld());
+  const result = await probeOff(transaction, 3, failure("w-new"));
+  assertEquals(result.kind, "updated");
+  assert(
+    !writes(recorded).some(({ sql }) =>
+      /update bakery\.provider_incidents|insert into bakery\.provider_incidents/
+        .test(sql)
+    ),
+  );
+  const routeUpdate = writes(recorded).find(({ sql }) =>
+    /update bakery\.provider_routes/.test(sql)
+  )!;
+  // The route keeps the incident and the state it already had.
+  assertEquals(routeUpdate.values[2], "open");
+  assertEquals(routeUpdate.values[3], INCIDENT);
+  assertEquals(routeUpdate.values[4], 3);
+});
+
+Deno.test("with incidents off, the fence and duplicate rules still apply", async () => {
+  const stale = stand(openWorld());
+  assertEquals(
+    await probeOff(stale.transaction, 2, failure("w1")),
+    { kind: "stale", currentGeneration: 3 },
+  );
+  assertEquals(writes(stale.recorded), []);
+  const duplicate = stand(openWorld());
+  assertEquals(
+    await probeOff(duplicate.transaction, 3, failure("w-old")),
+    { kind: "duplicate", generation: 3 },
+  );
+  assertEquals(writes(duplicate.recorded), []);
+});
+
+Deno.test("with incidents off, reachable and a proven inference behave as before", async () => {
+  const reachable = stand(openWorld());
+  assertEquals(
+    (await probeOff(reachable.transaction, 3, {
+      kind: "reachable",
+      evidenceWatermark: "w-reach",
+    })).kind,
+    "updated",
+  );
+  const proven = stand(openWorld());
+  assertEquals(
+    (await probeOff(proven.transaction, 3, {
+      kind: "inference_proven",
+      evidenceWatermark: "w-proof",
+    })).kind,
+    "recovered",
+  );
 });

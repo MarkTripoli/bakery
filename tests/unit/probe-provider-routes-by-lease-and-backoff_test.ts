@@ -12,6 +12,7 @@ import {
   httpsProbeTransport,
   nextProbeAt,
   parseRetryAfter,
+  PROBE_OPENS_INCIDENTS,
   PROVIDER_PROBE_CRON,
 } from "../../apps/server/src/modules/execution/provider-probe.ts";
 import { captureFunction } from "../helpers/ticket-admission/automation-fixtures.ts";
@@ -365,4 +366,10 @@ Deno.test("the probe runs every minute, one run at a time, and is one step", () 
   assertEquals(captured.config.triggers, [{ cron: PROVIDER_PROBE_CRON }]);
   assertEquals(PROVIDER_PROBE_CRON, "* * * * *");
   assertEquals(captured.config.concurrency, [{ limit: 1 }]);
+});
+
+Deno.test("the probe does not open incidents until the inference-trial slice can close them", () => {
+  // Ruling on #26: an incident nothing can close would permanently remove a route
+  // after a transient outage. The trial slice flips this together with its closer.
+  assertEquals(PROBE_OPENS_INCIDENTS, false);
 });

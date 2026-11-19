@@ -156,7 +156,7 @@ Deno.test("probe claim: two processes claiming at once take different routes", a
   }
 });
 
-Deno.test("probe: a failure opens an incident, schedules a retry in about 30 s, and releases the lease", async () => {
+Deno.test("probe: an unreachable route opens no incident, is counted, and is retried with backoff", async () => {
   const fx = await openCoordinationFixture();
   try {
     const id = await seedRoute(fx);
@@ -166,15 +166,22 @@ Deno.test("probe: a failure opens an incident, schedules a retry in about 30 s, 
     });
     assertEquals(results.length, 1);
     const state = await route(fx, id);
-    assertEquals(state.health, "open");
-    assertEquals(state.incident_generation, 1);
-    assert(state.incident_id !== null);
+    // Ruling on #26: no incident until something can close it. The route keeps
+    // its circuit state, so a transient outage cannot remove it.
+    assertEquals(state.health, "unverified");
+    assertEquals(state.incident_id, null);
+    assertEquals(state.incident_generation, 0);
     const delay = secondsFromNow(state.next_probe_at);
     assert(delay > 25 && delay <= 31, String(delay));
     const row = (await health(fx, id))!;
     assertEquals(row.consecutive_failures, 1);
     assertEquals(row.reason, "timeout");
     assertEquals(row.probe_lease_expires_at, null);
+    const incidents = await fx.ownerPg.query(
+      "select count(*)::int as n from bakery.provider_incidents where route_id = $1",
+      [id],
+    );
+    assertEquals(incidents.rows[0].n, 0);
 
     // Not due yet: nothing is claimed.
     assertEquals(
@@ -183,18 +190,22 @@ Deno.test("probe: a failure opens an incident, schedules a retry in about 30 s, 
       0,
     );
 
-    // The next failure backs off to about a minute, on the same incident.
+    // The next failure backs off to about a minute, still with no incident.
     await makeDue(fx, id);
     await runDueProbes(fx.appPg, {
       transport: answer({ kind: "network_error" }),
       random: () => 0.5,
     });
     const again = await route(fx, id);
-    assertEquals(again.incident_id, state.incident_id);
-    assertEquals(again.incident_generation, 1);
+    assertEquals(again.incident_id, null);
     const second = secondsFromNow(again.next_probe_at);
     assert(second > 55 && second <= 61, String(second));
     assertEquals((await health(fx, id))!.consecutive_failures, 2);
+    const after = await fx.ownerPg.query(
+      "select count(*)::int as n from bakery.provider_incidents where route_id = $1",
+      [id],
+    );
+    assertEquals(after.rows[0].n, 0);
   } finally {
     await fx.close();
   }
@@ -210,35 +221,35 @@ Deno.test("probe: a 429 waits at least as long as the provider asked", async () 
     });
     const delay = secondsFromNow((await route(fx, id)).next_probe_at);
     assert(delay > 115 && delay <= 121, String(delay));
-    assertEquals((await route(fx, id)).health, "degraded");
+    // A slowdown opens no incident either; the route keeps its state.
+    assertEquals((await route(fx, id)).health, "unverified");
+    assertEquals((await route(fx, id)).incident_id, null);
+    assertEquals((await health(fx, id))!.reason, "rate_limited");
   } finally {
     await fx.close();
   }
 });
 
-Deno.test("probe: reachable never proves inference or closes an incident", async () => {
+Deno.test("probe: reachable proves nothing about inference and clears the failure count", async () => {
   const fx = await openCoordinationFixture();
   try {
     const id = await seedRoute(fx);
     await runDueProbes(fx.appPg, { transport: answer({ kind: "timeout" }) });
+    assertEquals((await health(fx, id))!.consecutive_failures, 1);
     await makeDue(fx, id);
     await runDueProbes(fx.appPg, {
       transport: answer({ kind: "response", status: 200, retryAfter: null }),
       random: () => 0.5,
     });
     const state = await route(fx, id);
-    assertEquals(state.health, "open");
-    assert(state.incident_id !== null);
+    // Reachable is not healthy: the route is still unverified, with no inference
+    // proof and no incident.
+    assertEquals(state.health, "unverified");
     assertEquals(state.inference_verified_at, null);
-    assertEquals(
-      (await health(fx, id))!.reason,
-      "reachable_inference_unverified",
-    );
-    const incident = await fx.ownerPg.query(
-      "select status from bakery.provider_incidents where route_id = $1",
-      [id],
-    );
-    assertEquals(incident.rows.map((row) => row.status), ["open"]);
+    assertEquals(state.incident_id, null);
+    const row = (await health(fx, id))!;
+    assertEquals(row.consecutive_failures, 0);
+    assertEquals(row.reason, null);
     // Reachable is looked at again on the steady interval.
     const delay = secondsFromNow(state.next_probe_at);
     assert(delay > 290 && delay <= 301, String(delay));

@@ -76,6 +76,7 @@ async function probe(
       generation,
       observedAt: new Date(),
       nextProbeAt: new Date(Date.now() + 30_000),
+      incidents: "on",
       outcome,
     });
     await client.query("commit");

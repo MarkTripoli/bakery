@@ -100,6 +100,17 @@ export async function recordProbeResult(
      * and its open incident, so the three never disagree.
      */
     nextProbeAt: Date | null;
+    /**
+     * Whether a failure may open or extend an incident.
+     *
+     * `off` records the failure as an observation only: the route's health row
+     * counts it and says why, and the schedule moves, but no incident is opened and
+     * the route's circuit state is not touched. The probe runs with it off until the
+     * inference-trial slice, because an incident is only safe to open once something
+     * can close it: a transient outage must never permanently remove a route. That
+     * slice turns this on together with its closer.
+     */
+    incidents: "off" | "on";
     outcome: ProbeOutcome;
   },
 ): Promise<ProbeResult> {
@@ -141,6 +152,9 @@ export async function recordProbeResult(
       [organizationId, route.incident_id],
     )).rows[0];
 
+  if (outcome.kind === "failure" && probe.incidents === "off") {
+    return await recordFailureObservation(transaction, probe, route, health);
+  }
   if (outcome.kind === "failure") {
     return open === undefined
       ? await openIncident(transaction, probe, route, health)
@@ -155,6 +169,40 @@ export async function recordProbeResult(
 /** Health a route shows for a failure of this severity. */
 const healthFor = (severity: "degraded" | "outage") =>
   severity === "outage" ? "open" : "degraded";
+
+/**
+ * A failure recorded without an incident: counted and explained on the health row,
+ * scheduled for a retry, and nothing else. The route keeps whatever circuit state
+ * and incident it had, so an unreachable probe cannot take a route out of service.
+ */
+async function recordFailureObservation(
+  transaction: PgTransactionClient,
+  probe: Parameters<typeof recordProbeResult>[1],
+  route: RouteState,
+  health: HealthState | undefined,
+): Promise<ProbeResult> {
+  const outcome = probe.outcome as Extract<ProbeOutcome, { kind: "failure" }>;
+  await writeRoute(transaction, probe, {
+    health: route.health,
+    incidentId: route.incident_id,
+    incidentGeneration: route.incident_generation,
+    inferenceVerifiedAt: undefined,
+  });
+  await upsertHealth(transaction, probe, {
+    health: route.health,
+    reason: outcome.reason,
+    consecutiveFailures: (health?.consecutive_failures ?? 0) + 1,
+    incidentId: route.incident_id,
+    incidentGeneration: route.incident_generation,
+    failedAt: probe.observedAt,
+    succeededAt: undefined,
+  });
+  return {
+    kind: "updated",
+    incidentId: route.incident_id,
+    generation: route.incident_generation,
+  };
+}
 
 async function openIncident(
   transaction: PgTransactionClient,

@@ -40,6 +40,14 @@ const RETRY_CEILING_MS = 300_000;
 const STEADY_INTERVAL_MS = 300_000;
 /** `Retry-After` is honoured up to this; a provider cannot park a route for a day. */
 const RETRY_AFTER_CEILING_MS = 3_600_000;
+/**
+ * Whether a failed probe may open an incident. Off, by ruling on #26: an incident
+ * is only safe to open once something can close it, and only the inference-trial
+ * slice adds that. Until then the probe records reachability, failure counts and
+ * backoff, so a transient outage can never permanently remove a route. That slice
+ * turns this on together with its closer.
+ */
+export const PROBE_OPENS_INCIDENTS = false;
 /** A route whose host the server may not call is retried rarely; it is a configuration fault. */
 const REFUSED_RETRY_MS = 3_600_000;
 
@@ -354,6 +362,7 @@ export async function probeClaimedRoute(
       generation: claimed.generation,
       observedAt,
       nextProbeAt: next,
+      incidents: PROBE_OPENS_INCIDENTS ? "on" : "off",
       outcome: classified.outcome,
     });
     // A result that changed nothing (stale, duplicate, withdrawn route) wrote no
