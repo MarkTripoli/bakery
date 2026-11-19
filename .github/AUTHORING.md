@@ -75,6 +75,38 @@ so a PR cannot merge unverified.
 Ticking a box is a claim: the verifier did the check at the PR head. A
 problem found here is fixed in the same PR, not filed as a follow-up.
 
+## Structured PR bodies (use this, do not hand-write the body)
+
+A PR body is data, not prose to hand-format. Write a small JSON spec; the tool
+renders the exact template, runs the real validator, and reports which field
+is wrong before anything reaches GitHub. Wording, section order and limits come
+from `validate.ts`, so they cannot drift.
+
+```sh
+P="deno run --allow-read --allow-run=gh --allow-env scripts/authoring/pr-body.ts"
+$P example > spec.json                 # starter spec: edit the fields
+$P render spec.json > body.md          # validated body; exit 1 names the field
+$P publish spec.json --create --title "feat(x): ..."   # draft PR
+$P publish spec.json --pr 123          # update; keeps verifiers' ticks
+$P verify ui --tick --sha <head> --claim "desktop and phone, light and dark" --pr 123
+$P verify tests --na "Docs only; no behavior to test." --pr 123
+$P verify backend --reset --pr 123     # head moved: reopen a stale tick
+```
+
+Add `--dry-run` to `publish` or `verify --pr` to print the new body without
+editing the PR.
+
+- The author writes the spec and never ticks a box. Open boxes are reported as
+  `pending`, not as errors: pending means "awaiting sign-off", and the
+  description check stays red on purpose until each verifier acts.
+- `verify` changes exactly one line. It refuses a tick with no claim or no SHA,
+  an N/A that means "not yet", a tick for a SHA that is no longer the PR head,
+  and a write when the body changed while it ran. Re-read, then run it again.
+- `publish --pr` carries ticked and N/A lines over from the live body, so a new
+  push never erases a verifier's work. Set `evidence.head` to the new head SHA;
+  a verifier then re-checks at that head with `verify --reset` then `--tick`.
+- `closes: false` writes `Refs #n` for a slice so the issue stays open.
+
 ## Local checks
 
 From a trusted checkout:
