@@ -2149,8 +2149,15 @@ button.ui-activity-line__row:hover {
   flex: none;
 }
 
+/* Beside its verb the path takes the rest of the line and its folder truncates;
+   it only drops to its own line when even the file name does not fit. */
+.ui-activity-line:has(.ui-session-path) .ui-session-path {
+  flex: 1 1 calc(var(--space-12) * 2);
+}
+
 .ui-activity-line:has(.ui-session-path) .ui-activity-line__text {
   display: flex;
+  flex: 1 1 calc(var(--space-12) * 2);
   flex-wrap: wrap;
   gap: var(--space-1);
   min-inline-size: 0;

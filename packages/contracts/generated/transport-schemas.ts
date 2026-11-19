@@ -10975,6 +10975,56 @@ const transportSchemas = {
       ],
       "description": "Replaces the label routing rules of one ticket source as a whole, under compare-and-swap on the source version."
     },
+    "LibrarySearchQuery": {
+      "fields": [
+        {
+          "name": "query",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "description": "Text to find, matched case-insensitively as a substring of a skill, agent or artifact name or of a skill or agent description; wildcard characters in it are matched literally."
+        },
+        {
+          "name": "kind",
+          "type": "enum",
+          "required": false,
+          "enum": [
+            "skill",
+            "agent",
+            "artifact"
+          ],
+          "description": "Restricts the search to one kind of library item (skill, agent or artifact); omit to search all three."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from a prior library.search page; bound to this operation, the caller and organization, the same query text and the same kind filter, so it is rejected if any of them change."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum number of hits returned per page; defaults to 25 and cannot exceed 100."
+        }
+      ],
+      "pagination": "pagination",
+      "rules": [
+        "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind the cursor to this operation, current principal and organization scope, query text, kind filter and ordering; validate and reauthorize before the keyset query."
+      ],
+      "description": "Text query over the organization library: skills, agents and artifacts found by name or description, newest first."
+    },
     "RunStepNoteCreate": {
       "fields": [
         {
@@ -28189,6 +28239,37 @@ const transportSchemas = {
         "coordinationPlanId": "Ticket-origin coordination plan whose lane runs this target, or null for the fallback to the source's repository, which runs on the request's own task.",
         "childTaskId": "Child task of the request's task that runs this target in its repository, or null for the fallback. The request completes only when every child task completes and fails when any fails."
       }
+    },
+    "LibrarySearchHit": {
+      "fields": [
+        "kind",
+        "id",
+        "name",
+        "description",
+        "createdAt"
+      ],
+      "fieldTypes": {
+        "kind": "enum(skill|agent|artifact)",
+        "id": "uuid",
+        "name": "string",
+        "description": "string|null",
+        "createdAt": "timestamp"
+      },
+      "nullableFields": [
+        "description"
+      ],
+      "description": "One library item matched by library.search: its kind, identity and name, plus its description when the kind has one, so a caller can pick a hit and then read it with the kind's own get operation.",
+      "fieldDescriptions": {
+        "kind": "Which library the hit belongs to: skill, agent or artifact.",
+        "id": "Stable UUID of the matched record, usable with that kind's get operation.",
+        "name": "Human-readable name of the matched record.",
+        "description": "Free-text description of the matched record; null for artifacts, which carry none.",
+        "createdAt": "UTC timestamp when the matched record was created."
+      }
+    },
+    "Page<LibrarySearchHit>": {
+      "pageOf": "LibrarySearchHit",
+      "description": "Cursor page of library search hits, newest first, returned by GET /v1/library/search. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, totalPages or offsets."
     },
     "RunStepNote": {
       "fields": [

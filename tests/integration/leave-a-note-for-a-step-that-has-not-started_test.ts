@@ -12,6 +12,8 @@ import {
   seedPresetRepository,
   startPresetRun,
 } from "../helpers/fixed-coding-preset.ts";
+import { withPgTransaction } from "../../packages/persistence/src/postgres.ts";
+import { undeliveredStepNotes } from "../../apps/server/src/modules/execution/step-notes.ts";
 import { createBakeryPostgresWorkflowRepository } from "../../apps/server/src/modules/workflow-adapter/bakery-postgres-store.ts";
 
 // #412 slice 2. Chapter 25 section 9: "notes for steps not yet started". A step
@@ -182,4 +184,35 @@ Deno.test("AC: a step the plan does not declare is not found, and unstorable tex
       [run.id],
     );
     assertEquals(none.rows[0].n, "0");
+  }));
+
+Deno.test("AC: a delivered note is never read as undelivered, and a note without a delivery still is", () =>
+  withFixture(async (fixture) => {
+    const { run, firstKey } = await startedRun(fixture, "note-reader");
+    const sent = await note(fixture, run.id, firstKey, { body: "Delivered." });
+    assertEquals(sent.status, 201);
+    const delivered = await sent.json() as NoteBody;
+    await admitFirstStep(fixture, run.id);
+    assertEquals((await deliveries(fixture, run.id)).length, 1);
+
+    // A second note, written straight to the table as the reader would see one
+    // that arrived without a delivery row.
+    const pending = await fixture.pgDatabase.query<{ id: string }>(
+      `insert into bakery.run_step_notes
+         (organization_id, run_id, step_key, author_id, body, client_note_id)
+       select organization_id, run_id, step_key, author_id, 'Not yet.', 'direct'
+         from bakery.run_step_notes where id = $1
+       returning id`,
+      [delivered.id],
+    );
+    const unread = await withPgTransaction(
+      fixture.pgDatabase,
+      (transaction) =>
+        undeliveredStepNotes(transaction, {
+          organizationId: fixture.organizationId,
+          runId: run.id,
+          stepKey: firstKey,
+        }),
+    );
+    assertEquals(unread, [{ id: pending.rows[0].id, body: "Not yet." }]);
   }));
