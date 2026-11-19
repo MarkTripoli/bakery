@@ -221,6 +221,8 @@ importers:
         specifier: 11.2.15
         version: 11.2.15
 
+  packages/integration-linear: {}
+
   packages/integration-sdk:
     dependencies:
       '@bakery/contracts':

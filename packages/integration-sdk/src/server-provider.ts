@@ -215,6 +215,12 @@ export function serverProviderDefects<M extends ProviderManifest>(
     if (connect !== null && "fields" in connect) {
       for (const field of connect.fields) collected.add(field.id);
     }
+    // An OAuth2 flow has no form, so its slots are what the exchange stores rather
+    // than what a person types. Without this the check would refuse every OAuth2
+    // provider that mints from the token it was just granted.
+    if (connect !== null && "secretSlots" in connect) {
+      for (const slot of connect.secretSlots) collected.add(slot);
+    }
   }
   for (const slot of impl.credentials.secretSlots) {
     if (!collected.has(slot)) {
