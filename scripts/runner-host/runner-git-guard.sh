@@ -13,13 +13,18 @@
 set -u
 log() { logger -t runner-git-guard "$*"; echo "$*"; }
 MIN_PACKS="${MIN_PACKS:-20}"
+# Only this project's runner checkout. Other projects' runners share these hosts under
+# other users, and a checkout under their directories is not ours to gc.
+GUARD_OWNER="${GUARD_OWNER:-ci-runner}"
+GUARD_CHECKOUTS="${GUARD_CHECKOUTS:-/opt/actions-runner/_work/bakery/bakery}"
 
 busy() { pgrep -f "$1/bin[.0-9]*/Runner[.]Worker" >/dev/null 2>&1; }
 
-for ws in /opt/actions-runner*/_work/bakery/bakery /home/*/actions-runner*/_work/bakery/bakery; do
+for ws in $GUARD_CHECKOUTS; do
   [ -d "$ws/.git" ] || continue
   runner_dir="${ws%/_work/*}"
   owner="$(stat -c %U "$ws")"
+  if [ "$owner" != "$GUARD_OWNER" ]; then log "$ws: owned by $owner, not $GUARD_OWNER: skipped"; continue; fi
   if busy "$runner_dir"; then log "$ws: runner busy, skipped"; continue; fi
   git_in() { runuser -u "$owner" -- git -c safe.directory="$ws" -C "$ws" "$@"; }
   packs="$(git_in count-objects -v 2>/dev/null | awk '/^packs:/{print $2}')"

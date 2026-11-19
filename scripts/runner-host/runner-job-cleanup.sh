@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Bakery runner cleanup of this runner's own job leftovers. Installed 2026-11-19 under #559.
-# Usage: runner-job-cleanup.sh <min-age-minutes>   (post-job hook uses 10; the pre-job hook uses 0)
+# Usage: runner-job-cleanup.sh <min-age-minutes>   (both hooks use 10, so nothing a running job just wrote is touched)
 # Touches only ci-runner-owned entries directly under /tmp with Bakery/Playwright/Chromium names,
 # plus test-results/playwright-report/blob-report dirs in the Bakery workspace and old _work/_temp files.
 # One Bakery job runs at a time on this runner and the other runners on the host use another user.

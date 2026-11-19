@@ -302,3 +302,60 @@ Deno.test("the guard prunes only this project's runner user, never another proje
   const both = await onBothUsersHost("ci-runner runner");
   assertStringIncludes(both.dockerCalls, `/${OTHER_RUNNER_UID}/docker.sock`);
 });
+
+Deno.test("no runner hook cleans with a zero age, so it never deletes a running job's files", () => {
+  for (const hook of ["runner-job-started.sh", "runner-job-completed.sh"]) {
+    const text = Deno.readTextFileSync(
+      join(repository, "scripts/runner-host", hook),
+    );
+    const ages = [...text.matchAll(/runner-job-cleanup\.sh\s+(\d+)/g)].map((
+      m,
+    ) => Number(m[1]));
+    assertEquals(ages.length > 0, true, `${hook} calls the cleanup`);
+    for (const age of ages) {
+      assertEquals(age >= 10, true, `${hook} cleans at age ${age}`);
+    }
+  }
+});
+
+Deno.test("the git guard only ever touches the ci-runner checkout", async () => {
+  const text = Deno.readTextFileSync(
+    join(repository, "scripts/runner-host/runner-git-guard.sh"),
+  );
+  assertEquals(
+    text.includes("/home/"),
+    false,
+    "no glob over other users' home directories",
+  );
+  assertEquals(
+    text.includes("actions-runner*"),
+    false,
+    "no glob over other runner directories",
+  );
+
+  const root = Deno.makeTempDirSync({ prefix: "bakery-git-guard-" });
+  try {
+    Deno.mkdirSync(join(root, "bin"));
+    Deno.writeTextFileSync(
+      join(root, "bin/logger"),
+      "#!/usr/bin/env bash\nexit 0\n",
+      { mode: 0o755 },
+    );
+    const checkout = join(root, "_work/bakery/bakery");
+    Deno.mkdirSync(join(checkout, ".git"), { recursive: true });
+    const out = await new Deno.Command("bash", {
+      args: [join(repository, "scripts/runner-host/runner-git-guard.sh")],
+      env: {
+        PATH: `${join(root, "bin")}:/usr/bin:/bin`,
+        GUARD_CHECKOUTS: checkout,
+        DRY_RUN: "1",
+      },
+      stdout: "piped",
+      stderr: "piped",
+    }).output();
+    // The checkout belongs to whoever runs this test, not to ci-runner.
+    assertStringIncludes(decoder.decode(out.stdout), "not ci-runner: skipped");
+  } finally {
+    removeTreeSync(root);
+  }
+});

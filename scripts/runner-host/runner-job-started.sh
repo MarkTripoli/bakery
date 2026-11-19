@@ -8,7 +8,7 @@ MIN_FREE_GB="${RUNNER_MIN_FREE_GB:-10}"
 free_gb() { df -BG --output=avail / | tail -1 | tr -dc '0-9'; }
 free="$(free_gb)"
 if [ "${free:-0}" -lt "$MIN_FREE_GB" ]; then
-  /usr/local/sbin/runner-job-cleanup.sh 0 || true
+  /usr/local/sbin/runner-job-cleanup.sh 10 || true
   free="$(free_gb)"
 fi
 if [ "${free:-0}" -lt "$MIN_FREE_GB" ]; then
