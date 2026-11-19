@@ -134,7 +134,7 @@ Deno.test("issue 82 ops: a source is created, read, updated and listed, each cha
             ...policy,
             delegation: {
               principalId: crypto.randomUUID(),
-              githubActorIds: ["1"],
+              externalActorIds: ["1"],
             },
           },
         },

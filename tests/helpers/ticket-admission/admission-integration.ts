@@ -4,6 +4,14 @@
  * backs the connection rows. Each case names the acceptance criterion or the
  * guard it proves.
  */
+function containerOf(repository: string) {
+  return {
+    kind: "repository",
+    externalId: repository,
+    displayName: repository,
+  };
+}
+
 import { assert, assertEquals, assertFalse, assertRejects } from "@std/assert";
 import { StandardError } from "../../../packages/contracts/src/http.ts";
 import type { TicketReadinessReport } from "../../../packages/contracts/src/ticket-admission.ts";
@@ -158,6 +166,42 @@ Deno.test("issue 82 admission AC1: six mixed origins for one issue converge on o
     assertEquals((await fx.counts(sourceId)).tasks, 1);
   }));
 
+Deno.test("issue 82 admission AC1: a source with no application is refused, and two concurrent attempts store nothing", () =>
+  withTicketFixture(async (fx) => {
+    // 0206 lets a source carry no application (a provider that verifies a
+    // webhook with a shared secret). Readiness works for such a source, but a
+    // task names an application and cannot omit one, so admission is refused
+    // with a reason instead of failing inside task creation. The concurrency
+    // half matters because a refused path must write nothing even when two
+    // attempts race - the alternative would be a request row admitted under a
+    // task that cannot exist.
+    const sourceId = await fx.insertSource({
+      policy: automaticPolicy(fx),
+      applicationId: null,
+    });
+    fx.reader.setIssue({ number: 11, labels: [EXECUTE_LABEL] });
+    fx.reader.setLabelApplied(11, EXECUTE_LABEL, { appliedAt: AFTER_SINCE });
+    seedLabeler(fx);
+    const deps = fx.automationDeps();
+
+    const attempts = await Promise.allSettled([
+      fx.admit(sourceId, { number: 11, origin: "webhook", deps }),
+      fx.admit(sourceId, { number: 11, origin: "poll", deps }),
+    ]);
+    for (const attempt of attempts) {
+      assertEquals(attempt.status, "rejected");
+      const reason = attempt.status === "rejected"
+        ? (attempt.reason as { code?: string; params?: { reason?: string } })
+        : null;
+      assertEquals(reason?.code, "PRECONDITION_FAILED");
+      assertEquals(reason?.params?.reason, "source_application_required");
+    }
+    const counts = await fx.counts(sourceId);
+    assertEquals(counts.requests, 0, "a refused admission stores no request");
+    assertEquals(counts.tasks, 0);
+    assertEquals(counts.links, 0);
+  }));
+
 Deno.test("issue 82 admission: no provider read happens while an admission transaction is open", () =>
   withTicketFixture(async (fx) => {
     const sourceId = await fx.insertSource({ policy: automaticPolicy(fx) });
@@ -174,7 +218,7 @@ Deno.test("issue 82 admission: no provider read happens while an admission trans
     const blocker = {
       id: "5101",
       number: 3,
-      repositoryFullName: fx.repositoryFullName,
+      container: containerOf(fx.repositoryFullName),
     };
     let number = 130;
     for (const origin of ["webhook", "poll", "manual"] as const) {
@@ -822,7 +866,7 @@ Deno.test("issue 82 admission: readiness inputs flow through — hold, closed, b
     const blocker = {
       id: "5001",
       number: 1,
-      repositoryFullName: fx.repositoryFullName,
+      container: containerOf(fx.repositoryFullName),
     };
     fx.reader.setIssue({ number: 64, labels: [EXECUTE_LABEL] });
     fx.reader.setLinks(64, { blockedBy: [blocker] });

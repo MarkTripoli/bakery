@@ -60,7 +60,7 @@ Deno.test("a label name is unsafe when the schema says so", () => {
 Deno.test("a saved policy fills the form, and a missing one gives the defaults", () => {
   const saved = formOf(source(policy({
     labels: { execute: "go", planOnly: "plan", hold: "stop" },
-    delegation: { principalId: "principal-1", githubActorIds: ["42", "43"] },
+    delegation: { principalId: "principal-1", externalActorIds: ["42", "43"] },
     automatic: { enabled: true, since: "2026-11-01T00:00:00Z" },
     readiness: { requireAcceptanceCriteria: false },
     approval: { plan: "automatic" },
@@ -139,7 +139,7 @@ Deno.test("problems name the field, and two equal labels are one problem", () =>
 
 Deno.test("dirty compares the form with the saved policy, including the people", () => {
   const saved = source(policy({
-    delegation: { principalId: "principal-1", githubActorIds: ["42"] },
+    delegation: { principalId: "principal-1", externalActorIds: ["42"] },
     automatic: { enabled: true, since: "2026-11-01T00:00:00Z" },
   }));
   const unchanged = formOf(saved);
@@ -160,7 +160,7 @@ Deno.test("dirty compares the form with the saved policy, including the people",
   const sent = policyOfForm(unchanged);
   assertEquals(sent.delegation, {
     principalId: "principal-1",
-    githubActorIds: ["42"],
+    externalActorIds: ["42"],
   });
   assertEquals(isDirty(formOf(null), null), false);
 });

@@ -10908,6 +10908,143 @@ const transportSchemas = {
         }
       ],
       "description": "Filters and page position for listing provider incidents. An incident is one durable record per affected route and generation, not one per failed attempt, so duplicate and stale probe results do not multiply rows."
+    },
+    "TicketRoutingRuleInput": {
+      "fields": [
+        {
+          "name": "labelId",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "description": "The provider's stable id of one label of the ticket source (for example a numeric label id written as a string), exactly as the source's ticket reader reports it. Rules match this id, never the name, so renaming the label keeps its routing."
+        },
+        {
+          "name": "labelName",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "description": "Display name of the label, shown in settings and in readiness evidence; never matched. Send the current name to rename it; a rename alone changes nothing about routing."
+        },
+        {
+          "name": "repositoryId",
+          "type": "uuid",
+          "required": true,
+          "description": "Bakery repository the label routes to. It must belong to the ticket source's application and must not be archived when the rules are saved; otherwise the whole replacement answers 422."
+        },
+        {
+          "name": "role",
+          "type": "slug",
+          "required": true,
+          "bounds": {
+            "maxLength": 63
+          },
+          "description": "Role the repository plays for a routed ticket, such as backend or frontend. The application must bind this repository to this role with an alias (applicationRepositoryRoles.set), because the target runs as a lane of a coordination plan that names it by that alias. Within one ticket a role must resolve to one repository and a repository to one role, or admission is blocked as ambiguous."
+        },
+        {
+          "name": "presetId",
+          "type": "enum",
+          "required": false,
+          "enum": [
+            "fixed-coding"
+          ],
+          "description": "Workflow preset the routed repository target runs; omitted means fixed-coding, the only preset admission runs. The preset's revision and digest are pinned on each admitted target."
+        }
+      ],
+      "description": "One routing rule as a client sends it: a provider label id and its display name, the repository it routes to, that repository's role and the preset it runs."
+    },
+    "TicketRoutingRulesReplace": {
+      "fields": [
+        {
+          "name": "rules",
+          "type": "TicketRoutingRuleInput[]",
+          "required": true,
+          "bounds": {
+            "maxItems": 50
+          },
+          "description": "The complete rule set of the ticket source, at most 50 rules, each (labelId, repositoryId) pair at most once. An empty list removes every rule, so tickets route to the source's own repository again."
+        }
+      ],
+      "rules": [
+        "Idempotency-Key and If-Match against the ticket source version required. A replacement that changes any rule advances the source's policy revision and version once; an identical replacement changes nothing. Active requests keep the targets they were admitted with."
+      ],
+      "description": "Replaces the label routing rules of one ticket source as a whole, under compare-and-swap on the source version."
+    },
+    "LibrarySearchQuery": {
+      "fields": [
+        {
+          "name": "query",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "description": "Text to find, matched case-insensitively as a substring of a skill, agent or artifact name or of a skill or agent description; wildcard characters in it are matched literally."
+        },
+        {
+          "name": "kind",
+          "type": "enum",
+          "required": false,
+          "enum": [
+            "skill",
+            "agent",
+            "artifact"
+          ],
+          "description": "Restricts the search to one kind of library item (skill, agent or artifact); omit to search all three."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from a prior library.search page; bound to this operation, the caller and organization, the same query text and the same kind filter, so it is rejected if any of them change."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum number of hits returned per page; defaults to 25 and cannot exceed 100."
+        }
+      ],
+      "pagination": "pagination",
+      "rules": [
+        "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind the cursor to this operation, current principal and organization scope, query text, kind filter and ordering; validate and reauthorize before the keyset query."
+      ],
+      "description": "Text query over the organization library: skills, agents and artifacts found by name or description, newest first."
+    },
+    "RunStepNoteCreate": {
+      "fields": [
+        {
+          "name": "body",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 4000
+          },
+          "description": "The note text the step's agent receives with its input when the step starts. It is recorded in the work item's decisions ledger and cannot add tools, grants, skills or a role."
+        },
+        {
+          "name": "clientNoteId",
+          "type": "uuid",
+          "required": false,
+          "description": "Caller-generated identifier that makes a retry of the same note return the original note instead of writing a second one. Defaults to the request Idempotency-Key."
+        }
+      ],
+      "description": "Leaves a note for a workflow step that has not started yet, addressed by the run id and step key in the path. The agent that runs the step receives the note once, with its input; a step that has already started refuses the note with a state conflict, and a steer on its live session is the way to reach it."
     }
   },
   "projections": {
@@ -20233,6 +20370,7 @@ const transportSchemas = {
         "topic",
         "tags",
         "currentRevisionId",
+        "sourceState",
         "status",
         "createdAt",
         "updatedAt",
@@ -20244,6 +20382,7 @@ const transportSchemas = {
         "topic": "string",
         "tags": "json",
         "currentRevisionId": "uuid|null",
+        "sourceState": "enum(available|deleted|no_access|unknown)",
         "status": "enum(proposed|active|retired)",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
@@ -20259,6 +20398,7 @@ const transportSchemas = {
         "topic": "Topic used to organize the memory entry.",
         "tags": "Labels used to classify the record.",
         "currentRevisionId": "Stable UUID linking this record to the related current revision entity.",
+        "sourceState": "Whether the artifact version cited by the current revision is available, deleted, not readable by this reader (no_access) or unknown, judged against the reader's live access at read time.",
         "status": "Current lifecycle status of the record.",
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
@@ -20274,6 +20414,7 @@ const transportSchemas = {
         "body",
         "reason",
         "sourceArtifactVersionId",
+        "sourceState",
         "supersedesId",
         "confidence",
         "expiresAt",
@@ -20287,7 +20428,8 @@ const transportSchemas = {
         "memoryId": "uuid",
         "revision": "integer",
         "body": "string",
-        "sourceArtifactVersionId": "uuid",
+        "sourceArtifactVersionId": "uuid|null",
+        "sourceState": "enum(available|deleted|no_access|unknown)",
         "supersedesId": "uuid|null",
         "confidence": "decimal",
         "expiresAt": "timestamp|null",
@@ -20300,15 +20442,17 @@ const transportSchemas = {
       "nullableFields": [
         "supersedesId",
         "expiresAt",
-        "reason"
+        "reason",
+        "sourceArtifactVersionId"
       ],
-      "description": "One versioned, confidence-scored statement belonging to a memory entry, created by memoryRevisions.create; confidence reflects model judgment rather than verified fact, and a revision can supersede an earlier one or carry its own expiry after which it stops being offered as active context.",
+      "description": "One versioned, confidence-scored statement belonging to a memory entry, created by memoryRevisions.create; confidence reflects model judgment rather than verified fact, and a revision can supersede an earlier one or carry its own expiry after which it stops being offered as active context. sourceArtifactVersionId is null if and only if sourceState is no_access.",
       "fieldDescriptions": {
         "id": "Stable UUID identifying the memory revision record.",
         "memoryId": "Stable UUID linking this record to the related memory entity.",
         "revision": "Monotonic revision number used to order updates to the record.",
         "body": "User-visible body content carried by the record.",
-        "sourceArtifactVersionId": "Stable UUID linking this record to the related source artifact version entity.",
+        "sourceArtifactVersionId": "Artifact version whose evidence justifies this revision. Invariant: sourceArtifactVersionId is null if and only if sourceState is no_access, so a reader who cannot read artifact versions is never shown the id and every other state names it.",
+        "sourceState": "Whether the cited artifact version is available, deleted (its content was purged), not readable by this reader (no_access) or unknown, judged against the reader's live access at read time rather than at write time. sourceArtifactVersionId is null if and only if sourceState is no_access.",
         "supersedesId": "Stable UUID linking this record to the related supersedes entity.",
         "confidence": "Confidence assigned to the revision.",
         "expiresAt": "UTC timestamp when the record expires.",
@@ -21963,7 +22107,8 @@ const transportSchemas = {
         "sealedCredentialOperation",
         "agentSessionId",
         "contextInputs",
-        "traceparent"
+        "traceparent",
+        "sessionCredential"
       ],
       "optionalFields": [
         "workerSessionId",
@@ -21972,7 +22117,8 @@ const transportSchemas = {
         "serverTime",
         "agentSessionId",
         "contextInputs",
-        "traceparent"
+        "traceparent",
+        "sessionCredential"
       ],
       "fieldTypes": {
         "jobId": "uuid",
@@ -21997,7 +22143,8 @@ const transportSchemas = {
         "sealedCredentialOperation": "SealedCredentialOperation|null",
         "agentSessionId": "uuid",
         "contextInputs": "StepContextInput[]",
-        "traceparent": "traceparent"
+        "traceparent": "traceparent",
+        "sessionCredential": "secretString"
       },
       "sensitiveFields": [
         "leaseToken"
@@ -22049,7 +22196,8 @@ const transportSchemas = {
         "sealedCredentialOperation": "Required nullable daemon-only prepared credential operation. Null for every non-identity action; never copied into job input or a subprocess.",
         "agentSessionId": "Server-created harness session the result must reference.",
         "contextInputs": "Input slots the step declared, pinned at admission: the worker materializes exactly these bytes into its context directory and never re-fetches the artifact, so the digest it verifies is the one admission pinned.",
-        "traceparent": "W3C trace context of the request that caused this work, so the worker continues the caller's trace instead of starting an unrelated one."
+        "traceparent": "W3C trace context of the request that caused this work, so the worker continues the caller's trace instead of starting an unrelated one.",
+        "sessionCredential": "The session operation credential for this attempt, handed off at claim and never again: the server stores only its digest, and a claim replay revokes it and returns none. The agent presents it on the tool gateway to call Bakery operations as the principal it acts for - the run's requester, never the worker host. It dies with the attempt lease and must never be copied into job input, a log, an artifact or a subprocess environment."
       }
     },
     "LeaseState": {
@@ -24371,7 +24519,8 @@ const transportSchemas = {
         "pauseRequestedAt",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "targets"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -24394,7 +24543,8 @@ const transportSchemas = {
         "pauseRequestedAt": "timestamp|null",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "targets": "TicketRequestTarget[]"
       },
       "nullableFields": [
         "authorityPrincipalId",
@@ -24427,14 +24577,16 @@ const transportSchemas = {
         "pauseRequestedAt": "Timestamp when a cooperative pause was enqueued for this request's live run attempt after the request was suspended. Null when no pause was requested, for example when the request has no run, no live attempt exists, or the adapter cannot pause. Omitted by servers that predate it.",
         "createdAt": "Timestamp recording when the created event occurred for this ticket request record.",
         "updatedAt": "Timestamp recording the last update to this ticket request record.",
-        "version": "Monotonic revision used to order or conditionally update this ticket request record."
+        "version": "Monotonic revision used to order or conditionally update this ticket request record.",
+        "targets": "Repository-scoped children pinned at admission, one per routed repository and ordered by role: the union of the matched routing rules deduplicated by repository, or the source's own repository when no rule matched. Never retargeted by a later rule or policy edit. Omitted by servers that predate label routing."
       },
       "optionalFields": [
         "origin",
         "dispositionReason",
         "readinessReportId",
         "pinnedPreset",
-        "pauseRequestedAt"
+        "pauseRequestedAt",
+        "targets"
       ]
     },
     "Page<TicketRequest>": {
@@ -27987,6 +28139,171 @@ const transportSchemas = {
         "inferenceVerifiedAt": "UTC timestamp when an already-authorized request last proved the inference path; null while inference is unproven.",
         "updatedAt": "UTC timestamp of the last health change."
       }
+    },
+    "TicketRoutingRule": {
+      "projection": "ticket_routing_rules",
+      "fields": [
+        "id",
+        "organizationId",
+        "ticketSourceId",
+        "labelId",
+        "labelName",
+        "repositoryId",
+        "role",
+        "presetId",
+        "version",
+        "createdAt",
+        "updatedAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "organizationId": "uuid",
+        "ticketSourceId": "uuid",
+        "labelId": "string",
+        "repositoryId": "uuid",
+        "role": "string",
+        "presetId": "enum(fixed-coding)",
+        "version": "integer",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp",
+        "labelName": "string"
+      },
+      "nullableFields": [],
+      "description": "One label routing rule of a ticket source: tickets carrying the label are routed to the repository in the given role.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of the rule; an unchanged rule keeps it across replacements, and admitted targets pin it.",
+        "organizationId": "UUID of the organization that owns the rule.",
+        "ticketSourceId": "UUID of the ticket source the rule belongs to.",
+        "labelId": "Provider label id the rule matches, compared exactly with the label ids on a ticket.",
+        "repositoryId": "UUID of the repository the label routes to.",
+        "role": "Role the repository plays for a routed ticket.",
+        "presetId": "Workflow preset the routed target runs.",
+        "version": "Edit count of this rule, starting at 1; admitted targets pin it.",
+        "createdAt": "UTC timestamp when the rule was first saved.",
+        "updatedAt": "UTC timestamp when the rule last changed.",
+        "labelName": "Display name of the label as last saved; shown only, never matched."
+      }
+    },
+    "TicketRoutingRuleSet": {
+      "projection": "ticket_routing_rules",
+      "fields": [
+        "ticketSourceId",
+        "policyRevision",
+        "version",
+        "rules"
+      ],
+      "fieldTypes": {
+        "ticketSourceId": "uuid",
+        "policyRevision": "integer",
+        "version": "integer",
+        "rules": "TicketRoutingRule[]"
+      },
+      "nullableFields": [],
+      "description": "The complete label routing rule set of one ticket source, with the source's policy revision and version. Send version as If-Match to replace it; pass policyRevision as expectedSourcePolicyRevision to admit under these rules.",
+      "fieldDescriptions": {
+        "ticketSourceId": "UUID of the ticket source.",
+        "policyRevision": "Ticket source policy revision the rules belong to; every rule change advances it.",
+        "version": "Ticket source version; the If-Match value a replacement must send.",
+        "rules": "Every rule of the source, at most 50, ordered by label key and then repository id."
+      }
+    },
+    "TicketRequestTarget": {
+      "projection": "ticket_request_targets",
+      "fields": [
+        "repositoryId",
+        "role",
+        "routingRuleId",
+        "routingRuleVersion",
+        "sourcePolicyRevision",
+        "pinnedPreset",
+        "coordinationPlanId",
+        "childTaskId"
+      ],
+      "fieldTypes": {
+        "repositoryId": "uuid",
+        "role": "string",
+        "routingRuleId": "uuid|null",
+        "routingRuleVersion": "integer|null",
+        "sourcePolicyRevision": "integer",
+        "pinnedPreset": "json",
+        "coordinationPlanId": "uuid|null",
+        "childTaskId": "uuid|null"
+      },
+      "nullableFields": [
+        "routingRuleId",
+        "routingRuleVersion",
+        "coordinationPlanId",
+        "childTaskId"
+      ],
+      "description": "One repository-scoped child of an admitted ticket request, pinned at admission and run as a child task of the request's coordination plan. Later rule or policy edits never change it.",
+      "fieldDescriptions": {
+        "repositoryId": "UUID of the repository this child is scoped to; a request holds each repository at most once.",
+        "role": "Role the repository plays for the request; default when the ticket matched no rule and fell back to the source's own repository.",
+        "routingRuleId": "UUID of the rule that routed the ticket here as pinned at admission (the rule may since have been deleted), or null for the fallback to the source's repository.",
+        "routingRuleVersion": "Version of that rule at admission, or null for the fallback.",
+        "sourcePolicyRevision": "Ticket source policy revision the child was admitted under.",
+        "pinnedPreset": "Workflow preset identity (id, revision, digest) the child was admitted with.",
+        "coordinationPlanId": "Ticket-origin coordination plan whose lane runs this target, or null for the fallback to the source's repository, which runs on the request's own task.",
+        "childTaskId": "Child task of the request's task that runs this target in its repository, or null for the fallback. The request completes only when every child task completes and fails when any fails."
+      }
+    },
+    "LibrarySearchHit": {
+      "fields": [
+        "kind",
+        "id",
+        "name",
+        "description",
+        "createdAt"
+      ],
+      "fieldTypes": {
+        "kind": "enum(skill|agent|artifact)",
+        "id": "uuid",
+        "name": "string",
+        "description": "string|null",
+        "createdAt": "timestamp"
+      },
+      "nullableFields": [
+        "description"
+      ],
+      "description": "One library item matched by library.search: its kind, identity and name, plus its description when the kind has one, so a caller can pick a hit and then read it with the kind's own get operation.",
+      "fieldDescriptions": {
+        "kind": "Which library the hit belongs to: skill, agent or artifact.",
+        "id": "Stable UUID of the matched record, usable with that kind's get operation.",
+        "name": "Human-readable name of the matched record.",
+        "description": "Free-text description of the matched record; null for artifacts, which carry none.",
+        "createdAt": "UTC timestamp when the matched record was created."
+      }
+    },
+    "Page<LibrarySearchHit>": {
+      "pageOf": "LibrarySearchHit",
+      "description": "Cursor page of library search hits, newest first, returned by GET /v1/library/search. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, totalPages or offsets."
+    },
+    "RunStepNote": {
+      "fields": [
+        "id",
+        "runId",
+        "stepKey",
+        "authorId",
+        "body",
+        "createdAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "runId": "uuid",
+        "stepKey": "string",
+        "authorId": "uuid",
+        "body": "string",
+        "createdAt": "timestamp"
+      },
+      "description": "One note left for a workflow step that had not started, with who left it and when; the step's agent receives it once with its input.",
+      "fieldDescriptions": {
+        "id": "Stable UUID identifying the note.",
+        "runId": "Stable UUID of the run whose step the note is for.",
+        "stepKey": "Key of the run step the note is addressed to.",
+        "authorId": "Stable UUID of the principal who left the note.",
+        "body": "The note text, at most 4000 characters.",
+        "createdAt": "When the note was recorded."
+      }
     }
   },
   "pageEnvelope": {
@@ -28448,6 +28765,15 @@ const transportSchemas = {
       "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
     },
     "memory.revised": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "memory.source_changed": {
       "schemaVersion": 1,
       "payloadFields": {
         "resourceId": "uuid",

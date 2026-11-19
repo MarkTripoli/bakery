@@ -1,0 +1,87 @@
+diff --git a/dist/sync.js b/dist/sync.js
+index 8f36aa0b82011dbc2980b0bfdd140fc31ede82dc..19cf15c9279bdf8b151046fe4711a3fff62b7cd4 100644
+--- a/dist/sync.js
++++ b/dist/sync.js
+@@ -66,12 +66,13 @@ export class LoroSyncPluginValue {
+         };
+         this.sub = doc.subscribe(this.onRemoteUpdate);
+         Promise.resolve().then(() => {
+-            this.isInitDispatch = true;
+             const currentText = this.view.state.doc.toString();
+             const text = this.getTextFromDoc(this.doc);
+             if (currentText === text.toString()) {
+                 return;
+             }
++            // Mark this one transaction, rather than arming a flag that the next
++            // update (which may be the person's first keystroke) would consume.
+             view.dispatch({
+                 changes: [
+                     {
+@@ -80,14 +81,11 @@ export class LoroSyncPluginValue {
+                         insert: text.toString(),
+                     },
+                 ],
++                annotations: [loroSyncAnnotation.of(this)],
+             });
+         });
+     }
+     update(update) {
+-        if (this.isInitDispatch) {
+-            this.isInitDispatch = false;
+-            return;
+-        }
+         if (!update.docChanged ||
+             (update.transactions.length > 0 &&
+                 (update.transactions[0].annotation(loroSyncAnnotation) ===
+diff --git a/dist/undo.js b/dist/undo.js
+index e29854abbaaccc0457a06f9fa959b559e4b20918..1e6f4da2c4d4cf8a2c85e034388c58f20b0e5615 100644
+--- a/dist/undo.js
++++ b/dist/undo.js
+@@ -8,19 +8,10 @@ export const undoManagerStateField = StateField.define({
+     create(state) {
+         return undefined;
+     },
+-    update(value, transaction) {
+-        for (const effect of transaction.effects) {
+-            if (effect.is(undoEffect)) {
+-                if (value && value.canUndo()) {
+-                    value.undo();
+-                }
+-            }
+-            else if (effect.is(redoEffect)) {
+-                if (value && value.canRedo()) {
+-                    value.redo();
+-                }
+-            }
+-        }
++    update(value) {
++        // Undo and redo run in undo() and redo() below, not here: Loro reports the
++        // change while the manager runs, and the view must not be dispatched to
++        // from inside its own state update.
+         return value;
+     },
+ });
+@@ -126,15 +117,17 @@ export class UndoPluginValue {
+     }
+ }
+ export const undo = (view) => {
+-    view.dispatch({
+-        effects: [undoEffect.of(null)],
+-    });
++    const manager = view.state.field(undoManagerStateField);
++    if (manager && manager.canUndo()) {
++        manager.undo();
++    }
+     return true;
+ };
+ export const redo = (view) => {
+-    view.dispatch({
+-        effects: [redoEffect.of(null)],
+-    });
++    const manager = view.state.field(undoManagerStateField);
++    if (manager && manager.canRedo()) {
++        manager.redo();
++    }
+     return true;
+ };
+ export const undoKeyMap = [

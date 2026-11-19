@@ -1102,6 +1102,31 @@
       ]
     },
     {
+      "group": "Work",
+      "method": "POST",
+      "path": "/v1/runs/{id}/steps/{stepKey}/notes",
+      "action": "runSteps.note",
+      "access": "Developer",
+      "permission": "run:control",
+      "organizationContext": "required_authenticated_context",
+      "input": "RunStepNoteCreate",
+      "output": "RunStepNote",
+      "event": "",
+      "mcp": "bakery_runSteps_note",
+      "idempotency": "Idempotency-Key required; PATCH also If-Match",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ]
+    },
+    {
       "group": "Conversation",
       "method": "GET",
       "path": "/v1/conversations",
@@ -2643,6 +2668,28 @@
         "MALFORMED_REQUEST"
       ],
       "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Library",
+      "method": "GET",
+      "path": "/v1/library/search",
+      "action": "library.search",
+      "access": "Developer",
+      "permission": "library:read",
+      "organizationContext": "required_authenticated_context",
+      "input": "LibrarySearchQuery",
+      "output": "Page<LibrarySearchHit>",
+      "event": "",
+      "mcp": "bakery_library_search",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ]
     },
     {
       "group": "Skills",
@@ -4830,8 +4877,12 @@
       "idempotency": "Read; opaque cursor pagination",
       "errors": [
         "AUTH_REQUIRED",
-        "AUTH_FORBIDDEN"
-      ]
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
     },
     {
       "group": "Providers",
@@ -4848,8 +4899,11 @@
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
-        "RESOURCE_NOT_FOUND"
-      ]
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
     },
     {
       "group": "Providers",
@@ -4866,8 +4920,11 @@
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
-        "RESOURCE_NOT_FOUND"
-      ]
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
     },
     {
       "group": "Providers",
@@ -4883,8 +4940,12 @@
       "idempotency": "Read; opaque cursor pagination",
       "errors": [
         "AUTH_REQUIRED",
-        "AUTH_FORBIDDEN"
-      ]
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
     },
     {
       "group": "Providers",
@@ -4901,8 +4962,11 @@
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
-        "RESOURCE_NOT_FOUND"
-      ]
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
     },
     {
       "group": "Providers",
@@ -8249,6 +8313,52 @@
         "MALFORMED_REQUEST",
         "SCOPE_REQUIRED",
         "DEPENDENCY_UNAVAILABLE"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Tickets",
+      "method": "GET",
+      "path": "/v1/ticket-sources/{id}/routing-rules",
+      "action": "ticketRoutingRules.get",
+      "access": "Developer",
+      "permission": "ticketSource:read",
+      "input": "IdPath",
+      "output": "TicketRoutingRuleSet",
+      "event": "",
+      "mcp": null,
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Tickets",
+      "method": "PUT",
+      "path": "/v1/ticket-sources/{id}/routing-rules",
+      "action": "ticketRoutingRules.replace",
+      "access": "Admin",
+      "permission": "ticketSource:manage",
+      "input": "TicketRoutingRulesReplace",
+      "output": "TicketRoutingRuleSet",
+      "event": "ticket.source_changed",
+      "mcp": null,
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "PRECONDITION_FAILED",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
       ],
       "organizationContext": "required_authenticated_context"
     },

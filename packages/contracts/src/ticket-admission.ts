@@ -143,6 +143,32 @@ export function ticketVerdictFromChecks(
 }
 
 /**
+ * Why label routing (#31) blocks a new admission, reported by the
+ * `repository_ready` check with status `reject`:
+ * - `route_ambiguous`: the matched rules give one repository two roles or
+ *   presets, or one role two repositories, so the targets cannot be
+ *   deduplicated into one child per repository;
+ * - `route_target_deleted`: a matched rule routes to an archived repository;
+ * - `route_target_inaccessible`: a matched rule routes to a repository the
+ *   source's application no longer owns or whose integration connection is
+ *   archived.
+ * A blocked ticket is never admitted; it is not silently routed elsewhere.
+ */
+export const TICKET_ROUTE_BLOCK_REASONS = Object.freeze(
+  [
+    "route_ambiguous",
+    "route_target_deleted",
+    "route_target_inaccessible",
+  ] as const,
+);
+export type TicketRouteBlockReason = typeof TICKET_ROUTE_BLOCK_REASONS[number];
+
+/** Most label routing rules one ticket source holds. */
+export const TICKET_ROUTING_MAX_RULES = 50;
+/** Role a request target takes when the ticket matched no rule and falls back to the source's repository. */
+export const TICKET_ROUTE_FALLBACK_ROLE = "default";
+
+/**
  * Reasons that suspend a request and clear by themselves: when the condition
  * is restored, a recheck resumes the request after re-verifying authority and
  * label provenance live. Includes source-state and repository or preset setup
@@ -201,10 +227,18 @@ export type TicketExplicitResumeReason =
  * check, and the others only appear before a request exists (the ticket is
  * not yet admitted, so there is nothing to suspend). A request that already
  * exists records `acceptance_changed` instead of `acceptance_missing` when
- * its acceptance criteria disappear.
+ * its acceptance criteria disappear. The route reasons block a new admission
+ * whose label routing cannot resolve; a request that exists keeps the targets
+ * it was admitted with, so they never suspend one.
  */
 export const TICKET_NON_SUSPENDING_REASONS = Object.freeze(
-  ["ok", "acceptance_missing", "active_request", "adoption_required"] as const,
+  [
+    "ok",
+    "acceptance_missing",
+    "active_request",
+    "adoption_required",
+    ...TICKET_ROUTE_BLOCK_REASONS,
+  ] as const,
 );
 export type TicketNonSuspendingReason =
   typeof TICKET_NON_SUSPENDING_REASONS[number];
@@ -228,6 +262,11 @@ export function isTicketAutoResumableReason(
   value: unknown,
 ): value is TicketAutoResumableReason {
   return memberOf(TICKET_AUTO_RESUMABLE_REASONS, value);
+}
+export function isTicketNonSuspendingReason(
+  value: unknown,
+): value is TicketNonSuspendingReason {
+  return memberOf(TICKET_NON_SUSPENDING_REASONS, value);
 }
 export function isTicketExplicitResumeReason(
   value: unknown,
@@ -289,7 +328,11 @@ export const TICKET_CHECK_REASONS: Readonly<
   ),
   no_active_admission: Object.freeze(["active_request"] as const),
   repository_ready: Object.freeze(
-    ["repository_archived", "no_active_profile"] as const,
+    [
+      "repository_archived",
+      "no_active_profile",
+      ...TICKET_ROUTE_BLOCK_REASONS,
+    ] as const,
   ),
   preset_ready: Object.freeze(["preset_setup_required"] as const),
   authority_live: Object.freeze(
@@ -330,9 +373,6 @@ export const TICKET_CHECK_MAX_EVIDENCE = 5;
 export const TICKET_REPORT_MAX_CHECKS = TICKET_CHECK_IDS.length;
 
 const SHA256_HEX = /^[0-9a-f]{64}$/;
-const REPOSITORY_FULL_NAME =
-  /^[A-Za-z0-9](?:[A-Za-z0-9_-]{0,38})\/[A-Za-z0-9._-]{1,100}$/;
-const PROVIDER_NUMERIC_ID = /^[1-9][0-9]{0,18}$/;
 
 /** True when a label name could be read as markup, a URL or an expression. */
 function labelNameIsUnsafe(value: string): boolean {
@@ -363,17 +403,71 @@ const providerLabelName = z.string().min(1).max(TICKET_LABEL_NAME_MAX_LENGTH)
     "Label display name exactly as GitHub reports it, 1 to 50 characters; kept verbatim as evidence and never interpreted.",
   );
 
+/** A provider label id as the reader reports it: opaque, bounded, never a URL. */
+const providerLabelId = z.string().min(1).max(100).refine(
+  (value) => !labelNameIsUnsafe(value),
+  { message: "A label id must be trimmed and free of control characters." },
+).describe(
+  "The provider's stable identifier of one label, as an opaque string of 1 to 100 characters; compared exactly, never interpreted.",
+);
+
 const sha256Hex = z.string().regex(SHA256_HEX).describe(
   "Lowercase 64-character hexadecimal SHA-256 digest.",
 );
 
-const repositoryFullName = z.string().regex(REPOSITORY_FULL_NAME).describe(
-  "GitHub repository full name in owner/name form, at most 140 characters.",
+/**
+ * An identifier the provider assigns, kept opaque.
+ *
+ * GitHub numbers its issues and users; Linear uses UUIDs and Jira uses short
+ * keys. Nothing in Bakery may parse these, sort them or assume they are
+ * numeric: they are compared for equality and stored. The numeric pattern is
+ * now a reader-side detail, not a contract.
+ */
+const providerOpaqueId = z.string().min(1).max(200).describe(
+  "Identifier the provider assigns, 1 to 200 characters, treated as an opaque token: compared for equality and never parsed.",
 );
 
-const providerNumericId = z.string().regex(PROVIDER_NUMERIC_ID).describe(
-  "GitHub numeric identifier written as a decimal string without leading zeros, so it survives JSON number limits.",
+/**
+ * Where a ticket lives, in provider terms.
+ *
+ * A GitHub repository, a Linear team and a Jira project are the same thing to
+ * admission: a named container with an id. `kind` is the provider's own word
+ * for it, so a fourth provider needs no contract change.
+ */
+export const TicketContainerSchema = z.object({
+  kind: z.string().min(1).max(40).describe(
+    "Provider's own word for the container type, for example repository, team or project.",
+  ),
+  externalId: providerOpaqueId.describe(
+    "Provider identifier of the container, opaque to Bakery.",
+  ),
+  displayName: z.string().min(1).max(200).describe(
+    "Human-readable container name, for example owner/name, a team key or a project key.",
+  ),
+}).strict().describe(
+  "The provider container a ticket belongs to, named in the provider's terms.",
 );
+export type TicketContainer = z.output<typeof TicketContainerSchema>;
+
+/**
+ * How much authority an actor holds, as a number the provider defines.
+ *
+ * Today admission compares GitHub's admin/write/read/none by hand. A ladder
+ * lets a provider state its own ranks, so Jira's roles or Linear's workspace
+ * permissions fit without admission learning their names.
+ */
+export const ACTOR_ROLE_RANK_MIN = 0;
+export const ACTOR_ROLE_RANK_MAX = 100;
+
+/**
+ * The rank at which an actor may act on a ticket rather than only read it.
+ *
+ * A provider maps its own ladder into the 0 to 100 band and must give a rank at
+ * or above this one to whoever may trigger work. GitHub's write and admin sit at
+ * or above it; read and none do not. Admission compares this number and never a
+ * role name.
+ */
+export const ACTOR_ROLE_RANK_ACT = 2;
 
 const issueNumber = z.number().int().min(1).describe(
   "GitHub issue number inside its repository, at least 1.",
@@ -407,12 +501,12 @@ const policyDelegationSchema = z.object({
   principalId: z.uuid().describe(
     "Bakery principal that automatic admissions act as. Its task:write and run:write authority is checked live on every admission.",
   ),
-  githubActorIds: z.array(providerNumericId).min(1).max(
+  externalActorIds: z.array(providerOpaqueId).min(1).max(
     TICKET_DELEGATION_MAX_ACTORS,
   ).refine((ids) => new Set(ids).size === ids.length, {
-    message: "A delegation lists each GitHub user id once.",
+    message: "A delegation lists each actor id once.",
   }).describe(
-    "GitHub user ids, 1 to 25 unique decimal strings, whose label applications may trigger automatic admission. Each must also hold repository role write or higher.",
+    "Provider actor ids, 1 to 25 unique opaque strings, whose label applications may trigger automatic admission. Each must also hold the provider's write rank or higher.",
   ),
 }).strict().describe(
   "Delegation that lets verified label applications by allowlisted GitHub users admit work as a Bakery principal.",
@@ -537,17 +631,17 @@ export function defaultTicketSourcePolicy(): TicketSourcePolicy {
   });
 }
 
-/** Reference to one issue: the provider id, number and repository. */
+/** Reference to one ticket: the provider id, its ordinal and its container. */
 export const TicketIssueRefSchema = z.object({
-  id: providerNumericId.describe(
-    "GitHub issue id (the immutable database id, not the number) as a decimal string.",
+  id: providerOpaqueId.describe(
+    "Provider's immutable id for the ticket, kept opaque; the dedupe identity.",
   ),
   number: issueNumber,
-  repositoryFullName: repositoryFullName.describe(
-    "Repository that holds the issue, in owner/name form.",
+  container: TicketContainerSchema.describe(
+    "Container that holds the ticket, named in the provider's terms.",
   ),
 }).strict().describe(
-  "Reference to one GitHub issue by its immutable id, number and repository.",
+  "Reference to one ticket by its immutable id, its ordinal and its container.",
 );
 export type TicketIssueRef = z.output<typeof TicketIssueRefSchema>;
 
@@ -563,8 +657,8 @@ const issueStateReason = z.string().min(1).max(40).nullable().describe(
  * body text of an oversized issue and sets `bodyTooLarge`.
  */
 export const TicketSnapshotInputSchema = z.object({
-  externalId: providerNumericId.describe(
-    "GitHub issue id (immutable database id) as a decimal string; the dedupe identity of the ticket.",
+  externalId: providerOpaqueId.describe(
+    "Provider's immutable id for the ticket, kept opaque; the dedupe identity.",
   ),
   number: issueNumber,
   title: z.string().max(TICKET_SNAPSHOT_TITLE_MAX_LENGTH).describe(
@@ -579,13 +673,17 @@ export const TicketSnapshotInputSchema = z.object({
   labels: z.array(providerLabelName).max(TICKET_SNAPSHOT_MAX_LABELS).describe(
     "Label display names on the issue, at most 50.",
   ),
+  labelIds: z.array(providerLabelId).max(TICKET_SNAPSHOT_MAX_LABELS)
+    .optional().describe(
+      "The provider's stable ids of the same labels, in the same order as labels. Label routing matches these, so renaming a label keeps its routing. Omitted by a reader that cannot name label ids; a source with routing rules then blocks the ticket as route_ambiguous instead of guessing.",
+    ),
   state: issueState,
   stateReason: issueStateReason,
   locked: z.boolean().describe(
     "Whether the issue is locked against new comments.",
   ),
-  repositoryFullName: repositoryFullName.describe(
-    "Repository the issue belongs to, in owner/name form.",
+  container: TicketContainerSchema.describe(
+    "Container the ticket belongs to, named in the provider's terms.",
   ),
 }).strict().superRefine((input, context) => {
   if ([...input.body].length > TICKET_PROVIDER_BODY_MAX_CODE_POINTS) {
@@ -593,6 +691,16 @@ export const TicketSnapshotInputSchema = z.object({
       code: "custom",
       path: ["body"],
       message: "The body exceeds 65,536 code points.",
+    });
+  }
+  if (
+    input.labelIds !== undefined &&
+    input.labelIds.length !== input.labels.length
+  ) {
+    context.addIssue({
+      code: "custom",
+      path: ["labelIds"],
+      message: "labelIds names the same labels as labels, one id each.",
     });
   }
 }).describe(
@@ -639,8 +747,8 @@ export const TicketSnapshotSchema = z.object({
   locked: z.boolean().describe(
     "Whether the issue was locked at the observation.",
   ),
-  repositoryFullName: repositoryFullName.describe(
-    "Repository the issue belonged to at the observation, in owner/name form.",
+  container: TicketContainerSchema.describe(
+    "Container the ticket belonged to at the observation, named in the provider's terms.",
   ),
   links: TicketLinksSchema.nullable().describe(
     "Native relationships at the observation, or null when the links read did not succeed. Absence is never inferred.",
@@ -811,8 +919,8 @@ export const TicketAuthorityEvidenceSchema = z.object({
     "Bakery principal that made an explicit request, or null for a webhook or poll origin.",
   ),
   provenance: z.object({
-    actorId: providerNumericId.describe(
-      "GitHub user id that applied the request label.",
+    actorId: providerOpaqueId.describe(
+      "Provider id of the actor that applied the request label.",
     ),
     actorLogin: z.string().min(1).max(100).describe(
       "GitHub login that applied the request label, as the issue event reported it.",
@@ -824,12 +932,16 @@ export const TicketAuthorityEvidenceSchema = z.object({
     "Who applied the request label and when, for a webhook or poll origin; null otherwise.",
   ),
   actorRole: z.object({
-    userId: providerNumericId.describe(
-      "GitHub user id the role answer is about.",
+    userId: providerOpaqueId.describe(
+      "Provider id of the actor the role answer is about.",
     ),
     permission: z.enum(["admin", "write", "read", "none"]).describe(
-      "Repository permission of that user at admission.",
+      "Provider permission name of that actor at admission, kept for evidence.",
     ),
+    rank: z.number().int().min(ACTOR_ROLE_RANK_MIN).max(ACTOR_ROLE_RANK_MAX)
+      .describe(
+        "Position on the provider's role ladder, higher is more authority. Admission compares ranks, never names, so a provider with other role names fits.",
+      ),
   }).strict().nullable().describe(
     "Repository role of the labelling actor at admission, for a webhook or poll origin; null otherwise.",
   ),

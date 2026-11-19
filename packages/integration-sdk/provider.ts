@@ -6,11 +6,16 @@
  * `node:` builtins, no `process.env` and no bare `fetch`, which rail B1 enforces.
  */
 export {
+  activatedProviders,
+  activateProviders,
   defineServerProvider,
   isServerProvider,
   serverProviderDefects,
 } from "./src/server-provider.ts";
+export { IntegrationActivationError } from "./src/errors.ts";
+export type { IntegrationDefect } from "./src/errors.ts";
 export type {
+  ActivatedProviders,
   CodeFor,
   ConnectFor,
   IngressFor,

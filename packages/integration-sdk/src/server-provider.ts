@@ -1,5 +1,10 @@
 import type { CodePort, TicketsPort } from "./family-ports.ts";
+import {
+  manifestDefects,
+  ProviderManifestSchema,
+} from "./provider-manifest.ts";
 import type { ProviderManifest } from "./provider-manifest.ts";
+import { IntegrationActivationError } from "./errors.ts";
 import type {
   DiscoveredResource,
   HealthProbe,
@@ -215,6 +220,12 @@ export function serverProviderDefects<M extends ProviderManifest>(
     if (connect !== null && "fields" in connect) {
       for (const field of connect.fields) collected.add(field.id);
     }
+    // An OAuth2 flow has no form, so its slots are what the exchange stores rather
+    // than what a person types. Without this the check would refuse every OAuth2
+    // provider that mints from the token it was just granted.
+    if (connect !== null && "secretSlots" in connect) {
+      for (const slot of connect.secretSlots) collected.add(slot);
+    }
   }
   for (const slot of impl.credentials.secretSlots) {
     if (!collected.has(slot)) {
@@ -296,3 +307,125 @@ export function isServerProvider(
 
 /** A resource a provider reported, re-exported for a signature that reads on its own. */
 export type { DiscoveredResource, ProviderRequestPort };
+
+/**
+ * The activated provider set: what this build deploys, or nothing.
+ *
+ * `activateProviders` (rail B8, section 12.4). Startup calls it once with the
+ * registry's own list, so a provider defect stops the process instead of surfacing
+ * at the first delivery — the same shape as the integration tier's
+ * `activateDeployedIntegrations`, and for the same reason: a name lookup re-derived
+ * locally is how two views of "which providers exist" start disagreeing.
+ *
+ * Every defect is collected before it throws, so one run names every problem rather
+ * than the first. That matters because the common failure is not one broken
+ * provider: it is a package added to one registry line and not the other.
+ */
+export function activateProviders(
+  list: readonly unknown[],
+): ActivatedProviders {
+  const defects: ProviderDefect[] = [];
+  const providers: ServerProvider<ProviderManifest>[] = [];
+  // Three keys, because all three are how a caller can reach a provider and two
+  // providers sharing one of them means one silently shadows the other.
+  const bySlug = new Map<string, string>();
+  const byIntegrationId = new Map<string, string>();
+  const byUuid = new Map<string, string>();
+
+  for (const [index, candidate] of list.entries()) {
+    const at = `providers[${index}]`;
+    if (!isServerProvider(candidate)) {
+      defects.push({
+        path: at,
+        message: "Not created by defineServerProvider.",
+      });
+      continue;
+    }
+    const parsed = ProviderManifestSchema.safeParse(candidate.manifest);
+    if (!parsed.success) {
+      // The manifest crosses a boundary at runtime, so it is re-validated rather
+      // than trusted: `defineServerProvider` is a type-level guarantee only.
+      for (const issue of parsed.error.issues) {
+        defects.push({
+          path: `${at}.manifest.${issue.path.join(".")}`,
+          message: issue.message,
+        });
+      }
+      continue;
+    }
+    for (const message of manifestDefects(parsed.data)) {
+      defects.push({ path: `${at}.manifest`, message });
+    }
+    for (const defect of serverProviderDefects(candidate)) {
+      defects.push({ path: `${at}.${defect.path}`, message: defect.message });
+    }
+
+    const claim = (map: Map<string, string>, key: string, field: string) => {
+      const owner = map.get(key);
+      if (owner !== undefined) {
+        defects.push({
+          path: `${at}.manifest.${field}`,
+          message:
+            `${key} is already claimed by ${owner}; a duplicate means one provider shadows the other at lookup time.`,
+        });
+        return;
+      }
+      map.set(key, candidate.manifest.integrationId);
+    };
+    claim(bySlug, candidate.manifest.slug, "slug");
+    claim(byIntegrationId, candidate.manifest.integrationId, "integrationId");
+    claim(byUuid, candidate.manifest.providerUuid, "providerUuid");
+    providers.push(candidate);
+  }
+
+  if (defects.length > 0) {
+    // The integration tier's error carries a stable code per defect and this tier's
+    // does not, so every provider defect is reported under one code: what a person
+    // acts on is the path and the message, and inventing per-defect codes here
+    // would be a second vocabulary for the same faults.
+    throw new IntegrationActivationError(
+      defects.map((defect) => ({
+        code: "provider-defect",
+        path: defect.path,
+        message: defect.message,
+      })),
+    );
+  }
+  return activatedProviders(providers);
+}
+
+/**
+ * The activated list and its lookups.
+ *
+ * Frozen, because a caller that mutated this list would change what the gate routes
+ * to at runtime with nothing to show a reviewer. A `Map` rather than an object
+ * literal for the same reason the integration registry uses one: a slug arriving
+ * from a request is hostile input, and an object would answer `constructor`.
+ */
+export function activatedProviders(
+  providers: readonly ServerProvider<ProviderManifest>[],
+): ActivatedProviders {
+  const frozen = Object.freeze([...providers]);
+  const slugIndex = new Map(frozen.map((p) => [p.manifest.slug, p]));
+  const idIndex = new Map(frozen.map((p) => [p.manifest.integrationId, p]));
+  return Object.freeze({
+    providers: frozen,
+    get(slug: string) {
+      return slugIndex.get(slug);
+    },
+    getByIntegrationId(integrationId: string) {
+      return idIndex.get(integrationId);
+    },
+  });
+}
+
+/** The activated provider set, as the registry hands it to the server. */
+export type ActivatedProviders = Readonly<{
+  providers: readonly ServerProvider<ProviderManifest>[];
+  /** The provider naming a slug, or `undefined` when the slug is not deployed. */
+  get(slug: string): ServerProvider<ProviderManifest> | undefined;
+  /** The provider naming a gate id, or `undefined` when it is not deployed. */
+  getByIntegrationId(
+    integrationId: string,
+  ): ServerProvider<ProviderManifest> | undefined;
+}>;

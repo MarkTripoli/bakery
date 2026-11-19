@@ -637,11 +637,14 @@ Deno.test("repository rule overrides and effective reads hold tenant isolation a
       //   active-profile command ids; it carries rule keys, never ids.
       // - providerProtection: a constant state plus whether this repository's
       //   own connection (organization predicate) is enabled; no ids.
+      // - hasFixedPolicy: a boolean, whether this repository's own pin names a
+      //   fixed policy; no ids.
       // - repositoryVersion: this repository row's version.
       assertEquals(Object.keys(body).sort(), [
         "checkers",
         "digest",
         "entries",
+        "hasFixedPolicy",
         "organizationRevision",
         "profileId",
         "profileRevision",

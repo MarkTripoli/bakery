@@ -1,5 +1,5 @@
 {
-  "revision": "0b23c9467754ca89192e875d26b63222fdbbcd090882af0988e3fc868e991a99",
+  "revision": "671f065d6e6b2245e33f6718e6949348999a0003183a9ed4dbe8cf140ab3fe88",
   "schemaVersion": 1,
   "owner": "Mark Tripoli",
   "rules": [
@@ -7558,6 +7558,136 @@
         ]
       },
       "paperAbsentReason": "Designed in the #71 UX design comment (2026-11-13); no Paper frame names it."
+    },
+    {
+      "id": "ui.documentEditor",
+      "name": "DocumentEditor",
+      "description": "A plain-text editor for long shared documents, on CodeMirror: one multi-line text field that shows a placeholder while empty and can be read-only; the shared-document binding is passed in by the page.",
+      "level": "molecule",
+      "owner": "Mark Tripoli",
+      "storyTitle": "Bakery/Molecules/DocumentEditor",
+      "usage": {
+        "whenToUse": "Edit a long document as plain text, alone or together with others, where the page supplies the sharing as extensions.",
+        "whenNotToUse": "Do not use it for a short single-line value (use a text field) or for comments (use the comment editor); it does not decide what is saved or shared.",
+        "ruleIds": [
+          "ui.semantic-import",
+          "ui.layout-containment",
+          "ui.accessible-control",
+          "ui.translated-copy"
+        ],
+        "alternatives": [],
+        "replacesElements": [],
+        "allowedLevels": [
+          "molecule",
+          "organism",
+          "template",
+          "page",
+          "app"
+        ]
+      },
+      "paper": [],
+      "a11y": {
+        "role": "textbox",
+        "accessibleName": "aria-label",
+        "keyboard": [
+          "Tab moves focus into and out of the editor",
+          "Standard text-editing keys; Mod-Z undoes and Mod-Shift-Z redoes"
+        ],
+        "targetSize": "The whole editing surface is the target",
+        "notes": "One multi-line text field named by aria-label. Read-only keeps the text selectable and reports aria-readonly. Other people's carets are never the only carrier of who is here; the presence row names them."
+      },
+      "tokens": [
+        "--border-default",
+        "--color-border",
+        "--color-fg",
+        "--color-fg-muted",
+        "--color-focus",
+        "--color-selection",
+        "--color-surface",
+        "--color-surface-subtle",
+        "--focus-offset",
+        "--focus-width",
+        "--layout-content",
+        "--radius-surface",
+        "--space-3",
+        "--space-4",
+        "--type-field"
+      ],
+      "variants": [
+        "default"
+      ],
+      "states": [
+        "editable",
+        "readOnly"
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "layoutProfiles": [
+        "sheet",
+        "pane",
+        "rail"
+      ],
+      "pointerProfiles": [
+        "coarse",
+        "fine"
+      ],
+      "requirementIds": [
+        "theme.paired",
+        "layout.reflow",
+        "pointer.independent",
+        "a11y.semantic-focus",
+        "i18n.translated-logical"
+      ],
+      "requiredCases": [
+        {
+          "id": "contract",
+          "description": "Exercises an empty editor with its placeholder, one with text, a read-only one, one bound to a shared document, and one whose first edit arrives right after mount.",
+          "variants": [
+            "default"
+          ],
+          "states": [
+            "editable",
+            "readOnly"
+          ],
+          "baselineIds": []
+        }
+      ],
+      "evidenceRefs": [
+        "design.auth"
+      ],
+      "status": "implemented",
+      "coverage": {
+        "automated": {
+          "theme:light": [
+            "runtime:ui.documentEditor.contract.desktop-light-fine"
+          ],
+          "theme:dark": [
+            "suite:storybook.canonical-dark-axe"
+          ],
+          "layout:sheet": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:pane": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:rail": [
+            "runtime:ui.documentEditor.contract.desktop-light-fine"
+          ],
+          "pointer:fine": [
+            "runtime:ui.documentEditor.contract.desktop-light-fine"
+          ],
+          "pointer:coarse": [
+            "suite:storybook.coarse-targets"
+          ]
+        },
+        "notApplicable": {},
+        "visualContexts": [
+          "desktop-light-fine"
+        ]
+      },
+      "paperAbsentReason": "Designed in the #71 UX design comment (2026-11-13), section A \"Editor\"; no Paper frame names it."
     },
     {
       "id": "ui.suggestionCard",

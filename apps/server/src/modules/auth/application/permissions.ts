@@ -27,9 +27,11 @@ const minimumRoleByAccess = new Map<
   ],
   [ActionAccess.CurrentMember, OrganizationRole.Developer],
   [ActionAccess.CurrentMemberLinkingSelf, OrganizationRole.Developer],
+  // Developer is the floor: the action's own guard raises the bar to Admin for
+  // the organization-scope case, which a single role mapping cannot express.
   [
     ActionAccess.DeveloperForPersonalAdminForOrganization,
-    OrganizationRole.Admin,
+    OrganizationRole.Developer,
   ],
   [ActionAccess.DeveloperAndAdmissionAuthority, OrganizationRole.Developer],
   [ActionAccess.DeveloperAndDeployGrant, OrganizationRole.Developer],
@@ -47,7 +49,11 @@ const minimumRoleByAccess = new Map<
   [ActionAccess.InitiatingPrincipalOrAdmin, OrganizationRole.Developer],
   [ActionAccess.LinkedPrincipalOrAdmin, OrganizationRole.Developer],
   [ActionAccess.OrganizationMember, OrganizationRole.Developer],
-  [ActionAccess.OwnerForPersonalAdminForOrganization, OrganizationRole.Admin],
+  // Developer is the floor; the guard checks ownership per row.
+  [
+    ActionAccess.OwnerForPersonalAdminForOrganization,
+    OrganizationRole.Developer,
+  ],
 ]);
 
 const minimumRoleByPermission = new Map<
@@ -85,6 +91,10 @@ export const viewerPermissionExclusions = Object.freeze(
     "jobAttempt:read": "Job attempts expose worker execution data.",
     "outputStream:read": "Output streams expose live execution data.",
     "pluginState:read": "Plugin state may contain arbitrary owner-scoped data.",
+    "providerIncident:read":
+      "Provider incidents expose operational failure detail across the organization.",
+    "providerRoute:read":
+      "Provider routes expose which integrations are paused and why, an operational view.",
     "secret:read": "Secret reads expose credential metadata.",
     "session:read":
       "Agent sessions expose execution-resumption and harness metadata.",
