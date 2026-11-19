@@ -193,9 +193,15 @@ for (
       ).toBeVisible();
     });
 
-    test("work started by a teammate says so", async ({ page }) => {
+    test("work started by another member names them", async ({ page }) => {
       await open(page, { ...ONE_REPOSITORY, byMe: false });
-      await expect(section(page).getByText(/started by a teammate/))
+      await expect(section(page).getByText(/started by Ana Reyes · /))
+        .toBeVisible();
+    });
+
+    test("work started by somebody the member list does not show says a teammate", async ({ page }) => {
+      await open(page, { ...ONE_REPOSITORY, byMe: "unlisted" });
+      await expect(section(page).getByText(/started by a teammate · /))
         .toBeVisible();
     });
 

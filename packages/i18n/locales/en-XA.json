@@ -4454,5 +4454,7 @@
   "issues.work.banner.labelRemoved": "⟦Þàûšëð: ŧĥë \"{label}\" ļàƀëļ ŵàš ŕëɱôṽëð. Ŵôŕķ çôñŧïñûëš ŵĥëñ ïŧ ïš ƀàçķ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
   "issues.work.banner.labelRemovedPlain": "⟦Þàûšëð: ŧĥë ļàƀëļ ŧĥàŧ šŧàŕŧëð ŧĥïš ŵôŕķ ŵàš ŕëɱôṽëð. Ŵôŕķ çôñŧïñûëš ŵĥëñ ïŧ ïš ƀàçķ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "issues.work.banner.onHold": "⟦Þàûšëð: ôñ ĥôļð. ŧëš⟧",
-  "issues.work.banner.dependencyUnreadable": "⟦Þàûšëð: Ɓàķëŕÿ çàññôŧ ŕëàð àñ ïššûë ŧĥïš ôñë ðëþëñðš ôñ. ŧëšŧ çôþÿ ŧëšŧ çô⟧"
+  "issues.work.banner.dependencyUnreadable": "⟦Þàûšëð: Ɓàķëŕÿ çàññôŧ ŕëàð àñ ïššûë ŧĥïš ôñë ðëþëñðš ôñ. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
+  "issues.work.by.named": "⟦šŧàŕŧëð ƀÿ {name} ŧëš⟧",
+  "issues.work.by.namedAdopted": "⟦šŧàŕŧëð ƀÿ {name}; ŧĥë ļàƀëļ ŵàš àļŕëàðÿ ôñ ŧĥë ïššûë ŧëšŧ çôþÿ ŧëšŧ ç⟧"
 }

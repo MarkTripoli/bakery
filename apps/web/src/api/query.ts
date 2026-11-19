@@ -1,4 +1,5 @@
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
+import type { MembershipPage } from "./access-client.ts";
 import type {
   AgentDefinitionResponse,
   AgentVersionResponse,
@@ -215,6 +216,26 @@ export function ticketSourcesListQueryOptions(
         }),
       );
     },
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/** The organization's members with the names they go by, so "started by" can name a person. */
+export function organizationMembersQueryOptions(
+  client: Pick<BakeryApiClient, "access">,
+  scope: ApiScope,
+) {
+  return queryOptions<MembershipPage, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "organizationMemberships.list", {}),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.access.members.list({
+          organizationId: requireOrganization(scope),
+          limit: 100,
+          signal,
+        }),
+      ),
     enabled: Boolean(scope.organizationId),
     retry: retryNetworkOnce,
   });

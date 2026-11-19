@@ -889,6 +889,7 @@ Deno.test("organization read projections use canonical rows and preserve null ro
             id: serviceId,
             organizationId: organizationA,
             principalId: serviceId,
+            displayName: "Build agent",
             role: null,
             status: "active",
             joinedAt: createdAt,
@@ -982,6 +983,8 @@ Deno.test("organization read projections use canonical rows and preserve null ro
   assertEquals(organizations.items[0].metadata, { source: "canonical" });
   assertEquals(organization.metadata, { source: "canonical" });
   assertEquals(memberships.items[0].role, null);
+  // A member list names people (#69): the principal's display name is served.
+  assertEquals(memberships.items[0].displayName, "Build agent");
   assertEquals(invitations.items[0].inviterPrincipalId, serviceId);
   assertEquals(recipient.inviterId, serviceId);
   assertEquals(recipient.inviterEmail, null);

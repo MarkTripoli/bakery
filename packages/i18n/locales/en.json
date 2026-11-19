@@ -3567,6 +3567,8 @@
   "issues.work.by.member": "started by a teammate",
   "issues.work.by.youAdopted": "started by you; the label was already on the issue",
   "issues.work.by.memberAdopted": "started by a teammate; the label was already on the issue",
+  "issues.work.by.named": "started by {name}",
+  "issues.work.by.namedAdopted": "started by {name}; the label was already on the issue",
   "issues.work.by.label": "started from the \"{label}\" label on GitHub",
   "issues.work.task.draft": "Draft",
   "issues.work.task.queued": "Queued",

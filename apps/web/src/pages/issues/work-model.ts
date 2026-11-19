@@ -63,14 +63,14 @@ export function progressNext(progress: WorkProgress): WorkNext {
 /** Who or what began the work, as the line under the state reads it. */
 export type WorkStartedBy =
   | { kind: "you" }
-  | { kind: "member" }
+  | { kind: "member"; name: string | null }
   | { kind: "youAdopted" }
-  | { kind: "memberAdopted" }
+  | { kind: "memberAdopted"; name: string | null }
   | { kind: "label"; label: string | null };
 
 /**
- * Names the origin of a request. Memberships carry no display name, so a
- * person other than the viewer is "a teammate" rather than a guess.
+ * Names the origin of a request. The viewer is "you"; another person is named
+ * by `nameOf` (the memberships read), or is "a teammate" while no name is known.
  */
 export function startedBy(
   request: Pick<
@@ -78,14 +78,18 @@ export function startedBy(
     "origin" | "requestedByPrincipalId" | "triggerLabelName"
   >,
   viewerPrincipalId: string | null,
+  nameOf: (principalId: string) => string | null = () => null,
 ): WorkStartedBy {
   const mine = viewerPrincipalId !== null &&
     request.requestedByPrincipalId === viewerPrincipalId;
+  const name = request.requestedByPrincipalId === null
+    ? null
+    : nameOf(request.requestedByPrincipalId);
   switch (request.origin) {
     case "manual":
-      return { kind: mine ? "you" : "member" };
+      return mine ? { kind: "you" } : { kind: "member", name };
     case "adoption":
-      return { kind: mine ? "youAdopted" : "memberAdopted" };
+      return mine ? { kind: "youAdopted" } : { kind: "memberAdopted", name };
     case "webhook":
     case "poll":
       return { kind: "label", label: request.triggerLabelName };

@@ -108709,6 +108709,11 @@
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
               "description": "UUID of the principal associated with this organization membership record."
             },
+            "displayName": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Display name of the member's principal, so a member list can name people. Every organization member may read it; it is the name the person chose, never an email address."
+            },
             "role": {
               "anyOf": [
                 {
@@ -108765,6 +108770,7 @@
             "id",
             "organizationId",
             "principalId",
+            "displayName",
             "role",
             "status",
             "joinedAt",
@@ -199765,6 +199771,11 @@
                     "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                     "description": "UUID of the principal associated with this organization membership record."
                   },
+                  "displayName": {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Display name of the member's principal, so a member list can name people. Every organization member may read it; it is the name the person chose, never an email address."
+                  },
                   "role": {
                     "anyOf": [
                       {
@@ -199821,6 +199832,7 @@
                   "id",
                   "organizationId",
                   "principalId",
+                  "displayName",
                   "role",
                   "status",
                   "joinedAt",
@@ -224337,7 +224349,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:c943d8a09def9a2b20a8b1cb56020e8b9c1efbf334e3efcac1cc03cb943fa22f",
+  "compatibilityDigest": "sha256:b3e98b81f6a9f17680de7e4e3b37955645858b97e14b972882b162f886102ec7",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -296172,6 +296184,11 @@
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
           "description": "UUID of the principal associated with this organization membership record."
         },
+        "displayName": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Display name of the member's principal, so a member list can name people. Every organization member may read it; it is the name the person chose, never an email address."
+        },
         "role": {
           "anyOf": [
             {
@@ -296228,6 +296245,7 @@
         "id",
         "organizationId",
         "principalId",
+        "displayName",
         "role",
         "status",
         "joinedAt",
@@ -387390,6 +387408,11 @@
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "description": "UUID of the principal associated with this organization membership record."
               },
+              "displayName": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Display name of the member's principal, so a member list can name people. Every organization member may read it; it is the name the person chose, never an email address."
+              },
               "role": {
                 "anyOf": [
                   {
@@ -387446,6 +387469,7 @@
               "id",
               "organizationId",
               "principalId",
+              "displayName",
               "role",
               "status",
               "joinedAt",

@@ -325,6 +325,8 @@ Deno.test("principal and organization reads observe live multi-organization auth
     assertEquals(membershipPage.items.length, 1);
     assertEquals(membershipPage.items[0].principalId, principalId);
     assertEquals(membershipPage.items[0].role, "developer");
+    // A member list names people (#69): the principal's display name is served.
+    assert(String(membershipPage.items[0].displayName).length > 0);
 
     const invitations = await get(
       `/v1/organizations/${organizationA}/invitations`,
@@ -1086,7 +1088,9 @@ Deno.test("authorized lifecycle mutations remain Better Auth compatible", async 
       { role: "admin" },
     );
     assertEquals(promoted.status, 200, await promoted.clone().text());
-    assertEquals((await promoted.json()).version, 2);
+    const promotedMembership = await promoted.json();
+    assertEquals(promotedMembership.version, 2);
+    assert(String(promotedMembership.displayName).length > 0);
     assertEquals(
       (await changeMembership(
         founderCookie,
@@ -1124,6 +1128,11 @@ Deno.test("authorized lifecycle mutations remain Better Auth compatible", async 
     assertEquals(recreated.status, 201, await recreated.clone().text());
     const recreatedMembership = await recreated.json();
     assertEquals(recreatedMembership.version, 1);
+    // Created and updated memberships carry the same name of the same person.
+    assertEquals(
+      recreatedMembership.displayName,
+      promotedMembership.displayName,
+    );
     assertEquals(
       (await changeMembership(
         founderCookie,

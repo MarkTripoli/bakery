@@ -151,8 +151,11 @@ export type WorkSeed = {
     | "canceled"
     | "rejected";
   origin?: "manual" | "adoption" | "webhook" | "poll";
-  /** Started by the signed-in person (default) or by somebody else. */
-  byMe?: boolean;
+  /**
+   * Started by the signed-in person (default), by a listed teammate (false:
+   * Ana Reyes), or by somebody the memberships read does not list ("unlisted").
+   */
+  byMe?: boolean | "unlisted";
   triggerLabel?: string | null;
   reason?: string | null;
   pausedReason?:
@@ -504,6 +507,8 @@ export async function issuesFixture(page: Page, options: Options = {}) {
           requestedByPrincipalId: (work.origin ?? "manual") === "webhook" ||
               (work.origin ?? "manual") === "poll"
             ? null
+            : work.byMe === "unlisted"
+            ? uuid(8801)
             : work.byMe === false
             ? uuid(8800)
             : MOCK_PRINCIPAL_ID,
@@ -532,6 +537,30 @@ export async function issuesFixture(page: Page, options: Options = {}) {
         body: page_(items),
       });
     },
+  );
+  const member = (principalId: string, displayName: string, index: number) => ({
+    id: uuid(9100 + index),
+    organizationId: MOCK_ORGANIZATION_ID,
+    principalId,
+    displayName,
+    role: "developer",
+    status: "active",
+    joinedAt: stamp,
+    createdAt: stamp,
+    updatedAt: stamp,
+    version: 1,
+  });
+  await page.route(
+    `**/v1/organizations/${MOCK_ORGANIZATION_ID}/memberships**`,
+    (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: page_([
+          member(MOCK_PRINCIPAL_ID, "Fixture Admin", 0),
+          member(uuid(8800), "Ana Reyes", 1),
+        ]),
+      }),
   );
   await page.route(
     (url) => url.pathname === "/v1/ticket-task-links",

@@ -60,13 +60,36 @@ Deno.test("who started the work: the viewer, a teammate, or a label", () => {
     triggerLabelName: null,
   } as const;
   assertEquals(startedBy(manual, ME), { kind: "you" });
-  assertEquals(startedBy(manual, OTHER), { kind: "member" });
-  assertEquals(startedBy(manual, null), { kind: "member" });
+  assertEquals(startedBy(manual, OTHER), { kind: "member", name: null });
+  assertEquals(startedBy(manual, null), { kind: "member", name: null });
+  // A name the memberships read knows is used; one it does not know is not.
+  const names = (id: string) =>
+    id === ME ? "Mark" : id === OTHER ? "Ana Reyes" : null;
+  assertEquals(startedBy(manual, ME, names), { kind: "you" });
+  assertEquals(
+    startedBy({ ...manual, requestedByPrincipalId: ME }, OTHER, names),
+    {
+      kind: "member",
+      name: "Mark",
+    },
+  );
+  assertEquals(
+    startedBy(
+      {
+        ...manual,
+        requestedByPrincipalId: "0195f000-0000-7000-8000-0000000000ff",
+      },
+      OTHER,
+      names,
+    ),
+    { kind: "member", name: null },
+  );
   assertEquals(startedBy({ ...manual, origin: "adoption" }, ME), {
     kind: "youAdopted",
   });
   assertEquals(startedBy({ ...manual, origin: "adoption" }, OTHER), {
     kind: "memberAdopted",
+    name: null,
   });
   for (const origin of ["webhook", "poll"] as const) {
     assertEquals(

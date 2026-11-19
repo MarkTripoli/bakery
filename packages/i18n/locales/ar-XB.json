@@ -4454,5 +4454,7 @@
   "issues.work.banner.labelRemoved": "⟪Paused: the \"{label}\" label was removed. Work continues when it is back.⟫",
   "issues.work.banner.labelRemovedPlain": "⟪Paused: the label that started this work was removed. Work continues when it is back.⟫",
   "issues.work.banner.onHold": "⟪Paused: on hold.⟫",
-  "issues.work.banner.dependencyUnreadable": "⟪Paused: Bakery cannot read an issue this one depends on.⟫"
+  "issues.work.banner.dependencyUnreadable": "⟪Paused: Bakery cannot read an issue this one depends on.⟫",
+  "issues.work.by.named": "⟪started by {name}⟫",
+  "issues.work.by.namedAdopted": "⟪started by {name}; the label was already on the issue⟫"
 }

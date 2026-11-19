@@ -7,6 +7,7 @@ import type {
   TicketTaskLinkResponse,
 } from "../api/client.ts";
 import {
+  organizationMembersQueryOptions,
   pullRequestsQueryOptions,
   repositoryQueryOptions,
   taskQueryOptions,
@@ -25,9 +26,17 @@ import {
   progressNext,
   progressReason,
   startedBy,
+  type WorkStartedBy,
 } from "./issues/work-model.ts";
 
 type Translate = ReturnType<typeof useI18n>["translate"];
+
+/** The catalog key for who started the work: a known person is named, an unknown one is "a teammate". */
+function byKey(by: WorkStartedBy): string {
+  if (by.kind === "member" && by.name !== null) return "named";
+  if (by.kind === "memberAdopted" && by.name !== null) return "namedAdopted";
+  return by.kind;
+}
 
 /** "12 minutes ago", or "just now" inside the first minute. */
 function ago(at: string, translate: Translate): string {
@@ -280,6 +289,10 @@ export function IssueWork(
   const viewer = useSession().identity?.principalId ?? null;
   const requests = useQuery(ticketRequestsQueryOptions(api, scope, issueId));
   const links = useQuery(ticketLinksByIssueQueryOptions(api, scope, issueId));
+  const members = useQuery(organizationMembersQueryOptions(api, scope));
+  const nameOf = (principalId: string) =>
+    members.data?.items.find((member) => member.principalId === principalId)
+      ?.displayName ?? null;
   const request = currentRequest(requests.data?.items ?? []);
   const linkItems = links.data?.items ?? [];
   const own = request === null
@@ -316,7 +329,7 @@ export function IssueWork(
   }
   if (request === null && linkItems.length === 0) return null;
 
-  const by = request === null ? null : startedBy(request, viewer);
+  const by = request === null ? null : startedBy(request, viewer, nameOf);
   const reason = request === null ? null : progressReason(request);
   const next = request === null ? "none" : progressNext(request.progress);
   const repositoryTargets = request?.targets ?? [];
@@ -342,8 +355,11 @@ export function IssueWork(
                 : null}
               <UI.Text variant="muted">
                 {[
-                  translate(`issues.work.by.${by.kind}` as never, {
+                  translate(`issues.work.by.${byKey(by)}` as never, {
                     label: by.kind === "label" ? by.label ?? "" : "",
+                    name: by.kind === "member" || by.kind === "memberAdopted"
+                      ? by.name ?? ""
+                      : "",
                   }),
                   ago(request.createdAt, translate),
                 ].filter(Boolean).join(" · ")}

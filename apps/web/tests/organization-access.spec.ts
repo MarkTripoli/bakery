@@ -68,11 +68,17 @@ type World = {
   seen: Seen[];
 };
 
-function membership(id: string, principalId: string, role: string): Body {
+function membership(
+  id: string,
+  principalId: string,
+  role: string,
+  displayName = "Fixture member",
+): Body {
   return {
     id,
     organizationId: ORG,
     principalId,
+    displayName,
     role,
     status: "active",
     joinedAt: STAMP,
