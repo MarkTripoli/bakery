@@ -429,6 +429,18 @@ export const notificationImplementedActions = Object.freeze(
   Object.values(NotificationImplementedAction),
 );
 
+export const RunRequestImplementedAction = Object.freeze(
+  {
+    RunRequestsCreate: "runRequests.create",
+    RunRequestsList: "runRequests.list",
+    RunRequestsMine: "runRequests.mine",
+    RunRequestsWithdraw: "runRequests.withdraw",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const runRequestImplementedActions = Object.freeze(
+  Object.values(RunRequestImplementedAction),
+);
+
 export const GroupImplementedAction = Object.freeze(
   {
     GroupsList: "groups.list",
@@ -628,6 +640,24 @@ export const blobUploadImplementedActions = Object.freeze(
   Object.values(BlobUploadImplementedAction),
 );
 
+export const StorageImplementedAction = Object.freeze(
+  {
+    StorageFilesPut: "storageFiles.put",
+    StorageFoldersCreate: "storageFolders.create",
+    StorageEntriesCopy: "storageEntries.copy",
+    StorageEntriesMove: "storageEntries.move",
+    StorageEntriesTrash: "storageEntries.trash",
+    StorageEntriesRestore: "storageEntries.restore",
+    StorageEntriesPurge: "storageEntries.purge",
+    StorageTrashList: "storageTrash.list",
+    StorageSettingsGet: "storageSettings.get",
+    StorageSettingsPut: "storageSettings.put",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const storageImplementedActions = Object.freeze(
+  Object.values(StorageImplementedAction),
+);
+
 export const CatalogImplementedAction = Object.freeze(
   {
     SkillSourcesList: "skillSources.list",
@@ -732,6 +762,7 @@ export const implementedActions = Object.freeze(
     ...notificationImplementedActions,
     ...groupImplementedActions,
     ...emailSettingsImplementedActions,
+    ...runRequestImplementedActions,
     ...workflowImplementedActions,
     ...workflowActionDiscoveryImplementedActions,
     ...automationImplementedActions,
@@ -745,6 +776,7 @@ export const implementedActions = Object.freeze(
     ...mcpServerImplementedActions,
     ...mcpConnectionImplementedActions,
     ...blobUploadImplementedActions,
+    ...storageImplementedActions,
     ...memoryImplementedActions,
   ] as const,
 );
