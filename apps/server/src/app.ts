@@ -30,6 +30,8 @@ import {
   type InstallationTokenBroker,
 } from "./modules/integrations/index.ts";
 import { createProviderRequestPort } from "./modules/integrations/credential-port.ts";
+import { GITHUB_PROVIDER } from "./modules/integrations/registry.ts";
+import { selectTicketSourceReader } from "./modules/work/ticket-reader-selection.ts";
 import { readAppCredentials } from "./modules/integrations/callbacks.ts";
 import { loadSnapshot } from "./modules/catalog/authority-snapshot-postgres.ts";
 import { withPgTransaction } from "./platform/database.ts";
@@ -802,10 +804,21 @@ export function createApp(options: {
       session: tokenSession,
       publicBaseUrl: options.config.publicBaseUrl,
       cursorSecret: options.config.auth.secret,
-      reader: options.ticketReader ?? createTicketSourceReader({
-        ...integrations,
-        database: options.pgDatabase,
-      }),
+      // Chosen per source, by the provider its connection names: a build that
+      // deploys one provider's reader must not read another provider's sources
+      // with it. A provider with no reader here fails closed rather than falling
+      // back to whichever reader a map happened to yield first.
+      reader: options.ticketReader ?? selectTicketSourceReader(
+        new Map([
+          [
+            GITHUB_PROVIDER,
+            createTicketSourceReader({
+              ...integrations,
+              database: options.pgDatabase,
+            }),
+          ],
+        ]),
+      ),
       factIndex: options.ticketFactIndex ?? createTicketFactIndex(),
       budget: options.config.budget,
       // The composition root names the provider whose comment action writes

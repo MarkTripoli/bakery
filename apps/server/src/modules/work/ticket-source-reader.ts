@@ -44,6 +44,15 @@ export type TicketSourceHandle = {
   organizationId: string;
   connectionId: string;
   resourceId: string;
+  /**
+   * The provider slug of the connection this source reads.
+   *
+   * On the handle rather than looked up per read: every read already carries the
+   * handle, and a lookup would be a database round trip per call to learn
+   * something the caller loaded to build the handle in the first place. It is a
+   * slug, not a type: the work module never enumerates providers.
+   */
+  provider: string;
   repositoryFullName: string;
   externalRepositoryId: string;
 };
