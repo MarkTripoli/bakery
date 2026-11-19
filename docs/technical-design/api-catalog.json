@@ -6333,7 +6333,7 @@
       "access": "Developer",
       "permission": "mergeEntry:read",
       "organizationContext": "required_authenticated_context",
-      "input": "RepositoryQuery",
+      "input": "MergeEntryQuery",
       "output": "Page<MergeEntry>",
       "errors": [
         "AUTH_REQUIRED",

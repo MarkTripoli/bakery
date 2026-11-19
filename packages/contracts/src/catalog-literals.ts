@@ -871,6 +871,7 @@ export type ContractInputName =
   | "MergeAttemptQuery"
   | "MergeAttemptReconcile"
   | "MergeEntryCreate"
+  | "MergeEntryQuery"
   | "MergeInput"
   | "MessageCreate"
   | "MessageQuery"
