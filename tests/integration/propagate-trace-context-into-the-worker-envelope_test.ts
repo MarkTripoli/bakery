@@ -119,3 +119,44 @@ Deno.test("a run with no recorded context still yields a frozen root", () =>
     assertEquals(context.spanId.length, 16);
     assertEquals(context.traceId.length, 32);
   }));
+
+// A test that fails must fail in its own time.
+//
+// QA saw this file take 3m13s and a sibling 4m22s under a mutant: the assertion
+// threw, but a claim still held a transaction, so `pool.end()` in teardown
+// waited on that client and the run inherited the database's statement timeout.
+// The kill was correct; the failure mode was not, because a slow failure reads
+// as infrastructure and teaches people to re-run rather than to read.
+//
+// This does not reproduce that - on a healthy host at load 27-35 the mutant
+// asserts in 2s and I never saw the hang. It holds the condition that produced
+// it (a client checked out, in a transaction, when the body throws) and fails if
+// teardown is ever allowed to wait on one again.
+Deno.test("a failing case does not let teardown wait on a held transaction", async () => {
+  const started = performance.now();
+  let observed: unknown;
+
+  try {
+    await withWorkerFixture(async (fixture) => {
+      // Held open on purpose and never released from here: teardown is what has
+      // to cope with it, so releasing it would test nothing.
+      const client = await fixture.pgDatabase.connect();
+      await client.query("begin");
+      await client.query("select 1");
+      throw new Error("the case failed while a claim held its transaction");
+    });
+  } catch (error) {
+    observed = error;
+  }
+
+  const elapsed = performance.now() - started;
+  assert(
+    observed instanceof Error &&
+      observed.message === "the case failed while a claim held its transaction",
+    "the original failure did not reach the caller, so its reason was lost",
+  );
+  assert(
+    elapsed < 30_000,
+    `teardown waited on the held transaction: ${Math.round(elapsed)}ms`,
+  );
+});
