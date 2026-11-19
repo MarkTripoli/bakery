@@ -147,6 +147,15 @@ export function readTelemetrySinkConfig(
     otlpHeaders: parseHeaders(otlpHeaders),
   });
   if (!parsed.success) throw new Error("TELEMETRY_SINK_CONFIG_INVALID");
+  // A configuration with no destination is refused rather than accepted. It reads
+  // as "telemetry is configured", and the server then counts every record as
+  // exported while nothing is written anywhere - the defect this work exists to
+  // remove, one level up.
+  if (
+    parsed.data.logDir === undefined && parsed.data.otlpEndpoint === undefined
+  ) {
+    throw new Error("TELEMETRY_SINK_CONFIG_INVALID");
+  }
   return parsed.data;
 }
 

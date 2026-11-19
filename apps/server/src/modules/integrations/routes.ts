@@ -4,6 +4,7 @@ import {
   coerceQueryInput,
 } from "@bakery/contracts/action-registry";
 import { contractSchemas } from "@bakery/contracts/contracts";
+import type { WebhookIngress } from "@bakery/integration-sdk";
 import { IntegrationsImplementedAction } from "@bakery/contracts/implemented-actions";
 import {
   type ActionContextSeed,
@@ -123,6 +124,13 @@ export function createIntegrationsRoutes(options: {
   integrationRegistry: ActiveIntegrationRegistry;
   /** The provider request port the invoke door sends through. */
   providerRequests?: ProviderRequestPort;
+  /**
+   * The ingress port that verifies and classifies a signed webhook delivery.
+   *
+   * Passed through from the composition root, which is the one place that
+   * names which provider serves the webhook path.
+   */
+  ingress: WebhookIngress;
 }) {
   const registry = createIntegrationsActionRegistry(options.database, {
     publicBaseUrl: options.publicBaseUrl,
@@ -155,9 +163,9 @@ export function createIntegrationsRoutes(options: {
         context,
         registry,
         options.publicBaseUrl,
-        IntegrationsImplementedAction.GitHubManifestCallback,
+        IntegrationsImplementedAction.IntegrationManifestCallback,
         (query) =>
-          coerceQueryInput(contractSchemas.GitHubManifestCallback, query),
+          coerceQueryInput(contractSchemas.IntegrationManifestCallback, query),
       ),
   );
   app.get(
@@ -167,11 +175,14 @@ export function createIntegrationsRoutes(options: {
         context,
         registry,
         options.publicBaseUrl,
-        IntegrationsImplementedAction.GitHubSetup,
+        IntegrationsImplementedAction.IntegrationSetup,
         (query) => {
           const input = githubQuery(query, SETUP_QUERY);
           if (!SETUP_ACTIONS.has(input.setupAction)) delete input.setupAction;
-          return coerceQueryInput(contractSchemas.GitHubSetupCallback, input);
+          return coerceQueryInput(
+            contractSchemas.IntegrationSetupCallback,
+            input,
+          );
         },
       ),
   );
@@ -182,7 +193,7 @@ export function createIntegrationsRoutes(options: {
         context,
         registry,
         options.publicBaseUrl,
-        IntegrationsImplementedAction.GitHubCallback,
+        IntegrationsImplementedAction.IntegrationAuthorizationCallback,
         (query) =>
           coerceQueryInput(
             contractSchemas.OAuthCallback,
@@ -197,6 +208,7 @@ export function createIntegrationsRoutes(options: {
     database: options.database,
     secretsKey: options.secretsKey,
     publicBaseUrl: options.publicBaseUrl,
+    ingress: options.ingress,
   });
   app.route(
     "/",

@@ -1,22 +1,29 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "b2eb5fcf7b9743a64c9dd8eeea42bda2916fc07a"
+    "870213b3bc6f621a6767b6feb193b7f21a8218cb"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:fbb225f73e8e89cf90d64e4220035fd0dafb1128b879f9c93043e9235022f905",
-  "reason": "#72 reader-relative memory source state re-bind by dev-server on 2026-11-18 under the owner's standing breaking-change authorization (2026-10-09), main b2eb5fcf7b9743a64c9dd8eeea42bda2916fc07a: MemoryEntry and MemoryRevision gain a required sourceState (available|deleted|no_access|unknown) judged against the reader at read time, and MemoryRevision.sourceArtifactVersionId becomes uuid|null because it is withheld exactly when the reader cannot read artifact versions (no_access), matching the artifact reads, which answer a denied read as not found. The event catalog gains memory.source_changed, a content-free invalidation emitted when a cited artifact version's content is purged. The descriptions state the invariant that sourceArtifactVersionId is null if and only if sourceState is no_access. The drift is that one field becoming nullable; the approval it displaced at sha256:09b09f0f1fac1d0159314e792984f878628b3d34d48218f5793892e72943c4c1 is preserved unchanged first below.",
+  "targetCompatibilityDigest": "sha256:a6107230a22b657a08e47e1a579cfa4950e653bf01338909cba0b1502c59d80b",
+  "reason": "#72 reader-relative memory source state re-bind by dev-server on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main 870213b3bc6f621a6767b6feb193b7f21a8218cb: MemoryEntry and MemoryRevision gain a required sourceState (available|deleted|no_access|unknown) judged against the reader at read time, and MemoryRevision.sourceArtifactVersionId becomes uuid|null because it is withheld exactly when the reader cannot read artifact versions (no_access), matching the artifact reads, which answer a denied read as not found. The descriptions state the invariant that sourceArtifactVersionId is null if and only if sourceState is no_access. The event catalog gains memory.source_changed, a content-free invalidation emitted when a cited artifact version's content is purged. The drift is that one field becoming nullable; the approval it displaced at sha256:fc5c7bededbed24e8541ca3168cde358c616922447161ade6ee7cec2f39ee429 is preserved unchanged first below.",
   "priorApprovals": [
     {
-      "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [
-        "f8018bd37aaeb7d88b0799c41f2f03d842955cf2"
+        "b2e7419bba9aff695dd23a1c67bfe759984c4fbe"
       ],
       "status": "approved",
       "allowBreaking": true,
-      "targetCompatibilityDigest": "sha256:fc6128799994a7ec2ab43bc364c1f126b47537717d43b7e6770761889a3a9684",
-      "reason": "Re-bind by dev-agx2 on 2026-11-18 for PR #638 (#15 slice 1) after folding main f85be00c, under the owner's standing breaking-change authorization: the merged tree carries main's #640 credential-store and #645 repository-rules deltas plus this branch's plugin delta. Move of 0193's nine CHECK constraints into TypeScript: PluginPackageCreate and PluginVersionCreate gain minLength, maxLength and pattern bounds on name, displayName, versionName, sdkRange, bundleObjectRef and bundleDigest. Constraint added, so it is breaking for a producer that sent a blank or malformed value; every value the database accepted unchanged still validates. Additive for every other schema."
+      "targetCompatibilityDigest": "sha256:fc5c7bededbed24e8541ca3168cde358c616922447161ade6ee7cec2f39ee429",
+      "reason": "Provider-neutral operation ids: integrationAuth.setup, integrationAuth.authorizationCallback, integrationAuth.manifestCallback and intake.webhook replace the four ids that named one provider. The catalog sees this as four actions removed and four added; URLs are unchanged."
+    },
+    {
+      "fromBaseRefs": [
+        "f8018bd37aaeb7d88b0799c41f2f03d842955cf2"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:fc6128799994a7ec2ab43bc364c1f126b47537717d43b7e6770761889a3a9684"
     },
     {
       "fromBaseRefs": [

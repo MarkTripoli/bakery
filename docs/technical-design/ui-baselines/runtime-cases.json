@@ -654,6 +654,13 @@
       "context": "desktop-light-fine"
     },
     {
+      "id": "ui.activityLine.contract.desktop-light-fine",
+      "catalogId": "ui.activityLine",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-activityline--contract",
+      "context": "desktop-light-fine"
+    },
+    {
       "id": "ui.alertBanner.contract.desktop-light-fine",
       "catalogId": "ui.alertBanner",
       "requiredCaseId": "contract",
@@ -1161,6 +1168,13 @@
       "catalogId": "ui.expandableText",
       "requiredCaseId": "contract",
       "storyId": "bakery-molecules-expandabletext--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.documentEditor.contract.desktop-light-fine",
+      "catalogId": "ui.documentEditor",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-documenteditor--contract",
       "context": "desktop-light-fine"
     },
     {
@@ -1973,10 +1987,24 @@
       "context": "desktop-light-fine"
     },
     {
+      "id": "ui.sessionNowLine.contract.desktop-light-fine",
+      "catalogId": "ui.sessionNowLine",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-sessionnowline--contract",
+      "context": "desktop-light-fine"
+    },
+    {
       "id": "ui.sessionPane.contract.desktop-light-fine",
       "catalogId": "ui.sessionPane",
       "requiredCaseId": "contract",
       "storyId": "bakery-organisms-sessionpane--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.sessionThread.contract.desktop-light-fine",
+      "catalogId": "ui.sessionThread",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-sessionthread--contract",
       "context": "desktop-light-fine"
     },
     {

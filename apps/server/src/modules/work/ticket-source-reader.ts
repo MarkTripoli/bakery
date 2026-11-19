@@ -103,12 +103,17 @@ export type TicketLabelProvenance =
   | { kind: "unverifiable"; reason: string }
   | TicketReadFailure;
 
-/** Answer of `readActorRole`: the actor's repository permission. */
+/**
+ * Answer of `readActorRole`: the actor's role, as its provider name and its
+ * position on that provider's ladder. Admission compares the rank, so a
+ * provider with other role names fits without admission learning them.
+ */
 export type TicketActorRole =
   | {
     kind: "present";
     userId: string;
     permission: "admin" | "write" | "read" | "none";
+    rank: number;
   }
   | { kind: "absent" }
   | TicketReadFailure;

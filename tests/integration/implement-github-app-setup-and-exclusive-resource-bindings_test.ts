@@ -22,6 +22,10 @@ import {
 } from "../../apps/server/src/modules/secrets/crypto.ts";
 import { pkceChallenge } from "../../apps/server/src/modules/integrations/auth-attempts.ts";
 import { GITHUB_PROVIDER_ID } from "../../apps/server/src/modules/integrations/postgres.ts";
+import { LINEAR_PROVIDER_IDENTITY } from "../../apps/server/src/modules/integrations/registry.ts";
+
+/** The Linear provider row id, from the registry rather than typed here. */
+const LINEAR_PROVIDER_ID = LINEAR_PROVIDER_IDENTITY.uuid;
 import { sha256Hex } from "../../apps/server/src/platform/canonical-json.ts";
 import { authTestOrigin } from "../helpers/auth.ts";
 import { call, signIn } from "../helpers/installation-settings.ts";
@@ -284,13 +288,13 @@ Deno.test("the callback converts the code once and stores the App identity and t
       `select operation, organization_id, principal_id, details
        from bakery.audit_events
        where operation in ('integrationAppRegistrations.begin',
-         'integrationAuth.githubManifestCallback') and principal_id = $1
+         'integrationAuth.manifestCallback') and principal_id = $1
        order by created_at, id`,
       [f.adminId],
     );
     assertEquals(audit.rows.map((row) => row.operation), [
       "integrationAppRegistrations.begin",
-      "integrationAuth.githubManifestCallback",
+      "integrationAuth.manifestCallback",
     ]);
     for (const row of audit.rows) {
       assertEquals(row.organization_id, null);
@@ -2256,7 +2260,17 @@ Deno.test("integrationConnections.create refuses GitHub with STATE_CONFLICT and 
     const problem = await github.json();
     assertEquals(problem.code, "STATE_CONFLICT");
     assertEquals(problem.reason, "auth_attempt_required");
-    // No other provider is registered: any other id is unknown.
+    // Linear is registered and connects through OAuth2, so the door refuses it the
+    // same way for the same reason - its credential comes from a completed auth
+    // attempt, not from this body. This is what "registered" has to mean: before the
+    // provider tier was wired, this id would have answered 404, which is the
+    // "exists, nothing calls it" shape the registry rails exist to catch.
+    const linear = await postConnection(f, body(LINEAR_PROVIDER_ID));
+    assertEquals(linear.status, 409, await linear.clone().text());
+    const linearProblem = await linear.json();
+    assertEquals(linearProblem.code, "STATE_CONFLICT");
+    assertEquals(linearProblem.reason, "auth_attempt_required");
+    // An id naming no deployed provider is unknown.
     const other = await postConnection(f, body(crypto.randomUUID()));
     assertEquals(other.status, 404);
     assertEquals((await other.json()).code, "RESOURCE_NOT_FOUND");

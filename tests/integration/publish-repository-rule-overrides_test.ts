@@ -9,6 +9,7 @@ import { lockOrganization } from "../../apps/server/src/modules/auth/adapters/ac
 import { withPgTransaction } from "../../apps/server/src/platform/database.ts";
 import { contractSchemas } from "../../packages/contracts/src/contracts.ts";
 import { resolveRepositoryRules } from "../../packages/contracts/src/repository-rules.ts";
+import { rulesPolicyDigest } from "../../apps/server/src/modules/repository-rules/policy-digest.ts";
 import {
   allRuleEntries,
   ballastRules,
@@ -59,6 +60,7 @@ type Effective = {
     override: Record<string, unknown>;
   }>;
   digest: string;
+  hasFixedPolicy?: boolean;
 };
 
 const magicStringsLocked = () => allRuleEntries()[4];
@@ -167,7 +169,12 @@ Deno.test("repository rule overrides publish, resolve and follow organization re
         organizationRevision: 0,
         entries: [],
         supersededOverrides: [],
-        digest: (await resolveRepositoryRules(null, { entries: [] })).digest,
+        // The run-policy fingerprint of no fixed policy over no entries.
+        digest: await rulesPolicyDigest(
+          undefined,
+          (await resolveRepositoryRules(null, { entries: [] })).entries,
+        ),
+        hasFixedPolicy: false,
         repositoryVersion: await repositoryVersion(),
         // No rule needs a checker; the fixture repository has no enabled
         // provider connection, so protection is unknown, never "not configured".

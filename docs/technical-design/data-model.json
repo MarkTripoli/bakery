@@ -2818,6 +2818,176 @@
   },
   {
    "group": "Tickets",
+   "name": "ticket_routing_rules",
+   "purpose": "Versioned rule routing one provider label of a ticket source to a repository role",
+   "fields": [
+    {
+     "name": "organization_id",
+     "type": "uuid",
+     "nullable": false,
+     "references": "organizations"
+    },
+    {
+     "name": "ticket_source_id",
+     "type": "uuid",
+     "nullable": false,
+     "references": "ticket_sources"
+    },
+    {
+     "name": "provider_label_id",
+     "type": "text",
+     "nullable": false,
+     "references": null
+    },
+    {
+     "name": "label_name",
+     "type": "text",
+     "nullable": false,
+     "references": null
+    },
+    {
+     "name": "repository_id",
+     "type": "uuid",
+     "nullable": false,
+     "references": "repositories"
+    },
+    {
+     "name": "role",
+     "type": "text",
+     "nullable": false,
+     "references": null
+    },
+    {
+     "name": "preset_id",
+     "type": "text",
+     "nullable": false,
+     "references": null
+    }
+   ],
+   "constraints": "UNIQUE(organization_id,ticket_source_id,provider_label_id,repository_id). Owned by its source (cascade on source delete); the repository FK has no cascade, so an archived or inaccessible target stays visible and blocks admission with a named reason. ticketRoutingRules.replace swaps the whole set under the source row lock and If-Match on the source version: a surviving rule keeps its id, version counts its own role or preset edits, a removed rule is deleted, and any change advances ticket_sources.policy_revision and version once. provider_label_id is the provider's stable label id that admission matches, so renaming a label keeps routing; label_name is display only. Each rule's (repository, role) must have a live repository_role_bindings alias when saved. bakery_app may select, insert, delete and update label_name, role, preset_id, updated_at and version. Role format, label key bounds and preset ids are TypeScript validation. UNIQUE(organization_id,id) supports composite foreign keys; tenant-owned parent references are constrained to the same organization unless this record documents a host-owned exception.",
+   "scopedReferences": [
+    {
+     "fields": [
+      "organization_id",
+      "ticket_source_id"
+     ],
+     "references": "ticket_sources(organization_id,id)",
+     "nullable": false
+    },
+    {
+     "fields": [
+      "organization_id",
+      "repository_id"
+     ],
+     "references": "repositories(organization_id,id)",
+     "nullable": false
+    }
+   ]
+  },
+  {
+   "group": "Tickets",
+   "name": "ticket_request_targets",
+   "purpose": "Immutable repository-scoped child of one admitted ticket request",
+   "fields": [
+    {
+     "name": "organization_id",
+     "type": "uuid",
+     "nullable": false,
+     "references": "organizations"
+    },
+    {
+     "name": "ticket_request_id",
+     "type": "uuid",
+     "nullable": false,
+     "references": "ticket_requests"
+    },
+    {
+     "name": "repository_id",
+     "type": "uuid",
+     "nullable": false,
+     "references": "repositories"
+    },
+    {
+     "name": "role",
+     "type": "text",
+     "nullable": false,
+     "references": null
+    },
+    {
+     "name": "routing_rule_id",
+     "type": "uuid?",
+     "nullable": true,
+     "references": null
+    },
+    {
+     "name": "routing_rule_version",
+     "type": "int?",
+     "nullable": true,
+     "references": null
+    },
+    {
+     "name": "source_policy_revision",
+     "type": "int",
+     "nullable": false,
+     "references": null
+    },
+    {
+     "name": "pinned_preset",
+     "type": "jsonb",
+     "nullable": false,
+     "references": null
+    },
+    {
+     "name": "coordination_plan_id",
+     "type": "uuid?",
+     "nullable": true,
+     "references": "coordination_plans"
+    },
+    {
+     "name": "child_task_id",
+     "type": "uuid?",
+     "nullable": true,
+     "references": "tasks"
+    }
+   ],
+   "constraints": "Insert-only: bakery_app has select and insert and no update or delete grant, so a rule or policy edit, a re-pin or an upgrade never retargets an admitted request. Inherits id and created_at only. UNIQUE(organization_id,ticket_request_id,repository_id): one child per repository, the floor under the resolver's deduplication of matched rules. Admission writes the children with the request, pinning role, rule and rule version (null for the fallback to the source's repository), the source policy revision and the preset. routing_rule_id is a pinned value with no foreign key, so deleting the rule leaves the child exactly as admitted. UNIQUE(organization_id,id) supports composite foreign keys; tenant-owned parent references are constrained to the same organization unless this record documents a host-owned exception. A rule-routed target runs as one lane of a ticket-origin coordination plan under the request's task: coordination_plan_id and child_task_id name the plan and the lane's child task (null for the fallback, which runs on the request's own task). The request completes only when the plan projects completed, and fails when it projects failed or partially_delivered.",
+   "scopedReferences": [
+    {
+     "fields": [
+      "organization_id",
+      "ticket_request_id"
+     ],
+     "references": "ticket_requests(organization_id,id)",
+     "nullable": false
+    },
+    {
+     "fields": [
+      "organization_id",
+      "repository_id"
+     ],
+     "references": "repositories(organization_id,id)",
+     "nullable": false
+    },
+    {
+     "fields": [
+      "organization_id",
+      "coordination_plan_id"
+     ],
+     "references": "coordination_plans(organization_id,id)",
+     "nullable": true
+    },
+    {
+     "fields": [
+      "organization_id",
+      "child_task_id"
+     ],
+     "references": "tasks(organization_id,id)",
+     "nullable": true
+    }
+   ]
+  },
+  {
+   "group": "Tickets",
    "name": "ticket_task_links",
    "purpose": "Explicit same-organization link between an external ticket and Bakery task",
    "fields": [

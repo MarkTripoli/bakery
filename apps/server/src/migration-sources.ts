@@ -10,6 +10,7 @@ import { integrationsBakeryMigrationSource } from "./modules/integrations/migrat
 import { deliveryBakeryMigrationSource } from "./modules/delivery/migrations.ts";
 import { mcpBakeryMigrationSource } from "./modules/mcp/migrations.ts";
 import { knowledgeBakeryMigrationSource } from "./modules/knowledge/migrations.ts";
+import { catalogBakeryMigrationSource } from "./modules/catalog/migrations.ts";
 
 /**
  * Every bakery-owned migration directory, in one place
@@ -40,6 +41,7 @@ export const BAKERY_MIGRATION_SOURCES: readonly MigrationSource[] = Object
     deliveryBakeryMigrationSource,
     mcpBakeryMigrationSource,
     knowledgeBakeryMigrationSource,
+    catalogBakeryMigrationSource,
   ]);
 
 /**

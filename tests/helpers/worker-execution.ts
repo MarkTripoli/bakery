@@ -520,12 +520,53 @@ export async function closeWorkerScope(
 
 export async function closeWorkerFixture(
   fixture: WorkerFixture,
+  options: { failed?: boolean } = {},
 ): Promise<void> {
   try {
     await closeWorkerScope(fixture, fixture);
-    await fixture.close();
+    // A failing test must fail for its own reason, not for the pool's. When the
+    // body threw, a claim may still hold a transaction, and `pool.end()` waits
+    // for that client to come back - so teardown inherits whatever the
+    // database's statement timeout is and a quick assertion turns into a
+    // multi-minute hang with a database error at the end of it. Teardown is
+    // therefore bounded when the test already failed: the original error is the
+    // signal, and a teardown that cannot finish in time says so rather than
+    // pretending the slowness was the test.
+    await (options.failed
+      ? boundedClose(fixture, TEARDOWN_BUDGET_MS)
+      : fixture.close());
   } finally {
     fixture.releaseFixture();
+  }
+}
+
+/** Teardown is not allowed to outlive the failure it is cleaning up after. */
+const TEARDOWN_BUDGET_MS = 10_000;
+
+async function boundedClose(
+  fixture: WorkerFixture,
+  budgetMs: number,
+): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let timedOut = false;
+  const budget = new Promise<void>((resolve) => {
+    timer = setTimeout(() => {
+      timedOut = true;
+      resolve();
+    }, budgetMs);
+  });
+  const closed = fixture.close().catch(() => undefined);
+  try {
+    await Promise.race([closed, budget]);
+    if (timedOut) {
+      console.error(
+        `worker fixture teardown gave up after ${budgetMs}ms: a client is still checked out, so the pool was left open`,
+      );
+    }
+  } finally {
+    clearTimeout(timer);
+    // Let a close that finished late settle without holding the fixture lock.
+    void closed;
   }
 }
 
@@ -576,6 +617,8 @@ export async function workerRequest(
     idempotencyKey?: string;
     headers?: HeadersInit;
     includeWorkerSession?: boolean;
+    /** Defaults to POST; read routes (the tool gateway) need GET. */
+    method?: string;
   } = {},
 ): Promise<Response> {
   const headers = jsonHeaders({
@@ -588,9 +631,8 @@ export async function workerRequest(
   let requestBody = body;
   const mutationPath = path === "/v1/worker/claims" ||
     path === "/v1/worker/heartbeat" ||
-    /^\/v1\/worker\/attempts\/[^/]+\/(events|lease-renewals|result)$/.test(
-      path,
-    );
+    /^\/v1\/worker\/attempts\/[^/]+\/(events|lease-renewals|result|session-tools|session-call)$/
+      .test(path);
   if (mutationPath) {
     const host = await fixture.pgDatabase.query<{
       workerSessionId: string | null;
@@ -634,7 +676,7 @@ export async function workerRequest(
   }
   return await fixture.app.fetch(
     new Request(`${authTestOrigin}${path}`, {
-      method: "POST",
+      method: options.method ?? "POST",
       headers,
       body: JSON.stringify(requestBody),
     }),

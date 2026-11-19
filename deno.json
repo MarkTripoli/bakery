@@ -27,6 +27,7 @@
     "@bakery/contracts/workflow-compiler/default-catalog": "./packages/contracts/src/workflow-compiler/default-catalog.ts",
     "@bakery/contracts/worker-skill-read": "./packages/contracts/src/worker-skill-read.ts",
     "@bakery/contracts/memory-promotion": "./packages/contracts/src/memory-promotion.ts",
+    "@bakery/contracts/plugin-sdk": "./packages/contracts/src/plugin-sdk.ts",
     "@bakery/persistence/repository-admission": "./packages/persistence/src/repository-admission.ts",
     "@std/assert": "jsr:@std/assert@1.0.14",
     "better-auth": "npm:better-auth@1.7.3",
@@ -43,12 +44,16 @@
     "hono": "npm:hono@4.13.7",
     "inngest": "npm:inngest@4.20.0",
     "loro-crdt": "npm:loro-crdt@1.16.0/base64",
+    "loro-crdt/base64": "npm:loro-crdt@1.16.0/base64",
     "pg": "npm:pg@8.23.0",
     "postgres": "npm:postgres@3.4.7",
     "@types/node": "npm:@types/node@22.13.4",
     "yaml": "npm:yaml@2.8.1",
     "zod": "npm:zod@4.5.4",
-    "@aws-sdk/client-s3": "npm:@aws-sdk/client-s3@3.888.0"
+    "@aws-sdk/client-s3": "npm:@aws-sdk/client-s3@3.888.0",
+    "@bakery/integration-linear/server": "./packages/integration-linear/src/server/mod.ts",
+    "@bakery/integration-sdk/provider": "./packages/integration-sdk/provider.ts",
+    "@bakery/integration-sdk/web": "./packages/integration-sdk/web.ts"
   },
   "fmt": {
     "exclude": [

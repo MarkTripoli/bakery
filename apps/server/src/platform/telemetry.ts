@@ -21,11 +21,13 @@ import {
   type TelemetrySinkConfig,
 } from "@bakery/config/telemetry-sink";
 import { mkdir, open, rename, rm, stat } from "node:fs/promises";
+import { OPERATIONAL_METRIC_SPECS } from "./operational-metrics.ts";
 import {
   createOtlpSink,
   createRotatingLogSink,
   createTelemetrySink,
   type RotatingLogFileSystem,
+  type TelemetrySink,
 } from "./telemetry-sink.ts";
 import {
   EXECUTION_TELEMETRY_EVENTS,
@@ -71,6 +73,9 @@ export function createServerTelemetry(
     exporter: SERVER_TELEMETRY_EXPORTER,
     redact: createTelemetryRedactor({ outcomes: JOB_OUTCOMES }),
     events: Object.values(EXECUTION_TELEMETRY_EVENTS),
+    // The registry refuses a metric it was not told about, so the catalogue is
+    // declared where the telemetry is built rather than discovered at runtime.
+    metrics: OPERATIONAL_METRIC_SPECS,
   });
 }
 
@@ -89,7 +94,7 @@ export function createServerTelemetry(
 export function createServerTelemetryFromConfig(
   config: TelemetrySinkConfig | undefined,
   options: { readonly fetch?: typeof fetch } = {},
-): Telemetry {
+): ServerTelemetry {
   if (config === undefined) return createServerTelemetry();
   const log = config.logDir === undefined ? undefined : createRotatingLogSink({
     directory: config.logDir,
@@ -107,10 +112,14 @@ export function createServerTelemetryFromConfig(
   // The sink carries per-destination counters, and slice 2 publishes them from
   // the metric sampler. They cannot be recorded here: a metric write from inside
   // the sink's own call tree is refused as reentrant, so the honest place to
-  // export them is outside it.
-  const send = createTelemetrySink({ log, otlp });
-  return createServerTelemetry({ send });
+  // export them is outside it. The sink is handed out for that reader alone.
+  const sink = createTelemetrySink({ log, otlp });
+  const telemetry = createServerTelemetry({ send: sink });
+  return Object.assign(telemetry, { sink }) as ServerTelemetry;
 }
+
+/** The server's telemetry facade, plus the sink whose counters it cannot see. */
+export type ServerTelemetry = Telemetry & { readonly sink?: TelemetrySink };
 
 /**
  * The filesystem the rotating sink uses.

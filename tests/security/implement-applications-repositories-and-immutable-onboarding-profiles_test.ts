@@ -36,6 +36,7 @@ import { integrationsBakeryMigrationSource } from "../../apps/server/src/modules
 import { deliveryBakeryMigrationSource } from "../../apps/server/src/modules/delivery/migrations.ts";
 import { mcpBakeryMigrationSource } from "../../apps/server/src/modules/mcp/migrations.ts";
 import { knowledgeBakeryMigrationSource } from "../../apps/server/src/modules/knowledge/migrations.ts";
+import { catalogBakeryMigrationSource } from "../../apps/server/src/modules/catalog/migrations.ts";
 import { migrateData } from "../../apps/server/src/platform/data-migrate.ts";
 import { PostgresAuthorityRunner } from "../../apps/server/src/modules/auth/adapters/authority-postgres.ts";
 import { createPostgresCommandRunner } from "../../apps/server/src/platform/command-replay.ts";
@@ -156,6 +157,7 @@ async function migrateTestDatabase(): Promise<SecurityDatabaseFixture> {
       ...await loadMigrations(deliveryBakeryMigrationSource),
       ...await loadMigrations(mcpBakeryMigrationSource),
       ...await loadMigrations(knowledgeBakeryMigrationSource),
+      ...await loadMigrations(catalogBakeryMigrationSource),
     ]);
     await migrateData(owner, bakeryDataMigrations);
     let cleanedUp = false;

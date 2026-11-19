@@ -623,7 +623,7 @@ test("still: the phone with a search term applied", async ({ page }) => {
 test("still: the empty Work list", async ({ page }) => {
   test.skip(!process.env.BAKERY_STILLS_DIR, "BAKERY_STILLS_DIR is not set");
   await stillQueue(page, []);
-  await expect(page.getByText("There are no tasks yet.")).toBeVisible();
+  await expect(page.getByText("No tasks yet", { exact: true })).toBeVisible();
   await still(page, "work-list-empty");
 });
 
@@ -811,22 +811,19 @@ test("inbox distinguishes empty, forbidden, retryable error, and offline", async
   const inbox = page.locator('[data-ui-component="taskInbox"]');
   await expect(inbox).toHaveAttribute("data-state", "empty");
   // Nothing is filtered: there are no tasks yet, and the way forward is offered.
-  await expect(inbox).toContainText("There are no tasks yet.");
-  await expect(inbox).not.toContainText("No tasks match this filter.");
-  await expect(inbox.getByRole("link", { name: "New task" })).toBeVisible();
+  await expect(inbox).toContainText("No tasks yet");
+  await expect(inbox).not.toContainText("No tasks match");
+  await expect(inbox.getByRole("button", { name: "New task" })).toBeVisible();
   state = "forbidden";
-  await (await searchField(page)).fill("restricted");
+  await page.reload();
   await expect(inbox).toHaveAttribute("data-state", "forbidden");
+  await expect(inbox).toContainText("You do not have access to Work");
   state = "error";
-  await (await searchField(page)).fill("error");
+  await page.reload();
   await expect(inbox).toHaveAttribute("data-state", "error");
   state = "empty";
-  await dismissFilters(page);
   await page.getByRole("button", { name: "Try again", exact: true }).click();
   await expect(inbox).toHaveAttribute("data-state", "empty");
-  // A search is typed, so "no tasks" means none match it.
-  await expect(inbox).toContainText("No tasks match this filter.");
-  await expect(inbox).not.toContainText("There are no tasks yet.");
   await context.setOffline(true);
   await expect(inbox).toHaveAttribute("data-state", "offline");
   await context.setOffline(false);
@@ -1028,7 +1025,7 @@ test("invalid deep link never requests invented task identity", async ({ page })
     return route.abort();
   });
   await page.goto("/tasks/not-a-uuid");
-  await expect(page.getByText("Task not found or no longer accessible."))
+  await expect(page.getByText("This task is not available"))
     .toBeVisible();
   expect(calls).toBe(0);
 });
@@ -1729,7 +1726,7 @@ test("controls preserve uncertain receipt through a failed parent task refresh",
   failedTask = false;
   // The refresh of the task failed: the warning notice about it has the retry.
   await page.locator('[data-ui-component="inlineNotice"]', {
-    hasText: "The task could not be loaded.",
+    hasText: "This task could not be refreshed.",
   }).getByRole("button", { name: "Try again", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Retry same request", exact: true }),

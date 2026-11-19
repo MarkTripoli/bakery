@@ -3,6 +3,7 @@
 // without a database. The repository is a recording fake whose
 // readinessGate runs the real pure dispatchGate over the fake host.
 import { assertEquals } from "@std/assert";
+import type { PgTransactionClient } from "@bakery/persistence";
 import type { ClaimsRepository } from "../../packages/persistence/src/claims.ts";
 import {
   connectivityState,
@@ -94,6 +95,14 @@ function claimWith(host: FakeHost, checks: Array<{
             },
           },
           persistence,
+          // The claim transaction, which the credential mint needs. These cases
+          // never reach it (the gate refuses first), so a rejecting stub keeps
+          // the fake honest instead of hand-rolling a whole transaction.
+          transaction: {
+            query: () => {
+              throw new Error("CLAIM_TRANSACTION_NOT_EXPECTED");
+            },
+          } as unknown as PgTransactionClient,
         }),
     },
   });

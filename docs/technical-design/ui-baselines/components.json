@@ -1,5 +1,5 @@
 {
-  "revision": "ec2470e366aff0a27ed6f2e2de6313138a2a7184072bc62e3006eac1f94fa6cf",
+  "revision": "671f065d6e6b2245e33f6718e6949348999a0003183a9ed4dbe8cf140ab3fe88",
   "schemaVersion": 1,
   "owner": "Mark Tripoli",
   "rules": [
@@ -7560,6 +7560,136 @@
       "paperAbsentReason": "Designed in the #71 UX design comment (2026-11-13); no Paper frame names it."
     },
     {
+      "id": "ui.documentEditor",
+      "name": "DocumentEditor",
+      "description": "A plain-text editor for long shared documents, on CodeMirror: one multi-line text field that shows a placeholder while empty and can be read-only; the shared-document binding is passed in by the page.",
+      "level": "molecule",
+      "owner": "Mark Tripoli",
+      "storyTitle": "Bakery/Molecules/DocumentEditor",
+      "usage": {
+        "whenToUse": "Edit a long document as plain text, alone or together with others, where the page supplies the sharing as extensions.",
+        "whenNotToUse": "Do not use it for a short single-line value (use a text field) or for comments (use the comment editor); it does not decide what is saved or shared.",
+        "ruleIds": [
+          "ui.semantic-import",
+          "ui.layout-containment",
+          "ui.accessible-control",
+          "ui.translated-copy"
+        ],
+        "alternatives": [],
+        "replacesElements": [],
+        "allowedLevels": [
+          "molecule",
+          "organism",
+          "template",
+          "page",
+          "app"
+        ]
+      },
+      "paper": [],
+      "a11y": {
+        "role": "textbox",
+        "accessibleName": "aria-label",
+        "keyboard": [
+          "Tab moves focus into and out of the editor",
+          "Standard text-editing keys; Mod-Z undoes and Mod-Shift-Z redoes"
+        ],
+        "targetSize": "The whole editing surface is the target",
+        "notes": "One multi-line text field named by aria-label. Read-only keeps the text selectable and reports aria-readonly. Other people's carets are never the only carrier of who is here; the presence row names them."
+      },
+      "tokens": [
+        "--border-default",
+        "--color-border",
+        "--color-fg",
+        "--color-fg-muted",
+        "--color-focus",
+        "--color-selection",
+        "--color-surface",
+        "--color-surface-subtle",
+        "--focus-offset",
+        "--focus-width",
+        "--layout-content",
+        "--radius-surface",
+        "--space-3",
+        "--space-4",
+        "--type-field"
+      ],
+      "variants": [
+        "default"
+      ],
+      "states": [
+        "editable",
+        "readOnly"
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "layoutProfiles": [
+        "sheet",
+        "pane",
+        "rail"
+      ],
+      "pointerProfiles": [
+        "coarse",
+        "fine"
+      ],
+      "requirementIds": [
+        "theme.paired",
+        "layout.reflow",
+        "pointer.independent",
+        "a11y.semantic-focus",
+        "i18n.translated-logical"
+      ],
+      "requiredCases": [
+        {
+          "id": "contract",
+          "description": "Exercises an empty editor with its placeholder, one with text, a read-only one, one bound to a shared document, and one whose first edit arrives right after mount.",
+          "variants": [
+            "default"
+          ],
+          "states": [
+            "editable",
+            "readOnly"
+          ],
+          "baselineIds": []
+        }
+      ],
+      "evidenceRefs": [
+        "design.auth"
+      ],
+      "status": "implemented",
+      "coverage": {
+        "automated": {
+          "theme:light": [
+            "runtime:ui.documentEditor.contract.desktop-light-fine"
+          ],
+          "theme:dark": [
+            "suite:storybook.canonical-dark-axe"
+          ],
+          "layout:sheet": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:pane": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:rail": [
+            "runtime:ui.documentEditor.contract.desktop-light-fine"
+          ],
+          "pointer:fine": [
+            "runtime:ui.documentEditor.contract.desktop-light-fine"
+          ],
+          "pointer:coarse": [
+            "suite:storybook.coarse-targets"
+          ]
+        },
+        "notApplicable": {},
+        "visualContexts": [
+          "desktop-light-fine"
+        ]
+      },
+      "paperAbsentReason": "Designed in the #71 UX design comment (2026-11-13), section A \"Editor\"; no Paper frame names it."
+    },
+    {
       "id": "ui.suggestionCard",
       "name": "SuggestionCard",
       "description": "One suggestion from an agent beside the text it would change, with Accept and Reject; it says plainly when it no longer fits or when its outcome is not known.",
@@ -8548,6 +8678,472 @@
           "desktop-light-fine"
         ]
       }
+    },
+    {
+      "id": "ui.activityLine",
+      "name": "ActivityLine",
+      "description": "One event in a session or a run: an icon, a sentence and a time on one line, with an optional detail the line opens. Status is never colour alone: the icon shape differs per tone and the sentence says what happened.",
+      "level": "organism",
+      "owner": "Mark Tripoli",
+      "storyTitle": "Bakery/Organisms/ActivityLine",
+      "usage": {
+        "whenToUse": "Show one event of a session thread or a run as a single quiet line, with detail the reader can open.",
+        "whenNotToUse": "Do not use it for a message a person wrote, or for a table row of fields; do not use colour as the only sign of a failure.",
+        "ruleIds": [
+          "ui.semantic-import",
+          "ui.layout-containment",
+          "ui.accessible-control",
+          "ui.translated-copy"
+        ],
+        "alternatives": [
+          {
+            "when": "A person or an agent wrote the text",
+            "use": "ui.conversationMessage"
+          },
+          {
+            "when": "The events are a timeline of run milestones",
+            "use": "ui.runTimeline"
+          }
+        ],
+        "replacesElements": [],
+        "allowedLevels": [
+          "organism",
+          "template",
+          "page",
+          "app"
+        ]
+      },
+      "paper": [],
+      "a11y": {
+        "role": "listitem",
+        "accessibleName": "content",
+        "keyboard": [
+          "Tab reaches the line when it opens detail; Enter or Space shows or hides the detail",
+          "Focus stays on the line after a press; it carries aria-expanded"
+        ],
+        "targetSize": "min 28px (fine pointer), 44px (coarse pointer)",
+        "notes": "A failure uses a different icon shape and full-colour text, so it is never red alone. The time is tabular and shares one right-hand edge."
+      },
+      "tokens": [
+        "--border-default",
+        "--color-destructive",
+        "--color-focus",
+        "--color-fg",
+        "--color-fg-muted",
+        "--color-fg-tertiary",
+        "--color-status-success",
+        "--color-surface-subtle",
+        "--duration-disclosure",
+        "--duration-reduced",
+        "--ease-standard",
+        "--focus-offset-inset",
+        "--focus-width",
+        "--radius-control",
+        "--space-1",
+        "--space-12",
+        "--space-2",
+        "--space-6",
+        "--target-coarse",
+        "--type-hint",
+        "--type-meta"
+      ],
+      "variants": [
+        "neutral",
+        "danger",
+        "success"
+      ],
+      "states": [
+        "collapsed",
+        "expanded"
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "layoutProfiles": [
+        "sheet",
+        "pane",
+        "rail"
+      ],
+      "pointerProfiles": [
+        "coarse",
+        "fine"
+      ],
+      "requirementIds": [
+        "theme.paired",
+        "layout.reflow",
+        "pointer.independent",
+        "a11y.semantic-focus",
+        "i18n.translated-logical"
+      ],
+      "requiredCases": [
+        {
+          "id": "contract",
+          "description": "Exercises the documented ActivityLine tones and states across required contexts: a sentence-only line, a neutral line, a failure with its own icon, and a line that opens detail.",
+          "variants": [
+            "neutral",
+            "danger",
+            "success"
+          ],
+          "states": [
+            "collapsed",
+            "expanded"
+          ],
+          "baselineIds": []
+        }
+      ],
+      "evidenceRefs": [
+        "design.auth"
+      ],
+      "status": "implemented",
+      "coverage": {
+        "automated": {
+          "theme:light": [
+            "runtime:ui.activityLine.contract.desktop-light-fine"
+          ],
+          "theme:dark": [
+            "suite:storybook.canonical-dark-axe"
+          ],
+          "layout:sheet": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:pane": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:rail": [
+            "runtime:ui.activityLine.contract.desktop-light-fine"
+          ],
+          "pointer:fine": [
+            "runtime:ui.activityLine.contract.desktop-light-fine"
+          ],
+          "pointer:coarse": [
+            "suite:storybook.coarse-targets"
+          ]
+        },
+        "notApplicable": {},
+        "visualContexts": [
+          "desktop-light-fine"
+        ]
+      },
+      "paperAbsentReason": "Designed in the #405 UX design comment (agent thread, Direction B); no Paper frame names it."
+    },
+    {
+      "id": "ui.sessionNowLine",
+      "name": "SessionNowLine",
+      "description": "One quiet line above the composer that says what a session is doing now. It is the thread's only polite live region, and its shimmer stops under reduced motion.",
+      "level": "organism",
+      "owner": "Mark Tripoli",
+      "storyTitle": "Bakery/Organisms/SessionNowLine",
+      "usage": {
+        "whenToUse": "Say what a running session is doing, or why it stopped, in one line that screen readers announce as it changes.",
+        "whenNotToUse": "Do not use it for a list of events or for an error that needs its own recovery screen.",
+        "ruleIds": [
+          "ui.semantic-import",
+          "ui.layout-containment",
+          "ui.accessible-control",
+          "ui.translated-copy"
+        ],
+        "alternatives": [
+          {
+            "when": "The message is about a form or a page rather than a session",
+            "use": "ui.inlineNotice"
+          }
+        ],
+        "replacesElements": [],
+        "allowedLevels": [
+          "organism",
+          "template",
+          "page",
+          "app"
+        ]
+      },
+      "paper": [],
+      "a11y": {
+        "role": "status",
+        "accessibleName": "content",
+        "keyboard": [
+          "A line about another step is a button: Tab reaches it, Enter or Space switches to that step"
+        ],
+        "targetSize": "min 28px (fine pointer), 44px (coarse pointer)",
+        "notes": "The elapsed time at the edge is hidden from assistive technology so it never re-announces. Status is never colour alone: a failure and a lost connection each have their own icon."
+      },
+      "tokens": [
+        "--border-default",
+        "--color-border",
+        "--color-destructive",
+        "--color-focus",
+        "--color-fg",
+        "--color-fg-disabled",
+        "--color-fg-muted",
+        "--color-fg-tertiary",
+        "--color-status-success",
+        "--color-status-warning",
+        "--color-surface",
+        "--color-surface-subtle",
+        "--duration-disclosure",
+        "--duration-reduced",
+        "--duration-transition",
+        "--ease-standard",
+        "--focus-offset-inset",
+        "--focus-width",
+        "--radius-circle",
+        "--radius-control",
+        "--radius-surface",
+        "--space-1",
+        "--space-12",
+        "--space-2",
+        "--space-3",
+        "--space-4",
+        "--space-5",
+        "--space-6",
+        "--space-16",
+        "--target-coarse",
+        "--type-data",
+        "--type-hint",
+        "--type-label",
+        "--type-meta"
+      ],
+      "variants": [
+        "active",
+        "idle",
+        "danger",
+        "warning"
+      ],
+      "states": [
+        "default"
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "layoutProfiles": [
+        "sheet",
+        "pane",
+        "rail"
+      ],
+      "pointerProfiles": [
+        "coarse",
+        "fine"
+      ],
+      "requirementIds": [
+        "theme.paired",
+        "layout.reflow",
+        "pointer.independent",
+        "a11y.semantic-focus",
+        "i18n.translated-logical"
+      ],
+      "requiredCases": [
+        {
+          "id": "contract",
+          "description": "Exercises the documented SessionNowLine tones across required contexts: working with elapsed time, waiting, failed with a wrapped reason, and connection lost with Try now.",
+          "variants": [
+            "active",
+            "idle",
+            "danger",
+            "warning"
+          ],
+          "states": [
+            "default"
+          ],
+          "baselineIds": []
+        }
+      ],
+      "evidenceRefs": [
+        "design.auth"
+      ],
+      "status": "implemented",
+      "coverage": {
+        "automated": {
+          "theme:light": [
+            "runtime:ui.sessionNowLine.contract.desktop-light-fine"
+          ],
+          "theme:dark": [
+            "suite:storybook.canonical-dark-axe"
+          ],
+          "layout:sheet": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:pane": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:rail": [
+            "runtime:ui.sessionNowLine.contract.desktop-light-fine"
+          ],
+          "pointer:fine": [
+            "runtime:ui.sessionNowLine.contract.desktop-light-fine"
+          ],
+          "pointer:coarse": [
+            "suite:storybook.coarse-targets"
+          ]
+        },
+        "notApplicable": {},
+        "visualContexts": [
+          "desktop-light-fine"
+        ]
+      },
+      "paperAbsentReason": "Designed in the #405 UX design comment (agent thread, Direction B); no Paper frame names it."
+    },
+    {
+      "id": "ui.sessionThread",
+      "name": "SessionThread",
+      "description": "A session as one column of messages, each owning the work it caused: the person's message is the only boxed thing, the agent speaks in plain text, and the steps behind each message fold under a counts-only summary. J and K move between messages, Enter folds a message's work and End jumps to the latest.",
+      "level": "organism",
+      "owner": "Mark Tripoli",
+      "storyTitle": "Bakery/Organisms/SessionThread",
+      "usage": {
+        "whenToUse": "Show what an agent did in a session, in order, with detail folded until the reader opens it.",
+        "whenNotToUse": "Do not use it for a chat with no work behind each message, or for a log of raw output.",
+        "ruleIds": [
+          "ui.semantic-import",
+          "ui.layout-containment",
+          "ui.accessible-control",
+          "ui.translated-copy"
+        ],
+        "alternatives": [
+          {
+            "when": "The text is a single message",
+            "use": "ui.conversationMessage"
+          },
+          {
+            "when": "The events are a short timeline of run milestones",
+            "use": "ui.runTimeline"
+          }
+        ],
+        "replacesElements": [],
+        "allowedLevels": [
+          "organism",
+          "template",
+          "page",
+          "app"
+        ]
+      },
+      "paper": [],
+      "a11y": {
+        "role": "list",
+        "accessibleName": "content",
+        "keyboard": [
+          "Tab reaches each fold control and each line that opens output",
+          "J and K move focus between messages; Enter opens or folds the focused message's work; End jumps to the latest",
+          "Focus stays where it was when new items arrive; nothing scrolls while the reader is scrolled up"
+        ],
+        "targetSize": "min 28px (fine pointer), 44px (coarse pointer)",
+        "notes": "Not a live region: the line that says what is happening now is the only announcement. A failure is never colour alone."
+      },
+      "tokens": [
+        "--border-default",
+        "--color-border",
+        "--color-destructive",
+        "--color-focus",
+        "--color-fg",
+        "--color-fg-disabled",
+        "--color-fg-muted",
+        "--color-fg-tertiary",
+        "--color-status-success",
+        "--color-status-warning",
+        "--color-surface",
+        "--color-surface-subtle",
+        "--duration-disclosure",
+        "--duration-reduced",
+        "--duration-transition",
+        "--ease-standard",
+        "--focus-offset-inset",
+        "--focus-width",
+        "--radius-circle",
+        "--radius-control",
+        "--radius-surface",
+        "--space-1",
+        "--space-12",
+        "--space-2",
+        "--space-3",
+        "--space-4",
+        "--space-5",
+        "--space-6",
+        "--space-16",
+        "--target-coarse",
+        "--type-data",
+        "--type-hint",
+        "--type-label",
+        "--type-meta"
+      ],
+      "variants": [
+        "default"
+      ],
+      "states": [
+        "running",
+        "failed",
+        "finished",
+        "empty"
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "layoutProfiles": [
+        "sheet",
+        "pane",
+        "rail"
+      ],
+      "pointerProfiles": [
+        "coarse",
+        "fine"
+      ],
+      "requirementIds": [
+        "theme.paired",
+        "layout.reflow",
+        "pointer.independent",
+        "a11y.semantic-focus",
+        "i18n.translated-logical"
+      ],
+      "requiredCases": [
+        {
+          "id": "contract",
+          "description": "Exercises the documented SessionThread states across required contexts: a running session with a failed step open, a finished session folded to one line per message, a session that ended in failure, and one with a long turn.",
+          "variants": [
+            "default"
+          ],
+          "states": [
+            "running",
+            "failed",
+            "finished",
+            "empty"
+          ],
+          "baselineIds": []
+        }
+      ],
+      "evidenceRefs": [
+        "design.auth"
+      ],
+      "status": "implemented",
+      "coverage": {
+        "automated": {
+          "theme:light": [
+            "runtime:ui.sessionThread.contract.desktop-light-fine"
+          ],
+          "theme:dark": [
+            "suite:storybook.canonical-dark-axe"
+          ],
+          "layout:sheet": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:pane": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:rail": [
+            "runtime:ui.sessionThread.contract.desktop-light-fine"
+          ],
+          "pointer:fine": [
+            "runtime:ui.sessionThread.contract.desktop-light-fine"
+          ],
+          "pointer:coarse": [
+            "suite:storybook.coarse-targets"
+          ]
+        },
+        "notApplicable": {},
+        "visualContexts": [
+          "desktop-light-fine"
+        ]
+      },
+      "paperAbsentReason": "Designed in the #405 UX design comment (agent thread, Direction B); no Paper frame names it."
     },
     {
       "id": "ui.questionCard",

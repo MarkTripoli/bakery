@@ -13,6 +13,11 @@ import {
   decodeCursor,
   encodeCursor,
 } from "../../platform/cursor.ts";
+import {
+  DECISION_NOTE_MAX_LENGTH,
+  isStorableDecisionText,
+} from "@bakery/contracts/human-approval";
+import { appendDecision } from "../work/human-approval-store.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import {
   adapterSupportsSteering,
@@ -267,6 +272,20 @@ function toMessage(row: MessageRow) {
 }
 
 /**
+ * The first DECISION_NOTE_MAX_LENGTH code units of a steer, never ending on a
+ * high surrogate: slicing through an emoji would leave a lone surrogate, which
+ * PostgreSQL jsonb rejects.
+ */
+function excerptForLedger(body: string): string {
+  if (body.length <= DECISION_NOTE_MAX_LENGTH) return body;
+  const last = body.charCodeAt(DECISION_NOTE_MAX_LENGTH - 1);
+  const end = last >= 0xd800 && last <= 0xdbff
+    ? DECISION_NOTE_MAX_LENGTH - 1
+    : DECISION_NOTE_MAX_LENGTH;
+  return body.slice(0, end);
+}
+
+/**
  * Steers or follows up a worker session. The message is recorded once per
  * `clientMessageId` and bound to one worker command, so a duplicate request
  * never produces a second prompt. A mode the worker session did not advertise
@@ -285,6 +304,11 @@ export async function steerAgentSession(
     input.mode === "follow_up" || input.mode === "append"
       ? "follow_up"
       : "steer";
+  // PostgreSQL jsonb rejects NUL and lone surrogates; refuse them at the door
+  // as a 400 instead of failing the insert as a 500.
+  if (!isStorableDecisionText(input.body)) {
+    throw new StandardError({ code: "MALFORMED_REQUEST" });
+  }
   const clientMessageId = input.clientMessageId ??
     requireCommandMetadata(context).idempotencyKey;
   const session = await loadSession(
@@ -366,6 +390,38 @@ export async function steerAgentSession(
   );
   const message = inserted.rows[0];
   if (!message) throw new Error("MESSAGE_INSERT_FAILED");
+
+  // Chapter 25 section 9: a steer is recorded in the work item's decisions
+  // ledger before it is delivered, in the same transaction as the worker
+  // command, so a delivered steer always has a ledger entry and a refused one
+  // leaves none.
+  const owner = await transaction.query<{ task_id: string; run_id: string }>(
+    `select run.task_id, run.id as run_id
+       from bakery.run_steps step
+       join bakery.workflow_runs run
+         on run.organization_id = step.organization_id and run.id = step.run_id
+      where step.organization_id = $1 and step.id = $2`,
+    [organizationId, session.run_step_id],
+  );
+  const ownerRow = owner.rows[0];
+  if (!ownerRow) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  await appendDecision(transaction, {
+    organizationId,
+    taskId: ownerRow.task_id,
+    runId: ownerRow.run_id,
+    kind: "steer",
+    subjectKind: "session",
+    subjectId: session.id,
+    decidedBy: principalId,
+    // The full text lives on the message; the ledger keeps a bounded excerpt
+    // (its note limit) and the id to find the rest.
+    text: excerptForLedger(input.body),
+    detail: {
+      mode,
+      messageId: message.id,
+      truncated: input.body.length > DECISION_NOTE_MAX_LENGTH,
+    },
+  });
 
   const metadata = requireCommandMetadata(context);
   await enqueueWorkerControlCommand(transaction, {

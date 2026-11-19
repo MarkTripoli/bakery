@@ -477,7 +477,7 @@ export async function storeRegistration(
   await recordAuthAudit(transaction, value, {
     organizationId: null,
     principalId,
-    operation: Action.GitHubManifestCallback,
+    operation: Action.IntegrationManifestCallback,
     resourceType: "integration_app_registration",
     resourceId: registrationId,
     details: {

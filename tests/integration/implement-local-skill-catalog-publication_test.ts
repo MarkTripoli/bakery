@@ -769,6 +769,7 @@ Deno.test("publication releases its transaction before storage and rechecks revo
       await beforeStorage();
       return await realStore.read(key, digest, size);
     },
+    stat: (key: string) => realStore.stat(key),
   };
   const fixture = await openAuthFixture({
     skillFileRoot: root,
@@ -945,6 +946,7 @@ Deno.test("publication locks and rechecks source license before metadata commit"
     },
     putIfAbsent: realStore.putIfAbsent.bind(realStore),
     read: realStore.read.bind(realStore),
+    stat: realStore.stat.bind(realStore),
   };
   const fixture = await openAuthFixture({
     skillFileRoot: root,
