@@ -13,6 +13,7 @@ import {
   POSTGRES_UNIQUE_VIOLATION,
   postgresErrorCode,
 } from "../../platform/postgres-errors.ts";
+import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import {
   type RunRow,
@@ -316,7 +317,11 @@ async function searchLibraryPage(options: {
     principalId: options.principalId,
     organizationId: options.organizationId,
     ordering: PAGE_ORDERING,
-    filters: JSON.stringify({ query: options.input.query, kind }),
+    // Hashed: the query is up to 200 characters (600 bytes in UTF-8) and a raw
+    // copy would overflow the cursor's size limit on the first full page.
+    filters: await sha256Hex(
+      canonicalJson({ query: options.input.query, kind }),
+    ),
     schemaVersion: 1,
   };
   const position = await decodeCursor(

@@ -200,3 +200,74 @@ Deno.test("a session without artifacts.read gets no artifact through search", ()
     const forbidden = await search({ query: "zebra", kind: "artifact" });
     assertEquals(forbidden.status, 403, await forbidden.text());
   }));
+
+Deno.test("a long query pages without overflowing the cursor", () =>
+  withWorkerFixture(async (fixture) => {
+    const worker = await registeredWorker(fixture, { slots: 1 });
+    await seedEligibleNonmodelJob(
+      fixture.pgDatabase,
+      fixture.organizationId,
+      fixture.principalId,
+    );
+    const org = fixture.organizationId;
+    // The longest query the schema allows (200 characters): in ASCII, and in CJK
+    // where it is 600 bytes in UTF-8. Both would overflow a cursor that carried
+    // the query itself.
+    const queries = ["q".repeat(200), "検".repeat(200)];
+    for (const [index, query] of queries.entries()) {
+      for (let item = 0; item < 3; item += 1) {
+        await fixture.pgDatabase.query(
+          `insert into bakery.skills (id, organization_id, slug, name)
+           values ($1, $2, $3, $4)`,
+          [
+            crypto.randomUUID(),
+            org,
+            `long-${index}-${item}`,
+            `${query} ${item}`,
+          ],
+        );
+      }
+    }
+    const assignment = await claimAssignment(fixture, worker) as unknown as {
+      attemptId: string;
+      sessionCredential: string;
+    };
+    const search = (args: Record<string, unknown>) =>
+      workerRequest(
+        fixture,
+        worker.credential,
+        SESSION_CALL_PATH.replace(":id", assignment.attemptId),
+        { tool: "library.search", arguments: args },
+        {
+          headers: {
+            [SESSION_CREDENTIAL_HEADER]: assignment.sessionCredential,
+          },
+        },
+      );
+    for (const query of queries) {
+      const seen = new Set<string>();
+      let cursor: string | null | undefined = undefined;
+      for (let pages = 0; pages < 5; pages += 1) {
+        const response = await search({
+          query,
+          limit: 1,
+          ...(cursor ? { cursor } : {}),
+        });
+        const text = await response.text();
+        assertEquals(response.status, 200, text);
+        const page = (JSON.parse(text) as { result: Page }).result;
+        for (const hit of page.items) seen.add(hit.id);
+        cursor = page.nextCursor;
+        if (cursor === null) break;
+      }
+      // Three matches, one per page, no repeats and no error on the way.
+      assertEquals(seen.size, 3);
+    }
+    // Past the bound a query is refused by the schema, never a 500.
+    const tooLong = await search({ query: "検".repeat(1000) });
+    assert(
+      tooLong.status >= 400 && tooLong.status < 500,
+      `a 1000-character query answered ${tooLong.status}`,
+    );
+    await tooLong.body?.cancel();
+  }));
