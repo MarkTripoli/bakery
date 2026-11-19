@@ -2017,3 +2017,126 @@ Deno.test("an uninstalled install cannot be repointed at another version", () =>
         .text()}`,
     );
   }));
+
+Deno.test("an install refuses a draft version and a withdrawn package", () =>
+  withPluginFixture(async (fixture, store) => {
+    const published = await publishInstallable(fixture, store);
+
+    // A draft is a version the publisher has not released. Creation publishes
+    // today, so reach the state through the row, which is what the predicate
+    // exists to guard: nothing should grant a draft's capabilities.
+    await fixture.pgDatabase.query(
+      `update bakery.plugin_versions set published_at = null
+        where organization_id = $1 and id = $2`,
+      [fixture.organizationId, published.versionId],
+    );
+    const draft = await call(fixture, "/v1/plugin-installs", {
+      method: "POST",
+      body: {
+        packageId: published.packageId,
+        versionId: published.versionId,
+        scope: "organization",
+      },
+    });
+    // 404 rather than 409: from the install's side a draft version is not an
+    // available version at all, and answering "conflict" would confirm that a
+    // version with this id exists but is unreleased.
+    assertEquals(
+      draft.status,
+      404,
+      `a draft version must not be installable: ${await draft.clone().text()}`,
+    );
+
+    // Publish it again and withdraw the package instead; the same install must
+    // still be refused, because a withdrawn package is no longer available.
+    await fixture.pgDatabase.query(
+      `update bakery.plugin_versions set published_at = now()
+        where organization_id = $1 and id = $2`,
+      [fixture.organizationId, published.versionId],
+    );
+    await fixture.pgDatabase.query(
+      `update bakery.plugin_packages set listing_status = 'withdrawn'
+        where organization_id = $1 and id = $2`,
+      [fixture.organizationId, published.packageId],
+    );
+    const withdrawn = await call(fixture, "/v1/plugin-installs", {
+      method: "POST",
+      body: {
+        packageId: published.packageId,
+        versionId: published.versionId,
+        scope: "organization",
+      },
+    });
+    assertEquals(
+      withdrawn.status,
+      404,
+      `a withdrawn package must not be installable: ${await withdrawn
+        .clone()
+        .text()}`,
+    );
+
+    // No grants were written for either attempt.
+    const grants = await fixture.pgDatabase.query<{ count: string }>(
+      `select count(*)::text as count from bakery.plugin_install_grants
+        where organization_id = $1`,
+      [fixture.organizationId],
+    );
+    assertEquals(grants.rows[0].count, "0");
+  }));
+
+Deno.test("a concurrent upgrade cannot undo a disable and restore its grants", () =>
+  withPluginFixture(async (fixture, store) => {
+    const published = await publishInstallable(fixture, store);
+    const second = await publishSecondVersion(fixture, store, published);
+    const install = await (await call(fixture, "/v1/plugin-installs", {
+      method: "POST",
+      body: {
+        packageId: published.packageId,
+        versionId: published.versionId,
+        scope: "organization",
+      },
+    })).json();
+
+    const grants = () =>
+      fixture.pgDatabase.query<{ count: string }>(
+        `select count(*)::text as count from bakery.plugin_install_grants
+          where organization_id = $1 and plugin_install_id = $2`,
+        [fixture.organizationId, install.id],
+      );
+
+    // A disable and an upgrade at the same time. The upgrade decides its status
+    // from the row it read; without the row lock it can read `enabled` before
+    // the disable commits, then write `enabled` back and re-insert the grants,
+    // losing the revocation AC3 promises happened.
+    const [disabled, upgraded] = await Promise.all([
+      call(fixture, `/v1/plugin-installs/${install.id}`, {
+        method: "PATCH",
+        body: { status: "disabled" },
+      }),
+      call(fixture, `/v1/plugin-installs/${install.id}`, {
+        method: "PATCH",
+        body: { versionId: second.versionId },
+      }),
+    ]);
+    assertEquals(disabled.status, 200, await disabled.clone().text());
+    assertEquals(upgraded.status, 200, await upgraded.clone().text());
+
+    // Whatever the order, the disable is the last word on authority: the
+    // install is off and holds no grants. An `enabled` row with grants here
+    // means the upgrade resurrected an install somebody turned off.
+    const final = await (await call(
+      fixture,
+      `/v1/plugin-installs/${install.id}`,
+      { method: "GET" },
+    )).json();
+    assertEquals(
+      final.status,
+      "disabled",
+      "the disable must survive a concurrent upgrade",
+    );
+    assertEquals(
+      (await grants()).rows[0].count,
+      "0",
+      "a concurrent upgrade must not restore revoked grants",
+    );
+  }));

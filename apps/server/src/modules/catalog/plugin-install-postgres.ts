@@ -261,11 +261,18 @@ async function loadInstall(
   transaction: PgTransactionClient,
   organizationId: string,
   installId: string,
+  options: { forUpdate?: boolean } = {},
 ): Promise<InstallRow> {
+  // A write takes the row lock, so the state it decides on is the state the
+  // previous writer left. Without it a concurrent upgrade reads `enabled`,
+  // decides `nextStatus` from that stale value, and silently re-enables an
+  // install another request disabled a moment earlier -- losing the grant
+  // revocation the disable performed.
   const rows = await transaction.query<InstallRow>(
     `select ${INSTALL_COLUMNS}
        from bakery.plugin_installs i
-      where i.organization_id = $1 and i.id = $2`,
+      where i.organization_id = $1 and i.id = $2
+      ${options.forUpdate ? "for update" : ""}`,
     [organizationId, installId],
   );
   const row = rows.rows[0];
@@ -416,9 +423,11 @@ export async function createPluginInstall(
     ownerPrincipalId,
   );
 
-  // The version must belong to this package and this organization. The
-  // composite key on the row is the real guarantee; this read is what produces
-  // a named refusal instead of a foreign-key error.
+  // The version must belong to this package and this organization, be
+  // published, and belong to a package that is not withdrawn. The composite key
+  // on the row is the real guarantee of ownership; these predicates are what
+  // stop an install granting the capabilities of a draft nobody released, or of
+  // a package the publisher has since withdrawn.
   const version = await transaction.query<{
     id: string;
     manifest: unknown;
@@ -426,8 +435,13 @@ export async function createPluginInstall(
   }>(
     `select v.id, v.manifest, v.sdk_range
        from bakery.plugin_versions v
+       join bakery.plugin_packages p
+         on p.organization_id = v.organization_id
+        and p.id = v.plugin_package_id
       where v.organization_id = $1 and v.plugin_package_id = $2
-        and v.id = $3`,
+        and v.id = $3
+        and v.published_at is not null
+        and p.listing_status <> 'withdrawn'`,
     [organizationId, input.packageId, input.versionId],
   );
   const versionRow = version.rows[0];
@@ -530,7 +544,9 @@ export async function updatePluginInstall(
   const input = rawInput as z.output<
     typeof contractSchemas.PluginInstallUpdate
   >;
-  const row = await loadInstall(transaction, organizationId, installId);
+  const row = await loadInstall(transaction, organizationId, installId, {
+    forUpdate: true,
+  });
   await assertMayManageInstall(
     transaction,
     organizationId,
@@ -549,14 +565,22 @@ export async function updatePluginInstall(
     // An upgrade pins a different version of the same package and re-checks it.
     // Carrying the old grants forward would let a new version inherit authority
     // its manifest never asked for.
+    // Same rule as at install: only a published version of a package that is
+    // still available may bring new capabilities, or an upgrade would launder
+    // a draft's authority through an existing install.
     const version = await transaction.query<{
       manifest: unknown;
       sdk_range: string;
     }>(
       `select v.manifest, v.sdk_range
          from bakery.plugin_versions v
+         join bakery.plugin_packages p
+           on p.organization_id = v.organization_id
+          and p.id = v.plugin_package_id
         where v.organization_id = $1 and v.plugin_package_id = $2
-          and v.id = $3`,
+          and v.id = $3
+          and v.published_at is not null
+          and p.listing_status <> 'withdrawn'`,
       [organizationId, row.plugin_package_id, input.versionId],
     );
     const versionRow = version.rows[0];
@@ -780,7 +804,12 @@ export async function putPluginState(
     });
   }
 
-  const install = await loadInstall(transaction, organizationId, installId);
+  // Locked for the same reason as an update: the status this write is allowed
+  // on must be the status a concurrent disable left behind, or a state write
+  // lands on an install whose authority was revoked a moment earlier.
+  const install = await loadInstall(transaction, organizationId, installId, {
+    forUpdate: true,
+  });
   // The owner check comes first. Checking status here would answer 409 for a
   // disabled personal install belonging to somebody else, which confirms both
   // that it exists and how it is configured; a colleague must get 404 instead.
