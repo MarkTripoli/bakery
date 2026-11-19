@@ -3234,7 +3234,7 @@
         "MALFORMED_REQUEST"
       ],
       "organizationContext": "none",
-      "implemented": false
+      "implemented": true
     },
     {
       "group": "Extensions",
@@ -3254,7 +3254,7 @@
         "RESOURCE_NOT_FOUND"
       ],
       "organizationContext": "none",
-      "implemented": false
+      "implemented": true
     },
     {
       "group": "Extensions",
@@ -3278,7 +3278,7 @@
         "IDEMPOTENCY_PAYLOAD_MISMATCH"
       ],
       "organizationContext": "none",
-      "implemented": false
+      "implemented": true
     },
     {
       "group": "Extensions",
@@ -3302,7 +3302,7 @@
         "IDEMPOTENCY_PAYLOAD_MISMATCH"
       ],
       "organizationContext": "none",
-      "implemented": false
+      "implemented": true
     },
     {
       "group": "Extensions",
@@ -10753,6 +10753,10 @@
     "skillStorageSettings.get",
     "skillStorageSettings.put",
     "skillStorageSettings.verify",
+    "mcpServers.list",
+    "mcpServers.get",
+    "mcpServers.create",
+    "mcpServers.update",
     "blobUploads.start",
     "blobUploads.part",
     "blobUploads.complete",
@@ -224341,7 +224345,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:dc879f22232dafd9a4e4a8a27461346924d3172cac39d1c482d2a5e700443006",
+  "compatibilityDigest": "sha256:45ddebee9add3a112f6db5ccd7372fb7e9538bb6a015aaed6cd87c8643a99935",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

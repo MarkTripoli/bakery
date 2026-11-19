@@ -453,6 +453,23 @@ export const workflowImplementedActions = Object.freeze(
   Object.values(WorkflowImplementedAction),
 );
 
+/**
+ * MCP server definitions (#434): the shared, organization-scoped record of what a
+ * remote server is. Connections, discovery and classification are separate groups
+ * as they land; the runtime registry and this list stay equal at every commit.
+ */
+export const McpServerImplementedAction = Object.freeze(
+  {
+    McpServersList: "mcpServers.list",
+    McpServersGet: "mcpServers.get",
+    McpServersCreate: "mcpServers.create",
+    McpServersUpdate: "mcpServers.update",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const mcpServerImplementedActions = Object.freeze(
+  Object.values(McpServerImplementedAction),
+);
+
 /** Registered workflow action discovery served by the handwritten Hono routes. */
 export const WorkflowActionDiscoveryImplementedAction = Object.freeze(
   {
@@ -669,6 +686,7 @@ export const implementedActions = Object.freeze(
     ...pluginPackageImplementedActions,
     ...pluginInstallImplementedActions,
     ...skillStorageImplementedActions,
+    ...mcpServerImplementedActions,
     ...blobUploadImplementedActions,
     ...memoryImplementedActions,
   ] as const,
