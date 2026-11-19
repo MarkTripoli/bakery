@@ -54,8 +54,11 @@ const POSTGRES_FOREIGN_KEY_VIOLATION = "23503";
  * in one dot (`localhost.` is `localhost`), so one trailing dot is dropped before
  * any comparison. A name with no dot at all is refused: it is not a public
  * provider, and a bare name resolves through the server's search domain to
- * whatever internal service carries it (`db`, `redis`, `consul`). Port 0 is not a
- * port a provider serves.
+ * whatever internal service carries it (`db`, `redis`, `consul`). Names under a
+ * suffix that only ever means "inside" are refused too: `.local`, `.internal`,
+ * `.localhost`, `.localdomain`, and `.svc` (a Kubernetes service; its
+ * `.cluster.local` form is already `.local`). Port 0 is not a port a provider
+ * serves.
  */
 export function assertProviderEndpoint(endpoint: string): void {
   let url: URL;
@@ -71,7 +74,8 @@ export function assertProviderEndpoint(endpoint: string): void {
     url.port === "0" || host === "" || host.endsWith(".") ||
     (!isAddress && !host.includes(".")) || host === "localhost" ||
     host.endsWith(".localhost") || host.endsWith(".local") ||
-    host.endsWith(".internal") || isNonPublicAddress(host);
+    host.endsWith(".internal") || host.endsWith(".localdomain") ||
+    host.endsWith(".svc") || isNonPublicAddress(host);
   if (refused) {
     throw unprocessable(["endpoint"], "provider_endpoint_invalid");
   }

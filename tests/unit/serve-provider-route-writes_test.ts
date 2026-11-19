@@ -344,6 +344,10 @@ Deno.test("an endpoint that carries a credential, or names the server's own netw
       "https://foo.localhost./v1",
       "https://metadata.google.internal./v1",
       "https://printer.local./v1",
+      "https://localhost.localdomain/v1",
+      "https://kubernetes.default.svc/v1",
+      "https://kubernetes.default.svc.cluster.local/v1",
+      "https://models.svc./v1",
       "https://127.0.0.1./v1",
       "https://etc/passwd",
       "https:///etc/passwd",
@@ -372,6 +376,8 @@ Deno.test("an endpoint that carries a credential, or names the server's own netw
       "https://172.32.0.1/v1",
       "https://api.provider.example./v1",
       "https://xn--bcher-kva.example/v1",
+      "https://svc.provider.example/v1",
+      "https://api.localdomains.example/v1",
     ]
   ) {
     assertProviderEndpoint(endpoint);
