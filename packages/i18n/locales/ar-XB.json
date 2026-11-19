@@ -4401,5 +4401,7 @@
   "integrations.linear.permission.other": "⟪Linear granted {scope} access, which Bakery does not use.⟫",
   "integrations.linear.resource.project": "⟪A Linear project⟫",
   "integrations.linear.resource.team": "⟪A Linear team⟫",
+  "notifications.landing.arrived": "⟪Opened from a notification.⟫",
+  "notifications.landing.partGone": "⟪The part this notification was about is no longer here.⟫",
   "settings.roles.thing.group": "⟪groups⟫"
 }
