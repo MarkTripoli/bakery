@@ -1,5 +1,4 @@
 import { assert, assertEquals } from "@std/assert";
-import { ticketRef } from "../../apps/server/src/modules/work/ticket-source-reader.ts";
 import type {
   TicketReadFailure,
   TicketSourceHandle,
