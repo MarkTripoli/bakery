@@ -8,7 +8,11 @@ import type {
 } from "../api/client.ts";
 import { useBakeryApi } from "../api/context.tsx";
 import {
+  applicationRepositoryRolesQueryOptions,
   effectiveAccessQueryOptions,
+  projectRepositoriesQueryOptions,
+  ticketRoutingRulesQueryOptions,
+  ticketSourceLabelsQueryOptions,
   ticketSourceQueryOptions,
 } from "../api/query.ts";
 import { protectedQueryKey } from "../app/query-scope.ts";
@@ -27,6 +31,17 @@ import {
   problemsOf,
   type SettingsForm,
 } from "./issues/settings-model.ts";
+import {
+  isRulesDirty,
+  isRulesSavable,
+  problemsOf as ruleProblemsOf,
+  refusalOf,
+  type RepositoryFacts,
+  rowsOf,
+  type RuleRow,
+  ruleSetOf,
+} from "./issues/routing-model.ts";
+import { RoutingRules } from "./issues/RoutingRules.tsx";
 
 /** The pages that share one repository's draft. */
 const SETTINGS_PATH = "/issues/settings";
@@ -71,6 +86,61 @@ export function IssueSettingsPage({ sourceId }: { sourceId: string }) {
   });
 
   const saved: TicketSourceResponse | null = source.data ?? null;
+
+  // Where the work goes (#69): the rules, the labels GitHub lists, and the
+  // repositories of this application with the role each has.
+  const rulesRead = useQuery(
+    ticketRoutingRulesQueryOptions(api, scope, sourceId),
+  );
+  const labelsRead = useQuery({
+    ...ticketSourceLabelsQueryOptions(api, scope, sourceId),
+    enabled: isAdmin && Boolean(scope.organizationId),
+  });
+  const rolesRead = useQuery({
+    ...applicationRepositoryRolesQueryOptions(
+      api,
+      scope,
+      saved?.applicationId ?? "",
+    ),
+    enabled: saved !== null,
+  });
+  const repositoriesRead = useQuery(
+    projectRepositoriesQueryOptions(api, scope),
+  );
+  const savedRows = useMemo(() => rowsOf(rulesRead.data), [rulesRead.data]);
+  const [rulesDraft, setRulesDraft] = useState<RuleRow[] | null>(null);
+  const [rulesNotice, setRulesNotice] = useState<
+    { settingsSaved: boolean; reason: string } | null
+  >(null);
+  const rows = rulesDraft ?? savedRows;
+  const repositoryFacts = useMemo(() => {
+    const facts = new Map<string, RepositoryFacts>();
+    for (const repository of repositoriesRead.data?.items ?? []) {
+      if (saved === null || repository.applicationId !== saved.applicationId) {
+        continue;
+      }
+      const role = (rolesRead.data?.items ?? []).find((entry) =>
+        entry.repositoryId === repository.id
+      )?.role ?? null;
+      facts.set(repository.id, {
+        id: repository.id,
+        archived: repository.archivedAt !== null,
+        role,
+      });
+    }
+    return facts;
+  }, [repositoriesRead.data, rolesRead.data, saved]);
+  const repositoryName = (repositoryId: string) => {
+    const repository = repositoriesRead.data?.items.find((entry) =>
+      entry.id === repositoryId
+    );
+    return repository === undefined
+      ? repositoryId
+      : `${repository.owner}/${repository.name}`;
+  };
+  const ruleProblems = ruleProblemsOf(rows, repositoryFacts);
+  const rulesDirty = isRulesDirty(rows, savedRows);
+  const rulesSavable = isRulesSavable(rows, ruleProblems);
   const [draft, setDraft] = useState<SettingsForm | null>(null);
   const [savedNotice, setSavedNotice] = useState(false);
   const [conflict, setConflict] = useState(false);
@@ -90,7 +160,9 @@ export function IssueSettingsPage({ sourceId }: { sourceId: string }) {
   const shown = draft ?? (saved === null ? null : formOf(saved));
   const dirty = shown !== null && isDirty(shown, saved);
   const problems = shown === null ? {} : problemsOf(shown);
-  const savable = shown !== null && isSavable(shown) && dirty;
+  const anyDirty = dirty || rulesDirty;
+  const savable = shown !== null && isSavable(shown) && anyDirty &&
+    (!rulesDirty || rulesSavable);
 
   const edit = (change: Partial<SettingsForm>) => {
     if (shown === null) return;
@@ -99,29 +171,77 @@ export function IssueSettingsPage({ sourceId }: { sourceId: string }) {
     setConflict(false);
   };
 
+  // One Save: the settings first, then the rules. If the settings save and
+  // the rules do not, the person is told so and the rules stay in the form.
   const save = useMutation({
     mutationKey: ["ticketSources.update"],
     mutationFn: async (form: SettingsForm) => {
       if (saved === null) throw new Error("no source");
-      const result = await api.tickets.updateSource({
-        organizationId: scope.organizationId ?? "",
-        id: saved.id,
-        input: { enabled: form.enabled, policy: policyOfForm(form) },
-        version: saved.version,
-        idempotencyKey: crypto.randomUUID(),
-      });
-      if (!result.ok) throw result.error;
-      return result.data;
+      let updated: TicketSourceResponse | null = null;
+      if (dirty) {
+        const result = await api.tickets.updateSource({
+          organizationId: scope.organizationId ?? "",
+          id: saved.id,
+          input: { enabled: form.enabled, policy: policyOfForm(form) },
+          version: saved.version,
+          idempotencyKey: crypto.randomUUID(),
+        });
+        if (!result.ok) throw result.error;
+        updated = result.data;
+      }
+      let ruleSet = null;
+      let rulesError: unknown = null;
+      if (rulesDirty) {
+        const result = await api.tickets.replaceRoutingRules({
+          organizationId: scope.organizationId ?? "",
+          sourceId: saved.id,
+          input: ruleSetOf(rows, repositoryFacts),
+          version: rulesRead.data?.version ?? 0,
+          idempotencyKey: crypto.randomUUID(),
+        });
+        if (result.ok) ruleSet = result.data;
+        else rulesError = result.error;
+      }
+      return { updated, ruleSet, rulesError };
     },
-    onSuccess: (updated) => {
-      queryClient.setQueryData(
-        ticketSourceQueryOptions(api, scope, sourceId).queryKey,
-        updated,
-      );
-      setDraft(null);
-      setSavedNotice(true);
-      setConflict(false);
+    onSuccess: ({ updated, ruleSet, rulesError }) => {
+      if (updated !== null) {
+        queryClient.setQueryData(
+          ticketSourceQueryOptions(api, scope, sourceId).queryKey,
+          updated,
+        );
+        setDraft(null);
+      }
+      if (ruleSet !== null) {
+        queryClient.setQueryData(
+          ticketRoutingRulesQueryOptions(api, scope, sourceId).queryKey,
+          ruleSet,
+        );
+        setRulesDraft(null);
+      }
       setPreviewCounts(null);
+      if (rulesError === null) {
+        setSavedNotice(true);
+        setConflict(false);
+        setRulesNotice(null);
+      } else {
+        const problem = (rulesError as {
+          problem?: { status?: number; issueCodes?: readonly string[] };
+        })?.problem;
+        const stale = problem?.status === 409 || problem?.status === 412;
+        setConflict(stale);
+        setSavedNotice(false);
+        setRulesNotice(
+          stale ? null : {
+            settingsSaved: updated !== null,
+            reason: translate(
+              `issues.settings.routing.refusal.${
+                refusalOf(problem?.issueCodes) ?? "other"
+              }` as never,
+            ),
+          },
+        );
+      }
       void queryClient.invalidateQueries({ queryKey: ["protected"] });
     },
     onError: (error) => {
@@ -201,6 +321,7 @@ export function IssueSettingsPage({ sourceId }: { sourceId: string }) {
 
   const since = automaticSinceOf(saved);
   const badge = badgeOf(saved);
+  const snapshotName = saved?.externalContainerId ?? "";
   const labelsDisabled = !isAdmin || save.isPending;
 
   return (
@@ -280,6 +401,19 @@ export function IssueSettingsPage({ sourceId }: { sourceId: string }) {
                     }
                   >
                     {translate("issues.settings.conflict.body")}
+                  </UI.InlineNotice>
+                )
+                : null}
+
+              {rulesNotice !== null
+                ? (
+                  <UI.InlineNotice tone="error">
+                    {translate(
+                      (rulesNotice.settingsSaved
+                        ? "issues.settings.routing.notSaved"
+                        : "issues.settings.routing.notSavedAlone") as never,
+                      { reason: rulesNotice.reason },
+                    )}
                   </UI.InlineNotice>
                 )
                 : null}
@@ -584,15 +718,32 @@ export function IssueSettingsPage({ sourceId }: { sourceId: string }) {
                   : null}
               </UI.Stack>
 
+              <RoutingRules
+                disabled={labelsDisabled}
+                home={snapshotName}
+                labels={labelsRead.isPending || !isAdmin
+                  ? { state: "loading" }
+                  : labelsRead.isError
+                  ? { state: "error", retry: () => void labelsRead.refetch() }
+                  : { state: "ready", items: labelsRead.data?.items ?? [] }}
+                onChange={(next) => {
+                  setRulesDraft(next);
+                  setSavedNotice(false);
+                  setRulesNotice(null);
+                  setConflict(false);
+                }}
+                problems={ruleProblems}
+                repositories={repositoryFacts}
+                repositoryName={repositoryName}
+                rows={rows}
+              />
+
               <UI.Stack gap="compact" data-testid="issue-settings-workflow">
                 <UI.Heading level="section">
                   {translate("issues.settings.workflow.title")}
                 </UI.Heading>
-                <UI.Text>
-                  {translate("issues.settings.workflow.standard")}
-                </UI.Text>
                 <UI.Text variant="muted">
-                  {translate("issues.settings.workflow.hint")}
+                  {translate("issues.settings.workflow.standard")}
                 </UI.Text>
               </UI.Stack>
 
@@ -704,7 +855,7 @@ export function IssueSettingsPage({ sourceId }: { sourceId: string }) {
                 )
                 : null}
 
-              {dirty
+              {anyDirty
                 ? (
                   <UI.DraftBar
                     detail={translate("issues.settings.draft.detail")}
@@ -719,7 +870,11 @@ export function IssueSettingsPage({ sourceId }: { sourceId: string }) {
                     }
                     secondaryAction={
                       <UI.Button
-                        onClick={() => setDraft(null)}
+                        onClick={() => {
+                          setDraft(null);
+                          setRulesDraft(null);
+                          setRulesNotice(null);
+                        }}
                         type="button"
                         variant="outline"
                       >
@@ -737,8 +892,11 @@ export function IssueSettingsPage({ sourceId }: { sourceId: string }) {
                   stay: "issues.settings.leave.stay",
                   confirm: "issues.settings.leave.confirm",
                 }}
-                count={dirty ? 1 : 0}
-                discard={() => setDraft(null)}
+                count={anyDirty ? 1 : 0}
+                discard={() => {
+                  setDraft(null);
+                  setRulesDraft(null);
+                }}
                 path={SETTINGS_PATH}
               />
             </>
