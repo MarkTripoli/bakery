@@ -270,6 +270,8 @@ Deno.test("issue 82 provider reads: readIssueDetail returns the text, labels, pa
       body: "Line one\r\nLine two\n\n## Acceptance criteria\n- works",
       bodyTooLarge: false,
       labels: ["ready for agent", "bug"],
+      // Label ids are kept beside the names, so routing survives a rename.
+      labelIds: ["1", "2"],
       labelsTruncated: false,
       locked: false,
       updatedAt: "2026-10-31T12:00:00Z",

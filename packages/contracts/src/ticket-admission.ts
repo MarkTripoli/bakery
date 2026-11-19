@@ -143,6 +143,32 @@ export function ticketVerdictFromChecks(
 }
 
 /**
+ * Why label routing (#31) blocks a new admission, reported by the
+ * `repository_ready` check with status `reject`:
+ * - `route_ambiguous`: the matched rules give one repository two roles or
+ *   presets, or one role two repositories, so the targets cannot be
+ *   deduplicated into one child per repository;
+ * - `route_target_deleted`: a matched rule routes to an archived repository;
+ * - `route_target_inaccessible`: a matched rule routes to a repository the
+ *   source's application no longer owns or whose integration connection is
+ *   archived.
+ * A blocked ticket is never admitted; it is not silently routed elsewhere.
+ */
+export const TICKET_ROUTE_BLOCK_REASONS = Object.freeze(
+  [
+    "route_ambiguous",
+    "route_target_deleted",
+    "route_target_inaccessible",
+  ] as const,
+);
+export type TicketRouteBlockReason = typeof TICKET_ROUTE_BLOCK_REASONS[number];
+
+/** Most label routing rules one ticket source holds. */
+export const TICKET_ROUTING_MAX_RULES = 50;
+/** Role a request target takes when the ticket matched no rule and falls back to the source's repository. */
+export const TICKET_ROUTE_FALLBACK_ROLE = "default";
+
+/**
  * Reasons that suspend a request and clear by themselves: when the condition
  * is restored, a recheck resumes the request after re-verifying authority and
  * label provenance live. Includes source-state and repository or preset setup
@@ -201,10 +227,18 @@ export type TicketExplicitResumeReason =
  * check, and the others only appear before a request exists (the ticket is
  * not yet admitted, so there is nothing to suspend). A request that already
  * exists records `acceptance_changed` instead of `acceptance_missing` when
- * its acceptance criteria disappear.
+ * its acceptance criteria disappear. The route reasons block a new admission
+ * whose label routing cannot resolve; a request that exists keeps the targets
+ * it was admitted with, so they never suspend one.
  */
 export const TICKET_NON_SUSPENDING_REASONS = Object.freeze(
-  ["ok", "acceptance_missing", "active_request", "adoption_required"] as const,
+  [
+    "ok",
+    "acceptance_missing",
+    "active_request",
+    "adoption_required",
+    ...TICKET_ROUTE_BLOCK_REASONS,
+  ] as const,
 );
 export type TicketNonSuspendingReason =
   typeof TICKET_NON_SUSPENDING_REASONS[number];
@@ -228,6 +262,11 @@ export function isTicketAutoResumableReason(
   value: unknown,
 ): value is TicketAutoResumableReason {
   return memberOf(TICKET_AUTO_RESUMABLE_REASONS, value);
+}
+export function isTicketNonSuspendingReason(
+  value: unknown,
+): value is TicketNonSuspendingReason {
+  return memberOf(TICKET_NON_SUSPENDING_REASONS, value);
 }
 export function isTicketExplicitResumeReason(
   value: unknown,
@@ -289,7 +328,11 @@ export const TICKET_CHECK_REASONS: Readonly<
   ),
   no_active_admission: Object.freeze(["active_request"] as const),
   repository_ready: Object.freeze(
-    ["repository_archived", "no_active_profile"] as const,
+    [
+      "repository_archived",
+      "no_active_profile",
+      ...TICKET_ROUTE_BLOCK_REASONS,
+    ] as const,
   ),
   preset_ready: Object.freeze(["preset_setup_required"] as const),
   authority_live: Object.freeze(
@@ -362,6 +405,14 @@ const providerLabelName = z.string().min(1).max(TICKET_LABEL_NAME_MAX_LENGTH)
   .describe(
     "Label display name exactly as GitHub reports it, 1 to 50 characters; kept verbatim as evidence and never interpreted.",
   );
+
+/** A provider label id as the reader reports it: opaque, bounded, never a URL. */
+const providerLabelId = z.string().min(1).max(100).refine(
+  (value) => !labelNameIsUnsafe(value),
+  { message: "A label id must be trimmed and free of control characters." },
+).describe(
+  "The provider's stable identifier of one label, as an opaque string of 1 to 100 characters; compared exactly, never interpreted.",
+);
 
 const sha256Hex = z.string().regex(SHA256_HEX).describe(
   "Lowercase 64-character hexadecimal SHA-256 digest.",
@@ -579,6 +630,10 @@ export const TicketSnapshotInputSchema = z.object({
   labels: z.array(providerLabelName).max(TICKET_SNAPSHOT_MAX_LABELS).describe(
     "Label display names on the issue, at most 50.",
   ),
+  labelIds: z.array(providerLabelId).max(TICKET_SNAPSHOT_MAX_LABELS)
+    .optional().describe(
+      "The provider's stable ids of the same labels, in the same order as labels. Label routing matches these, so renaming a label keeps its routing. Omitted by a reader that cannot name label ids; a source with routing rules then blocks the ticket as route_ambiguous instead of guessing.",
+    ),
   state: issueState,
   stateReason: issueStateReason,
   locked: z.boolean().describe(
@@ -593,6 +648,16 @@ export const TicketSnapshotInputSchema = z.object({
       code: "custom",
       path: ["body"],
       message: "The body exceeds 65,536 code points.",
+    });
+  }
+  if (
+    input.labelIds !== undefined &&
+    input.labelIds.length !== input.labels.length
+  ) {
+    context.addIssue({
+      code: "custom",
+      path: ["labelIds"],
+      message: "labelIds names the same labels as labels, one id each.",
     });
   }
 }).describe(

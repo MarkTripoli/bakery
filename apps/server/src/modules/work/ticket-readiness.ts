@@ -34,6 +34,7 @@ import type {
   TicketLinksRead,
   TicketReadFailure,
 } from "./ticket-source-reader.ts";
+import type { TicketRouteResolution } from "./ticket-routing.ts";
 
 /**
  * The readiness evaluator. `evaluateReadiness` turns facts that were already
@@ -128,6 +129,12 @@ export type ReadinessInput = {
    * still detected.
    */
   pinnedRequirementsDigest: string | null;
+  /**
+   * Label routing (#31) of a new admission: the targets the ticket's labels
+   * resolve to, or why they cannot. Omitted for a request that exists, which
+   * keeps the targets it was admitted with, and by callers with no routing.
+   */
+  route?: TicketRouteResolution;
 };
 
 type PresentIssue = {
@@ -540,17 +547,57 @@ function noActiveAdmission({ activeRequest, intent }: ReadinessInput): Outcome {
   );
 }
 
-function repositoryReady({ source }: ReadinessInput): Outcome {
+function repositoryReady({ source, route }: ReadinessInput): Outcome {
+  // A route that cannot resolve needs a person to fix the rules or the
+  // repository; it is never admitted with a target dropped.
+  if (route?.kind === "blocked") {
+    return rejected(
+      route.reason,
+      ...route.refs.slice(0, TICKET_CHECK_MAX_EVIDENCE).map((ref) =>
+        evidenceRef(`route:${ref}`)
+      ),
+    );
+  }
   if (source.repositoryArchived) return waiting("repository_archived");
   if (!source.repositoryHasActiveProfile) return waiting("no_active_profile");
-  return passed();
+  if (route === undefined) return passed();
+  // Every routed target needs its own ready profile, not only the source's.
+  const noProfile = route.unready?.profile ?? [];
+  if (noProfile.length > 0) {
+    return waiting(
+      "no_active_profile",
+      ...noProfile.slice(0, TICKET_CHECK_MAX_EVIDENCE).map((ref) =>
+        evidenceRef(`route:${ref}`)
+      ),
+    );
+  }
+  if (route.fallback) return passed(evidenceRef("route:fallback"));
+  // The evidence names routed targets only; the plain source repository
+  // carries none, as it did before routing.
+  return passed(
+    ...route.targets.filter((target) => target.ruleId !== null).slice(
+      0,
+      TICKET_CHECK_MAX_EVIDENCE,
+    ).map((target) => evidenceRef(`route:${target.role}`)),
+  );
 }
 
-function presetReady({ source, preset }: ReadinessInput): Outcome {
+function presetReady({ source, preset, route }: ReadinessInput): Outcome {
   // The policy and the pin both name the one fixed preset by literal type, so
   // there is no identity to compare; only the repository's setup can fail.
   if (!source.presetReady) {
     return waiting("preset_setup_required", evidenceRef(`preset:${preset.id}`));
+  }
+  // A routed target whose repository cannot run the preset waits too.
+  const unready = route?.kind === "routed" ? route.unready?.preset ?? [] : [];
+  if (unready.length > 0) {
+    return waiting(
+      "preset_setup_required",
+      evidenceRef(`preset:${preset.id}`),
+      ...unready.slice(0, TICKET_CHECK_MAX_EVIDENCE - 1).map((ref) =>
+        evidenceRef(`route:${ref}`)
+      ),
+    );
   }
   return passed(evidenceRef(`preset:${preset.id}`));
 }
