@@ -186,6 +186,10 @@ export function PluginPage({ installId }: { readonly installId: string }) {
       : didNotStart.has(row.update.versionId)
       ? row.update.versionName
       : null);
+  // The version the last update tried, offered again from the notice.
+  const retryVersion = row?.updateFailure === null || row === undefined
+    ? undefined
+    : versions.find((item) => item.id === row.updateFailure?.versionId);
   const dismissFailure = () =>
     void change(
       () =>
@@ -280,6 +284,22 @@ export function PluginPage({ installId }: { readonly installId: string }) {
                     {mayChange
                       ? (
                         <UI.Inline gap="compact">
+                          {retryVersion === undefined ? null : (
+                            <UI.Button
+                              variant="primary"
+                              disabled={changes.pending}
+                              onClick={() => {
+                                setFailure(null);
+                                setDialog({
+                                  kind: "version",
+                                  version: retryVersion,
+                                  direction: "update",
+                                });
+                              }}
+                            >
+                              {translate("settings.plugins.update.retry")}
+                            </UI.Button>
+                          )}
                           <UI.Button
                             variant="secondary"
                             disabled={changes.pending}
@@ -417,18 +437,21 @@ export function PluginPage({ installId }: { readonly installId: string }) {
                   {translate("settings.plugins.versions.heading")}
                 </UI.Heading>
                 {(() => {
-                  const status = (version: PluginVersion) =>
+                  const failedBadge = (version: PluginVersion) =>
+                    version.id !== row.versionId &&
+                      (didNotStart.has(version.id) ||
+                        row.updateFailure?.versionId === version.id)
+                      ? (
+                        <UI.Badge tone="danger">
+                          {translate("settings.plugins.versions.didNotStart")}
+                        </UI.Badge>
+                      )
+                      : null;
+                  const installedBadge = (version: PluginVersion) =>
                     version.id === row.versionId
                       ? (
                         <UI.Badge tone="information">
                           {translate("settings.plugins.versions.current")}
-                        </UI.Badge>
-                      )
-                      : didNotStart.has(version.id) ||
-                          row.updateFailure?.versionId === version.id
-                      ? (
-                        <UI.Badge tone="danger">
-                          {translate("settings.plugins.versions.didNotStart")}
                         </UI.Badge>
                       )
                       : null;
@@ -481,8 +504,13 @@ export function PluginPage({ installId }: { readonly installId: string }) {
                             data-plugin-version={version.id}
                           >
                             <UI.StackedRow
-                              title={version.versionName}
-                              status={status(version) ?? undefined}
+                              title={
+                                <UI.Inline gap="compact">
+                                  <span>{version.versionName}</span>
+                                  {failedBadge(version)}
+                                </UI.Inline>
+                              }
+                              status={installedBadge(version) ?? undefined}
                             >
                               <UI.Text variant="caption">
                                 {publishedLine(version)}
@@ -510,25 +538,19 @@ export function PluginPage({ installId }: { readonly installId: string }) {
                         columns={[
                           {
                             id: "version",
-                            width: "50%",
+                            width: "70%",
                             header: translate("settings.plugins.page.version"),
                             cell: (version) => (
                               <UI.Stack gap="none">
-                                <UI.Text>{version.versionName}</UI.Text>
+                                <UI.Inline gap="compact">
+                                  <UI.Text>{version.versionName}</UI.Text>
+                                  {failedBadge(version)}
+                                </UI.Inline>
                                 <UI.Text variant="caption">
                                   {publishedLine(version)}
                                 </UI.Text>
                               </UI.Stack>
                             ),
-                          },
-                          {
-                            id: "status",
-                            width: "20%",
-                            header: translate("settings.plugins.column.status"),
-                            cell: (version) =>
-                              version.id === row.versionId
-                                ? null
-                                : status(version),
                           },
                           {
                             id: "action",
@@ -537,9 +559,7 @@ export function PluginPage({ installId }: { readonly installId: string }) {
                             // The installed version has no button, so its badge
                             // sits where the other rows' buttons are.
                             cell: (version) =>
-                              version.id === row.versionId
-                                ? status(version)
-                                : action(version),
+                              installedBadge(version) ?? action(version),
                           },
                         ]}
                       />

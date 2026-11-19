@@ -515,6 +515,33 @@ for (
         }),
       ).toBeVisible();
 
+      // The badge follows the version number, not the middle of the row.
+      if (viewport.name === "desktop") {
+        const version = await page
+          .getByTestId("plugin-versions")
+          .getByText("1.1.0", { exact: true })
+          .boundingBox();
+        const badge = await page
+          .getByTestId("plugin-versions")
+          .getByText("Did not start", { exact: true })
+          .boundingBox();
+        expect(badge!.x - (version!.x + version!.width)).toBeLessThan(24);
+      }
+
+      // The notice offers the update again first (primary), and it opens the
+      // review dialog; Dismiss follows.
+      const notice = page.getByRole("alert").filter({
+        hasText: "The update to 1.1.0 did not start.",
+      });
+      const buttons = notice.getByRole("button");
+      await expect(buttons.nth(0)).toHaveText("Try the update again");
+      await expect(buttons.nth(1)).toHaveText("Dismiss");
+      await buttons.nth(0).click();
+      const retry = page.getByRole("dialog");
+      await expect(retry.getByText("1.0.0 → 1.1.0")).toBeVisible();
+      await retry.getByRole("button", { name: "Not now" }).click();
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+
       // Dismissing sends only that, and the note goes.
       await page.getByRole("button", { name: "Dismiss" }).click();
       await expect(page.getByText("The update to 1.1.0 did not start."))
