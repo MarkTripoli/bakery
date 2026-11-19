@@ -1537,6 +1537,23 @@ test.describe("organization settings states", () => {
 test.describe("contextual feature availability", () => {
   test("/organizations disables Create organization with a reason when creation is paused", async ({ page }) => {
     await mockFeatureAvailability(page, { organizationCreation: false });
+    // The shared mock session answers installation settings as an administrator,
+    // and an administrator may create organizations. This person is not one.
+    await page.route("**/v1/installation/settings", (route) =>
+      route.fulfill({
+        status: 403,
+        contentType: "application/problem+json",
+        body: JSON.stringify({
+          type: "https://bakery.example/problems/forbidden",
+          title: "Forbidden",
+          status: 403,
+          code: "AUTH_FORBIDDEN",
+          retryable: false,
+          detail: "Administrators only.",
+          requestId: "00000000-0000-4000-8000-00000000f001",
+          traceId: "00000000000000000000000000000001",
+        }),
+      }));
     await page.goto("/organizations");
     const create = page.getByRole("button", { name: "Create organization" });
     await expect(create).toBeDisabled();
