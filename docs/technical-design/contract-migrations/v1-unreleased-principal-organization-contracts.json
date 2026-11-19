@@ -1,12 +1,13 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
+    "94e8c0e8c04f896c3f56374303ac9853d21405aa",
     "3e67ca6d20efb88bf8b1ce763e7dd95af1ef4bee"
   ],
   "status": "approved",
   "allowBreaking": true,
   "targetCompatibilityDigest": "sha256:96f61e8e97de1017f73baa0427a42d08504695e327abceb3a1a3e92db4829707",
-  "reason": "#57 slice 1 merge from Bakery re-bind by dev-agx1 on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main 3e67ca6d20efb88bf8b1ce763e7dd95af1ef4bee: PullRequest gains a required mayMerge (boolean, whether the caller holds pullRequest:merge) and a required mergeMethod (the squash default Bakery merges with), on an output no client writes. mergeAttempts.list (GET /v1/merge-attempts, keyset) and the pull request and run filters of mergeEntries.list are additive. The breaking drift is those two fields becoming required; the approval it displaced at sha256:fde2bf41e3caf11df66620b7a2a88273a0a65d334f02a2ee432fde53c0d59580 is preserved unchanged first below.",
+  "reason": "#57 slice 1 merge from Bakery re-bind by dev-agx1 on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main 94e8c0e8c04f896c3f56374303ac9853d21405aa: PullRequest gains a required mayMerge (boolean, whether the caller holds pullRequest:merge) and a required mergeMethod (the squash default Bakery merges with), on an output no client writes. mergeAttempts.list (GET /v1/merge-attempts, keyset) and the pull request and run filters of mergeEntries.list are additive. The breaking drift is those two fields becoming required; the approval it displaced at sha256:fde2bf41e3caf11df66620b7a2a88273a0a65d334f02a2ee432fde53c0d59580 is preserved unchanged first below.",
   "priorApprovals": [
     {
       "fromBaseRefs": [
