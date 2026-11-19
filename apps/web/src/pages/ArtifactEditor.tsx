@@ -14,11 +14,15 @@ import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import {
   loroExtensions,
+  remoteCaretLayer,
+  setRemoteCarets,
   showSuggestedRange,
   sizeLimit,
   suggestionTint,
 } from "../collaboration/editor-binding.ts";
 import { peopleOf } from "../collaboration/people.ts";
+import { encodeCursorAt, remoteCarets } from "../collaboration/carets.ts";
+import { useSession } from "../app/session-context.tsx";
 import { usePublish } from "./ArtifactPublish.tsx";
 import {
   SuggestionsConfirm,
@@ -233,6 +237,17 @@ function DraftEditor(
   );
   const clock = (milliseconds: number) => time.format(new Date(milliseconds));
 
+  // This person's own presence: typing, and where the caret and selection are.
+  const cursorRef = useRef<{ anchor: string; head: string } | null>(null);
+  const typingNow = useRef(false);
+  const announceRef = useRef(() => {});
+  announceRef.current = () =>
+    session.setPresence({
+      activity: "active",
+      typing: typingNow.current,
+      cursor: cursorRef.current,
+    });
+  const selfPrincipalId = useSession().identity?.principalId ?? null;
   // The editor binds to the session's document and starts again whenever the
   // session rebuilds it from the server's text.
   const extensions = useMemo(
@@ -240,7 +255,16 @@ function DraftEditor(
       ...loroExtensions(session.document),
       sizeLimit(),
       suggestionTint(),
+      remoteCaretLayer(),
       EditorView.updateListener.of((update) => {
+        if (update.selectionSet || update.docChanged) {
+          // Where this person's caret and selection are, for everyone else.
+          const main = update.state.selection.main;
+          const anchor = encodeCursorAt(session.document, main.anchor);
+          const head = encodeCursorAt(session.document, main.head);
+          cursorRef.current = anchor && head ? { anchor, head } : null;
+          if (!update.docChanged) announceRef.current();
+        }
         if (!update.docChanged) return;
         setTypedAt(Date.now());
       }),
@@ -253,10 +277,12 @@ function DraftEditor(
   // Others see "is typing" while this person's changes keep coming.
   useEffect(() => {
     if (typedAt === 0) return;
-    session.setPresence({ activity: "active", typing: true, cursor: null });
+    typingNow.current = true;
+    announceRef.current();
     if (typing.current !== null) clearTimeout(typing.current);
     typing.current = setTimeout(() => {
-      session.setPresence({ activity: "active", typing: false, cursor: null });
+      typingNow.current = false;
+      announceRef.current();
     }, 2000);
     return () => {
       if (typing.current !== null) clearTimeout(typing.current);
@@ -291,6 +317,28 @@ function DraftEditor(
       color: colours.current.get(person.principalId),
     };
   });
+  // Other people's carets, in the colours their avatars have.
+  useEffect(() => {
+    const view = editorView.current;
+    if (!view) return;
+    view.dispatch({
+      effects: setRemoteCarets.of(
+        remoteCarets(session.document, snapshot.participants, selfPrincipalId)
+          .map((caret) => ({
+            name: caret.name,
+            colour: colours.current.get(caret.principalId) ?? 1,
+            anchor: caret.anchor,
+            head: caret.head,
+          })),
+      ),
+    });
+  }, [
+    session,
+    snapshot.participants,
+    snapshot.documentVersion,
+    typedAt,
+    selfPrincipalId,
+  ]);
   const status = people
     .filter((person) => person.status !== "away" || people.length > 0)
     .map((person) =>

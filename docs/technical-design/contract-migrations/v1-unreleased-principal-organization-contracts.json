@@ -3,11 +3,12 @@
   "fromBaseRefs": [
     "ced976823321297101162056fc78417a396f8236",
     "1ba1b83c1cbe71a802b9494150042f20cae2af5c",
-    "3bdfc0b09e971bc73f6aa3368568a5a83d614549"
+    "3bdfc0b09e971bc73f6aa3368568a5a83d614549",
+    "4da415fd5d3079aaf259a47af29f74906ca9a16c"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:8ec479496263299f6892813a55b6cd2a9b648cc950d88dbceca89c924dae9a1f",
+  "targetCompatibilityDigest": "sha256:0792528ff0ee47bcd21c9120925d8f4e1e0518d4eeeda6c71a59932296926d9d",
   "reason": "#400 re-bind by dev-workflows on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main ced976823321297101162056fc78417a396f8236: secret.identity.read becomes a plan action, so the flat-era input field SecretIdentityReadInput.secretRef is renamed identityRef (the plan compiler refuses any action input field whose name carries a secret word, and the field is an opaque uuid reference, not a secret). The worker action's published output name changes from SecretIdentityToolResult to the flat plan-facing SecretIdentityOutput (the worker result is still checked against the strict SecretIdentityToolResult union), and the workflow action capability vocabulary gains secret.identity. The breaking drift is the one renamed input field; the approval it displaced at sha256:fde2bf41e3caf11df66620b7a2a88273a0a65d334f02a2ee432fde53c0d59580 is preserved unchanged first below.",
   "priorApprovals": [
     {
