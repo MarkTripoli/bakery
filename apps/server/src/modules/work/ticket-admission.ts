@@ -463,6 +463,7 @@ async function evaluate(
     preset: PRESET_PIN,
     issue: prefetch.issue,
     links: prefetch.links,
+    statuses: prefetch.statuses,
     proofs: prefetch.proofs,
     authority: {
       principalActive: context.principalActive,
