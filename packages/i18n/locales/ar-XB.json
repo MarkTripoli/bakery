@@ -4281,5 +4281,5 @@
   "tasks.startRun.refused.requirementsChanged": "⟪What this task needs changed before the run could start. Review the task, then start the run again.⟫",
   "repository.rules.details.fingerprint.helpNoChecks": "⟪Identifies the exact rules in force.⟫",
   "repository.rules.details.fingerprint.help": "⟪Identifies the exact rules and checks in force. Each run records the fingerprint it started with, so you can tell whether a run used these rules.⟫",
-  "settings.roles.thing.library": "⟪library search⟫"
+  "settings.roles.thing.library": "⟪search results in the Library⟫"
 }
