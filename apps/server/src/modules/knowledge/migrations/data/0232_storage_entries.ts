@@ -17,7 +17,7 @@ import {
  * exactly what is missing and changes nothing else.
  */
 export const storageEntriesBackfill: DataMigration = {
-  version: "0226_storage_entries",
+  version: "0232_storage_entries",
   source: new URL(import.meta.url),
   async run(connection, options) {
     for (let batch = 0; batch < options.maxBatches; batch++) {

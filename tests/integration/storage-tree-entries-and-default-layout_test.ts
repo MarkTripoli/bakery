@@ -15,7 +15,7 @@ import {
   resolveStoragePath,
   type StorageQuery,
 } from "../../apps/server/src/modules/knowledge/storage-tree.ts";
-import { storageEntriesBackfill } from "../../apps/server/src/modules/knowledge/migrations/data/0226_storage_entries.ts";
+import { storageEntriesBackfill } from "../../apps/server/src/modules/knowledge/migrations/data/0232_storage_entries.ts";
 import {
   closeDatabase,
   openDatabase,

@@ -14582,6 +14582,46 @@ export const clientManifest = {
           ],
           "x-utf8-max-bytes": 100000
         },
+        "inputPaths": {
+          "description": "Storage paths that fill declared run inputs, as an object from input name to absolute storage path. Admission resolves each path in the caller's organization to the file's current version, puts that version id in the named input (which the workflow must declare as a uuid and which `inputs` must not also supply), pins the version and its digest, and records the path only as a label: the run keeps the pin, so a later move or new version never changes it. A path that does not resolve to a file with a current version is refused with the same error whether it is missing or belongs to another organization. A preset run rejects inputPaths with 422. RunCreate.inputPaths must contain at most 20000 UTF-8 bytes.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema1"
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/__schema1"
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "x-utf8-max-bytes": 20000
+        },
         "approvalId": {
           "description": "Approval that authorizes this run when the task's stage policy requires human approval of the plan. It is consumed once, inside the admission transaction, only when it is approved, unexpired, unrevoked and bound to this task, the current approved plan revision digest, the plan stage and the task's policy digest; otherwise admission fails with STATE_CONFLICT approval_unavailable and creates no run.",
           "type": "string",
@@ -14697,6 +14737,117 @@ export const clientManifest = {
                     },
                     "additionalProperties": {
                       "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON object value."
+            }
+          ]
+        },
+        "__schema1": {
+          "description": "JSON value node.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema1"
                     },
                     "description": "JSON object value."
                   }

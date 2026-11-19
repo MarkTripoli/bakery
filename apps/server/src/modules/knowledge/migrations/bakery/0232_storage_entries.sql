@@ -51,3 +51,28 @@ create table bakery.storage_entries (
 );
 
 grant select, insert on bakery.storage_entries to bakery_app;
+
+-- A run input may name a storage path (#444). Admission resolves it to the
+-- entry's current version and the run keeps that pin, not the path. This
+-- records, per input, which entry and path the version came from: the path is
+-- only a label, and the ids and digest are what the run pinned. Append-only, so
+-- a later move or new version cannot rewrite what a run resolved.
+create table bakery.run_input_paths (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null,
+  run_id uuid not null,
+  input_name text not null,
+  storage_path text not null,
+  entry_id uuid,
+  artifact_id uuid not null,
+  artifact_version_id uuid not null,
+  sha256 text not null,
+  created_at timestamptz not null default now(),
+  constraint run_input_paths_run_fk
+    foreign key (organization_id, run_id)
+    references bakery.workflow_runs (organization_id, id) on delete cascade,
+  constraint run_input_paths_run_input_unique
+    unique (organization_id, run_id, input_name)
+);
+
+grant select, insert on bakery.run_input_paths to bakery_app;

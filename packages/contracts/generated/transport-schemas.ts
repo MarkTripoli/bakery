@@ -3662,6 +3662,15 @@ const transportSchemas = {
           "description": "Initial input values for the pinned workflow version's entry step, recorded immutably in the run's snapshot alongside its pinned config and skill references."
         },
         {
+          "name": "inputPaths",
+          "type": "json",
+          "required": false,
+          "bounds": {
+            "maxBytes": 20000
+          },
+          "description": "Storage paths that fill declared run inputs, as an object from input name to absolute storage path. Admission resolves each path in the caller's organization to the file's current version, puts that version id in the named input (which the workflow must declare as a uuid and which `inputs` must not also supply), pins the version and its digest, and records the path only as a label: the run keeps the pin, so a later move or new version never changes it. A path that does not resolve to a file with a current version is refused with the same error whether it is missing or belongs to another organization. A preset run rejects inputPaths with 422."
+        },
+        {
           "name": "approvalId",
           "type": "uuid",
           "required": false,
