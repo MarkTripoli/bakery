@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "records": [
     {
-      "baseSha": "179581a0aebaa9b5e136bb641e76e20b53fa775f",
+      "baseSha": "efe96b9febc6742f2cfef679c68a16969286d9ef",
       "kind": "route-state",
       "identity": "apps/web/src/router.tsx|sign-in|throttled",
       "rationale": "The separate \"A short pause\" screen is gone: a rate-limited sign-in now says, under the form, when to try again (#241 UX design).",
