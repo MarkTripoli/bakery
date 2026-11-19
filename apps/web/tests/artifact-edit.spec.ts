@@ -5,6 +5,14 @@ import { DRAFT, openEditor } from "./helpers/artifact-edit-world.ts";
 test.describe("Editing a document in place", () => {
   test("Edit opens the draft with the server's text; what is typed is sent and saved", async ({ page }) => {
     const { editor, updates } = await openEditor(page, "Hello world");
+    // The page says this is the shared draft and what is published.
+    await expect(page.getByText("Draft", { exact: true })).toBeVisible();
+    await expect(
+      page.getByText(
+        "Version 2 is published. Your team is editing the next one.",
+      ),
+    )
+      .toBeVisible();
     await expect(page.getByText("All changes saved")).toBeVisible();
     await editor.click();
     await page.keyboard.press("Control+End");
@@ -75,5 +83,11 @@ test.describe("Editing a document in place", () => {
     )
       .toBeVisible();
     await expect(editor).toHaveAttribute("aria-readonly", "true");
+    // Nothing was unsaved, so the banner does not point below; nothing will
+    // save any more, so the save state is gone.
+    await expect(page.getByText("Text you had not saved is below."))
+      .toHaveCount(0);
+    await expect(page.getByText("All changes saved")).toHaveCount(0);
+    await expect(page.getByText("Not saved. Reconnecting…")).toHaveCount(0);
   });
 });

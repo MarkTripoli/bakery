@@ -4308,7 +4308,6 @@
   "artifact.edit.banner.published": "⟪{name} published version {version}. You are now editing the draft for the next version.⟫",
   "artifact.edit.banner.publishedUnnamed": "⟪Version {version} was published. You are now editing the draft for the next version.⟫",
   "artifact.edit.banner.replaced": "⟪The draft was replaced with newer text. You are now editing the latest draft.⟫",
-  "artifact.edit.banner.revoked": "⟪You no longer have access to edit this document. Text you had not saved is below.⟫",
   "artifact.edit.limit": "⟪This document has reached its size limit. Remove some text to keep writing.⟫",
   "artifact.edit.sheet.title": "⟪Text that was not saved⟫",
   "artifact.edit.sheet.intro": "⟪Copy what you need back into the document. It is kept on this device until you discard it.⟫",
@@ -4320,5 +4319,12 @@
   "artifact.edit.discard.body": "⟪It was never saved.⟫",
   "artifact.edit.discard.cancel": "⟪Cancel⟫",
   "artifact.edit.discard.confirm": "⟪Discard⟫",
-  "artifact.edit.error.title": "⟪The document could not be opened⟫"
+  "artifact.edit.error.title": "⟪The document could not be opened⟫",
+  "artifact.edit.banner.revoked": "⟪You no longer have access to edit this document.⟫",
+  "artifact.edit.banner.revokedUnsaved": "⟪You no longer have access to edit this document. Text you had not saved is below.⟫",
+  "artifact.edit.draft.badge": "⟪Draft⟫",
+  "artifact.edit.draft.helpLabel": "⟪About the draft⟫",
+  "artifact.edit.draft.help": "⟪Everyone editing sees changes as they are typed. The published version does not change until a new one is published.⟫",
+  "artifact.edit.draft.line": "⟪Version {version} is published. Your team is editing the next one.⟫",
+  "artifact.edit.draft.lineNone": "⟪Nothing is published yet.⟫"
 }

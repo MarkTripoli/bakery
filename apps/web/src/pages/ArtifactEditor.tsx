@@ -34,7 +34,11 @@ const PRESENCE_COLORS = [1, 2, 3, 4, 5, 6] as const;
  * what became of text the server did not keep (#71).
  */
 export function ArtifactEditor(
-  { artifactId }: { readonly artifactId: string },
+  { artifactId, publishedVersion }: {
+    readonly artifactId: string;
+    /** The version number last published, or null when nothing is. */
+    readonly publishedVersion: number | null;
+  },
 ) {
   const api = useBakeryApi();
   const scope = useProtectedScope();
@@ -95,10 +99,17 @@ export function ArtifactEditor(
       />
     );
   }
-  return <OpenDraft draftId={opened.draft.id} />;
+  return (
+    <OpenDraft draftId={opened.draft.id} publishedVersion={publishedVersion} />
+  );
 }
 
-function OpenDraft({ draftId }: { readonly draftId: string }) {
+function OpenDraft(
+  { draftId, publishedVersion }: {
+    readonly draftId: string;
+    readonly publishedVersion: number | null;
+  },
+) {
   const api = useBakeryApi();
   const scope = useProtectedScope();
   const [session, setSession] = useState<CollaborationSession | null>(null);
@@ -120,7 +131,9 @@ function OpenDraft({ draftId }: { readonly draftId: string }) {
       setSession(null);
     };
   }, [api, scope.organizationId, draftId]);
-  return session ? <DraftEditor session={session} /> : null;
+  return session
+    ? <DraftEditor publishedVersion={publishedVersion} session={session} />
+    : null;
 }
 
 function browserStorage(): Storage | null {
@@ -131,7 +144,12 @@ function browserStorage(): Storage | null {
   }
 }
 
-function DraftEditor({ session }: { readonly session: CollaborationSession }) {
+function DraftEditor(
+  { publishedVersion, session }: {
+    readonly publishedVersion: number | null;
+    readonly session: CollaborationSession;
+  },
+) {
   const { translate: t, locale } = useI18n();
   const snapshot = useSyncExternalStore(session.subscribe, session.getSnapshot);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -215,6 +233,8 @@ function DraftEditor({ session }: { readonly session: CollaborationSession }) {
     )
     .join(" · ");
   const pieces = snapshot.refused;
+  // Access removed: nothing will reconnect or save, so the save state is gone too.
+  const ended = snapshot.connection === "ended";
   const bytesUsed = useSizeNote(session, snapshot.documentVersion, typedAt);
 
   const copy = (piece: RefusedPiece) =>
@@ -242,14 +262,29 @@ function DraftEditor({ session }: { readonly session: CollaborationSession }) {
 
   return (
     <UI.Stack gap="standard">
+      <UI.Stack gap="compact">
+        <UI.Inline gap="compact">
+          <UI.Badge>{t("artifact.edit.draft.badge")}</UI.Badge>
+          <UI.HelpTip label={t("artifact.edit.draft.helpLabel")}>
+            {t("artifact.edit.draft.help")}
+          </UI.HelpTip>
+        </UI.Inline>
+        <UI.Text variant="hint">
+          {publishedVersion === null
+            ? t("artifact.edit.draft.lineNone")
+            : t("artifact.edit.draft.line", { version: publishedVersion })}
+        </UI.Text>
+      </UI.Stack>
       <UI.PresenceRow
         aria-label={t("artifact.edit.presence.label")}
         overflowLabel={t("artifact.edit.presence.more", {
           count: Math.max(presence.length - 5, 0),
         })}
         people={presence}
-        saveLabel={t(`artifact.edit.save.${snapshot.saveState}`)}
-        saveState={snapshot.saveState}
+        saveLabel={ended
+          ? undefined
+          : t(`artifact.edit.save.${snapshot.saveState}`)}
+        saveState={ended ? undefined : snapshot.saveState}
         status={status}
       />
       {snapshot.banner?.kind === "published" && (
@@ -277,7 +312,11 @@ function DraftEditor({ session }: { readonly session: CollaborationSession }) {
       )}
       {snapshot.banner?.kind === "revoked" && (
         <UI.AlertBanner tone="error">
-          {t("artifact.edit.banner.revoked")}
+          {t(
+            pieces.length > 0
+              ? "artifact.edit.banner.revokedUnsaved"
+              : "artifact.edit.banner.revoked",
+          )}
         </UI.AlertBanner>
       )}
       {restoredShown && restored !== null && pieces.length > 0 && (
@@ -397,7 +436,7 @@ function Pieces(
           <UI.Text variant="caption">
             {t("artifact.edit.sheet.typedAt", { time: clock(piece.typedAt) })}
           </UI.Text>
-          <UI.CodeBlock code={piece.text} />
+          <UI.DataText state="wrapped" variant="code">{piece.text}</UI.DataText>
           <UI.Inline gap="compact">
             <UI.Button onClick={() => copy(piece)} variant="outline">
               {t("artifact.edit.sheet.copy")}
