@@ -409,14 +409,32 @@ Deno.test("route continuations: the structure allows one continuation per step a
   }
 });
 
-Deno.test("route continuations: a viewer cannot read, and another organization's run is absent", async () => {
+async function expectStatus(
+  response: Response,
+  status: number,
+  what: string,
+): Promise<void> {
+  const body = await response.text();
+  assertEquals(response.status, status, `${what}: ${response.status} ${body}`);
+}
+
+Deno.test("route continuations: a viewer cannot read the offers", async () => {
   const fixture = await openApprovalFixture();
   try {
     const run = await seedRun(fixture);
-    const viewer = await offers(fixture, run.runId, fixture.fx.viewer);
-    assertEquals(viewer.status, 403);
-    await viewer.body?.cancel();
+    await expectStatus(
+      await offers(fixture, run.runId, fixture.fx.viewer),
+      403,
+      "viewer",
+    );
+  } finally {
+    await fixture.close();
+  }
+});
 
+Deno.test("route continuations: another organization's run is absent, not forbidden", async () => {
+  const fixture = await openApprovalFixture();
+  try {
     const foreignOrg = crypto.randomUUID();
     await fixture.fx.ownerPg.query(
       `insert into bakery.organizations (
@@ -425,12 +443,24 @@ Deno.test("route continuations: a viewer cannot read, and another organization's
       [foreignOrg, `foreign-${foreignOrg.slice(0, 8)}`],
     );
     const foreign = await seedRun(fixture, { organizationId: foreignOrg });
-    const response = await offers(fixture, foreign.runId);
-    assertEquals(response.status, 404);
-    await response.body?.cancel();
-    const missing = await offers(fixture, crypto.randomUUID());
-    assertEquals(missing.status, 404);
-    await missing.body?.cancel();
+    await expectStatus(
+      await offers(fixture, foreign.runId),
+      404,
+      "foreign run",
+    );
+  } finally {
+    await fixture.close();
+  }
+});
+
+Deno.test("route continuations: a run that does not exist is absent", async () => {
+  const fixture = await openApprovalFixture();
+  try {
+    await expectStatus(
+      await offers(fixture, crypto.randomUUID()),
+      404,
+      "missing run",
+    );
   } finally {
     await fixture.close();
   }
