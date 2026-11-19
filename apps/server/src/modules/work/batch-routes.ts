@@ -17,10 +17,12 @@ import {
   batchImplementedActions,
 } from "@bakery/contracts/implemented-actions";
 import { createApiRouter } from "@bakery/contracts/http";
+import type { ActionContext } from "@bakery/contracts/action-registry";
 import { PostgresAuthorityRunner } from "../auth/adapters/authority-postgres.ts";
 import { type AuthVariables, createActionContext } from "../auth/middleware.ts";
 import { createPostgresCommandRunner } from "../../platform/command-replay.ts";
 import type { PgDatabase } from "../../platform/database.ts";
+import { authorizeTicketAdmission } from "./ticket-request-command.ts";
 import {
   createBatch,
   createBatchesListHandler,
@@ -53,6 +55,10 @@ export function createBatchActionRegistry(
     type: ActionKind.Command,
     access: ActionAccess.DeveloperAndAdmissionAuthority,
     organizationContext,
+    // The runner trusts only the three base access levels on their own; this one needs
+    // a guard of its own, and it is the same one a ticket request needs: the caller
+    // holds task:write and run:write.
+    authorize: (context: ActionContext) => authorizeTicketAdmission(context),
   } as const;
   const control = (
     name: typeof Action[keyof typeof Action],
