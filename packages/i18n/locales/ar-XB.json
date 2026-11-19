@@ -4327,6 +4327,7 @@
   "artifact.edit.draft.help": "⟪Everyone editing sees changes as they are typed. The published version does not change until a new one is published.⟫",
   "artifact.edit.draft.line": "⟪Version {version} is published. Your team is editing the next one.⟫",
   "artifact.edit.draft.lineNone": "⟪Nothing is published yet.⟫",
+  "settings.roles.thing.library": "⟪search results in the Library⟫",
   "artifact.edit.publish.action": "⟪Publish⟫",
   "artifact.edit.publish.needsSave": "⟪Publish when your changes are saved.⟫",
   "artifact.edit.publish.noRight": "⟪You cannot publish this document. Ask an organization administrator.⟫",

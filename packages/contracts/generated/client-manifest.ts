@@ -2669,6 +2669,29 @@ export const clientManifest = {
       "implemented": true
     },
     {
+      "group": "Library",
+      "method": "GET",
+      "path": "/v1/library/search",
+      "action": "library.search",
+      "access": "Developer",
+      "permission": "library:read",
+      "input": "LibrarySearchQuery",
+      "output": "Page<LibrarySearchHit>",
+      "event": "",
+      "mcp": "bakery_library_search",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
       "group": "Skills",
       "method": "GET",
       "path": "/v1/skills/{id}",
@@ -13025,6 +13048,7 @@ export const clientManifest = {
             "skills.import",
             "skills.create",
             "skills.list",
+            "library.search",
             "skills.get",
             "skills.update",
             "skillVersions.list",
@@ -22020,6 +22044,44 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Replaces the label routing rules of one ticket source as a whole, under compare-and-swap on the source version."
+    },
+    "LibrarySearchQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "Text to find, matched case-insensitively as a substring of a skill, agent or artifact name or of a skill or agent description; wildcard characters in it are matched literally. LibrarySearchQuery.query must contain at least 1 characters. LibrarySearchQuery.query must contain at most 200 characters."
+        },
+        "kind": {
+          "description": "Restricts the search to one kind of library item (skill, agent or artifact); omit to search all three.",
+          "type": "string",
+          "enum": [
+            "skill",
+            "agent",
+            "artifact"
+          ]
+        },
+        "cursor": {
+          "description": "Opaque continuation token from a prior library.search page; bound to this operation, the caller and organization, the same query text and the same kind filter, so it is rejected if any of them change. LibrarySearchQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "limit": {
+          "description": "Maximum number of hits returned per page; defaults to 25 and cannot exceed 100. LibrarySearchQuery.limit must be at least 1. LibrarySearchQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false,
+      "description": "Text query over the organization library: skills, agents and artifacts found by name or description, newest first."
     },
     "PluginState": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -34366,6 +34428,7 @@ export const clientManifest = {
                   "skills.import",
                   "skills.create",
                   "skills.list",
+                  "library.search",
                   "skills.get",
                   "skills.update",
                   "skillVersions.list",
@@ -51361,6 +51424,7 @@ export const clientManifest = {
             "skills.import",
             "skills.create",
             "skills.list",
+            "library.search",
             "skills.get",
             "skills.update",
             "skillVersions.list",
@@ -59389,6 +59453,7 @@ export const clientManifest = {
               "skillSource:manage",
               "skill:manage",
               "skill:read",
+              "library:read",
               "skillVersion:read",
               "skillVersion:readPinned",
               "skillFile:read",
@@ -77631,6 +77696,121 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "The complete label routing rule set of one ticket source, with the source's policy revision and version. Send version as If-Match to replace it; pass policyRevision as expectedSourcePolicyRevision to admit under these rules."
+    },
+    "Page<LibrarySearchHit>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "skill",
+                  "agent",
+                  "artifact"
+                ],
+                "description": "Which library the hit belongs to: skill, agent or artifact."
+              },
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID of the matched record, usable with that kind's get operation."
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Human-readable name of the matched record."
+              },
+              "description": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Free-text description of the matched record; null for artifacts, which carry none."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "LibrarySearchHit.description may be null in this transport value."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the matched record was created."
+              }
+            },
+            "required": [
+              "kind",
+              "id",
+              "name",
+              "description",
+              "createdAt"
+            ],
+            "additionalProperties": false,
+            "description": "One library item matched by library.search: its kind, identity and name, plus its description when the kind has one, so a caller can pick a hit and then read it with the kind's own get operation."
+          },
+          "description": "LibrarySearchHit items in this cursor page. Page<LibrarySearchHit>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<LibrarySearchHit>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<LibrarySearchHit>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<LibrarySearchHit>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<LibrarySearchHit>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of LibrarySearchHit."
     }
   }
 } as const;
