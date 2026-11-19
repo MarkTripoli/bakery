@@ -210,6 +210,25 @@ async function world(
     route.fulfill({
       json: { items: options.questions ? [question] : [], nextCursor: null },
     }));
+  // The rest of the task page reads empty, so a still shows the landing and
+  // not a "could not be loaded" banner.
+  for (
+    const empty of [
+      `**/v1/runs/${runId}/checks*`,
+      `**/v1/runs/${runId}/reviews*`,
+      `**/v1/runs/${runId}/delivery-decisions*`,
+      "**/v1/pull-requests?*",
+      `**/v1/conversations/${task.conversationId}/messages*`,
+      `**/v1/conversations/${task.conversationId}/participants*`,
+      `**/v1/conversations/${task.conversationId}/turns*`,
+      "**/v1/coordination-plans*",
+    ]
+  ) {
+    await page.route(
+      empty,
+      (route) => route.fulfill({ json: { items: [], nextCursor: null } }),
+    );
+  }
   await page.route("**/v1/plan-revisions*", (route) =>
     route.fulfill({
       json: { items: options.plan ? [revision] : [], nextCursor: null },
