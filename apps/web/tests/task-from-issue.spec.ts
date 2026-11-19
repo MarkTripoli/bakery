@@ -240,12 +240,7 @@ for (
         }),
       ).toHaveAttribute("href", "https://github.com/acme/web/issues/201");
       await page.mouse.move(700, 700);
-      // The task is taller than the window; the whole page shows in the shot.
-      await still(
-        page,
-        "task-from-issue",
-        page.locator('[data-ui-component="taskDetail"]'),
-      );
+      await still(page, "task-from-issue");
     });
 
     test("an issue a task only mentions is listed under Mentions", async ({ page }) => {

@@ -181,6 +181,8 @@ export type WorkSeed = {
 
 export type Options = {
   work?: WorkSeed;
+  /** The work that exists once somebody else's start has been refused (start: "alreadyRunning"). */
+  workWhenRunning?: WorkSeed;
   open?: Seed[];
   closed?: Seed[];
   sources?: "none" | "healthy" | "degraded" | "authRequired" | "unknown";
@@ -407,7 +409,9 @@ export async function issuesFixture(page: Page, options: Options = {}) {
       });
     },
   );
-  const work = options.work;
+  const work = options.work ?? options.workWhenRunning;
+  // The work is read from the server only once it exists: from the start, or after the refused start.
+  const exists = () => options.work !== undefined || seen.running.size > 0;
   const stamp = "2026-01-01T00:00:00.000Z";
   const issueId = work ? uuid(work.issue) : null;
   const linkId = uuid(8000);
@@ -497,7 +501,7 @@ export async function issuesFixture(page: Page, options: Options = {}) {
       const asked = new URL(route.request().url()).searchParams.get(
         "externalTicketId",
       );
-      const items = work && asked === issueId
+      const items = work && exists() && asked === issueId
         ? [{
           id: uuid(8700),
           externalTicketId: issueId,
@@ -568,7 +572,7 @@ export async function issuesFixture(page: Page, options: Options = {}) {
       const asked = new URL(route.request().url()).searchParams.get(
         "externalTicketId",
       );
-      const items = work && asked === issueId
+      const items = work && exists() && asked === issueId
         ? [ownLink(), ...mentionedLinks]
         : [];
       return route.fulfill({

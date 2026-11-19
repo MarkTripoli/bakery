@@ -162,28 +162,24 @@ function MentionedTask({ link }: { readonly link: TicketTaskLinkResponse }) {
   });
   if (!task.data) return null;
   return (
-    <UI.DescriptionItem
-      title={
-        <UI.Link
-          href={`/tasks/${link.taskId}`}
-          variant="quiet"
-          onClick={(event) => {
-            event.preventDefault();
-            void navigate({
-              to: "/tasks/$taskId",
-              params: { taskId: link.taskId },
-            });
-          }}
-        >
-          {task.data.title}
-        </UI.Link>
-      }
-      action={
-        <UI.Badge tone={TASK_TONE[task.data.status]}>
-          {translate(`issues.work.task.${task.data.status}` as never)}
-        </UI.Badge>
-      }
-    />
+    <UI.Inline gap="compact">
+      <UI.Link
+        href={`/tasks/${link.taskId}`}
+        variant="quiet"
+        onClick={(event) => {
+          event.preventDefault();
+          void navigate({
+            to: "/tasks/$taskId",
+            params: { taskId: link.taskId },
+          });
+        }}
+      >
+        {task.data.title}
+      </UI.Link>
+      <UI.Badge tone={TASK_TONE[task.data.status]}>
+        {translate(`issues.work.task.${task.data.status}` as never)}
+      </UI.Badge>
+    </UI.Inline>
   );
 }
 
@@ -432,11 +428,12 @@ export function IssueWork(
             <UI.Heading level="section">
               {translate("issues.work.mentionedBy" as never)}
             </UI.Heading>
-            <UI.DescriptionList>
-              {mentioned.map((link) => (
-                <MentionedTask key={link.id} link={link} />
-              ))}
-            </UI.DescriptionList>
+            {mentioned.map((link) => (
+              <MentionedTask
+                key={link.id}
+                link={link}
+              />
+            ))}
           </UI.Stack>
         )
         : null}

@@ -131,13 +131,21 @@ for (
     });
 
     test("already working: Start work on an issue somebody just started says so", async ({ page }) => {
-      await open(page, undefined, { start: "alreadyRunning" });
+      await open(page, undefined, {
+        start: "alreadyRunning",
+        workWhenRunning: ONE_REPOSITORY,
+      });
       await page.getByRole("button", { name: "Start work" }).first().click();
       await page.getByRole("alertdialog").getByRole("button", {
         name: "Start work",
       }).click();
       await expect(page.getByText("In progress", { exact: true }).first())
         .toBeVisible();
+      // The work is read again, so the way to the task is there, not a dead end.
+      await expect(section(page).getByRole("button", { name: "Open task" }))
+        .toBeVisible();
+      await expect(page.getByRole("button", { name: "Start work" }))
+        .toHaveCount(0);
       await page.mouse.move(700, 700);
       await still(page, "issue-work-already-working");
     });

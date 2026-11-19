@@ -143,8 +143,15 @@ export function RoutingRules(
                     role="listitem"
                     data-testid="routing-rule"
                   >
-                    <Row gap="compact">
+                    <Row
+                      gap="compact"
+                      {...(phone ? {} : { "data-ui-region": "routing-rule" })}
+                    >
                       <UI.Combobox
+                        aria-describedby={problem === "duplicate"
+                          ? `routing-problem-${row.key}`
+                          : undefined}
+                        aria-invalid={problem === "duplicate" || undefined}
                         disabled={disabled || labels.state === "loading"}
                         label={translate(
                           "issues.settings.routing.label" as never,
@@ -163,6 +170,13 @@ export function RoutingRules(
                         value={row.labelId}
                       />
                       <UI.Combobox
+                        aria-describedby={problem !== null &&
+                            problem !== "duplicate"
+                          ? `routing-problem-${row.key}`
+                          : undefined}
+                        aria-invalid={(problem !== null &&
+                          problem !== "duplicate") ||
+                          undefined}
                         disabled={disabled}
                         label={translate(
                           "issues.settings.routing.repository" as never,
@@ -184,6 +198,7 @@ export function RoutingRules(
                       {phone
                         ? (
                           <UI.Button
+                            data-ui-region="routing-rule-remove"
                             aria-label={translate(
                               "issues.settings.routing.remove" as never,
                               {
@@ -228,18 +243,20 @@ export function RoutingRules(
                           </UI.Tooltip>
                         )}
                     </Row>
-                    {problem === null
-                      ? null
-                      : (
-                        <UI.Text role="alert" variant="muted">
-                          {translate(
-                            `issues.settings.routing.problem.${problem}` as never,
-                            {
-                              repository: repositoryName(row.repositoryId),
-                            },
-                          )}
-                        </UI.Text>
-                      )}
+                    {problem === null ? null : (
+                      <UI.Text
+                        id={`routing-problem-${row.key}`}
+                        role="alert"
+                        variant="error"
+                      >
+                        {translate(
+                          `issues.settings.routing.problem.${problem}` as never,
+                          {
+                            repository: repositoryName(row.repositoryId),
+                          },
+                        )}
+                      </UI.Text>
+                    )}
                   </UI.Stack>
                 );
               })}

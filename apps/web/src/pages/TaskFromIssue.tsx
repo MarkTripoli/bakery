@@ -35,7 +35,7 @@ function IssueLine(
     ? snapshot.repository
     : `${snapshot.repository}#${number}`;
   return (
-    <UI.Inline gap="compact">
+    <UI.Inline gap="compact" data-ui-region="issue-line">
       <UI.Text variant="muted">
         {translate(`tasks.fromIssue.${label}` as never)}
       </UI.Text>
