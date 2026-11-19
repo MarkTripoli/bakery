@@ -6,6 +6,7 @@ import {
   repository,
 } from "./helpers/projects-fixture.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
+import { still } from "./helpers/stills.ts";
 import { shot } from "./helpers/real-api.ts";
 
 registerPageHealth(test);
@@ -138,6 +139,7 @@ for (
       await expect(retry).toBeVisible();
       await page.mouse.move(700, 700);
       await shot(page, "projects-repositories-failed");
+      await still(page, "projects-error");
       const before = seen.repositoryReads;
       seen.repositoriesDown = false;
       await retry.click();

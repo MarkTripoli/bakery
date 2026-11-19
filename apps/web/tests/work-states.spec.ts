@@ -228,7 +228,18 @@ test("no tasks match a search, and Clear filters brings the list back", async ({
   await (await searchBox(page)).fill("needle");
   const empty = page.locator('[data-ui-component="emptyState"]');
   await expect(empty).toContainText("No tasks match");
+  // On a phone the search sits in a popover; close it so the block is in view.
+  if ((page.viewportSize()?.width ?? 1280) <= 743) {
+    await page.keyboard.press("Escape");
+    await expect(page.getByLabel("Search titles and descriptions")).toHaveCount(
+      0,
+    );
+  }
   await expect(empty).toContainText("Change or clear the filters.");
+  const sideways = await page.evaluate(() =>
+    document.documentElement.scrollWidth - document.documentElement.clientWidth
+  );
+  expect(sideways).toBeLessThanOrEqual(0);
   await still(page, "work-no-match");
   await empty.getByRole("button", { name: "Clear filters", exact: true })
     .click();
