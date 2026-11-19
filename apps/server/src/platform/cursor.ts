@@ -103,9 +103,14 @@ function assertBinding(binding: CursorBinding): void {
 type RowCursorKind = "timestamp" | "ordinal";
 
 function bindingRowCursorKind(binding: CursorBinding): RowCursorKind {
+  // Every descending-time ordering reads the same way: the newest first, keyed
+  // by (time, id). `openedAt:desc,id:desc` is the same shape as
+  // `createdAt:desc,id:desc`, and refusing it here would have made a caller
+  // rename its own column to satisfy the cursor rather than describe its page.
   if (
     binding.ordering === "createdAt:asc,id:asc" ||
-    binding.ordering === "createdAt:desc,id:desc"
+    binding.ordering === "createdAt:desc,id:desc" ||
+    binding.ordering === "openedAt:desc,id:desc"
   ) return "timestamp";
   if (
     binding.ordering === "position:asc,iteration:asc,id:asc" ||
