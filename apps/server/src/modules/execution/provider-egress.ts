@@ -1,3 +1,6 @@
+import { lookup as dnsLookup } from "node:dns/promises";
+import { isIP, type LookupFunction } from "node:net";
+
 /**
  * Which addresses the server may call on behalf of a provider route.
  *
@@ -124,4 +127,74 @@ export function isNonPublicAddress(host: string): boolean {
   // Looks like an address (digits and dots, or colons) but does not parse:
   // refuse rather than guess, so an odd encoding is not a way around the rule.
   return /^[0-9.]+$/.test(host) || host.includes(":");
+}
+
+// -- The connect-time guard -------------------------------------------------
+
+export type ResolvedAddress = { address: string; family: 4 | 6 };
+
+/** Resolves a name to every address it has; replaceable so a test needs no DNS. */
+export type Resolver = (hostname: string) => Promise<ResolvedAddress[]>;
+
+const resolveAll: Resolver = async (hostname) =>
+  (await dnsLookup(hostname, { all: true })).map((entry) => ({
+    address: entry.address,
+    family: entry.family === 6 ? 6 : 4,
+  }));
+
+/** Why a connection was refused, so a caller can tell a policy refusal from a network failure. */
+export const EGRESS_REFUSED = "EGRESS_REFUSED";
+
+function refusal(message: string): Error & { code: string } {
+  return Object.assign(new Error(message), { code: EGRESS_REFUSED });
+}
+
+/**
+ * A `lookup` for `node:https` that refuses to connect to a non-public address.
+ *
+ * Checking the name before the request would leave a gap: a name can answer with
+ * a public address to the check and a private one to the connection (DNS
+ * rebinding). This function *is* what the connection asks, so the address it
+ * returns is the address that is dialled: the check and the connect are one step.
+ *
+ * Every address in the answer must be public. A mixed answer is refused whole,
+ * because the connection may use any of them and a name that offers a private one
+ * is not a public provider.
+ */
+export function guardedLookup(resolver: Resolver = resolveAll): LookupFunction {
+  return (hostname, options, callback) => {
+    const wantsAll = options.all === true;
+    // An error still has to hand the callback an address-shaped value.
+    const fail = (error: Error) => callback(error, "", 0);
+    resolver(hostname).then((addresses) => {
+      if (addresses.length === 0) {
+        fail(refusal("no address"));
+        return;
+      }
+      if (addresses.some(({ address }) => isNonPublicAddress(address))) {
+        fail(refusal("address is not public"));
+        return;
+      }
+      if (wantsAll) callback(null, addresses);
+      else callback(null, addresses[0]!.address, addresses[0]!.family);
+    }, (error) => fail(error instanceof Error ? error : new Error("dns")));
+  };
+}
+
+/**
+ * Whether an endpoint's host is written as an address the server must not call.
+ *
+ * A connection to an address literal never consults `lookup`, so the guard above
+ * cannot see it; this is the same rule applied to the URL itself.
+ */
+export function endpointHostIsRefused(endpoint: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(endpoint);
+  } catch {
+    return true;
+  }
+  const host = url.hostname.replace(/^\[|\]$/g, "");
+  return url.protocol !== "https:" || url.username !== "" ||
+    url.password !== "" || (isIP(host) !== 0 && isNonPublicAddress(host));
 }
