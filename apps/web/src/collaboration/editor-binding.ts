@@ -9,6 +9,8 @@ import {
   Decoration,
   type DecorationSet,
   EditorView,
+  ViewPlugin,
+  type ViewUpdate,
   WidgetType,
 } from "@codemirror/view";
 import { LoroSyncPlugin, LoroUndoPlugin } from "loro-codemirror";
@@ -121,7 +123,7 @@ class CaretWidget extends WidgetType {
   override eq(other: CaretWidget): boolean {
     return other.name === this.name && other.colour === this.colour;
   }
-  override toDOM(view: EditorView): HTMLElement {
+  override toDOM(): HTMLElement {
     const caret = document.createElement("span");
     caret.className = "ui-document-editor__caret";
     caret.setAttribute("data-presence-color", String(this.colour));
@@ -130,18 +132,6 @@ class CaretWidget extends WidgetType {
     label.className = "ui-document-editor__caret-label";
     label.textContent = this.name;
     caret.append(label);
-    // Near the right edge the name would leave the editor: it sits to the left
-    // of the caret instead. Measured once the caret is on the page.
-    view.requestMeasure({
-      read: () => {
-        const edge = view.contentDOM.getBoundingClientRect().right;
-        return caret.getBoundingClientRect().left + label.offsetWidth > edge;
-      },
-      write: (flip) => {
-        if (flip) caret.setAttribute("data-flip", "true");
-        else caret.removeAttribute("data-flip");
-      },
-    });
     return caret;
   }
   override ignoreEvent(): boolean {
@@ -155,6 +145,62 @@ class CaretWidget extends WidgetType {
  * `setRemoteCarets`.
  */
 export function remoteCaretLayer(): Extension {
+  return [carets(), flipCarets];
+}
+
+/**
+ * Near the inline end of the editor a name would leave it: the chip sits on the
+ * other side of the caret instead. A caret keeps its widget when it moves, so
+ * this is measured again on every change of the carets, the text and the
+ * editor's geometry, for the page's text direction.
+ */
+const flipCarets = ViewPlugin.fromClass(
+  class {
+    constructor(readonly view: EditorView) {
+      this.measure();
+    }
+    update(update: ViewUpdate) {
+      if (
+        update.geometryChanged || update.viewportChanged || update.docChanged ||
+        update.transactions.some((transaction) =>
+          transaction.effects.some((effect) => effect.is(setRemoteCarets))
+        )
+      ) this.measure();
+    }
+    measure() {
+      this.view.requestMeasure({
+        key: this,
+        read: (view) => {
+          const rtl = getComputedStyle(view.contentDOM).direction === "rtl";
+          const content = view.contentDOM.getBoundingClientRect();
+          return Array.from(
+            view.dom.querySelectorAll<HTMLElement>(
+              ".ui-document-editor__caret",
+            ),
+          ).map((caret) => {
+            const name = caret.querySelector<HTMLElement>(
+              ".ui-document-editor__caret-label",
+            );
+            const at = caret.getBoundingClientRect();
+            const flip = name !== null &&
+              (rtl
+                ? at.right - name.offsetWidth < content.left
+                : at.left + name.offsetWidth > content.right);
+            return { caret, flip };
+          });
+        },
+        write: (carets) => {
+          for (const { caret, flip } of carets) {
+            if (flip) caret.setAttribute("data-flip", "true");
+            else caret.removeAttribute("data-flip");
+          }
+        },
+      });
+    }
+  },
+);
+
+function carets(): Extension {
   return StateField.define<DecorationSet>({
     create: () => Decoration.none,
     update(carets, transaction) {

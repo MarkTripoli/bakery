@@ -421,6 +421,20 @@ export async function openEditor(
     decisions,
     presenceUpdates,
     serverSend: (frame: unknown) => socket?.send(JSON.stringify(frame)),
+    /** Moves peer `index` (in `peers` order) to a new caret or selection. */
+    movePeer: (index: number, from: number, to: number) =>
+      socket?.send(JSON.stringify({
+        type: "presence",
+        room: ROOM,
+        presence: {
+          ...peerParticipants[index],
+          state: {
+            ...peerParticipants[index]!.state,
+            cursor: { anchor: cursorAt(from), head: cursorAt(to) },
+          },
+          receivedAt: new Date().toISOString(),
+        },
+      })),
     serverClose: () => {
       refusing = behaviour.refuseReconnect ?? false;
       socket?.close();

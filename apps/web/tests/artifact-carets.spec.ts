@@ -175,4 +175,64 @@ test.describe("Other people's carets", () => {
     expect(name!.y + name!.height).toBeLessThanOrEqual(line!.y + 1);
     await still(page, "caret-agent-edge");
   });
+
+  /** A narrow editor, so the end of the line is near the inline end. */
+  const narrow = (page: Page, width: number, direction = "ltr") =>
+    page.addInitScript(
+      ({ width, direction }) => {
+        document.addEventListener("DOMContentLoaded", () => {
+          const style = document.createElement("style");
+          style.textContent =
+            `.ui-document-editor{max-inline-size:${width}px;direction:${direction}}`;
+          document.head.append(style);
+        });
+      },
+      { width, direction },
+    );
+
+  test("a caret that moves to the right edge flips, and back again", async ({ page }) => {
+    test.skip(phone(page), "phones draw carets without names");
+    await narrow(page, 300);
+    const { movePeer } = await openEditor(page, LINE, {
+      peers: [{
+        displayName: "Release notes and changelog writing agent",
+        principalType: "worker",
+        from: 6,
+        to: 6,
+      }],
+    });
+    const caret = page.locator(".ui-document-editor__caret");
+    await expect(caret).not.toHaveAttribute("data-flip", "true");
+    movePeer(0, LINE.length, LINE.length);
+    await expect(caret).toHaveAttribute("data-flip", "true");
+    movePeer(0, 6, 6);
+    await expect(caret).not.toHaveAttribute("data-flip", "true");
+  });
+
+  test("in a right-to-left document the name flips at the inline end only", async ({ page }) => {
+    test.skip(phone(page), "phones draw carets without names");
+    const RTL = "שלום עולם יפה, ועוד קצת טקסט ארוך מאוד";
+    await narrow(page, 340, "rtl");
+    const { movePeer } = await openEditor(page, RTL, {
+      peers: [{
+        displayName: "Release notes and changelog writing agent",
+        principalType: "worker",
+        from: 0,
+        to: 0,
+      }],
+    });
+    const caret = page.locator(".ui-document-editor__caret");
+    // The start of the line is at the right edge here, with the whole editor
+    // to its left: the name has room, so it stays where it is.
+    await expect(caret).toHaveCount(1);
+    await expect(caret).not.toHaveAttribute("data-flip", "true");
+    // The end of the line is at the left: the name would leave the editor.
+    movePeer(0, RTL.length, RTL.length);
+    await expect(caret).toHaveAttribute("data-flip", "true");
+    const name = await label(page).boundingBox();
+    const frame = await page.locator(".ui-document-editor .cm-editor")
+      .boundingBox();
+    expect(name!.x).toBeGreaterThanOrEqual(frame!.x);
+    expect(name!.x + name!.width).toBeLessThanOrEqual(frame!.x + frame!.width);
+  });
 });
