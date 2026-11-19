@@ -102,6 +102,34 @@ const connection = (serverId: string, overrides: Body = {}): Body => ({
   ...overrides,
 });
 
+/**
+ * A sealed credential belongs to the organization, and the organization's key has no
+ * cascade, so the fixture cannot delete the organization while one remains. Removes
+ * what these tests wrote, in dependency order: a connection points at its secret and a
+ * secret at its active version, so break the links before deleting either.
+ */
+async function removeMcpSecrets(f: Fixture) {
+  const pg = f.pgDatabase;
+  const org = f.organizationId;
+  await pg.query(
+    "delete from bakery.mcp_connections where organization_id = $1",
+    [org],
+  );
+  await pg.query(
+    "update bakery.secrets set active_version_id = null where organization_id = $1 and provider = 'mcp'",
+    [org],
+  );
+  await pg.query(
+    `delete from bakery.secret_versions where secret_id in
+       (select id from bakery.secrets where organization_id = $1 and provider = 'mcp')`,
+    [org],
+  );
+  await pg.query(
+    "delete from bakery.secrets where organization_id = $1 and provider = 'mcp'",
+    [org],
+  );
+}
+
 async function withFixture(
   run: (
     f: Fixture,
@@ -114,6 +142,7 @@ async function withFixture(
     await run(f, secretsKey);
   } finally {
     try {
+      await removeMcpSecrets(f);
       await f.finish();
     } finally {
       await Deno.remove(secretsKey.file);
