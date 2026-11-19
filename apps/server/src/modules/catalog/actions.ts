@@ -223,6 +223,8 @@ export function createCatalogActionRegistry(
       ...commandPolicy,
       access: ActionAccess.OwnerForPersonalAdminForOrganization,
     },
+    // A DELETE only reads If-Match when the action says it needs one.
+    explicitIdempotency: "key-and-if-match",
     handler: handlers.deleteSkillUseGrant,
   });
   registry.register({
