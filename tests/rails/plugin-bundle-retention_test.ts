@@ -120,7 +120,7 @@ Deno.test("the rail states which relation it inspects", async () => {
   // (a shared archive table, a second install kind), the rail must be widened
   // in the same change rather than continuing to pass on the old relation.
   const sql = await Deno.readTextFile(
-    "apps/server/src/modules/catalog/migrations/bakery/0209_plugin_bundle_retention.sql",
+    "apps/server/src/modules/catalog/migrations/bakery/0218_plugin_bundle_retention.sql",
   );
   assert(
     sql.includes("bundle_purged_at"),
