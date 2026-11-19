@@ -560,6 +560,11 @@ export type PolicyOverrides = {
   automatic?: { enabled: boolean; since: string | null };
   approval?: "automatic" | "human_approval";
   requireAcceptanceCriteria?: boolean;
+  /**
+   * Statuses the source requires, by provider id. Omitted leaves readiness
+   * deciding on the label alone, which is what every existing source does.
+   */
+  statuses?: string[];
 };
 
 /**
@@ -629,6 +634,9 @@ export async function openTicketFixture(
         readiness: {
           requireAcceptanceCriteria: overrides.requireAcceptanceCriteria ??
             true,
+          ...(overrides.statuses === undefined
+            ? {}
+            : { statuses: overrides.statuses }),
         },
       };
     };
