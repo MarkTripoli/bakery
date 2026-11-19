@@ -37,6 +37,10 @@ const namespacePrefixes = [
   "repository.rules.",
   "notifications.",
   "session.",
+  // Provider copy: `integrations.<slug>.*` is the one namespace where a provider's
+  // own strings live, and `check-provider-literals.ts` exempts exactly it. The two
+  // rails have to agree, so the prefix is allowed here rather than the keys moved.
+  "integrations.",
 ] as const;
 
 /**

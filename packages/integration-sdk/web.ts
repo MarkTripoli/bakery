@@ -15,5 +15,6 @@ export type {
   ConnectStepProps,
   IntegrationResource,
   ProviderComponent,
+  ProviderMessage,
   ProviderWebModule,
 } from "./src/web-provider.ts";

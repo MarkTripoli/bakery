@@ -30,6 +30,7 @@ import type {
   TicketReadFailure,
   TicketSourceHandle,
 } from "./ticket-source-reader.ts";
+import { ticketRef } from "./ticket-source-reader.ts";
 
 /**
  * The per-source sync step shared by the poll function and `ticketSources.sync`.
@@ -493,7 +494,11 @@ export async function runTicketSourceStep(
           prefetchTicketReads(
             deps.reader,
             handle,
-            { number: candidate.number, policy: source.policy, origin: "poll" },
+            {
+              ref: ticketRef(candidate.number),
+              policy: source.policy,
+              origin: "poll",
+            },
             signal,
           ).catch((error) => {
             throw nameCandidate(candidate, error);
