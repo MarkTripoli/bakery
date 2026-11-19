@@ -5412,10 +5412,10 @@ export const clientManifest = {
       "group": "Integrations intake",
       "method": "POST",
       "path": "/v1/webhooks/github",
-      "action": "intake.github",
+      "action": "intake.webhook",
       "access": "Verified GitHub App raw-body signature; installation/resource routes to existing organization connection",
       "permission": null,
-      "input": "GitHubWebhook",
+      "input": "IntegrationWebhook",
       "output": "WebhookReceipt",
       "event": "intake.received",
       "mcp": "",
@@ -6102,7 +6102,7 @@ export const clientManifest = {
       "group": "Integration setup",
       "method": "GET",
       "path": "/v1/integration-auth/github/callback",
-      "action": "integrationAuth.githubCallback",
+      "action": "integrationAuth.authorizationCallback",
       "access": "Bound browser auth attempt",
       "permission": null,
       "input": "OAuthCallback",
@@ -6128,10 +6128,10 @@ export const clientManifest = {
       "group": "Integration setup",
       "method": "GET",
       "path": "/v1/integration-auth/github/setup",
-      "action": "integrationAuth.githubSetup",
+      "action": "integrationAuth.setup",
       "access": "Bound browser auth attempt",
       "permission": null,
-      "input": "GitHubSetupCallback",
+      "input": "IntegrationSetupCallback",
       "output": "AuthRedirect",
       "event": "integration.auth_attempt_changed",
       "mcp": "",
@@ -6433,10 +6433,10 @@ export const clientManifest = {
       "group": "Installation administration",
       "method": "GET",
       "path": "/v1/integration-auth/github/manifest-callback",
-      "action": "integrationAuth.githubManifestCallback",
+      "action": "integrationAuth.manifestCallback",
       "access": "Installation administrator",
       "permission": "installationSetting:manage",
-      "input": "GitHubManifestCallback",
+      "input": "IntegrationManifestCallback",
       "output": "AuthRedirect",
       "event": "",
       "mcp": "",
@@ -7067,6 +7067,153 @@ export const clientManifest = {
       "event": "plugin.version_created",
       "mcp": "",
       "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Plugins",
+      "method": "GET",
+      "path": "/v1/plugin-installs",
+      "action": "pluginInstalls.list",
+      "access": "Developer",
+      "permission": "pluginInstall:read",
+      "input": "PluginInstallQuery",
+      "output": "Page<PluginInstall>",
+      "event": "",
+      "mcp": "bakery_pluginInstalls_list",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Plugins",
+      "method": "POST",
+      "path": "/v1/plugin-installs",
+      "action": "pluginInstalls.create",
+      "access": "Developer for personal; Admin for organization",
+      "permission": "pluginInstall:manage",
+      "input": "PluginInstallCreate",
+      "output": "PluginInstall",
+      "event": "plugin.install_changed",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Plugins",
+      "method": "GET",
+      "path": "/v1/plugin-installs/{id}",
+      "action": "pluginInstalls.get",
+      "access": "Authorized owner/member",
+      "permission": "pluginInstall:read",
+      "input": "IdPath",
+      "output": "PluginInstall",
+      "event": "",
+      "mcp": "bakery_pluginInstalls_get",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Plugins",
+      "method": "PATCH",
+      "path": "/v1/plugin-installs/{id}",
+      "action": "pluginInstalls.update",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "pluginInstall:manage",
+      "input": "PluginInstallUpdate",
+      "output": "PluginInstall",
+      "event": "plugin.install_changed",
+      "mcp": "",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Plugins",
+      "method": "GET",
+      "path": "/v1/plugin-installs/{id}/state",
+      "action": "pluginState.get",
+      "access": "Authorized owner/member",
+      "permission": "pluginState:read",
+      "input": "CursorQuery",
+      "output": "Page<PluginState>",
+      "event": "",
+      "mcp": "bakery_pluginState_get",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Plugins",
+      "method": "PUT",
+      "path": "/v1/plugin-installs/{id}/state/{namespace}/{key}",
+      "action": "pluginState.put",
+      "access": "Authorized owner/member+install grant",
+      "permission": "pluginState:write",
+      "input": "PluginStatePut",
+      "output": "PluginState",
+      "event": "plugin.state_changed",
+      "mcp": "",
+      "idempotency": "Idempotency-Key + expectedCasVersion required",
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
@@ -11216,22 +11363,22 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "Empty request body reused by operations that need no input beyond their route parameters and authorization, such as a connection health check or MCP capability discovery."
     },
-    "GitHubWebhook": {
+    "IntegrationWebhook": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
       "properties": {
         "deliveryId": {
           "type": "string",
           "maxLength": 255,
-          "description": "GitHub's X-GitHub-Delivery ID for this webhook attempt, scoped to the configured GitHub App registration; combined with the raw-body digest it deduplicates redelivery, so an identical retry returns the original receipt instead of reprocessing. GitHubWebhook.deliveryId must contain at most 255 characters."
+          "description": "GitHub's X-GitHub-Delivery ID for this webhook attempt, scoped to the configured GitHub App registration; combined with the raw-body digest it deduplicates redelivery, so an identical retry returns the original receipt instead of reprocessing. IntegrationWebhook.deliveryId must contain at most 255 characters."
         },
         "eventType": {
           "type": "string",
           "maxLength": 100,
-          "description": "GitHub's webhook event name, for example issues.labeled; applying a label and editing a label's definition are different event shapes, and only accepted events reach Tickets admission. GitHubWebhook.eventType must contain at most 100 characters."
+          "description": "GitHub's webhook event name, for example issues.labeled; applying a label and editing a label's definition are different event shapes, and only accepted events reach Tickets admission. IntegrationWebhook.eventType must contain at most 100 characters."
         },
         "payload": {
-          "description": "Raw verified GitHub event body, capped at 256 KiB and streamed before JSON parsing; an oversized delivery is rejected rather than truncated. GitHubWebhook.payload must contain at most 262144 UTF-8 bytes.",
+          "description": "Raw verified GitHub event body, capped at 256 KiB and streamed before JSON parsing; an oversized delivery is rejected rather than truncated. IntegrationWebhook.payload must contain at most 262144 UTF-8 bytes.",
           "anyOf": [
             {
               "type": "string",
@@ -12881,7 +13028,7 @@ export const clientManifest = {
             "sync.snapshot",
             "events.connect",
             "collaboration.connect",
-            "intake.github",
+            "intake.webhook",
             "intake.external",
             "intake.slack.events",
             "intake.slack.commands",
@@ -12915,8 +13062,8 @@ export const clientManifest = {
             "organizationInvitations.cancel",
             "integrationAuthAttempts.create",
             "integrationAuthAttempts.get",
-            "integrationAuth.githubCallback",
-            "integrationAuth.githubSetup",
+            "integrationAuth.authorizationCallback",
+            "integrationAuth.setup",
             "integrationAuth.slackIdentityCallback",
             "integrationInstallations.list",
             "integrationInstallations.get",
@@ -12929,7 +13076,7 @@ export const clientManifest = {
             "blobUploads.start",
             "blobUploads.part",
             "blobUploads.complete",
-            "integrationAuth.githubManifestCallback",
+            "integrationAuth.manifestCallback",
             "integrationResources.list",
             "integrationDiscoveries.create",
             "integrationResources.update",
@@ -19018,6 +19165,297 @@ export const clientManifest = {
         }
       }
     },
+    "PluginInstallQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "scope": {
+          "description": "Filters installs to organization-wide or personal scope; a personal install remains visible only to its owner or an authorized Admin regardless of this filter.",
+          "type": "string",
+          "enum": [
+            "organization",
+            "personal"
+          ]
+        },
+        "status": {
+          "description": "Filters installs by lifecycle status: staged pending activation, enabled, disabled, failed, or uninstalled.",
+          "type": "string",
+          "enum": [
+            "staged",
+            "enabled",
+            "disabled",
+            "failed",
+            "uninstalled"
+          ]
+        },
+        "cursor": {
+          "description": "Opaque pagination cursor from a previous page of this plugin-install listing; bound to the current caller, filters and ordering, and rejected if reused with a different query. PluginInstallQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "limit": {
+          "description": "Maximum number of plugin installs to return per page; defaults to 25 and caps at 100. PluginInstallQuery.limit must be at least 1. PluginInstallQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "additionalProperties": false,
+      "description": "Filter and pagination parameters for listing plugin installs visible to the caller; personal installs are further restricted to their owner or an authorized Admin regardless of the filters applied."
+    },
+    "PluginInstallCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "packageId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Package being installed; the selected versionId must belong to this package."
+        },
+        "versionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Immutable package version this install pins; installing this version grants no capabilities by itself until any needed permission_grants are separately approved."
+        },
+        "scope": {
+          "type": "string",
+          "enum": [
+            "organization",
+            "personal"
+          ],
+          "description": "Whether this install is organization-wide, shared and requiring Admin, or personal to the creating principal and requiring Developer; determines whether ownerPrincipalId must be set."
+        },
+        "ownerPrincipalId": {
+          "description": "Owning principal for a personal-scope install; must be omitted for an organization-scope install, which has no personal owner.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        }
+      },
+      "required": [
+        "packageId",
+        "versionId",
+        "scope"
+      ],
+      "additionalProperties": false,
+      "description": "Installs one immutable, published plugin version into the organization (Admin-only, shared) or for one principal personally (Developer, private); installing pins the version but grants no capabilities on its own."
+    },
+    "PluginInstallUpdate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "versionId": {
+          "description": "New package version to move this install to; the new version is staged and validated before activation, and a failed activation leaves the install on its prior usable version.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "status": {
+          "description": "New lifecycle status to apply: enabled to activate, disabled to block new authority while retaining configuration, or uninstalled to remove it; in-flight work under the pinned version still observes live revocation.",
+          "type": "string",
+          "enum": [
+            "enabled",
+            "disabled",
+            "uninstalled"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "description": "Updates an existing plugin install's pinned version or lifecycle status; requires at least one field and an If-Match precondition, and a new version is staged and validated before it becomes active."
+    },
+    "PluginStatePut": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "namespace": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "Package-defined grouping for this state entry, such as a feature area within the plugin; combined with key to address one value under this install. PluginStatePut.namespace must contain at most 200 characters."
+        },
+        "key": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "Identifier for this state entry within its namespace; unique per install, and per personal owner for a personal-scope install. PluginStatePut.key must contain at most 200 characters."
+        },
+        "schemaVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "description": "Version of the plugin's own state schema this value conforms to, letting the plugin evolve its stored state format across releases. PluginStatePut.schemaVersion must be at least 1."
+        },
+        "value": {
+          "description": "The stored state payload, validated against the plugin's declared schema for schemaVersion; secrets must be passed by reference rather than embedded here. PluginStatePut.value must contain at most 65536 UTF-8 bytes.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "x-utf8-max-bytes": 65536
+        },
+        "expectedCasVersion": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Compare-and-set version the caller last read; the write is rejected if the stored value has moved on since, preventing a lost update between concurrent writers. PluginStatePut.expectedCasVersion must be at least 0."
+        }
+      },
+      "required": [
+        "namespace",
+        "key",
+        "schemaVersion",
+        "value",
+        "expectedCasVersion"
+      ],
+      "additionalProperties": false,
+      "description": "Writes one namespaced key's bounded JSON state for a plugin install, guarded by a compare-and-set version so concurrent writers cannot silently overwrite each other; a personal owner is derived from the authenticated principal, never supplied directly.",
+      "$defs": {
+        "__schema0": {
+          "description": "JSON value node.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON object value."
+            }
+          ]
+        }
+      }
+    },
     "UserPreferencesUpdate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -19263,17 +19701,17 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "Fixed OAuth callback shared by GitHub authorization and Slack identity-link completion; the bound, single-use state is claimed atomically before any code exchange, so callback fields alone can never select an organization, connection or installation."
     },
-    "GitHubSetupCallback": {
+    "IntegrationSetupCallback": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
       "properties": {
         "state": {
           "type": "string",
           "maxLength": 4096,
-          "description": "Single-use state token binding this setup redirect to the auth attempt that started it; claimed atomically before verification so it cannot be replayed. GitHubSetupCallback.state must contain at most 4096 characters."
+          "description": "Single-use state token binding this setup redirect to the auth attempt that started it; claimed atomically before verification so it cannot be replayed. IntegrationSetupCallback.state must contain at most 4096 characters."
         },
         "installationId": {
-          "description": "GitHub's candidate installation ID for this setup event. Treat as spoofable: the host must verify it against every page of installations accessible to the connecting user's token before it can identify a real installation. GitHubSetupCallback.installationId must contain at most 200 characters.",
+          "description": "GitHub's candidate installation ID for this setup event. Treat as spoofable: the host must verify it against every page of installations accessible to the connecting user's token before it can identify a real installation. IntegrationSetupCallback.installationId must contain at most 200 characters.",
           "type": "string",
           "maxLength": 200
         },
@@ -20314,7 +20752,7 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "Starts GitHub App registration through GitHub's manifest flow for this Bakery installation. The App's URLs derive from the deployment's public base URL; credentials never travel through this request."
     },
-    "GitHubManifestCallback": {
+    "IntegrationManifestCallback": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
       "properties": {
@@ -20322,13 +20760,13 @@ export const clientManifest = {
           "type": "string",
           "minLength": 1,
           "maxLength": 4096,
-          "description": "Temporary code GitHub appends to the manifest redirect; valid for one hour and convertible exactly once into the new App's credentials. Never logged or stored. GitHubManifestCallback.code must contain at least 1 characters. GitHubManifestCallback.code must contain at most 4096 characters."
+          "description": "Temporary code GitHub appends to the manifest redirect; valid for one hour and convertible exactly once into the new App's credentials. Never logged or stored. IntegrationManifestCallback.code must contain at least 1 characters. IntegrationManifestCallback.code must contain at most 4096 characters."
         },
         "state": {
           "type": "string",
           "minLength": 1,
           "maxLength": 4096,
-          "description": "Single-use state issued by integrationAppRegistrations.begin to the same administrator session; claimed atomically by its hash before the code is converted. GitHubManifestCallback.state must contain at least 1 characters. GitHubManifestCallback.state must contain at most 4096 characters."
+          "description": "Single-use state issued by integrationAppRegistrations.begin to the same administrator session; claimed atomically by its hash before the code is converted. IntegrationManifestCallback.state must contain at least 1 characters. IntegrationManifestCallback.state must contain at most 4096 characters."
         }
       },
       "required": [
@@ -21167,6 +21605,253 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Publishes the next revision of one project's scope profile: the step defaults every later run of the project inherits and pins at admission.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
+    },
+    "PluginState": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID identifying this plugin state record."
+        },
+        "organizationId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "UUID of the organization that owns this record."
+        },
+        "pluginInstallId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "UUID identifying the related plugin install resource."
+        },
+        "ownerPrincipalId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "UUID of the principal associated with this plugin state record. May be null when unavailable."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "PluginState.ownerPrincipalId may be null in this transport value."
+        },
+        "namespace": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Grouping the plugin package defines to partition its stored state, for example one namespace per feature area. Paired with \"key\" to address a specific stored value within one install's state."
+        },
+        "key": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Name of this state entry within its \"namespace\". Combined with the plugin install, optional personal owner, and namespace, it forms the unique address of one stored state value."
+        },
+        "schemaVersion": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Schema version of this entry's stored value, set when the entry was written. Compared against the owning install's stateSchemaVersion to detect state that still needs migration after a plugin update."
+        },
+        "casVersion": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Compare-and-swap version used for conditional updates to this plugin state record."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "Timestamp recording when the created event occurred for this plugin state record."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "Timestamp recording the last update to this plugin state record."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Monotonic revision used to order or conditionally update this plugin state record."
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "Measured value recorded at the metric point."
+        }
+      },
+      "required": [
+        "id",
+        "organizationId",
+        "pluginInstallId",
+        "ownerPrincipalId",
+        "namespace",
+        "key",
+        "schemaVersion",
+        "casVersion",
+        "createdAt",
+        "updatedAt",
+        "version",
+        "value"
+      ],
+      "additionalProperties": false,
+      "description": "One namespaced key's stored JSON state for a plugin install, returned only to its owner or an authorized member with an install grant, never as part of a public catalog or list. Guarded by casVersion for compare-and-set updates; schemaVersion records which state-schema revision the value was written under, checked against the install's own stateSchemaVersion to decide whether it needs migration.",
       "$defs": {
         "__schema0": {
           "anyOf": [
@@ -33540,7 +34225,7 @@ export const clientManifest = {
                   "sync.snapshot",
                   "events.connect",
                   "collaboration.connect",
-                  "intake.github",
+                  "intake.webhook",
                   "intake.external",
                   "intake.slack.events",
                   "intake.slack.commands",
@@ -33574,8 +34259,8 @@ export const clientManifest = {
                   "organizationInvitations.cancel",
                   "integrationAuthAttempts.create",
                   "integrationAuthAttempts.get",
-                  "integrationAuth.githubCallback",
-                  "integrationAuth.githubSetup",
+                  "integrationAuth.authorizationCallback",
+                  "integrationAuth.setup",
                   "integrationAuth.slackIdentityCallback",
                   "integrationInstallations.list",
                   "integrationInstallations.get",
@@ -33588,7 +34273,7 @@ export const clientManifest = {
                   "blobUploads.start",
                   "blobUploads.part",
                   "blobUploads.complete",
-                  "integrationAuth.githubManifestCallback",
+                  "integrationAuth.manifestCallback",
                   "integrationResources.list",
                   "integrationDiscoveries.create",
                   "integrationResources.update",
@@ -50533,7 +51218,7 @@ export const clientManifest = {
             "sync.snapshot",
             "events.connect",
             "collaboration.connect",
-            "intake.github",
+            "intake.webhook",
             "intake.external",
             "intake.slack.events",
             "intake.slack.commands",
@@ -50567,8 +51252,8 @@ export const clientManifest = {
             "organizationInvitations.cancel",
             "integrationAuthAttempts.create",
             "integrationAuthAttempts.get",
-            "integrationAuth.githubCallback",
-            "integrationAuth.githubSetup",
+            "integrationAuth.authorizationCallback",
+            "integrationAuth.setup",
             "integrationAuth.slackIdentityCallback",
             "integrationInstallations.list",
             "integrationInstallations.get",
@@ -50581,7 +51266,7 @@ export const clientManifest = {
             "blobUploads.start",
             "blobUploads.part",
             "blobUploads.complete",
-            "integrationAuth.githubManifestCallback",
+            "integrationAuth.manifestCallback",
             "integrationResources.list",
             "integrationDiscoveries.create",
             "integrationResources.update",
@@ -53725,7 +54410,7 @@ export const clientManifest = {
                   "type": "boolean"
                 },
                 "reason": {
-                  "description": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; for a refused draft edit, why: text_changed or draft_moved_on on a 412, or for a refused draft comment anchor comment_quote_mismatch, comment_anchor_stale or comment_anchor_splits_character on a 412; agent_edit_requires_suggestion, suggestion_decision_requires_person, definition_proposal_decision_requires_person or workflow_listing_requires_person on a 403. Absent when the problem has no named rule.",
+                  "description": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; for a refused draft edit, why: text_changed or draft_moved_on on a 412, or for a refused draft comment anchor comment_quote_mismatch, comment_anchor_stale or comment_anchor_splits_character on a 412, or for a refused ticket operation source_policy_changed or requirements_changed on a 412; agent_edit_requires_suggestion, suggestion_decision_requires_person, definition_proposal_decision_requires_person or workflow_listing_requires_person on a 403. Absent when the problem has no named rule.",
                   "type": "string",
                   "maxLength": 65536
                 },
@@ -56752,7 +57437,7 @@ export const clientManifest = {
           "type": "boolean"
         },
         "reason": {
-          "description": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; for a refused draft edit, why: text_changed or draft_moved_on on a 412, or for a refused draft comment anchor comment_quote_mismatch, comment_anchor_stale or comment_anchor_splits_character on a 412; agent_edit_requires_suggestion, suggestion_decision_requires_person, definition_proposal_decision_requires_person or workflow_listing_requires_person on a 403. Absent when the problem has no named rule.",
+          "description": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; for a refused draft edit, why: text_changed or draft_moved_on on a 412, or for a refused draft comment anchor comment_quote_mismatch, comment_anchor_stale or comment_anchor_splits_character on a 412, or for a refused ticket operation source_policy_changed or requirements_changed on a 412; agent_edit_requires_suggestion, suggestion_decision_requires_person, definition_proposal_decision_requires_person or workflow_listing_requires_person on a 403. Absent when the problem has no named rule.",
           "type": "string",
           "maxLength": 65536
         },
@@ -57114,7 +57799,7 @@ export const clientManifest = {
                   "type": "boolean"
                 },
                 "reason": {
-                  "description": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; for a refused draft edit, why: text_changed or draft_moved_on on a 412, or for a refused draft comment anchor comment_quote_mismatch, comment_anchor_stale or comment_anchor_splits_character on a 412; agent_edit_requires_suggestion, suggestion_decision_requires_person, definition_proposal_decision_requires_person or workflow_listing_requires_person on a 403. Absent when the problem has no named rule.",
+                  "description": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; for a refused draft edit, why: text_changed or draft_moved_on on a 412, or for a refused draft comment anchor comment_quote_mismatch, comment_anchor_stale or comment_anchor_splits_character on a 412, or for a refused ticket operation source_policy_changed or requirements_changed on a 412; agent_edit_requires_suggestion, suggestion_decision_requires_person, definition_proposal_decision_requires_person or workflow_listing_requires_person on a 403. Absent when the problem has no named rule.",
                   "type": "string",
                   "maxLength": 65536
                 },
@@ -57524,7 +58209,7 @@ export const clientManifest = {
                         "type": "boolean"
                       },
                       "reason": {
-                        "description": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; for a refused draft edit, why: text_changed or draft_moved_on on a 412, or for a refused draft comment anchor comment_quote_mismatch, comment_anchor_stale or comment_anchor_splits_character on a 412; agent_edit_requires_suggestion, suggestion_decision_requires_person, definition_proposal_decision_requires_person or workflow_listing_requires_person on a 403. Absent when the problem has no named rule.",
+                        "description": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; for a refused draft edit, why: text_changed or draft_moved_on on a 412, or for a refused draft comment anchor comment_quote_mismatch, comment_anchor_stale or comment_anchor_splits_character on a 412, or for a refused ticket operation source_policy_changed or requirements_changed on a 412; agent_edit_requires_suggestion, suggestion_decision_requires_person, definition_proposal_decision_requires_person or workflow_listing_requires_person on a 403. Absent when the problem has no named rule.",
                         "type": "string",
                         "maxLength": 65536
                       },
@@ -64932,6 +65617,643 @@ export const clientManifest = {
                     },
                     "additionalProperties": {
                       "$ref": "#/$defs/__schema2"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
+    },
+    "PluginInstall": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID identifying this plugin install record."
+        },
+        "organizationId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "UUID of the organization that owns this record."
+        },
+        "pluginPackageId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "UUID identifying the related plugin package resource."
+        },
+        "pluginVersionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "UUID identifying the related plugin version resource."
+        },
+        "scope": {
+          "type": "string",
+          "enum": [
+            "organization",
+            "personal"
+          ],
+          "description": "Bounded enum(organization|personal) value identifying or describing this plugin install record."
+        },
+        "ownerPrincipalId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "UUID of the principal associated with this plugin install record. May be null when unavailable."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "PluginInstall.ownerPrincipalId may be null in this transport value."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "staged",
+            "enabled",
+            "disabled",
+            "failed",
+            "uninstalled"
+          ],
+          "description": "Current lifecycle state of this plugin install record."
+        },
+        "stateSchemaVersion": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Schema version of plugin_state currently expected for this install, advanced when the plugin stages a state migration as part of an update. Stored state entries are checked against this value to decide whether they must be migrated before use."
+        },
+        "activatedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "Timestamp recording when the activated event occurred for this plugin install record. May be null when unavailable."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "PluginInstall.activatedAt may be null in this transport value."
+        },
+        "disabledAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "Timestamp recording when the disabled event occurred for this plugin install record. May be null when unavailable."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "PluginInstall.disabledAt may be null in this transport value."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "Timestamp recording when the created event occurred for this plugin install record."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "Timestamp recording the last update to this plugin install record."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Monotonic revision used to order or conditionally update this plugin install record."
+        }
+      },
+      "required": [
+        "id",
+        "organizationId",
+        "pluginPackageId",
+        "pluginVersionId",
+        "scope",
+        "ownerPrincipalId",
+        "status",
+        "stateSchemaVersion",
+        "activatedAt",
+        "disabledAt",
+        "createdAt",
+        "updatedAt",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "One organization-wide or personal installation of a pinned, immutable plugin version, returned by creating, reading or updating an install. Tracks lifecycle status (staged, enabled, disabled, failed, uninstalled), the stateSchemaVersion stored state is checked against, and activation/disable timestamps; ownerPrincipalId is set only for a personal-scope install."
+    },
+    "Page<PluginInstall>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID identifying this plugin install record."
+              },
+              "organizationId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the organization that owns this record."
+              },
+              "pluginPackageId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID identifying the related plugin package resource."
+              },
+              "pluginVersionId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID identifying the related plugin version resource."
+              },
+              "scope": {
+                "type": "string",
+                "enum": [
+                  "organization",
+                  "personal"
+                ],
+                "description": "Bounded enum(organization|personal) value identifying or describing this plugin install record."
+              },
+              "ownerPrincipalId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "UUID of the principal associated with this plugin install record. May be null when unavailable."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "PluginInstall.ownerPrincipalId may be null in this transport value."
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "staged",
+                  "enabled",
+                  "disabled",
+                  "failed",
+                  "uninstalled"
+                ],
+                "description": "Current lifecycle state of this plugin install record."
+              },
+              "stateSchemaVersion": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Schema version of plugin_state currently expected for this install, advanced when the plugin stages a state migration as part of an update. Stored state entries are checked against this value to decide whether they must be migrated before use."
+              },
+              "activatedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "Timestamp recording when the activated event occurred for this plugin install record. May be null when unavailable."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "PluginInstall.activatedAt may be null in this transport value."
+              },
+              "disabledAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "Timestamp recording when the disabled event occurred for this plugin install record. May be null when unavailable."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "PluginInstall.disabledAt may be null in this transport value."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "Timestamp recording when the created event occurred for this plugin install record."
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "Timestamp recording the last update to this plugin install record."
+              },
+              "version": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Monotonic revision used to order or conditionally update this plugin install record."
+              }
+            },
+            "required": [
+              "id",
+              "organizationId",
+              "pluginPackageId",
+              "pluginVersionId",
+              "scope",
+              "ownerPrincipalId",
+              "status",
+              "stateSchemaVersion",
+              "activatedAt",
+              "disabledAt",
+              "createdAt",
+              "updatedAt",
+              "version"
+            ],
+            "additionalProperties": false,
+            "description": "One organization-wide or personal installation of a pinned, immutable plugin version, returned by creating, reading or updating an install. Tracks lifecycle status (staged, enabled, disabled, failed, uninstalled), the stateSchemaVersion stored state is checked against, and activation/disable timestamps; ownerPrincipalId is set only for a personal-scope install."
+          },
+          "description": "PluginInstall items in this cursor page. Page<PluginInstall>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<PluginInstall>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<PluginInstall>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<PluginInstall>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<PluginInstall>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of PluginInstall."
+    },
+    "Page<PluginState>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID identifying this plugin state record."
+              },
+              "organizationId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the organization that owns this record."
+              },
+              "pluginInstallId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID identifying the related plugin install resource."
+              },
+              "ownerPrincipalId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "UUID of the principal associated with this plugin state record. May be null when unavailable."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "PluginState.ownerPrincipalId may be null in this transport value."
+              },
+              "namespace": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Grouping the plugin package defines to partition its stored state, for example one namespace per feature area. Paired with \"key\" to address a specific stored value within one install's state."
+              },
+              "key": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Name of this state entry within its \"namespace\". Combined with the plugin install, optional personal owner, and namespace, it forms the unique address of one stored state value."
+              },
+              "schemaVersion": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Schema version of this entry's stored value, set when the entry was written. Compared against the owning install's stateSchemaVersion to detect state that still needs migration after a plugin update."
+              },
+              "casVersion": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Compare-and-swap version used for conditional updates to this plugin state record."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "Timestamp recording when the created event occurred for this plugin state record."
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "Timestamp recording the last update to this plugin state record."
+              },
+              "version": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Monotonic revision used to order or conditionally update this plugin state record."
+              },
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "Measured value recorded at the metric point."
+              }
+            },
+            "required": [
+              "id",
+              "organizationId",
+              "pluginInstallId",
+              "ownerPrincipalId",
+              "namespace",
+              "key",
+              "schemaVersion",
+              "casVersion",
+              "createdAt",
+              "updatedAt",
+              "version",
+              "value"
+            ],
+            "additionalProperties": false,
+            "description": "One namespaced key's stored JSON state for a plugin install, returned only to its owner or an authorized member with an install grant, never as part of a public catalog or list. Guarded by casVersion for compare-and-set updates; schemaVersion records which state-schema revision the value was written under, checked against the install's own stateSchemaVersion to decide whether it needs migration."
+          },
+          "description": "PluginState items in this cursor page. Page<PluginState>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<PluginState>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<PluginState>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<PluginState>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<PluginState>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of PluginState.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
                     },
                     "description": "JSON object value."
                   }

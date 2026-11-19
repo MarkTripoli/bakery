@@ -2426,3 +2426,49 @@ button.ui-activity-line__row:hover {
 .ui-session-thread .ui-empty-state {
   max-inline-size: none;
 }
+
+.ui-document-editor {
+  background: var(--color-surface);
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-surface);
+  color: var(--color-fg);
+  inline-size: 100%;
+  max-inline-size: var(--layout-content);
+  min-inline-size: 0;
+}
+.ui-document-editor .cm-editor {
+  background: transparent;
+  color: inherit;
+  font: var(--type-field);
+}
+.ui-document-editor .cm-editor.cm-focused {
+  outline: var(--focus-width) solid var(--color-focus);
+  outline-offset: var(--focus-offset);
+}
+.ui-document-editor .cm-scroller {
+  font: inherit;
+  min-block-size: 16rem;
+  overflow-wrap: anywhere;
+}
+.ui-document-editor .cm-content {
+  caret-color: var(--color-fg);
+  padding: var(--space-3) var(--space-4);
+}
+.ui-document-editor .cm-line {
+  padding: 0;
+}
+.ui-document-editor .cm-placeholder {
+  color: var(--color-fg-muted);
+}
+.ui-document-editor .cm-selectionBackground,
+.ui-document-editor .cm-editor.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground {
+  background: var(--color-selection);
+}
+.ui-document-editor[data-state="readOnly"] {
+  background: var(--color-surface-subtle);
+}
+
+/* Rows kept on screen while a filter or page change loads. */
+.ui-task-inbox[data-state="loading"] .ui-task-inbox__results {
+  opacity: 0.56;
+}

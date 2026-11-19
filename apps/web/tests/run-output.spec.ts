@@ -278,7 +278,7 @@ test(
     await page.goto(`/tasks/${id}`);
     await expect(page.getByText("Saved through sequence 3", { exact: true }))
       .toBeVisible();
-    await expect(page.getByRole("link", { name: "Back to task inbox" }))
+    await expect(page.getByRole("link", { name: "Back to Work" }))
       .toBeVisible();
     await expect(page.getByText("Persisted description", { exact: true }))
       .toBeVisible();

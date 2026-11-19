@@ -25,7 +25,7 @@ import { admitDelivery } from "./ingress-admission.ts";
 import type { WebhookIngress } from "@bakery/integration-sdk";
 
 export type IntakeRouteOptions = {
-  /** Registry holding the `intake.github` action. */
+  /** Registry holding the `intake.webhook` action. */
   registry: ActionRegistry;
   database: PgDatabase;
   /** Mounted secrets key; without one no webhook secret opens and every delivery is refused. */
@@ -98,7 +98,7 @@ function logOversize(requestId: string, traceId: string): void {
  * 4. webhook secret opened and the HMAC over the bytes verified (401)
  * 5. delivery id and event name headers well formed (400)
  * 6. body decoded and checked against the event's schema (400)
- * 7. the registered `intake.github` action persists the receipt (202)
+ * 7. the registered `intake.webhook` action persists the receipt (202)
  *
  * No session middleware applies: the signature is the only credential, and it
  * proves GitHub sent the bytes, never which organization may act on them.
@@ -206,7 +206,7 @@ async function handleDelivery(
     const digest = await sha256Hex(raw);
     const receipt = contractSchemas.WebhookReceipt.parse(
       await options.registry.execute(
-        IntegrationsImplementedAction.IntakeGithub,
+        IntegrationsImplementedAction.IntakeWebhook,
         withVerifiedDelivery(
           {
             request,
@@ -261,7 +261,7 @@ async function handleDelivery(
 
 /**
  * Mounts the webhook receiver. Call it before the JSON router is mounted, so
- * the router's own `intake.github` binding never serves this path, which it
+ * the router's own `intake.webhook` binding never serves this path, which it
  * could not do: the router reads a Bakery envelope, not GitHub's raw body.
  */
 export function mountIntakeRoute(

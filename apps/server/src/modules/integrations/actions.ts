@@ -143,7 +143,7 @@ const intakeSlot = Symbol("verified GitHub webhook delivery");
 type IntakeContext = ActionContext & { [intakeSlot]?: PreparedDelivery };
 
 /**
- * Hands a signature-verified delivery to the registered `intake.github`
+ * Hands a signature-verified delivery to the registered `intake.webhook`
  * action. The receiving route calls this only after the HMAC over the exact
  * body bytes checked out; the slot is a private symbol, so no request body,
  * header or query can set it.
@@ -481,10 +481,13 @@ export function createIntegrationsAuthorityRunner(
       }
       // Bound-attempt callbacks derive their organization from the attempt,
       // which the shared runner refuses; the callback runner owns them.
-      if (action.name === IntegrationsImplementedAction.GitHubSetup) {
+      if (action.name === IntegrationsImplementedAction.IntegrationSetup) {
         return await callbacks.setup(action, context, input, next);
       }
-      if (action.name === IntegrationsImplementedAction.GitHubCallback) {
+      if (
+        action.name ===
+          IntegrationsImplementedAction.IntegrationAuthorizationCallback
+      ) {
         return await callbacks.callback(action, context, input, next);
       }
       if (
@@ -501,11 +504,12 @@ export function createIntegrationsAuthorityRunner(
         );
       }
       if (
-        action.name !== IntegrationsImplementedAction.GitHubManifestCallback
+        action.name !==
+          IntegrationsImplementedAction.IntegrationManifestCallback
       ) {
         return await authority.run(action, context, input, next);
       }
-      const parsed = contractSchemas.GitHubManifestCallback.parse(input);
+      const parsed = contractSchemas.IntegrationManifestCallback.parse(input);
       if (!isGitHubManifestCode(parsed.code)) {
         throw new StandardError({ code: "MALFORMED_REQUEST" });
       }
@@ -657,10 +661,10 @@ export function createIntegrationsActionRegistry(
     policy: { ...policy, type: ActionKind.Command, sessionOnly: true },
     handler: (context) => putRegistration(context, putPreparation(context)),
   }).register({
-    name: IntegrationsImplementedAction.GitHubManifestCallback,
+    name: IntegrationsImplementedAction.IntegrationManifestCallback,
     method: HttpMethod.Get,
     path: "/v1/integration-auth/github/manifest-callback",
-    input: contractSchemas.GitHubManifestCallback,
+    input: contractSchemas.IntegrationManifestCallback,
     output: contractSchemas.AuthRedirect,
     policy: { ...policy, type: ActionKind.Command, sessionOnly: true },
     handler: (context) => storeRegistration(context, preparation(context)),
@@ -703,20 +707,20 @@ export function createIntegrationsActionRegistry(
     sessionOnly: true,
   } as const;
   registry.register({
-    name: IntegrationsImplementedAction.GitHubSetup,
+    name: IntegrationsImplementedAction.IntegrationSetup,
     method: HttpMethod.Get,
     path: "/v1/integration-auth/github/setup",
-    input: contractSchemas.GitHubSetupCallback,
+    input: contractSchemas.IntegrationSetupCallback,
     output: contractSchemas.AuthRedirect,
     policy: boundAttempt,
     handler: (context) =>
       bindConnection(
         context,
-        IntegrationsImplementedAction.GitHubSetup,
+        IntegrationsImplementedAction.IntegrationSetup,
         bindingPreparation(context),
       ),
   }).register({
-    name: IntegrationsImplementedAction.GitHubCallback,
+    name: IntegrationsImplementedAction.IntegrationAuthorizationCallback,
     method: HttpMethod.Get,
     path: "/v1/integration-auth/github/callback",
     input: contractSchemas.OAuthCallback,
@@ -725,7 +729,7 @@ export function createIntegrationsActionRegistry(
     handler: (context) =>
       bindConnection(
         context,
-        IntegrationsImplementedAction.GitHubCallback,
+        IntegrationsImplementedAction.IntegrationAuthorizationCallback,
         bindingPreparation(context),
       ),
   }).register({
@@ -949,10 +953,10 @@ export function createIntegrationsActionRegistry(
   // GitHub's signed webhook: no session and no organization; the raw-body
   // route verifies the signature and hands the delivery through the slot.
   registry.register({
-    name: IntegrationsImplementedAction.IntakeGithub,
+    name: IntegrationsImplementedAction.IntakeWebhook,
     method: HttpMethod.Post,
     path: GitHubAppPath.Webhook,
-    input: contractSchemas.GitHubWebhook,
+    input: contractSchemas.IntegrationWebhook,
     output: contractSchemas.WebhookReceipt,
     policy: {
       type: ActionKind.Command,

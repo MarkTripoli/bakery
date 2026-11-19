@@ -1,25 +1,25 @@
 {
   "format": "bakery-dependency-licences/1",
   "lockfileSha256": {
-    "pnpm-lock.yaml": "ab4c0329021639d595c13dec1e6ac8f83d47a36d4fe40c9a737c19c14c14cf7a",
-    "deno.lock": "4de5a216ec8a5c9c8008fb2d38370a7b3c7d02a5fe884e6a7ca4e514097c961f"
+    "pnpm-lock.yaml": "603c92433dd0a695174db4901193f325935e866b945c9cfe848ff841e34db24b",
+    "deno.lock": "b68b22b13ca1c8fadf7d4816d47c59efe3a3e5cd35ff901a5931802fd6b009e6"
   },
   "summary": {
-    "total": 1302,
+    "total": 1309,
     "byEcosystem": {
-      "pnpm": 741,
+      "pnpm": 748,
       "deno-npm": 559,
       "jsr": 2
     },
     "byStatus": {
-      "allowed": 1264,
+      "allowed": 1271,
       "exception": 0,
       "pendingOwnerDecision": 38,
       "unresolved": 0
     },
     "byEcosystemStatus": {
       "pnpm": {
-        "allowed": 717,
+        "allowed": 724,
         "exception": 0,
         "pendingOwnerDecision": 24,
         "unresolved": 0
@@ -5129,6 +5129,22 @@
     },
     {
       "ecosystem": "pnpm",
+      "name": "@codemirror/state",
+      "version": "6.7.6",
+      "licence": "MIT",
+      "resolution": "package.json",
+      "status": "allowed"
+    },
+    {
+      "ecosystem": "pnpm",
+      "name": "@codemirror/view",
+      "version": "6.43.15",
+      "licence": "MIT",
+      "resolution": "package.json",
+      "status": "allowed"
+    },
+    {
+      "ecosystem": "pnpm",
       "name": "@emnapi/core",
       "version": "1.11.0",
       "licence": "MIT",
@@ -5523,6 +5539,14 @@
       "ecosystem": "pnpm",
       "name": "@levischuck/tiny-cbor",
       "version": "0.2.11",
+      "licence": "MIT",
+      "resolution": "package.json",
+      "status": "allowed"
+    },
+    {
+      "ecosystem": "pnpm",
+      "name": "@marijn/find-cluster-break",
+      "version": "1.0.4",
       "licence": "MIT",
       "resolution": "package.json",
       "status": "allowed"
@@ -8385,6 +8409,14 @@
     },
     {
       "ecosystem": "pnpm",
+      "name": "crelt",
+      "version": "1.0.7",
+      "licence": "MIT",
+      "resolution": "package.json",
+      "status": "allowed"
+    },
+    {
+      "ecosystem": "pnpm",
       "name": "cross-fetch",
       "version": "4.1.0",
       "licence": "MIT",
@@ -9156,6 +9188,14 @@
       "name": "long",
       "version": "5.3.2",
       "licence": "Apache-2.0",
+      "resolution": "package.json",
+      "status": "allowed"
+    },
+    {
+      "ecosystem": "pnpm",
+      "name": "loro-codemirror",
+      "version": "0.3.3",
+      "licence": "MIT",
       "resolution": "package.json",
       "status": "allowed"
     },
@@ -10017,6 +10057,14 @@
     },
     {
       "ecosystem": "pnpm",
+      "name": "style-mod",
+      "version": "4.1.5",
+      "licence": "MIT",
+      "resolution": "package.json",
+      "status": "allowed"
+    },
+    {
+      "ecosystem": "pnpm",
       "name": "supports-preserve-symlinks-flag",
       "version": "1.0.0",
       "licence": "MIT",
@@ -10211,6 +10259,14 @@
       "ecosystem": "pnpm",
       "name": "vite",
       "version": "8.2.2",
+      "licence": "MIT",
+      "resolution": "package.json",
+      "status": "allowed"
+    },
+    {
+      "ecosystem": "pnpm",
+      "name": "w3c-keyname",
+      "version": "2.2.8",
       "licence": "MIT",
       "resolution": "package.json",
       "status": "allowed"
