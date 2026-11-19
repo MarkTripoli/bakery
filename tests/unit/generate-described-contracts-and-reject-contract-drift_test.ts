@@ -890,6 +890,7 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
     "4da415fd5d3079aaf259a47af29f74906ca9a16c",
     "5914340150c35c0613a967f46464ae6b8689f652",
     "5b8d39e853b302f1424cf36da10a1e8ca0d71c4d",
+    "91ec5a141de089dbef57b5827594eaccef5efb9b",
   ];
   const approvedDigest =
     "sha256:8f194c24ed520a1644c7d1e0575ceeb56761f2675962b0b9c0d8adfbc927b726";
