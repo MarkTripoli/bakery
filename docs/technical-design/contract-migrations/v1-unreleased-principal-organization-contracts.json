@@ -1,13 +1,22 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "3b8d4ef5651aeb7feb2a38518001271c1436646f"
+    "5b8d39e853b302f1424cf36da10a1e8ca0d71c4d"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:fde2bf41e3caf11df66620b7a2a88273a0a65d334f02a2ee432fde53c0d59580",
-  "reason": "#69 ticket preview, ticket link reads and status note re-bind by dev-server on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main 3b8d4ef5651aeb7feb2a38518001271c1436646f: ticketSources.preview now answers a TicketPreviewResult (counts would start / plan only / held / blocked and one entry per issue with its verdict and reasons) instead of a TicketOperationReceipt, and TicketPreviewCreate gains an optional draft policy and a defined filters object; the preview stores nothing. ticketTaskLinks.list (GET /v1/ticket-task-links, by ticket or by task), ticketTaskLinks.resyncNote (POST /v1/ticket-task-links/{id}/note-syncs, which posts Bakery's status note through the provider's comment action, rewrites it in place by its stored id afterwards and re-creates it when deleted on the provider) and the externalTicketId filter of pullRequests.list are additive; TicketTaskLink descriptions now say what the note fields hold. The breaking drift is the one preview response reference; the approval it displaced at sha256:c22cd3f2f4e54fa2a414d3d24c1f9872c04df3eaead7354f46ea1cfaea241c5d is preserved unchanged first below.",
+  "targetCompatibilityDigest": "sha256:e5e861c5b69b0d2855cfaba001ef7ad93be519c159fe490b5e3b4511aa7d6317",
+  "reason": "#434 MCP connections re-bind by dev-agx4 on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main 5b8d39e853b302f1424cf36da10a1e8ca0d71c4d: McpConnectionCreate and McpConnectionUpdate drop the secretId reference input and gain a write-only secret (a caller can no longer point a connection at an arbitrary secret id; the credential is sealed server-side), McpConnectionCreate gains an optional scope (organization|personal), and McpConnection gains ownerPrincipalId. mcpConnections create, update and discover change from Admin to Developer-for-personal/Admin-for-organization access. No client writes these shapes: no handler existed before this change. The approval it displaced is preserved unchanged first below.",
   "priorApprovals": [
+    {
+      "fromBaseRefs": [
+        "3b8d4ef5651aeb7feb2a38518001271c1436646f"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:fde2bf41e3caf11df66620b7a2a88273a0a65d334f02a2ee432fde53c0d59580",
+      "reason": "#69 ticket preview, ticket link reads and status note re-bind by dev-server on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main 3b8d4ef5651aeb7feb2a38518001271c1436646f: ticketSources.preview now answers a TicketPreviewResult (counts would start / plan only / held / blocked and one entry per issue with its verdict and reasons) instead of a TicketOperationReceipt, and TicketPreviewCreate gains an optional draft policy and a defined filters object; the preview stores nothing. ticketTaskLinks.list (GET /v1/ticket-task-links, by ticket or by task), ticketTaskLinks.resyncNote (POST /v1/ticket-task-links/{id}/note-syncs, which posts Bakery's status note through the provider's comment action, rewrites it in place by its stored id afterwards and re-creates it when deleted on the provider) and the externalTicketId filter of pullRequests.list are additive; TicketTaskLink descriptions now say what the note fields hold. The breaking drift is the one preview response reference; the approval it displaced at sha256:c22cd3f2f4e54fa2a414d3d24c1f9872c04df3eaead7354f46ea1cfaea241c5d is preserved unchanged first below."
+    },
     {
       "fromBaseRefs": [
         "1ff39fed67f2fa59261bbd393aa8e4acbcbde8e2"

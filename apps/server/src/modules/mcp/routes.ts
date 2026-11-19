@@ -13,6 +13,8 @@ import {
 } from "@bakery/contracts/contracts";
 import {
   assertImplementedActionRegistry,
+  McpConnectionImplementedAction as ConnectionAction,
+  mcpConnectionImplementedActions,
   McpServerImplementedAction as Action,
   mcpServerImplementedActions,
 } from "@bakery/contracts/implemented-actions";
@@ -21,6 +23,13 @@ import { PostgresAuthorityRunner } from "../auth/adapters/authority-postgres.ts"
 import { type AuthVariables, createActionContext } from "../auth/middleware.ts";
 import { createPostgresCommandRunner } from "../../platform/command-replay.ts";
 import type { PgDatabase } from "../../platform/database.ts";
+import type { SecretsKeyConfig } from "@bakery/config";
+import {
+  createMcpConnectionCreator,
+  createMcpConnectionsListHandler,
+  createMcpConnectionUpdater,
+  getMcpConnection,
+} from "./connection-commands.ts";
 import {
   createMcpServer,
   createMcpServersListHandler,
@@ -31,7 +40,10 @@ import {
 /** The MCP management registry: server definitions (#434), growing as slices land. */
 export function createMcpActionRegistry(
   database: PgDatabase,
-  dependencies: { cursorSecret: string },
+  dependencies: {
+    cursorSecret: string;
+    secretsKey: SecretsKeyConfig | undefined;
+  },
 ): ActionRegistry {
   const registry = new ActionRegistry(
     new PostgresAuthorityRunner(database),
@@ -84,8 +96,55 @@ export function createMcpActionRegistry(
     policy: admin,
     handler: updateMcpServer,
   });
+  const personalOrAdmin = {
+    type: ActionKind.Command,
+    access: ActionAccess.DeveloperForPersonalAdminForOrganization,
+    organizationContext,
+  } as const;
+  const ownerOrAdmin = {
+    type: ActionKind.Command,
+    access: ActionAccess.OwnerForPersonalAdminForOrganization,
+    organizationContext,
+  } as const;
+  registry.register({
+    name: ConnectionAction.McpConnectionsList,
+    method: HttpMethod.Get,
+    path: "/v1/mcp-connections",
+    input: contractSchemas.CursorQuery,
+    output: contractSchemas["Page<McpConnection>"],
+    policy: query,
+    transactionIsolation: TransactionIsolation.RepeatableRead,
+    handler: createMcpConnectionsListHandler(dependencies.cursorSecret),
+  }).register({
+    name: ConnectionAction.McpConnectionsGet,
+    method: HttpMethod.Get,
+    path: "/v1/mcp-connections/:id",
+    input: contractSchemas.IdPath,
+    output: contractSchemas.McpConnection,
+    policy: query,
+    handler: getMcpConnection,
+  }).register({
+    name: ConnectionAction.McpConnectionsCreate,
+    method: HttpMethod.Post,
+    path: "/v1/mcp-connections",
+    input: contractSchemas.McpConnectionCreate,
+    output: contractSchemas.McpConnection,
+    policy: personalOrAdmin,
+    handler: createMcpConnectionCreator(dependencies),
+  }).register({
+    name: ConnectionAction.McpConnectionsUpdate,
+    method: HttpMethod.Patch,
+    path: "/v1/mcp-connections/:id",
+    input: contractSchemas.McpConnectionUpdate,
+    output: contractSchemas.McpConnection,
+    policy: ownerOrAdmin,
+    handler: createMcpConnectionUpdater(dependencies),
+  });
   assertRegisteredActions(registry);
-  assertImplementedActionRegistry(registry, mcpServerImplementedActions);
+  assertImplementedActionRegistry(registry, [
+    ...mcpServerImplementedActions,
+    ...mcpConnectionImplementedActions,
+  ]);
   return registry;
 }
 
@@ -95,9 +154,10 @@ export function createMcpManagementRoutes(options: {
   session: MiddlewareHandler<{ Variables: AuthVariables }>;
   publicBaseUrl: string;
   cursorSecret: string;
+  secretsKey: SecretsKeyConfig | undefined;
 }) {
   const app = new Hono<{ Variables: AuthVariables }>();
-  for (const path of ["/v1/mcp-servers"]) {
+  for (const path of ["/v1/mcp-servers", "/v1/mcp-connections"]) {
     app.use(path, options.session);
     app.use(`${path}/*`, options.session);
   }

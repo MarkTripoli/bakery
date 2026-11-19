@@ -470,6 +470,22 @@ export const mcpServerImplementedActions = Object.freeze(
   Object.values(McpServerImplementedAction),
 );
 
+/**
+ * MCP connections (#434): one use of a server definition, organization or personal.
+ * Discovery and capability reads join this group in their own slice.
+ */
+export const McpConnectionImplementedAction = Object.freeze(
+  {
+    McpConnectionsList: "mcpConnections.list",
+    McpConnectionsGet: "mcpConnections.get",
+    McpConnectionsCreate: "mcpConnections.create",
+    McpConnectionsUpdate: "mcpConnections.update",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const mcpConnectionImplementedActions = Object.freeze(
+  Object.values(McpConnectionImplementedAction),
+);
+
 /** Registered workflow action discovery served by the handwritten Hono routes. */
 export const WorkflowActionDiscoveryImplementedAction = Object.freeze(
   {
@@ -687,6 +703,7 @@ export const implementedActions = Object.freeze(
     ...pluginInstallImplementedActions,
     ...skillStorageImplementedActions,
     ...mcpServerImplementedActions,
+    ...mcpConnectionImplementedActions,
     ...blobUploadImplementedActions,
     ...memoryImplementedActions,
   ] as const,

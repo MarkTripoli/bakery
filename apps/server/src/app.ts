@@ -820,6 +820,7 @@ export function createApp(options: {
       session: tokenSession,
       publicBaseUrl: options.config.publicBaseUrl,
       cursorSecret: options.config.auth.secret,
+      secretsKey: options.config.secretsKey,
     }),
   );
   app.route(

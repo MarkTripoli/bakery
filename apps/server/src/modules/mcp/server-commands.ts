@@ -1,4 +1,4 @@
-import type { z } from "zod";
+import { z } from "zod";
 import type { ActionContext } from "@bakery/contracts/action-registry";
 import type { contractSchemas } from "@bakery/contracts/contracts";
 import { McpServerImplementedAction } from "@bakery/contracts/implemented-actions";
@@ -171,6 +171,32 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
+/** True when a JSON Schema reaches outside itself with a `$ref` that is not local. */
+function hasRemoteRef(value: unknown): boolean {
+  if (Array.isArray(value)) return value.some(hasRemoteRef);
+  if (!isPlainObject(value)) return false;
+  return Object.entries(value).some(([key, entry]) =>
+    key === "$ref"
+      ? typeof entry !== "string" || !entry.startsWith("#")
+      : hasRemoteRef(entry)
+  );
+}
+
+/**
+ * Compiles a server's config schema into a validator, or `null` when it is not an
+ * object schema this server can enforce (an unsupported keyword, or a `$ref` that
+ * would have to be fetched). Refused at registration, so no connection ever meets
+ * a stored schema it cannot check.
+ */
+export function compileConfigSchema(schema: unknown): z.ZodType | null {
+  if (!isPlainObject(schema) || hasRemoteRef(schema)) return null;
+  try {
+    return z.fromJSONSchema(schema as never);
+  } catch {
+    return null;
+  }
+}
+
 function serverId(context: ActionContext): string {
   if (!context.params.id) {
     throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
@@ -306,6 +332,9 @@ export async function createMcpServer(
   if (problem) throw unprocessable(problem.path, problem.code);
   if (!isPlainObject(input.configSchema)) {
     throw unprocessable(["configSchema"], "config_schema_not_object");
+  }
+  if (!compileConfigSchema(input.configSchema)) {
+    throw unprocessable(["configSchema"], "config_schema_unsupported");
   }
   if (input.endpointTemplate === undefined || input.endpointTemplate === null) {
     throw unprocessable(["endpointTemplate"], "endpoint_required");

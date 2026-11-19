@@ -2391,18 +2391,28 @@ const transportSchemas = {
           "description": "MCP server definition this connection instantiates; its transport (stdio or streamable_http) and configSchema govern what this connection's config and worker/integration binding must satisfy."
         },
         {
+          "name": "scope",
+          "type": "enum",
+          "required": false,
+          "enum": [
+            "organization",
+            "personal"
+          ],
+          "description": "organization (the default) is registered by an Admin and usable by the organization's work; personal is registered by any member for their own runs, belongs to them alone, and is used on a shared workflow only with their explicit use grant."
+        },
+        {
           "name": "integrationConnectionId",
           "type": "uuid",
           "required": false,
           "nullable": true,
-          "description": "For a streamable_http server whose OAuth authorization flows through an existing integration connection, that integration connection; left null for a stdio connection, which sets workerHostId instead."
+          "description": "Reserved for a streamable_http server whose OAuth authorization flows through an integration connection; not accepted yet, so it must be null."
         },
         {
           "name": "workerHostId",
           "type": "uuid",
           "required": false,
           "nullable": true,
-          "description": "For a stdio server, the specific worker host that launches and owns this server's subprocess; left null for a streamable_http connection, which sets integrationConnectionId instead."
+          "description": "Reserved for a stdio server's worker host; stdio is not accepted yet, so it must be null."
         },
         {
           "name": "label",
@@ -2420,14 +2430,14 @@ const transportSchemas = {
           "bounds": {
             "maxBytes": 32000
           },
-          "description": "Per-connection configuration validated against the server's configSchema, including any OAuth issuer, clientId, resource and granted scopes under config.auth; live token bytes are never stored here, only referenced via secretId."
+          "description": "Per-connection configuration validated against the server's configSchema. It carries no credential: a credential is sent as secret and kept sealed."
         },
         {
-          "name": "secretId",
-          "type": "uuid",
+          "name": "secret",
+          "type": "secretString",
           "required": false,
           "nullable": true,
-          "description": "Reference to the encrypted secret version holding this connection's OAuth or credential material; the config object never carries live token bytes directly."
+          "description": "The connection's credential, such as a bearer token or API key. Write-only: it is sealed under the installation key in Postgres, is never returned, audited or logged, and is shown back only as the connection's secretId."
         },
         {
           "name": "enabledCapabilities",
@@ -2436,13 +2446,15 @@ const transportSchemas = {
           "bounds": {
             "maxItems": 100
           },
-          "description": "Subset of the server's discovered tools/resources/prompts this connection actually exposes for capability binding; a newly discovered server capability is never auto-enabled here."
+          "description": "Tools this connection exposes. It starts empty: a tool is enabled only after discovery has pinned a snapshot that lists it, and a newly discovered tool is never enabled automatically."
         }
       ],
       "rules": [
-        "exactly one of integrationConnectionId and workerHostId is required according to the server transport"
+        "a streamable_http connection sets neither integrationConnectionId nor workerHostId; stdio is not accepted yet",
+        "enabledCapabilities starts empty and is changed after discovery",
+        "an organization connection is registered by an Admin; a personal one by its owner"
       ],
-      "description": "Registers a connection between the organization and an MCP server, bound either to a worker host for a local stdio subprocess or to an integration connection carrying OAuth authorization for a remote streamable_http endpoint."
+      "description": "Registers a connection between the organization, or one member, and a remote MCP server definition. The credential is sent once as a write-only secret and sealed in Postgres."
     },
     "McpConnectionUpdate": {
       "fields": [
@@ -2462,11 +2474,11 @@ const transportSchemas = {
           "description": "Replaces this connection's configuration, revalidated against the server's configSchema; changing the OAuth issuer under config.auth requires full reauthorization rather than reusing existing tokens."
         },
         {
-          "name": "secretId",
-          "type": "uuid",
+          "name": "secret",
+          "type": "secretString",
           "required": false,
           "nullable": true,
-          "description": "Replaces the reference to the encrypted secret version holding this connection's credential material, typically set once a corresponding reauthorization has completed."
+          "description": "Replaces the connection's credential with a new sealed revision. Write-only: never returned, audited or logged."
         },
         {
           "name": "enabledCapabilities",
@@ -2475,7 +2487,7 @@ const transportSchemas = {
           "bounds": {
             "maxItems": 100
           },
-          "description": "Replaces the subset of the server's discovered capabilities this connection exposes for capability binding."
+          "description": "Replaces the tools this connection exposes; every name must be a tool in the current pinned snapshot."
         },
         {
           "name": "status",
@@ -2490,7 +2502,7 @@ const transportSchemas = {
           "description": "Sets this connection's lifecycle state: enabled for active use, disabled to block new dispatch while retaining configuration, degraded when connectivity or capability checks are currently failing, or revoked once access has been permanently withdrawn."
         }
       ],
-      "description": "Updates an existing MCP connection's label, config, credential reference, enabled capabilities, or lifecycle status; the server, worker host and integration connection bindings set at creation cannot be changed here."
+      "description": "Updates a connection's label, config, credential, enabled tools or lifecycle status. The server, owner and scope set at creation cannot be changed. An organization connection is changed by an Admin; a personal one only by its owner."
     },
     "McpServerCreate": {
       "fields": [
@@ -20425,6 +20437,7 @@ const transportSchemas = {
         "serverId",
         "integrationConnectionId",
         "workerHostId",
+        "ownerPrincipalId",
         "label",
         "config",
         "secretId",
@@ -20448,16 +20461,19 @@ const transportSchemas = {
         "currentSnapshotId": "uuid|null",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "ownerPrincipalId": "uuid|null"
       },
       "rules": [
-        "stdio connections require a workerHostId; localhost endpoint resolution is host-local"
+        "stdio connections require a workerHostId; localhost endpoint resolution is host-local",
+        "a personal connection is visible only to its owner"
       ],
       "nullableFields": [
         "integrationConnectionId",
         "workerHostId",
         "secretId",
-        "currentSnapshotId"
+        "currentSnapshotId",
+        "ownerPrincipalId"
       ],
       "description": "One organization's configured binding to an external MCP server, scoped to either a linked integration connection or a specific worker host for stdio locality; enabledCapabilities is the admin-approved subset of the server's discovered manifest and is never auto-expanded when new tools appear.",
       "fieldDescriptions": {
@@ -20473,7 +20489,8 @@ const transportSchemas = {
         "currentSnapshotId": "Stable UUID linking this record to the related current snapshot entity.",
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
-        "version": "Optimistic-concurrency version used when updating the record."
+        "version": "Optimistic-concurrency version used when updating the record.",
+        "ownerPrincipalId": "The member a personal connection belongs to, or null for an organization connection."
       }
     },
     "McpCapabilitySnapshot": {
