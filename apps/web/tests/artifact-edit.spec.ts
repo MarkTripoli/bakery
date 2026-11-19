@@ -63,6 +63,44 @@ test.describe("Editing a document in place", () => {
       .toHaveCount(0);
   });
 
+  test("losing access with unsaved text shows the banner and the text, not a second notice", async ({ page }) => {
+    const { editor, updates, serverSend, room } = await openEditor(
+      page,
+      "Hello",
+      { onUpdate: "ignore" },
+    );
+    await editor.click();
+    await page.keyboard.press("Control+End");
+    await page.keyboard.insertText(" unsaved");
+    await expect.poll(() => updates.length).toBe(1);
+    serverSend({
+      type: "resync_required",
+      room,
+      mutationId: updates[0].mutationId,
+      reason: "rejected",
+    });
+    await expect(page.getByText("Some of your changes could not be saved."))
+      .toBeVisible();
+    serverSend({
+      type: "problem",
+      requestId: null,
+      problem: {
+        type: "https://bakery.dev/problems/auth_forbidden",
+        title: "Forbidden",
+        status: 403,
+        detail: "No access.",
+        code: "AUTH_FORBIDDEN",
+        requestId: "11111111-1111-4111-8111-111111111112",
+        retryable: false,
+      },
+    });
+    await expect(page.getByText("Text you had not saved is below."))
+      .toBeVisible();
+    await expect(page.getByText("Some of your changes could not be saved."))
+      .toHaveCount(0);
+    await expect(page.getByText("unsaved", { exact: true })).toBeVisible();
+  });
+
   test("losing access says so and leaves the editor read-only", async ({ page }) => {
     const { editor, serverSend } = await openEditor(page, "Hello");
     serverSend({

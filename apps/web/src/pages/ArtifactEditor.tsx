@@ -319,7 +319,8 @@ function DraftEditor(
           )}
         </UI.AlertBanner>
       )}
-      {restoredShown && restored !== null && pieces.length > 0 && (
+      {restoredShown && restored !== null && pieces.length > 0 &&
+        snapshot.banner?.kind !== "revoked" && (
         <UI.AlertBanner
           action={
             <UI.Button
@@ -338,7 +339,7 @@ function DraftEditor(
           {t("artifact.edit.restored.body", { time: clock(restored) })}
         </UI.AlertBanner>
       )}
-      {pieces.length > 0 && (
+      {pieces.length > 0 && snapshot.banner?.kind !== "revoked" && (
         <UI.InlineNotice
           action={
             <UI.Button onClick={() => setSheetOpen(true)} variant="outline">
