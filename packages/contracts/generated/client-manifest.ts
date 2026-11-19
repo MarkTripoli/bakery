@@ -1086,6 +1086,32 @@ export const clientManifest = {
       "implemented": true
     },
     {
+      "group": "Work",
+      "method": "POST",
+      "path": "/v1/runs/{id}/steps/{stepKey}/notes",
+      "action": "runSteps.note",
+      "access": "Developer",
+      "permission": "run:control",
+      "input": "RunStepNoteCreate",
+      "output": "RunStepNote",
+      "event": "",
+      "mcp": "bakery_runSteps_note",
+      "idempotency": "Idempotency-Key required; PATCH also If-Match",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
       "group": "Conversation",
       "method": "GET",
       "path": "/v1/conversations",
@@ -12983,6 +13009,7 @@ export const clientManifest = {
             "sessions.list",
             "sessions.feed",
             "sessions.steer",
+            "runSteps.note",
             "conversations.list",
             "conversations.get",
             "conversations.create",
@@ -22233,6 +22260,29 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Text query over the organization library: skills, agents and artifacts found by name or description, newest first."
+    },
+    "RunStepNoteCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "body": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000,
+          "description": "The note text the step's agent receives with its input when the step starts. It is recorded in the work item's decisions ledger and cannot add tools, grants, skills or a role. RunStepNoteCreate.body must contain at least 1 characters. RunStepNoteCreate.body must contain at most 4000 characters."
+        },
+        "clientNoteId": {
+          "description": "Caller-generated identifier that makes a retry of the same note return the original note instead of writing a second one. Defaults to the request Idempotency-Key.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        }
+      },
+      "required": [
+        "body"
+      ],
+      "additionalProperties": false,
+      "description": "Leaves a note for a workflow step that has not started yet, addressed by the run id and step key in the path. The agent that runs the step receives the note once, with its input; a step that has already started refuses the note with a state conflict, and a steer on its live session is the way to reach it."
     },
     "PluginState": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -34514,6 +34564,7 @@ export const clientManifest = {
                   "sessions.list",
                   "sessions.feed",
                   "sessions.steer",
+                  "runSteps.note",
                   "conversations.list",
                   "conversations.get",
                   "conversations.create",
@@ -51541,6 +51592,7 @@ export const clientManifest = {
             "sessions.list",
             "sessions.feed",
             "sessions.steer",
+            "runSteps.note",
             "conversations.list",
             "conversations.get",
             "conversations.create",
@@ -78174,6 +78226,56 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Cursor page of LibrarySearchHit."
+    },
+    "RunStepNote": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID identifying the note."
+        },
+        "runId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID of the run whose step the note is for."
+        },
+        "stepKey": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Key of the run step the note is addressed to."
+        },
+        "authorId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID of the principal who left the note."
+        },
+        "body": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The note text, at most 4000 characters."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When the note was recorded."
+        }
+      },
+      "required": [
+        "id",
+        "runId",
+        "stepKey",
+        "authorId",
+        "body",
+        "createdAt"
+      ],
+      "additionalProperties": false,
+      "description": "One note left for a workflow step that had not started, with who left it and when; the step's agent receives it once with its input."
     }
   }
 } as const;

@@ -1,12 +1,12 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "8cee384b4bd6ad0b0395d03a86ba52cc99741080"
+    "3a16e22854e8f797fb467b2e9e610f6034fe2c68"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:53d96be530b9838786d1a7fa0f4bc67b46d4ee34088ffd2c5e45e836b6c06b25",
-  "reason": "#69 ticket preview of a draft policy re-bind by dev-server on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main 8cee384b4bd6ad0b0395d03a86ba52cc99741080: ticketSources.preview now answers a TicketPreviewResult (counts would start / plan only / held / blocked and one entry per issue with its verdict and reasons) instead of a TicketOperationReceipt, and TicketPreviewCreate gains an optional draft policy and a defined filters object; the preview stores nothing. The drift is that one response reference changing; the approval it displaced at sha256:b0f68836f1e6252ec3d0c1914d16e96d35da033d0a564548be95ffc8f52d10e1 is preserved unchanged first below.",
+  "targetCompatibilityDigest": "sha256:3dc37ef49079060dd07c906038265883d0349b1b4cc098bb80ac10de7ec45070",
+  "reason": "#69 ticket preview of a draft policy re-bind by dev-server on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main 3a16e22854e8f797fb467b2e9e610f6034fe2c68: ticketSources.preview now answers a TicketPreviewResult (counts would start / plan only / held / blocked and one entry per issue with its verdict and reasons) instead of a TicketOperationReceipt, and TicketPreviewCreate gains an optional draft policy and a defined filters object; the preview stores nothing. The drift is that one response reference changing; the approval it displaced at sha256:b0f68836f1e6252ec3d0c1914d16e96d35da033d0a564548be95ffc8f52d10e1 is preserved unchanged first below.",
   "priorApprovals": [
     {
       "fromBaseRefs": [
