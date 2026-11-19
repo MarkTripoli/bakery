@@ -1133,6 +1133,22 @@ Deno.test("authorized lifecycle mutations remain Better Auth compatible", async 
       recreatedMembership.displayName,
       promotedMembership.displayName,
     );
+    // The list reads the same name for the same person (#69).
+    const listed = await bakeryRequest(
+      founderCookie,
+      "GET",
+      `/v1/organizations/${organizationB.id}/memberships`,
+      organizationB.id,
+    );
+    assertEquals(listed.status, 200, await listed.clone().text());
+    const listedPage = await listed.json() as {
+      items: { id: string; displayName: string }[];
+    };
+    assertEquals(
+      listedPage.items.find((item) => item.id === recreatedMembership.id)
+        ?.displayName,
+      recreatedMembership.displayName,
+    );
     assertEquals(
       (await changeMembership(
         founderCookie,
