@@ -451,13 +451,15 @@ async function expectStatus(
   assertEquals(response.status, status, `${what}: ${response.status} ${body}`);
 }
 
-Deno.test("route continuations: a viewer cannot read the offers", async () => {
+Deno.test("route continuations: a viewer cannot read the offers, and is told the run is not found", async () => {
   const fixture = await openApprovalFixture();
   try {
     const run = await seedRun(fixture);
+    // A read the caller may not make answers "not found", not "forbidden", so a
+    // viewer cannot learn that the run exists (authorize.ts: a denied read).
     await expectStatus(
       await offers(fixture, run.runId, fixture.fx.viewer),
-      403,
+      404,
       "viewer",
     );
   } finally {
@@ -467,8 +469,8 @@ Deno.test("route continuations: a viewer cannot read the offers", async () => {
 
 Deno.test("route continuations: another organization's run is absent, not forbidden", async () => {
   const fixture = await openApprovalFixture();
+  const foreignOrg = crypto.randomUUID();
   try {
-    const foreignOrg = crypto.randomUUID();
     await fixture.fx.ownerPg.query(
       `insert into bakery.organizations (
          id, slug, name, metadata, created_at, updated_at, version
@@ -482,6 +484,12 @@ Deno.test("route continuations: another organization's run is absent, not forbid
       "foreign run",
     );
   } finally {
+    // The foreign rows name a principal of this fixture, which the fixture removes
+    // on close; the organization's own cascade clears them first.
+    await fixture.fx.ownerPg.query(
+      "delete from bakery.organizations where id = $1",
+      [foreignOrg],
+    );
     await fixture.close();
   }
 });
