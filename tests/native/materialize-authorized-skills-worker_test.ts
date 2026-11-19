@@ -173,6 +173,7 @@ Deno.test("authenticated pins reach the real supervisor and native cgroup child"
   const store = {
     recover: realStore.recover.bind(realStore),
     putIfAbsent: realStore.putIfAbsent.bind(realStore),
+    stat: realStore.stat.bind(realStore),
     read: async (key: string, digest: string, size: number) => {
       objectReads += 1;
       return await realStore.read(key, digest, size);
