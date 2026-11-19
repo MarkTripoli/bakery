@@ -6,11 +6,18 @@ import {
 import { createSkillStorageRoutes } from "./modules/catalog/skill-storage-actions.ts";
 import { createAgentsRoutes } from "./modules/agents/index.ts";
 import { createProviderReadRoutes } from "./modules/execution/provider-read-routes.ts";
+import { createRouteContinuationRoutes } from "./modules/execution/route-continuations.ts";
 import { createRepositoryRulesRoutes } from "./modules/repository-rules/index.ts";
 import { createArtifactKindsRoutes } from "./modules/artifact-kinds/index.ts";
 import { createMemoryRoutes } from "./modules/knowledge/memory-routes.ts";
 import { createPluginPackageRoutes } from "./modules/catalog/plugin-routes.ts";
 import { githubIngress } from "./modules/catalog/integration-providers/github-ingress.ts";
+import {
+  TICKET_NOTE_ACTION,
+  TICKET_NOTE_UPDATE_ACTION,
+} from "./modules/catalog/integration-providers/github.ts";
+import { createGateTicketNoteWriter } from "./modules/integrations/ticket-notes.ts";
+import type { TicketNoteWriter } from "./modules/work/ticket-notes.ts";
 import { createPluginInstallRoutes } from "./modules/catalog/plugin-install-routes.ts";
 import { createDeliveryRoutes } from "./modules/delivery/index.ts";
 import {
@@ -23,6 +30,8 @@ import {
   type InstallationTokenBroker,
 } from "./modules/integrations/index.ts";
 import { createProviderRequestPort } from "./modules/integrations/credential-port.ts";
+import { GITHUB_PROVIDER } from "./modules/integrations/registry.ts";
+import { selectTicketSourceReader } from "./modules/work/ticket-reader-selection.ts";
 import { readAppCredentials } from "./modules/integrations/callbacks.ts";
 import { loadSnapshot } from "./modules/catalog/authority-snapshot-postgres.ts";
 import { withPgTransaction } from "./platform/database.ts";
@@ -101,6 +110,7 @@ import {
   createNotificationRoutes,
   createTicketRoutes,
   createWorkTaskHandlers,
+  registerNotificationProjection,
 } from "./modules/work/index.ts";
 import type {
   TicketFactIndex,
@@ -118,6 +128,7 @@ import {
 } from "./modules/projects/index.ts";
 
 import { createExecutionRoutes } from "./modules/execution/index.ts";
+import { createRunControlRegistry } from "./modules/execution/control.ts";
 import { createCatalogActionRegistry } from "./modules/catalog/actions.ts";
 import { createCatalogHandlers } from "./modules/catalog/persistence.ts";
 import { createAgentsActionRegistry } from "./modules/agents/actions.ts";
@@ -141,7 +152,14 @@ import {
   createConversationRoutes,
 } from "./modules/conversation/index.ts";
 import { createCoordinationRoutes } from "./modules/work/coordination-routes.ts";
-import { createApprovalRoutes } from "./modules/conversation/approval-routes.ts";
+import {
+  createApprovalRegistry,
+  createApprovalRoutes,
+} from "./modules/conversation/approval-routes.ts";
+
+// The inbox is derived from committed domain events, so every process that
+// serves requests registers the projection once, before any event is written.
+registerNotificationProjection();
 
 export function createApp(options: {
   /**
@@ -168,6 +186,8 @@ export function createApp(options: {
   ticketReader?: TicketSourceReader;
   /** Fact index sync candidates come from; the stored-fact index by default. */
   ticketFactIndex?: TicketFactIndex;
+  /** Writes Bakery's status note on a ticket; the integration gate by default, an in-memory one in tests. */
+  ticketNoteWriter?: TicketNoteWriter;
   draftIsolation?: DraftIsolation;
   skillFileStore?: SkillFileStoreOperations;
   /** Verification probe override; tests inject one so none reaches a provider. */
@@ -313,6 +333,17 @@ export function createApp(options: {
   );
   // Shared by the REST routers and the MCP catalog tools, so both transports
   // run the same registry instances.
+  // One approvals registry for the routes and for the session tools, so an
+  // agent's decision runs the same handler and guard a person's does.
+  // Run control for the session tools: the same handlers and guard as the route.
+  const runControlRegistry = createRunControlRegistry({
+    database: options.pgDatabase,
+    secret: options.config.auth.secret,
+  });
+  const approvalRegistry = createApprovalRegistry({
+    database: options.pgDatabase,
+    cursorSecret: options.config.auth.secret,
+  });
   const conversationRegistry = createConversationRegistry({
     database: options.pgDatabase,
     cursorSecret: options.config.auth.secret,
@@ -612,6 +643,8 @@ export function createApp(options: {
           catalogRegistry,
           agentsRegistry,
           artifactActions.registry,
+          approvalRegistry,
+          runControlRegistry,
         ],
         offered: sessionOperationScopes(),
       }),
@@ -658,6 +691,7 @@ export function createApp(options: {
       session: tokenSession,
       publicBaseUrl: options.config.publicBaseUrl,
       cursorSecret: options.config.auth.secret,
+      registry: approvalRegistry,
     }),
   );
   const projects = new Hono<{ Variables: AuthVariables }>();
@@ -699,6 +733,14 @@ export function createApp(options: {
       browserSession,
       publicBaseUrl: options.config.publicBaseUrl,
       cursorSecret: options.config.auth.secret,
+    }),
+  );
+  app.route(
+    "/",
+    createRouteContinuationRoutes({
+      database: options.pgDatabase,
+      browserSession,
+      publicBaseUrl: options.config.publicBaseUrl,
     }),
   );
   app.route(
@@ -767,12 +809,36 @@ export function createApp(options: {
       session: tokenSession,
       publicBaseUrl: options.config.publicBaseUrl,
       cursorSecret: options.config.auth.secret,
-      reader: options.ticketReader ?? createTicketSourceReader({
-        ...integrations,
-        database: options.pgDatabase,
-      }),
+      // Chosen per source, by the provider its connection names: a build that
+      // deploys one provider's reader must not read another provider's sources
+      // with it. A provider with no reader here fails closed rather than falling
+      // back to whichever reader a map happened to yield first.
+      reader: options.ticketReader ?? selectTicketSourceReader(
+        new Map([
+          [
+            GITHUB_PROVIDER,
+            createTicketSourceReader({
+              ...integrations,
+              database: options.pgDatabase,
+            }),
+          ],
+        ]),
+      ),
       factIndex: options.ticketFactIndex ?? createTicketFactIndex(),
       budget: options.config.budget,
+      // The composition root names the provider whose comment action writes
+      // the note, as it names the webhook ingress below.
+      noteWriter: options.ticketNoteWriter ?? createGateTicketNoteWriter({
+        database: options.pgDatabase,
+        registry: integrationRegistry,
+        providerRequests,
+        noteActions: {
+          github: {
+            create: TICKET_NOTE_ACTION,
+            update: TICKET_NOTE_UPDATE_ACTION,
+          },
+        },
+      }),
     }),
   );
   app.route(

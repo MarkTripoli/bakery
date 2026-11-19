@@ -31,12 +31,46 @@ export type Behaviour = {
   readonly canPublish?: boolean;
   /** Agent suggestions waiting on the draft. Default none. */
   readonly suggestions?: number;
+  /** Suggestions pointing at real ranges of the text, in the order given. */
+  readonly suggestionList?: readonly {
+    readonly from: number;
+    readonly to: number;
+    readonly replacement: string;
+    readonly state?: "waiting" | "no_longer_fits" | "unknown";
+    readonly refusalReason?: "text_changed" | "draft_moved_on";
+    readonly agentName?: string | null;
+    readonly requestedByName?: string;
+    readonly createdAt?: string;
+  }[];
+  /** Suggestions that arrive after the first read: the later reads list them too. */
+  readonly arrivals?: readonly {
+    readonly from: number;
+    readonly to: number;
+    readonly replacement: string;
+  }[];
+  /** What deciding a suggestion does: succeeds, fails or is refused. Default succeeds. */
+  readonly decide?: "ok" | "fail" | "forbidden";
+  /** Decisions that succeed before every later one fails (a bulk run that stops partway). */
+  readonly decideFailAfter?: number;
+  /** What accepting each suggestion says, in order: "no_longer_fits" is not a failure. */
+  readonly acceptStates?: readonly ("accepted" | "no_longer_fits")[];
+  /** Reading the list: works, fails at once, is refused, or fails from the second read on. */
+  readonly suggestionsRead?: "ok" | "fail" | "forbidden" | "fail-later";
   /**
    * The answer to each publish request in turn: ok creates version 3, moved is
    * a 412 (the text moved on), lost is a 503 that may have happened, and
    * forbidden is a 403. The last answer repeats.
    */
   readonly publish?: readonly ("ok" | "moved" | "lost" | "forbidden")[];
+  /** Other people in the document, with their caret (from = to) or selection in the text. */
+  readonly peers?: readonly {
+    readonly principalId?: string;
+    /** Default a person; an agent is a service, a worker is a worker. */
+    readonly principalType?: "human" | "service" | "worker";
+    readonly displayName: string;
+    readonly from: number;
+    readonly to: number;
+  }[];
   /** After a refused publish the text differs (otherwise only the checkpoint moves). */
   readonly textMoves?: boolean;
   /** What looking the checkpoint up finds after a lost answer. Default absent. */
@@ -123,39 +157,148 @@ export async function openEditor(
         : draftBody,
     ));
   });
+  const stamp = "2026-01-01T00:00:00.000Z";
+  const stubItem = (
+    id: string,
+    over: Record<string, unknown>,
+  ): Record<string, unknown> => ({
+    id,
+    draftId: DRAFT,
+    epoch: 1,
+    sourceCheckpointId: CHECKPOINT,
+    startCursor: "c0",
+    endCursor: "c1",
+    expectedText: "Hello",
+    replacement: "Hi",
+    state: "waiting",
+    refusalReason: null,
+    requestedById: "44444444-4444-4444-8444-444444444444",
+    requestedByName: "Review agent",
+    actorKind: "agent",
+    agentName: "review-agent",
+    requestId: "req-1",
+    decidedById: null,
+    decidedByName: null,
+    decidedAt: null,
+    appliedServerSequence: null,
+    createdAt: stamp,
+    ...over,
+  });
+  const cursorAt = (position: number) =>
+    Buffer.from(doc.getText("body").getCursor(position, 0)!.encode())
+      .toString("base64");
+  const suggestionItems: Record<string, unknown>[] = [
+    ...Array.from(
+      { length: behaviour.suggestions ?? 0 },
+      (_, index) =>
+        stubItem(
+          `00000000-0000-4000-8000-0000000002${String(index).padStart(2, "0")}`,
+          {},
+        ),
+    ),
+    ...(behaviour.suggestionList ?? []).map((item, index) =>
+      stubItem(
+        `00000000-0000-4000-8000-0000000003${String(index).padStart(2, "0")}`,
+        {
+          startCursor: cursorAt(item.from),
+          endCursor: cursorAt(item.to),
+          expectedText: text.slice(item.from, item.to),
+          replacement: item.replacement,
+          ...(item.state ? { state: item.state } : {}),
+          ...(item.refusalReason ? { refusalReason: item.refusalReason } : {}),
+          ...(item.agentName !== undefined
+            ? { agentName: item.agentName }
+            : {}),
+          ...(item.requestedByName !== undefined
+            ? { requestedByName: item.requestedByName }
+            : {}),
+          ...(item.createdAt ? { createdAt: item.createdAt } : {}),
+        },
+      )
+    ),
+  ];
+  const decisions: { id: string; action: "accept" | "reject" }[] = [];
+  const peerParticipants = (behaviour.peers ?? []).map((peer, index) => ({
+    participantKey: `55555555-5555-4555-8555-0000000000${
+      String(index).padStart(2, "0")
+    }`,
+    principalId: peer.principalId ??
+      `66666666-6666-4666-8666-0000000000${String(index).padStart(2, "0")}`,
+    principalType: peer.principalType ?? "human",
+    displayName: peer.displayName,
+    state: {
+      activity: "active",
+      typing: false,
+      cursor: { anchor: cursorAt(peer.from), head: cursorAt(peer.to) },
+    },
+    receivedAt: "2026-01-01T00:00:00.000Z",
+  }));
+  const presenceUpdates: { cursor: { anchor: string; head: string } | null }[] =
+    [];
+  let listReads = 0;
   await page.route(
     `**/v1/drafts/${DRAFT}/suggestions*`,
-    (route) =>
-      route.fulfill(json({
-        items: Array.from(
-          { length: behaviour.suggestions ?? 0 },
-          (_, index) => ({
-            id: `00000000-0000-4000-8000-0000000002${
+    (route) => {
+      listReads += 1;
+      const mode = behaviour.suggestionsRead ?? "ok";
+      if (mode === "forbidden") {
+        return route.fulfill(problem(403, "AUTH_FORBIDDEN"));
+      }
+      if (mode === "fail" || (mode === "fail-later" && listReads > 1)) {
+        return route.fulfill(problem(503, "SERVICE_UNAVAILABLE"));
+      }
+      const state = new URL(route.request().url()).searchParams.get("state");
+      const arrived = listReads > 1
+        ? (behaviour.arrivals ?? []).map((item, index) =>
+          stubItem(
+            `00000000-0000-4000-8000-0000000004${
               String(index).padStart(2, "0")
             }`,
-            draftId: DRAFT,
-            epoch: 1,
-            sourceCheckpointId: CHECKPOINT,
-            startCursor: "c0",
-            endCursor: "c1",
-            expectedText: "Hello",
-            replacement: "Hi",
-            state: "waiting",
-            refusalReason: null,
-            requestedById: "44444444-4444-4444-8444-444444444444",
-            requestedByName: "Review agent",
-            actorKind: "agent",
-            agentName: "review-agent",
-            requestId: "req-1",
-            decidedById: null,
-            decidedByName: null,
-            decidedAt: null,
-            appliedServerSequence: null,
-            createdAt: "2026-01-01T00:00:00.000Z",
-          }),
+            {
+              startCursor: cursorAt(item.from),
+              endCursor: cursorAt(item.to),
+              expectedText: text.slice(item.from, item.to),
+              replacement: item.replacement,
+            },
+          )
+        )
+        : [];
+      return route.fulfill(json({
+        items: [...suggestionItems, ...arrived].filter((item) =>
+          !state || item.state === state
         ),
         nextCursor: null,
-      })),
+      }));
+    },
+  );
+  await page.route(
+    new RegExp(`/v1/drafts/${DRAFT}/suggestions/[^/]+/(accept|reject)$`),
+    (route) => {
+      const match = route.request().url().match(
+        /suggestions\/([^/]+)\/(accept|reject)$/,
+      )!;
+      const [, id, action] = match as unknown as [
+        string,
+        string,
+        "accept" | "reject",
+      ];
+      if (behaviour.decide === "forbidden") {
+        return route.fulfill(problem(403, "AUTH_FORBIDDEN"));
+      }
+      if (
+        behaviour.decide === "fail" ||
+        (behaviour.decideFailAfter !== undefined &&
+          decisions.length >= behaviour.decideFailAfter)
+      ) {
+        return route.fulfill(problem(503, "SERVICE_UNAVAILABLE"));
+      }
+      const item = suggestionItems.find((entry) => entry.id === id)!;
+      const given = behaviour.acceptStates?.[decisions.length];
+      decisions.push({ id, action });
+      item.state = action === "accept" ? given ?? "accepted" : "rejected";
+      if (item.state === "no_longer_fits") item.refusalReason = "text_changed";
+      return route.fulfill(json(item));
+    },
   );
   const answers = behaviour.publish ?? ["ok"];
   await page.route(`**/v1/drafts/${DRAFT}/publications`, (route) => {
@@ -226,7 +369,10 @@ export async function openEditor(
           type: "joined",
           requestId: frame.requestId,
           room: ROOM,
-          participants: behaviour.participants ?? [],
+          participants: [
+            ...(behaviour.participants ?? []),
+            ...peerParticipants,
+          ],
         }));
       } else if (frame.type === "sync") {
         ws.send(JSON.stringify({
@@ -246,6 +392,8 @@ export async function openEditor(
           sequence: 1n,
           payload: doc.export({ mode: "snapshot" }),
         })));
+      } else if (frame.type === "presence.update") {
+        presenceUpdates.push(frame.state);
       } else if (frame.type === "ping") {
         ws.send(message);
       }
@@ -254,13 +402,39 @@ export async function openEditor(
   await page.goto(PATH);
   await page.getByTestId("artifact-edit-toggle").click();
   const editor = page.getByRole("textbox", { name: "Document text" });
-  await expect(editor).toContainText(text.split("\n")[0]);
+  // Other people's caret labels sit inside the line (aria-hidden); the text
+  // that counts is the document's, so read it without them.
+  await expect.poll(() =>
+    editor.evaluate((node) => {
+      const copy = node.cloneNode(true) as HTMLElement;
+      copy.querySelectorAll("[aria-hidden=true]").forEach((widget) =>
+        widget.remove()
+      );
+      return copy.textContent ?? "";
+    })
+  ).toContain(text.split("\n")[0]);
   return {
     editor,
     updates,
     publishes,
     lookups,
+    decisions,
+    presenceUpdates,
     serverSend: (frame: unknown) => socket?.send(JSON.stringify(frame)),
+    /** Moves peer `index` (in `peers` order) to a new caret or selection. */
+    movePeer: (index: number, from: number, to: number) =>
+      socket?.send(JSON.stringify({
+        type: "presence",
+        room: ROOM,
+        presence: {
+          ...peerParticipants[index],
+          state: {
+            ...peerParticipants[index]!.state,
+            cursor: { anchor: cursorAt(from), head: cursorAt(to) },
+          },
+          receivedAt: new Date().toISOString(),
+        },
+      })),
     serverClose: () => {
       refusing = behaviour.refuseReconnect ?? false;
       socket?.close();

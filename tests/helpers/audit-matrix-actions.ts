@@ -41,6 +41,8 @@ export const AUDIT_MATRIX_ACTIONS = [
   "accessBindings.delete",
   "definitionPublishGrants.create",
   "definitionPublishGrants.delete",
+  "agentPowerGrants.create",
+  "agentPowerGrants.delete",
   "applicationRepositoryRoles.set",
   "organizationRoles.create",
   "organizationRoles.update",
