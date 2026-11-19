@@ -387,7 +387,7 @@ const COLLABORATOR_LOGIN = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/;
  * mistake, and answering it with an issue number read out of someone else's
  * name would be worse than refusing.
  */
-export function githubIssueNumber(ref: TicketRef): number | null {
+export function issueNumberFromRef(ref: TicketRef): number | null {
   // Exact, not tolerant: `Number` also reads " 1", "1.0", "0x1" and "1e0" as 1,
   // so comparing the parse back to the key without trimming is what keeps a
   // name a name. A key arrives from stored data and links, never from a person
@@ -405,7 +405,7 @@ export function createTicketSourceReader(
   const github = dependencies.github;
   return {
     async readIssue(handle, ref, signal): Promise<TicketIssueRead> {
-      const number = githubIssueNumber(ref);
+      const number = issueNumberFromRef(ref);
       if (number === null) return failure("provider_error");
       return await withAccess(dependencies, handle, signal, async (access) => {
         const detail = await readIssueOrAbsent(
@@ -467,7 +467,7 @@ export function createTicketSourceReader(
     },
 
     async readLinks(handle, ref, signal): Promise<TicketLinksRead> {
-      const number = githubIssueNumber(ref);
+      const number = issueNumberFromRef(ref);
       if (number === null) return failure("provider_error");
       return await withAccess(dependencies, handle, signal, async (access) => {
         const detail = await readIssueOrAbsent(
@@ -683,7 +683,7 @@ export function createTicketSourceReader(
       label,
       signal,
     ): Promise<TicketLabelProvenance> {
-      const number = githubIssueNumber(ref);
+      const number = issueNumberFromRef(ref);
       if (number === null) return failure("provider_error");
       return await withAccess(
         dependencies,

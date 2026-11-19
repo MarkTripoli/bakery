@@ -1,4 +1,4 @@
-import { githubIssueNumber } from "../../../apps/server/src/modules/integrations/ticket-reads.ts";
+import { issueNumberFromRef } from "../../../apps/server/src/modules/integrations/ticket-reads.ts";
 /**
  * Shared fixtures for the issue 82 lanes. This is not a test module: it only
  * exports, and it registers no `Deno.test`.
@@ -362,7 +362,7 @@ export function createMemoryTicketReader(): MemoryTicketReader {
       // reader uses, so the double cannot answer a question the real reader
       // would refuse: a key that is not a number, or that now resolves to a
       // different id, is unavailable rather than some other ticket.
-      const number = githubIssueNumber(ref);
+      const number = issueNumberFromRef(ref);
       if (number === null || !knownId(ref, number)) {
         return Promise.resolve(providerError());
       }
@@ -397,7 +397,7 @@ export function createMemoryTicketReader(): MemoryTicketReader {
       });
     },
     async readLinks(_handle, ref: TicketRef) {
-      const number = githubIssueNumber(ref);
+      const number = issueNumberFromRef(ref);
       const failure = await enter("readLinks", number);
       if (number === null || !knownId(ref, number)) {
         return Promise.resolve(providerError());
@@ -423,7 +423,7 @@ export function createMemoryTicketReader(): MemoryTicketReader {
       );
     },
     async readLabelProvenance(_handle, ref: TicketRef, label) {
-      const number = githubIssueNumber(ref);
+      const number = issueNumberFromRef(ref);
       const failure = await enter("readLabelProvenance", number);
       if (number === null || !knownId(ref, number)) {
         return Promise.resolve(providerError());
@@ -439,7 +439,7 @@ export function createMemoryTicketReader(): MemoryTicketReader {
         hadSnapshot: issue !== undefined,
       });
       if (failure) return Promise.resolve(failure);
-      const number = githubIssueNumber(ref);
+      const number = issueNumberFromRef(ref);
       if (number === null || !knownId(ref, number)) {
         return Promise.resolve(providerError());
       }
