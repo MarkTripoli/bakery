@@ -22142,7 +22142,7 @@ export const clientManifest = {
         "endpoint": {
           "type": "string",
           "maxLength": 2048,
-          "description": "Provider endpoint host and path the route calls. It must be an https URL with no credentials, query or fragment, and its host must not be a loopback, private, link-local or internal address; the server calls it, so one that names its own network is refused as unprocessable. ProviderRouteCreate.endpoint must contain at most 2048 characters."
+          "description": "Provider endpoint host and path the route calls. It must be an https URL with no credentials, query or fragment, on a fully-qualified public name (at least one dot) or a public address, and not on port 0; a loopback, private, link-local or internal host is refused as unprocessable, because the server calls it. ProviderRouteCreate.endpoint must contain at most 2048 characters."
         },
         "region": {
           "description": "Provider region the endpoint serves; omit for a provider with no regional endpoints. ProviderRouteCreate.region must contain at most 64 characters.",
