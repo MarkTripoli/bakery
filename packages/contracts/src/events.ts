@@ -84,7 +84,9 @@ export const INNGEST_EVENT_DEFINITIONS = {
       runId: payloadUuid("UUID of the run owning the completed job."),
       stepId: payloadUuid("UUID of the run step owning the completed job."),
       jobId: payloadUuid("UUID of the completed job."),
-      attemptId: payloadUuid("UUID of the terminal job attempt."),
+      attemptId: payloadUuid(
+        "UUID of the terminal job attempt, or null when a person completed the step while its job had never been claimed.",
+      ).nullable(),
       status: z.enum(["completed", "failed", "canceled"]).describe(
         "Terminal outcome reported for the job attempt.",
       ),

@@ -22,7 +22,7 @@ import {
 import { workflowPresetById } from "@bakery/contracts/workflow-presets";
 import type { FrozenActionBinding } from "@bakery/persistence";
 import type { ReviewLoopLimits } from "@bakery/persistence/repository-admission";
-import { planReviewLoopLimits } from "../delivery/plan-review-loop.ts";
+import { planReviewLoopLimits } from "../review-loop/limits.ts";
 import type { PgTransactionClient } from "../../platform/database.ts";
 import { nextOrganizationSequence } from "../../platform/event-clock.ts";
 import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";

@@ -6,13 +6,25 @@ import {
   useSyncExternalStore,
 } from "react";
 import { EditorView } from "@codemirror/view";
+import { createPortal } from "react-dom";
 import * as UI from "@bakery/ui";
 import { useBakeryApi } from "../api/context.tsx";
 import type { DraftResponse } from "../api/client.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
-import { loroExtensions, sizeLimit } from "../collaboration/editor-binding.ts";
+import {
+  loroExtensions,
+  showSuggestedRange,
+  sizeLimit,
+  suggestionTint,
+} from "../collaboration/editor-binding.ts";
 import { peopleOf } from "../collaboration/people.ts";
+import { usePublish } from "./ArtifactPublish.tsx";
+import {
+  SuggestionsConfirm,
+  SuggestionsPanel,
+  useSuggestions,
+} from "./ArtifactSuggestions.tsx";
 import {
   CollaborationSession,
   DOCUMENT_LIMIT_BYTES,
@@ -34,10 +46,15 @@ const PRESENCE_COLORS = [1, 2, 3, 4, 5, 6] as const;
  * what became of text the server did not keep (#71).
  */
 export function ArtifactEditor(
-  { artifactId, publishedVersion }: {
+  { artifactId, onViewVersion, publishedVersion, suggestionsHost, taskId }: {
     readonly artifactId: string;
+    /** The side column's element for the suggestions; null on a phone (a sheet then). */
+    readonly suggestionsHost: HTMLElement | null;
+    /** Leaves the editor for the version page (after "View version"). */
+    readonly onViewVersion: () => void;
     /** The version number last published, or null when nothing is. */
     readonly publishedVersion: number | null;
+    readonly taskId: string;
   },
 ) {
   const api = useBakeryApi();
@@ -100,14 +117,35 @@ export function ArtifactEditor(
     );
   }
   return (
-    <OpenDraft draftId={opened.draft.id} publishedVersion={publishedVersion} />
+    <OpenDraft
+      artifactId={artifactId}
+      canPublish={opened.draft.canPublish}
+      draftId={opened.draft.id}
+      onViewVersion={onViewVersion}
+      publishedVersion={publishedVersion}
+      suggestionsHost={suggestionsHost}
+      taskId={taskId}
+    />
   );
 }
 
 function OpenDraft(
-  { draftId, publishedVersion }: {
+  {
+    artifactId,
+    canPublish,
+    draftId,
+    onViewVersion,
+    publishedVersion,
+    suggestionsHost,
+    taskId,
+  }: {
+    readonly artifactId: string;
+    readonly canPublish: boolean;
     readonly draftId: string;
+    readonly onViewVersion: () => void;
     readonly publishedVersion: number | null;
+    readonly suggestionsHost: HTMLElement | null;
+    readonly taskId: string;
   },
 ) {
   const api = useBakeryApi();
@@ -132,7 +170,18 @@ function OpenDraft(
     };
   }, [api, scope.organizationId, draftId]);
   return session
-    ? <DraftEditor publishedVersion={publishedVersion} session={session} />
+    ? (
+      <DraftEditor
+        artifactId={artifactId}
+        canPublish={canPublish}
+        draftId={draftId}
+        onViewVersion={onViewVersion}
+        publishedVersion={publishedVersion}
+        session={session}
+        suggestionsHost={suggestionsHost}
+        taskId={taskId}
+      />
+    )
     : null;
 }
 
@@ -145,9 +194,24 @@ function browserStorage(): Storage | null {
 }
 
 function DraftEditor(
-  { publishedVersion, session }: {
+  {
+    artifactId,
+    canPublish,
+    draftId,
+    onViewVersion,
+    publishedVersion,
+    session,
+    suggestionsHost,
+    taskId,
+  }: {
+    readonly suggestionsHost: HTMLElement | null;
+    readonly artifactId: string;
+    readonly canPublish: boolean;
+    readonly draftId: string;
+    readonly onViewVersion: () => void;
     readonly publishedVersion: number | null;
     readonly session: CollaborationSession;
+    readonly taskId: string;
   },
 ) {
   const { translate: t, locale } = useI18n();
@@ -175,6 +239,7 @@ function DraftEditor(
     () => [
       ...loroExtensions(session.document),
       sizeLimit(),
+      suggestionTint(),
       EditorView.updateListener.of((update) => {
         if (!update.docChanged) return;
         setTypedAt(Date.now());
@@ -236,6 +301,42 @@ function DraftEditor(
   // Access removed: nothing will reconnect or save, so the save state is gone too.
   const ended = snapshot.connection === "ended";
   const bytesUsed = useSizeNote(session, snapshot.documentVersion, typedAt);
+  // Versions this person published themselves are not announced a second time.
+  const [ownVersion, setOwnVersion] = useState<number | null>(null);
+  // The line and the next number follow a version this person just published,
+  // before the page's own list has been read again.
+  const latestVersion = Math.max(publishedVersion ?? 0, ownVersion ?? 0) ||
+    null;
+  // The editor's own view, for returning focus to the text after publishing.
+  const editorView = useRef<EditorView | null>(null);
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+  const chosenRange = useRef<{ from: number; to: number } | null>(null);
+  const suggestions = useSuggestions({
+    document: session.document,
+    documentTick: snapshot.documentVersion + typedAt,
+    draftId,
+    onSelectRange: (range) => {
+      chosenRange.current = range;
+      if (editorView.current) showSuggestedRange(editorView.current, range);
+    },
+  });
+  const reshowChosen = () => {
+    if (editorView.current && chosenRange.current) {
+      showSuggestedRange(editorView.current, chosenRange.current);
+    }
+  };
+  const publish = usePublish({
+    artifactId,
+    canPublish,
+    draftId,
+    focusEditor: () => editorView.current?.focus(),
+    nextVersion: (latestVersion ?? 0) + 1,
+    onPublished: setOwnVersion,
+    onViewVersion,
+    revoked: ended,
+    saved: snapshot.saveState === "saved" && pieces.length === 0 && !ended,
+    taskId,
+  });
 
   const copy = (piece: RefusedPiece) =>
     void globalThis.navigator?.clipboard?.writeText(piece.text);
@@ -263,16 +364,19 @@ function DraftEditor(
   return (
     <UI.Stack gap="standard">
       <UI.Stack gap="compact">
-        <UI.Inline gap="compact">
-          <UI.Badge>{t("artifact.edit.draft.badge")}</UI.Badge>
-          <UI.HelpTip label={t("artifact.edit.draft.helpLabel")}>
-            {t("artifact.edit.draft.help")}
-          </UI.HelpTip>
+        <UI.Inline gap="compact" variant="between">
+          <UI.Inline gap="compact">
+            <UI.Badge>{t("artifact.edit.draft.badge")}</UI.Badge>
+            <UI.HelpTip label={t("artifact.edit.draft.helpLabel")}>
+              {t("artifact.edit.draft.help")}
+            </UI.HelpTip>
+          </UI.Inline>
+          {publish.control}
         </UI.Inline>
         <UI.Text variant="hint">
-          {publishedVersion === null
+          {latestVersion === null
             ? t("artifact.edit.draft.lineNone")
-            : t("artifact.edit.draft.line", { version: publishedVersion })}
+            : t("artifact.edit.draft.line", { version: latestVersion })}
         </UI.Text>
       </UI.Stack>
       <UI.PresenceRow
@@ -287,7 +391,9 @@ function DraftEditor(
         saveState={ended ? undefined : snapshot.saveState}
         status={status}
       />
-      {snapshot.banner?.kind === "published" && (
+      {publish.notices}
+      {snapshot.banner?.kind === "published" &&
+        snapshot.banner.versionNumber !== ownVersion && (
         <UI.AlertBanner
           onDismiss={() => session.dismissBanner()}
           tone="information"
@@ -355,6 +461,49 @@ function DraftEditor(
             : t("artifact.edit.refused.one")}
         </UI.InlineNotice>
       )}
+      {suggestionsHost === null &&
+        suggestions.listed.length + (suggestions.phase === "failed" ? 1 : 0) >
+          0 &&
+        (
+          <UI.Button
+            data-testid="suggestions-open"
+            onClick={() => setSuggestionsOpen(true)}
+            variant="outline"
+          >
+            {suggestions.phase === "failed" && suggestions.listed.length === 0
+              ? t("artifact.edit.suggestions.titleNoCount")
+              : t("artifact.edit.suggestions.title", {
+                count: suggestions.listed.length,
+              })}
+          </UI.Button>
+        )}
+      {suggestionsHost !== null &&
+        createPortal(<SuggestionsPanel state={suggestions} />, suggestionsHost)}
+      <SuggestionsConfirm state={suggestions} />
+      {suggestionsHost === null && suggestionsOpen && (
+        <UI.Sheet
+          dismissLabel={t("artifact.edit.suggestions.sheetClose")}
+          onOpenChange={setSuggestionsOpen}
+          open
+          title={suggestions.phase === "failed" &&
+              suggestions.listed.length === 0
+            ? t("artifact.edit.suggestions.titleNoCount")
+            : t("artifact.edit.suggestions.title", {
+              count: suggestions.listed.length,
+            })}
+          variant="side"
+        >
+          <SuggestionsPanel
+            hideTitle
+            afterChoose={() => {
+              setSuggestionsOpen(false);
+              // Once the sheet is gone, show the text the card points at.
+              globalThis.requestAnimationFrame(() => reshowChosen());
+            }}
+            state={suggestions}
+          />
+        </UI.Sheet>
+      )}
       {bytesUsed >= DOCUMENT_LIMIT_BYTES && (
         <UI.InlineNotice tone="warning">
           {t("artifact.edit.limit")}
@@ -367,6 +516,9 @@ function DraftEditor(
         key={snapshot.documentVersion}
         placeholder={t("artifact.edit.placeholder")}
         readOnly={snapshot.readOnly}
+        onViewChange={(view) => {
+          editorView.current = view;
+        }}
       />
       {snapshot.banner?.kind === "revoked" && pieces.length > 0 && (
         <Pieces
@@ -378,6 +530,7 @@ function DraftEditor(
         />
       )}
       {sheet}
+      {publish.dialog}
       <UI.AlertDialog
         cancelAction={
           <UI.Button onClick={() => setDiscarding(null)} variant="outline">

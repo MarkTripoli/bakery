@@ -327,6 +327,9 @@ function objectStore(): SkillObjectStore & {
         found === undefined ? null : { sizeBytes: found.byteLength },
       );
     },
+    delete(objectKey) {
+      return Promise.resolve(objects.delete(objectKey));
+    },
     async *list() {
       for (const [objectKey, content] of objects) {
         yield {

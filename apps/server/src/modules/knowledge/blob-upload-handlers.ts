@@ -209,7 +209,7 @@ export function createBlobUploadHandlers(blobStore?: OrganizationBlobStore) {
           sha256: session.sha256,
           sizeBytes: Number(session.sizeBytes),
           mediaType: session.mediaType,
-        });
+        }, blobStore);
         await completeUploadSession(transaction, {
           organizationId,
           principalId,

@@ -62,6 +62,9 @@ function memoryStore(): SkillObjectStore & {
         throw new Error("SKILL_FILE_DIGEST_MISMATCH");
       }
     },
+    delete(objectKey) {
+      return Promise.resolve(objects.delete(objectKey));
+    },
     async *list() {
       for (const [objectKey, content] of objects) {
         yield {

@@ -22,6 +22,11 @@ export type ArtifactLayoutProps = {
   readonly notices?: readonly ArtifactLayoutNotice[];
   readonly children: ReactNode;
   readonly comments?: ReactNode;
+  /**
+   * Content that stays in view above the comments while the text scrolls, such
+   * as the suggestions on a draft. It shares the comments' column.
+   */
+  readonly aside?: ReactNode;
   readonly evidence?: ReactNode;
   readonly "data-testid"?: string;
   readonly "data-artifact-retrieval-detail"?: string;
@@ -39,6 +44,7 @@ export function ArtifactLayout({
   notices = [],
   children,
   comments,
+  aside,
   evidence,
   "data-testid": testId,
   "data-artifact-retrieval-detail": retrievalDetail,
@@ -107,7 +113,14 @@ export function ArtifactLayout({
             ? <section className="ui-artifact-evidence">{evidence}</section>
             : null}
         </div>
-        {comments}
+        {aside
+          ? (
+            <aside className="ui-artifact-layout__rail">
+              <div className="ui-artifact-layout__aside">{aside}</div>
+              {comments}
+            </aside>
+          )
+          : comments}
       </div>
     </section>
   );

@@ -128,7 +128,7 @@ test.describe("organization repository rules: editing", () => {
     await expect(page).toHaveURL(new RegExp(`${LIST_PATH}$`));
     await expect(draftBar(page)).toContainText("1 unpublished change");
     await expect(draftBar(page)).toContainText(
-      "based on revision 3 · nothing applies until you publish",
+      "based on version 3 · nothing applies until you publish",
     );
     const row = ruleRow(page, "Semantic commits");
     await expect(row).toContainText("Edited");
@@ -307,7 +307,8 @@ test.describe("organization repository rules: editing", () => {
     await page.keyboard.press("Escape");
     await expect(menu).toHaveCount(0);
     await expect(add).toBeFocused();
-    expect((await box(row)).y).toBe(before.y);
+    // The page settles once the list has gone; the rule row is back where it was.
+    await expect.poll(async () => (await box(row)).y).toBe(before.y);
   });
 
   test("the editor does not repeat the list description and ends with Cancel, then Apply to draft", async ({ page }) => {
@@ -316,7 +317,7 @@ test.describe("organization repository rules: editing", () => {
     await openEditor(page, "Semantic commits");
     await expect(
       page.getByText(
-        "A shared starting point for every repository in this organization.",
+        "Rules every repository in this organization starts with.",
       ),
     ).toHaveCount(0);
     const cancel = page.getByRole("button", { name: "Cancel" });

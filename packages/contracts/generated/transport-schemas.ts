@@ -9991,7 +9991,7 @@ const transportSchemas = {
             "minLength": 1,
             "maxLength": 39
           },
-          "description": "The person's username on the ticket source's provider, as typed; supplied via the request's {login} path segment."
+          "description": "The person's username on the ticket source's provider, as typed; supplied via the request's {login} path segment. Letters, digits and single hyphens only, never starting or ending with a hyphen; any other login is refused 422 with issue code login_invalid on login, before any provider read."
         }
       ],
       "description": "Path parameters naming one ticket source and a provider username to look up on its repository (#69)."
@@ -10975,6 +10975,118 @@ const transportSchemas = {
       ],
       "description": "Replaces the label routing rules of one ticket source as a whole, under compare-and-swap on the source version."
     },
+    "ProviderRouteCreate": {
+      "fields": [
+        {
+          "name": "provider",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 64
+          },
+          "description": "Provider key this route sends to, lowercase and stable (for example the name an operator matches against a status page); it is not a display label."
+        },
+        {
+          "name": "endpoint",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 2048
+          },
+          "description": "Provider endpoint host and path the route calls. It must be an https URL with no credentials, query or fragment, on a fully-qualified public name (at least one dot) or a public address, and not on port 0; a loopback, private, link-local or internal host is refused as unprocessable, because the server calls it."
+        },
+        {
+          "name": "region",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 64
+          },
+          "description": "Provider region the endpoint serves; omit for a provider with no regional endpoints."
+        },
+        {
+          "name": "model",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 200
+          },
+          "description": "Model identifier pinned for work admitted on this route."
+        },
+        {
+          "name": "harness",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "pi",
+            "claude_code",
+            "codex",
+            "mastra"
+          ],
+          "description": "Harness path that executes work on this route: pi, claude_code, codex or mastra."
+        },
+        {
+          "name": "billingRoute",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "subscription",
+            "api_metered",
+            "local"
+          ],
+          "description": "Billing route the route's spend follows: subscription, api_metered or local."
+        },
+        {
+          "name": "providerAccountId",
+          "type": "uuid",
+          "required": false,
+          "description": "Provider account of this organization whose identity and quota observation the route uses; omit for a route with no verified account, which then reports usage as unknown rather than zero."
+        },
+        {
+          "name": "workerBindingId",
+          "type": "uuid",
+          "required": false,
+          "description": "Machine provider binding of this organization that places the route; omit for a route served without a machine binding."
+        },
+        {
+          "name": "credentialLocation",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "harness_host",
+            "bakery_secret"
+          ],
+          "description": "Where the credential is kept: harness_host (the machine holds it) or bakery_secret (Bakery holds a secret reference). The credential value is never part of a route."
+        }
+      ],
+      "description": "Registers one organization-scoped provider route: the endpoint, region, model, harness and credential binding that outbound work is admitted against. A new route starts active and unverified with no incident; identity fields cannot change afterwards, so a different endpoint or model is a new route. Account and binding ids must belong to the same organization."
+    },
+    "ProviderRouteUpdate": {
+      "fields": [
+        {
+          "name": "status",
+          "type": "enum",
+          "required": false,
+          "enum": [
+            "active",
+            "disabled",
+            "revoked"
+          ],
+          "description": "Moves the route between active and disabled, or revokes it. A disabled route stays readable but is not probed or admitted for new work; revoked is permanent and cannot be undone."
+        },
+        {
+          "name": "region",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "bounds": {
+            "maxLength": 64
+          },
+          "description": "Replaces the route's region; set to null to clear it. Omit to leave the current region unchanged."
+        }
+      ],
+      "description": "Compare-and-swap partial update to a provider route's lifecycle status or region; unset fields are left unchanged and an update that changes nothing is refused. The route's identity (provider, endpoint, model, harness, billing route, credential location, account and binding) is immutable."
+    },
     "LibrarySearchQuery": {
       "fields": [
         {
@@ -11024,6 +11136,90 @@ const transportSchemas = {
         "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind the cursor to this operation, current principal and organization scope, query text, kind filter and ordering; validate and reauthorize before the keyset query."
       ],
       "description": "Text query over the organization library: skills, agents and artifacts found by name or description, newest first."
+    },
+    "RunStepNoteCreate": {
+      "fields": [
+        {
+          "name": "body",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 4000
+          },
+          "description": "The note text the step's agent receives with its input when the step starts. It is recorded in the work item's decisions ledger and cannot add tools, grants, skills or a role."
+        },
+        {
+          "name": "clientNoteId",
+          "type": "uuid",
+          "required": false,
+          "description": "Caller-generated identifier that makes a retry of the same note return the original note instead of writing a second one. Defaults to the request Idempotency-Key."
+        }
+      ],
+      "description": "Leaves a note for a workflow step that has not started yet, addressed by the run id and step key in the path. The agent that runs the step receives the note once, with its input; a step that has already started refuses the note with a state conflict, and a steer on its live session is the way to reach it."
+    },
+    "AgentPowerGrantCreate": {
+      "fields": [
+        {
+          "name": "power",
+          "type": "enum(decide|run_control|run_start)",
+          "required": true,
+          "description": "The off-by-default power being granted: decide (approve, reject or request changes where a person would), run_control (pause, resume, cancel, interrupt or retry a run) or run_start (start a run, still subject to count, depth and budget checks)."
+        },
+        {
+          "name": "workflowId",
+          "type": "uuid|null",
+          "required": false,
+          "description": "Immutable id of a workflow that holds the power in two senses: an agent session running a step of it may use the power, and an agent may use the power on its runs. An agent acts on a target only when both its own workflow and the target's hold the grant, so one grant cannot reach every workflow. Null or absent covers every workflow and then requires accessTokenId, so no grant reaches every agent on every workflow."
+        },
+        {
+          "name": "accessTokenId",
+          "type": "uuid|null",
+          "required": false,
+          "description": "The one seat (access token) the grant is limited to. Null or absent lets any agent session of the named workflow use the power."
+        }
+      ],
+      "rules": [
+        "A person with a browser session only; an agent is refused (O51: delegating authority is never an agent's act).",
+        "An unknown or foreign workflow and an unknown, revoked or foreign token both answer RESOURCE_NOT_FOUND.",
+        "A second grant for the same power, workflow and seat is STATE_CONFLICT with reason agent_power_grant_exists."
+      ],
+      "description": "Grants agents an off-by-default power for one workflow or one seat (chapter 25 O52). Every use is labelled as an agent's action, and a grant never lets an agent act on its own output."
+    },
+    "RunStepTakeOver": {
+      "fields": [
+        {
+          "name": "mode",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "complete"
+          ],
+          "description": "How the person takes the step over. `complete` makes the person the step's completer by naming an existing artifact version as its result; a restart with a fresh agent is a later mode."
+        },
+        {
+          "name": "artifactId",
+          "type": "uuid",
+          "required": true,
+          "description": "Identifier of an existing artifact of this run's task that becomes the step's result. The artifact must exist in the organization and belong to the run's task."
+        },
+        {
+          "name": "versionId",
+          "type": "uuid",
+          "required": true,
+          "description": "Identifier of the immutable artifact version of that artifact that becomes the step's result. The server reads its content digest from its own record; the caller never supplies one."
+        },
+        {
+          "name": "reason",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 2000
+          },
+          "description": "Why the person took the step over, recorded verbatim in the work item's decisions ledger."
+        }
+      ],
+      "description": "Makes the caller the completer of a workflow step instead of its agent. Allowed only for a step of a compiled-plan run whose action produces an artifact, whose job is still queued with no live attempt, and only for a caller holding run control; a step with a live attempt is refused with STATE_CONFLICT `attempt_live` and must be stopped through run control first."
     }
   },
   "projections": {
@@ -28056,6 +28252,7 @@ const transportSchemas = {
         "routeId",
         "health",
         "reason",
+        "reasonSince",
         "consecutiveFailures",
         "consecutiveInferenceTrials",
         "evidenceWatermark",
@@ -28079,12 +28276,13 @@ const transportSchemas = {
         "nextProbeAt",
         "probeLeaseExpiresAt",
         "incidentId",
-        "inferenceVerifiedAt"
+        "inferenceVerifiedAt",
+        "reasonSince"
       ],
       "fieldTypes": {
         "routeId": "uuid",
         "health": "enum(healthy|degraded|open|unverified)",
-        "reason": "enum(rate_limited|credential_invalid|quota_exhausted|transport_failure|provider_error|timeout|reachable_inference_unverified)",
+        "reason": "enum(rate_limited|credential_invalid|quota_exhausted|transport_failure|provider_error|timeout|reachable_inference_unverified|redirected)",
         "consecutiveFailures": "integer",
         "consecutiveInferenceTrials": "integer",
         "evidenceWatermark": "string",
@@ -28097,13 +28295,14 @@ const transportSchemas = {
         "incidentId": "uuid",
         "incidentGeneration": "integer",
         "inferenceVerifiedAt": "timestamp",
-        "updatedAt": "timestamp"
+        "updatedAt": "timestamp",
+        "reasonSince": "timestamp"
       },
       "description": "The monitoring view of one provider route: circuit state, the typed reason for it, the bounded evidence watermark, the probe schedule and the current incident generation. It exists so a caller can answer why a route is paused and when it will be probed without reading free-form provider output. A status-page corroboration and a successful health read are reachability evidence only; neither proves the inference path, which is why inferenceVerifiedAt is separate and only an already-authorized trial sets it.",
       "fieldDescriptions": {
         "routeId": "UUID of the provider route this health view describes.",
         "health": "Circuit state: healthy (closed), degraded (failing below the open threshold), open (paused and probing), or unverified (reachable, inference not yet proven).",
-        "reason": "Typed reason for the current state, or null while the route is healthy: rate_limited (the provider asked us to slow down), credential_invalid (the credential is rejected), quota_exhausted (the account's allowance is spent), transport_failure (connection-level failure), provider_error (a classified provider 5xx), timeout (the deadline passed), or reachable_inference_unverified (the endpoint answers but no authorized request has proven inference).",
+        "reason": "Typed reason for the current state, or null while the route is healthy: rate_limited (the provider asked us to slow down), credential_invalid (the credential is rejected), quota_exhausted (the account's allowance is spent), transport_failure (connection-level failure), provider_error (a classified provider 5xx), timeout (the deadline passed), reachable_inference_unverified (the endpoint answers but no authorized request has proven inference), or redirected (the endpoint answered with a redirect the probe does not follow, which proves nothing and keeps the route unverified until a probe proves it reachable again).",
         "consecutiveFailures": "Failures since the last success, reset to zero by a saved probe success; this is what crosses the open threshold.",
         "consecutiveInferenceTrials": "Consecutive successful authorized inference trials since the route opened; two are required before the circuit closes and waiting work is released.",
         "evidenceWatermark": "Opaque bounded reference to the evidence that produced this state, so duplicate observations can be deduplicated; it never carries a credential, prompt or raw provider error.",
@@ -28116,7 +28315,8 @@ const transportSchemas = {
         "incidentId": "Current incident for this route; null while no incident is open.",
         "incidentGeneration": "Monotonic incident generation for this route. A probe result saved against an older generation is stale and must not change this view.",
         "inferenceVerifiedAt": "UTC timestamp when an already-authorized request last proved the inference path; null while inference is unproven.",
-        "updatedAt": "UTC timestamp of the last health change."
+        "updatedAt": "UTC timestamp of the last health change.",
+        "reasonSince": "UTC timestamp at which the current reason began, so a reason that holds (a redirect, a run of timeouts) reads as how long, not just that; null while there is no reason."
       }
     },
     "TicketRoutingRule": {
@@ -28256,6 +28456,155 @@ const transportSchemas = {
     "Page<LibrarySearchHit>": {
       "pageOf": "LibrarySearchHit",
       "description": "Cursor page of library search hits, newest first, returned by GET /v1/library/search. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, totalPages or offsets."
+    },
+    "RunStepNote": {
+      "fields": [
+        "id",
+        "runId",
+        "stepKey",
+        "authorId",
+        "body",
+        "createdAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "runId": "uuid",
+        "stepKey": "string",
+        "authorId": "uuid",
+        "body": "string",
+        "createdAt": "timestamp"
+      },
+      "description": "One note left for a workflow step that had not started, with who left it and when; the step's agent receives it once with its input.",
+      "fieldDescriptions": {
+        "id": "Stable UUID identifying the note.",
+        "runId": "Stable UUID of the run whose step the note is for.",
+        "stepKey": "Key of the run step the note is addressed to.",
+        "authorId": "Stable UUID of the principal who left the note.",
+        "body": "The note text, at most 4000 characters.",
+        "createdAt": "When the note was recorded."
+      }
+    },
+    "AgentPowerGrant": {
+      "fields": [
+        "id",
+        "power",
+        "workflowId",
+        "accessTokenId",
+        "grantedBy",
+        "createdAt",
+        "version"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "power": "enum(decide|run_control|run_start)",
+        "workflowId": "uuid|null",
+        "accessTokenId": "uuid|null",
+        "grantedBy": "uuid",
+        "createdAt": "timestamp",
+        "version": "integer"
+      },
+      "nullableFields": [
+        "workflowId",
+        "accessTokenId"
+      ],
+      "description": "One grant of an off-by-default agent power (O52): which power, which workflow and seat it covers, and the person who granted it. Revoking deletes it; the audit log keeps both.",
+      "fieldDescriptions": {
+        "id": "Stable UUID identifying the grant.",
+        "power": "The power granted: decide, run_control or run_start.",
+        "workflowId": "Immutable id of the workflow that holds the power, as an agent's own workflow and as a target workflow; null covers every workflow for the named seat.",
+        "accessTokenId": "Seat (access token) the grant is limited to; null for any agent session of the named workflow.",
+        "grantedBy": "Person who made the grant.",
+        "createdAt": "When the grant was made.",
+        "version": "Optimistic-concurrency version a revoke must name in If-Match."
+      }
+    },
+    "RouteContinuationTarget": {
+      "fields": [
+        "routeId",
+        "provider",
+        "model",
+        "harness",
+        "billingRoute",
+        "health",
+        "eligible",
+        "ineligibleReason"
+      ],
+      "nullableFields": [
+        "ineligibleReason"
+      ],
+      "fieldTypes": {
+        "routeId": "uuid",
+        "provider": "string",
+        "model": "string",
+        "harness": "enum(pi|claude_code|codex|mastra)",
+        "billingRoute": "enum(subscription|api_metered|local)",
+        "health": "enum(healthy|degraded|open|unverified)",
+        "eligible": "boolean",
+        "ineligibleReason": "enum(different_harness|route_not_active|route_open)"
+      },
+      "description": "One route a stalled step could continue on, with whether it may and, when it may not, the one reason. Every other route of the organization is listed, eligible or not, so a person choosing can see why a route is not offered instead of wondering where it went.",
+      "fieldDescriptions": {
+        "routeId": "UUID of the candidate provider route.",
+        "provider": "Provider key the candidate route sends to.",
+        "model": "Model identifier the candidate route pins; a continuation runs the step on this model.",
+        "harness": "Harness path the candidate route executes on: pi, claude_code, codex or mastra.",
+        "billingRoute": "Billing route the candidate route's spend follows: subscription, api_metered or local.",
+        "health": "The candidate route's current circuit state. Degraded (still serves some work) and unverified (no inference proof yet) routes stay eligible and are shown as such, so a person sees how much to trust a target before choosing it.",
+        "eligible": "True when the step may continue on this route. A degraded or unverified route is eligible, shown with its health so the person choosing weighs it; only a route that is open, not active or on another harness is refused.",
+        "ineligibleReason": "Why the route cannot take the step, or null when eligible: different_harness (a continuation keeps the step's harness), route_not_active (disabled or revoked), or route_open (the route has its own open incident)."
+      }
+    },
+    "RouteContinuationOffer": {
+      "fields": [
+        "runStepId",
+        "stepKey",
+        "incidentId",
+        "incidentGeneration",
+        "sourceRouteId",
+        "runVersion",
+        "estimatedIncrementalCost",
+        "targets"
+      ],
+      "nullableFields": [
+        "estimatedIncrementalCost"
+      ],
+      "fieldTypes": {
+        "runStepId": "uuid",
+        "stepKey": "string",
+        "incidentId": "uuid",
+        "incidentGeneration": "integer",
+        "sourceRouteId": "uuid",
+        "runVersion": "integer",
+        "estimatedIncrementalCost": "decimalString|null",
+        "targets": "RouteContinuationTarget[]"
+      },
+      "description": "One choice a run is waiting on: a step pinned to a route that has an open incident, and the routes it could continue on. The incident generation and the run version are what a later submission names, so a choice made against an incident that has since recovered, or a run that has since changed, is recognised as stale and commits nothing.",
+      "fieldDescriptions": {
+        "runStepId": "UUID of the run step whose provider is down.",
+        "stepKey": "The step's key within the workflow, for display.",
+        "incidentId": "UUID of the open incident the step is stalled behind.",
+        "incidentGeneration": "The incident's generation when this offer was made; a submission carrying a lower or different generation is stale.",
+        "sourceRouteId": "UUID of the route the step is currently pinned to, whose incident this is.",
+        "runVersion": "The run's version when this offer was made, so a submission can be refused if the run changed in between.",
+        "estimatedIncrementalCost": "Estimated extra spend of continuing on another route, as a decimal string in USD, or null while no estimate exists; the budget recheck that fills it is a later slice.",
+        "targets": "Every other route of the organization, each marked eligible or not with the reason."
+      }
+    },
+    "RouteContinuationOffers": {
+      "fields": [
+        "runId",
+        "offers"
+      ],
+      "nullableFields": [],
+      "fieldTypes": {
+        "runId": "uuid",
+        "offers": "RouteContinuationOffer[]"
+      },
+      "description": "The route continuations a run is waiting on: one offer per step that is pinned to a route with an open incident and has not already been continued for that incident. Empty when nothing is stalled. It is a read of current state, never a decision: nothing is admitted, paused or charged by reading it.",
+      "fieldDescriptions": {
+        "runId": "UUID of the run these offers belong to.",
+        "offers": "The open choices, empty when no step of the run is stalled behind an incident."
+      }
     }
   },
   "pageEnvelope": {
@@ -28646,7 +28995,7 @@ const transportSchemas = {
         "runId": "uuid",
         "stepId": "uuid",
         "jobId": "uuid",
-        "attemptId": "uuid",
+        "attemptId": "uuid|null",
         "status": "enum(completed|failed|canceled)"
       },
       "inngestTrigger": "bakery/job.completed.v1",
@@ -29574,6 +29923,42 @@ const transportSchemas = {
       "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
     },
     "definitionPublishGrant.deleted": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "providerRoutes.created": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "providerRoutes.updated": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "agentPowerGrant.created": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "agentPowerGrant.deleted": {
       "schemaVersion": 1,
       "payloadFields": {
         "resourceId": "uuid",
