@@ -219,6 +219,8 @@ Deno.test("issue 82 reader: readIssue returns the bounded snapshot and calls the
       body: "## Acceptance criteria\n- [ ] retries",
       bodyTooLarge: false,
       labels: ["ready for agent", "bug"],
+      // The provider's label ids, which routing matches.
+      labelIds: ["1", "2"],
       state: "open" as const,
       stateReason: null,
       locked: false,

@@ -292,10 +292,20 @@ Deno.test("issue 82 contract: the TypeScript vocabulary equals the transport enu
 Deno.test("issue 82 contract: the ticket_requests projection names the migration's columns", async () => {
   const transport = await readTransport();
   const projection = transport.projections.ticket_requests;
+  // `targets` (#31) is read from bakery.ticket_request_targets, the
+  // request's children, not from a ticket_requests column.
   assertEquals(
-    [...transport.outputs.TicketRequest.fields].sort(),
+    [...transport.outputs.TicketRequest.fields].filter((field) =>
+      field !== "targets"
+    ).sort(),
     [...projection.fields].sort(),
     "the output and its projection list the same fields",
+  );
+  assertEquals(
+    transport.outputs.TicketRequest.fields.filter((field) =>
+      !projection.fields.includes(field)
+    ),
+    ["targets"],
   );
   const sql = await Deno.readTextFile(
     new URL(
