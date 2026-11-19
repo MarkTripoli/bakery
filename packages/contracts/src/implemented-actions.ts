@@ -368,6 +368,7 @@ export const DeliveryImplementedAction = Object.freeze(
   {
     ChecksList: "checks.list",
     RunReviewsList: "runReviews.list",
+    RunReviewsAccept: "runReviews.accept",
     ReviewFindingsList: "reviewFindings.list",
     RunDeliveryDecisionsList: "runDeliveryDecisions.list",
     PullRequestsList: "pullRequests.list",
@@ -516,6 +517,8 @@ export const ArtifactImplementedAction = Object.freeze(
     ArtifactCommentsListAcrossVersions: "artifactComments.listAcrossVersions",
     ArtifactCommentsMentionCandidates: "artifactComments.mentionCandidates",
     ArtifactsList: "artifacts.list",
+    FilesSearch: "files.search",
+    FilesLibrary: "files.library",
     ArtifactsGet: "artifacts.get",
     ArtifactsUpdate: "artifacts.update",
     ArtifactStorageGet: "artifactStorage.get",

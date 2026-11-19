@@ -2,6 +2,7 @@ import * as UI from "@bakery/ui";
 import { TWO_FACTOR_SETTINGS_PATH } from "../app/auth-paths.ts";
 import { RouterLink } from "../app/router-link.tsx";
 import type { TwoFactorFailure } from "../app/two-factor-failures.ts";
+import { formatWait } from "../app/retry-wait.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 
 /** Exported so the container can focus the field a failure rejected. */
@@ -60,14 +61,14 @@ export function BackupCodesScreen(
     view,
   }: BackupCodesScreenProps,
 ) {
-  const { translate } = useI18n();
+  const { locale, translate } = useI18n();
   const notice = failure?.kind === "notice"
     ? (
       <UI.InlineNotice tone="error">
         {failure.retryAfterSeconds === null
           ? translate(failure.messageKey)
           : translate(failure.messageKey, {
-            retryAfterSeconds: failure.retryAfterSeconds,
+            wait: formatWait(failure.retryAfterSeconds, locale),
           })}
       </UI.InlineNotice>
     )
