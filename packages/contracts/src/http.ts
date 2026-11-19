@@ -537,7 +537,7 @@ export function toProblem(
     ...(existingResourceId === undefined ? {} : { existingResourceId }),
     ...(requiredScopes === undefined ? {} : { requiredScopes }),
     ...((code === "DEPENDENCY_UNAVAILABLE" ||
-        code === "PROVIDER_QUOTA_EXCEEDED") &&
+        code === "PROVIDER_QUOTA_EXCEEDED" || code === "RATE_LIMITED") &&
         typeof rawParams?.retryAfterSeconds === "number" &&
         Number.isInteger(rawParams.retryAfterSeconds) &&
         rawParams.retryAfterSeconds >= 1 && rawParams.retryAfterSeconds <= 3600
@@ -828,7 +828,12 @@ function emitSuccess(
 
 export type ActionContextSeed = Pick<
   ActionContext,
-  "principal" | "locale" | "sessionId" | "accessToken" | "transport"
+  | "principal"
+  | "locale"
+  | "sessionId"
+  | "accessToken"
+  | "transport"
+  | "clientAddress"
 >;
 function requestContext(
   context: Context,
