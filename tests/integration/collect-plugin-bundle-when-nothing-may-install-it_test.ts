@@ -692,3 +692,36 @@ Deno.test("bytes deleted between the upload and the record are a named refusal, 
     assertEquals(blobs.rows[0].count, "0", "nothing is recorded");
   });
 });
+
+Deno.test("the collector waits for the blob key's lock before it decides or deletes", async () => {
+  await withWorkerFixture(async (fixture) => {
+    // The other half of the shared lock. The completion test above holds the key
+    // itself and proves recordBlob waits; this one proves the COLLECTOR waits. If
+    // the collector took no lock, a completion could stat the object, then the
+    // collector delete it, then the completion record a row naming nothing.
+    const seeded = await seedVersion(fixture, { listingStatus: "withdrawn" });
+    const store = trackingStore();
+    const pending: Promise<boolean>[] = [];
+    await withPgTransaction(fixture.pgDatabase, async (holder) => {
+      await holder.query(
+        `select pg_advisory_xact_lock(hashtextextended($1, 0))`,
+        [blobKeyLock(fixture.organizationId, seeded.objectRef)],
+      );
+      pending.push(
+        collectPluginBundle(fixture.pgDatabase, store, seeded.versionId),
+      );
+      await new Promise((resolve) => setTimeout(resolve, 600));
+      assertEquals(
+        store.deleted,
+        [],
+        "the collector is waiting on the key, so nothing has been deleted yet",
+      );
+    });
+    assertEquals(
+      await pending[0],
+      true,
+      "once the key is free the collector finishes",
+    );
+    assertEquals(store.deleted, [seeded.objectRef]);
+  });
+});
