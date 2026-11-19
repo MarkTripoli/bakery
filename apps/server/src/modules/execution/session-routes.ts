@@ -146,6 +146,10 @@ export function dispatchedContext(
     // session can never reach further than that person could. The credential's
     // scopes narrowed the offer; this narrows the act.
     principal: sessionDispatchPrincipal(claim),
+    // Lets an action that reads across surfaces leave out the ones this
+    // credential has no scope for, so a narrowed session cannot read through a
+    // wider operation what its own narrower one would refuse.
+    sessionScopes: claim.scopes,
   };
 }
 

@@ -1086,6 +1086,32 @@ export const clientManifest = {
       "implemented": true
     },
     {
+      "group": "Work",
+      "method": "POST",
+      "path": "/v1/runs/{id}/steps/{stepKey}/notes",
+      "action": "runSteps.note",
+      "access": "Developer",
+      "permission": "run:control",
+      "input": "RunStepNoteCreate",
+      "output": "RunStepNote",
+      "event": "",
+      "mcp": "bakery_runSteps_note",
+      "idempotency": "Idempotency-Key required; PATCH also If-Match",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
       "group": "Conversation",
       "method": "GET",
       "path": "/v1/conversations",
@@ -2656,6 +2682,29 @@ export const clientManifest = {
       "output": "Page<Skill>",
       "event": "",
       "mcp": "bakery_skills_list",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Library",
+      "method": "GET",
+      "path": "/v1/library/search",
+      "action": "library.search",
+      "access": "Developer",
+      "permission": "library:read",
+      "input": "LibrarySearchQuery",
+      "output": "Page<LibrarySearchHit>",
+      "event": "",
+      "mcp": "bakery_library_search",
       "idempotency": "read",
       "errors": [
         "AUTH_REQUIRED",
@@ -13016,6 +13065,7 @@ export const clientManifest = {
             "sessions.list",
             "sessions.feed",
             "sessions.steer",
+            "runSteps.note",
             "conversations.list",
             "conversations.get",
             "conversations.create",
@@ -13081,6 +13131,7 @@ export const clientManifest = {
             "skills.import",
             "skills.create",
             "skills.list",
+            "library.search",
             "skills.get",
             "skills.update",
             "skillVersions.list",
@@ -22091,7 +22142,7 @@ export const clientManifest = {
         "endpoint": {
           "type": "string",
           "maxLength": 2048,
-          "description": "Provider endpoint host and path the route calls; never a URL carrying a credential or a query secret. ProviderRouteCreate.endpoint must contain at most 2048 characters."
+          "description": "Provider endpoint host and path the route calls. It must be an https URL with no credentials, query or fragment, and its host must not be a loopback, private, link-local or internal address; the server calls it, so one that names its own network is refused as unprocessable. ProviderRouteCreate.endpoint must contain at most 2048 characters."
         },
         "region": {
           "description": "Provider region the endpoint serves; omit for a provider with no regional endpoints. ProviderRouteCreate.region must contain at most 64 characters.",
@@ -22184,6 +22235,67 @@ export const clientManifest = {
       },
       "additionalProperties": false,
       "description": "Compare-and-swap partial update to a provider route's lifecycle status or region; unset fields are left unchanged and an update that changes nothing is refused. The route's identity (provider, endpoint, model, harness, billing route, credential location, account and binding) is immutable."
+    },
+    "LibrarySearchQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "Text to find, matched case-insensitively as a substring of a skill, agent or artifact name or of a skill or agent description; wildcard characters in it are matched literally. LibrarySearchQuery.query must contain at least 1 characters. LibrarySearchQuery.query must contain at most 200 characters."
+        },
+        "kind": {
+          "description": "Restricts the search to one kind of library item (skill, agent or artifact); omit to search all three.",
+          "type": "string",
+          "enum": [
+            "skill",
+            "agent",
+            "artifact"
+          ]
+        },
+        "cursor": {
+          "description": "Opaque continuation token from a prior library.search page; bound to this operation, the caller and organization, the same query text and the same kind filter, so it is rejected if any of them change. LibrarySearchQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "limit": {
+          "description": "Maximum number of hits returned per page; defaults to 25 and cannot exceed 100. LibrarySearchQuery.limit must be at least 1. LibrarySearchQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false,
+      "description": "Text query over the organization library: skills, agents and artifacts found by name or description, newest first."
+    },
+    "RunStepNoteCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "body": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000,
+          "description": "The note text the step's agent receives with its input when the step starts. It is recorded in the work item's decisions ledger and cannot add tools, grants, skills or a role. RunStepNoteCreate.body must contain at least 1 characters. RunStepNoteCreate.body must contain at most 4000 characters."
+        },
+        "clientNoteId": {
+          "description": "Caller-generated identifier that makes a retry of the same note return the original note instead of writing a second one. Defaults to the request Idempotency-Key.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        }
+      },
+      "required": [
+        "body"
+      ],
+      "additionalProperties": false,
+      "description": "Leaves a note for a workflow step that has not started yet, addressed by the run id and step key in the path. The agent that runs the step receives the note once, with its input; a step that has already started refuses the note with a state conflict, and a steer on its live session is the way to reach it."
     },
     "PluginState": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -34465,6 +34577,7 @@ export const clientManifest = {
                   "sessions.list",
                   "sessions.feed",
                   "sessions.steer",
+                  "runSteps.note",
                   "conversations.list",
                   "conversations.get",
                   "conversations.create",
@@ -34530,6 +34643,7 @@ export const clientManifest = {
                   "skills.import",
                   "skills.create",
                   "skills.list",
+                  "library.search",
                   "skills.get",
                   "skills.update",
                   "skillVersions.list",
@@ -35411,6 +35525,16 @@ export const clientManifest = {
                 ],
                 "description": "MemoryEntry.currentRevisionId may be null in this transport value."
               },
+              "sourceState": {
+                "type": "string",
+                "enum": [
+                  "available",
+                  "deleted",
+                  "no_access",
+                  "unknown"
+                ],
+                "description": "Whether the artifact version cited by the current revision is available, deleted, not readable by this reader (no_access) or unknown, judged against the reader's live access at read time."
+              },
               "status": {
                 "type": "string",
                 "enum": [
@@ -35445,6 +35569,7 @@ export const clientManifest = {
               "topic",
               "tags",
               "currentRevisionId",
+              "sourceState",
               "status",
               "createdAt",
               "updatedAt",
@@ -35668,10 +35793,29 @@ export const clientManifest = {
                 ]
               },
               "sourceArtifactVersionId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Artifact version whose evidence justifies this revision. Invariant: sourceArtifactVersionId is null if and only if sourceState is no_access, so a reader who cannot read artifact versions is never shown the id and every other state names it."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MemoryRevision.sourceArtifactVersionId may be null in this transport value."
+              },
+              "sourceState": {
                 "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "Stable UUID linking this record to the related source artifact version entity."
+                "enum": [
+                  "available",
+                  "deleted",
+                  "no_access",
+                  "unknown"
+                ],
+                "description": "Whether the cited artifact version is available, deleted (its content was purged), not readable by this reader (no_access) or unknown, judged against the reader's live access at read time rather than at write time. sourceArtifactVersionId is null if and only if sourceState is no_access."
               },
               "supersedesId": {
                 "anyOf": [
@@ -35739,6 +35883,7 @@ export const clientManifest = {
               "revision",
               "body",
               "sourceArtifactVersionId",
+              "sourceState",
               "supersedesId",
               "confidence",
               "expiresAt",
@@ -35748,7 +35893,7 @@ export const clientManifest = {
               "version"
             ],
             "additionalProperties": false,
-            "description": "One versioned, confidence-scored statement belonging to a memory entry, created by memoryRevisions.create; confidence reflects model judgment rather than verified fact, and a revision can supersede an earlier one or carry its own expiry after which it stops being offered as active context."
+            "description": "One versioned, confidence-scored statement belonging to a memory entry, created by memoryRevisions.create; confidence reflects model judgment rather than verified fact, and a revision can supersede an earlier one or carry its own expiry after which it stops being offered as active context. sourceArtifactVersionId is null if and only if sourceState is no_access."
           },
           "description": "MemoryRevision items in this cursor page. Page<MemoryRevision>.items must contain at most 100 items."
         },
@@ -51462,6 +51607,7 @@ export const clientManifest = {
             "sessions.list",
             "sessions.feed",
             "sessions.steer",
+            "runSteps.note",
             "conversations.list",
             "conversations.get",
             "conversations.create",
@@ -51527,6 +51673,7 @@ export const clientManifest = {
             "skills.import",
             "skills.create",
             "skills.list",
+            "library.search",
             "skills.get",
             "skills.update",
             "skillVersions.list",
@@ -52228,6 +52375,16 @@ export const clientManifest = {
           ],
           "description": "MemoryEntry.currentRevisionId may be null in this transport value."
         },
+        "sourceState": {
+          "type": "string",
+          "enum": [
+            "available",
+            "deleted",
+            "no_access",
+            "unknown"
+          ],
+          "description": "Whether the artifact version cited by the current revision is available, deleted, not readable by this reader (no_access) or unknown, judged against the reader's live access at read time."
+        },
         "status": {
           "type": "string",
           "enum": [
@@ -52262,6 +52419,7 @@ export const clientManifest = {
         "topic",
         "tags",
         "currentRevisionId",
+        "sourceState",
         "status",
         "createdAt",
         "updatedAt",
@@ -52425,10 +52583,29 @@ export const clientManifest = {
           ]
         },
         "sourceArtifactVersionId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Artifact version whose evidence justifies this revision. Invariant: sourceArtifactVersionId is null if and only if sourceState is no_access, so a reader who cannot read artifact versions is never shown the id and every other state names it."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "MemoryRevision.sourceArtifactVersionId may be null in this transport value."
+        },
+        "sourceState": {
           "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "Stable UUID linking this record to the related source artifact version entity."
+          "enum": [
+            "available",
+            "deleted",
+            "no_access",
+            "unknown"
+          ],
+          "description": "Whether the cited artifact version is available, deleted (its content was purged), not readable by this reader (no_access) or unknown, judged against the reader's live access at read time rather than at write time. sourceArtifactVersionId is null if and only if sourceState is no_access."
         },
         "supersedesId": {
           "anyOf": [
@@ -52496,6 +52673,7 @@ export const clientManifest = {
         "revision",
         "body",
         "sourceArtifactVersionId",
+        "sourceState",
         "supersedesId",
         "confidence",
         "expiresAt",
@@ -52505,7 +52683,7 @@ export const clientManifest = {
         "version"
       ],
       "additionalProperties": false,
-      "description": "One versioned, confidence-scored statement belonging to a memory entry, created by memoryRevisions.create; confidence reflects model judgment rather than verified fact, and a revision can supersede an earlier one or carry its own expiry after which it stops being offered as active context."
+      "description": "One versioned, confidence-scored statement belonging to a memory entry, created by memoryRevisions.create; confidence reflects model judgment rather than verified fact, and a revision can supersede an earlier one or carry its own expiry after which it stops being offered as active context. sourceArtifactVersionId is null if and only if sourceState is no_access."
     },
     "WorkerHost": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -59557,6 +59735,7 @@ export const clientManifest = {
               "skillSource:manage",
               "skill:manage",
               "skill:read",
+              "library:read",
               "skillVersion:read",
               "skillVersion:readPinned",
               "skillFile:read",
@@ -77800,6 +77979,171 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "The complete label routing rule set of one ticket source, with the source's policy revision and version. Send version as If-Match to replace it; pass policyRevision as expectedSourcePolicyRevision to admit under these rules."
+    },
+    "Page<LibrarySearchHit>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "skill",
+                  "agent",
+                  "artifact"
+                ],
+                "description": "Which library the hit belongs to: skill, agent or artifact."
+              },
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID of the matched record, usable with that kind's get operation."
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Human-readable name of the matched record."
+              },
+              "description": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Free-text description of the matched record; null for artifacts, which carry none."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "LibrarySearchHit.description may be null in this transport value."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the matched record was created."
+              }
+            },
+            "required": [
+              "kind",
+              "id",
+              "name",
+              "description",
+              "createdAt"
+            ],
+            "additionalProperties": false,
+            "description": "One library item matched by library.search: its kind, identity and name, plus its description when the kind has one, so a caller can pick a hit and then read it with the kind's own get operation."
+          },
+          "description": "LibrarySearchHit items in this cursor page. Page<LibrarySearchHit>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<LibrarySearchHit>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<LibrarySearchHit>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<LibrarySearchHit>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<LibrarySearchHit>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of LibrarySearchHit."
+    },
+    "RunStepNote": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID identifying the note."
+        },
+        "runId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID of the run whose step the note is for."
+        },
+        "stepKey": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Key of the run step the note is addressed to."
+        },
+        "authorId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID of the principal who left the note."
+        },
+        "body": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The note text, at most 4000 characters."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When the note was recorded."
+        }
+      },
+      "required": [
+        "id",
+        "runId",
+        "stepKey",
+        "authorId",
+        "body",
+        "createdAt"
+      ],
+      "additionalProperties": false,
+      "description": "One note left for a workflow step that had not started, with who left it and when; the step's agent receives it once with its input."
     }
   }
 } as const;
