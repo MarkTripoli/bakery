@@ -10974,6 +10974,56 @@ const transportSchemas = {
         "Idempotency-Key and If-Match against the ticket source version required. A replacement that changes any rule advances the source's policy revision and version once; an identical replacement changes nothing. Active requests keep the targets they were admitted with."
       ],
       "description": "Replaces the label routing rules of one ticket source as a whole, under compare-and-swap on the source version."
+    },
+    "LibrarySearchQuery": {
+      "fields": [
+        {
+          "name": "query",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "description": "Text to find, matched case-insensitively as a substring of a skill, agent or artifact name or of a skill or agent description; wildcard characters in it are matched literally."
+        },
+        {
+          "name": "kind",
+          "type": "enum",
+          "required": false,
+          "enum": [
+            "skill",
+            "agent",
+            "artifact"
+          ],
+          "description": "Restricts the search to one kind of library item (skill, agent or artifact); omit to search all three."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from a prior library.search page; bound to this operation, the caller and organization, the same query text and the same kind filter, so it is rejected if any of them change."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum number of hits returned per page; defaults to 25 and cannot exceed 100."
+        }
+      ],
+      "pagination": "pagination",
+      "rules": [
+        "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind the cursor to this operation, current principal and organization scope, query text, kind filter and ordering; validate and reauthorize before the keyset query."
+      ],
+      "description": "Text query over the organization library: skills, agents and artifacts found by name or description, newest first."
     }
   },
   "projections": {
@@ -20299,6 +20349,7 @@ const transportSchemas = {
         "topic",
         "tags",
         "currentRevisionId",
+        "sourceState",
         "status",
         "createdAt",
         "updatedAt",
@@ -20310,6 +20361,7 @@ const transportSchemas = {
         "topic": "string",
         "tags": "json",
         "currentRevisionId": "uuid|null",
+        "sourceState": "enum(available|deleted|no_access|unknown)",
         "status": "enum(proposed|active|retired)",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
@@ -20325,6 +20377,7 @@ const transportSchemas = {
         "topic": "Topic used to organize the memory entry.",
         "tags": "Labels used to classify the record.",
         "currentRevisionId": "Stable UUID linking this record to the related current revision entity.",
+        "sourceState": "Whether the artifact version cited by the current revision is available, deleted, not readable by this reader (no_access) or unknown, judged against the reader's live access at read time.",
         "status": "Current lifecycle status of the record.",
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
@@ -20340,6 +20393,7 @@ const transportSchemas = {
         "body",
         "reason",
         "sourceArtifactVersionId",
+        "sourceState",
         "supersedesId",
         "confidence",
         "expiresAt",
@@ -20353,7 +20407,8 @@ const transportSchemas = {
         "memoryId": "uuid",
         "revision": "integer",
         "body": "string",
-        "sourceArtifactVersionId": "uuid",
+        "sourceArtifactVersionId": "uuid|null",
+        "sourceState": "enum(available|deleted|no_access|unknown)",
         "supersedesId": "uuid|null",
         "confidence": "decimal",
         "expiresAt": "timestamp|null",
@@ -20366,15 +20421,17 @@ const transportSchemas = {
       "nullableFields": [
         "supersedesId",
         "expiresAt",
-        "reason"
+        "reason",
+        "sourceArtifactVersionId"
       ],
-      "description": "One versioned, confidence-scored statement belonging to a memory entry, created by memoryRevisions.create; confidence reflects model judgment rather than verified fact, and a revision can supersede an earlier one or carry its own expiry after which it stops being offered as active context.",
+      "description": "One versioned, confidence-scored statement belonging to a memory entry, created by memoryRevisions.create; confidence reflects model judgment rather than verified fact, and a revision can supersede an earlier one or carry its own expiry after which it stops being offered as active context. sourceArtifactVersionId is null if and only if sourceState is no_access.",
       "fieldDescriptions": {
         "id": "Stable UUID identifying the memory revision record.",
         "memoryId": "Stable UUID linking this record to the related memory entity.",
         "revision": "Monotonic revision number used to order updates to the record.",
         "body": "User-visible body content carried by the record.",
-        "sourceArtifactVersionId": "Stable UUID linking this record to the related source artifact version entity.",
+        "sourceArtifactVersionId": "Artifact version whose evidence justifies this revision. Invariant: sourceArtifactVersionId is null if and only if sourceState is no_access, so a reader who cannot read artifact versions is never shown the id and every other state names it.",
+        "sourceState": "Whether the cited artifact version is available, deleted (its content was purged), not readable by this reader (no_access) or unknown, judged against the reader's live access at read time rather than at write time. sourceArtifactVersionId is null if and only if sourceState is no_access.",
         "supersedesId": "Stable UUID linking this record to the related supersedes entity.",
         "confidence": "Confidence assigned to the revision.",
         "expiresAt": "UTC timestamp when the record expires.",
@@ -28168,6 +28225,37 @@ const transportSchemas = {
         "coordinationPlanId": "Ticket-origin coordination plan whose lane runs this target, or null for the fallback to the source's repository, which runs on the request's own task.",
         "childTaskId": "Child task of the request's task that runs this target in its repository, or null for the fallback. The request completes only when every child task completes and fails when any fails."
       }
+    },
+    "LibrarySearchHit": {
+      "fields": [
+        "kind",
+        "id",
+        "name",
+        "description",
+        "createdAt"
+      ],
+      "fieldTypes": {
+        "kind": "enum(skill|agent|artifact)",
+        "id": "uuid",
+        "name": "string",
+        "description": "string|null",
+        "createdAt": "timestamp"
+      },
+      "nullableFields": [
+        "description"
+      ],
+      "description": "One library item matched by library.search: its kind, identity and name, plus its description when the kind has one, so a caller can pick a hit and then read it with the kind's own get operation.",
+      "fieldDescriptions": {
+        "kind": "Which library the hit belongs to: skill, agent or artifact.",
+        "id": "Stable UUID of the matched record, usable with that kind's get operation.",
+        "name": "Human-readable name of the matched record.",
+        "description": "Free-text description of the matched record; null for artifacts, which carry none.",
+        "createdAt": "UTC timestamp when the matched record was created."
+      }
+    },
+    "Page<LibrarySearchHit>": {
+      "pageOf": "LibrarySearchHit",
+      "description": "Cursor page of library search hits, newest first, returned by GET /v1/library/search. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, totalPages or offsets."
     }
   },
   "pageEnvelope": {
@@ -28629,6 +28717,15 @@ const transportSchemas = {
       "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
     },
     "memory.revised": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "memory.source_changed": {
       "schemaVersion": 1,
       "payloadFields": {
         "resourceId": "uuid",

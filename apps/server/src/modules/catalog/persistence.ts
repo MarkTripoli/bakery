@@ -13,6 +13,7 @@ import {
   POSTGRES_UNIQUE_VIOLATION,
   postgresErrorCode,
 } from "../../platform/postgres-errors.ts";
+import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import {
   type RunRow,
@@ -272,6 +273,109 @@ async function listPage<
   const last = visible.at(-1);
   return {
     items: visible.map(options.project),
+    nextCursor: result.rows.length > limit && last
+      ? await encodeCursor(options.secret, binding, {
+        createdAt: last.cursor_created_at,
+        id: last.id,
+      })
+      : null,
+  };
+}
+
+type LibrarySearchInput = z.output<typeof contractSchemas.LibrarySearchQuery>;
+type LibrarySearchRow = {
+  kind: "skill" | "agent" | "artifact";
+  id: string;
+  name: string;
+  description: string | null;
+  created_at: Date | string;
+  cursor_created_at: string;
+};
+
+/**
+ * Finds skills, agents and artifacts of one organization by text.
+ *
+ * Matching is a case-insensitive substring over the name (and the description,
+ * where the kind has one), done with `strpos` so a `%` or `_` typed by the
+ * caller is matched literally rather than as a wildcard. The page is keyset
+ * ordered by (created_at, id) across the three tables, and its cursor is bound
+ * to the caller, the organization, the query text and the kind filter, so a
+ * cursor cannot be replayed against a different search.
+ */
+async function searchLibraryPage(options: {
+  transaction: PgTransactionClient;
+  organizationId: string;
+  principalId: string;
+  input: LibrarySearchInput;
+  secret: string;
+  /** False when a session lacks the scope artifacts need; see below. */
+  includeArtifacts: boolean;
+}) {
+  const kind = options.input.kind ?? null;
+  const binding: CursorBinding = {
+    action: "library.search",
+    principalId: options.principalId,
+    organizationId: options.organizationId,
+    ordering: PAGE_ORDERING,
+    // Hashed: the query is up to 200 characters (600 bytes in UTF-8) and a raw
+    // copy would overflow the cursor's size limit on the first full page.
+    filters: await sha256Hex(
+      canonicalJson({ query: options.input.query, kind }),
+    ),
+    schemaVersion: 1,
+  };
+  const position = await decodeCursor(
+    options.secret,
+    options.input.cursor,
+    binding,
+  );
+  const limit = options.input.limit ?? 25;
+  const result = await options.transaction.query<LibrarySearchRow>(
+    `select kind, id, name, description, created_at,
+            to_char(created_at at time zone 'UTC',
+              'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as cursor_created_at
+       from (
+         select 'skill'::text as kind, id, name, description, created_at
+           from bakery.skills
+          where organization_id = $1 and ($5::text is null or $5 = 'skill')
+            and (strpos(lower(name), lower($6)) > 0
+              or strpos(lower(coalesce(description, '')), lower($6)) > 0)
+         union all
+         select 'agent'::text, id, name, description, created_at
+           from bakery.agent_definitions
+          where organization_id = $1 and ($5::text is null or $5 = 'agent')
+            and (strpos(lower(name), lower($6)) > 0
+              or strpos(lower(coalesce(description, '')), lower($6)) > 0)
+         union all
+         select 'artifact'::text, id, name, null::text, created_at
+           from bakery.artifacts
+          where organization_id = $1 and ($5::text is null or $5 = 'artifact')
+            and $7::boolean
+            and strpos(lower(name), lower($6)) > 0
+       ) as hits
+      where ($2::timestamptz is null or (created_at, id) < ($2, $3::uuid))
+      order by created_at desc, id desc
+      limit $4`,
+    [
+      options.organizationId,
+      position?.createdAt ?? null,
+      position?.id ?? null,
+      limit + 1,
+      kind,
+      options.input.query,
+      options.includeArtifacts,
+    ],
+  );
+  const visible = result.rows.slice(0, limit);
+  const last = visible.at(-1);
+  return {
+    items: visible.map((row) => ({
+      kind: row.kind,
+      id: row.id,
+      name: row.name,
+      description: row.description,
+      createdAt: toIso(row.created_at),
+    })),
     nextCursor: result.rows.length > limit && last
       ? await encodeCursor(options.secret, binding, {
         createdAt: last.cursor_created_at,
@@ -562,6 +666,29 @@ export function createCatalogHandlers(
         table: "skills",
         columns: SKILL_COLUMNS,
         project: toSkill,
+      });
+    },
+
+    async searchLibrary(context: ActionContext, input: LibrarySearchInput) {
+      const { transaction, organizationId, principalId } =
+        requireWorkTransaction(context);
+      // Artifacts are gated by their own scope (`artifacts.read`), which the
+      // `library.read` scope that offers this tool does not imply. A session
+      // that holds the one and not the other must not list artifacts through
+      // search that `artifacts.list` would refuse it. A person's own request
+      // carries no session scopes and is bounded by their permissions alone.
+      const includeArtifacts = context.sessionScopes === undefined ||
+        context.sessionScopes.includes("artifacts.read");
+      if (!includeArtifacts && input.kind === "artifact") {
+        throw new StandardError({ code: "AUTH_FORBIDDEN" });
+      }
+      return await searchLibraryPage({
+        transaction,
+        organizationId,
+        principalId,
+        input,
+        secret,
+        includeArtifacts,
       });
     },
 
