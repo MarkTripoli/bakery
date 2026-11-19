@@ -227,7 +227,7 @@ export function useSuggestions(
       stopped,
     };
     setResult(summary);
-    setAnnouncement(resultText(summary, t));
+    // The result line announces itself; a second live region would read it twice.
     await read();
   };
 

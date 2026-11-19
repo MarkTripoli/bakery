@@ -42,6 +42,12 @@ export type Behaviour = {
     readonly requestedByName?: string;
     readonly createdAt?: string;
   }[];
+  /** Suggestions that arrive after the first read: the later reads list them too. */
+  readonly arrivals?: readonly {
+    readonly from: number;
+    readonly to: number;
+    readonly replacement: string;
+  }[];
   /** What deciding a suggestion does: succeeds, fails or is refused. Default succeeds. */
   readonly decide?: "ok" | "fail" | "forbidden";
   /** Decisions that succeed before every later one fails (a bulk run that stops partway). */
@@ -216,8 +222,25 @@ export async function openEditor(
         return route.fulfill(problem(503, "SERVICE_UNAVAILABLE"));
       }
       const state = new URL(route.request().url()).searchParams.get("state");
+      const arrived = listReads > 1
+        ? (behaviour.arrivals ?? []).map((item, index) =>
+          stubItem(
+            `00000000-0000-4000-8000-0000000004${
+              String(index).padStart(2, "0")
+            }`,
+            {
+              startCursor: cursorAt(item.from),
+              endCursor: cursorAt(item.to),
+              expectedText: text.slice(item.from, item.to),
+              replacement: item.replacement,
+            },
+          )
+        )
+        : [];
       return route.fulfill(json({
-        items: suggestionItems.filter((item) => !state || item.state === state),
+        items: [...suggestionItems, ...arrived].filter((item) =>
+          !state || item.state === state
+        ),
         nextCursor: null,
       }));
     },

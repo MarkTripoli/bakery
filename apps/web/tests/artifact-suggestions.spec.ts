@@ -5,7 +5,7 @@ import { still } from "./helpers/stills.ts";
 const TEXT = "Hello brave new world";
 const card = (page: Page, summary: RegExp | string) =>
   page.getByRole("article", { name: summary });
-/** The visible result line (the same sentence is also announced from a hidden region). */
+/** The visible result line; it is the live region for the result sentence. */
 const noticeText = (scope: Page | ReturnType<Page["locator"]>, text: string) =>
   scope.locator(".ui-inline-notice__content", { hasText: text });
 const isPhone = (page: Page) => (page.viewportSize()?.width ?? 1280) < 744;
@@ -299,6 +299,35 @@ test.describe("Agent suggestions on a draft", () => {
       ),
     ).toBeVisible();
     await still(page, "suggestions-skipped", section);
+  });
+
+  test("what arrives later is announced once, politely", async ({ page }) => {
+    await openEditor(page, TEXT, {
+      suggestionList: [{ from: 6, to: 11, replacement: "bold" }],
+      arrivals: [{ from: 16, to: 21, replacement: "planet" }],
+    });
+    const section = await showList(page);
+    await expect(card(page, /Replace “brave”/)).toBeVisible();
+    // Coming back to the tab reads the list again, and one more suggestion is there.
+    await page.evaluate(() => globalThis.dispatchEvent(new Event("focus")));
+    await expect(card(page, /Replace “world”/)).toBeVisible();
+    const announcer = section.locator(".bakery-visually-hidden[role=status]");
+    await expect(announcer).toHaveText("1 new suggestion");
+    await expect(announcer).toHaveAttribute("aria-live", "polite");
+  });
+
+  test("the result of Accept all is announced by one live region", async ({ page }) => {
+    await openEditor(page, TEXT, { suggestionList: three });
+    const section = await showList(page);
+    await section.getByRole("button", { name: "Accept all" }).click();
+    await page.getByRole("alertdialog").getByRole("button", {
+      name: "Accept 3",
+    }).click();
+    await expect(noticeText(page, "Accepted 3 suggestions.")).toBeVisible();
+    // The visible line is the live region; the hidden one stays silent about it.
+    await expect(
+      page.getByRole("status").filter({ hasText: "Accepted 3 suggestions." }),
+    ).toHaveCount(1);
   });
 
   test("Reject all asks with its own words", async ({ page }) => {

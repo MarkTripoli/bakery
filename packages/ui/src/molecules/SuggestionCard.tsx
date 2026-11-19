@@ -108,7 +108,9 @@ export function SuggestionCard(
       data-variant={selected ? "selected" : "default"}
     >
       <h3 className="ui-suggestion-card__heading" id={headingId}>{heading}</h3>
-      <p className="ui-suggestion-card__summary" id={summaryId}>{summary}</p>
+      <div className="ui-suggestion-card__summary" id={summaryId}>
+        {summary}
+      </div>
       <p className="ui-suggestion-card__origin">{origin}</p>
       {state === "outdated" || state === "unknown"
         ? (
