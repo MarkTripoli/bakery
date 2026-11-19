@@ -617,6 +617,8 @@ export async function workerRequest(
     idempotencyKey?: string;
     headers?: HeadersInit;
     includeWorkerSession?: boolean;
+    /** Defaults to POST; read routes (the tool gateway) need GET. */
+    method?: string;
   } = {},
 ): Promise<Response> {
   const headers = jsonHeaders({
@@ -629,9 +631,8 @@ export async function workerRequest(
   let requestBody = body;
   const mutationPath = path === "/v1/worker/claims" ||
     path === "/v1/worker/heartbeat" ||
-    /^\/v1\/worker\/attempts\/[^/]+\/(events|lease-renewals|result)$/.test(
-      path,
-    );
+    /^\/v1\/worker\/attempts\/[^/]+\/(events|lease-renewals|result|session-tools|session-call)$/
+      .test(path);
   if (mutationPath) {
     const host = await fixture.pgDatabase.query<{
       workerSessionId: string | null;
@@ -675,7 +676,7 @@ export async function workerRequest(
   }
   return await fixture.app.fetch(
     new Request(`${authTestOrigin}${path}`, {
-      method: "POST",
+      method: options.method ?? "POST",
       headers,
       body: JSON.stringify(requestBody),
     }),

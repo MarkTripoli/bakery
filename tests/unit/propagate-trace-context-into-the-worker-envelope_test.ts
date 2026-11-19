@@ -238,6 +238,7 @@ Deno.test("the built assignment carries the context onto the wire", () => {
     30,
     new Date("2026-01-01T00:00:00Z"),
     null,
+    null,
     assignmentTraceparent(new Headers(), job.originalTraceparent),
   );
   const wire = (built as { traceparent?: string }).traceparent;

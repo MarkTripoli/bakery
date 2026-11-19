@@ -185620,6 +185620,12 @@
               "description": "W3C trace context of the request that caused this work, so the worker continues the caller's trace instead of starting an unrelated one.",
               "type": "string",
               "pattern": "^(?!00-0{32}-|00-[0-9a-f]{32}-0{16}-)00-[0-9a-f]{32}-[0-9a-f]{16}-0[01]$"
+            },
+            "sessionCredential": {
+              "description": "The session operation credential for this attempt, handed off at claim and never again: the server stores only its digest, and a claim replay revokes it and returns none. The agent presents it on the tool gateway to call Bakery operations as the principal it acts for - the run's requester, never the worker host. It dies with the attempt lease and must never be copied into job input, a log, an artifact or a subprocess environment.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 65536
             }
           },
           "required": [
@@ -220201,7 +220207,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:e2449061303575cbd138c16a0216f79e0f1a482f6d1e68f41a6e4f14d8158b30",
+  "compatibilityDigest": "sha256:8edd6e3b434116d1afc75788d1944b80acd7bfbae874581dc94daac0c067ac11",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -370451,6 +370457,12 @@
           "description": "W3C trace context of the request that caused this work, so the worker continues the caller's trace instead of starting an unrelated one.",
           "type": "string",
           "pattern": "^(?!00-0{32}-|00-[0-9a-f]{32}-0{16}-)00-[0-9a-f]{32}-[0-9a-f]{16}-0[01]$"
+        },
+        "sessionCredential": {
+          "description": "The session operation credential for this attempt, handed off at claim and never again: the server stores only its digest, and a claim replay revokes it and returns none. The agent presents it on the tool gateway to call Bakery operations as the principal it acts for - the run's requester, never the worker host. It dies with the attempt lease and must never be copied into job input, a log, an artifact or a subprocess environment.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536
         }
       },
       "required": [
