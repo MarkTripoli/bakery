@@ -24,7 +24,17 @@ function Detail({ open }: { open: boolean }) {
       detail={{
         expanded,
         onToggle: () => setExpanded((value) => !value),
-        content: <pre>pnpm test upload: 12 passed</pre>,
+        content: (
+          <pre
+            style={{
+              margin: 0,
+              overflowWrap: "anywhere",
+              whiteSpace: "pre-wrap",
+            }}
+          >
+            pnpm test upload: 12 passed
+          </pre>
+        ),
       }}
     >
       Output, 14 lines

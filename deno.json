@@ -51,7 +51,10 @@
     "@types/node": "npm:@types/node@22.13.4",
     "yaml": "npm:yaml@2.8.1",
     "zod": "npm:zod@4.5.4",
-    "@aws-sdk/client-s3": "npm:@aws-sdk/client-s3@3.888.0"
+    "@aws-sdk/client-s3": "npm:@aws-sdk/client-s3@3.888.0",
+    "@bakery/integration-linear/server": "./packages/integration-linear/src/server/mod.ts",
+    "@bakery/integration-sdk/provider": "./packages/integration-sdk/provider.ts",
+    "@bakery/integration-sdk/web": "./packages/integration-sdk/web.ts"
   },
   "fmt": {
     "exclude": [

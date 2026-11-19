@@ -31,6 +31,10 @@ import {
 import { lockAuthority } from "../integrations/write-authority.ts";
 import { createRunCommand } from "./run-command.ts";
 import {
+  createCoordinationPlanCommand,
+  materializeCoordinationPlanCommand,
+} from "./coordination-command.ts";
+import {
   approvalPolicyDigest,
   effectiveApprovalPolicy,
 } from "./stage-policy.ts";
@@ -76,6 +80,7 @@ import {
   findNonterminalRequest,
   insertPrimaryLink,
   insertRequest,
+  insertRequestTargets,
   latestReport,
   lockSource,
   lockTaskForUpdate,
@@ -87,6 +92,7 @@ import {
   readTaskState,
   readTicketRef,
   requestById,
+  requestPlanStatus,
   runStatusOf,
   taskHasUnconsumedApproval,
   type TicketRequest,
@@ -96,6 +102,11 @@ import {
   upsertExternalTicket,
 } from "./ticket-store.ts";
 import type { TicketSourceReader } from "./ticket-source-reader.ts";
+import {
+  readRouteRules,
+  resolveTicketRoutes,
+  type TicketRouteResolution,
+} from "./ticket-routing.ts";
 import { presetAvailability } from "./workflow-presets.ts";
 
 /**
@@ -185,11 +196,56 @@ export type AdmissionResult = {
   ticketId: string | null;
 };
 
+/**
+ * Whether the pinned preset can run in one repository now. The source's
+ * repository and every routed target are judged by this one call path, with
+ * the preset's default budget limit and the server budget policy.
+ */
+function repositoryAvailability(frame: Frame, repositoryId: string) {
+  return presetAvailability(
+    frame.transaction,
+    frame.source.organizationId,
+    repositoryId,
+    FIXED_CODING_PRESET,
+    FIXED_CODING_PRESET.defaultBudgetLimitUsd,
+    frame.deps.budget,
+  );
+}
+
 const PRESET_PIN: TicketPresetPin = Object.freeze({
   id: FIXED_CODING_PRESET.id as TicketPresetPin["id"],
   revision: FIXED_CODING_PRESET.revision,
   digest: FIXED_CODING_PRESET.digest,
 });
+
+/**
+ * The source's application, or a stated refusal.
+ *
+ * A task names an application and cannot omit one (tasks.application_id is NOT
+ * NULL), so a source with no application cannot admit. 0206 made the source's
+ * application optional for providers that verify a webhook with a shared
+ * secret; that is enough to read readiness and report it, and not enough to
+ * create a task. Refusing here keeps the answer a reason a caller can act on
+ * rather than a contract error from deep inside task creation, and it runs
+ * before any write so two concurrent attempts store nothing.
+ */
+function requireApplication(
+  source: Readonly<{ applicationId: string | null }>,
+): string {
+  if (source.applicationId === null) {
+    throw new StandardError({
+      code: "PRECONDITION_FAILED",
+      params: { reason: "source_application_required" },
+    });
+  }
+  return source.applicationId;
+}
+
+/**
+ * Id of the one preset ticket admission runs, from the pin above, for the
+ * modules that name it (routing rule defaults) without naming it again.
+ */
+export const TICKET_PRESET_ID: string = PRESET_PIN.id;
 
 function stateConflict(reason: string): StandardError {
   return new StandardError({ code: "STATE_CONFLICT", params: { reason } });
@@ -303,7 +359,7 @@ async function sourceAuthority(
  * the application as well.
  */
 async function sourceFacts(frame: Frame): Promise<ReadinessSourceFacts> {
-  const { source, transaction } = frame;
+  const { source } = frame;
   const base = {
     enabled: source.enabled,
     connectionEnabled: frame.authority.connectionEnabled,
@@ -319,13 +375,9 @@ async function sourceFacts(frame: Frame): Promise<ReadinessSourceFacts> {
       presetReady: false,
     };
   }
-  const availability = await presetAvailability(
-    transaction,
-    source.organizationId,
+  const availability = await repositoryAvailability(
+    frame,
     source.repositoryId,
-    FIXED_CODING_PRESET,
-    FIXED_CODING_PRESET.defaultBudgetLimitUsd,
-    frame.deps.budget,
   );
   return {
     ...base,
@@ -336,6 +388,58 @@ async function sourceFacts(frame: Frame): Promise<ReadinessSourceFacts> {
     ),
     presetReady: availability.status === "ready",
   };
+}
+
+/** The route of each frame's ticket, resolved at most once per admission. */
+const frameRoutes = new WeakMap<Frame, Promise<TicketRouteResolution>>();
+
+/**
+ * Label routing of the frame's ticket under the source lock the frame holds:
+ * the rules are read and resolved once, so the readiness report and the
+ * targets an admission pins come from the same answer.
+ */
+function routeOf(frame: Frame): Promise<TicketRouteResolution> {
+  let route = frameRoutes.get(frame);
+  if (route === undefined) {
+    route = resolveFrameRoute(frame);
+    frameRoutes.set(frame, route);
+  }
+  return route;
+}
+
+/** The provider label ids the issue read named, or null when it named none. */
+function issueLabelIds(prefetch: TicketPrefetch): readonly string[] | null {
+  if (prefetch.issue.kind !== "present") return [];
+  return prefetch.issue.snapshot.labelIds ?? null;
+}
+
+async function resolveFrameRoute(
+  frame: Frame,
+): Promise<TicketRouteResolution> {
+  const { source, transaction } = frame;
+  const rules = await readRouteRules(transaction, source);
+  const route = resolveTicketRoutes(
+    issueLabelIds(frame.prefetch),
+    rules,
+    source.repositoryId,
+  );
+  if (route.kind !== "routed") return route;
+  // Each routed target runs the preset in its own repository, so each needs
+  // a ready profile and preset, not only the source's repository.
+  const unready = { profile: [] as string[], preset: [] as string[] };
+  for (const target of route.targets) {
+    if (target.ruleId === null) continue;
+    const availability = await repositoryAvailability(
+      frame,
+      target.repositoryId,
+    );
+    if (availability.reasons.includes("no_active_profile")) {
+      unready.profile.push(`role:${target.role}`);
+    } else if (availability.status !== "ready") {
+      unready.preset.push(`role:${target.role}`);
+    }
+  }
+  return { ...route, unready };
 }
 
 type EvaluationContext = {
@@ -372,6 +476,9 @@ async function evaluate(
     origin: context.origin,
     labelBasis: context.labelBasis,
     pinnedRequirementsDigest: context.pinnedRequirementsDigest,
+    // Only a new admission routes: a request that exists keeps its targets,
+    // whatever the rules say now.
+    ...(context.activeRequest === null ? { route: await routeOf(frame) } : {}),
   };
   return await evaluateReadiness(input);
 }
@@ -601,7 +708,11 @@ async function recordWithin(
     const { report } = await unstored(frame, callerActor);
     return { ticketId: null, report, storedReport: null };
   }
-  await lockApplication(transaction, organizationId, source.applicationId);
+  await lockApplication(
+    transaction,
+    organizationId,
+    requireApplication(source),
+  );
   const existing = await findNonterminalRequest(
     transaction,
     organizationId,
@@ -640,6 +751,13 @@ async function admitWithin(
   };
   // (1) The source, `for share`: pins the policy revision and the delegation.
   const source = await lockSource(transaction, organizationId, call.sourceId);
+  // A task names an application and cannot omit one (tasks.application_id is
+  // NOT NULL), so a source with no application cannot admit. 0206 made the
+  // source's application optional for providers that verify a webhook with a
+  // shared secret; that is enough to read readiness and report it, and not
+  // enough to create a task. Refused here, before any write, so the answer is a
+  // stated reason rather than a contract error from deep inside task creation.
+  requireApplication(source);
   // (2) Live source authority, `for share`, in the order the intake path uses.
   const authority = await sourceAuthority(transaction, source);
   const frame: Frame = {
@@ -661,7 +779,11 @@ async function admitWithin(
     return await unstored(frame, callerActor);
   }
   // (4) The application, before any branch that can write a task or a run.
-  await lockApplication(transaction, organizationId, source.applicationId);
+  await lockApplication(
+    transaction,
+    organizationId,
+    requireApplication(source),
+  );
 
   const existing = await findNonterminalRequest(
     transaction,
@@ -852,7 +974,11 @@ function evidenceOf(
       }
       : null,
     actorRole: automatic && actorRole?.kind === "present"
-      ? { userId: actorRole.userId, permission: actorRole.permission }
+      ? {
+        userId: actorRole.userId,
+        permission: actorRole.permission,
+        rank: actorRole.rank,
+      }
       : null,
   };
 }
@@ -905,7 +1031,12 @@ async function admitFresh(
   const snapshot = ticket.snapshot;
   const text = taskInputs(frame, snapshot, call.number);
   const taskInput = contractSchemas.TaskCreate.safeParse({
-    applicationId: source.applicationId,
+    // Omitted rather than sent as null: a provider-neutral source has no
+    // application (0206), and the task input's contract carries the field only
+    // when there is one - the same rule the repository below already follows.
+    ...(source.applicationId === null
+      ? {}
+      : { applicationId: source.applicationId }),
     ...(source.repositoryId === null
       ? {}
       : { repositoryId: source.repositoryId }),
@@ -952,15 +1083,62 @@ async function admitFresh(
     readinessReportId: stored.id,
     pinnedPreset: report.preset,
   });
+  // The scoped children: one per routed repository, pinned to this admission.
+  // Rule-routed targets run as child tasks of one ticket-origin coordination
+  // plan under the request's task; the fallback runs on that task itself.
+  const route = await routeOf(frame);
+  if (route.kind !== "routed") throw new Error("TICKET_ROUTE_NOT_READY");
+  const routed = route.targets.filter((target) => target.ruleId !== null);
+  const children = routed.length === 0 ? null : await planChildren(
+    frame,
+    actor,
+    {
+      requestId,
+      taskId: task.id,
+      ticket,
+      title: text.title,
+      description: text.description,
+    },
+    routed,
+  );
+  await insertRequestTargets(transaction, {
+    organizationId: call.organizationId,
+    requestId,
+    sourcePolicyRevision: source.policyRevision,
+    pinnedPreset: report.preset,
+    targets: route.targets.map((target) => ({
+      ...target,
+      coordinationPlanId: children?.planId ?? null,
+      childTaskId: children?.childByRepository.get(target.repositoryId) ??
+        null,
+    })),
+  });
   let request = await mustRequest(transaction, call.organizationId, requestId);
 
-  // (9) A start under an automatic plan approval creates the run now.
+  // (9) A start under an automatic plan approval creates the run now: on the
+  // request's task, or on each child task when the ticket was routed.
   if (intent === "start" && source.policy.approval.plan === "automatic") {
-    const runId = await startRun(frame, actor, request, task);
-    request = await updateRequest(transaction, request, {
-      disposition: "admitted",
-      workflowRunId: runId,
-    });
+    if (children === null) {
+      const runId = await startRun(frame, actor, request, task);
+      request = await updateRequest(transaction, request, {
+        disposition: "admitted",
+        workflowRunId: runId,
+      });
+    } else {
+      for (const childTaskId of children.childByRepository.values()) {
+        await startRun(
+          frame,
+          actor,
+          request,
+          await childTaskRef(frame, childTaskId),
+          undefined,
+          childTaskId,
+        );
+      }
+      request = await updateRequest(transaction, request, {
+        disposition: "admitted",
+      });
+    }
   }
   await recordFacts(
     frame,
@@ -988,12 +1166,130 @@ async function mustRequest(
   return request;
 }
 
+/** Lane key of a role inside the request's plan: the role made a plan key. */
+function laneKeyOf(role: string): string {
+  const key = role.toLowerCase().replace(/[^a-z0-9-]/g, "-").slice(0, 60);
+  return /^[a-z]/.test(key) ? key : `r-${key}`.slice(0, 63);
+}
+
+/**
+ * Creates and materializes the request's ticket-origin coordination plan:
+ * one lane per routed repository, named by its role binding alias, with no
+ * prerequisites (the targets are independent). The existing coordination
+ * commands create the child tasks, scope them and the parent to their
+ * repositories (task_repositories) and project the plan status from the
+ * children; nothing here runs work of its own.
+ */
+async function planChildren(
+  frame: Frame,
+  actor: OrganizationActor,
+  parent: {
+    requestId: string;
+    taskId: string;
+    ticket: TicketRow;
+    title: string;
+    description: string;
+  },
+  targets: readonly {
+    repositoryId: string;
+    role: string;
+    alias: string | null;
+  }[],
+): Promise<{ planId: string; childByRepository: Map<string, string> }> {
+  const spec = {
+    lanes: targets.map((target) => ({
+      key: laneKeyOf(target.role),
+      repositoryAlias: target.alias as string,
+      title: `${parent.title} (${target.role})`.slice(0, 500),
+      instructions: parent.description,
+      prerequisites: [],
+      outputs: [],
+      inputs: [],
+    })),
+    maxConcurrency: Math.min(16, Math.max(1, targets.length)),
+    join: "all-required",
+    failurePolicy: "stop-dependent",
+  };
+  const origin = await frame.transaction.query<
+    { provider: string; safe_url: string }
+  >(
+    `select source.provider, ticket.safe_url
+       from bakery.external_tickets as ticket
+       join bakery.ticket_sources as source
+         on source.organization_id = ticket.organization_id
+        and source.id = ticket.ticket_source_id
+      where ticket.organization_id = $1 and ticket.id = $2`,
+    [frame.source.organizationId, parent.ticket.id],
+  );
+  const url = origin.rows[0]?.safe_url ?? "";
+  const created = await createCoordinationPlanCommand(
+    internalContext(frame, actor, {}, {
+      operation: "coordinationPlans.create",
+      idempotencyKey: `ticket-request:${parent.requestId}:plan`,
+      target: "/v1/coordination-plans",
+    }),
+    {
+      parentTaskId: parent.taskId,
+      spec,
+      origin: {
+        kind: "ticket",
+        provider: origin.rows[0]?.provider ?? "unknown",
+        reference: parent.ticket.key.slice(0, 200),
+        ...(url.startsWith("https://") ? { url } : {}),
+      },
+    } as Parameters<typeof createCoordinationPlanCommand>[1],
+  );
+  await materializeCoordinationPlanCommand(
+    internalContext(frame, actor, { id: created.id }, {
+      operation: "coordinationPlans.materialize",
+      idempotencyKey: `ticket-request:${parent.requestId}:materialize`,
+      target: `/v1/coordination-plans/${created.id}/materializations`,
+    }),
+    {},
+  );
+  const childByRepository = new Map<string, string>();
+  const lanes = await frame.transaction.query<
+    { repository_id: string; child_task_id: string | null }
+  >(
+    `select repository_id, child_task_id from bakery.coordination_lanes
+      where organization_id = $1 and plan_id = $2`,
+    [frame.source.organizationId, created.id],
+  );
+  for (const lane of lanes.rows) {
+    if (lane.child_task_id === null) {
+      throw new Error("TICKET_PLAN_CHILD_MISSING");
+    }
+    childByRepository.set(lane.repository_id, lane.child_task_id);
+  }
+  return { planId: created.id, childByRepository };
+}
+
+/** A child task's id and repository profile, for its run. */
+async function childTaskRef(
+  frame: Frame,
+  taskId: string,
+): Promise<{ id: string; repositoryProfileId: string | null }> {
+  const result = await frame.transaction.query<
+    { repository_profile_id: string | null }
+  >(
+    `select repository_profile_id from bakery.tasks
+      where organization_id = $1 and id = $2`,
+    [frame.source.organizationId, taskId],
+  );
+  return {
+    id: taskId,
+    repositoryProfileId: result.rows[0]?.repository_profile_id ?? null,
+  };
+}
+
 async function startRun(
   frame: Frame,
   actor: OrganizationActor,
   request: TicketRequest,
   task: { id: string; repositoryProfileId: string | null },
   approvalId?: string,
+  /** A child task of the request's plan: its own idempotency key. */
+  childTaskId?: string,
 ): Promise<string> {
   const input = contractSchemas.RunCreate.safeParse({
     presetId: "fixed-coding",
@@ -1009,7 +1305,9 @@ async function startRun(
   const run = await createRunCommand(
     internalContext(frame, actor, { id: task.id }, {
       operation: "runs.create",
-      idempotencyKey: `ticket-request:${request.id}`,
+      idempotencyKey: childTaskId === undefined
+        ? `ticket-request:${request.id}`
+        : `ticket-request:${request.id}:${childTaskId}`,
       target: `/v1/tasks/${task.id}/runs`,
     }),
     input.data,
@@ -1561,7 +1859,11 @@ async function recheckWithin(
     existing === null ||
     (scope.requestId !== null && existing.id !== scope.requestId)
   ) return nothing;
-  await lockApplication(transaction, organizationId, source.applicationId);
+  await lockApplication(
+    transaction,
+    organizationId,
+    requireApplication(source),
+  );
   let ticket = locked;
   if (prefetch.issue.kind === "present") {
     const resolved = await resolveTicket(frame);
@@ -1633,6 +1935,11 @@ async function recheckWithin(
       { reportId: stored.id, runId },
     );
   }
+  const planStatus = await requestPlanStatus(
+    transaction,
+    organizationId,
+    existing.id,
+  );
   const decide = (current: TicketRequest): RecheckDecision =>
     decideRecheck({
       disposition: current.disposition,
@@ -1644,6 +1951,7 @@ async function recheckWithin(
       approvalAvailable: pass.approvalId !== null,
       pinnedRequirementsDigest: current.requirementsDigest,
       pauseRequestedAt: current.pauseRequestedAt?.toISOString() ?? null,
+      planStatus,
     }, report);
 
   const first = decide(request);

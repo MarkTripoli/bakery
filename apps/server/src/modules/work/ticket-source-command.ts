@@ -25,7 +25,7 @@ import { resolveOrganizationActor } from "../auth/adapters/authority-postgres.ts
 import { authorityVerdict } from "../integrations/fact-reads.ts";
 import { resolveRepositoryId } from "../integrations/pull-requests.ts";
 import { lockAuthority } from "../integrations/write-authority.ts";
-import { recordReadiness } from "./ticket-admission.ts";
+import { recordReadiness, TICKET_PRESET_ID } from "./ticket-admission.ts";
 import {
   type TicketOperationDependencies,
   ticketReads,
@@ -53,6 +53,8 @@ type SourceCreate = z.output<typeof contractSchemas.TicketSourceCreate>;
 type SourceUpdate = z.output<typeof contractSchemas.TicketSourceUpdate>;
 type OperationReceipt = z.output<typeof contractSchemas.TicketOperationReceipt>;
 type SourceOutput = z.output<typeof contractSchemas.TicketSource>;
+type RulesReplace = z.output<typeof contractSchemas.TicketRoutingRulesReplace>;
+type RuleSetOutput = z.output<typeof contractSchemas.TicketRoutingRuleSet>;
 
 /**
  * The policy to store from one a client sent. `automatic.since` is the
@@ -167,9 +169,15 @@ export async function createTicketSource(
   );
   const policy = storedPolicy(input.policy, null, new Date());
   const scope = await transaction.query<
-    { installationId: string; externalId: string; displayName: string }
+    {
+      installationId: string;
+      provider: string;
+      externalId: string;
+      displayName: string;
+    }
   >(
     `select connection.installation_id as "installationId",
+            connection.provider as "provider",
             resource.external_id as "externalId",
             resource.display_name as "displayName"
        from bakery.integration_connections as connection
@@ -239,16 +247,20 @@ export async function createTicketSource(
   const id = crypto.randomUUID();
   const inserted = await transaction.query(
     `insert into bakery.ticket_sources (
-       id, organization_id, integration_connection_id,
+       id, organization_id, provider, integration_connection_id,
        integration_resource_id, application_id, repository_id,
        external_container_id, enabled, policy
-     ) values ($1, $2, $3, $4, $5, $6, $7, true, $8::jsonb)
+     ) values ($1, $2, $3, $4, $5, $6, $7, $8, true, $9::jsonb)
      on conflict (organization_id, integration_connection_id,
                   external_container_id) do nothing
      returning id`,
     [
       id,
       organizationId,
+      // Named, never defaulted: the default was dropped so a source cannot be
+      // admitted without saying which provider it belongs to. The connection is
+      // the authority on that, so the source inherits it rather than assuming.
+      resource.provider,
       input.connectionId,
       input.resourceId,
       input.applicationId,
@@ -350,6 +362,246 @@ export async function updateTicketSource(
     },
   );
   return updated;
+}
+
+type StoredRule = {
+  id: string;
+  provider_label_id: string;
+  label_name: string;
+  repository_id: string;
+  role: string;
+  preset_id: string;
+  version: number;
+  created_at: Date;
+  updated_at: Date;
+};
+
+async function storedRules(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  sourceId: string,
+): Promise<StoredRule[]> {
+  const result = await transaction.query<StoredRule>(
+    `select id, provider_label_id, label_name, repository_id, role, preset_id,
+            version,
+            created_at, updated_at
+       from bakery.ticket_routing_rules
+      where organization_id = $1 and ticket_source_id = $2
+      order by provider_label_id, repository_id`,
+    [organizationId, sourceId],
+  );
+  return result.rows;
+}
+
+function ruleSetOutput(
+  organizationId: string,
+  source: { id: string; policyRevision: number; version: number },
+  rules: readonly StoredRule[],
+): RuleSetOutput {
+  return {
+    ticketSourceId: source.id,
+    policyRevision: source.policyRevision,
+    version: source.version,
+    rules: rules.map((rule) => ({
+      id: rule.id,
+      organizationId,
+      ticketSourceId: source.id,
+      labelId: rule.provider_label_id,
+      labelName: rule.label_name,
+      repositoryId: rule.repository_id,
+      role: rule.role,
+      presetId: rule.preset_id,
+      version: rule.version,
+      createdAt: rule.created_at.toISOString(),
+      updatedAt: rule.updated_at.toISOString(),
+    })),
+  } as RuleSetOutput;
+}
+
+/**
+ * `ticketRoutingRules.get`: the label routing rules of one source with the
+ * source's policy revision and version. A missing or foreign source is 404.
+ */
+export async function getTicketRoutingRules(
+  context: ActionContext,
+): Promise<RuleSetOutput> {
+  const { transaction, organizationId } = requireWorkTransaction(context);
+  const source = await loadTicketSource(
+    transaction,
+    organizationId,
+    sourceId(context),
+  );
+  return ruleSetOutput(
+    organizationId,
+    source,
+    await storedRules(transaction, organizationId, source.id),
+  );
+}
+
+/**
+ * `ticketRoutingRules.replace` (#31): Admin, `If-Match` against the source
+ * version. Replaces the source's rules as a whole. A rule whose label and
+ * repository survive keeps its id, and its version moves only when its role or
+ * preset changed; a removed rule is deleted (the targets that pinned it keep
+ * their pins). Any change advances the source's policy revision and version
+ * once, under the source row `for update`, so an admission holding it
+ * `for share` finishes first and the next one is judged on the new rules.
+ * Every target must be a live repository of the source's application with a
+ * live role binding (alias) for the rule's role. Rules match the provider's
+ * label id, so a rename (a new labelName for the same id) keeps routing.
+ */
+export async function replaceTicketRoutingRules(
+  context: ActionContext,
+  input: RulesReplace,
+): Promise<RuleSetOutput> {
+  const { transaction, organizationId, principalId } = requireWorkTransaction(
+    context,
+  );
+  const expectedVersion = requireCommandMetadata(context).expectedVersion;
+  if (expectedVersion === undefined) {
+    throw new StandardError({ code: "PRECONDITION_REQUIRED" });
+  }
+  const id = sourceId(context);
+  const current = await lockSourceForUpdate(transaction, organizationId, id);
+  if (current.version !== expectedVersion) {
+    throw new StandardError({ code: "PRECONDITION_FAILED" });
+  }
+  const wanted = new Map<
+    string,
+    {
+      labelId: string;
+      labelName: string;
+      repositoryId: string;
+      role: string;
+      presetId: string;
+    }
+  >();
+  input.rules.forEach((rule, index) => {
+    const key = `${rule.labelId}\u0000${rule.repositoryId}`;
+    if (wanted.has(key)) {
+      throw unprocessable(["rules", index], "routing_rule_duplicate");
+    }
+    wanted.set(key, {
+      labelId: rule.labelId,
+      labelName: rule.labelName,
+      repositoryId: rule.repositoryId,
+      role: rule.role,
+      presetId: rule.presetId ?? TICKET_PRESET_ID,
+    });
+  });
+  const repositoryIds = [
+    ...new Set([...wanted.values()].map((rule) => rule.repositoryId)),
+  ];
+  if (repositoryIds.length > 0) {
+    const live = await transaction.query<{ id: string }>(
+      `select id from bakery.repositories
+        where organization_id = $1 and application_id = $2
+          and archived_at is null and id = any($3::uuid[])`,
+      [organizationId, current.applicationId, repositoryIds],
+    );
+    const usable = new Set(live.rows.map((row) => row.id));
+    const index = input.rules.findIndex((rule) =>
+      !usable.has(rule.repositoryId)
+    );
+    if (index >= 0) {
+      throw unprocessable(
+        ["rules", index, "repositoryId"],
+        "routing_repository_unavailable",
+      );
+    }
+    // A routed target runs as a lane of a coordination plan, which names its
+    // repository by the application's role binding alias for that role.
+    const bound = await transaction.query<
+      { repository_id: string; role: string }
+    >(
+      `select distinct repository_id, role
+         from bakery.repository_role_bindings
+        where organization_id = $1 and application_id = $2
+          and alias is not null and archived_at is null
+          and repository_id = any($3::uuid[])`,
+      [organizationId, current.applicationId, repositoryIds],
+    );
+    const pairs = new Set(
+      bound.rows.map((row) => `${row.repository_id}\u0000${row.role}`),
+    );
+    const unbound = input.rules.findIndex((rule) =>
+      !pairs.has(`${rule.repositoryId}\u0000${rule.role}`)
+    );
+    if (unbound >= 0) {
+      throw unprocessable(["rules", unbound, "role"], "routing_role_unbound");
+    }
+  }
+  const existing = await storedRules(transaction, organizationId, id);
+  let changed = false;
+  for (const rule of existing) {
+    const key = `${rule.provider_label_id}\u0000${rule.repository_id}`;
+    const next = wanted.get(key);
+    if (next === undefined) {
+      await transaction.query(
+        `delete from bakery.ticket_routing_rules
+          where organization_id = $1 and id = $2`,
+        [organizationId, rule.id],
+      );
+      changed = true;
+    } else if (
+      next.role !== rule.role || next.presetId !== rule.preset_id ||
+      next.labelName !== rule.label_name
+    ) {
+      await transaction.query(
+        `update bakery.ticket_routing_rules
+            set role = $3, preset_id = $4, label_name = $5,
+                updated_at = now(), version = version + 1
+          where organization_id = $1 and id = $2`,
+        [organizationId, rule.id, next.role, next.presetId, next.labelName],
+      );
+      changed = true;
+    }
+    wanted.delete(key);
+  }
+  for (const rule of wanted.values()) {
+    await transaction.query(
+      `insert into bakery.ticket_routing_rules (
+         id, organization_id, ticket_source_id, provider_label_id,
+         label_name, repository_id, role, preset_id
+       ) values ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [
+        crypto.randomUUID(),
+        organizationId,
+        id,
+        rule.labelId,
+        rule.labelName,
+        rule.repositoryId,
+        rule.role,
+        rule.presetId,
+      ],
+    );
+    changed = true;
+  }
+  if (changed) {
+    await transaction.query(
+      `update bakery.ticket_sources
+          set policy_revision = policy_revision + 1,
+              updated_at = now(), version = version + 1
+        where organization_id = $1 and id = $2`,
+      [organizationId, id],
+    );
+  }
+  const updated = await loadTicketSource(transaction, organizationId, id);
+  const rules = await storedRules(transaction, organizationId, id);
+  await recordSourceFact(
+    context,
+    transaction,
+    { organizationId, principalId },
+    updated,
+    "ticketRoutingRules.replace",
+    "ticket.source_changed",
+    {
+      rulesChanged: changed,
+      rules: rules.length,
+      policyRevision: updated.policyRevision,
+    },
+  );
+  return ruleSetOutput(organizationId, updated, rules);
 }
 
 /**

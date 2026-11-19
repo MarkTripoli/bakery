@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { catalogActions, contractSchemas } from "@bakery/contracts/contracts";
+import type { ProviderManifest } from "@bakery/integration-sdk/provider";
 import { StandardError } from "@bakery/contracts/http";
 import {
   INTEGRATION_SCOPE_OPERATIONS,
@@ -79,6 +80,20 @@ export type ActiveIntegrationRegistry = Readonly<{
     actionId: string,
     version: number,
   ): ActiveAction | undefined;
+  /**
+   * The provider packages this build deploys, by slug and by gate id.
+   *
+   * A second tier rather than a second registry: a provider package has a manifest
+   * and ports, and no actions, so it cannot be represented as an
+   * `ActiveIntegration` without inventing a version, a manifest digest and a host
+   * profile it does not declare. Keeping both here means "which providers exist"
+   * still has one answer, while each tier keeps the shape it actually has.
+   */
+  providers: readonly ProviderManifest[];
+  getProvider(slug: string): ProviderManifest | undefined;
+  getProviderByIntegrationId(
+    integrationId: string,
+  ): ProviderManifest | undefined;
 }>;
 
 const activeRegistries = new WeakSet<object>();
@@ -145,6 +160,14 @@ const refKey = (id: string, version: number) => `${id}@${version}`;
 export function activateDeployedIntegrations(
   list: readonly unknown[],
   catalog: readonly { readonly action: string }[] = catalogActions,
+  /**
+   * The provider packages the gate deploys.
+   *
+   * Passed in rather than imported, because this module is the gate and the registry
+   * is the registry: a package that imports its own consumer is a cycle, and the
+   * imports would also have to be exercised in a test that only wants the gate.
+   */
+  providerManifests: readonly ProviderManifest[] = [],
 ): ActiveIntegrationRegistry {
   const defects: IntegrationDefect[] = [];
   const add = (code: string, path: string, message: string) =>
@@ -307,9 +330,34 @@ export function activateDeployedIntegrations(
   }
   if (defects.length) throw new IntegrationActivationError(defects);
 
+  // A gate id claimed by both tiers would route to whichever this file happened to
+  // read first, which is the silent shadow the provider registry already refuses.
+  const integrationIds = new Set(integrations.map((i) => i.providerId));
+  for (const manifest of providerManifests) {
+    if (integrationIds.has(manifest.integrationId)) {
+      defects.push({
+        code: "integration-duplicate-provider",
+        path: `providers.${manifest.slug}`,
+        message:
+          `Both a definition and the provider package ${manifest.slug} answer ${manifest.integrationId}; the gate would route to only one of them.`,
+      });
+    }
+  }
+  if (defects.length) throw new IntegrationActivationError(defects);
+
   const byId = new Map(integrations.map((i) => [i.providerId, i]));
+  const providerBySlug = new Map(
+    providerManifests.map((manifest) => [manifest.slug, manifest]),
+  );
+  const providerById = new Map(
+    providerManifests.map((manifest) => [manifest.integrationId, manifest]),
+  );
   const registry: ActiveIntegrationRegistry = Object.freeze({
     integrations: Object.freeze(integrations),
+    providers: Object.freeze([...providerManifests]),
+    getProvider: (slug: string) => providerBySlug.get(slug),
+    getProviderByIntegrationId: (integrationId: string) =>
+      providerById.get(integrationId),
     get: (providerId: string) => byId.get(providerId),
     // A caller holding a slug - a URL segment, a connection row, a webhook path -
     // has no way in through `get`, which keys on the provider id. This resolves

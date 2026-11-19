@@ -1856,6 +1856,7 @@
   border-radius: var(--radius-control);
   color: var(--color-fg-muted);
   display: flex;
+  flex-wrap: wrap;
   font: var(--type-hint);
   gap: var(--space-2);
   inline-size: 100%;
@@ -1895,10 +1896,11 @@ button.ui-activity-line__row:hover {
 .ui-activity-line__text {
   flex: 0 1 auto;
   min-inline-size: 0;
+  overflow-wrap: anywhere;
 }
 
 .ui-activity-line__time {
-  color: var(--color-fg-tertiary);
+  color: var(--color-fg-muted);
   flex: none;
   font: var(--type-meta);
   font-variant-numeric: tabular-nums;
@@ -1960,6 +1962,18 @@ button.ui-activity-line__row:hover {
   }
 }
 
+/* The shortcuts button sits over the thread's top end corner, so the first
+   message keeps that corner clear of its name and time. */
+.ui-session-thread__turns > .ui-session-thread__turn:first-child header {
+  padding-inline-end: var(--space-8);
+}
+
+@media (pointer: coarse) {
+  .ui-session-thread__turns > .ui-session-thread__turn:first-child header {
+    padding-inline-end: var(--space-0);
+  }
+}
+
 .ui-session-thread__bar {
   align-items: center;
   display: flex;
@@ -2005,7 +2019,7 @@ button.ui-activity-line__row:hover {
 }
 
 .ui-session-thread__receipt {
-  color: var(--color-fg-tertiary);
+  color: var(--color-fg-muted);
   font: var(--type-meta);
   margin: var(--space-2) 0 0;
 }
@@ -2100,7 +2114,7 @@ button.ui-activity-line__row:hover {
 
 /* Fine print that ends a turn's work: not a step, so no icon and no time. */
 .ui-session-thread__usage {
-  color: var(--color-fg-tertiary);
+  color: var(--color-fg-muted);
   font: var(--type-meta);
   font-variant-numeric: tabular-nums;
   margin: var(--space-1) 0 0;
@@ -2137,6 +2151,7 @@ button.ui-activity-line__row:hover {
 
 .ui-activity-line:has(.ui-session-path) .ui-activity-line__text {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-1);
   min-inline-size: 0;
   white-space: nowrap;
@@ -2147,6 +2162,7 @@ button.ui-activity-line__row:hover {
   border-block-start: var(--border-default) solid var(--color-border);
   color: var(--color-fg);
   display: flex;
+  flex-wrap: wrap;
   font: var(--type-hint);
   gap: var(--space-2);
   padding-block-start: var(--space-3);
@@ -2184,6 +2200,7 @@ button.ui-activity-line__row:hover {
   align-items: center;
   color: var(--color-fg-muted);
   display: flex;
+  flex-wrap: wrap;
   font: var(--type-hint);
   gap: var(--space-2);
   margin: 0;
@@ -2221,21 +2238,25 @@ button.ui-activity-line__row:hover {
   color: var(--color-status-warning);
 }
 
+/* The sentence takes what is left; a control after it drops to the next line
+   when there is no room for both, instead of overflowing. */
 .ui-session-now__text {
-  flex: 1 1 auto;
+  flex: 1 1 min-content;
   min-inline-size: 0;
+  overflow-wrap: break-word;
 }
 
 .ui-session-now__elapsed {
-  color: var(--color-fg-tertiary);
+  color: var(--color-fg-muted);
   flex: none;
   font: var(--type-meta);
   font-variant-numeric: tabular-nums;
 }
 
-/* The slow shimmer on a running line is the "Thinking" cue: a gentle pulse that
-   stops under reduced motion, and the text keeps its ellipsis. */
-.ui-session-now[data-tone="active"] .ui-session-now__text {
+/* The slow pulse on a running line is the "Thinking" cue. It is the dot that
+   pulses, never the text: fading text would drop below the contrast minimum. It
+   stops under reduced motion. */
+.ui-session-now[data-tone="active"] .ui-session-now__dot {
   animation: ui-session-shimmer calc(var(--duration-transition) * 5)
     var(--ease-standard) infinite alternate;
 }
@@ -2247,7 +2268,7 @@ button.ui-activity-line__row:hover {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .ui-session-now[data-tone="active"] .ui-session-now__text {
+  .ui-session-now[data-tone="active"] .ui-session-now__dot {
     animation: none;
   }
 }
@@ -2279,11 +2300,17 @@ button.ui-activity-line__row:hover {
   border: var(--border-none);
   color: inherit;
   cursor: pointer;
-  flex: 1 1 auto;
+  flex: 1 1 min-content;
   font: inherit;
   min-inline-size: 0;
   padding: 0;
   text-align: start;
+}
+
+@media (pointer: coarse) {
+  .ui-session-now__select {
+    min-block-size: var(--target-coarse);
+  }
 }
 
 .ui-session-now__select:focus-visible {
@@ -2425,6 +2452,47 @@ button.ui-activity-line__row:hover {
 /* An empty thread's card is as wide as the thread that will fill it. */
 .ui-session-thread .ui-empty-state {
   max-inline-size: none;
+}
+
+.ui-document-editor {
+  background: var(--color-surface);
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-surface);
+  color: var(--color-fg);
+  inline-size: 100%;
+  max-inline-size: var(--layout-content);
+  min-inline-size: 0;
+}
+.ui-document-editor .cm-editor {
+  background: transparent;
+  color: inherit;
+  font: var(--type-field);
+}
+.ui-document-editor .cm-editor.cm-focused {
+  outline: var(--focus-width) solid var(--color-focus);
+  outline-offset: var(--focus-offset);
+}
+.ui-document-editor .cm-scroller {
+  font: inherit;
+  min-block-size: 16rem;
+  overflow-wrap: anywhere;
+}
+.ui-document-editor .cm-content {
+  caret-color: var(--color-fg);
+  padding: var(--space-3) var(--space-4);
+}
+.ui-document-editor .cm-line {
+  padding: 0;
+}
+.ui-document-editor .cm-placeholder {
+  color: var(--color-fg-muted);
+}
+.ui-document-editor .cm-selectionBackground,
+.ui-document-editor .cm-editor.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground {
+  background: var(--color-selection);
+}
+.ui-document-editor[data-state="readOnly"] {
+  background: var(--color-surface-subtle);
 }
 
 /* Rows kept on screen while a filter or page change loads. */

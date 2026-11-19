@@ -104,6 +104,14 @@ export const ConnectKindSchema = z.discriminatedUnion("kind", [
     siteSelection: z.boolean().describe(
       "Whether the flow lets a person pick a site or workspace before granting, which changes the redirect handling.",
     ),
+    secretSlots: z.array(
+      z.string().regex(/^[a-z][a-z0-9_]*$/).max(64).describe(
+        "One secret slot name the flow stores; lowercase, so it matches the key the host decrypts into.",
+      ),
+    ).min(1).max(8)
+      .describe(
+        "Secret slot names the OAuth2 flow stores once it completes, such as access_token and refresh_token; the provider's credential strategy mints from these, and declaring them here is what lets the host check that every slot it is asked for can exist.",
+      ),
   }).describe("OAuth2 connect."),
   z.strictObject({
     kind: z.literal("api-token").describe(
