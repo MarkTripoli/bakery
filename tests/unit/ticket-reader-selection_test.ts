@@ -5,6 +5,7 @@ import type {
   TicketSourceHandle,
   TicketSourceReader,
 } from "../../apps/server/src/modules/work/ticket-source-reader.ts";
+import { ticketRef } from "../../apps/server/src/modules/work/ticket-source-reader.ts";
 import { selectTicketSourceReader } from "../../apps/server/src/modules/work/ticket-reader-selection.ts";
 
 /**
