@@ -401,20 +401,6 @@ export const TicketStatusRefSchema = z.object({
 export type TicketStatusRef = z.output<typeof TicketStatusRefSchema>;
 
 /**
- * What a provider can do with a source, so a policy cannot ask for something
- * the provider never reports.
- *
- * A tracker like Jira has statuses to move through and GitHub has an issue
- * state; a provider that only labels declares `label` alone, and configuring a
- * status policy against it is a configuration error rather than a ticket that
- * waits forever.
- */
-export const TicketSourceTriggerSchema = z.enum(["label", "status"]).describe(
-  "A kind of signal a provider can act on: a label it can apply, or a status it can move into.",
-);
-export type TicketSourceTrigger = z.output<typeof TicketSourceTriggerSchema>;
-
-/**
  * Where a ticket lives, in provider terms.
  *
  * A GitHub repository, a Linear team and a Jira project are the same thing to
@@ -483,7 +469,7 @@ const policyReadinessShape = {
     "Whether the ticket must carry an Acceptance criteria heading with at least one list item before it is ready.",
   ),
   statuses: z.array(providerOpaqueId).min(1).max(10).optional().describe(
-    "Provider status ids, opaque and stable, any one of which makes the ticket ready alongside its label. Absent means the label alone decides, so a source that never names a status keeps working.",
+    "Provider status ids, opaque and stable, any one of which makes the ticket ready alongside its label. Absent means the label alone decides, so a source that never names a status keeps working. A provider declares whether it has statuses at all by answering the status read, so a source that configures one against a label-only provider waits with status_missing rather than forever.",
   ),
 };
 
