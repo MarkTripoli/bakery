@@ -183,3 +183,17 @@ alter table bakery.provider_routes
   foreign key (incident_id)
   references bakery.provider_incidents (id)
   on delete set null;
+
+-- The reads run as `bakery_app`, which owns nothing here: without a grant every
+-- statement fails with "permission denied for table provider_routes", and no
+-- structural check catches that. It is exactly the trap 0187 recorded for
+-- run_waits and 0196 for the workflow_runs columns, and again only the
+-- integration path finds it.
+--
+-- SELECT only, because this slice only reads. The writers - the probe that
+-- moves a route's health and the incident it opens - arrive with their own
+-- INSERT and UPDATE grants in the slice that adds them, so a grant can never
+-- exist without the code that needs it.
+grant select on bakery.provider_routes to bakery_app;
+grant select on bakery.provider_route_health to bakery_app;
+grant select on bakery.provider_incidents to bakery_app;

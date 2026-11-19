@@ -164,9 +164,12 @@ Deno.test("provider routes: another organization's route is absent, not forbidde
   const fixture = await openApprovalFixture();
   try {
     const foreignOrg = ORG();
+    // `created_at`, `updated_at` and `metadata` are all NOT NULL with no
+    // default: an organization row is written by the owner, so it supplies them.
     await fixture.fx.ownerPg.query(
-      `insert into bakery.organizations (id, slug, name)
-         values ($1, $2, $3) on conflict do nothing`,
+      `insert into bakery.organizations (
+         id, slug, name, metadata, created_at, updated_at, version
+       ) values ($1, $2, $3, '{}'::jsonb, now(), now(), 1)`,
       [foreignOrg, `foreign-${foreignOrg.slice(0, 8)}`, "Foreign"],
     );
     const routeId = await seedRoute(fixture.fx.ownerPg, {
