@@ -101,6 +101,7 @@ import {
   createNotificationRoutes,
   createTicketRoutes,
   createWorkTaskHandlers,
+  registerNotificationProjection,
 } from "./modules/work/index.ts";
 import type {
   TicketFactIndex,
@@ -142,6 +143,10 @@ import {
 } from "./modules/conversation/index.ts";
 import { createCoordinationRoutes } from "./modules/work/coordination-routes.ts";
 import { createApprovalRoutes } from "./modules/conversation/approval-routes.ts";
+
+// The inbox is derived from committed domain events, so every process that
+// serves requests registers the projection once, before any event is written.
+registerNotificationProjection();
 
 export function createApp(options: {
   /**
