@@ -459,7 +459,15 @@ export function TaskRunSection(
         )
         : null}
       execution={run.isPending
-        ? <UI.Text>{t("tasks.session.state.loading")}</UI.Text>
+        ? (
+          <UI.Stack
+            aria-busy="true"
+            aria-label={t("tasks.session.state.loading")}
+            gap="standard"
+          >
+            {[0, 1, 2].map((row) => <UI.Skeleton shape="row" key={row} />)}
+          </UI.Stack>
+        )
         : run.isError || mismatch
         ? (
           <UI.ErrorState

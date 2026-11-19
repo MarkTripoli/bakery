@@ -2433,3 +2433,8 @@ button.ui-activity-line__row:hover {
 .ui-session-thread .ui-empty-state {
   max-inline-size: none;
 }
+
+/* Rows kept on screen while a filter or page change loads. */
+.ui-task-inbox[data-state="loading"] .ui-task-inbox__results {
+  opacity: 0.56;
+}
