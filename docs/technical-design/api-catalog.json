@@ -10399,6 +10399,97 @@
       "organizationContext": "required_authenticated_context"
     },
     {
+      "group": "Work",
+      "mcp": null,
+      "organizationContext": "required_authenticated_context",
+      "access": "Developer",
+      "permission": "runRequest:write",
+      "method": "POST",
+      "path": "/v1/runs/{id}/requests",
+      "action": "runRequests.create",
+      "input": "RunRequestCreate",
+      "output": "RunRequest",
+      "event": "runRequest.created",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ]
+    },
+    {
+      "group": "Work",
+      "mcp": null,
+      "organizationContext": "required_authenticated_context",
+      "access": "Developer",
+      "permission": "runRequest:read",
+      "method": "GET",
+      "path": "/v1/runs/{id}/requests",
+      "action": "runRequests.list",
+      "input": "Empty",
+      "output": "RunRequests",
+      "event": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
+      ]
+    },
+    {
+      "group": "Work",
+      "mcp": null,
+      "organizationContext": "required_authenticated_context",
+      "access": "Current member",
+      "permission": "runRequest:read",
+      "method": "GET",
+      "path": "/v1/runs/{id}/requests/mine",
+      "action": "runRequests.mine",
+      "input": "Empty",
+      "output": "RunRequests",
+      "event": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
+      ]
+    },
+    {
+      "group": "Work",
+      "mcp": null,
+      "organizationContext": "required_authenticated_context",
+      "access": "Developer",
+      "permission": "runRequest:write",
+      "method": "POST",
+      "path": "/v1/run-requests/{id}/withdraw",
+      "action": "runRequests.withdraw",
+      "input": "Empty",
+      "output": "RunRequest",
+      "event": "runRequest.withdrawn",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ]
+    },
+    {
       "group": "Organizations",
       "organizationContext": "required_authenticated_context",
       "mcp": null,

@@ -9028,6 +9028,101 @@ export const clientManifest = {
       "implemented": true
     },
     {
+      "group": "Work",
+      "method": "POST",
+      "path": "/v1/runs/{id}/requests",
+      "action": "runRequests.create",
+      "access": "Developer",
+      "permission": "runRequest:write",
+      "input": "RunRequestCreate",
+      "output": "RunRequest",
+      "event": "runRequest.created",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Work",
+      "method": "GET",
+      "path": "/v1/runs/{id}/requests",
+      "action": "runRequests.list",
+      "access": "Developer",
+      "permission": "runRequest:read",
+      "input": "Empty",
+      "output": "RunRequests",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Work",
+      "method": "GET",
+      "path": "/v1/runs/{id}/requests/mine",
+      "action": "runRequests.mine",
+      "access": "Current member",
+      "permission": "runRequest:read",
+      "input": "Empty",
+      "output": "RunRequests",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Work",
+      "method": "POST",
+      "path": "/v1/run-requests/{id}/withdraw",
+      "action": "runRequests.withdraw",
+      "access": "Developer",
+      "permission": "runRequest:write",
+      "input": "Empty",
+      "output": "RunRequest",
+      "event": "runRequest.withdrawn",
+      "mcp": "",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
       "group": "Organizations",
       "method": "GET",
       "path": "/v1/groups",
@@ -14393,6 +14488,10 @@ export const clientManifest = {
             "outputStreams.transcript",
             "pullRequests.merge",
             "mergeAttempts.reconcile",
+            "runRequests.create",
+            "runRequests.list",
+            "runRequests.mine",
+            "runRequests.withdraw",
             "groups.list",
             "groups.create",
             "groups.update",
@@ -24157,6 +24256,52 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Replaces the organization's storage limits (O42): versions kept, trash and scratch retention, maximum file size and the organization, project and personal quotas."
+    },
+    "RunRequestCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "recipientId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The person to ask: an active human member of this organization other than the asker. Resolved once, when the request is made, and frozen on it."
+        },
+        "intent": {
+          "type": "string",
+          "enum": [
+            "fyi",
+            "review",
+            "approve",
+            "answer",
+            "take_over"
+          ],
+          "description": "What is needed: fyi (just let them know), review, approve, answer or take_over. Only fyi is accepted until the powers for the others are built; the rest answer 422."
+        },
+        "stepKey": {
+          "description": "The step the request concerns, or omitted for the run as a whole. RunRequestCreate.stepKey must contain at least 1 characters. RunRequestCreate.stepKey must contain at most 200 characters.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "note": {
+          "description": "Optional one line shown to the person asked. RunRequestCreate.note must contain at most 280 characters.",
+          "type": "string",
+          "maxLength": 280
+        },
+        "neededBy": {
+          "description": "Optional deadline shown to the person asked. The request itself still expires after seven days.",
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+        }
+      },
+      "required": [
+        "recipientId",
+        "intent"
+      ],
+      "additionalProperties": false,
+      "description": "Asks one person, on one run, for one thing. Gives the person the right to see this run and nothing else until the intent's power is added."
     },
     "FileSearchQuery": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -36947,6 +37092,10 @@ export const clientManifest = {
                   "outputStreams.transcript",
                   "pullRequests.merge",
                   "mergeAttempts.reconcile",
+                  "runRequests.create",
+                  "runRequests.list",
+                  "runRequests.mine",
+                  "runRequests.withdraw",
                   "groups.list",
                   "groups.create",
                   "groups.update",
@@ -54840,6 +54989,10 @@ export const clientManifest = {
             "outputStreams.transcript",
             "pullRequests.merge",
             "mergeAttempts.reconcile",
+            "runRequests.create",
+            "runRequests.list",
+            "runRequests.mine",
+            "runRequests.withdraw",
             "groups.list",
             "groups.create",
             "groups.update",
@@ -62760,6 +62913,8 @@ export const clientManifest = {
               "applicationRepositoryRole:manage",
               "pullRequest:merge",
               "mergeAttempt:write",
+              "runRequest:write",
+              "runRequest:read",
               "group:read",
               "group:manage"
             ],
@@ -84063,6 +84218,434 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "What an Admin purge did. A purge is permanent and audited. A working, personal or scratch entry is removed at once; a record-area file is queued, because only the owner-privileged purge job may clear an artifact's bytes. A record-area folder is refused."
+    },
+    "RunRequest": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID of the request."
+        },
+        "runId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The run the request is on."
+        },
+        "stepKey": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The step it concerns, or null for the run as a whole."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "RunRequest.stepKey may be null in this transport value."
+        },
+        "intent": {
+          "type": "string",
+          "enum": [
+            "fyi",
+            "review",
+            "approve",
+            "answer",
+            "take_over"
+          ],
+          "description": "What was asked for."
+        },
+        "recipient": {
+          "type": "object",
+          "properties": {
+            "principalId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Stable principal UUID."
+            },
+            "displayName": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The person's saved display name."
+            }
+          },
+          "required": [
+            "principalId",
+            "displayName"
+          ],
+          "additionalProperties": false,
+          "description": "The person asked, frozen when the request was made."
+        },
+        "askedBy": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "principalId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Stable principal UUID."
+                },
+                "displayName": {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "The person's saved display name."
+                }
+              },
+              "required": [
+                "principalId",
+                "displayName"
+              ],
+              "additionalProperties": false,
+              "description": "The person who asked, or null when the asker no longer exists."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "RunRequest.askedBy may be null in this transport value."
+        },
+        "askedByKind": {
+          "type": "string",
+          "enum": [
+            "person",
+            "agent",
+            "workflow"
+          ],
+          "description": "Whether a person, an agent or a workflow's own step asked."
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The optional one-line note, or null."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "RunRequest.note may be null in this transport value."
+        },
+        "neededBy": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "The optional deadline, or null."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "RunRequest.neededBy may be null in this transport value."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "open",
+            "answered",
+            "handled",
+            "expired",
+            "withdrawn"
+          ],
+          "description": "open until answered, handled by someone else, expired seven days after it was made, or withdrawn."
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC time the request expires; silence never approves."
+        },
+        "ownerFallback": {
+          "type": "boolean",
+          "description": "True when the person asked for could not be resolved and the run's starter was asked instead."
+        },
+        "fallbackForName": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Who was meant when ownerFallback is true, otherwise null."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "RunRequest.fallbackForName may be null in this transport value."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC time the request was made."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC time it last changed."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Optimistic-concurrency version used as If-Match."
+        }
+      },
+      "required": [
+        "id",
+        "runId",
+        "stepKey",
+        "intent",
+        "recipient",
+        "askedBy",
+        "askedByKind",
+        "note",
+        "neededBy",
+        "status",
+        "expiresAt",
+        "ownerFallback",
+        "fallbackForName",
+        "createdAt",
+        "updatedAt",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "A request: one person asked for one thing on one run, with how it stands."
+    },
+    "RunRequests": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "requests": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID of the request."
+              },
+              "runId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The run the request is on."
+              },
+              "stepKey": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The step it concerns, or null for the run as a whole."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "RunRequest.stepKey may be null in this transport value."
+              },
+              "intent": {
+                "type": "string",
+                "enum": [
+                  "fyi",
+                  "review",
+                  "approve",
+                  "answer",
+                  "take_over"
+                ],
+                "description": "What was asked for."
+              },
+              "recipient": {
+                "type": "object",
+                "properties": {
+                  "principalId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Stable principal UUID."
+                  },
+                  "displayName": {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The person's saved display name."
+                  }
+                },
+                "required": [
+                  "principalId",
+                  "displayName"
+                ],
+                "additionalProperties": false,
+                "description": "The person asked, frozen when the request was made."
+              },
+              "askedBy": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "principalId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "Stable principal UUID."
+                      },
+                      "displayName": {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "The person's saved display name."
+                      }
+                    },
+                    "required": [
+                      "principalId",
+                      "displayName"
+                    ],
+                    "additionalProperties": false,
+                    "description": "The person who asked, or null when the asker no longer exists."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "RunRequest.askedBy may be null in this transport value."
+              },
+              "askedByKind": {
+                "type": "string",
+                "enum": [
+                  "person",
+                  "agent",
+                  "workflow"
+                ],
+                "description": "Whether a person, an agent or a workflow's own step asked."
+              },
+              "note": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The optional one-line note, or null."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "RunRequest.note may be null in this transport value."
+              },
+              "neededBy": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "The optional deadline, or null."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "RunRequest.neededBy may be null in this transport value."
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "open",
+                  "answered",
+                  "handled",
+                  "expired",
+                  "withdrawn"
+                ],
+                "description": "open until answered, handled by someone else, expired seven days after it was made, or withdrawn."
+              },
+              "expiresAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC time the request expires; silence never approves."
+              },
+              "ownerFallback": {
+                "type": "boolean",
+                "description": "True when the person asked for could not be resolved and the run's starter was asked instead."
+              },
+              "fallbackForName": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Who was meant when ownerFallback is true, otherwise null."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "RunRequest.fallbackForName may be null in this transport value."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC time the request was made."
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC time it last changed."
+              },
+              "version": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Optimistic-concurrency version used as If-Match."
+              }
+            },
+            "required": [
+              "id",
+              "runId",
+              "stepKey",
+              "intent",
+              "recipient",
+              "askedBy",
+              "askedByKind",
+              "note",
+              "neededBy",
+              "status",
+              "expiresAt",
+              "ownerFallback",
+              "fallbackForName",
+              "createdAt",
+              "updatedAt",
+              "version"
+            ],
+            "additionalProperties": false,
+            "description": "Requests in newest-first order; bounded to the most recent fifty. Each array item follows this format."
+          },
+          "description": "Requests in newest-first order; bounded to the most recent fifty."
+        }
+      },
+      "required": [
+        "requests"
+      ],
+      "additionalProperties": false,
+      "description": "The requests made on one run, or the requests addressed to the caller on one run, newest first."
     },
     "Page<FileSearchHit>": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
