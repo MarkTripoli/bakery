@@ -13,6 +13,7 @@ import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { loroExtensions, sizeLimit } from "../collaboration/editor-binding.ts";
 import { peopleOf } from "../collaboration/people.ts";
+import { usePublish } from "./ArtifactPublish.tsx";
 import {
   CollaborationSession,
   DOCUMENT_LIMIT_BYTES,
@@ -34,10 +35,13 @@ const PRESENCE_COLORS = [1, 2, 3, 4, 5, 6] as const;
  * what became of text the server did not keep (#71).
  */
 export function ArtifactEditor(
-  { artifactId, publishedVersion }: {
+  { artifactId, onViewVersion, publishedVersion, taskId }: {
     readonly artifactId: string;
+    /** Leaves the editor for the version page (after "View version"). */
+    readonly onViewVersion: () => void;
     /** The version number last published, or null when nothing is. */
     readonly publishedVersion: number | null;
+    readonly taskId: string;
   },
 ) {
   const api = useBakeryApi();
@@ -100,15 +104,27 @@ export function ArtifactEditor(
     );
   }
   return (
-    <OpenDraft draftId={opened.draft.id} publishedVersion={publishedVersion} />
+    <OpenDraft
+      artifactId={artifactId}
+      canPublish={opened.draft.canPublish}
+      draftId={opened.draft.id}
+      onViewVersion={onViewVersion}
+      publishedVersion={publishedVersion}
+      taskId={taskId}
+    />
   );
 }
 
 function OpenDraft(
-  { draftId, publishedVersion }: {
-    readonly draftId: string;
-    readonly publishedVersion: number | null;
-  },
+  { artifactId, canPublish, draftId, onViewVersion, publishedVersion, taskId }:
+    {
+      readonly artifactId: string;
+      readonly canPublish: boolean;
+      readonly draftId: string;
+      readonly onViewVersion: () => void;
+      readonly publishedVersion: number | null;
+      readonly taskId: string;
+    },
 ) {
   const api = useBakeryApi();
   const scope = useProtectedScope();
@@ -132,7 +148,17 @@ function OpenDraft(
     };
   }, [api, scope.organizationId, draftId]);
   return session
-    ? <DraftEditor publishedVersion={publishedVersion} session={session} />
+    ? (
+      <DraftEditor
+        artifactId={artifactId}
+        canPublish={canPublish}
+        draftId={draftId}
+        onViewVersion={onViewVersion}
+        publishedVersion={publishedVersion}
+        session={session}
+        taskId={taskId}
+      />
+    )
     : null;
 }
 
@@ -145,9 +171,22 @@ function browserStorage(): Storage | null {
 }
 
 function DraftEditor(
-  { publishedVersion, session }: {
+  {
+    artifactId,
+    canPublish,
+    draftId,
+    onViewVersion,
+    publishedVersion,
+    session,
+    taskId,
+  }: {
+    readonly artifactId: string;
+    readonly canPublish: boolean;
+    readonly draftId: string;
+    readonly onViewVersion: () => void;
     readonly publishedVersion: number | null;
     readonly session: CollaborationSession;
+    readonly taskId: string;
   },
 ) {
   const { translate: t, locale } = useI18n();
@@ -236,6 +275,26 @@ function DraftEditor(
   // Access removed: nothing will reconnect or save, so the save state is gone too.
   const ended = snapshot.connection === "ended";
   const bytesUsed = useSizeNote(session, snapshot.documentVersion, typedAt);
+  // Versions this person published themselves are not announced a second time.
+  const [ownVersion, setOwnVersion] = useState<number | null>(null);
+  // The line and the next number follow a version this person just published,
+  // before the page's own list has been read again.
+  const latestVersion = Math.max(publishedVersion ?? 0, ownVersion ?? 0) ||
+    null;
+  // The editor's own view, for returning focus to the text after publishing.
+  const editorView = useRef<EditorView | null>(null);
+  const publish = usePublish({
+    artifactId,
+    canPublish,
+    draftId,
+    focusEditor: () => editorView.current?.focus(),
+    nextVersion: (latestVersion ?? 0) + 1,
+    onPublished: setOwnVersion,
+    onViewVersion,
+    revoked: ended,
+    saved: snapshot.saveState === "saved" && pieces.length === 0 && !ended,
+    taskId,
+  });
 
   const copy = (piece: RefusedPiece) =>
     void globalThis.navigator?.clipboard?.writeText(piece.text);
@@ -263,16 +322,19 @@ function DraftEditor(
   return (
     <UI.Stack gap="standard">
       <UI.Stack gap="compact">
-        <UI.Inline gap="compact">
-          <UI.Badge>{t("artifact.edit.draft.badge")}</UI.Badge>
-          <UI.HelpTip label={t("artifact.edit.draft.helpLabel")}>
-            {t("artifact.edit.draft.help")}
-          </UI.HelpTip>
+        <UI.Inline gap="compact" variant="between">
+          <UI.Inline gap="compact">
+            <UI.Badge>{t("artifact.edit.draft.badge")}</UI.Badge>
+            <UI.HelpTip label={t("artifact.edit.draft.helpLabel")}>
+              {t("artifact.edit.draft.help")}
+            </UI.HelpTip>
+          </UI.Inline>
+          {publish.control}
         </UI.Inline>
         <UI.Text variant="hint">
-          {publishedVersion === null
+          {latestVersion === null
             ? t("artifact.edit.draft.lineNone")
-            : t("artifact.edit.draft.line", { version: publishedVersion })}
+            : t("artifact.edit.draft.line", { version: latestVersion })}
         </UI.Text>
       </UI.Stack>
       <UI.PresenceRow
@@ -287,7 +349,9 @@ function DraftEditor(
         saveState={ended ? undefined : snapshot.saveState}
         status={status}
       />
-      {snapshot.banner?.kind === "published" && (
+      {publish.notices}
+      {snapshot.banner?.kind === "published" &&
+        snapshot.banner.versionNumber !== ownVersion && (
         <UI.AlertBanner
           onDismiss={() => session.dismissBanner()}
           tone="information"
@@ -367,6 +431,9 @@ function DraftEditor(
         key={snapshot.documentVersion}
         placeholder={t("artifact.edit.placeholder")}
         readOnly={snapshot.readOnly}
+        onViewChange={(view) => {
+          editorView.current = view;
+        }}
       />
       {snapshot.banner?.kind === "revoked" && pieces.length > 0 && (
         <Pieces
@@ -378,6 +445,7 @@ function DraftEditor(
         />
       )}
       {sheet}
+      {publish.dialog}
       <UI.AlertDialog
         cancelAction={
           <UI.Button onClick={() => setDiscarding(null)} variant="outline">

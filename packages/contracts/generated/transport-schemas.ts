@@ -9991,7 +9991,7 @@ const transportSchemas = {
             "minLength": 1,
             "maxLength": 39
           },
-          "description": "The person's username on the ticket source's provider, as typed; supplied via the request's {login} path segment."
+          "description": "The person's username on the ticket source's provider, as typed; supplied via the request's {login} path segment. Letters, digits and single hyphens only, never starting or ending with a hyphen; any other login is refused 422 with issue code login_invalid on login, before any provider read."
         }
       ],
       "description": "Path parameters naming one ticket source and a provider username to look up on its repository (#69)."
@@ -10974,6 +10974,118 @@ const transportSchemas = {
         "Idempotency-Key and If-Match against the ticket source version required. A replacement that changes any rule advances the source's policy revision and version once; an identical replacement changes nothing. Active requests keep the targets they were admitted with."
       ],
       "description": "Replaces the label routing rules of one ticket source as a whole, under compare-and-swap on the source version."
+    },
+    "ProviderRouteCreate": {
+      "fields": [
+        {
+          "name": "provider",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 64
+          },
+          "description": "Provider key this route sends to, lowercase and stable (for example the name an operator matches against a status page); it is not a display label."
+        },
+        {
+          "name": "endpoint",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 2048
+          },
+          "description": "Provider endpoint host and path the route calls. It must be an https URL with no credentials, query or fragment, on a fully-qualified public name (at least one dot) or a public address, and not on port 0; a loopback, private, link-local or internal host is refused as unprocessable, because the server calls it."
+        },
+        {
+          "name": "region",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 64
+          },
+          "description": "Provider region the endpoint serves; omit for a provider with no regional endpoints."
+        },
+        {
+          "name": "model",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 200
+          },
+          "description": "Model identifier pinned for work admitted on this route."
+        },
+        {
+          "name": "harness",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "pi",
+            "claude_code",
+            "codex",
+            "mastra"
+          ],
+          "description": "Harness path that executes work on this route: pi, claude_code, codex or mastra."
+        },
+        {
+          "name": "billingRoute",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "subscription",
+            "api_metered",
+            "local"
+          ],
+          "description": "Billing route the route's spend follows: subscription, api_metered or local."
+        },
+        {
+          "name": "providerAccountId",
+          "type": "uuid",
+          "required": false,
+          "description": "Provider account of this organization whose identity and quota observation the route uses; omit for a route with no verified account, which then reports usage as unknown rather than zero."
+        },
+        {
+          "name": "workerBindingId",
+          "type": "uuid",
+          "required": false,
+          "description": "Machine provider binding of this organization that places the route; omit for a route served without a machine binding."
+        },
+        {
+          "name": "credentialLocation",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "harness_host",
+            "bakery_secret"
+          ],
+          "description": "Where the credential is kept: harness_host (the machine holds it) or bakery_secret (Bakery holds a secret reference). The credential value is never part of a route."
+        }
+      ],
+      "description": "Registers one organization-scoped provider route: the endpoint, region, model, harness and credential binding that outbound work is admitted against. A new route starts active and unverified with no incident; identity fields cannot change afterwards, so a different endpoint or model is a new route. Account and binding ids must belong to the same organization."
+    },
+    "ProviderRouteUpdate": {
+      "fields": [
+        {
+          "name": "status",
+          "type": "enum",
+          "required": false,
+          "enum": [
+            "active",
+            "disabled",
+            "revoked"
+          ],
+          "description": "Moves the route between active and disabled, or revokes it. A disabled route stays readable but is not probed or admitted for new work; revoked is permanent and cannot be undone."
+        },
+        {
+          "name": "region",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "bounds": {
+            "maxLength": 64
+          },
+          "description": "Replaces the route's region; set to null to clear it. Omit to leave the current region unchanged."
+        }
+      ],
+      "description": "Compare-and-swap partial update to a provider route's lifecycle status or region; unset fields are left unchanged and an update that changes nothing is refused. The route's identity (provider, endpoint, model, harness, billing route, credential location, account and binding) is immutable."
     },
     "LibrarySearchQuery": {
       "fields": [
@@ -29622,6 +29734,24 @@ const transportSchemas = {
       "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
     },
     "definitionPublishGrant.deleted": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "providerRoutes.created": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "providerRoutes.updated": {
       "schemaVersion": 1,
       "payloadFields": {
         "resourceId": "uuid",

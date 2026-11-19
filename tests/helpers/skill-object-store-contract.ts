@@ -13,6 +13,7 @@ function dropFirstPutResponse(store: SkillObjectStore): SkillObjectStore {
     stat: store.stat.bind(store),
     recover: store.recover.bind(store),
     list: store.list.bind(store),
+    delete: store.delete.bind(store),
     async putIfAbsent(key, bytes, digest) {
       await store.putIfAbsent(key, bytes, digest);
       if (drop) {
@@ -88,4 +89,12 @@ export async function skillObjectStoreContract(
   assertEquals(await store.read(key, digest, bytes.length), bytes);
   await assertRejects(() => store.read(key, "0".repeat(64), bytes.length));
   await assertRejects(() => store.read(key, digest, bytes.length + 1));
+
+  // `delete` removes the bytes and answers whether they were there: true once,
+  // false the second time. Collection deletes outside its transaction and
+  // writes the tombstone after, so a retry after a crash must be able to tell
+  // "already gone" from a failure rather than treating the absent key as one.
+  assertEquals(await store.delete(key), true);
+  assertEquals(await store.stat(key), null);
+  assertEquals(await store.delete(key), false);
 }
