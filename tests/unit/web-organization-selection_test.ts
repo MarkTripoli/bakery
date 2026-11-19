@@ -91,6 +91,12 @@ function fakeApi(
       preview: rejecting,
       lookupPerson: rejecting,
       sync: rejecting,
+      links: rejecting,
+      requests: rejecting,
+      labels: rejecting,
+      resyncNote: rejecting,
+      routingRules: rejecting,
+      replaceRoutingRules: rejecting,
     },
     workers: {
       list: rejecting,
