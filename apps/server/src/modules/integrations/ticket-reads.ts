@@ -7,6 +7,8 @@ import {
   type PgTransactionClient,
   withPgTransaction,
 } from "../../platform/database.ts";
+import { repositoryContainer } from "../work/ticket-container.ts";
+import { roleRank } from "../catalog/integration-providers/roles.ts";
 import type {
   IssueRef,
   PredecessorProof,
@@ -321,11 +323,17 @@ async function readIssueOrAbsent(
 const sameRepository = (left: string, right: string): boolean =>
   left.toLowerCase() === right.toLowerCase();
 
-/** The reference to a blocker the snapshot stores. */
+/**
+ * The reference to a blocker the snapshot stores.
+ *
+ * The provider names the blocker's home as a repository; the contract stores a
+ * container. The conversion belongs here, where a provider's own vocabulary
+ * meets the neutral one.
+ */
 const refOfBlocker = (blocker: GitHubBlocker): IssueRef => ({
   id: String(blocker.id),
   number: blocker.number,
-  repositoryFullName: blocker.repositoryFullName,
+  container: repositoryContainer(blocker.repositoryFullName),
 });
 
 /**
@@ -411,7 +419,7 @@ export function createTicketSourceReader(
             ? null
             : detail.stateReason.slice(0, 40),
           locked: detail.locked,
-          repositoryFullName: access.fullName,
+          container: repositoryContainer(access.fullName),
         });
         // An answer outside the contract is never admitted.
         if (!snapshot.success) return failure("provider_error");
@@ -455,10 +463,13 @@ export function createTicketSourceReader(
           );
           if (read.kind === "unavailable") return read;
           if (read.kind === "issue") {
+            const parentContainer = repositoryContainer(
+              detail.parent.repositoryFullName,
+            );
             parent = {
               id: String(read.id),
               number: read.number,
-              repositoryFullName: detail.parent.repositoryFullName,
+              container: parentContainer,
             };
           }
         }
@@ -515,7 +526,7 @@ export function createTicketSourceReader(
         signal,
         async (access): Promise<PredecessorProof | TicketReadFailure> => {
           // The token reaches only the source repository.
-          if (!sameRepository(blocker.repositoryFullName, access.fullName)) {
+          if (!sameRepository(blocker.container.externalId, access.fullName)) {
             return { kind: "inaccessible" };
           }
           const issue = await readIssueOrAbsent(
@@ -692,6 +703,9 @@ export function createTicketSourceReader(
             kind: "present",
             userId: String(read.userId),
             permission: read.permission,
+            // This provider's ladder, mapped once so admission compares a
+            // number and never a provider's role name.
+            rank: roleRank(read.permission),
           };
         },
       );
