@@ -135,6 +135,7 @@ Deno.test("the claim response carries the token and the wire type accepts it", (
     new Date("2026-01-01T00:00:00Z"),
     null,
     credential,
+    "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
   );
   assertEquals(
     (built as { sessionCredential?: string }).sessionCredential,
