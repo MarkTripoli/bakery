@@ -423,3 +423,96 @@ Deno.test("3.12: a run admitted on version N keeps N after a new version is publ
     );
     assertEquals(stored.rows[0].workflow_version_id, first.id);
   }, { env: presetBudgetEnv }));
+
+Deno.test("publishing a version stores its starts canonically, and an invalid start publishes nothing", () =>
+  withFixture(async (fixture) => {
+    // The unit cases prove the schema and the insert; this proves the path a
+    // caller takes. Two mutants survived every PR test before it existed: the
+    // insert binding "[]" instead of the draft's starts, and publish dropping
+    // the parse. Both produce a published version that silently starts nothing.
+    const seed = await seedOrganization(fixture, "starts", { role: "admin" });
+    const person = { seed };
+    const { workflowId, draft } = await seedWorkflowDraft(
+      fixture,
+      person,
+      "starts-flow",
+    );
+
+    // Written directly, because starts are not a definition edit: they sit
+    // beside the specification and no route authors them yet.
+    const starts = [{
+      id: "on-ready",
+      on: {
+        kind: "event",
+        eventKind: "work_item.ready",
+        filter: { state: "open" },
+      },
+    }];
+    await fixture.pgDatabase.query(
+      `update bakery.workflow_drafts set starts = $1::jsonb
+        where organization_id = $2 and id = $3`,
+      [JSON.stringify(starts), seed.organizationId, draft.id],
+    );
+
+    const published = await json<Version>(
+      await publish(fixture, person, workflowId, draft, {
+        expectedDigest: draft.digest,
+      }),
+      200,
+    );
+    const stored = await fixture.pgDatabase.query<
+      { starts: unknown; digest: string; normalized_spec: unknown }
+    >(
+      `select starts, digest, normalized_spec from bakery.workflow_versions
+        where organization_id = $1 and id = $2`,
+      [seed.organizationId, published.id],
+    );
+    assertEquals(stored.rows.length, 1);
+    // Canonical JSON text, not whatever key order the caller sent.
+    assertEquals(
+      stored.rows[0].starts,
+      [{
+        id: "on-ready",
+        on: {
+          eventKind: "work_item.ready",
+          filter: { state: "open" },
+          kind: "event",
+        },
+      }],
+    );
+    // Starts sit beside the specification, so publishing one moves no digest.
+    assertEquals(stored.rows[0].digest, draft.digest);
+
+    // An invalid start is refused on the way in, and nothing is published.
+    const second = await seedWorkflowDraft(fixture, person, "starts-bad");
+    await fixture.pgDatabase.query(
+      `update bakery.workflow_drafts set starts = $1::jsonb
+        where organization_id = $2 and id = $3`,
+      [
+        JSON.stringify([{
+          id: "Not An Id",
+          on: { kind: "event", eventKind: "", filter: {} },
+        }]),
+        seed.organizationId,
+        second.draft.id,
+      ],
+    );
+    const refusal = await publish(fixture, person, second.workflowId, {
+      id: second.draft.id,
+      version: second.draft.version,
+    }, { expectedDigest: second.draft.digest });
+    assert(
+      refusal.status >= 400 && refusal.status < 500,
+      `an invalid start is refused, not published: ${refusal.status}`,
+    );
+    assertEquals(
+      await countRows(
+        fixture,
+        `select count(*)::text as count from bakery.workflow_versions
+          where organization_id = $1 and workflow_id = $2`,
+        [seed.organizationId, second.workflowId],
+      ),
+      0,
+      "no version row is written for a refused start",
+    );
+  }));
