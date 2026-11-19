@@ -774,7 +774,27 @@ async function waitForTerminalRows(
           and event.event_type = 'job.succeeded'`,
       [jobId],
     );
-    if (rows[0]?.count === 1) return;
+    if (rows[0]?.count === 1) {
+      // A plan run is closed by the engine after the worker's result lands, so
+      // the task, run and step reach completed a moment after the job event.
+      const closed = await stack.psql<{ closed: boolean }>(
+        `select (task.status = 'completed' and run.status = 'completed'
+                  and step.status = 'completed') as closed
+           from bakery.jobs job
+           join bakery.run_steps step
+             on step.organization_id = job.organization_id
+            and step.id = job.run_step_id
+           join bakery.workflow_runs run
+             on run.organization_id = step.organization_id
+            and run.id = step.run_id
+           join bakery.tasks task
+             on task.organization_id = run.organization_id
+            and task.id = run.task_id
+          where job.id = $1`,
+        [jobId],
+      );
+      if (closed[0]?.closed === true) return;
+    }
     await new Promise<void>((resolve) => setTimeout(resolve, 100));
   }
   const [attempts, ...logs] = await Promise.all([
