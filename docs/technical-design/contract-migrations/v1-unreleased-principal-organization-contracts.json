@@ -1,13 +1,22 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "3b8d4ef5651aeb7feb2a38518001271c1436646f"
+    "6eefa213893fcce48b6511332ef3798e3524602b"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:fde2bf41e3caf11df66620b7a2a88273a0a65d334f02a2ee432fde53c0d59580",
-  "reason": "#69 ticket preview, ticket link reads and status note re-bind by dev-server on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main 3b8d4ef5651aeb7feb2a38518001271c1436646f: ticketSources.preview now answers a TicketPreviewResult (counts would start / plan only / held / blocked and one entry per issue with its verdict and reasons) instead of a TicketOperationReceipt, and TicketPreviewCreate gains an optional draft policy and a defined filters object; the preview stores nothing. ticketTaskLinks.list (GET /v1/ticket-task-links, by ticket or by task), ticketTaskLinks.resyncNote (POST /v1/ticket-task-links/{id}/note-syncs, which posts Bakery's status note through the provider's comment action, rewrites it in place by its stored id afterwards and re-creates it when deleted on the provider) and the externalTicketId filter of pullRequests.list are additive; TicketTaskLink descriptions now say what the note fields hold. The breaking drift is the one preview response reference; the approval it displaced at sha256:c22cd3f2f4e54fa2a414d3d24c1f9872c04df3eaead7354f46ea1cfaea241c5d is preserved unchanged first below.",
+  "targetCompatibilityDigest": "sha256:aa309a8ee340906dd99345446a09e60ab7bb4639fd65d30f9d375223ff394335",
+  "reason": "#72 memory current-revision projection re-bind by dev-bugfix on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main 6eefa213893fcce48b6511332ef3798e3524602b: MemoryEntry gains a required currentRevision (MemoryRevision|null) and MemoryRevision gains required nullable sourceName and sourceRevision (the cited document's name and version number, null unless the source is available or deleted for this reader), so the Memory list shows wording, source, confidence and expiry from one read instead of one revision read per entry. The drift is those fields becoming required on outputs no client writes; the approval it displaced at sha256:fde2bf41e3caf11df66620b7a2a88273a0a65d334f02a2ee432fde53c0d59580 is preserved unchanged first below.",
   "priorApprovals": [
+    {
+      "fromBaseRefs": [
+        "3b8d4ef5651aeb7feb2a38518001271c1436646f"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:fde2bf41e3caf11df66620b7a2a88273a0a65d334f02a2ee432fde53c0d59580",
+      "reason": "#69 ticket preview, ticket link reads and status note re-bind by dev-server on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main 3b8d4ef5651aeb7feb2a38518001271c1436646f: ticketSources.preview now answers a TicketPreviewResult (counts would start / plan only / held / blocked and one entry per issue with its verdict and reasons) instead of a TicketOperationReceipt, and TicketPreviewCreate gains an optional draft policy and a defined filters object; the preview stores nothing. ticketTaskLinks.list (GET /v1/ticket-task-links, by ticket or by task), ticketTaskLinks.resyncNote (POST /v1/ticket-task-links/{id}/note-syncs, which posts Bakery's status note through the provider's comment action, rewrites it in place by its stored id afterwards and re-creates it when deleted on the provider) and the externalTicketId filter of pullRequests.list are additive; TicketTaskLink descriptions now say what the note fields hold. The breaking drift is the one preview response reference; the approval it displaced at sha256:c22cd3f2f4e54fa2a414d3d24c1f9872c04df3eaead7354f46ea1cfaea241c5d is preserved unchanged first below."
+    },
     {
       "fromBaseRefs": [
         "1ff39fed67f2fa59261bbd393aa8e4acbcbde8e2"
