@@ -548,12 +548,21 @@ async function boundedClose(
   budgetMs: number,
 ): Promise<void> {
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let timedOut = false;
   const budget = new Promise<void>((resolve) => {
-    timer = setTimeout(resolve, budgetMs);
+    timer = setTimeout(() => {
+      timedOut = true;
+      resolve();
+    }, budgetMs);
   });
   const closed = fixture.close().catch(() => undefined);
   try {
     await Promise.race([closed, budget]);
+    if (timedOut) {
+      console.error(
+        `worker fixture teardown gave up after ${budgetMs}ms: a client is still checked out, so the pool was left open`,
+      );
+    }
   } finally {
     clearTimeout(timer);
     // Let a close that finished late settle without holding the fixture lock.
