@@ -216760,9 +216760,10 @@
               "type": "string",
               "enum": [
                 "available",
+                "part_unavailable",
                 "unavailable"
               ],
-              "description": "Whether the stored destination still resolves and the recipient is still authorized to open it; unavailable means the client shows the no-longer-available state."
+              "description": "Whether the stored destination still resolves and the recipient is still authorized to open it. part_unavailable means the task or document opens but the inner part (step, card, message or comment) is gone, so the client opens the page with no anchor and says so; unavailable means the client shows the no-longer-available state."
             },
             "targetKind": {
               "type": "string",
@@ -216782,7 +216783,7 @@
                 {
                   "type": "string",
                   "maxLength": 2048,
-                  "description": "A validated relative internal route to open when available, or null when the destination is gone or no longer accessible. NotificationTarget.path must contain at most 2048 characters."
+                  "description": "A validated relative internal route to open when available or part_unavailable, or null when the destination is gone or no longer accessible. NotificationTarget.path must contain at most 2048 characters."
                 },
                 {
                   "type": "null",
@@ -216796,7 +216797,7 @@
                 {
                   "type": "string",
                   "maxLength": 200,
-                  "description": "Optional exact anchor inside the destination to scroll to, or null. NotificationTarget.anchor must contain at most 200 characters."
+                  "description": "Optional exact anchor inside the destination, in kind:id form (step:, approval:, question:, message:, comment:) or version:N for a document version, or null. NotificationTarget.anchor must contain at most 200 characters."
                 },
                 {
                   "type": "null",
@@ -222875,7 +222876,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:65c690b19df340aecfbb2851f0b704a74d6e41a68a49cf09052818365c9423a9",
+  "compatibilityDigest": "sha256:720f9cd755ed0efcac589ba0feb8c15e234c7b088efff7e67bff574188f1a4b0",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -403365,9 +403366,10 @@
           "type": "string",
           "enum": [
             "available",
+            "part_unavailable",
             "unavailable"
           ],
-          "description": "Whether the stored destination still resolves and the recipient is still authorized to open it; unavailable means the client shows the no-longer-available state."
+          "description": "Whether the stored destination still resolves and the recipient is still authorized to open it. part_unavailable means the task or document opens but the inner part (step, card, message or comment) is gone, so the client opens the page with no anchor and says so; unavailable means the client shows the no-longer-available state."
         },
         "targetKind": {
           "type": "string",
@@ -403387,7 +403389,7 @@
             {
               "type": "string",
               "maxLength": 2048,
-              "description": "A validated relative internal route to open when available, or null when the destination is gone or no longer accessible. NotificationTarget.path must contain at most 2048 characters."
+              "description": "A validated relative internal route to open when available or part_unavailable, or null when the destination is gone or no longer accessible. NotificationTarget.path must contain at most 2048 characters."
             },
             {
               "type": "null",
@@ -403401,7 +403403,7 @@
             {
               "type": "string",
               "maxLength": 200,
-              "description": "Optional exact anchor inside the destination to scroll to, or null. NotificationTarget.anchor must contain at most 200 characters."
+              "description": "Optional exact anchor inside the destination, in kind:id form (step:, approval:, question:, message:, comment:) or version:N for a document version, or null. NotificationTarget.anchor must contain at most 200 characters."
             },
             {
               "type": "null",
