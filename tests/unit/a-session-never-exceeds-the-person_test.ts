@@ -1,4 +1,4 @@
-import { assert, assertEquals, assertRejects } from "@std/assert";
+import { assert, assertEquals, assertRejects, assertThrows } from "@std/assert";
 import { z } from "zod";
 import {
   type ActionAuthorityRunner,
@@ -14,7 +14,10 @@ import {
   dispatchedContext,
   sessionDispatchPrincipal,
 } from "../../apps/server/src/modules/execution/session-routes.ts";
-import type { SessionOperationClaim } from "../../apps/server/src/modules/execution/session-credential.ts";
+import {
+  type SessionOperationClaim,
+  SessionOperationError,
+} from "../../apps/server/src/modules/execution/session-credential.ts";
 
 /**
  * A session must never exceed the person it acts for.
@@ -35,6 +38,7 @@ const claim = (
   attemptId: "00000000-0000-4000-8000-0000000000c2",
   actsForPrincipalId: "00000000-0000-4000-8000-0000000000c3",
   actsForPrincipalType: "human",
+  actsForPrincipalDisplayName: "Ada Admin",
   workerSessionId: "00000000-0000-4000-8000-0000000000c4",
   workerSessionGeneration: 1n,
   fence: 1n,
@@ -48,6 +52,35 @@ Deno.test("dispatch carries the person, not the worker host", () => {
   const principal = sessionDispatchPrincipal(claim());
   assertEquals(principal.principalId, "00000000-0000-4000-8000-0000000000c3");
   assertEquals(principal.principalType, "human");
+  assertEquals(principal.displayName, "Ada Admin");
+});
+
+Deno.test("a person the guard cannot name is refused, not dispatched nameless", () => {
+  // requireSubject refuses an empty name, so dispatching one would fail every
+  // call for everyone, admins included, as AUTH_FORBIDDEN.
+  for (const actsForPrincipalDisplayName of [undefined, "", "  "]) {
+    assertThrows(
+      () => sessionDispatchPrincipal(claim({ actsForPrincipalDisplayName })),
+      SessionOperationError,
+      "SESSION_CREDENTIAL_NO_PRINCIPAL",
+    );
+  }
+});
+
+Deno.test("the dispatched request carries the claim's organization, whatever the worker sent", () => {
+  const sent = new Request("http://localhost/v1/runs/x", {
+    method: "POST",
+    headers: {
+      "Bakery-Organization-Id": "00000000-0000-4000-8000-0000000000ff",
+    },
+  });
+  for (const request of [new Request("http://localhost/v1/runs/x"), sent]) {
+    const context = dispatchedContext(request, "attempt", claim());
+    assertEquals(
+      context.request.headers.get("Bakery-Organization-Id"),
+      "00000000-0000-4000-8000-0000000000c1",
+    );
+  }
 });
 
 Deno.test("the context the route dispatches carries the person", () => {
@@ -62,6 +95,7 @@ Deno.test("the context the route dispatches carries the person", () => {
   assertEquals(context.principal, {
     principalId: "00000000-0000-4000-8000-0000000000c3",
     principalType: "human",
+    displayName: "Ada Admin",
   });
 });
 

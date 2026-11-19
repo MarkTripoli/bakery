@@ -85,6 +85,17 @@ export type SessionRouteOptions =
  */
 const ORGANIZATION_HEADER = "Bakery-Organization-Id";
 
+// A principal the guard cannot name is refused here rather than dispatched with
+// an empty name: the guard would refuse it later for a reason that looks like
+// missing authority, which is how every call once failed for everyone.
+function requiredDisplayName(claim: SessionOperationClaim): string {
+  const name = claim.actsForPrincipalDisplayName;
+  if (name === undefined || name.trim() === "") {
+    throw new SessionOperationError("SESSION_CREDENTIAL_NO_PRINCIPAL");
+  }
+  return name;
+}
+
 export function sessionDispatchPrincipal(
   claim: SessionOperationClaim,
 ): Readonly<{
@@ -101,7 +112,7 @@ export function sessionDispatchPrincipal(
     // outsider - so the route looked strict while refusing all work, and the
     // "a session never exceeds the person" test passed because nothing ever
     // succeeded in the first place.
-    displayName: claim.actsForPrincipalDisplayName ?? "",
+    displayName: requiredDisplayName(claim),
   };
 }
 

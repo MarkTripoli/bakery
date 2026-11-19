@@ -54,6 +54,18 @@ Deno.test("a real claim hands back a credential bound to its attempt", () =>
     // principal is a worker, and a credential acting for one would let a session
     // speak as the machine rather than as the person who asked for the work.
     assertEquals(resolved.claim.actsForPrincipalType, "human");
+    // The dispatch principal carries the person's real name from
+    // bakery.principals, because the action guard refuses a subject it cannot
+    // name.
+    const principal = await fixture.pgDatabase.query<{ displayName: string }>(
+      `select display_name as "displayName" from bakery.principals where id = $1`,
+      [fixture.principalId],
+    );
+    assert(principal.rows[0].displayName.trim() !== "");
+    assertEquals(
+      resolved.claim.actsForPrincipalDisplayName,
+      principal.rows[0].displayName,
+    );
     assert(
       resolved.claim.scopes.length > 0,
       "the credential was issued with no scopes, so it can call nothing",
