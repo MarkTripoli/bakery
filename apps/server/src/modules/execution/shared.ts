@@ -1,6 +1,10 @@
 import type { ExecutionTelemetry } from "./telemetry.ts";
 import { type Context, type MiddlewareHandler } from "hono";
-import type { BudgetRuntimeConfig, SecretsKeyConfig } from "@bakery/config";
+import type {
+  AgentSpawnConfig,
+  BudgetRuntimeConfig,
+  SecretsKeyConfig,
+} from "@bakery/config";
 import { z } from "zod";
 import {
   contractSchemas,
@@ -129,6 +133,8 @@ type ExecutionRouteOptions = {
   publicBaseUrl: string;
   secret: string;
   budget?: BudgetRuntimeConfig;
+  /** Bounds on what an agent may spawn and steer (#413); defaults when absent. */
+  agentSpawn?: AgentSpawnConfig;
   secretsKey?: SecretsKeyConfig;
   secretsFetch?: typeof fetch;
   /**
