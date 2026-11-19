@@ -171,6 +171,12 @@ export function SsoPage() {
       );
       await refresh();
     });
+  // The row as the page now holds it: the dialog's text, its situation and the
+  // flag Confirm sends all follow this one row, never the row captured when
+  // Remove was clicked (its domain may have been verified since).
+  const removingNow = removing
+    ? data?.providers.find((row) => row.providerId === removing.providerId)
+    : undefined;
   const stopRemoving = (providerId: string) => {
     setRemoving(null);
     setRemoveProblem(null);
@@ -478,27 +484,19 @@ export function SsoPage() {
                 : undefined}
             />
           )}
-        {data && removing &&
-            data.providers.some((row) => row.providerId === removing.providerId)
+        {data && removingNow
           ? (
             <SsoRemoveDialog
-              busy={busy === `remove:${removing.providerId}`}
-              onCancel={() => stopRemoving(removing.providerId)}
+              busy={busy === `remove:${removingNow.providerId}`}
+              onCancel={() => stopRemoving(removingNow.providerId)}
               onConfirm={() =>
                 void confirmRemoval(
-                  removing,
-                  removalSituation(data, removing) === "onlyVerified",
+                  removingNow,
+                  removalSituation(data, removingNow) === "onlyVerified",
                 )}
               problem={removeProblem}
-              provider={data.providers.find((row) =>
-                row.providerId === removing.providerId
-              ) ?? removing}
-              situation={removalSituation(
-                data,
-                data.providers.find((row) =>
-                  row.providerId === removing.providerId
-                ) ?? removing,
-              )}
+              provider={removingNow}
+              situation={removalSituation(data, removingNow)}
             />
           )
           : null}

@@ -672,6 +672,35 @@ test.describe("single sign-on settings", () => {
     ]);
   });
 
+  test("a stale row: the domain was verified while the dialog was open, and Confirm then sends the flag the dialog now shows", async ({ page }) => {
+    const state = await ssoFixture(page, {
+      enforce: true,
+      providers: [ENTRA_VERIFIED, OKTA_UNVERIFIED],
+    });
+    await page.goto("/settings/organization/sso");
+    await page.getByRole("button", { name: "Remove okta", exact: true })
+      .click();
+    const dialog = page.getByRole("alertdialog", { name: "Remove okta?" });
+    await expect(dialog).toContainText("okta was never turned on");
+    // Meanwhile another administrator removes entra and okta's domain gets verified.
+    state.providers = [OKTA_VERIFIED];
+    await dialog.getByRole("button", { name: "Remove provider" }).click();
+    const stop = page.getByRole("alertdialog", {
+      name: "Remove okta and stop requiring SSO?",
+    });
+    await expect(stop).toBeVisible();
+    await expect(page.getByText("This page was out of date.")).toBeVisible();
+    // Confirm again: the request carries the flag the refreshed dialog shows.
+    await stop.getByRole("button", { name: "Remove and stop requiring SSO" })
+      .click();
+    await expect(page.getByText("Removed okta. Single sign-on")).toBeVisible();
+    expect(state.removeRequests).toEqual([
+      { providerId: "okta" },
+      { providerId: "okta", stopRequiringSso: true },
+    ]);
+    expect(state.enforce).toBe(false);
+  });
+
   test("a provider someone else already removed says so and the list reloads", async ({ page }) => {
     const state = await ssoFixture(page, { providers: [OKTA_VERIFIED] });
     await page.goto("/settings/organization/sso");

@@ -354,6 +354,10 @@ export function createSsoAuthPlugins(
           const operation = SSO_PROVIDER_MUTATION_PATHS[pending.path];
           try {
             await withPgTransaction(database, async (transaction) => {
+              // True only when, under the lock, removing this provider really
+              // would leave SSO required with nothing to sign in through, and
+              // the admin asked for the requirement to end with it.
+              let endsRequirement = false;
               if (pending.path === "/sso/delete-provider") {
                 // The page may have been out of date: SSO may have been turned
                 // on, or another provider removed, since the guard ran. The
@@ -376,6 +380,7 @@ export function createSsoAuthPlugins(
                 if (locksOut && !pending.stopRequiringSso) {
                   throw new LastProviderRefused();
                 }
+                endsRequirement = locksOut && pending.stopRequiringSso === true;
               }
               if (pending.path === "/sso/register") {
                 const attached = await transaction.query(
@@ -401,10 +406,7 @@ export function createSsoAuthPlugins(
                     : {},
                 },
               );
-              if (
-                pending.path === "/sso/delete-provider" &&
-                pending.stopRequiringSso
-              ) {
+              if (endsRequirement) {
                 // Removing the only verified provider and ending the SSO
                 // requirement stand or fall together, each with its audit row.
                 const turnedOff = await transaction.query(
@@ -439,6 +441,7 @@ export function createSsoAuthPlugins(
             if (!refused) log("AUTH_AUDIT_WRITE_FAILED");
             if (pending.snapshot) {
               // No SSO change may stand without its audit row: put it back.
+              let restored = true;
               await withPgTransaction(
                 database,
                 (transaction) =>
@@ -447,8 +450,12 @@ export function createSsoAuthPlugins(
                     pending.providerId,
                     pending.snapshot!,
                   ),
-              ).catch(() => log("AUTH_SSO_RESTORE_FAILED"));
-              if (refused) {
+              ).catch(() => {
+                restored = false;
+                log("AUTH_SSO_RESTORE_FAILED");
+              });
+              // "Nothing was removed" is only true when the put-back worked.
+              if (refused && restored) {
                 refuse(
                   "SSO_LAST_PROVIDER_REQUIRED",
                   "CONFLICT",
