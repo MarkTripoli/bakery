@@ -38,6 +38,14 @@ export function isAgentPower(value: unknown): value is AgentPower {
     (AGENT_POWERS as readonly string[]).includes(value);
 }
 
+/**
+ * How far up or down the task tree the own-work check walks. The tree has no
+ * cycle by construction, but a recursive query with no bound would never end on
+ * one, so the walk is bounded and a lineage deeper than this is not searched
+ * further: far past any real nesting, and cheap to read.
+ */
+const LINEAGE_DEPTH_BOUND = 64;
+
 /** The refusal for an agent acting on work that is its own or its lineage's. */
 export const AGENT_TARGET_OWN_WORK = "agent_target_own_work";
 
@@ -229,20 +237,23 @@ export async function assertAgentMayTarget(
     // Own run included: it belongs to the agent's own task, which is in the lineage.
     const lineage = await transaction.query(
       `with recursive up as (
-         select id, parent_task_id from bakery.tasks
+         select id, parent_task_id, 0 as depth from bakery.tasks
           where organization_id = $1 and id = $2
          union all
-         select task.id, task.parent_task_id
+         select task.id, task.parent_task_id, up.depth + 1
            from up
            join bakery.tasks as task
              on task.organization_id = $1 and task.id = up.parent_task_id
+          where up.depth < ${LINEAGE_DEPTH_BOUND}
        ), down as (
-         select id from bakery.tasks where organization_id = $1 and id = $2
+         select id, 0 as depth from bakery.tasks
+          where organization_id = $1 and id = $2
          union all
-         select task.id
+         select task.id, down.depth + 1
            from down
            join bakery.tasks as task
              on task.organization_id = $1 and task.parent_task_id = down.id
+          where down.depth < ${LINEAGE_DEPTH_BOUND}
        )
        select 1 where $3::uuid in (select id from up)
                    or $3::uuid in (select id from down)`,

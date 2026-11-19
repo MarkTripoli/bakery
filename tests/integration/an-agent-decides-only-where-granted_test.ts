@@ -281,3 +281,26 @@ Deno.test("a decide grant reaches only the workflows it names: the target's must
     const allowed = await decide(approvalId);
     assertEquals(allowed.status, 200, await allowed.text());
   }));
+
+Deno.test("a cycle in the task tree cannot hang the own-work check", () =>
+  withWorkerFixture(async (fixture) => {
+    const { decide, own } = await sessionFor(fixture, { granted: true });
+    // Two tasks that are each other's parent: the tree has no such shape, but a
+    // walk with no bound would never end on it. The bounded walk finishes, and
+    // the neighbour is in the agent's lineage, so it is refused.
+    const neighbour = await otherRun()(fixture);
+    await fixture.pgDatabase.query(
+      `update bakery.tasks set parent_task_id = $3
+        where organization_id = $1 and id = $2`,
+      [fixture.organizationId, own.taskId, neighbour.taskId],
+    );
+    await fixture.pgDatabase.query(
+      `update bakery.tasks set parent_task_id = $3
+        where organization_id = $1 and id = $2`,
+      [fixture.organizationId, neighbour.taskId, own.taskId],
+    );
+    const approvalId = await approvalIn(fixture, neighbour);
+    const response = await decide(approvalId);
+    assertEquals(response.status, 403, await response.text());
+    await assertUntouched(fixture, approvalId);
+  }));
