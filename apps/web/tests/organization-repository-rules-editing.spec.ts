@@ -307,7 +307,8 @@ test.describe("organization repository rules: editing", () => {
     await page.keyboard.press("Escape");
     await expect(menu).toHaveCount(0);
     await expect(add).toBeFocused();
-    expect((await box(row)).y).toBe(before.y);
+    // The page settles once the list has gone; the rule row is back where it was.
+    await expect.poll(async () => (await box(row)).y).toBe(before.y);
   });
 
   test("the editor does not repeat the list description and ends with Cancel, then Apply to draft", async ({ page }) => {
