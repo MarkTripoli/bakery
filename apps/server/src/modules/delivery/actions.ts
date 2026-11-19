@@ -26,6 +26,7 @@ type PullRequestQuery = z.output<typeof contractSchemas.PullRequestQuery>;
 type RepositoryQuery = z.output<typeof contractSchemas.RepositoryQuery>;
 type MergeEntryCreate = z.output<typeof contractSchemas.MergeEntryCreate>;
 type PullRequestMerge = z.output<typeof contractSchemas.PullRequestMerge>;
+type MergeAttemptQuery = z.output<typeof contractSchemas.MergeAttemptQuery>;
 type MergeAttemptReconcile = z.output<
   typeof contractSchemas.MergeAttemptReconcile
 >;
@@ -63,6 +64,10 @@ export type DeliveryActionHandlers = {
     context: ActionContext,
     input: PullRequestMerge,
   ) => Promise<z.output<typeof contractSchemas.MergeAttempt>>;
+  mergeAttemptsList: (
+    context: ActionContext,
+    input: MergeAttemptQuery,
+  ) => Promise<z.output<typeof contractSchemas["Page<MergeAttempt>"]>>;
   mergeAttemptsReconcile: (
     context: ActionContext,
     input: MergeAttemptReconcile,
@@ -150,6 +155,17 @@ export function createDeliveryActionRegistry(
     policy: queryPolicy,
     transactionIsolation: TransactionIsolation.RepeatableRead,
     handler: handlers.mergeEntriesList,
+  });
+
+  registry.register({
+    name: DeliveryImplementedAction.MergeAttemptsList,
+    method: HttpMethod.Get,
+    path: "/v1/merge-attempts",
+    input: contractSchemas.MergeAttemptQuery,
+    output: contractSchemas["Page<MergeAttempt>"],
+    policy: queryPolicy,
+    transactionIsolation: TransactionIsolation.RepeatableRead,
+    handler: handlers.mergeAttemptsList,
   });
 
   registry.register({

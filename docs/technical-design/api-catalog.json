@@ -10274,6 +10274,28 @@
         "IDEMPOTENCY_IN_FLIGHT",
         "INTERNAL"
       ]
+    },
+    {
+      "group": "Delivery",
+      "method": "GET",
+      "path": "/v1/merge-attempts",
+      "action": "mergeAttempts.list",
+      "access": "Developer",
+      "permission": "pullRequest:read",
+      "organizationContext": "required_authenticated_context",
+      "input": "MergeAttemptQuery",
+      "output": "Page<MergeAttempt>",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ],
+      "event": "",
+      "mcp": null,
+      "idempotency": "read"
     }
   ]
 }

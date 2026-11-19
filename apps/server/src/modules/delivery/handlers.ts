@@ -8,6 +8,7 @@ import {
   listMergeEntries,
   type MergeEntryCreateInput,
 } from "./merge-entries.ts";
+import { listMergeAttempts } from "./merge-attempts.ts";
 import {
   type MergeDispatchDependencies,
   mergePullRequest,
@@ -36,6 +37,19 @@ export function createDeliveryHandlers(
         requireWorkTransaction(context);
       return contractSchemas["Page<MergeEntry>"].parse(
         await listMergeEntries(
+          transaction,
+          organizationId,
+          principalId,
+          secret,
+          input,
+        ),
+      );
+    },
+    mergeAttemptsList: async (context, input) => {
+      const { transaction, organizationId, principalId } =
+        requireWorkTransaction(context);
+      return contractSchemas["Page<MergeAttempt>"].parse(
+        await listMergeAttempts(
           transaction,
           organizationId,
           principalId,

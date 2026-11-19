@@ -11679,6 +11679,41 @@ const transportSchemas = {
         }
       ],
       "description": "Unauthenticated redemption of a password reset link: sets the new password, consumes the link and signs the person out of every browser session. An unknown, used, expired or revoked link gets one identical refusal."
+    },
+    "MergeAttemptQuery": {
+      "fields": [
+        {
+          "name": "pullRequestId",
+          "type": "uuid",
+          "required": true,
+          "description": "The tracked pull request whose merge attempts are listed. Another organization's pull request reads as an empty page."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque pagination cursor from a previous response's `nextCursor` for this list; omit for the first page and never parse or construct it directly."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum number of records returned per page; defaults to 25, capped at 100."
+        }
+      ],
+      "pagination": "pagination",
+      "rules": [
+        "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind cursor to this operation, current principal/scope, filters and ordering; validate and reauthorize before the keyset query."
+      ],
+      "description": "Filters for listing one pull request's merge attempts, newest first."
     }
   },
   "projections": {
@@ -18411,7 +18446,9 @@ const transportSchemas = {
         "mergedSha",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "mayMerge",
+        "mergeMethod"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -18426,7 +18463,9 @@ const transportSchemas = {
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
         "version": "integer",
-        "runId": "uuid|null"
+        "runId": "uuid|null",
+        "mayMerge": "boolean",
+        "mergeMethod": "enum(merge|squash|rebase)"
       },
       "nullableFields": [
         "mergedSha",
@@ -18446,7 +18485,9 @@ const transportSchemas = {
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
         "version": "Optimistic-concurrency version used when updating the record.",
-        "runId": "Workflow run that opened the pull request; its check runs and review cycles at the pull request's head name this pull request. Null when the pull request was registered without a run."
+        "runId": "Workflow run that opened the pull request; its check runs and review cycles at the pull request's head name this pull request. Null when the pull request was registered without a run.",
+        "mayMerge": "Whether the caller holds the permission to merge this pull request from Bakery (the pullRequest:merge permission). It says nothing about whether the pull request is ready to merge; the checks and the dispatch still decide that.",
+        "mergeMethod": "The merge method Bakery uses for this pull request: squash, the repository practice. The page sends this value and does not choose one."
       }
     },
     "ReviewCycle": {
@@ -29583,6 +29624,10 @@ const transportSchemas = {
         "url": "Absolute web URL of the reset page with the one-time token; hand it to the person over a trusted channel.",
         "expiresAt": "UTC timestamp one hour after issue, after which the link no longer works."
       }
+    },
+    "Page<MergeAttempt>": {
+      "pageOf": "MergeAttempt",
+      "description": "Cursor page of a pull request's merge attempts, newest first, returned by `GET /v1/merge-attempts`. An attempt whose outcome Bakery does not know reads as `unknown` until a later read settles it, so the state survives a reload. `nextCursor: null` marks the last page; there are no page numbers or offsets."
     }
   },
   "pageEnvelope": {
