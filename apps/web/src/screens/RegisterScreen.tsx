@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { MessageKey } from "@bakery/i18n";
 import * as UI from "@bakery/ui";
+import { PASSWORD_POLICY } from "@bakery/contracts/auth-provider-client";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { useAuthBrandProps } from "./auth-brand.tsx";
 
@@ -158,7 +159,10 @@ export function RegisterScreen(
           </UI.Field>
           <UI.Field
             error={passwordError
-              ? translate(passwordError)
+              ? translate(passwordError, {
+                minLength: PASSWORD_POLICY.minLength,
+                maxLength: PASSWORD_POLICY.maxLength,
+              })
               : passwordInvalid
               ? translate("problems.VALIDATION_FAILED.title")
               : undefined}
