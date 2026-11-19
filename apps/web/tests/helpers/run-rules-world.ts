@@ -157,7 +157,13 @@ export type World = {
    * A draft task with no run: Start run is answered with this refusal, as when
    * the repository's rules changed after the task was planned.
    */
-  refusedStart?: { status: number; code: string; title: string };
+  refusedStart?: {
+    status: number;
+    code: string;
+    title: string;
+    /** The server's plain reason, as it now sends it for a 412 on a changed policy. */
+    reason?: string;
+  };
 };
 
 export async function openRun(page: Page, world: World = {}) {
@@ -205,6 +211,7 @@ export async function openRun(page: Page, world: World = {}) {
               requestId: uuid(310),
               traceId: uuid(311),
               retryable: false,
+              ...(refusal.reason ? { reason: refusal.reason } : {}),
             },
           })
           : route.fallback(),

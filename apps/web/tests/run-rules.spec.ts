@@ -174,19 +174,25 @@ test.describe("Rules this run used", () => {
     // other rules is refused at admission, and the person is told why.
     await openRun(page, {
       refusedStart: {
-        status: 409,
+        status: 412,
         code: "PRECONDITION_FAILED",
-        title: "The repository rules changed since this task was planned",
+        title: "Precondition failed",
+        reason: "source_policy_changed",
       },
     });
     const start = page.getByRole("button", { name: "Start run", exact: true });
     await start.click();
     const refusal = page.getByRole("status").filter({
-      hasText: "The server did not admit the run.",
+      hasText: "The repository's rules changed before this run could start.",
     });
     await expect(refusal).toContainText(
-      "The repository rules changed since this task was planned",
+      "The repository's rules changed before this run could start. Check the rules, then start the run again.",
     );
+    await expect(refusal.getByRole("link", { name: "Open rules" }))
+      .toHaveAttribute(
+        "href",
+        new RegExp(`/projects/repositories/${REPOSITORY_ID}/rules$`),
+      );
     // No run was made up: still a draft with a Start run to try again.
     await expect(page.getByRole("heading", { name: "Current run" }))
       .toHaveCount(0);
