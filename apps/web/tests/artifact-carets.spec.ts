@@ -1,9 +1,10 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 import { openEditor } from "./helpers/artifact-edit-world.ts";
 import { MOCK_PRINCIPAL_ID } from "./helpers/mock-session.ts";
 import { still } from "./helpers/stills.ts";
 
 const TEXT = "Hello brave new world";
+const LINE = "Hello brave new world, and more";
 
 test.describe("Other people's carets", () => {
   test("a caret carries the person's first name and sits where they are", async ({ page }) => {
@@ -103,5 +104,75 @@ test.describe("Other people's carets", () => {
     )!;
     expect(typeof last.cursor!.anchor).toBe("string");
     expect(last.cursor!.head.length).toBeGreaterThan(0);
+  });
+
+  const phone = (page: Page) => (page.viewportSize()?.width ?? 1280) < 744;
+  const label = (page: Page) =>
+    page.locator(".ui-document-editor__caret-label");
+
+  test("an agent's caret carries its whole name", async ({ page }) => {
+    test.skip(phone(page), "phones draw carets without names");
+    await openEditor(page, TEXT, {
+      peers: [{
+        displayName: "Coding agent",
+        principalType: "service",
+        from: 6,
+        to: 6,
+      }],
+    });
+    await expect(label(page)).toHaveText("Coding agent");
+    await still(page, "caret-agent");
+  });
+
+  test("a long agent name is cut at 24 characters' width and stays whole in the text", async ({ page }) => {
+    test.skip(phone(page), "phones draw carets without names");
+    await openEditor(page, TEXT, {
+      peers: [{
+        displayName: "Release notes and changelog writing agent",
+        principalType: "worker",
+        from: 6,
+        to: 6,
+      }],
+    });
+    await expect(label(page)).toHaveText(
+      "Release notes and changelog writing agent",
+    );
+    expect(
+      await label(page).evaluate((el) => el.scrollWidth > el.clientWidth),
+    ).toBe(true);
+    await still(page, "caret-agent-long");
+  });
+
+  test("near the right edge the name sits left of the caret, inside the editor", async ({ page }) => {
+    test.skip(phone(page), "phones draw carets without names");
+    // A narrow editor puts the end of the line near the right edge, far enough
+    // along that the name still fits to the left of the caret.
+    await page.addInitScript(() => {
+      document.addEventListener("DOMContentLoaded", () => {
+        const style = document.createElement("style");
+        style.textContent = ".ui-document-editor{max-inline-size:300px}";
+        document.head.append(style);
+      });
+    });
+    await openEditor(page, LINE, {
+      peers: [{
+        displayName: "Release notes and changelog writing agent",
+        principalType: "worker",
+        from: LINE.length,
+        to: LINE.length,
+      }],
+    });
+    const caret = page.locator(".ui-document-editor__caret");
+    await expect(caret).toHaveAttribute("data-flip", "true");
+    const name = await label(page).boundingBox();
+    const frame = await page.locator(".ui-document-editor .cm-editor")
+      .boundingBox();
+    const line = await page.locator(".ui-document-editor .cm-line").first()
+      .boundingBox();
+    expect(name!.x).toBeGreaterThanOrEqual(frame!.x);
+    expect(name!.x + name!.width).toBeLessThanOrEqual(frame!.x + frame!.width);
+    // Above the line, never over the text.
+    expect(name!.y + name!.height).toBeLessThanOrEqual(line!.y + 1);
+    await still(page, "caret-agent-edge");
   });
 });

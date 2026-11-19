@@ -121,7 +121,7 @@ class CaretWidget extends WidgetType {
   override eq(other: CaretWidget): boolean {
     return other.name === this.name && other.colour === this.colour;
   }
-  override toDOM(): HTMLElement {
+  override toDOM(view: EditorView): HTMLElement {
     const caret = document.createElement("span");
     caret.className = "ui-document-editor__caret";
     caret.setAttribute("data-presence-color", String(this.colour));
@@ -130,6 +130,18 @@ class CaretWidget extends WidgetType {
     label.className = "ui-document-editor__caret-label";
     label.textContent = this.name;
     caret.append(label);
+    // Near the right edge the name would leave the editor: it sits to the left
+    // of the caret instead. Measured once the caret is on the page.
+    view.requestMeasure({
+      read: () => {
+        const edge = view.contentDOM.getBoundingClientRect().right;
+        return caret.getBoundingClientRect().left + label.offsetWidth > edge;
+      },
+      write: (flip) => {
+        if (flip) caret.setAttribute("data-flip", "true");
+        else caret.removeAttribute("data-flip");
+      },
+    });
     return caret;
   }
   override ignoreEvent(): boolean {

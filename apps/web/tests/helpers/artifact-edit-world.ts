@@ -65,6 +65,8 @@ export type Behaviour = {
   /** Other people in the document, with their caret (from = to) or selection in the text. */
   readonly peers?: readonly {
     readonly principalId?: string;
+    /** Default a person; an agent is a service, a worker is a worker. */
+    readonly principalType?: "human" | "service" | "worker";
     readonly displayName: string;
     readonly from: number;
     readonly to: number;
@@ -222,7 +224,7 @@ export async function openEditor(
     }`,
     principalId: peer.principalId ??
       `66666666-6666-4666-8666-0000000000${String(index).padStart(2, "0")}`,
-    principalType: "human",
+    principalType: peer.principalType ?? "human",
     displayName: peer.displayName,
     state: {
       activity: "active",

@@ -2516,9 +2516,18 @@ button.ui-activity-line__row:hover {
   font: var(--type-caption);
   inset-block-end: 100%;
   inset-inline-start: calc(-1 * var(--focus-width));
+  /* About 24 characters of the caption type. */
+  max-inline-size: calc(var(--space-10) * 4);
+  overflow: hidden;
   padding-inline: var(--space-1);
   position: absolute;
+  text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* Near the right edge the name sits to the left of the caret. */
+.ui-document-editor .ui-document-editor__caret[data-flip="true"] .ui-document-editor__caret-label {
+  inset-inline-end: calc(-1 * var(--focus-width));
+  inset-inline-start: auto;
 }
 /* On a phone the presence line names people; the caret is drawn without a name. */
 @media (max-width: 743px) {
