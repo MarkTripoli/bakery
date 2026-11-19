@@ -20,7 +20,12 @@ import {
   randomSecret,
   sha256Base64Url,
 } from "../../apps/server/src/modules/auth/domain/desktop-sign-in.ts";
-import { renderConfirmPage } from "../../apps/server/src/modules/auth/transport/http/desktop-sign-in-pages.ts";
+import {
+  minutesSince,
+  render,
+  renderConfirmPage,
+  signInPage,
+} from "../../apps/server/src/modules/auth/transport/http/desktop-sign-in-pages.ts";
 import {
   createOriginGuard,
   desktopSessionHeaders,
@@ -139,6 +144,16 @@ Deno.test("the browser page shows confirm only for a live, unanswered request", 
   );
   assertEquals(
     pageStateFor(request({ decision: DesktopSignInDecision.Cancelled }), now),
+    "cancelled",
+  );
+  assertEquals(
+    pageStateFor(
+      request({
+        decision: DesktopSignInDecision.Cancelled,
+        consumedAt: earlier,
+      }),
+      now,
+    ),
     "used",
   );
   assertEquals(
@@ -296,4 +311,49 @@ Deno.test("the confirmation page renders in every locale with escaped values", a
   assert(english.includes("Sign in to the Bakery app?"));
   assert(english.includes("Continue to the app"));
   assert(english.includes("Not Ada? Use another account"));
+});
+
+Deno.test("the confirm page says how long ago the app asked", async () => {
+  const createdAt = new Date("2026-11-19T12:00:00Z");
+  const page = (offsetMs: number) =>
+    renderConfirmPage("en", {
+      name: "Ada",
+      email: "ada@example.test",
+      computerName: "Studio",
+      createdAt,
+      requestId: "r",
+      now: new Date(createdAt.getTime() + offsetMs),
+    }).text();
+  assert((await page(30_000)).includes(">just now</time>"));
+  assert((await page(60_000)).includes(">1 minute ago</time>"));
+  assert((await page(4 * 60_000 + 59_000)).includes(">4 minutes ago</time>"));
+  assertEquals(minutesSince(createdAt, new Date(createdAt.getTime() - 1)), 0);
+  const html = await page(0);
+  assert(html.includes('aria-label="Bakery"') && html.includes("<svg"));
+  assert(!html.includes("#1d4ed8"));
+});
+
+Deno.test("signed out: one Sign in button that remembers only this exact request", async () => {
+  const id = "AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA";
+  const response = render("en", signInPage("en", id));
+  assertEquals(response.status, 401);
+  const csp = response.headers.get("content-security-policy")!;
+  const nonce = /script-src 'nonce-([a-f0-9]+)'/.exec(csp)?.[1];
+  assert(nonce, csp);
+  const html = await response.text();
+  assert(html.includes("Sign in to continue"));
+  assert(html.includes("the question comes back afterwards"));
+  assertEquals(html.match(/class="button primary"/g)?.length, 1);
+  assert(html.includes(`<script nonce="${nonce}">`));
+  assert(html.includes('"bakery.auth.returnTo.v1"'));
+  assert(
+    html.includes(
+      '"/api/desktop/sign-in?request=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"',
+    ),
+  );
+  const unsafe = await render(
+    "en",
+    signInPage("en", '"></script><script>alert(1)</script>'),
+  ).text();
+  assertFalse(unsafe.includes("<script"));
 });

@@ -4424,7 +4424,11 @@
   "auth.desktopSignIn.expired.title": "⟦Ŧĥïš šïĝñ-ïñ ŕëǫûëšŧ ŕàñ ôûŧ ôƒ ŧïɱë ŧëšŧ çôþÿŧ⟧",
   "auth.desktopSignIn.expired.body": "⟦Ĝô ƀàçķ ŧô ŧĥë Ɓàķëŕÿ àþþ àñð þŕëšš Šïĝñ ïñ àĝàïñ. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "auth.desktopSignIn.used.title": "⟦Ŧĥïš šïĝñ-ïñ ŕëǫûëšŧ ŵàš àļŕëàðÿ ûšëð ŧëšŧ çôþÿŧ⟧",
-  "auth.desktopSignIn.used.body": "⟦Ïƒ ŧĥàŧ ŵàš ñôŧ ÿôû, ôþëñ Àççôûñŧ àñð šëçûŕïŧÿ àñð ŕëṽôķë ŧĥë Ɓàķëŕÿ àþþ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
   "auth.desktopSignIn.missing.title": "⟦Ñôŧĥïñĝ ŧô šïĝñ ïñ ŧëšŧ⟧",
-  "auth.desktopSignIn.missing.body": "⟦Ôþëñ ŧĥë Ɓàķëŕÿ àþþ àñð þŕëšš Šïĝñ ïñ ŵïŧĥ ÿôûŕ ƀŕôŵšëŕ. ŧëšŧ çôþÿ ŧëšŧ çô⟧"
+  "auth.desktopSignIn.missing.body": "⟦Ôþëñ ŧĥë Ɓàķëŕÿ àþþ àñð þŕëšš Šïĝñ ïñ ŵïŧĥ ÿôûŕ ƀŕôŵšëŕ. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
+  "auth.desktopSignIn.used.body": "⟦Ïƒ ŧĥàŧ ŵàš ñôŧ ÿôû, ôþëñ {link} àñð ŕëṽôķë ŧĥë Ɓàķëŕÿ àþþ. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
+  "auth.desktopSignIn.signedOut.title": "⟦Šïĝñ ïñ ŧô çôñŧïñûë ŧëšŧ⟧",
+  "auth.desktopSignIn.signedOut.body": "⟦Ŧĥë Ɓàķëŕÿ àþþ ôñ ŧĥïš çôɱþûŧëŕ àšķëð ŧô šïĝñ ïñ. Šïĝñ ïñ ŧô Ɓàķëŕÿ ïñ ŧĥïš ƀŕôŵšëŕ ƒïŕšŧ; ŧĥë ǫûëšŧïôñ çôɱëš ƀàçķ àƒŧëŕŵàŕðš. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
+  "auth.desktopSignIn.confirm.askedAgo": "⟦{minutes, plural, =0 {just now} one {# minute ago} other {# minutes ago}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
+  "auth.desktopSignIn.used.link": "⟦Àççôûñŧ àñð šëçûŕïŧÿ ŧëšŧ⟧"
 }

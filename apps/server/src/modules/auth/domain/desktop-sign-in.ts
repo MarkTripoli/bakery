@@ -185,7 +185,8 @@ export type DesktopSignInPageState =
   | "confirm"
   | "missing"
   | "expired"
-  | "used";
+  | "used"
+  | "cancelled";
 
 export function pageStateFor(
   request: DesktopSignInRequestState | null,
@@ -194,6 +195,11 @@ export function pageStateFor(
   if (request === null || request.clientId !== DESKTOP_CLIENT_ID) {
     return "missing";
   }
+  // A cancelled request signed nothing in, so it never reads as "used".
+  if (
+    request.decision === DesktopSignInDecision.Cancelled &&
+    request.consumedAt === null
+  ) return "cancelled";
   if (request.decision !== null || request.consumedAt !== null) return "used";
   if (request.expiresAt.getTime() <= now.getTime()) return "expired";
   return "confirm";

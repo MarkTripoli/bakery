@@ -4424,7 +4424,11 @@
   "auth.desktopSignIn.expired.title": "انتهت مهلة طلب تسجيل الدخول هذا",
   "auth.desktopSignIn.expired.body": "عُد إلى تطبيق Bakery واضغط على تسجيل الدخول مرة أخرى.",
   "auth.desktopSignIn.used.title": "سبق استخدام طلب تسجيل الدخول هذا",
-  "auth.desktopSignIn.used.body": "إذا لم تكن أنت، فافتح الحساب والأمان وألغِ وصول تطبيق Bakery.",
+  "auth.desktopSignIn.used.body": "إذا لم تكن أنت، فافتح {link} وألغِ وصول تطبيق Bakery.",
   "auth.desktopSignIn.missing.title": "لا يوجد ما يُسجَّل الدخول إليه",
-  "auth.desktopSignIn.missing.body": "افتح تطبيق Bakery واضغط على تسجيل الدخول باستخدام المتصفح."
+  "auth.desktopSignIn.missing.body": "افتح تطبيق Bakery واضغط على تسجيل الدخول باستخدام المتصفح.",
+  "auth.desktopSignIn.signedOut.title": "سجّل الدخول للمتابعة",
+  "auth.desktopSignIn.signedOut.body": "طلب تطبيق Bakery على هذا الكمبيوتر تسجيل الدخول. سجّل الدخول إلى Bakery في هذا المتصفح أولًا؛ وسيعود السؤال بعد ذلك.",
+  "auth.desktopSignIn.confirm.askedAgo": "{minutes, plural, =0 {الآن} one {قبل دقيقة واحدة} two {قبل دقيقتين} few {قبل # دقائق} many {قبل # دقيقة} other {قبل # دقيقة}}",
+  "auth.desktopSignIn.used.link": "الحساب والأمان"
 }

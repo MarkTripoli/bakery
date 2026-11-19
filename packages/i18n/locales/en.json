@@ -4424,7 +4424,11 @@
   "auth.desktopSignIn.expired.title": "This sign-in request ran out of time",
   "auth.desktopSignIn.expired.body": "Go back to the Bakery app and press Sign in again.",
   "auth.desktopSignIn.used.title": "This sign-in request was already used",
-  "auth.desktopSignIn.used.body": "If that was not you, open Account and security and revoke the Bakery app.",
+  "auth.desktopSignIn.used.body": "If that was not you, open {link} and revoke the Bakery app.",
   "auth.desktopSignIn.missing.title": "Nothing to sign in",
-  "auth.desktopSignIn.missing.body": "Open the Bakery app and press Sign in with your browser."
+  "auth.desktopSignIn.missing.body": "Open the Bakery app and press Sign in with your browser.",
+  "auth.desktopSignIn.signedOut.title": "Sign in to continue",
+  "auth.desktopSignIn.signedOut.body": "The Bakery app on this computer asked to sign in. Sign in to Bakery in this browser first; the question comes back afterwards.",
+  "auth.desktopSignIn.confirm.askedAgo": "{minutes, plural, =0 {just now} one {# minute ago} other {# minutes ago}}",
+  "auth.desktopSignIn.used.link": "Account and security"
 }

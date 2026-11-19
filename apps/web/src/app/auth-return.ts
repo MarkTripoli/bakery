@@ -4,6 +4,19 @@ import type { OrganizationSelectionOutcome } from "./organization-selection.ts";
 export const AUTH_RETURN_TO_KEY = "bakery.auth.returnTo.v1";
 
 /**
+ * The desktop app's browser sign-in question is a server page, not a route of
+ * this app. Its signed-out state remembers this exact return path; after
+ * sign-in it is followed with a full page load. Only the exact path with one
+ * UUID `request` parameter qualifies, so nothing else can leave the app.
+ */
+const DESKTOP_SIGN_IN_RETURN =
+  /^\/api\/desktop\/sign-in\?request=[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function isDesktopSignInReturn(target: string): boolean {
+  return DESKTOP_SIGN_IN_RETURN.test(target);
+}
+
+/**
  * Placeholder origin for environments without a real `location` (unit
  * tests). `isSameOriginPath`'s backslash/protocol-relative detection is
  * independent of which origin is used as the `URL` resolution base — only
@@ -189,6 +202,11 @@ export function postSignInDestination(
   },
 ): string {
   const pending = peekReturnTo(storage);
+  // The desktop sign-in question needs no organization: it always wins.
+  if (pending !== null && isDesktopSignInReturn(pending)) {
+    consumeReturnTo(storage);
+    return pending;
+  }
   if (pending !== null) {
     const pathname = new URL(pending, currentOrigin()).pathname;
     if (isPublicAuthPath(pathname)) {
