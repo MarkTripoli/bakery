@@ -145,6 +145,11 @@ Deno.test("real authenticated quality.check claim leases NULL-billing work with 
       String(assignment.traceparent),
       /^00-[0-9a-f]{32}-[0-9a-f]{16}-0[01]$/,
     );
+    // The first claim returns the session operation credential once.
+    assert(
+      typeof assignment.sessionCredential === "string" &&
+        assignment.sessionCredential.length > 0,
+    );
     assertEquals(assignment, {
       jobId: job.jobId,
       attemptId: assignment.attemptId,
@@ -167,6 +172,7 @@ Deno.test("real authenticated quality.check claim leases NULL-billing work with 
       serverTime: assignment.serverTime,
       sealedCredentialOperation: null,
       traceparent: assignment.traceparent,
+      sessionCredential: assignment.sessionCredential,
     });
 
     const state = await readExecutionState(fixture.pgDatabase, job.jobId);
