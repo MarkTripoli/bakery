@@ -290,13 +290,51 @@ Deno.test("issue 82 contract: the TypeScript vocabulary equals the transport enu
   assertEquals(create?.enum, [...TICKET_REQUEST_INTENTS]);
 });
 
+Deno.test("issue 82 contract: the receipt key refuses a duplicate that names no registration", async () => {
+  // The behavioural half of this lives in the schema lane, where two null
+  // registrations are inserted and the second is refused. This half exists
+  // because that test cannot run without a database: dropping the clause below
+  // leaves a plain unique, whose NULLs are all distinct, and nothing else in
+  // the tree would say so.
+  const sql = await Deno.readTextFile(
+    new URL(
+      "../../../apps/server/src/modules/work/migrations/bakery/0206_provider_neutral_ticket_sources.sql",
+      import.meta.url,
+    ),
+  );
+  const receipt = /add constraint inbound_events_delivery_unique([\s\S]*?);/
+    .exec(sql);
+  assert(receipt, "0206 rebuilds the receipt key");
+  assert(
+    /unique\s+nulls\s+not\s+distinct\s*\(registration_id,\s*external_delivery_id\)/i
+      .test(receipt[1]),
+    "the receipt key must treat null registrations as one value",
+  );
+  // Rebuilt, not added beside the old key: dropping and adding in one statement
+  // is what keeps a window without the constraint from existing.
+  assert(
+    /drop constraint inbound_events_delivery_unique/.test(sql),
+    "the old key is dropped in the same statement",
+  );
+});
+
 Deno.test("issue 82 contract: the ticket_requests projection names the migration's columns", async () => {
   const transport = await readTransport();
   const projection = transport.projections.ticket_requests;
+  // `targets` (#31) is read from bakery.ticket_request_targets, the
+  // request's children, not from a ticket_requests column.
   assertEquals(
-    [...transport.outputs.TicketRequest.fields].sort(),
+    [...transport.outputs.TicketRequest.fields].filter((field) =>
+      field !== "targets"
+    ).sort(),
     [...projection.fields].sort(),
     "the output and its projection list the same fields",
+  );
+  assertEquals(
+    transport.outputs.TicketRequest.fields.filter((field) =>
+      !projection.fields.includes(field)
+    ),
+    ["targets"],
   );
   const sql = await Deno.readTextFile(
     new URL(

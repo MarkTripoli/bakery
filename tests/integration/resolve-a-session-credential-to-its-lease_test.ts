@@ -44,6 +44,7 @@ Deno.test("a resolved credential carries the lease it was issued against", () =>
           organizationId: fixture.organizationId,
           attemptId: assignment.attemptId,
           actsForPrincipalId: fixture.principalId,
+          actsForPrincipalType: "human",
           workerSessionId: String(assignment.workerSessionId),
           workerSessionGeneration: BigInt(
             String(assignment.workerSessionGeneration),

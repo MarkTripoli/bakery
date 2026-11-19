@@ -83,6 +83,19 @@ export function sessionOperationScopes(): readonly string[] {
   return Object.keys(OPERATION_SCOPES).sort();
 }
 
+/**
+ * Every scope the operation map names, deduplicated and ordered.
+ *
+ * Distinct from `sessionOperationScopes`, which returns operation *names*. A
+ * caller that wants "what may a session be granted" needs the scopes, and
+ * deriving them from names is not possible - `tasks.list` and `tasks.get` share
+ * `work.read`, and a future write scope will not end in the operation's noun.
+ */
+export function sessionOperationScopeValues(): readonly OperationScope[] {
+  const values = Object.values(OPERATION_SCOPES);
+  return [...new Set(values)].sort();
+}
+
 export function listSessionTools(
   scopes: readonly OperationScope[],
   registry: readonly ActionDefinition[],

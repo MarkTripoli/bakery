@@ -5,6 +5,7 @@ import type {
   ActionContext,
   CommandRunner,
 } from "@bakery/contracts/action-registry";
+import type { ActionRegistry } from "@bakery/contracts/action-registry";
 import { createApiRouter, StandardError } from "@bakery/contracts/http";
 import type { PgDatabase } from "../../platform/database.ts";
 import type { AuthVariables } from "../auth/middleware.ts";
@@ -58,6 +59,12 @@ export function createCatalogRoutes(options: {
   skillFileRoot?: string;
   skillFileStore?: SkillFileStoreOperations;
   normalizeSourceLocator?: typeof normalizeSkillSourceLocator;
+  /**
+   * A registry built by the caller, so the same catalog operations can be
+   * composed into another surface (the worker tool gateway) without a second
+   * registration whose handler and authority could drift from these.
+   */
+  registry?: ActionRegistry;
 }) {
   const store = options.skillFileStore ??
     (options.skillFileRoot
@@ -136,11 +143,12 @@ export function createCatalogRoutes(options: {
   app.route(
     "/",
     createApiRouter({
-      registry: createCatalogActionRegistry(handlers, {
-        authorityRunner: postgresAuthority,
-        commandRunner: postgresCommandRunner,
-        includeSkillVersionPublication: false,
-      }),
+      registry: options.registry ??
+        createCatalogActionRegistry(handlers, {
+          authorityRunner: postgresAuthority,
+          commandRunner: postgresCommandRunner,
+          includeSkillVersionPublication: false,
+        }),
       publicBaseUrl: options.publicBaseUrl,
       createContext: createActionContext,
     }),
