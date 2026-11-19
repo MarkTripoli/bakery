@@ -430,6 +430,7 @@ export type CatalogActionName =
   | "workflowVersions.get"
   | "workflowVersions.list"
   | "workflowVersions.publish"
+  | "workflowVersions.skills"
   | "workflowVersions.update"
   | "workflows.copy"
   | "workflows.create"
@@ -1444,4 +1445,6 @@ export type ContractOutputName =
   | "WorkflowPresetAvailability"
   | "WorkflowPresetStep"
   | "WorkflowStepBinding"
-  | "WorkflowVersion";
+  | "WorkflowStepSkill"
+  | "WorkflowVersion"
+  | "WorkflowVersionSkills";
