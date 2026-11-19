@@ -5979,6 +5979,28 @@
     },
     {
       "group": "Artifacts",
+      "method": "GET",
+      "path": "/v1/artifact-versions/{id}/mention-candidates",
+      "action": "artifactComments.mentionCandidates",
+      "access": "Developer",
+      "permission": "artifactComment:read",
+      "input": "MentionCandidateQuery",
+      "output": "Page<MentionCandidate>",
+      "event": "",
+      "mcp": "bakery_artifactComments_mentionCandidates",
+      "idempotency": "read",
+      "organizationContext": "required_authenticated_context",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ]
+    },
+    {
+      "group": "Artifacts",
       "method": "POST",
       "path": "/v1/artifact-versions/{id}/comments",
       "action": "artifactComments.create",
@@ -6905,6 +6927,75 @@
         "SCOPE_REQUIRED",
         "RESOURCE_NOT_FOUND",
         "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ]
+    },
+    {
+      "group": "Conversation",
+      "method": "GET",
+      "path": "/v1/conversations/{id}/mention-candidates",
+      "action": "conversations.mentionCandidates",
+      "access": "Developer",
+      "permission": "message:read",
+      "input": "MentionCandidateQuery",
+      "output": "Page<MentionCandidate>",
+      "event": "",
+      "mcp": "bakery_conversations_mentionCandidates",
+      "idempotency": "read",
+      "organizationContext": "required_authenticated_context",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ]
+    },
+    {
+      "group": "Conversation",
+      "method": "GET",
+      "path": "/v1/conversations/{id}/access",
+      "action": "conversationAccess.list",
+      "access": "Developer",
+      "permission": "message:read",
+      "input": "ConversationAccessQuery",
+      "output": "Page<ConversationAccessGrant>",
+      "event": "",
+      "mcp": "bakery_conversationAccess_list",
+      "idempotency": "read",
+      "organizationContext": "required_authenticated_context",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ]
+    },
+    {
+      "group": "Conversation",
+      "method": "POST",
+      "path": "/v1/conversations/{id}/access/{principalId}/revoke",
+      "action": "conversationAccess.revoke",
+      "access": "Developer",
+      "permission": "conversation:share",
+      "input": "ConversationAccessRevoke",
+      "output": "ConversationAccessGrant",
+      "event": "conversations.access_changed",
+      "mcp": "bakery_conversationAccess_revoke",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "organizationContext": "required_authenticated_context",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
         "MALFORMED_REQUEST"
       ]
     },
