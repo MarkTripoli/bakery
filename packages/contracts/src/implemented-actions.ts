@@ -429,6 +429,30 @@ export const notificationImplementedActions = Object.freeze(
   Object.values(NotificationImplementedAction),
 );
 
+export const GroupImplementedAction = Object.freeze(
+  {
+    GroupsList: "groups.list",
+    GroupsCreate: "groups.create",
+    GroupsUpdate: "groups.update",
+    GroupsDelete: "groups.delete",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const groupImplementedActions = Object.freeze(
+  Object.values(GroupImplementedAction),
+);
+
+export const EmailSettingsImplementedAction = Object.freeze(
+  {
+    EmailSettingsGet: "emailSettings.get",
+    EmailSettingsPut: "emailSettings.put",
+    EmailSettingsTest: "emailSettings.test",
+    EmailSettingsDelete: "emailSettings.delete",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const emailSettingsImplementedActions = Object.freeze(
+  Object.values(EmailSettingsImplementedAction),
+);
+
 export const WorkflowImplementedAction = Object.freeze(
   {
     WorkflowsList: "workflows.list",
@@ -664,6 +688,8 @@ export const implementedActions = Object.freeze(
     ...deliveryImplementedActions,
     ...ticketImplementedActions,
     ...notificationImplementedActions,
+    ...groupImplementedActions,
+    ...emailSettingsImplementedActions,
     ...workflowImplementedActions,
     ...workflowActionDiscoveryImplementedActions,
     ...automationImplementedActions,
