@@ -65,10 +65,6 @@ function deno(file: string, args: string[], env: Record<string, string> = {}) {
 async function signIn(page: Page): Promise<void> {
   await page.goto("/sign-in");
   await submitUntilAccepted(page, "/api/auth/sign-in/email", async () => {
-    if (await page.getByTestId("sign-in-throttled").isVisible()) {
-      await page.getByRole("button", { name: "Return to sign in", exact: true })
-        .click();
-    }
     await page.getByLabel("Email").fill(ADMIN_EMAIL);
     await page.getByLabel("Password", { exact: true }).fill(ADMIN_PASSWORD);
     await page.getByRole("button", { name: "Sign in", exact: true }).click();

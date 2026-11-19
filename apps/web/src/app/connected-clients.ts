@@ -63,7 +63,9 @@ export function scopeCopy(
 }
 
 /**
- * Grants keep the server's newest-first order; a grant with no wordable
+ * The plain description of each scope a grant holds ("Read tasks, plans and
+ * results you can access."), never the raw permission name. Grants keep the
+ * server's newest-first order; a grant with no wordable
  * scope still lists, so the person can always revoke it.
  */
 export function wordableScopes(
@@ -71,6 +73,6 @@ export function wordableScopes(
 ): readonly MessageKey[] {
   return scopes.flatMap((scope) => {
     const copy = scopeCopy(scope);
-    return copy === null ? [] : [copy.title];
+    return copy === null ? [] : [copy.description];
   });
 }
