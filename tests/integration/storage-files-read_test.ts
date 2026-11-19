@@ -10,9 +10,54 @@ import { assert, assertEquals } from "@std/assert";
 import { withWorkerFixture } from "../helpers/worker-execution/scenarios.ts";
 import {
   closeWorkerOrganization,
-  closeWorkerScope,
   createWorkerScope,
 } from "../helpers/worker-execution.ts";
+import { signSessionCookie } from "../helpers/auth.ts";
+
+/**
+ * Another active developer in the fixture's organization, with a live
+ * session, seeded directly (as tests/helpers/durable-questions.ts addMember
+ * does) so no second superuser bootstrap runs.
+ */
+async function addMember(fixture: Fixture) {
+  const db = fixture.pgDatabase;
+  const providerUserId = crypto.randomUUID();
+  const principalId = crypto.randomUUID();
+  const token = "member-" + crypto.randomUUID();
+  const now = new Date();
+  await db.query(
+    'insert into public."user" (id, name, email, "emailVerified", "createdAt", "updatedAt") values ($1, $2, $3, true, $4, $4)',
+    [
+      providerUserId,
+      "member",
+      "storage-445-" + providerUserId + "@example.test",
+      now,
+    ],
+  );
+  await db.query(
+    "insert into bakery.principals (id, provider_user_id, display_name, principal_type) values ($1, $2, 'Member', 'human')",
+    [principalId, providerUserId],
+  );
+  await db.query(
+    "insert into bakery.organization_memberships (id, organization_id, principal_id, role, status, joined_at, created_at, updated_at, version) values ($1, $2, $3, 'developer', 'active', $4, $4, $4, 1)",
+    [crypto.randomUUID(), fixture.organizationId, principalId, now],
+  );
+  await db.query(
+    'insert into public.session (id, token, "userId", "expiresAt", "createdAt", "updatedAt") values ($1, $2, $3, $4, $5, $5)',
+    [
+      crypto.randomUUID(),
+      token,
+      providerUserId,
+      new Date(now.getTime() + 3_600_000),
+      now,
+    ],
+  );
+  return {
+    principalId,
+    providerUserId,
+    cookie: await signSessionCookie(token, fixture.config.auth!.secret),
+  };
+}
 
 type Fixture = Parameters<Parameters<typeof withWorkerFixture>[0]>[0];
 type Json = Record<string, unknown>;
@@ -258,13 +303,9 @@ Deno.test("another organization cannot read an entry; another member cannot see 
     }
 
     // Another member of my organization.
-    const other = await createWorkerScope(fixture, "storage-445-member");
-    await fixture.pgDatabase.query(
-      "insert into bakery.organization_memberships (id, organization_id, principal_id, role, status, joined_at, created_at, updated_at, version) values ($1, $2, $3, 'developer', 'active', now(), now(), now(), 1)",
-      [crypto.randomUUID(), fixture.organizationId, other.principalId],
-    );
+    const other = await addMember(fixture);
     try {
-      const as = { cookie: other.adminCookie };
+      const as = { cookie: other.cookie };
       const roots = items(
         await ok(await call(fixture, "GET", "/v1/storage/roots", as)),
       );
@@ -302,6 +343,28 @@ Deno.test("another organization cannot read an entry; another member cannot see 
         "delete from bakery.organization_memberships where organization_id = $1 and principal_id = $2",
         [fixture.organizationId, other.principalId],
       );
-      await closeWorkerScope(fixture, other);
+      // The member's personal folder is owned by them; remove it first.
+      await fixture.pgDatabase.query(
+        "delete from bakery.storage_entries where organization_id = $1 and owner_id = $2 and parent_id is not null and kind = 'folder' and system_key like 'user:%:%'",
+        [fixture.organizationId, other.principalId],
+      );
+      await fixture.pgDatabase.query(
+        "delete from bakery.storage_entries where organization_id = $1 and owner_id = $2",
+        [fixture.organizationId, other.principalId],
+      );
+      await fixture.pgDatabase.query(
+        'delete from public.session where "userId" = $1',
+        [other.providerUserId],
+      );
+      await fixture.pgDatabase.query(
+        "delete from bakery.principals where id = $1",
+        [other.principalId],
+      );
+      await fixture.pgDatabase.query(
+        'delete from public."user" where id = $1',
+        [
+          other.providerUserId,
+        ],
+      );
     }
   }));

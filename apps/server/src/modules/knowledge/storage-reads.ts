@@ -287,7 +287,7 @@ export function createFolderLister(secret: string) {
       action: "storageFolderEntries.list",
       principalId,
       organizationId,
-      ordering: "kind:folders-first,nameKey:asc,id:asc",
+      ordering: "kind:asc,nameKey:asc,id:asc",
       filters: JSON.stringify({ folderId: folder.id }),
       schemaVersion: 1,
     };
@@ -338,7 +338,11 @@ export function createFolderLister(secret: string) {
     return {
       items: rows.map((row) => listed(row, prefix + "/" + row.name)),
       nextCursor: found.rows.length > limit && last
-        ? await encodeCursor(secret, binding, { id: last.id })
+        ? await encodeCursor(secret, binding, {
+          position: folderOrderRank(last.kind),
+          iteration: 0,
+          id: last.id,
+        })
         : null,
     };
   };
@@ -417,7 +421,7 @@ export function createFileVersionLister(secret: string) {
       action: "storageFileVersions.list",
       principalId,
       organizationId,
-      ordering: "revision:desc",
+      ordering: "revision:desc,id:desc",
       filters: JSON.stringify({ entryId: file.id }),
       schemaVersion: 1,
     };
@@ -494,6 +498,7 @@ export function createFileVersionLister(secret: string) {
       nextCursor: found.rows.length > limit && last
         ? await encodeCursor(secret, binding, {
           position: Number(last.revision),
+          iteration: 0,
           id: last.id,
         })
         : null,
@@ -529,7 +534,7 @@ export function createFileUseLister(secret: string) {
       action: "storageFileUses.list",
       principalId,
       organizationId,
-      ordering: "usedAt:desc,id:desc",
+      ordering: "createdAt:desc,id:desc",
       filters: JSON.stringify({ entryId: file.id }),
       schemaVersion: 1,
     };

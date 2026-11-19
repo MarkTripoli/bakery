@@ -6,6 +6,10 @@ import {
   versionMaker,
   visibleRootKeys,
 } from "../../apps/server/src/modules/knowledge/storage-reads.ts";
+import {
+  decodeCursor,
+  encodeCursor,
+} from "../../apps/server/src/platform/cursor.ts";
 
 const me = "00000000-0000-4000-8000-000000000001";
 
@@ -110,4 +114,45 @@ Deno.test("a version made by a step names the step, run, work item and session",
   });
   assertEquals(byPerson.makerKind, "person");
   assertEquals(byPerson.stepId, null);
+});
+
+Deno.test("every storage list ordering is one the cursor accepts", async () => {
+  const id = "00000000-0000-4000-8000-0000000000aa";
+  const cases = [
+    ["storageFolderEntries.list", "kind:asc,nameKey:asc,id:asc", {
+      position: 1,
+      iteration: 0,
+      id,
+    }],
+    ["storageFileVersions.list", "revision:desc,id:desc", {
+      position: 3,
+      iteration: 0,
+      id,
+    }],
+    ["storageFileUses.list", "createdAt:desc,id:desc", {
+      createdAt: "2026-11-19T10:00:00.000000Z",
+      id,
+    }],
+    ["storageTrash.list", "trashedAt:desc,id:desc", {
+      createdAt: "2026-11-19T10:00:00.000000Z",
+      id,
+    }],
+  ] as const;
+  for (const [action, ordering, position] of cases) {
+    const binding = {
+      action,
+      principalId: me,
+      organizationId: me,
+      ordering,
+      filters: "{}",
+      schemaVersion: 1,
+    };
+    assertEquals(await decodeCursor("secret", undefined, binding), null);
+    const cursor = await encodeCursor("secret", binding, position);
+    assertEquals(
+      (await decodeCursor("secret", cursor, binding))?.id,
+      id,
+      action,
+    );
+  }
 });
