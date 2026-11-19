@@ -73,8 +73,10 @@ export function TaskInbox({
   ...props
 }: TaskInboxProps) {
   const headingId = useId();
+  // A filter or page change keeps the rows already shown, dimmed, so the list
+  // does not flash to a skeleton and back.
   const retainsResults = state === "ready" || state === "offline" ||
-    state === "reconnecting";
+    state === "reconnecting" || state === "loading";
   const announcesState = state === "error" || state === "forbidden" ||
     state === "offline";
 

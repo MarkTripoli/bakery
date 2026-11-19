@@ -5,6 +5,7 @@ import {
   rowActionGeometry,
 } from "./helpers/row-action-overlap.ts";
 import { shot } from "./helpers/real-api.ts";
+import { still } from "./helpers/stills.ts";
 import {
   MOCK_ORGANIZATION_ID,
   mockAuthenticatedSession,
@@ -280,6 +281,8 @@ test.describe("machines list states", () => {
       }),
     ).toBeVisible();
     await shot(page, "machines-list-empty");
+    // An administrator is invited to add one; no line says only administrators can.
+    await still(page, "machines-admin-empty");
     await page.unrouteAll({ behavior: "ignoreErrors" });
     await open(page, { workers: [], role: "developer" });
     await expect(
@@ -304,6 +307,9 @@ test.describe("machines list states", () => {
     await page.unrouteAll({ behavior: "ignoreErrors" });
     await open(page, { workersStatus: 500 });
     await expect(page.getByText("Machines could not be loaded")).toBeVisible();
+    // The same wording on every page: what to do, and a secondary button.
+    await expect(page.getByText("Check your connection, then try again."))
+      .toBeVisible();
     // A failed read is not a refused one: Add machine stays, at both widths
     // (top bar on a wide screen, under the title on a phone), once.
     await expect(page.getByRole("button", { name: "Add machine", exact: true }))
@@ -311,6 +317,7 @@ test.describe("machines list states", () => {
     await expect(page.getByRole("button", { name: "Add machine", exact: true }))
       .toBeVisible();
     await shot(page, "machines-list-error");
+    await still(page, "machines-error");
     await page.unrouteAll({ behavior: "ignoreErrors" });
     await open(page, { hang: true });
     await expect(page.getByTestId("machines-page")).toBeVisible();

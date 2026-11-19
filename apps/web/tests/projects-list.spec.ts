@@ -6,6 +6,7 @@ import {
   repository,
 } from "./helpers/projects-fixture.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
+import { still } from "./helpers/stills.ts";
 import { shot } from "./helpers/real-api.ts";
 
 registerPageHealth(test);
@@ -66,7 +67,7 @@ for (
       await expect(page.getByRole("heading", { name: "Projects", level: 1 }))
         .toBeVisible();
       await expect(page.getByText(
-        "Your applications and the repositories Bakery works in.",
+        "Applications and the repositories Bakery works in.",
       )).toBeVisible();
       const payments = section(page, "Payments");
       await expect(payments.getByText("2 repositories")).toBeVisible();
@@ -124,7 +125,11 @@ for (
 
     test('a repositories read that fails is an error with Try again, never "no repositories"', async ({ page }) => {
       const seen = await open(page, { ...WORLD, repositoriesDown: true });
-      await expect(page.getByText("Projects could not be loaded."))
+      await expect(
+        page.getByText("Projects could not be loaded", { exact: true }),
+      )
+        .toBeVisible();
+      await expect(page.getByText("Check your connection, then try again."))
         .toBeVisible();
       // Not the applications as empty groups.
       await expect(page.getByText("No repositories in this application"))
@@ -134,11 +139,14 @@ for (
       await expect(retry).toBeVisible();
       await page.mouse.move(700, 700);
       await shot(page, "projects-repositories-failed");
+      await still(page, "projects-error");
       const before = seen.repositoryReads;
       seen.repositoriesDown = false;
       await retry.click();
       await expect.poll(() => seen.repositoryReads).toBeGreaterThan(before);
-      await expect(page.getByText("Projects could not be loaded."))
+      await expect(
+        page.getByText("Projects could not be loaded", { exact: true }),
+      )
         .toHaveCount(0);
       await expect(section(page, "Payments")).toContainText("acme/ledger");
     });
