@@ -38,6 +38,8 @@ export type PlanRevisionPanelProps = Readonly<{
    * the server decides by approval id and version.
    */
   paused?: boolean;
+  /** The approval this panel decides, so a notification can land on it. */
+  approvalId?: string;
   onDecide: (decision: PlanDecision, comment: string | undefined) => void;
   onRetry: () => void;
   /** Refreshes the conversation; offered when this revision is obsolete. */
@@ -69,6 +71,7 @@ export function usePlanRevision(
     phase,
     offline,
     paused = false,
+    approvalId,
     onDecide,
     onRetry,
     onRefresh,
@@ -112,6 +115,7 @@ export function usePlanRevision(
   const partsBody = (
     <UI.PaneSection
       data-ui-region="plan-revision"
+      data-approval-id={approvalId}
       data-revision={revision}
       data-status={shown}
       aria-label={t("tasks.conversation.plan.heading")}
