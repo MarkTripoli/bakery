@@ -201,7 +201,7 @@ async function audit(
 }
 
 /**
- * integrationAuth.githubSetup, first half: records the installation hint
+ * integrationAuth.setup, first half: records the installation hint
  * once on a pending or exchanging attempt. The hint proves nothing yet; the
  * returned attempt says whether the OAuth callback already verified the
  * user's installations, in which case this request binds.
@@ -348,7 +348,7 @@ export type CallbackClaim = CallbackAttempt & {
 };
 
 /**
- * integrationAuth.githubCallback, first step: moves the attempt from pending
+ * integrationAuth.authorizationCallback, first step: moves the attempt from pending
  * to exchanging in one conditional update, committed before any GitHub call.
  * A consumed, expired, unknown or foreign state matches nothing.
  */
@@ -1093,8 +1093,8 @@ export type CallbackDependencies = {
 type Next = (authorizedContext: ActionContext) => Promise<unknown>;
 
 /**
- * Authority and sequencing for integrationAuth.githubSetup and
- * integrationAuth.githubCallback (organization context derived from the
+ * Authority and sequencing for integrationAuth.setup and
+ * integrationAuth.authorizationCallback (organization context derived from the
  * bound attempt). Every step commits on its own before GitHub is called:
  * 1. setup records its hint once; the callback claims pending to exchanging;
  * 2. the callback exchanges the code, lists every page of installations and
@@ -1268,7 +1268,7 @@ export function createGitHubCallbackRunner(
     input: unknown,
     next: Next,
   ): Promise<AuthRedirect> => {
-    const parsed = contractSchemas.GitHubSetupCallback.parse(input);
+    const parsed = contractSchemas.IntegrationSetupCallback.parse(input);
     const { principal, sessionId } = callbackPrincipal(context);
     // setup_action=request: an owner must still approve the install, so
     // there is nothing to record yet.

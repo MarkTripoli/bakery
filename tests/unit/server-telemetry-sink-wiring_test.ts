@@ -174,6 +174,36 @@ Deno.test("a destination that never answers cannot hold the server", async () =>
   assert(Date.now() - started < 5_000);
 });
 
+Deno.test("a configuration with no destination is refused, not accepted as export", () => {
+  // QA found this: BAKERY_OTLP_HEADERS alone, or an empty value, parsed as a
+  // valid config. The facade then counted every record as exported while nothing
+  // was written anywhere - "configured but exports nowhere", which is the exact
+  // defect this work removes.
+  for (
+    const env of [
+      // Headers with nothing to send them to.
+      withEnv({ BAKERY_OTLP_HEADERS: "Authorization=Bearer t" }),
+      // An empty headers value is still the operator reaching for telemetry.
+      withEnv({ BAKERY_OTLP_HEADERS: "" }),
+      // A bound with no destination reads the same way.
+      withEnv({ BAKERY_TELEMETRY_LOG_MAX_BYTES: "8192" }),
+      withEnv({ BAKERY_TELEMETRY_LOG_MAX_FILES: "3" }),
+    ]
+  ) {
+    let threw = false;
+    try {
+      readTelemetrySinkConfig(env);
+    } catch {
+      threw = true;
+    }
+    assertEquals(
+      threw,
+      true,
+      `accepted a destination-less config: ${JSON.stringify(env)}`,
+    );
+  }
+});
+
 Deno.test("a malformed configuration fails at boot instead of silently disabling export", () => {
   // An operator who set a variable and got no telemetry should find out at boot,
   // not by noticing the absence of data weeks later.

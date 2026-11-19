@@ -442,7 +442,7 @@ Deno.test("a fan-out names its actor only on audit rows of the actor's own organ
           InstallationStatus.Enabled,
           traceId,
           {
-            operation: "integrationAuth.githubCallback",
+            operation: "integrationAuth.authorizationCallback",
             actor: { organizationId: f.organizationId, principalId },
           },
         );
@@ -462,7 +462,7 @@ Deno.test("a fan-out names its actor only on audit rows of the actor's own organ
     assertEquals(audited.get(first.connectionId)?.principalId, principalId);
     assertEquals(
       audited.get(first.connectionId)?.operation,
-      "integrationAuth.githubCallback",
+      "integrationAuth.authorizationCallback",
     );
     assertEquals(audited.get(second.connectionId)?.principalId, null);
     assert(secondId !== f.organizationId);

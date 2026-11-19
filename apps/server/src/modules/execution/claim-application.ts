@@ -4,6 +4,12 @@ import { workerActionOutputCarriesSession } from "@bakery/contracts/contracts";
 import { DEFAULT_LEASE_SECONDS } from "@bakery/persistence";
 import { canonicalExecutionInputDigest } from "@bakery/persistence/repository-admission";
 import type { SealedCredentialOperation } from "@bakery/contracts/secret-identity";
+import {
+  childTraceContext,
+  formatTraceparent,
+  newTraceContext,
+  parseTraceparent,
+} from "@bakery/config/telemetry-trace";
 import type {
   ClaimableJob,
   ClaimIdentity,
@@ -64,7 +70,39 @@ function requestMetadata(headers: Headers): RequestMetadata {
   return { requestId, traceId };
 }
 
-function assignmentFromJob(
+/**
+ * The W3C context a worker's envelope should carry: the trace of the request
+ * that caused this work.
+ *
+ * The claim request itself comes from the worker and carries no context of its
+ * own, so reading the inbound headers would give every assignment a fresh root
+ * trace and the originating request would vanish at the process boundary. The
+ * durable source is the job's run: the `run.requested` event recorded the
+ * caller's span context (0151). Continuation is a child of that span, so the
+ * worker's span is a distinguishable leg of the same trace.
+ *
+ * Precedence: the run's originating context, then an explicit inbound
+ * `traceparent` (a worker that wants to parent its own claim), then a fresh
+ * root. A malformed candidate never refuses work - it is replaced - because
+ * failing a claim over a tracing header is a worse outcome than a broken trace.
+ */
+export function assignmentTraceparent(
+  headers: Headers,
+  original?: string | null,
+): string {
+  const parent = parseTraceparent(original ?? "") ??
+    parseTraceparent(headers.get("traceparent") ?? "");
+  return formatTraceparent(
+    parent === undefined ? newTraceContext() : childTraceContext(parent),
+  );
+}
+
+/**
+ * Builds the envelope a worker receives. Exported so a test can assert the
+ * context actually reaches the wire, rather than only that a helper computes
+ * one: QA found that deleting the field here passed every test.
+ */
+export function assignmentFromJob(
   job: ClaimableJob,
   attemptId: string,
   hostId: string,
@@ -76,6 +114,7 @@ function assignmentFromJob(
   leaseDurationSeconds: number,
   serverTime: Date | string,
   sealedCredentialOperation: SealedCredentialOperation | null,
+  traceparent: string,
 ): Assignment {
   const assignment = {
     jobId: job.id,
@@ -101,6 +140,7 @@ function assignmentFromJob(
     leaseDurationSeconds,
     serverTime: iso(serverTime),
     sealedCredentialOperation,
+    traceparent,
     // Only actions whose result names a session receive the server-created one.
     ...(job.agentSessionId === null ||
         !workerActionOutputCarriesSession(job.action)
@@ -311,6 +351,7 @@ export async function executeClaim(
         DEFAULT_LEASE_SECONDS,
         lease.serverTime,
         sealedCredentialOperation,
+        assignmentTraceparent(options.headers, job.originalTraceparent),
       );
       await persistence.recordAssignment({
         organizationId: identity.host.organizationId,

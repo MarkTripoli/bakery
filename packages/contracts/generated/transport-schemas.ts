@@ -2091,7 +2091,7 @@ const transportSchemas = {
       ],
       "description": "Filters the external write effects (issue comments, webhook deliveries and other outbound provider actions) visible to the caller, typically to audit what a specific workflow run triggered."
     },
-    "GitHubWebhook": {
+    "IntegrationWebhook": {
       "fields": [
         {
           "name": "deliveryId",
@@ -7964,7 +7964,7 @@ const transportSchemas = {
       ],
       "description": "Fixed OAuth callback shared by GitHub authorization and Slack identity-link completion; the bound, single-use state is claimed atomically before any code exchange, so callback fields alone can never select an organization, connection or installation."
     },
-    "GitHubSetupCallback": {
+    "IntegrationSetupCallback": {
       "fields": [
         {
           "name": "state",
@@ -9846,7 +9846,7 @@ const transportSchemas = {
       ],
       "description": "Starts GitHub App registration through GitHub's manifest flow for this Bakery installation. The App's URLs derive from the deployment's public base URL; credentials never travel through this request."
     },
-    "GitHubManifestCallback": {
+    "IntegrationManifestCallback": {
       "fields": [
         {
           "name": "code",
@@ -21962,7 +21962,8 @@ const transportSchemas = {
         "serverTime",
         "sealedCredentialOperation",
         "agentSessionId",
-        "contextInputs"
+        "contextInputs",
+        "traceparent"
       ],
       "optionalFields": [
         "workerSessionId",
@@ -21970,7 +21971,8 @@ const transportSchemas = {
         "leaseDurationSeconds",
         "serverTime",
         "agentSessionId",
-        "contextInputs"
+        "contextInputs",
+        "traceparent"
       ],
       "fieldTypes": {
         "jobId": "uuid",
@@ -21994,7 +21996,8 @@ const transportSchemas = {
         "serverTime": "timestamp",
         "sealedCredentialOperation": "SealedCredentialOperation|null",
         "agentSessionId": "uuid",
-        "contextInputs": "StepContextInput[]"
+        "contextInputs": "StepContextInput[]",
+        "traceparent": "traceparent"
       },
       "sensitiveFields": [
         "leaseToken"
@@ -22045,7 +22048,8 @@ const transportSchemas = {
         "serverTime": "PostgreSQL-authoritative claim time used to derive a monotonic lease deadline.",
         "sealedCredentialOperation": "Required nullable daemon-only prepared credential operation. Null for every non-identity action; never copied into job input or a subprocess.",
         "agentSessionId": "Server-created harness session the result must reference.",
-        "contextInputs": "Input slots the step declared, pinned at admission: the worker materializes exactly these bytes into its context directory and never re-fetches the artifact, so the digest it verifies is the one admission pinned."
+        "contextInputs": "Input slots the step declared, pinned at admission: the worker materializes exactly these bytes into its context directory and never re-fetches the artifact, so the digest it verifies is the one admission pinned.",
+        "traceparent": "W3C trace context of the request that caused this work, so the worker continues the caller's trace instead of starting an unrelated one."
       }
     },
     "LeaseState": {
@@ -23013,7 +23017,7 @@ const transportSchemas = {
         "resetRequired": "Whether the client must discard its local state and request a fresh snapshot.",
         "retainedFrom": "Earliest retained event sequence that can be used to establish a fresh sync position.",
         "retryWithoutAfter": "Whether the client should retry the sync request without its after cursor.",
-        "reason": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; for a refused draft edit, why: text_changed or draft_moved_on on a 412, or for a refused draft comment anchor comment_quote_mismatch, comment_anchor_stale or comment_anchor_splits_character on a 412; agent_edit_requires_suggestion, suggestion_decision_requires_person, definition_proposal_decision_requires_person or workflow_listing_requires_person on a 403. Absent when the problem has no named rule.",
+        "reason": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; for a refused draft edit, why: text_changed or draft_moved_on on a 412, or for a refused draft comment anchor comment_quote_mismatch, comment_anchor_stale or comment_anchor_splits_character on a 412, or for a refused ticket operation source_policy_changed or requirements_changed on a 412; agent_edit_requires_suggestion, suggestion_decision_requires_person, definition_proposal_decision_requires_person or workflow_listing_requires_person on a 403. Absent when the problem has no named rule.",
         "existingResourceId": "Identifier of the existing resource a 409 STATE_CONFLICT points the caller to instead of creating another: for reason workflow_copy_exists, the listed definition already copied from that source version. Absent for every other problem."
       }
     },
