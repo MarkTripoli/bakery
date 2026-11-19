@@ -246,3 +246,26 @@ Deno.test("the built assignment carries the context onto the wire", () => {
   assert(parsed !== undefined, "the assignment carries an unusable context");
   assertEquals(parsed.traceId, TRACE);
 });
+
+Deno.test("a resumed context writes only the 00 and 01 flag bytes", () => {
+  // The wire type refuses any flag but 00/01, so a context that remembered a
+  // wider flag would produce a header our own parser rejects on the way back -
+  // a trace that silently breaks at the process boundary. Parsing keeps only
+  // the sampled bit, and formatting writes nothing else.
+  for (
+    const raw of [
+      `00-${TRACE}-${CALLER_SPAN}-03`,
+      `00-${TRACE}-${CALLER_SPAN}-ff`,
+    ]
+  ) {
+    const parsed = parseTraceparent(raw);
+    assert(parsed !== undefined, `${raw} did not parse`);
+    const written = formatTraceparent(parsed);
+    assert(
+      /-0[01]$/.test(written),
+      `a resumed context wrote ${written.slice(-3)} instead of a 00/01 flag`,
+    );
+    // Only the low bit survives: 03 and ff are odd, so both resume as sampled.
+    assertEquals(written.slice(-2), "01");
+  }
+});
