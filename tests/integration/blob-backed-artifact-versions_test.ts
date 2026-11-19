@@ -963,6 +963,21 @@ Deno.test("a completed upload is kept through a sweep until it expires, so the p
     const after = await sweepCollectableBlobs(fixture.pgDatabase, store);
     assertEquals(after.collected, 1);
     assertEquals(store.objects.size, 0);
+
+    // The session outlives the blob it named, and it still belongs to its
+    // organization. A composite `on delete set null` would have nulled
+    // `organization_id` too and the delete would have been refused, so this row
+    // is the difference between a collectable blob and a permanently pinned one.
+    const survivor = await fixture.pgDatabase.query<{
+      organization_id: string | null;
+      completed_blob_id: string | null;
+    }>(
+      `select organization_id, completed_blob_id from bakery.blob_upload_sessions
+        where id = $1`,
+      [session.rows[0].id],
+    );
+    assertEquals(survivor.rows[0].organization_id, fixture.organizationId);
+    assertEquals(survivor.rows[0].completed_blob_id, null);
   });
 });
 
