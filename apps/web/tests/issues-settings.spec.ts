@@ -2,6 +2,7 @@ import { expect, type Page, test } from "@playwright/test";
 import { issuesFixture, uuid } from "./helpers/issues-fixture.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
 import { shot } from "./helpers/real-api.ts";
+import { still } from "./helpers/stills.ts";
 
 registerPageHealth(test);
 
@@ -578,9 +579,7 @@ for (
         "Applies to issues started from now on. Work already started keeps the settings and routing it started with.",
       )).toBeVisible();
       await page.mouse.move(700, 700);
-      await shot(page, `issue-settings-routing-${viewport.name}`, [], {
-        windowOnly: true,
-      });
+      await still(page, "issue-settings-routing");
       await page.getByRole("button", { name: "Save" }).click();
       await expect(page.getByText("Settings saved.")).toBeVisible();
       // Only the rules changed: no settings write.

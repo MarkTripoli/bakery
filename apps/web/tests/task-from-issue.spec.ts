@@ -2,7 +2,7 @@ import { expect, type Page, test } from "@playwright/test";
 import { ticket, uuid } from "./helpers/issues-fixture.ts";
 import { mockAuthenticatedSession } from "./helpers/mock-session.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
-import { shot } from "./helpers/real-api.ts";
+import { still } from "./helpers/stills.ts";
 
 registerPageHealth(test);
 
@@ -171,7 +171,7 @@ for (
         }),
       ).toHaveAttribute("href", "https://github.com/acme/web/issues/201");
       await page.mouse.move(700, 700);
-      await shot(page, `task-from-issue-${viewport.name}`);
+      await still(page, "task-from-issue");
     });
 
     test("an issue a task only mentions is listed under Mentions", async ({ page }) => {

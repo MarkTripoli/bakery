@@ -8,7 +8,7 @@ import {
   type WorkSeed,
 } from "./helpers/issues-fixture.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
-import { shot } from "./helpers/real-api.ts";
+import { still } from "./helpers/stills.ts";
 
 registerPageHealth(test);
 
@@ -109,7 +109,7 @@ for (
       await expect(work.getByRole("link", { name: "View on GitHub" }))
         .toHaveAttribute("href", "https://github.com/acme/web/issues/201");
       await page.mouse.move(700, 700);
-      await shot(page, `issue-work-one-repository-${viewport.name}`);
+      await still(page, "issue-work-one-repository");
     });
 
     test("two repositories: a line each with its state and pull requests", async ({ page }) => {
@@ -126,7 +126,7 @@ for (
       await expect(work.getByText("Also mentioned by")).toBeVisible();
       await expect(work.getByText("Tidy the auth module")).toBeVisible();
       await page.mouse.move(700, 700);
-      await shot(page, `issue-work-two-repositories-${viewport.name}`);
+      await still(page, "issue-work-two-repositories");
     });
 
     test("a note that could not update says why and Try again updates it", async ({ page }) => {
@@ -139,7 +139,7 @@ for (
         "Bakery's note on GitHub: Could not update. Bakery is not allowed to comment on this issue.",
       )).toBeVisible();
       await page.mouse.move(700, 700);
-      await shot(page, `issue-work-note-failed-${viewport.name}`);
+      await still(page, "issue-work-note-failed");
       await work.getByRole("button", { name: "Try again" }).click();
       await expect(work.getByText("Bakery's note on GitHub: Up to date"))
         .toBeVisible();
@@ -219,7 +219,7 @@ for (
       await expect(page.getByRole("button", { name: "Start again" }))
         .toBeVisible();
       await page.mouse.move(700, 700);
-      await shot(page, `issue-work-edited-after-setup-${viewport.name}`);
+      await still(page, "issue-work-edited-after-setup");
     });
 
     test("a removed label and a hold label pause with an information banner", async ({ page }) => {
