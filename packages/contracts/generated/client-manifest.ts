@@ -4580,7 +4580,10 @@ export const clientManifest = {
       "idempotency": "Read; opaque cursor pagination",
       "errors": [
         "AUTH_REQUIRED",
-        "AUTH_FORBIDDEN"
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true
@@ -4600,7 +4603,9 @@ export const clientManifest = {
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
-        "RESOURCE_NOT_FOUND"
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true
@@ -4620,7 +4625,9 @@ export const clientManifest = {
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
-        "RESOURCE_NOT_FOUND"
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true
@@ -4639,7 +4646,10 @@ export const clientManifest = {
       "idempotency": "Read; opaque cursor pagination",
       "errors": [
         "AUTH_REQUIRED",
-        "AUTH_FORBIDDEN"
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true
@@ -4659,7 +4669,9 @@ export const clientManifest = {
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
-        "RESOURCE_NOT_FOUND"
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true
