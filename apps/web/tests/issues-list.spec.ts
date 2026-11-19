@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import {
+  chooseFilter,
   issuesFixture,
   OPEN,
   ready,
@@ -43,9 +44,7 @@ for (
       // The age of the saved copy.
       await expect(page.getByText("Updated from GitHub 5 minutes ago"))
         .toBeVisible();
-      await page.getByRole("radio", { name: "All open" }).click({
-        force: true,
-      });
+      await chooseFilter(page, "All open");
       await expect(row(page, 202)).toContainText("Waiting");
       await expect(row(page, 202)).toContainText(
         "acme/web · Depends on #201, which is still open.",
@@ -116,12 +115,10 @@ for (
     test("In progress shows what Bakery is working on, and Closed asks for closed issues", async ({ page }) => {
       const seen = await issuesFixture(page);
       await page.goto("/issues");
-      await page.getByRole("radio", { name: "In progress" }).click({
-        force: true,
-      });
+      await chooseFilter(page, "In progress");
       await expect(row(page, 204)).toContainText("In progress");
       await expect(row(page, 201)).toHaveCount(0);
-      await page.getByRole("radio", { name: "Closed" }).click();
+      await chooseFilter(page, "Closed");
       await expect(row(page, 190)).toContainText("Closed");
       await expect(row(page, 190)).toContainText("Closed on GitHub.");
       expect(seen.lists.some((query) => query.includes("state=closed")))
@@ -239,13 +236,7 @@ for (
       );
       await page.goto("/issues");
       await firstPage;
-      // A click before the page is ready does nothing, so the filter's being
-      // on is what is waited for, not the click.
-      const inProgress = page.getByRole("radio", { name: "In progress" });
-      await expect(async () => {
-        await inProgress.click({ force: true });
-        await expect(inProgress).toBeChecked({ timeout: 1_000 });
-      }).toPass({ timeout: 20_000 });
+      await chooseFilter(page, "In progress");
       await expect(row(page, 2001)).toContainText("In progress", {
         timeout: 20_000,
       });
