@@ -1,3 +1,4 @@
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useBakeryApi } from "../api/context.tsx";
@@ -30,7 +31,15 @@ export function InstallationUsagePage() {
   // Both filters live in the address so a figure can be linked to: a period in
   // the URL is the difference between "our spend is high" and a message someone
   // can open at the same window.
-  const window = usageWindow(period, new Date());
+  // The clock is read once per mount, not in render. A `new Date()` in render
+  // mints a fresh `from`/`to` to the millisecond on every pass, so the query
+  // key changes every render and React Query answers by refetching forever -
+  // the page sat on "Loading" while the server answered 200 in a loop. Holding
+  // the instant also means the figure does not silently widen under a reader
+  // who has been on the page a while: the period label and the numbers agree
+  // until the page is opened again.
+  const [now] = useState(() => new Date());
+  const window = useMemo(() => usageWindow(period, now), [period, now]);
   const tooLong = usageWindowTooLong(window);
   const summary = useQuery({
     ...usageSummaryQueryOptions(api, scope, {
