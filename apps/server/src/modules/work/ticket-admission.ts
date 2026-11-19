@@ -12,6 +12,7 @@ import {
   type TicketReadinessReport,
   type TicketRequestIntent,
   type TicketRequestOrigin,
+  type TicketSourcePolicy,
   type TicketStoredReport,
 } from "@bakery/contracts/ticket-admission";
 import { FIXED_CODING_PRESET } from "@bakery/contracts/workflow-presets";
@@ -78,6 +79,7 @@ import {
   appendReportIfChanged,
   findAvailableApproval,
   findNonterminalRequest,
+  findTicketForNumber,
   insertPrimaryLink,
   insertRequest,
   insertRequestTargets,
@@ -737,6 +739,74 @@ async function recordWithin(
     call.origin,
   );
   return { ticketId: ticket.id, report, storedReport: stored };
+}
+
+/** What `previewReadiness` computed: the report, and the policy it was judged under. */
+export type ReadinessPreview = {
+  report: TicketReadinessReport;
+  policy: TicketSourcePolicy;
+};
+
+/**
+ * Judges one ticket as `recordReadiness` would, under `policy` (a draft) or
+ * the saved policy when it is null, and stores nothing (#69): no snapshot
+ * upsert, no report, no lock taken `for update`. The source and the
+ * authority rows are read `for share`, as every reader of them does; the
+ * ticket row and its nonterminal request are read without a lock, so a
+ * concurrent admission may finish between this read and the caller's answer.
+ * The report's `sourcePolicyRevision` stays the saved revision. Operation
+ * mode only: the runner prefetched the answers with the same policy.
+ */
+export async function previewReadiness(
+  deps: AdmissionDeps,
+  call: AdmissionCall,
+  policy: TicketSourcePolicy | null,
+): Promise<ReadinessPreview> {
+  assertDeps(deps, call.prefetch);
+  const transaction = deps.transaction;
+  if (transaction === undefined || call.prefetch === null) {
+    throw new StandardError({ code: "INTERNAL" });
+  }
+  const prefetch = call.prefetch;
+  const { organizationId } = call;
+  const saved = await lockSource(transaction, organizationId, call.sourceId);
+  const source: TicketSource = policy === null ? saved : { ...saved, policy };
+  const frame: Frame = {
+    deps,
+    transaction,
+    call,
+    prefetch,
+    source,
+    trace: call.trace ?? {
+      requestId: `ticket-preview:${crypto.randomUUID()}`,
+      traceId: crypto.randomUUID(),
+    },
+    authority: await sourceAuthority(transaction, source),
+  };
+  assertPrefetchCurrent(source, call, prefetch);
+  const found = await findTicketForNumber(
+    transaction,
+    organizationId,
+    source.id,
+    call.number,
+  );
+  const existing = found?.requestId
+    ? await requestById(transaction, organizationId, found.requestId)
+    : null;
+  const pinning = prefetch.issue.kind === "present"
+    ? await requirementsDigest(
+      normalizeSnapshot(prefetch.issue.snapshot, {
+        links: prefetch.links?.kind === "present"
+          ? normalizeLinks(prefetch.links)
+          : null,
+        providerUpdatedAt: prefetch.issue.providerUpdatedAt,
+      }),
+    )
+    : null;
+  const context = existing === null
+    ? await callContext(frame, null, askedIntent(frame), null, pinning)
+    : await recordedContext(frame, existing, existing.requirementsDigest);
+  return { report: await evaluate(frame, context), policy: source.policy };
 }
 
 async function admitWithin(

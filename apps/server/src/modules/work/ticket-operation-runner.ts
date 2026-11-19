@@ -11,7 +11,14 @@ import {
   StandardError,
   unprocessable,
 } from "@bakery/contracts/http";
-import { ACTOR_ROLE_RANK_ACT } from "@bakery/contracts/ticket-admission";
+import {
+  ACTOR_ROLE_RANK_ACT,
+  TICKET_PREVIEW_ISSUE_LIMIT,
+} from "@bakery/contracts/ticket-admission";
+import {
+  parsePreviewFilters,
+  storedTicketSourcePolicy,
+} from "./ticket-policy.ts";
 import type {
   TicketRequestOrigin,
   TicketSourcePolicy,
@@ -63,8 +70,8 @@ import { requireWorkTransaction } from "./work-transaction.ts";
  * never a throw: the handler decides what it means for that issue.
  */
 
-/** Issues one preview reads and records. */
-export const PREVIEW_ISSUE_LIMIT = 25;
+/** Issues one preview reads and judges. */
+export const PREVIEW_ISSUE_LIMIT = TICKET_PREVIEW_ISSUE_LIMIT;
 
 export type TicketOperationDependencies = {
   reader: TicketSourceReader;
@@ -117,7 +124,10 @@ type ReadPlan =
   | {
     kind: "preview";
     handle: TicketSourceHandle;
+    /** The draft policy when the input carries one, else the saved one; the prefetch reads for it. */
     policy: TicketSourcePolicy;
+    /** Issue numbers to read instead of the provider's first page; null reads the page. */
+    numbers: number[] | null;
   }
   | {
     kind: "sync";
@@ -140,11 +150,6 @@ type ReadPlan =
  * anything else is refused before the provider is asked.
  */
 const PROVIDER_LOGIN = /^[A-Za-z0-9](?:-?[A-Za-z0-9])*$/;
-
-function isEmptyObject(value: unknown): boolean {
-  return value !== null && typeof value === "object" &&
-    !Array.isArray(value) && Object.keys(value).length === 0;
-}
 
 export function preconditionFailed(reason: string): StandardError {
   return new StandardError({
@@ -173,15 +178,25 @@ async function probe(
     return { kind: "person", handle, login };
   }
   if (actionName === "ticketSources.preview") {
-    if (fields.filters !== undefined && !isEmptyObject(fields.filters)) {
-      throw unprocessable(["filters"], "filters_unsupported");
-    }
+    // A refused filter or draft reads nothing. The handler parses both again
+    // in its own transaction and checks the draft's delegation there.
+    const filters = parsePreviewFilters(fields.filters);
     const { source, handle } = await readSourceHandle(
       transaction,
       organizationId,
       id,
     );
-    return { kind: "preview", handle, policy: source.policy };
+    const policy = fields.policy === undefined || fields.policy === null
+      ? source.policy
+      : storedTicketSourcePolicy(fields.policy, source.policy, new Date());
+    return {
+      kind: "preview",
+      handle,
+      policy,
+      numbers: filters.numbers === undefined
+        ? null
+        : [...new Set(filters.numbers)],
+    };
   }
   if (actionName === "ticketSources.sync") {
     const selection = await selectSyncCandidates(
@@ -278,15 +293,18 @@ async function readProvider(
     };
   }
   if (plan.kind === "preview") {
-    const page: TicketIssueListPage = await reader.listIssues(
-      plan.handle,
-      { page: 1, since: null },
-      signal,
-    );
-    if (page.kind === "unavailable") throw dependencyUnavailable(page);
-    const numbers = page.numbers.slice(0, PREVIEW_ISSUE_LIMIT).map((item) =>
-      item.number
-    );
+    let numbers = plan.numbers;
+    if (numbers === null) {
+      const page: TicketIssueListPage = await reader.listIssues(
+        plan.handle,
+        { page: 1, since: null },
+        signal,
+      );
+      if (page.kind === "unavailable") throw dependencyUnavailable(page);
+      numbers = page.numbers.slice(0, PREVIEW_ISSUE_LIMIT).map((item) =>
+        item.number
+      );
+    }
     return {
       kind: "preview",
       issues: await prefetchAll(plan.handle, numbers, plan.policy),

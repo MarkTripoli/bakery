@@ -31,9 +31,6 @@ import {
 /** The pages that share one repository's draft. */
 const SETTINGS_PATH = "/issues/settings";
 
-/** How many issues the preview reads in one go; the counts rest on these. */
-const PREVIEW_ISSUES = 100;
-
 const emptyPerson = (login: string): string => login.trim();
 
 /**
@@ -42,11 +39,11 @@ const emptyPerson = (login: string): string => login.trim();
  * automatic starts are delegated, the read-only workflow, and what the saved
  * settings would count right now.
  *
- * The preview reads the *saved* settings: `ticketSources.preview` evaluates
- * the stored policy and records readiness, so the section asks for the saved
- * settings by name and offers the button only when the draft is saved. The
- * counts then come from one read of the saved issues, and they say when they
- * were read, because an issue's verdict is the last one taken.
+ * The preview reads the *saved* settings: the section asks for the saved
+ * settings by name and offers the button only when the draft is saved.
+ * `ticketSources.preview` judges the issues and answers with each verdict,
+ * storing nothing, so the counts come from that one answer and say when it
+ * was evaluated.
  */
 export function IssueSettingsPage({ sourceId }: { sourceId: string }) {
   const { translate } = useI18n();
@@ -137,19 +134,18 @@ export function IssueSettingsPage({ sourceId }: { sourceId: string }) {
   const preview = useMutation({
     mutationKey: ["ticketSources.preview"],
     mutationFn: async () => {
-      const receipt = await api.tickets.preview({
+      const result = await api.tickets.preview({
         organizationId: scope.organizationId ?? "",
         sourceId,
         idempotencyKey: crypto.randomUUID(),
       });
-      if (!receipt.ok) throw receipt.error;
-      const issues = await api.tickets.list({
-        organizationId: scope.organizationId ?? "",
-        sourceId,
-        limit: PREVIEW_ISSUES,
-      });
-      if (!issues.ok) throw issues.error;
-      return countsOf(issues.data.items);
+      if (!result.ok) throw result.error;
+      const { evaluatedAt, issues } = result.data;
+      return countsOf(
+        issues.map((issue) => ({
+          latestReadiness: { verdict: issue.verdict, evaluatedAt },
+        })),
+      );
     },
     onSuccess: (counts) => {
       setPreviewCounts(counts);
