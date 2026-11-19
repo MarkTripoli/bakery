@@ -542,6 +542,7 @@ test.describe("single sign-on settings", () => {
     await expect(dialog).toBeVisible();
     // Never verified: nobody signs in through it, so nothing changes for members.
     await expect(dialog).toContainText("okta was never turned on");
+    await shot(page, "sso-remove-confirm-never-on", [], { only: "desktop" });
     await expect(dialog).toContainText(
       "This is recorded in the audit log and cannot be undone.",
     );
@@ -659,6 +660,7 @@ test.describe("single sign-on settings", () => {
       name: "Remove okta and stop requiring SSO?",
     })).toBeVisible();
     await expect(page.getByText("This page was out of date.")).toBeVisible();
+    await shot(page, "sso-remove-out-of-date", [], { only: "desktop" });
     expect(state.removed).toEqual([]);
     expect(state.enforce).toBe(true);
     await page.getByRole("button", { name: "Remove and stop requiring SSO" })
@@ -679,6 +681,7 @@ test.describe("single sign-on settings", () => {
     await page.getByRole("alertdialog", { name: "Remove okta?" })
       .getByRole("button", { name: "Remove provider" }).click();
     await expect(page.getByText("okta was already removed.")).toBeVisible();
+    await shot(page, "sso-remove-already-removed", [], { only: "desktop" });
     await expect(page.getByRole("alertdialog")).toHaveCount(0);
     await expect(page.getByText("No sign-in provider yet")).toBeVisible();
   });

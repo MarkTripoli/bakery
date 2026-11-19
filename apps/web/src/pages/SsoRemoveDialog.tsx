@@ -115,6 +115,7 @@ export function SsoRemoveDialog(
         name,
       )}
       variant="destructive"
+      data-actions-layout="stack"
       data-testid="sso-remove-dialog"
       data-situation={situation}
       cancelAction={

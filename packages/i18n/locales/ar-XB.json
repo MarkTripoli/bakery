@@ -4417,9 +4417,9 @@
   "settings.sso.provider.delete.audit": "⟪This is recorded in the audit log and cannot be undone.⟫",
   "settings.sso.provider.delete.auditBoth": "⟪Both changes are recorded in the audit log. Removing the provider cannot be undone.⟫",
   "settings.sso.provider.delete.removed": "⟪Removed {name}.⟫",
-  "settings.sso.provider.delete.removedStopRequiring": "⟪Removed {name}. Single sign-on is no longer required. Members sign in with a password or passkey.⟫",
   "settings.sso.provider.delete.failed": "⟪{name} was not removed. Nothing changed. Try again.⟫",
   "settings.sso.provider.delete.outOfDate": "⟪This page was out of date. Check what will happen and confirm again.⟫",
   "settings.sso.provider.delete.alreadyRemoved": "⟪{name} was already removed.⟫",
-  "settings.sso.provider.removeLabel": "⟪Remove {name}⟫"
+  "settings.sso.provider.removeLabel": "⟪Remove {name}⟫",
+  "settings.sso.provider.delete.removedStopRequiring": "⟪Removed {name}. Single sign-on is no longer required. Anyone who only used {name} needs a password reset link from whoever runs this Bakery server.⟫"
 }

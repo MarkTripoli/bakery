@@ -4417,9 +4417,9 @@
   "settings.sso.provider.delete.audit": "⟦Ŧĥïš ïš ŕëçôŕðëð ïñ ŧĥë àûðïŧ ļôĝ àñð çàññôŧ ƀë ûñðôñë. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "settings.sso.provider.delete.auditBoth": "⟦Ɓôŧĥ çĥàñĝëš àŕë ŕëçôŕðëð ïñ ŧĥë àûðïŧ ļôĝ. Ŕëɱôṽïñĝ ŧĥë þŕôṽïðëŕ çàññôŧ ƀë ûñðôñë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "settings.sso.provider.delete.removed": "⟦Ŕëɱôṽëð {name}. ŧëš⟧",
-  "settings.sso.provider.delete.removedStopRequiring": "⟦Ŕëɱôṽëð {name}. Šïñĝļë šïĝñ-ôñ ïš ñô ļôñĝëŕ ŕëǫûïŕëð. Ṁëɱƀëŕš šïĝñ ïñ ŵïŧĥ à þàššŵôŕð ôŕ þàššķëÿ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
   "settings.sso.provider.delete.failed": "⟦{name} ŵàš ñôŧ ŕëɱôṽëð. Ñôŧĥïñĝ çĥàñĝëð. Ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "settings.sso.provider.delete.outOfDate": "⟦Ŧĥïš þàĝë ŵàš ôûŧ ôƒ ðàŧë. Çĥëçķ ŵĥàŧ ŵïļļ ĥàþþëñ àñð çôñƒïŕɱ àĝàïñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
   "settings.sso.provider.delete.alreadyRemoved": "⟦{name} ŵàš àļŕëàðÿ ŕëɱôṽëð. ŧëšŧ çô⟧",
-  "settings.sso.provider.removeLabel": "⟦Ŕëɱôṽë {name} ŧë⟧"
+  "settings.sso.provider.removeLabel": "⟦Ŕëɱôṽë {name} ŧë⟧",
+  "settings.sso.provider.delete.removedStopRequiring": "⟦Ŕëɱôṽëð {name}. Šïñĝļë šïĝñ-ôñ ïš ñô ļôñĝëŕ ŕëǫûïŕëð. Àñÿôñë ŵĥô ôñļÿ ûšëð {name} ñëëðš à þàššŵôŕð ŕëšëŧ ļïñķ ƒŕôɱ ŵĥôëṽëŕ ŕûñš ŧĥïš Ɓàķëŕÿ šëŕṽëŕ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧"
 }
