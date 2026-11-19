@@ -45,6 +45,7 @@ import { WorkflowEditorPage } from "./pages/library/WorkflowEditorPage.tsx";
 import { AppearancePage } from "./pages/AppearancePage.tsx";
 import { HealthPage } from "./pages/HealthPage.tsx";
 import { SetupPage } from "./pages/SetupPage.tsx";
+import { ForgotPasswordPage } from "./pages/ForgotPasswordPage.tsx";
 import { SignInPage } from "./pages/SignInPage.tsx";
 import { TwoFactorChallengePage } from "./pages/TwoFactorChallengePage.tsx";
 import { RecoveryCodePage } from "./pages/RecoveryCodePage.tsx";
@@ -493,12 +494,19 @@ export const routeCoverage = [
       "github-disabled",
       "invalid",
       "loading",
+      "rate-limited",
+      "blocked",
       "offline",
       "unavailable",
-      "throttled",
       "expired",
       "factor-required",
     ],
+  },
+  {
+    id: "forgot-password",
+    path: "/sign-in/forgot-password",
+    classification: "production",
+    states: ["default"],
   },
   {
     id: "totp-challenge",
@@ -1351,6 +1359,12 @@ const signInRoute = createRoute({
       <SignInPage invitation={invitation ?? null} reason={reason ?? null} />
     );
   },
+});
+
+const forgotPasswordRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/sign-in/forgot-password",
+  component: ForgotPasswordPage,
 });
 
 const totpChallengeRoute = createRoute({
@@ -2283,6 +2297,7 @@ const routeTree = rootRoute.addChildren([
   accessRoute,
   setupRoute,
   signInRoute,
+  forgotPasswordRoute,
   totpChallengeRoute,
   recoveryCodeRoute,
   signOutRoute,

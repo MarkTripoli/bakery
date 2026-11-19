@@ -10,7 +10,7 @@ export type ConnectedClientRow = {
   readonly id: string;
   readonly clientName: string;
   readonly organizationName: string;
-  /** Already-worded scope titles, in grant order. */
+  /** The plain description of each scope, in grant order. */
   readonly scopes: readonly string[];
 };
 
@@ -26,11 +26,6 @@ export type ConnectedClientsScreenProps = {
   readonly onRefresh: () => void;
 };
 
-function lowerFirst(text: string, locale: string): string {
-  const [first = "", ...rest] = Array.from(text);
-  return first.toLocaleLowerCase(locale) + rest.join("");
-}
-
 /**
  * `/settings/clients` presenter — V-0 `clients`: heading, the
  * optional "revoked" notice and one row per grant naming the client, its
@@ -42,7 +37,7 @@ export function ConnectedClientsScreen(
   { async, clients, onRefresh, onReload, onRetry, onRevoke, revoked }:
     ConnectedClientsScreenProps,
 ) {
-  const { locale, translate } = useI18n();
+  const { translate } = useI18n();
   return (
     <UI.SettingsContent data-testid="connected-clients">
       <UI.AuthHeading
@@ -58,9 +53,11 @@ export function ConnectedClientsScreen(
         : null}
       {async === "empty"
         ? (
-          <UI.InlineNotice data-testid="security-empty" tone="neutral">
-            {translate("auth.settings.clients.emptyNotice")}
-          </UI.InlineNotice>
+          <UI.EmptyState
+            data-testid="security-empty"
+            description={translate("auth.settings.clients.emptyDescription")}
+            title={translate("auth.settings.clients.emptyTitle")}
+          />
         )
         : null}
       <SecurityAsyncBoundary
@@ -93,18 +90,16 @@ export function ConnectedClientsScreen(
                   </UI.Button>
                 }
                 data-testid="clients-row"
-                description={translate("auth.settings.clients.grantCaption", {
-                  organization: client.organizationName,
-                  // The scope titles are sentence-cased for the consent rows;
-                  // inside the caption only the first one opens the sentence
-                  // (V-0 `clients`: "Read work and artifacts, start and steer
-                  // tasks").
-                  scopes: client.scopes
-                    .map((scope, index) =>
-                      index === 0 ? scope : lowerFirst(scope, locale)
-                    )
-                    .join(translate("auth.settings.clients.scopeSeparator")),
-                })}
+                description={
+                  <UI.Stack gap="tight">
+                    <UI.Text variant="caption">
+                      {client.organizationName}
+                    </UI.Text>
+                    {client.scopes.map((scope) => (
+                      <UI.Text key={scope} variant="caption">{scope}</UI.Text>
+                    ))}
+                  </UI.Stack>
+                }
                 icon={<UI.IconGlyph name="terminal" size="large" />}
                 key={client.id}
                 title={client.clientName}
