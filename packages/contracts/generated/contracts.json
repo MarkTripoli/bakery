@@ -63438,7 +63438,7 @@
             "mode"
           ],
           "additionalProperties": false,
-          "description": "Makes the caller the completer of a workflow step, or restarts it. Allowed only for a step of a compiled-plan run whose job is still queued with no live attempt, and only for a caller holding run control; a step with a live attempt is refused with STATE_CONFLICT `attempt_live` and must be stopped through run control first. `complete` also needs the action to produce an artifact. A job with a budget reservation and a finished attempt is refused with `budget_unsettled` in either mode while the reservation is still held: that attempt may already have spent against it, so reconciliation must settle it first, and once it is settled the takeover goes through. `restart` also needs the reservation to be held, and is refused with `budget_not_reserved` once it is gone. A job with no budget reservation can be completed or restarted after any number of attempts."
+          "description": "Makes the caller the completer of a workflow step, or restarts it. Allowed only for a step of a compiled-plan run whose job is still queued with no live attempt, and only for a caller holding run control; a step with a live attempt is refused with STATE_CONFLICT `attempt_live` and must be stopped through run control first. `complete` also needs the action to produce an artifact. A job with a budget reservation and a finished attempt is refused with `budget_unsettled` in either mode while the reservation is still held, because that attempt may already have spent against it. Once reconciliation settles it, `complete` goes through; `restart` does not: a restart reuses the held reservation, so a funded job that has had a finished attempt is never restartable (`budget_not_reserved` once the reservation is settled or released). `restart` of any funded job also needs its reservation held, and a funded job with no reservation is refused with `budget_not_reserved`. A job whose action has no budget can be completed or restarted after any number of attempts."
         },
         "applications": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -222876,7 +222876,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:0f1b5a0524f7f88f4d35230635150c7b0cd5808df1783a752cf794501778aece",
+  "compatibilityDigest": "sha256:911c850f6fce36a0fe3af6d3b8ffd137f2cc2cadf2083e6adb9758736e65a9af",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -249690,7 +249690,7 @@
         "mode"
       ],
       "additionalProperties": false,
-      "description": "Makes the caller the completer of a workflow step, or restarts it. Allowed only for a step of a compiled-plan run whose job is still queued with no live attempt, and only for a caller holding run control; a step with a live attempt is refused with STATE_CONFLICT `attempt_live` and must be stopped through run control first. `complete` also needs the action to produce an artifact. A job with a budget reservation and a finished attempt is refused with `budget_unsettled` in either mode while the reservation is still held: that attempt may already have spent against it, so reconciliation must settle it first, and once it is settled the takeover goes through. `restart` also needs the reservation to be held, and is refused with `budget_not_reserved` once it is gone. A job with no budget reservation can be completed or restarted after any number of attempts."
+      "description": "Makes the caller the completer of a workflow step, or restarts it. Allowed only for a step of a compiled-plan run whose job is still queued with no live attempt, and only for a caller holding run control; a step with a live attempt is refused with STATE_CONFLICT `attempt_live` and must be stopped through run control first. `complete` also needs the action to produce an artifact. A job with a budget reservation and a finished attempt is refused with `budget_unsettled` in either mode while the reservation is still held, because that attempt may already have spent against it. Once reconciliation settles it, `complete` goes through; `restart` does not: a restart reuses the held reservation, so a funded job that has had a finished attempt is never restartable (`budget_not_reserved` once the reservation is settled or released). `restart` of any funded job also needs its reservation held, and a funded job with no reservation is refused with `budget_not_reserved`. A job whose action has no budget can be completed or restarted after any number of attempts."
     },
     "applications": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
