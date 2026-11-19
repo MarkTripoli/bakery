@@ -5664,6 +5664,15 @@
             "maxLength": 100000
           },
           "description": "Optional author-written source text for the draft; when omitted the server stores the canonical JSON text of `definition`, which is valid YAML 1.2."
+        },
+        {
+          "name": "confirmPersonalSkillUse",
+          "type": "uuid[]",
+          "required": false,
+          "bounds": {
+            "maxItems": 32
+          },
+          "description": "Skill versions of personal skills the author confirms letting this workflow use. Attaching a personal skill to a step lets everyone who can see or run the workflow use that exact version in it, so the save is refused with UNPROCESSABLE personal_skill_confirmation_required, naming the step, unless the skill's owner names its version here. Only the skill's owner can confirm; for anyone else the step is refused as skill_unavailable. A step that already holds a live grant for the version passes without a new confirmation."
         }
       ],
       "description": "Creates the definition's single shared mutable draft; publication is the separate publish action."
@@ -5704,6 +5713,15 @@
             "maxLength": 100000
           },
           "description": "Optional author-written source text; when omitted the server stores the canonical JSON text of `definition`."
+        },
+        {
+          "name": "confirmPersonalSkillUse",
+          "type": "uuid[]",
+          "required": false,
+          "bounds": {
+            "maxItems": 32
+          },
+          "description": "Skill versions of personal skills the author confirms letting this workflow use. Attaching a personal skill to a step lets everyone who can see or run the workflow use that exact version in it, so the save is refused with UNPROCESSABLE personal_skill_confirmation_required, naming the step, unless the skill's owner names its version here. Only the skill's owner can confirm; for anyone else the step is refused as skill_unavailable. A step that already holds a live grant for the version passes without a new confirmation."
         }
       ],
       "description": "Replaces the content of the definition's shared draft under the draft's optimistic-concurrency version; published versions are immutable and cannot be updated."

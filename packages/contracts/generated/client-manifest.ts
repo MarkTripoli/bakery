@@ -17729,6 +17729,17 @@ export const clientManifest = {
           "description": "Optional author-written source text for the draft; when omitted the server stores the canonical JSON text of `definition`, which is valid YAML 1.2. WorkflowVersionCreate.sourceYaml must contain at most 100000 characters.",
           "type": "string",
           "maxLength": 65536
+        },
+        "confirmPersonalSkillUse": {
+          "description": "Skill versions of personal skills the author confirms letting this workflow use. Attaching a personal skill to a step lets everyone who can see or run the workflow use that exact version in it, so the save is refused with UNPROCESSABLE personal_skill_confirmation_required, naming the step, unless the skill's owner names its version here. Only the skill's owner can confirm; for anyone else the step is refused as skill_unavailable. A step that already holds a live grant for the version passes without a new confirmation. WorkflowVersionCreate.confirmPersonalSkillUse must contain at most 32 items.",
+          "maxItems": 32,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "Skill versions of personal skills the author confirms letting this workflow use. Attaching a personal skill to a step lets everyone who can see or run the workflow use that exact version in it, so the save is refused with UNPROCESSABLE personal_skill_confirmation_required, naming the step, unless the skill's owner names its version here. Only the skill's owner can confirm; for anyone else the step is refused as skill_unavailable. A step that already holds a live grant for the version passes without a new confirmation. Each array item follows this format."
+          }
         }
       },
       "required": [
@@ -17922,6 +17933,17 @@ export const clientManifest = {
           "description": "Optional author-written source text; when omitted the server stores the canonical JSON text of `definition`. WorkflowDraftUpdate.sourceYaml must contain at most 100000 characters.",
           "type": "string",
           "maxLength": 65536
+        },
+        "confirmPersonalSkillUse": {
+          "description": "Skill versions of personal skills the author confirms letting this workflow use. Attaching a personal skill to a step lets everyone who can see or run the workflow use that exact version in it, so the save is refused with UNPROCESSABLE personal_skill_confirmation_required, naming the step, unless the skill's owner names its version here. Only the skill's owner can confirm; for anyone else the step is refused as skill_unavailable. A step that already holds a live grant for the version passes without a new confirmation. WorkflowDraftUpdate.confirmPersonalSkillUse must contain at most 32 items.",
+          "maxItems": 32,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "Skill versions of personal skills the author confirms letting this workflow use. Attaching a personal skill to a step lets everyone who can see or run the workflow use that exact version in it, so the save is refused with UNPROCESSABLE personal_skill_confirmation_required, naming the step, unless the skill's owner names its version here. Only the skill's owner can confirm; for anyone else the step is refused as skill_unavailable. A step that already holds a live grant for the version passes without a new confirmation. Each array item follows this format."
+          }
         }
       },
       "required": [
