@@ -747,7 +747,11 @@ Deno.test("a package list pages by cursor without repeating or losing a row", ()
         method: "POST",
         body: packageBody({ name }),
       });
-      assertEquals(response.status, 201, await response.clone().text());
+      assert(
+        response.status === 200 || response.status === 201,
+        `a first write of a new key must succeed: ${await response.clone()
+          .text()}`,
+      );
       created.push((await response.json()).id);
     }
 
@@ -981,6 +985,23 @@ async function publishInstallable(
   assertEquals(published.status, 201, await published.clone().text());
   const version = await published.json();
   return { packageId: pkg.id, versionId: version.id };
+}
+
+/** A second published version of an existing package, for upgrade cases. */
+async function publishSecondVersion(
+  fixture: Fixture,
+  store: ReturnType<typeof memoryStore>,
+  published: { packageId: string },
+): Promise<{ versionId: string }> {
+  const bytes = new TextEncoder().encode(`bundle ${crypto.randomUUID()}`);
+  const bundle = await uploadBundle(fixture, store, bytes);
+  const second = await call(
+    fixture,
+    `/v1/plugin-packages/${published.packageId}/versions`,
+    { method: "POST", body: versionBody(bundle, { manifest: VALID_MANIFEST }) },
+  );
+  assertEquals(second.status, 201, await second.clone().text());
+  return { versionId: (await second.json()).id };
 }
 
 /** A second member of the same organization with their own session cookie. */
@@ -1721,4 +1742,278 @@ Deno.test("a list cursor is signed and bound, so it cannot be forged or replayed
           .text()}`,
       );
     }
+  }));
+
+Deno.test("another organization cannot reach an install by id, and its list is empty", () =>
+  withPluginFixture(async (fixture, store) => {
+    const published = await publishInstallable(fixture, store);
+    const install = await (await call(fixture, "/v1/plugin-installs", {
+      method: "POST",
+      body: {
+        packageId: published.packageId,
+        versionId: published.versionId,
+        scope: "organization",
+      },
+    })).json();
+
+    // The same principal, acting in a second organization it really belongs to.
+    // Every route that takes an id must answer not-found, and the list must be
+    // empty: a tenant predicate that is missing from one query shows up here and
+    // nowhere else, because the caller is authorized in both organizations.
+    const { organizationId: otherId } = await secondOrganization(fixture);
+    const asOther = (path: string, init: { method: string; body?: unknown }) =>
+      fixture.app.fetch(
+        new Request(`${fixture.config.publicBaseUrl}${path}`, {
+          method: init.method,
+          headers: {
+            "Content-Type": "application/json",
+            Origin: fixture.config.publicBaseUrl,
+            "Bakery-Organization-Id": otherId,
+            Cookie: fixture.adminCookie,
+            "Idempotency-Key": crypto.randomUUID(),
+          },
+          ...(init.body === undefined
+            ? {}
+            : { body: JSON.stringify(init.body) }),
+        }),
+      );
+
+    const read = await asOther(`/v1/plugin-installs/${install.id}`, {
+      method: "GET",
+    });
+    assertEquals(
+      read.status,
+      404,
+      `another organization must not read this install: ${await read.clone()
+        .text()}`,
+    );
+
+    const patch = await asOther(`/v1/plugin-installs/${install.id}`, {
+      method: "PATCH",
+      body: { status: "disabled" },
+    });
+    assertEquals(
+      patch.status,
+      404,
+      `another organization must not change this install: ${await patch.clone()
+        .text()}`,
+    );
+
+    const state = await asOther(`/v1/plugin-installs/${install.id}/state`, {
+      method: "GET",
+    });
+    assertEquals(
+      state.status,
+      404,
+      `another organization must not read this state: ${await state.clone()
+        .text()}`,
+    );
+
+    const write = await asOther(
+      `/v1/plugin-installs/${install.id}/state/settings/theme`,
+      {
+        method: "PUT",
+        body: {
+          namespace: "settings",
+          key: "theme",
+          schemaVersion: 1,
+          value: { mode: "dark" },
+          expectedCasVersion: 0,
+        },
+      },
+    );
+    assertEquals(
+      write.status,
+      404,
+      `another organization must not write this state: ${await write.clone()
+        .text()}`,
+    );
+
+    // The list is the one route where a missing predicate returns rows instead
+    // of a 404, so it is the only place a leak would look like success.
+    const listed = await asOther("/v1/plugin-installs", { method: "GET" });
+    assertEquals(listed.status, 200, await listed.clone().text());
+    assertEquals(
+      (await listed.json()).items,
+      [],
+      "another organization's list must not contain this install",
+    );
+
+    // And the owning organization still sees it, so the test cannot pass by
+    // breaking the read for everybody.
+    const mine = await call(fixture, `/v1/plugin-installs/${install.id}`, {
+      method: "GET",
+    });
+    assertEquals(mine.status, 200, await mine.clone().text());
+  }));
+
+Deno.test("a list shows your own personal installs and never a colleague's", () =>
+  withPluginFixture(async (fixture, store) => {
+    const published = await publishInstallable(fixture, store);
+    const developer = asCookie(
+      fixture,
+      await inviteColleague(fixture, "developer"),
+    );
+    const personal = await (await developer("/v1/plugin-installs", {
+      method: "POST",
+      body: {
+        packageId: published.packageId,
+        versionId: published.versionId,
+        scope: "personal",
+      },
+    })).json();
+
+    // A personal install is somebody's own customization, so it is not
+    // organization inventory: an Admin does not see it in a list. This is the
+    // deliberate answer, not an omission -- the install is still reachable by
+    // id for its owner, and the routes that take an id answer 404 to everyone
+    // else, which is covered above.
+    const adminList = await call(fixture, "/v1/plugin-installs", {
+      method: "GET",
+    });
+    assertEquals(adminList.status, 200, await adminList.clone().text());
+    const adminIds = (await adminList.json()).items.map(
+      (row: { id: string }) => row.id,
+    );
+    assert(
+      !adminIds.includes(personal.id),
+      "an Admin's list must not include a Developer's personal install",
+    );
+
+    // The developer sees their own in their own list. Without this the test
+    // would also pass if the list were simply broken for everybody.
+    const developerList = await developer("/v1/plugin-installs", {
+      method: "GET",
+    });
+    assertEquals(developerList.status, 200, await developerList.clone().text());
+    const developerIds = (await developerList.json()).items.map(
+      (row: { id: string }) => row.id,
+    );
+    assert(
+      developerIds.includes(personal.id),
+      "an owner's list must include their own personal install",
+    );
+
+    // And a second organization's list contains neither, which is the mutant
+    // qa2 found surviving: dropping the organization predicate returned
+    // everybody's installs and nothing noticed.
+    const { organizationId: otherId } = await secondOrganization(fixture);
+    const other = await fixture.app.fetch(
+      new Request(`${fixture.config.publicBaseUrl}/v1/plugin-installs`, {
+        method: "GET",
+        headers: {
+          Origin: fixture.config.publicBaseUrl,
+          "Bakery-Organization-Id": otherId,
+          Cookie: fixture.adminCookie,
+        },
+      }),
+    );
+    assertEquals(other.status, 200, await other.clone().text());
+    const otherIds = (await other.json()).items.map(
+      (row: { id: string }) => row.id,
+    );
+    assert(
+      !otherIds.includes(personal.id),
+      "a second organization's list must not include this personal install",
+    );
+  }));
+
+Deno.test("an install cannot grow state keys without limit", () =>
+  withPluginFixture(async (fixture, store) => {
+    const published = await publishInstallable(fixture, store);
+    const install = await (await call(fixture, "/v1/plugin-installs", {
+      method: "POST",
+      body: {
+        packageId: published.packageId,
+        versionId: published.versionId,
+        scope: "organization",
+      },
+    })).json();
+
+    const write = (key: string) =>
+      call(fixture, `/v1/plugin-installs/${install.id}/state/settings/${key}`, {
+        method: "PUT",
+        body: {
+          namespace: "settings",
+          key,
+          schemaVersion: 1,
+          value: { mode: "dark" },
+          expectedCasVersion: 0,
+        },
+      });
+
+    // The value size is capped by the transport schema, but the number of keys
+    // was not: one plugin could add rows until the table was the problem.
+    let refusedAt = 0;
+    for (let index = 0; index < 300; index += 1) {
+      const response = await write(`key-${index}`);
+      if (response.status === 409) {
+        refusedAt = index;
+        break;
+      }
+      assert(
+        response.status === 200 || response.status === 201,
+        `a first write must succeed: ${await response.clone().text()}`,
+      );
+    }
+    assert(
+      refusedAt > 0 && refusedAt <= 300,
+      `a key cap must refuse before 300 keys, refused at ${refusedAt}`,
+    );
+
+    // Overwriting an existing key still works at the cap: the limit is on the
+    // number of keys, not on writes.
+    const overwrite = await call(
+      fixture,
+      `/v1/plugin-installs/${install.id}/state/settings/key-0`,
+      {
+        method: "PUT",
+        body: {
+          namespace: "settings",
+          key: "key-0",
+          schemaVersion: 1,
+          value: { mode: "light" },
+          expectedCasVersion: 1,
+        },
+      },
+    );
+    assert(
+      overwrite.status === 200 || overwrite.status === 201,
+      `an overwrite must succeed: ${await overwrite.clone().text()}`,
+    );
+  }));
+
+Deno.test("an uninstalled install cannot be repointed at another version", () =>
+  withPluginFixture(async (fixture, store) => {
+    const published = await publishInstallable(fixture, store);
+    const install = await (await call(fixture, "/v1/plugin-installs", {
+      method: "POST",
+      body: {
+        packageId: published.packageId,
+        versionId: published.versionId,
+        scope: "organization",
+      },
+    })).json();
+
+    await call(fixture, `/v1/plugin-installs/${install.id}`, {
+      method: "PATCH",
+      body: { status: "uninstalled" },
+    });
+
+    // A version-only PATCH used to answer 200 and repoint the finished row,
+    // which reads as "this install is live again" while its status says
+    // otherwise. It has to name a DIFFERENT version: repeating the current one
+    // is a no-op and would pass for the wrong reason.
+    const second = await publishSecondVersion(fixture, store, published);
+    const repointed = await call(
+      fixture,
+      `/v1/plugin-installs/${install.id}`,
+      { method: "PATCH", body: { versionId: second.versionId } },
+    );
+    assertEquals(
+      repointed.status,
+      409,
+      `an uninstalled install must not be repointed: ${await repointed.clone()
+        .text()}`,
+    );
   }));

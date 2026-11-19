@@ -17,10 +17,12 @@ import {
   ActionAccess,
   contractSchemas,
   OrganizationContextPolicy,
-  OrganizationRole,
 } from "@bakery/contracts/contracts";
 import { StandardError } from "@bakery/contracts/http";
-import { isOrganizationMember } from "../auth/application/authorize.ts";
+import {
+  authorizeOrganizationAdministrator,
+  isOrganizationMember,
+} from "../auth/application/authorize.ts";
 import type { OrganizationActor } from "../auth/application/authority.ts";
 import { PostgresAuthorityRunner } from "../auth/adapters/authority-postgres.ts";
 import { createPostgresCommandRunner } from "../../platform/command-replay.ts";
@@ -128,14 +130,14 @@ export function createPluginInstallActionRegistry(
     input: unknown,
   ): void => {
     const actor = actorOf(context);
-    if (!isOrganizationMember(actor) && actor.role !== OrganizationRole.Admin) {
+    if (!isOrganizationMember(actor)) {
       throw new StandardError({ code: "AUTH_FORBIDDEN" });
     }
     const scope = (input as { scope?: unknown } | undefined)?.scope;
     if (scope !== "organization") return;
-    if (actor.role !== OrganizationRole.Admin) {
-      throw new StandardError({ code: "AUTH_FORBIDDEN" });
-    }
+    // An organization install changes what everybody can use, so the scope in
+    // the input raises the requirement to Admin; the auth layer owns the role.
+    authorizeOrganizationAdministrator(actor);
   };
 
   /**
@@ -145,7 +147,7 @@ export function createPluginInstallActionRegistry(
    */
   const requireUpdateAuthority = (context: ActionContext): void => {
     const actor = actorOf(context);
-    if (!isOrganizationMember(actor) && actor.role !== OrganizationRole.Admin) {
+    if (!isOrganizationMember(actor)) {
       throw new StandardError({ code: "AUTH_FORBIDDEN" });
     }
   };

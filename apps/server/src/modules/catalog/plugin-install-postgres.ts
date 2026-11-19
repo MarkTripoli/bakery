@@ -9,7 +9,7 @@ import {
   PluginManifestError,
   satisfiesSdkRange,
 } from "@bakery/contracts/plugin-sdk";
-import { OrganizationRole } from "../auth/domain/authorization.ts";
+import { isOrganizationAdministratorRole } from "../auth/application/authorize.ts";
 import type { PgTransactionClient } from "../../platform/database.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import {
@@ -252,7 +252,7 @@ async function assertMayManageInstall(
   // so it is Admin authority. Developer would let any member widen the surface
   // for the whole organization.
   const role = await liveRole(transaction, organizationId, principalId);
-  if (role !== OrganizationRole.Admin) {
+  if (!isOrganizationAdministratorRole(role)) {
     throw new StandardError({ code: "AUTH_FORBIDDEN" });
   }
 }
@@ -611,7 +611,13 @@ export async function updatePluginInstall(
   // An uninstalled row is finished. Reactivating it would resurrect a row the
   // caller was told was gone, and the partial unique index on a live install of
   // the same package and owner would then fire inside this UPDATE as a 500.
-  if (row.status === "uninstalled" && nextStatus !== "uninstalled") {
+  // Any change to an uninstalled row is refused, not just a status change: a
+  // version-only PATCH would repoint a finished install at a new version and
+  // answer 200, which reads as "this install is live again".
+  if (
+    row.status === "uninstalled" &&
+    (nextStatus !== "uninstalled" || upgraded)
+  ) {
     throw new StandardError({
       code: "STATE_CONFLICT",
       params: { reason: "plugin_install_uninstalled" },
@@ -744,6 +750,14 @@ export async function listPluginState(
  * could use the state table as an unbounded key-value store under names nobody
  * reviewed, and the install's declared namespaces would be decoration.
  */
+/**
+ * How many state keys one install may hold for one owner.
+ *
+ * The value size is capped by the transport schema, but nothing bounded the
+ * number of keys: a plugin could add rows until the table was the problem.
+ */
+const MAX_STATE_KEYS_PER_INSTALL = 256;
+
 export async function putPluginState(
   context: ActionContext,
   rawInput: unknown,
@@ -787,15 +801,6 @@ export async function putPluginState(
       params: { reason: `plugin_install_${install.status}` },
     });
   }
-  if (
-    install.scope === "personal" && install.owner_principal_id !== principalId
-  ) {
-    throw new StandardError({
-      code: "RESOURCE_NOT_FOUND",
-      params: { reason: "plugin_install_not_found" },
-    });
-  }
-
   // The declared namespaces come from the pinned version's manifest, so a
   // namespace added in a newer version is not writable until that version is
   // installed.
@@ -854,6 +859,22 @@ export async function putPluginState(
   }
 
   if (current === undefined) {
+    // A new key is the only write that grows the row count, so the cap belongs
+    // here: an install that could add keys without limit would let one plugin
+    // fill the table, and the value-size cap does not bound the number of rows.
+    const counted = await transaction.query<{ count: string }>(
+      `select count(*)::text as count
+         from bakery.plugin_state
+        where organization_id = $1 and plugin_install_id = $2
+          and owner_principal_id is not distinct from $3`,
+      [organizationId, installId, owner],
+    );
+    if (Number(counted.rows[0].count) >= MAX_STATE_KEYS_PER_INSTALL) {
+      throw new StandardError({
+        code: "STATE_CONFLICT",
+        params: { reason: "plugin_state_key_limit_reached" },
+      });
+    }
     const inserted = await transaction.query<StateRow>(
       `insert into bakery.plugin_state
          (organization_id, plugin_install_id, owner_principal_id, namespace, key,
