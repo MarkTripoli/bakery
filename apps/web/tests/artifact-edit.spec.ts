@@ -117,7 +117,10 @@ test.describe("Editing a document in place", () => {
       .toBeVisible();
     await expect(page.getByText("Some of your changes could not be saved."))
       .toHaveCount(0);
-    await expect(page.getByText("unsaved", { exact: true })).toBeVisible();
+    // The page shows the text once; the closed sheet holds a hidden copy.
+    await expect(
+      page.getByText("unsaved", { exact: true }).filter({ visible: true }),
+    ).toHaveCount(1);
   });
 
   test("losing access says so and leaves the editor read-only", async ({ page }) => {
