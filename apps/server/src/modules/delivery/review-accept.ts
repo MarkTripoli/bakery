@@ -8,6 +8,7 @@ import { appendDecision } from "../work/human-approval-store.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import {
   ACCEPTANCE_COLUMNS,
+  ACCEPTANCE_JOIN,
   REVIEW_CYCLE_COLUMNS,
   type ReviewCycleRow,
   toReviewCycle,
@@ -22,8 +23,8 @@ import {
  * record, never an edit of the review, which stays what the reviewer found.
  *
  * Rules, and why:
- * - Only an organization administrator, by the action's access, and never an
- *   agent: decisions that overrule a reviewer are a person's unless a workflow
+ * - Only an organization administrator, or a member whose role holds
+ *   `review:accept`, and never an agent: decisions that overrule a reviewer are a person's unless a workflow
  *   explicitly grants an agent that power, which this operation does not.
  * - Only a review that requested changes: an approved review has nothing to
  *   overrule, and accepting it would add a decision that means nothing.
@@ -34,14 +35,16 @@ import {
  * the interpreter reads decisions, and a workflow that continues past an
  * accepted review is what makes it count.
  */
-export async function acceptReview(context: ActionContext, rawInput: unknown) {
+export async function acceptReview(
+  context: ActionContext,
+  input: z.output<typeof contractSchemas.ReviewAccept>,
+) {
   const { transaction, organizationId, principalId } = requireWorkTransaction(
     context,
   );
   if (context.agentSession !== undefined) {
     throw new StandardError({ code: "AUTH_FORBIDDEN" });
   }
-  const input = rawInput as z.output<typeof contractSchemas.ReviewAccept>;
   if (input.reason.trim() === "") {
     throw unprocessable(["reason"], "review_accept_reason_required");
   }
@@ -117,8 +120,8 @@ export async function acceptReview(context: ActionContext, rawInput: unknown) {
   const row = await transaction.query<ReviewCycleRow>(
     `select ${REVIEW_CYCLE_COLUMNS},
             null::uuid as pull_request_id, ${ACCEPTANCE_COLUMNS}
-       from bakery.review_cycles
-      where organization_id = $1 and id = $2`,
+       from bakery.review_cycles${ACCEPTANCE_JOIN}
+      where review_cycles.organization_id = $1 and review_cycles.id = $2`,
     [organizationId, reviewId],
   );
   return toReviewCycle(row.rows[0]!);

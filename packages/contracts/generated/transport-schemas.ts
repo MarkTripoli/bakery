@@ -11693,7 +11693,7 @@ const transportSchemas = {
           "description": "Why the owner overrules the reviewer and accepts the candidate anyway. It is recorded verbatim in the work item's decisions ledger and shown on the review, in the open; a blank reason is refused."
         }
       ],
-      "description": "Records an owner's accept-with-reason decision against one review that requested changes, overruling that reviewer (chapter 25 section 9, O18). Only an organization administrator may record it, and an agent never may. The review stays what it was, immutable; the decision is a separate record shown on it. It does not restart a run that has already stopped: that needs a workflow that reads decisions."
+      "description": "Records an owner's accept-with-reason decision against one review that requested changes, overruling that reviewer (chapter 25 section 9, O18). An organization administrator may record it, and so may a member whose role holds the review:accept permission; an agent never may. The review stays what it was, immutable; the decision is a separate record shown on it. It does not restart a run that has already stopped: that needs a workflow that reads decisions."
     }
   },
   "projections": {
@@ -18558,9 +18558,9 @@ const transportSchemas = {
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated; equals createdAt because rows are immutable.",
         "version": "Always 1 because review cycle rows are immutable.",
-        "acceptedBy": "Principal of the organization administrator who recorded an accept-with-reason decision overruling this review; null when none was recorded.",
+        "acceptedBy": "Principal who recorded an accept-with-reason decision overruling this review (an organization administrator, or a member whose role holds review:accept); null when none was recorded.",
         "acceptedAt": "UTC timestamp of that decision; null when none was recorded.",
-        "acceptReason": "The reason the administrator gave, verbatim; null when none was recorded."
+        "acceptReason": "The reason the decider gave, verbatim; null when none was recorded."
       },
       "optionalFields": [
         "acceptedBy",

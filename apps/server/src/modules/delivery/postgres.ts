@@ -269,25 +269,24 @@ export const REVIEW_CYCLE_COLUMNS =
 
 /**
  * The owner's accept-with-reason decision on a review, read from the decisions
- * ledger: the latest such entry whose subject is this review. The review row is
- * immutable, so the acceptance is a separate record shown beside it.
+ * ledger: the latest such entry whose subject is this review, joined once per
+ * row. The review row is immutable, so the acceptance is a separate record
+ * shown beside it. Use with `ACCEPTANCE_JOIN` after `from bakery.review_cycles`.
  */
-export const ACCEPTANCE_COLUMNS = `
-  (select entry.decided_by from bakery.decisions_ledger as entry
-    where entry.organization_id = review_cycles.organization_id
-      and entry.kind = 'accept_with_reason' and entry.subject_kind = 'review'
-      and entry.subject_id = review_cycles.id
-    order by entry.decided_at desc, entry.id desc limit 1) as accepted_by,
-  (select entry.decided_at from bakery.decisions_ledger as entry
-    where entry.organization_id = review_cycles.organization_id
-      and entry.kind = 'accept_with_reason' and entry.subject_kind = 'review'
-      and entry.subject_id = review_cycles.id
-    order by entry.decided_at desc, entry.id desc limit 1) as accepted_at,
-  (select entry.reason from bakery.decisions_ledger as entry
-    where entry.organization_id = review_cycles.organization_id
-      and entry.kind = 'accept_with_reason' and entry.subject_kind = 'review'
-      and entry.subject_id = review_cycles.id
-    order by entry.decided_at desc, entry.id desc limit 1) as accept_reason`;
+export const ACCEPTANCE_COLUMNS =
+  "acceptance.decided_by as accepted_by, acceptance.decided_at as accepted_at, " +
+  "acceptance.reason as accept_reason";
+
+export const ACCEPTANCE_JOIN = `
+  left join lateral (
+    select entry.decided_by, entry.decided_at, entry.reason
+      from bakery.decisions_ledger as entry
+     where entry.organization_id = review_cycles.organization_id
+       and entry.kind = 'accept_with_reason' and entry.subject_kind = 'review'
+       and entry.subject_id = review_cycles.id
+     order by entry.decided_at desc, entry.id desc
+     limit 1
+  ) as acceptance on true`;
 
 const DELIVERY_DECISION_COLUMNS =
   "id, run_id, ordinal, review_cycle_id, decision, reason, head_sha, " +
@@ -500,8 +499,8 @@ export function createRunReviewsListHandler(secret: string) {
                  limit 1
               ) as pull_request_id,
               ${ACCEPTANCE_COLUMNS}
-         from bakery.review_cycles
-        where organization_id = $1 and run_id = $2
+         from bakery.review_cycles${ACCEPTANCE_JOIN}
+        where review_cycles.organization_id = $1 and review_cycles.run_id = $2
           and (
             $3::integer is null or (ordinal, id) > ($3::integer, $4::uuid)
           )

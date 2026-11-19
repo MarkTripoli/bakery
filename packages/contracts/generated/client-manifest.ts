@@ -23721,7 +23721,7 @@ export const clientManifest = {
         "reason"
       ],
       "additionalProperties": false,
-      "description": "Records an owner's accept-with-reason decision against one review that requested changes, overruling that reviewer (chapter 25 section 9, O18). Only an organization administrator may record it, and an agent never may. The review stays what it was, immutable; the decision is a separate record shown on it. It does not restart a run that has already stopped: that needs a workflow that reads decisions."
+      "description": "Records an owner's accept-with-reason decision against one review that requested changes, overruling that reviewer (chapter 25 section 9, O18). An organization administrator may record it, and so may a member whose role holds the review:accept permission; an agent never may. The review stays what it was, immutable; the decision is a separate record shown on it. It does not restart a run that has already stopped: that needs a workflow that reads decisions."
     },
     "PluginState": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -39462,7 +39462,7 @@ export const clientManifest = {
                     "type": "string",
                     "format": "uuid",
                     "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                    "description": "Principal of the organization administrator who recorded an accept-with-reason decision overruling this review; null when none was recorded."
+                    "description": "Principal who recorded an accept-with-reason decision overruling this review (an organization administrator, or a member whose role holds review:accept); null when none was recorded."
                   },
                   {
                     "type": "null",
@@ -39491,7 +39491,7 @@ export const clientManifest = {
                   {
                     "type": "string",
                     "maxLength": 65536,
-                    "description": "The reason the administrator gave, verbatim; null when none was recorded."
+                    "description": "The reason the decider gave, verbatim; null when none was recorded."
                   },
                   {
                     "type": "null",
@@ -43108,7 +43108,7 @@ export const clientManifest = {
               "type": "string",
               "format": "uuid",
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "Principal of the organization administrator who recorded an accept-with-reason decision overruling this review; null when none was recorded."
+              "description": "Principal who recorded an accept-with-reason decision overruling this review (an organization administrator, or a member whose role holds review:accept); null when none was recorded."
             },
             {
               "type": "null",
@@ -43137,7 +43137,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "The reason the administrator gave, verbatim; null when none was recorded."
+              "description": "The reason the decider gave, verbatim; null when none was recorded."
             },
             {
               "type": "null",

@@ -4405,5 +4405,5 @@
   "access.level.manage": "⟪You can change this.⟫",
   "access.level.scoped": "⟪Only in repositories you were given.⟫",
   "access.level.view": "⟪You can only view this.⟫",
-  "settings.roles.verb.accept": "⟪Overrule and accept {things}⟫"
+  "settings.roles.verb.accept": "⟪Overrule {things} that asked for changes⟫"
 }

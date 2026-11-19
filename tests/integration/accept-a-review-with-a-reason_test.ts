@@ -227,6 +227,43 @@ test("AC: a developer and an agent are refused, and nothing is recorded", () =>
     assertEquals(await ledger(h, reviewId), []);
   }));
 
+test("AC: a member whose custom role holds review:accept may record it, one without may not", () =>
+  withHarness(async (h) => {
+    const { run, reviewId } = await blockedReview(h);
+    const withRole = async (label: string, permissions: string[]) => {
+      const member = await h.addPrincipal(
+        h.fixture.organizationId,
+        "developer",
+      );
+      const roleId = crypto.randomUUID();
+      await h.owner.query(
+        `insert into bakery.organization_roles
+           (id, organization_id, key, name, permissions, created_by_principal_id)
+         values ($1, $2, $3, $3, $4, $5)`,
+        [roleId, h.fixture.organizationId, label, permissions, member],
+      );
+      await h.owner.query(
+        `update bakery.organization_memberships set custom_role_id = $3
+          where organization_id = $1 and principal_id = $2`,
+        [h.fixture.organizationId, member, roleId],
+      );
+      return member;
+    };
+    const without = await withRole("reads-only", ["review:read"]);
+    await refusedWith(
+      () => h.accept({ runId: run.runId, reviewId, reason: "ok", as: without }),
+      "AUTH_FORBIDDEN",
+    );
+    const holder = await withRole("overrulers", ["review:accept"]);
+    const accepted = await h.accept({
+      runId: run.runId,
+      reviewId,
+      reason: "delegated overrule",
+      as: holder,
+    });
+    assertEquals(accepted.acceptedBy, holder);
+  }));
+
 test("AC: an approved review has nothing to overrule, and a review is accepted once", () =>
   withHarness(async (h) => {
     const admin = await h.addPrincipal(h.fixture.organizationId, "admin");
