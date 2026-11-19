@@ -91,6 +91,35 @@ const ADMISSION_ADDED_ROOT_KEYS: readonly string[] = [
   "stepNotes",
 ];
 
+/**
+ * True when a job's `stepNotes` are exactly the notes recorded as delivered to
+ * that job, in delivery order, or both are empty.
+ *
+ * `stepNotes` is left out of the snapshot comparison because the snapshot
+ * cannot derive it, and the harnesses put it into the agent's prompt. So it is
+ * verified here against the append-only delivery records the server wrote when
+ * it created the job: a list nobody delivered, or an edited one, is refused.
+ */
+async function stepNotesMatchDeliveries(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  jobId: string,
+  input: Record<string, unknown>,
+): Promise<boolean> {
+  const delivered = await transaction.query<{ body: string }>(
+    `select note.body
+       from bakery.run_step_note_deliveries delivery
+       join bakery.run_step_notes note
+         on note.organization_id = delivery.organization_id
+        and note.id = delivery.note_id
+      where delivery.organization_id = $1 and delivery.job_id = $2
+      order by note.created_at, note.id`,
+    [organizationId, jobId],
+  );
+  return canonical(input.stepNotes ?? []) ===
+    canonical(delivered.rows.map((row) => row.body));
+}
+
 function canonical(
   value: unknown,
   omitRootKeys: readonly string[] = [],
@@ -917,8 +946,7 @@ export function executionJobInputMatchesSnapshot(
       authorized.input !== null && typeof authorized.input === "object" &&
       !Array.isArray(authorized.input) &&
       !Object.hasOwn(authorized.input, "repositoryProfile") &&
-      canonical(input, ADMISSION_ADDED_ROOT_KEYS) ===
-        canonical(authorized.input);
+      canonical(input, ["repositoryProfile"]) === canonical(authorized.input);
   } catch {
     return false;
   }
@@ -1557,7 +1585,13 @@ export async function admitRepositoryExecutionJob(
       Array.isArray(authorized.input) ||
       Object.hasOwn(authorized.input, "repositoryProfile") ||
       canonical(input, ADMISSION_ADDED_ROOT_KEYS) !==
-        canonical(authorized.input)
+        canonical(authorized.input) ||
+      !await stepNotesMatchDeliveries(
+        transaction,
+        organizationId,
+        jobId,
+        input as Record<string, unknown>,
+      )
     ) unavailable();
     frozenAgent = authorized.agent;
     requiredCapabilities = authorized.requiredCapabilities;
