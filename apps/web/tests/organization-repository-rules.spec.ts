@@ -155,7 +155,7 @@ test.describe("organization repository rules", () => {
     }
 
     await expect(page.getByTestId("org-rules-current")).toContainText(
-      "Published revision 3",
+      "Version 3 · published",
     );
     const row = (name: string) => ruleRow(page, name);
     await expect(row("Semantic commits")).toContainText("Require");
@@ -176,10 +176,10 @@ test.describe("organization repository rules", () => {
 
     const history = historyRows(page);
     await expect(history).toHaveCount(2);
-    // Newest first, each with the start of its digest.
-    await expect(history.nth(0)).toContainText(digest("3").slice(0, 8));
-    // The table cell is the bare number; a phone row titles it "Revision 3".
-    await expect(history.nth(0)).toHaveText(/^(Revision )?3/);
+    // Newest first, and no hash is shown at any width.
+    await expect(history.nth(0)).not.toContainText(digest("3").slice(0, 8));
+    // The table cell is the bare number; a phone row titles it "Version 3".
+    await expect(history.nth(0)).toHaveText(/^(Version )?3/);
   });
 
   test("loads older revisions with the cursor", async ({ page }) => {
@@ -187,10 +187,10 @@ test.describe("organization repository rules", () => {
     await page.goto(PAGE_PATH);
     const history = historyRows(page);
     await expect(history).toHaveCount(2);
-    await page.getByRole("button", { name: "Load more revisions" }).click();
+    await page.getByRole("button", { name: "Load older versions" }).click();
     await expect(history).toHaveCount(3);
     await expect(
-      page.getByRole("button", { name: "Load more revisions" }),
+      page.getByRole("button", { name: "Load older versions" }),
     ).toHaveCount(0);
     // The last page removed the button that had focus: focus goes to the first
     // row that load added, so a reader goes on from where they were.
@@ -209,7 +209,7 @@ test.describe("organization repository rules", () => {
     ).toHaveCount(0);
     // The empty state already says nothing is published: no History to repeat it.
     await expect(page.getByRole("heading", { name: "History" })).toHaveCount(0);
-    await expect(page.getByRole("table", { name: "Published revisions" }))
+    await expect(page.getByRole("table", { name: "Published versions" }))
       .toHaveCount(0);
   });
 
@@ -278,13 +278,40 @@ test.describe("organization repository rules", () => {
     await expect(page.getByRole("alert")).toHaveCount(0);
   });
 
-  test("a digest never wraps onto a second line", async ({ page }) => {
+  test("no column shows a raw hash, and the words revision and digest are gone", async ({ page }) => {
     await rulesFixture(page);
     await page.goto(PAGE_PATH);
-    const digestBox = await historyRows(page).nth(0)
-      .locator('[data-ui-component="dataText"]').boundingBox();
-    // One line of the data face, not two.
-    expect(digestBox!.height).toBeLessThan(26);
+    const content = page.locator('[data-testid="org-repository-rules"]');
+    await expect(content).toContainText("Version 3 · published");
+    await expect(content).toContainText(
+      "Edit a rule, review what will change, then publish.",
+    );
+    await expect(content).not.toContainText(/revision|digest/i);
+    await expect(content).not.toContainText(digest("3").slice(0, 8));
+    await expect(page.getByRole("columnheader", { name: "Digest" }))
+      .toHaveCount(0);
+  });
+
+  test("both column headers carry a help button that explains the column", async ({ page }) => {
+    await rulesFixture(page);
+    await page.goto(PAGE_PATH);
+    const enforcement = page.getByRole("button", {
+      name: "About enforcement",
+    });
+    await enforcement.click();
+    await expect(
+      page.getByText("Require blocks delivery until the check passes."),
+    )
+      .toBeVisible();
+    await page.keyboard.press("Escape");
+    await page.getByRole("button", {
+      name: "About what repositories can change",
+    })
+      .click();
+    await expect(
+      page.getByText("Locked rules apply to every repository as set here."),
+    )
+      .toBeVisible();
   });
 
   test("a failed read says so and offers no rules", async ({ page }) => {
@@ -312,7 +339,7 @@ test.describe("organization repository rules", () => {
       return box!.x + box!.width;
     };
     const rules = await rightEdge("Organization rules");
-    const history = await rightEdge("Published revisions");
+    const history = await rightEdge("Published versions");
     expect(Math.abs(rules - history)).toBeLessThanOrEqual(1);
   });
 
@@ -320,7 +347,7 @@ test.describe("organization repository rules", () => {
     test.skip(isMobile, "a phone shows lists, which carry no caption");
     await rulesFixture(page);
     await page.goto(PAGE_PATH);
-    for (const name of ["Organization rules", "Published revisions"]) {
+    for (const name of ["Organization rules", "Published versions"]) {
       const table = page.getByRole("table", { name });
       await expect(table).toBeVisible();
       const caption = await table.locator("caption").boundingBox();
@@ -365,9 +392,9 @@ test.describe("organization repository rules", () => {
     await page.goto(PAGE_PATH);
     const history = historyRows(page);
     await expect(history).toHaveCount(2);
-    await page.getByRole("button", { name: "Load more revisions" }).click();
+    await page.getByRole("button", { name: "Load older versions" }).click();
     const notice = page.getByRole("alert").filter({
-      hasText: "Older revisions could not be loaded.",
+      hasText: "Older versions could not be loaded.",
     });
     await expect(notice).toBeVisible();
     // The button became this notice: its Try again takes focus.
@@ -377,7 +404,7 @@ test.describe("organization repository rules", () => {
     // Nothing already shown is lost, and the failure is not offered as another Load more.
     await expect(history).toHaveCount(2);
     await expect(
-      page.getByRole("button", { name: "Load more revisions" }),
+      page.getByRole("button", { name: "Load older versions" }),
     ).toHaveCount(0);
     state.failMoreHistory = false;
     await notice.getByRole("button", { name: "Try again" }).click();
@@ -393,7 +420,7 @@ test.describe("organization repository rules", () => {
     await page.goto(PAGE_PATH);
     await expect(ruleRow(page, "Semantic commits")).toBeVisible();
     const failure = page.getByRole("alert").filter({
-      hasText: "The revision history could not be loaded.",
+      hasText: "The version history could not be loaded.",
     });
     await expect(failure).toBeVisible();
     await shot(page, "rules-history-load-failed");
@@ -415,7 +442,7 @@ test.describe("organization repository rules", () => {
     await page.goto(PAGE_PATH);
     await expect(ruleRow(page, "Semantic commits")).toBeVisible();
     await expect(page.getByTestId("org-rules-history-loading")).toBeVisible();
-    await expect(page.getByRole("columnheader", { name: "Revision" }))
+    await expect(page.getByRole("columnheader", { name: "Version" }))
       .toHaveCount(0);
     release();
     await expect(page.getByTestId("org-rules-history-loading")).toHaveCount(0);

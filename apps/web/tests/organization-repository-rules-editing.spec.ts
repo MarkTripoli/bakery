@@ -128,7 +128,7 @@ test.describe("organization repository rules: editing", () => {
     await expect(page).toHaveURL(new RegExp(`${LIST_PATH}$`));
     await expect(draftBar(page)).toContainText("1 unpublished change");
     await expect(draftBar(page)).toContainText(
-      "based on revision 3 · nothing applies until you publish",
+      "based on version 3 · nothing applies until you publish",
     );
     const row = ruleRow(page, "Semantic commits");
     await expect(row).toContainText("Edited");

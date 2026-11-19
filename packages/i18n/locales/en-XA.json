@@ -4229,5 +4229,10 @@
   "session.thread.rawOutput": "⟦Ŕàŵ ôûŧþûŧ ŧ⟧",
   "session.thread.stepSelect": "⟦Šŧëþ⟧",
   "session.thread.truncated": "⟦Ŧĥïš šëššïôñ ïš ļôñĝ, šô ŧĥë ŧĥŕëàð šĥôŵš ôñļÿ ïŧš ñëŵëšŧ ëṽëñŧš. Ŧĥë ŕàŵ ôûŧþûŧ ƀëļôŵ ĥàš ŧĥë ŵĥôļë ŕëçôŕð. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧",
-  "session.thread.earlierHidden": "⟦Ëàŕļïëŕ ëṽëñŧš àŕë ñôŧ šĥôŵñ ŧëšŧ çô⟧"
+  "session.thread.earlierHidden": "⟦Ëàŕļïëŕ ëṽëñŧš àŕë ñôŧ šĥôŵñ ŧëšŧ çô⟧",
+  "settings.repositoryRules.access.lockedShort": "⟦Ļôçķëð…⟧",
+  "settings.repositoryRules.access.overrideShort": "⟦Ŕëþôšïŧôŕïëš çàñ çĥàñĝë ïŧ ŧëšŧ çô⟧",
+  "settings.repositoryRules.guide": "⟦Ëðïŧ à ŕûļë, ŕëṽïëŵ ŵĥàŧ ŵïļļ çĥàñĝë, ŧĥëñ þûƀļïšĥ. Ñôŧĥïñĝ àþþļïëš ûñŧïļ ÿôû þûƀļïšĥ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
+  "settings.repositoryRules.help.access": "⟦Ļôçķëð ŕûļëš àþþļÿ ŧô ëṽëŕÿ ŕëþôšïŧôŕÿ àš šëŧ ĥëŕë. Ôŧĥëŕ ŕûļëš àŕë à ðëƒàûļŧ ŧĥàŧ à ŕëþôšïŧôŕÿ çàñ ŕëþļàçë ŵïŧĥ ïŧš ôŵñ šëŧŧïñĝ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
+  "settings.repositoryRules.help.accessLabel": "⟦Àƀôûŧ ŵĥàŧ ŕëþôšïŧôŕïëš çàñ çĥàñĝë ŧëšŧ çôþÿ⟧"
 }

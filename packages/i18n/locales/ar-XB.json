@@ -4229,5 +4229,10 @@
   "session.thread.rawOutput": "⟪Raw output⟫",
   "session.thread.stepSelect": "⟪Step⟫",
   "session.thread.truncated": "⟪This session is long, so the thread shows only its newest events. The raw output below has the whole record.⟫",
-  "session.thread.earlierHidden": "⟪Earlier events are not shown⟫"
+  "session.thread.earlierHidden": "⟪Earlier events are not shown⟫",
+  "settings.repositoryRules.access.lockedShort": "⟪Locked⟫",
+  "settings.repositoryRules.access.overrideShort": "⟪Repositories can change it⟫",
+  "settings.repositoryRules.guide": "⟪Edit a rule, review what will change, then publish. Nothing applies until you publish.⟫",
+  "settings.repositoryRules.help.access": "⟪Locked rules apply to every repository as set here. Other rules are a default that a repository can replace with its own setting.⟫",
+  "settings.repositoryRules.help.accessLabel": "⟪About what repositories can change⟫"
 }

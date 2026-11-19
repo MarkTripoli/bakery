@@ -30,9 +30,6 @@ import { LeaveGuard } from "./repository-rules/leave-guard.tsx";
 import { ReviewPublishDialog } from "./repository-rules/ReviewPublishDialog.tsx";
 import { useRulesScope } from "./repository-rules/use-rules-scope.ts";
 
-/** How many characters of a digest the page shows; the full value is the title. */
-const DIGEST_CHARS = 8;
-
 /**
  * An organization read the server refuses. Besides 403, the server answers a
  * person who may not read an organization's rules with the same 404 it gives a
@@ -195,13 +192,6 @@ export function OrganizationRepositoryRulesPage() {
       )?.querySelectorAll<HTMLElement>('tbody tr, [role="listitem"]')[shown];
     });
   };
-  // A digest never wraps; the whole value is its title.
-  const digestText = (value: string) => (
-    <UI.DataText truncate title={value}>
-      {value.slice(0, DIGEST_CHARS)}
-    </UI.DataText>
-  );
-
   return (
     <>
       <ShellActiveNavigation id="settings" />
@@ -222,6 +212,9 @@ export function OrganizationRepositoryRulesPage() {
             </UI.Heading>
             <UI.Text variant="muted">
               {translate("settings.repositoryRules.description")}
+            </UI.Text>
+            <UI.Text variant="muted">
+              {translate("settings.repositoryRules.guide")}
             </UI.Text>
           </UI.Stack>
           {shown.length > 0 ? addControl : null}
@@ -432,8 +425,8 @@ export function OrganizationRepositoryRulesPage() {
                                           ),
                                           access: translate(
                                             row.locked
-                                              ? "settings.repositoryRules.access.locked"
-                                              : "settings.repositoryRules.access.override",
+                                              ? "settings.repositoryRules.access.lockedShort"
+                                              : "settings.repositoryRules.access.overrideShort",
                                           ),
                                         },
                                       )}
@@ -494,8 +487,24 @@ export function OrganizationRepositoryRulesPage() {
                             },
                             {
                               id: "enforcement",
-                              header: translate(
-                                "settings.repositoryRules.column.enforcement",
+                              header: (
+                                <UI.Inline gap="compact">
+                                  {translate(
+                                    "settings.repositoryRules.column.enforcement",
+                                  )}
+                                  <UI.HelpTip
+                                    closeLabel={translate(
+                                      "repository.rules.help.close",
+                                    )}
+                                    label={translate(
+                                      "repository.rules.help.enforcement",
+                                    )}
+                                  >
+                                    {translate(
+                                      "repository.rules.column.enforcement.help",
+                                    )}
+                                  </UI.HelpTip>
+                                </UI.Inline>
                               ),
                               cell: (row) => (
                                 <UI.Stack gap="tight">
@@ -508,8 +517,24 @@ export function OrganizationRepositoryRulesPage() {
                             },
                             {
                               id: "access",
-                              header: translate(
-                                "settings.repositoryRules.column.access",
+                              header: (
+                                <UI.Inline gap="compact">
+                                  {translate(
+                                    "settings.repositoryRules.column.access",
+                                  )}
+                                  <UI.HelpTip
+                                    closeLabel={translate(
+                                      "repository.rules.help.close",
+                                    )}
+                                    label={translate(
+                                      "settings.repositoryRules.help.accessLabel",
+                                    )}
+                                  >
+                                    {translate(
+                                      "settings.repositoryRules.help.access",
+                                    )}
+                                  </UI.HelpTip>
+                                </UI.Inline>
                               ),
                               cell: (row) => (
                                 <UI.Stack gap="tight">
@@ -620,7 +645,6 @@ export function OrganizationRepositoryRulesPage() {
                                         "settings.repositoryRules.history.revision",
                                         { revision: row.revision },
                                       )}
-                                      trailing={digestText(row.digest)}
                                     />
                                   </div>
                                 ))}
@@ -657,13 +681,6 @@ export function OrganizationRepositoryRulesPage() {
                                         "settings.repositoryRules.history.column.rules",
                                       ),
                                       cell: (row) => String(row.entries.length),
-                                    },
-                                    {
-                                      id: "digest",
-                                      header: translate(
-                                        "settings.repositoryRules.history.column.digest",
-                                      ),
-                                      cell: (row) => digestText(row.digest),
                                     },
                                   ]}
                                   emptyMessage={translate(
@@ -706,16 +723,19 @@ export function OrganizationRepositoryRulesPage() {
                             )
                             : versions.hasNextPage
                             ? (
-                              <UI.Button
-                                data-testid="org-rules-history-more"
-                                loading={versions.isFetchingNextPage}
-                                onClick={() => void loadMoreHistory()}
-                                type="button"
-                              >
-                                {translate(
-                                  "settings.repositoryRules.history.loadMore",
-                                )}
-                              </UI.Button>
+                              <UI.Inline>
+                                <UI.Button
+                                  data-testid="org-rules-history-more"
+                                  loading={versions.isFetchingNextPage}
+                                  onClick={() => void loadMoreHistory()}
+                                  type="button"
+                                  variant="outline"
+                                >
+                                  {translate(
+                                    "settings.repositoryRules.history.loadMore",
+                                  )}
+                                </UI.Button>
+                              </UI.Inline>
                             )
                             : null}
                         </>
