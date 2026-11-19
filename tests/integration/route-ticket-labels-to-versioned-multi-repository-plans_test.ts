@@ -652,6 +652,76 @@ Deno.test("#31 AC3 and #69 AC1: rule and policy edits affect new admissions only
     );
   }));
 
+Deno.test("#31 AC3: on the recheck path, deleting a rule, retargeting one and archiving a target leave the admitted request's targets and pins alone", () =>
+  withTicketFixture(async (fx) => {
+    const { sourceId, backend, frontend } = await routedSource(fx);
+    fx.reader.setIssue({ number: 22, ...issueLabels("backend", "frontend") });
+    const admitted = await fx.admit(sourceId, { number: 22 });
+    assertEquals(admitted.kind, "admitted");
+    const request = admitted.request!;
+    const before = await targetsOf(fx, request.id);
+    assertEquals(before.length, 2);
+    const pinsOf = async () =>
+      (await fx.owner.query<{
+        disposition: string;
+        disposition_reason: string | null;
+        source_policy_revision: number;
+        readiness_report_id: string;
+      }>(
+        `select disposition, disposition_reason, source_policy_revision,
+                readiness_report_id
+           from bakery.ticket_requests where id = $1`,
+        [request.id],
+      )).rows[0];
+    const pinned = await pinsOf();
+
+    /** Rechecks the ticket and asserts nothing about the request moved. */
+    const recheckUnchanged = async (step: string) => {
+      const result = await fx.recheck(request.externalTicketId);
+      assertEquals(result.request?.id, request.id, step);
+      const report = result.report;
+      assert(report !== null, `${step}: the recheck evaluated the ticket`);
+      const routeReasons = report.checks.filter((entry) =>
+        entry.reason.startsWith("route_")
+      );
+      assertEquals(routeReasons, [], `${step}: no route reason on recheck`);
+      // A request that exists keeps its targets: readiness judges the
+      // repository as before routing and carries no route evidence.
+      assertEquals(
+        [
+          check(report, "repository_ready").status,
+          check(report, "repository_ready").evidence,
+        ],
+        ["pass", []],
+        `${step}: an admitted request is not re-routed`,
+      );
+      assertEquals(await targetsOf(fx, request.id), before, step);
+      assertEquals(await pinsOf(), pinned, step);
+    };
+
+    // (a) Delete the frontend rule.
+    await read(
+      await putRules(fx, sourceId, [rule("backend", backend, "backend")]),
+      200,
+    );
+    await recheckUnchanged("rule deleted");
+    // (b) Retarget the backend label to another repository and role.
+    const moved = await addRepository(fx, "moved", { roles: ["api"] });
+    await read(
+      await putRules(fx, sourceId, [rule("backend", moved, "api")]),
+      200,
+    );
+    await recheckUnchanged("rule retargeted");
+    // (c) Archive a repository the request was admitted to, and the one the
+    // label routes to now: a new admission would be blocked, this request
+    // is not.
+    await fx.owner.query(
+      "update bakery.repositories set archived_at = now() where id = any($1)",
+      [[frontend, moved]],
+    );
+    await recheckUnchanged("target archived");
+  }));
+
 Deno.test("#31 AC3: a deleted rule leaves the child exactly as admitted", () =>
   withTicketFixture(async (fx) => {
     const { sourceId, backend } = await routedSource(fx);
