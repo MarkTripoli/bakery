@@ -170,6 +170,9 @@ export const ConversationImplementedAction = Object.freeze(
     QuestionsList: "questions.list",
     QuestionsGet: "questions.get",
     QuestionsAnswer: "questions.answer",
+    ConversationsMentionCandidates: "conversations.mentionCandidates",
+    ConversationAccessList: "conversationAccess.list",
+    ConversationAccessRevoke: "conversationAccess.revoke",
   } as const satisfies Record<string, CatalogActionName>,
 );
 
@@ -510,6 +513,7 @@ export const ArtifactImplementedAction = Object.freeze(
     ArtifactCommentsUpdate: "artifactComments.update",
     ArtifactCommentsList: "artifactComments.list",
     ArtifactCommentsListAcrossVersions: "artifactComments.listAcrossVersions",
+    ArtifactCommentsMentionCandidates: "artifactComments.mentionCandidates",
     ArtifactsList: "artifacts.list",
     ArtifactsGet: "artifacts.get",
     ArtifactsUpdate: "artifacts.update",

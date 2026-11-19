@@ -1010,10 +1010,20 @@
           "type": "CommentAnchor",
           "required": false,
           "description": "Typed selection this root comment is pinned to (a markdown block, text range, image region, or patch line); omit for a general, unanchored comment. Not permitted on replies."
+        },
+        {
+          "name": "mentions",
+          "type": "uuid[]",
+          "required": false,
+          "bounds": {
+            "maxItems": 20
+          },
+          "description": "Principal ids of the people this comment @-mentions, in the order they appear. Each distinct non-self person who can read the artifact's comment thread is notified once. A comment never widens access: someone who cannot read the thread is refused with UNPROCESSABLE naming the mention by index, and nothing is written."
         }
       ],
       "rules": [
-        "Route id is the immutable artifact version. Omitted rootId creates a root; present rootId creates a flat reply to a root in that same version. Replies cannot provide anchor or resolution fields. Root existence/scope/version and all anchor ranges are validated. Author comes from actor. Creating a reply increments root version in the same transaction."
+        "Route id is the immutable artifact version. Omitted rootId creates a root; present rootId creates a flat reply to a root in that same version. Replies cannot provide anchor or resolution fields. Root existence/scope/version and all anchor ranges are validated. Author comes from actor. Creating a reply increments root version in the same transaction.",
+        "Mentions commit with the comment, its mention references and one comment_mention notification per distinct non-self recipient in one transaction; a refused mention writes nothing."
       ],
       "description": "Creates a root comment or, when rootId is present, a flat reply to a root within the same artifact version named by the route. Replies cannot set anchor or resolution fields; the author is taken from the authenticated actor, and creating a reply atomically increments the root's version."
     },
@@ -2789,13 +2799,23 @@
             "maxItems": 100
           },
           "description": "Root comments being sent to the agent as reviewed feedback, each with its expected version; the server snapshots their current root plus replies atomically and rejects the whole send if any reference is stale, out of scope, or deleted."
+        },
+        {
+          "name": "mentions",
+          "type": "uuid[]",
+          "required": false,
+          "bounds": {
+            "maxItems": 20
+          },
+          "description": "Principal ids of the people this message @-mentions, in the order they appear. Each distinct non-self person is notified once; a person without access to the conversation is given read and reply access to it in the same transaction when the writer may share. If any one cannot be mentioned the whole send is refused with UNPROCESSABLE naming the mention by index and nothing is written. Text that merely looks like @name never mentions anyone."
         }
       ],
       "rules": [
         "authorId, agentSessionId, messageType, sequence, turn status and comment snapshots are server-owned; reject them in client input. Internal agent output uses a separate trusted adapter.",
         "agent_request creates exactly one queued conversation_turn in the same transaction; discussion only appends. Both preserve human attribution. The composer defaults to agent_request with an explicit discussion option.",
         "Comment refs must name root comments with expected versions, in an artifact task linked to this conversation and within caller scope. Lock and snapshot root plus current replies server-side, including original anchor, author and artifact version. All requested roots must pass CAS or fail atomically with PRECONDITION_FAILED. Body plus context is bounded to 64KiB UTF-8; reject excess with BODY_TOO_LARGE; do not silently truncate.",
-        "Any agent request is durable before its wakeup. Repeat clientMessageId with same canonical input replays after current authorization; different input fails. Reply target must be in this conversation. Archived conversations reject new input."
+        "Any agent request is durable before its wakeup. Repeat clientMessageId with same canonical input replays after current authorization; different input fails. Reply target must be in this conversation. Archived conversations reject new input.",
+        "Mentions are validated against current state: each must be an active human member of this organization. Someone without access is granted read and reply access to this one conversation only when the writer is a person whose own role may share it (conversation:share); a writer holding only a mention grant, or a service or agent writer, can mention only people who already have access. The message, mention references, grants, notifications, audit and events commit together or not at all; a repeat of the same clientMessageId creates no second grant or notification."
       ],
       "description": "Appends an attributed message to the conversation; intent=agent_request additionally enqueues exactly one queued turn in the same transaction, while intent=discussion only appends to the transcript. Server-owned fields such as author, turn admission, and comment snapshots cannot be set by the caller."
     },
@@ -11299,9 +11319,9 @@
       "fields": [
         {
           "name": "power",
-          "type": "enum(decide|run_control|run_start)",
+          "type": "enum(decide|run_control|run_start|steer|steer_reviewer)",
           "required": true,
-          "description": "The off-by-default power being granted: decide (approve, reject or request changes where a person would), run_control (pause, resume, cancel, interrupt or retry a run) or run_start (start a run, still subject to count, depth and budget checks)."
+          "description": "The off-by-default power being granted: decide (approve, reject or request changes where a person would), run_control (pause, resume, cancel, interrupt or retry a run) run_start (start a run, still subject to count, depth and budget checks) steer (send a note or a steer to a run the agent spawned, never its own and never a reviewer's) or steer_reviewer (also steer a reviewer's step, which labels the review steered so it no longer counts as independent)."
         },
         {
           "name": "workflowId",
@@ -11526,6 +11546,94 @@
         "Installation administrator, session only. Requires If-Match once settings exist. Saving resets the last test, so the state is not_tested until a test email is sent."
       ],
       "description": "Saves how this installation sends email over SMTP. The password is write-only and is never returned."
+    },
+    "MentionCandidateQuery": {
+      "fields": [
+        {
+          "name": "query",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 100
+          },
+          "description": "What the writer has typed after the @, matched case-insensitively against the display name and the email address of active members; omit or leave empty to list everyone who can be mentioned here. Email is matched but never returned."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from a prior page of mention candidates; it is bound to the same scope, query, principal and organization and is rejected anywhere else."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 25,
+            "default": 10
+          },
+          "description": "Maximum number of people in this page; defaults to 10 and cannot exceed 25, so the picker stays a short list."
+        }
+      ],
+      "pagination": "pagination",
+      "rules": [
+        "Scoped to the conversation or artifact version in the route; only active human members of the current organization are returned, never people from another organization, disabled accounts, removed members or pending invitations.",
+        "Keyset pagination ordered by display name then principal id; the cursor is bound to the route scope and the query text."
+      ],
+      "description": "Server-side search for people the writer may @-mention in one conversation (a task chat) or one artifact comment thread, bounded and cursor paged."
+    },
+    "ConversationAccessQuery": {
+      "fields": [
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from a prior page of conversation access; it is bound to the same scope, query, principal and organization and is rejected anywhere else."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum grants per page; defaults to 25 and cannot exceed 100."
+        }
+      ],
+      "pagination": "pagination",
+      "rules": [
+        "Lists only live direct grants made by mentions; inherited access through an organization role is managed at its source and is not listed. Keyset ordered by grant time then id."
+      ],
+      "description": "Cursor query over the people a mention gave direct access to one conversation."
+    },
+    "ConversationAccessRevoke": {
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "Conversation whose direct grant is removed; supplied via the request's {id} path segment."
+        },
+        {
+          "name": "principalId",
+          "type": "uuid",
+          "required": true,
+          "description": "Person whose mention-granted access is removed; supplied via the request's {principalId} path segment."
+        }
+      ],
+      "rules": [
+        "Idempotency-Key and If-Match required; If-Match is the grant version the caller last saw and a stale version fails with PRECONDITION_FAILED. Needs the caller's own sharing authority (conversation:share); a mention-only recipient cannot revoke. Removes only the direct grant; inherited access is untouched. Audited."
+      ],
+      "description": "Removes one person's mention-granted access to one conversation under compare-and-set on the grant version."
     },
     "PasswordResetLinkCreate": {
       "fields": [
@@ -29070,7 +29178,7 @@
       ],
       "fieldTypes": {
         "id": "uuid",
-        "power": "enum(decide|run_control|run_start)",
+        "power": "enum(decide|run_control|run_start|steer|steer_reviewer)",
         "workflowId": "uuid|null",
         "accessTokenId": "uuid|null",
         "grantedBy": "uuid",
@@ -29084,7 +29192,7 @@
       "description": "One grant of an off-by-default agent power (O52): which power, which workflow and seat it covers, and the person who granted it. Revoking deletes it; the audit log keeps both.",
       "fieldDescriptions": {
         "id": "Stable UUID identifying the grant.",
-        "power": "The power granted: decide, run_control or run_start.",
+        "power": "The power granted: decide, run_control, run_start, steer or steer_reviewer.",
         "workflowId": "Immutable id of the workflow that holds the power, as an agent's own workflow and as a target workflow; null covers every workflow for the named seat.",
         "accessTokenId": "Seat (access token) the grant is limited to; null for any agent session of the named workflow.",
         "grantedBy": "Person who made the grant.",
@@ -29350,6 +29458,102 @@
         "lastTest": "The last test email result since the settings were saved, or null if none was sent.",
         "version": "Settings revision used as If-Match; 0 while off."
       }
+    },
+    "MentionCandidate": {
+      "projection": "principals",
+      "fields": [
+        "principalId",
+        "displayName",
+        "hasAccess",
+        "gainsAccessOnSend"
+      ],
+      "fieldTypes": {
+        "principalId": "uuid",
+        "displayName": "string",
+        "hasAccess": "boolean",
+        "gainsAccessOnSend": "boolean"
+      },
+      "nullableFields": [],
+      "fieldBounds": {
+        "displayName": {
+          "maxLength": 200
+        }
+      },
+      "fieldDescriptions": {
+        "principalId": "Stable UUID of the person; the typed mention stores this identity, not the visible name.",
+        "displayName": "The person's display name for the picker row and the inserted @name chip; never an email address.",
+        "hasAccess": "True when the person can already read and reply here, through their organization role or an earlier mention; mentioning them only notifies.",
+        "gainsAccessOnSend": "True when the person cannot reply here today and the writer may share: sending the mention gives them read and reply access to this one conversation. False together with hasAccess false means the writer cannot share with this person, so the mention would be refused."
+      },
+      "rules": [
+        "A preview only: the send re-checks membership, access and sharing authority against current state and never trusts these flags."
+      ],
+      "description": "One person the writer may mention, with whether they already have access or would gain it when the message is sent. It carries no email address, role or contact data."
+    },
+    "Page<MentionCandidate>": {
+      "pageOf": "MentionCandidate",
+      "description": "Cursor page of mention candidates ordered by display name. `nextCursor: null` marks the last page; there are no page numbers or offsets."
+    },
+    "ConversationAccessGrant": {
+      "fields": [
+        "id",
+        "conversationId",
+        "principalId",
+        "displayName",
+        "grantedById",
+        "grantedByName",
+        "sourceMessageId",
+        "grantedAt",
+        "revokedAt",
+        "version"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "conversationId": "uuid",
+        "principalId": "uuid",
+        "displayName": "string",
+        "grantedById": "uuid",
+        "grantedByName": "string",
+        "sourceMessageId": "uuid|null",
+        "grantedAt": "timestamp",
+        "revokedAt": "timestamp|null",
+        "version": "integer"
+      },
+      "nullableFields": [
+        "sourceMessageId",
+        "revokedAt"
+      ],
+      "fieldBounds": {
+        "displayName": {
+          "maxLength": 200
+        },
+        "grantedByName": {
+          "maxLength": 200
+        },
+        "version": {
+          "min": 1
+        }
+      },
+      "fieldDescriptions": {
+        "id": "Stable UUID of this grant record.",
+        "conversationId": "The one conversation this grant opens; it never reaches sibling conversations, the repository or task controls.",
+        "principalId": "The person who holds the grant.",
+        "displayName": "The holder's current display name; never an email address.",
+        "grantedById": "Who gave the access by mentioning the holder most recently.",
+        "grantedByName": "The granting person's current display name.",
+        "sourceMessageId": "The message whose mention created or renewed the grant, or null when that message is gone.",
+        "grantedAt": "When the grant was created or last renewed.",
+        "revokedAt": "When the grant was removed, or null while it is live.",
+        "version": "Compare-and-set version; send it as If-Match to revoke."
+      },
+      "rules": [
+        "A direct grant gives read and reply on this conversation only: no agent requests, repository browsing, task control or resharing."
+      ],
+      "description": "One person's direct, mention-granted access to one conversation, with who granted it and from which message."
+    },
+    "Page<ConversationAccessGrant>": {
+      "pageOf": "ConversationAccessGrant",
+      "description": "Cursor page of live direct grants on one conversation, oldest first. `nextCursor: null` marks the last page."
     },
     "PasswordResetLinkIssued": {
       "fields": [
@@ -30756,6 +30960,18 @@
       },
       "inngestTrigger": null,
       "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "conversations.access_changed": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer",
+        "conversationId": "uuid",
+        "principalId": "uuid",
+        "active": "boolean"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation that one person's direct access to a conversation was granted by a mention or revoked; clients re-read conversationAccess.list. It carries no message content."
     }
   },
   "workerActions": {

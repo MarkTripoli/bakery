@@ -13,6 +13,13 @@ import {
   type PgTransactionClient,
 } from "@bakery/persistence";
 import { appendDecision } from "../work/human-approval-store.ts";
+import { DEFAULT_AGENT_SPAWN } from "@bakery/config";
+import type { AgentSpawnConfig } from "@bakery/config";
+import {
+  admitAgentSteer,
+  steerRecordDetail,
+  stepIsReviewer,
+} from "../work/agent-steer.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 
 /**
@@ -71,6 +78,7 @@ function planDeclaresStep(snapshot: unknown, stepKey: string): boolean {
 export async function createRunStepNote(
   context: ActionContext,
   rawInput: unknown,
+  limits: AgentSpawnConfig = DEFAULT_AGENT_SPAWN,
 ) {
   const { transaction, organizationId, principalId } = requireWorkTransaction(
     context,
@@ -102,6 +110,23 @@ export async function createRunStepNote(
   );
   const runRow = run.rows[0];
   if (!runRow) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+
+  // An agent steers only a run it spawned, only with the steer grant, never a
+  // reviewer's step, and within a bound; a person passes untouched. Before any
+  // read of the step or any write, so a refusal leaves no trace.
+  const admission = await admitAgentSteer(transaction, context, {
+    organizationId,
+    principalId,
+    targetRunId: runId,
+    targetStepKey: stepKey,
+    limits,
+  });
+  const steersReviewer = await stepIsReviewer(
+    transaction,
+    organizationId,
+    runId,
+    stepKey,
+  );
 
   const step = await transaction.query<{ id: string; status: string }>(
     `select id, status from bakery.run_steps
@@ -163,7 +188,12 @@ export async function createRunStepNote(
     subjectId: row.id ?? runId,
     decidedBy: principalId,
     text: input.body,
-    detail: { mode: "note", noteId: note.id, stepKey },
+    detail: {
+      mode: "note",
+      noteId: note.id,
+      stepKey,
+      ...steerRecordDetail(principalId, admission, steersReviewer),
+    },
   });
   await appendAudit(transaction, {
     organizationId,
@@ -173,7 +203,11 @@ export async function createRunStepNote(
     resourceId: row.id ?? runId,
     requestId: context.requestId,
     traceId: context.traceId,
-    details: { noteId: note.id, stepKey },
+    details: {
+      noteId: note.id,
+      stepKey,
+      ...steerRecordDetail(principalId, admission, steersReviewer),
+    },
   });
   return toNote(note);
 }
