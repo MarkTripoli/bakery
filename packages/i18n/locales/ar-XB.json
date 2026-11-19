@@ -4305,12 +4305,14 @@
   "artifact.edit.draft.help": "⟪Everyone editing sees changes as they are typed. The published version does not change until a new one is published.⟫",
   "artifact.edit.draft.line": "⟪Version {version} is published. Your team is editing the next one.⟫",
   "artifact.edit.draft.lineNone": "⟪Nothing is published yet.⟫",
+  "settings.roles.thing.library": "⟪search results in the Library⟫",
   "settings.repositoryRules.description": "⟪Rules every repository in this organization starts with.⟫",
   "settings.repositoryRules.current": "⟪Version {revision} · published {published}⟫",
   "settings.repositoryRules.column.access": "⟪Repositories can change it⟫",
   "settings.repositoryRules.access.locked": "⟪No, locked⟫",
   "settings.repositoryRules.access.override": "⟪Yes⟫",
   "settings.repositoryRules.access.lockedShort": "⟪Locked⟫",
+  "settings.repositoryRules.access.overrideShort": "⟪Not locked⟫",
   "settings.repositoryRules.guide": "⟪Edit a rule, review what will change, then publish. Nothing applies until you publish.⟫",
   "settings.repositoryRules.help.access": "⟪Locked rules apply to every repository as set here. Other rules are a default that a repository can replace with its own setting.⟫",
   "settings.repositoryRules.help.accessLabel": "⟪About what repositories can change⟫",
@@ -4330,6 +4332,5 @@
   "settings.repositoryRules.stale.useTheirs": "⟪Use version {revision}⟫",
   "settings.repositoryRules.stale.useTheirs.named": "⟪Use version {revision} for {rule}⟫",
   "settings.repositoryRules.history.loadMoreError": "⟪Older versions could not be loaded.⟫",
-  "settings.repositoryRules.history.loading": "⟪Loading versions…⟫",
-  "settings.repositoryRules.access.overrideShort": "⟪Not locked⟫"
+  "settings.repositoryRules.history.loading": "⟪Loading versions…⟫"
 }
