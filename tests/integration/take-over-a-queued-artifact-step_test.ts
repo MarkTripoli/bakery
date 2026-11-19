@@ -12,6 +12,7 @@ import {
   startPresetRun,
 } from "../helpers/fixed-coding-preset.ts";
 import { withPgTransaction } from "../../packages/persistence/src/postgres.ts";
+import { reconcileBudgetLedger } from "../../apps/server/src/modules/work/budget-recovery.ts";
 import { cancelQueuedJobsOfRun } from "../../apps/server/src/modules/execution/coordination.ts";
 import { createBakeryPostgresWorkflowRepository } from "../../apps/server/src/modules/workflow-adapter/bakery-postgres-store.ts";
 
@@ -514,4 +515,94 @@ Deno.test("AC: a takeover of a retry-waiting job is refused while its reservatio
       body,
     );
     assertEquals(response.status, 201, await response.clone().text());
+  }));
+
+// The reaper: a canceled job's held reservation must not outlive the job. The
+// cancel paths release at once what never ran; the budget reconciliation sweep
+// releases the rest (apps/server/src/modules/work/budget-recovery.ts,
+// reconcileBudgetLedger -> findCanceledJobReleaseCandidates).
+
+/** The funded implement job, canceled by something that did not release it. */
+async function canceledHeld(fixture: Fixture, label: string) {
+  const s = await queuedImplementStep(fixture, label);
+  await fixture.pgDatabase.query(
+    `update bakery.jobs set status = 'canceled' where id = $1`,
+    [s.implementJobId],
+  );
+  const before = await held(fixture, s.run.id, s.implementJobId);
+  assertEquals([before.reservation, before.intent], ["held", "held"]);
+  return s;
+}
+
+const expireReservation = (fixture: Fixture, jobId: string) =>
+  fixture.pgDatabase.query(
+    `update bakery.budget_reservations
+        set expires_at = clock_timestamp() - interval '1 minute'
+      where id = (select installation_reservation_id from bakery.jobs
+                   where id = $1)`,
+    [jobId],
+  );
+
+async function addAttempt(fixture: Fixture, jobId: string, status: string) {
+  const worker = await registeredWorker(fixture);
+  await fixture.pgDatabase.query(
+    `insert into bakery.job_attempts (
+       organization_id, job_id, worker_host_id, worker_session_id,
+       worker_session_generation, attempt_no, fence, lease_token_hash,
+       lease_expires_at, status
+     ) select host.organization_id, $2, host.id, host.worker_session_id,
+              host.worker_session_generation, 1, 1, 'lease',
+              clock_timestamp() + interval '1 hour', $4
+         from bakery.worker_hosts host
+        where host.organization_id = $1 and host.id = $3`,
+    [
+      fixture.organizationId,
+      jobId,
+      worker.registration.workerHostId,
+      status,
+    ],
+  );
+}
+
+Deno.test("AC: the sweep releases the held budget of a canceled job that never ran", () =>
+  withFixture(async (fixture) => {
+    const s = await canceledHeld(fixture, "sweep-unclaimed");
+    const swept = await reconcileBudgetLedger(fixture.pgDatabase);
+    assert(swept.releases >= 1, "the sweep released a reservation");
+    const after = await held(fixture, s.run.id, s.implementJobId);
+    assertEquals([after.reservation, after.intent], ["released", "released"]);
+    assertEquals(Number(after.reserved), 0);
+  }));
+
+Deno.test("AC: the sweep waits for the reservation to expire before releasing a canceled job that had an attempt", () =>
+  withFixture(async (fixture) => {
+    const s = await canceledHeld(fixture, "sweep-attempted");
+    await addAttempt(fixture, s.implementJobId, "failed");
+
+    await reconcileBudgetLedger(fixture.pgDatabase);
+    const early = await held(fixture, s.run.id, s.implementJobId);
+    assertEquals([early.reservation, early.intent], ["held", "held"]);
+
+    await expireReservation(fixture, s.implementJobId);
+    await reconcileBudgetLedger(fixture.pgDatabase);
+    const late = await held(fixture, s.run.id, s.implementJobId);
+    assertEquals([late.reservation, late.intent], ["released", "released"]);
+    assertEquals(Number(late.reserved), 0);
+  }));
+
+Deno.test("AC: the sweep never releases a canceled job with a live attempt or a dispatched provider call", () =>
+  withFixture(async (fixture) => {
+    const live = await canceledHeld(fixture, "sweep-live");
+    await addAttempt(fixture, live.implementJobId, "running");
+    await expireReservation(fixture, live.implementJobId);
+
+    const dispatched = await canceledHeld(fixture, "sweep-dispatched");
+    await looksDispatched(fixture, dispatched.implementJobId);
+    await expireReservation(fixture, dispatched.implementJobId);
+
+    await reconcileBudgetLedger(fixture.pgDatabase);
+    for (const s of [live, dispatched]) {
+      const after = await held(fixture, s.run.id, s.implementJobId);
+      assertEquals([after.reservation, after.intent], ["held", "held"]);
+    }
   }));
