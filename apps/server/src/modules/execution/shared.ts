@@ -18,6 +18,7 @@ import type { PgDatabase, PgTransactionClient } from "@bakery/persistence";
 import { loadWorkerIdentity, withPgTransaction } from "@bakery/persistence";
 import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
 import { reconcileFailedLifecycleTasks } from "../work/coordination-projection.ts";
+import type { SessionToolRegistry } from "./session-registry.ts";
 
 const ENROLLMENT_TTL_MS = 10 * 60 * 1000;
 
@@ -130,6 +131,12 @@ type ExecutionRouteOptions = {
   budget?: BudgetRuntimeConfig;
   secretsKey?: SecretsKeyConfig;
   secretsFetch?: typeof fetch;
+  /**
+   * The operations a worker session may call through the tool gateway (#401).
+   * Absent leaves the gateway unmounted rather than serving routes that would
+   * refuse every call.
+   */
+  sessionTools?: SessionToolRegistry;
 };
 
 type HostRow = {

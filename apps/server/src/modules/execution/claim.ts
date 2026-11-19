@@ -63,6 +63,7 @@ function createClaimUnitOfWork(database: PgDatabase): ClaimUnitOfWork {
           return await work({
             identity: claimIdentity(persistenceIdentity(identity)),
             persistence,
+            transaction,
           });
         },
       );

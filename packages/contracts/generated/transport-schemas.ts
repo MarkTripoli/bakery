@@ -22029,7 +22029,8 @@ const transportSchemas = {
         "sealedCredentialOperation",
         "agentSessionId",
         "contextInputs",
-        "traceparent"
+        "traceparent",
+        "sessionCredential"
       ],
       "optionalFields": [
         "workerSessionId",
@@ -22038,7 +22039,8 @@ const transportSchemas = {
         "serverTime",
         "agentSessionId",
         "contextInputs",
-        "traceparent"
+        "traceparent",
+        "sessionCredential"
       ],
       "fieldTypes": {
         "jobId": "uuid",
@@ -22063,7 +22065,8 @@ const transportSchemas = {
         "sealedCredentialOperation": "SealedCredentialOperation|null",
         "agentSessionId": "uuid",
         "contextInputs": "StepContextInput[]",
-        "traceparent": "traceparent"
+        "traceparent": "traceparent",
+        "sessionCredential": "secretString"
       },
       "sensitiveFields": [
         "leaseToken"
@@ -22115,7 +22118,8 @@ const transportSchemas = {
         "sealedCredentialOperation": "Required nullable daemon-only prepared credential operation. Null for every non-identity action; never copied into job input or a subprocess.",
         "agentSessionId": "Server-created harness session the result must reference.",
         "contextInputs": "Input slots the step declared, pinned at admission: the worker materializes exactly these bytes into its context directory and never re-fetches the artifact, so the digest it verifies is the one admission pinned.",
-        "traceparent": "W3C trace context of the request that caused this work, so the worker continues the caller's trace instead of starting an unrelated one."
+        "traceparent": "W3C trace context of the request that caused this work, so the worker continues the caller's trace instead of starting an unrelated one.",
+        "sessionCredential": "The session operation credential for this attempt, handed off at claim and never again: the server stores only its digest, and a claim replay revokes it and returns none. The agent presents it on the tool gateway to call Bakery operations as the principal it acts for - the run's requester, never the worker host. It dies with the attempt lease and must never be copied into job input, a log, an artifact or a subprocess environment."
       }
     },
     "LeaseState": {
