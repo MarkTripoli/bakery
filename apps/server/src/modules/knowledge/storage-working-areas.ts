@@ -703,7 +703,6 @@ export async function putStorageFile(context: ActionContext, input: PutInput) {
   if (entry) {
     if (entry.kind !== "file") conflict("folder_exists");
     if (entry.artifact_id !== null) refuse("record_area");
-    requireExpectedVersion(context, entry);
     const current = await tx.query<{ sha256: string; media_type: string }>(
       "select sha256, media_type from bakery.storage_file_versions" +
         " where organization_id = $1 and id = $2",
@@ -714,8 +713,15 @@ export async function putStorageFile(context: ActionContext, input: PutInput) {
       same && same.sha256 === bytes.sha256 &&
       same.media_type === bytes.mediaType
     ) {
+      // Identical bytes change nothing, so they need no If-Match; a stale one
+      // is still refused.
+      const expected = expectedVersion(context);
+      if (expected !== undefined && expected !== Number(entry.version)) {
+        throw new StandardError({ code: "PRECONDITION_FAILED" });
+      }
       return await project(tx, organizationId, entry.id);
     }
+    requireExpectedVersion(context, entry);
   } else {
     if (expectedVersion(context) !== undefined) {
       throw new StandardError({ code: "PRECONDITION_FAILED" });

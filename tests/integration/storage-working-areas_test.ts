@@ -415,8 +415,8 @@ Deno.test("limits are organization settings and quotas pause writes at 90%", () 
         body: { ...limits, workingVersionsKept: 0 },
         ifMatch: 1,
       }),
-      422,
-      "UNPROCESSABLE",
+      400,
+      "MALFORMED_REQUEST",
     );
     await problem(
       await put(fixture, "/shared/big.txt", "x".repeat(51)),
