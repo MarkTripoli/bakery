@@ -42,6 +42,10 @@ import {
 } from "../auth/application/definition-publish-grants.ts";
 import { supersedeWaitingProposals } from "./proposal-supersession.ts";
 import {
+  createAgentPowerGrant,
+  deleteAgentPowerGrant,
+} from "./agent-power-grants.ts";
+import {
   createDefinitionPublishGrant,
   deleteDefinitionPublishGrant,
 } from "./publish-grants.ts";
@@ -1532,5 +1536,7 @@ export function createWorkflowsHandlers(
     decideProposal: decideWorkflowDefinitionProposal,
     createPublishGrant: createDefinitionPublishGrant,
     deletePublishGrant: deleteDefinitionPublishGrant,
+    createAgentPowerGrant,
+    deleteAgentPowerGrant,
   };
 }
