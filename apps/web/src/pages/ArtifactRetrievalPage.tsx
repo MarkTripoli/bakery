@@ -44,6 +44,7 @@ import { ArtifactPinControl } from "./ArtifactPinControl.tsx";
 import { ArtifactPreviewHandoff } from "./ArtifactPreviewHandoff.tsx";
 import { ArtifactComments } from "./ArtifactComments.tsx";
 import { ArtifactContentPreview } from "./ArtifactContentPreview.tsx";
+import { useShellViewport } from "../app/responsive.ts";
 import { ArtifactEditor } from "./ArtifactEditor.tsx";
 import { isExtractableMediaType } from "./artifact-media.ts";
 import { invalidateArtifactQueries } from "./artifact-live.ts";
@@ -404,6 +405,11 @@ export function ArtifactRetrievalPage(
       null;
   // A document in plain text may be edited by people who can write drafts.
   const [editing, setEditing] = useState(false);
+  // Where the draft's suggestions are drawn beside the text; none on a phone.
+  const phone = useShellViewport() === "phone";
+  const [suggestionsHost, setSuggestionsHost] = useState<HTMLElement | null>(
+    null,
+  );
   const access = useQuery({
     ...effectiveAccessQueryOptions(api, scope),
     enabled: scope.organizationId !== null,
@@ -919,6 +925,17 @@ export function ArtifactRetrievalPage(
       : null;
     return (
       <ArtifactRetrievalView
+        aside={editing && canEdit && !phone
+          ? (
+            <UI.Stack
+              data-testid="artifact-suggestions-host"
+              gap="standard"
+              ref={setSuggestionsHost}
+            >
+              {null}
+            </UI.Stack>
+          )
+          : undefined}
         testId="artifact-retrieval-page"
         title={title}
         artifactLabel={translate("artifact.view.eyebrow")}
@@ -1062,6 +1079,7 @@ export function ArtifactRetrievalPage(
               artifactId={artifactId}
               key={`edit:${scope.sessionGeneration}:${artifactId}`}
               onViewVersion={() => setEditing(false)}
+              suggestionsHost={phone ? null : suggestionsHost}
               taskId={taskId}
               publishedVersion={versionPages.items.find((candidate) =>
                 candidate.id === view.artifact.currentVersionId

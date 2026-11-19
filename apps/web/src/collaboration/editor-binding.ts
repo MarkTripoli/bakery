@@ -1,4 +1,11 @@
-import { EditorState, type Extension, Transaction } from "@codemirror/state";
+import {
+  EditorState,
+  type Extension,
+  StateEffect,
+  StateField,
+  Transaction,
+} from "@codemirror/state";
+import { Decoration, type DecorationSet, EditorView } from "@codemirror/view";
 import { LoroSyncPlugin, LoroUndoPlugin } from "loro-codemirror";
 import type { LoroDoc as LoroDocument } from "loro-crdt";
 import { UndoManager } from "loro-crdt/base64";
@@ -42,5 +49,50 @@ export function sizeLimit(limitBytes = DOCUMENT_LIMIT_BYTES): Extension {
     ) return transaction;
     const bytes = encoder.encode(transaction.newDoc.toString()).length;
     return bytes > limitBytes ? [] : transaction;
+  });
+}
+
+/** Tints one range of the text (a chosen suggestion's), or none with null. */
+export const tintRange = StateEffect.define<
+  { readonly from: number; readonly to: number } | null
+>();
+
+const tintMark = Decoration.mark({ class: "ui-document-editor__suggested" });
+
+/**
+ * The range a chosen suggestion points at: tinted, and followed through edits
+ * so it keeps covering the same text. Drive it with `tintRange`.
+ */
+export function suggestionTint(): Extension {
+  return StateField.define<DecorationSet>({
+    create: () => Decoration.none,
+    update(tint, transaction) {
+      let next = tint.map(transaction.changes);
+      for (const effect of transaction.effects) {
+        if (!effect.is(tintRange)) continue;
+        const range = effect.value;
+        const length = transaction.state.doc.length;
+        next = range && range.from < range.to && range.to <= length
+          ? Decoration.set([tintMark.range(range.from, range.to)])
+          : Decoration.none;
+      }
+      return next;
+    },
+    provide: (field) => EditorView.decorations.from(field),
+  });
+}
+
+/** Tints a range and brings it into view; null clears the tint. */
+export function showSuggestedRange(
+  view: EditorView,
+  range: { readonly from: number; readonly to: number } | null,
+): void {
+  view.dispatch({
+    effects: [
+      tintRange.of(range),
+      ...(range
+        ? [EditorView.scrollIntoView(range.from, { y: "center" })]
+        : []),
+    ],
   });
 }
