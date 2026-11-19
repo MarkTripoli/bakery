@@ -101,6 +101,13 @@ export type ActionContext = {
   signal: AbortSignal;
   principal?: unknown;
   /**
+   * Set only when an agent's session dispatched this call on behalf of a
+   * person: the attempt the session runs under. It labels the call as an
+   * agent's action (O50) and lets the guard for an off-by-default power find the
+   * workflow the agent runs under. Absent for a person's own request.
+   */
+  agentSession?: Readonly<{ attemptId: string }>;
+  /**
    * Effective locale resolved for this request (person preference, then
    * `Accept-Language`, then `en`). Carries no authorization meaning.
    */

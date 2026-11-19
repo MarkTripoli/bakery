@@ -1,0 +1,183 @@
+import type { ActionContext } from "@bakery/contracts/action-registry";
+import { StandardError } from "@bakery/contracts/http";
+import type { PgTransactionClient } from "../../../platform/database.ts";
+import {
+  type ActionAttribution,
+  attributeAction,
+} from "./action-attribution.ts";
+
+/**
+ * The powers an agent holds only where a person granted them (chapter 25
+ * sections 18.2 and 18.3, O50 to O52, issue #414).
+ *
+ * An agent reads by default and authors drafts; deciding, controlling a run and
+ * starting one are off by default and granted per workflow or per seat (O52). A
+ * person is never asked for a grant here: the person's role and the action's
+ * catalog permission already decided that. Each guarded operation calls
+ * {@link assertAgentMayExercise} with its own power, so a power added later
+ * inherits the same guard and the parity test covers it.
+ */
+export const AgentPower = Object.freeze(
+  {
+    /** Decide an approval or answer a decision a person would otherwise make. */
+    Decide: "decide",
+    /** Pause, resume, cancel, interrupt or retry a run. */
+    RunControl: "run_control",
+    /** Start a run. Count, depth and budget checks apply on top of the grant. */
+    RunStart: "run_start",
+  } as const,
+);
+export type AgentPower = typeof AgentPower[keyof typeof AgentPower];
+
+export const AGENT_POWERS: readonly AgentPower[] = Object.freeze(
+  Object.values(AgentPower),
+);
+
+export function isAgentPower(value: unknown): value is AgentPower {
+  return typeof value === "string" &&
+    (AGENT_POWERS as readonly string[]).includes(value);
+}
+
+/** The refusal an agent without a grant receives, for every power. */
+export const AGENT_POWER_REQUIRES_GRANT = "agent_power_requires_grant";
+
+/** The run, workflow and agent session an attempt belongs to. */
+export type AttemptOrigin = Readonly<{
+  runId: string;
+  workflowId: string;
+  agentSessionId: string | null;
+}>;
+
+/**
+ * Finds the run and workflow an attempt belongs to, or null when it has none.
+ *
+ * The chain is attempt, job, run step, run, workflow version, workflow. A job
+ * with no run (a coordinator turn) has no workflow, so no grant can cover it
+ * and the agent holds no power there: refused rather than guessed.
+ */
+export async function attemptOrigin(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  attemptId: string,
+): Promise<AttemptOrigin | null> {
+  const found = await transaction.query<{
+    runId: string;
+    workflowId: string;
+    agentSessionId: string | null;
+  }>(
+    `select run.id as "runId", version.workflow_id as "workflowId",
+            (
+              select session.id
+                from bakery.agent_sessions as session
+               where session.organization_id = job.organization_id
+                 and session.run_step_id = job.run_step_id
+               order by session.created_at asc, session.id asc
+               limit 1
+            ) as "agentSessionId"
+       from bakery.job_attempts as attempt
+       join bakery.jobs as job
+         on job.organization_id = attempt.organization_id
+        and job.id = attempt.job_id
+       join bakery.run_steps as step
+         on step.organization_id = job.organization_id
+        and step.id = job.run_step_id
+       join bakery.workflow_runs as run
+         on run.organization_id = step.organization_id
+        and run.id = step.run_id
+       join bakery.workflow_versions as version
+         on version.organization_id = run.organization_id
+        and version.id = run.workflow_version_id
+      where attempt.organization_id = $1 and attempt.id = $2`,
+    [organizationId, attemptId],
+  );
+  return found.rows[0] ?? null;
+}
+
+/**
+ * Whether a live grant gives this agent the power: a grant for the workflow it
+ * runs under with no seat, or a grant for its seat that names the workflow or
+ * every workflow. An agent without an access token (a session of a worker) can
+ * only hold a workflow grant.
+ */
+export async function agentHoldsPower(
+  transaction: PgTransactionClient,
+  scope: Readonly<{
+    organizationId: string;
+    power: AgentPower;
+    workflowId: string | null;
+    accessTokenId: string | null;
+  }>,
+): Promise<boolean> {
+  const found = await transaction.query(
+    `select 1 from bakery.agent_power_grants
+      where organization_id = $1 and power = $2
+        and (workflow_id = $3::uuid
+             or (workflow_id is null and access_token_id is not null))
+        and (access_token_id is null or access_token_id = $4::uuid)
+      limit 1`,
+    [scope.organizationId, scope.power, scope.workflowId, scope.accessTokenId],
+  );
+  return found.rows.length === 1;
+}
+
+/**
+ * What an agent's call is attributed to, once its power is proven.
+ *
+ * `run` and `agentSessionId` are the origin of a session call, so the record of
+ * what the agent did can name the run it acted from and the session that made
+ * the call (O50), and so a guard can refuse an agent acting on its own work.
+ */
+export type ExercisedPower = Readonly<{
+  attribution: ActionAttribution;
+  origin: AttemptOrigin | null;
+}>;
+
+/**
+ * Refuses an agent's use of an off-by-default power unless a grant covers it,
+ * and returns the attribution to record. A person passes untouched: their role
+ * and the action's permission already decided it. Call it after the subject row
+ * is locked and before anything is written, so a refusal writes nothing.
+ */
+export async function assertAgentMayExercise(
+  transaction: PgTransactionClient,
+  context: Pick<ActionContext, "principal" | "accessToken" | "agentSession">,
+  scope: Readonly<{
+    organizationId: string;
+    principalId: string;
+    power: AgentPower;
+  }>,
+): Promise<ExercisedPower> {
+  const attribution = attributeAction(context, scope.principalId);
+  if (attribution.actorKind === "person") {
+    return { attribution, origin: null };
+  }
+  const origin = context.agentSession === undefined
+    ? null
+    : await attemptOrigin(
+      transaction,
+      scope.organizationId,
+      context.agentSession.attemptId,
+    );
+  // A session call whose attempt belongs to no run has no workflow a grant could
+  // name, so it holds nothing. A token agent has no attempt and is matched by
+  // its seat alone.
+  if (context.agentSession !== undefined && origin === null) {
+    throw refusal();
+  }
+  if (
+    await agentHoldsPower(transaction, {
+      organizationId: scope.organizationId,
+      power: scope.power,
+      workflowId: origin?.workflowId ?? null,
+      accessTokenId: attribution.accessTokenId,
+    })
+  ) return { attribution, origin };
+  throw refusal();
+}
+
+function refusal(): StandardError {
+  return new StandardError({
+    code: "AUTH_FORBIDDEN",
+    params: { reason: AGENT_POWER_REQUIRES_GRANT },
+  });
+}

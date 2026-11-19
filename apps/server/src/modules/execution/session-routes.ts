@@ -138,7 +138,9 @@ export function dispatchedContext(
   dispatched.headers.set(ORGANIZATION_HEADER, claim.organizationId);
   return {
     request: dispatched,
-    params: { id: attemptId },
+    // Route parameters come from the agent's arguments, per the operation's own
+    // path (see splitCallArguments); the attempt id is not one of them.
+    params: {},
     requestId: request.headers.get("x-request-id") ?? crypto.randomUUID(),
     traceId: request.headers.get("traceparent") ?? crypto.randomUUID(),
     signal: request.signal,
@@ -146,6 +148,11 @@ export function dispatchedContext(
     // session can never reach further than that person could. The credential's
     // scopes narrowed the offer; this narrows the act.
     principal: sessionDispatchPrincipal(claim),
+    // The principal above is the person's, so without this marker an action
+    // would be attributed to the person. It says an agent made the call (O50)
+    // and names the attempt, which is how a guarded power finds the workflow the
+    // agent runs under.
+    agentSession: { attemptId },
   };
 }
 

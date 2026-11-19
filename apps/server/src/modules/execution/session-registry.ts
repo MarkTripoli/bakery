@@ -60,7 +60,46 @@ export function createSessionToolRegistry(
         // `list()` first. Refused rather than silently redirected.
         return Promise.reject(new Error(`SESSION_TOOL_NOT_COMPOSED: ${name}`));
       }
-      return registry.execute(name, context, input);
+      const definition = definitions.find((item) => item.name === name);
+      const split = definition
+        ? splitCallArguments(definition, input)
+        : { params: {}, value: input };
+      return registry.execute(
+        name,
+        Object.assign({}, context, { params: split.params }) as ActionContext,
+        split.value,
+      );
     },
   };
+}
+
+/**
+ * Splits an agent's arguments into the route parameters and the operation input.
+ *
+ * An operation addressed by id (`/v1/approvals/:id/decision`) reads that id from
+ * the route, not from its body, and the agent has no route. The route parameters
+ * are therefore taken from the arguments by the path's own names, and left out
+ * of the input unless the operation's input schema defines them itself (as
+ * `IdPath` does). Without this every by-id tool addressed the attempt's own id.
+ */
+export function splitCallArguments(
+  definition: Pick<ActionDefinition, "path" | "input">,
+  args: unknown,
+): Readonly<{ params: Record<string, string>; value: unknown }> {
+  const names = [...definition.path.matchAll(/:([A-Za-z][A-Za-z0-9]*)/g)]
+    .map((match) => match[1]);
+  if (typeof args !== "object" || args === null || Array.isArray(args)) {
+    return { params: {}, value: args };
+  }
+  const record = args as Record<string, unknown>;
+  const shape = (definition.input as { shape?: Record<string, unknown> })
+    .shape ?? {};
+  const params: Record<string, string> = {};
+  const value: Record<string, unknown> = { ...record };
+  for (const name of names) {
+    const given = record[name];
+    if (typeof given === "string") params[name] = given;
+    if (!(name in shape)) delete value[name];
+  }
+  return { params, value };
 }
