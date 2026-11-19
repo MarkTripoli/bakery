@@ -25,7 +25,7 @@ export const linearProviderManifest = {
   // derived the same way as the GitHub row's id. Pinned: it is the
   // `integration_providers` primary key, so changing it orphans every connection.
   providerUuid: "7884e080-6d1f-5aa0-80a7-d03a941cef11",
-  nameKey: "settings.connections.linear.name",
+  nameKey: "integrations.linear.name",
   // Tickets only. Linear has no code family - it stores no branches and no
   // reviews - so claiming the family would put a port nothing can serve on the
   // engine's list of places to look for a pull request.
@@ -37,13 +37,13 @@ export const linearProviderManifest = {
     fields: [
       {
         id: "client_id",
-        labelKey: "settings.connections.linear.fields.client_id",
+        labelKey: "integrations.linear.fields.client_id",
         secret: false,
         format: "text",
       },
       {
         id: "client_secret",
-        labelKey: "settings.connections.linear.fields.client_secret",
+        labelKey: "integrations.linear.fields.client_secret",
         secret: true,
         format: "text",
       },
@@ -63,14 +63,14 @@ export const linearProviderManifest = {
   resourceKinds: [
     {
       id: "issue",
-      nameKey: "settings.connections.linear.kinds.issue",
+      nameKey: "integrations.linear.kinds.issue",
       // The ticket family is served by issues and by nothing else: a Linear
       // project is a container, not work a person claims.
       serves: ["tickets"],
     },
     {
       id: "project",
-      nameKey: "settings.connections.linear.kinds.project",
+      nameKey: "integrations.linear.kinds.project",
       serves: ["tickets.project"],
     },
   ],

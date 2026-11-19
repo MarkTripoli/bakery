@@ -32,8 +32,8 @@ export const linearWebProvider = defineWebProvider({
    */
   describeResource: (resource) =>
     resource.resourceKindId === "team"
-      ? { key: "settings.connections.linear.resource.team" }
-      : { key: "settings.connections.linear.resource.project" },
+      ? { key: "integrations.linear.resource.team" }
+      : { key: "integrations.linear.resource.project" },
   /**
    * Linear's permissions are scopes (`read`, `write`), not installation
    * permissions, so the sentence names what the scope lets Bakery do rather than
@@ -42,11 +42,11 @@ export const linearWebProvider = defineWebProvider({
    */
   describePermission: (permission, level) =>
     level === "write"
-      ? { key: "settings.connections.linear.permission.write" }
+      ? { key: "integrations.linear.permission.write" }
       : level === "read"
-      ? { key: "settings.connections.linear.permission.read" }
+      ? { key: "integrations.linear.permission.read" }
       : {
-        key: "settings.connections.linear.permission.other",
+        key: "integrations.linear.permission.other",
         arguments: { scope: permission },
       },
 });
