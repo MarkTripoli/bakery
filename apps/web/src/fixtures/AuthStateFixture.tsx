@@ -3,6 +3,7 @@ import { useParams } from "@tanstack/react-router";
 import { expiredSpecimens } from "./auth/expired.tsx";
 import { inviteSpecimens } from "./auth/invite.tsx";
 import { inviteLoginSpecimens } from "./auth/invite-login.tsx";
+import { forgotSpecimens } from "./auth/forgot.tsx";
 import { joinSpecimens } from "./auth/join.tsx";
 import { loginSpecimens } from "./auth/login.tsx";
 import { sectionIndexSpecimens } from "./auth/section-index.tsx";
@@ -52,6 +53,7 @@ function prefixed(screen: string, specimens: Specimens): Specimens {
 const registry: Specimens = {
   ...prefixed("setup", setupSpecimens),
   ...prefixed("login", loginSpecimens),
+  ...prefixed("forgot", forgotSpecimens),
   ...prefixed("expired", expiredSpecimens),
   ...prefixed("join", joinSpecimens),
   ...prefixed("register", registerSpecimens),

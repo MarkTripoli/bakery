@@ -4332,5 +4332,17 @@
   "settings.repositoryRules.stale.useTheirs": "⟦Ûšë ṽëŕšïôñ {revision} ŧëšŧŧ⟧",
   "settings.repositoryRules.stale.useTheirs.named": "⟦Ûšë ṽëŕšïôñ {revision} ƒôŕ {rule} ŧëšŧ çôþÿ⟧",
   "settings.repositoryRules.history.loadMoreError": "⟦Ôļðëŕ ṽëŕšïôñš çôûļð ñôŧ ƀë ļôàðëð. ŧëšŧ çôþÿŧ⟧",
-  "settings.repositoryRules.history.loading": "⟦Ļôàðïñĝ ṽëŕšïôñš… ŧëš⟧"
+  "settings.repositoryRules.history.loading": "⟦Ļôàðïñĝ ṽëŕšïôñš… ŧëš⟧",
+  "auth.signIn.rateLimitedNoWait": "⟦Ŧôô ɱàñÿ ŧŕïëš. Ŵàïŧ à ɱôɱëñŧ, ŧĥëñ ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧëšŧ⟧",
+  "auth.signIn.offlineNotice": "⟦Ÿôû àŕë ôƒƒļïñë. Ŕëçôññëçŧ, ŧĥëñ šïĝñ ïñ. ŧëšŧ çôþÿ ŧë⟧",
+  "auth.signIn.unreachable": "⟦Ɓàķëŕÿ çôûļð ñôŧ ƀë ŕëàçĥëð. Ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧ⟧",
+  "auth.invitationRequired.pausedTitle": "⟦Ñëŵ àççôûñŧš àŕë þàûšëð ŧëšŧ ç⟧",
+  "auth.invitationRequired.pausedDescription": "⟦Ŧĥïš Ɓàķëŕÿ šëŕṽëŕ ïš ñôŧ àççëþŧïñĝ ñëŵ àççôûñŧš ŕïĝĥŧ ñôŵ. Àšķ ŧĥë þëŕšôñ ŵĥô ŕûñš ïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
+  "auth.signIn.forgotPassword": "⟦Ƒôŕĝôŧ þàššŵôŕð? ŧëš⟧",
+  "auth.signIn.noAccount": "⟦Ñô àççôûñŧ? Ɓàķëŕÿ àççôûñŧš šŧàŕŧ ƒŕôɱ àñ ïñṽïŧàŧïôñ. ŧëšŧ çôþÿ ŧëšŧ ç⟧",
+  "auth.signIn.howToGetOne": "⟦Ĥôŵ ŧô ĝëŧ ôñë ŧë⟧",
+  "auth.forgotPassword.title": "⟦Ƒôŕĝôŧ ÿôûŕ þàššŵôŕð? ŧëšŧŧ⟧",
+  "auth.forgotPassword.description": "⟦Ɓàķëŕÿ çàññôŧ šëñð à þàššŵôŕð ŕëšëŧ ƒŕôɱ ŧĥïš þàĝë ÿëŧ. Àšķ ŧĥë þëŕšôñ ŵĥô ŕûñš ÿôûŕ Ɓàķëŕÿ šëŕṽëŕ ŧô ŕëšëŧ ïŧ ƒôŕ ÿôû. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
+  "auth.forgotPassword.signedInElsewhere": "⟦Ïƒ ÿôû àŕë šŧïļļ šïĝñëð ïñ ôñ àñôŧĥëŕ ðëṽïçë, çĥàñĝë ïŧ ŧĥëŕë: Šëŧŧïñĝš, Àççôûñŧ & šëçûŕïŧÿ, Þàššŵôŕð. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
+  "auth.forgotPassword.back": "⟦Ɓàçķ ŧô šïĝñ ïñ ŧëš⟧"
 }

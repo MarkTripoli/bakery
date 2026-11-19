@@ -1266,12 +1266,13 @@ a.bakery-application-rail__link:hover {
 .ui-auth-entry__status:empty {
   display: none;
 }
-.ui-auth-entry__form-bottom {
+/* The theme switch sits at the form pane's top end corner, away from the form. */
+.ui-auth-entry__theme {
   display: flex;
-  inline-size: 100%;
+  inset-block-start: var(--space-6);
+  inset-inline-end: var(--space-6);
   justify-content: flex-end;
-  margin-block-start: 40px; /* auth.css:9 .form-bottom */
-  max-inline-size: 380px; /* auth.css:9 .form-bottom */
+  position: absolute;
 }
 .ui-auth-entry--context {
   position: relative;
@@ -1408,9 +1409,9 @@ a.bakery-application-rail__link:hover {
     gap: var(--space-6); /* auth.css:13 .form-content 24px */
     max-inline-size: 420px; /* auth.css:13 .form-content */
   }
-  .ui-auth-entry__form-bottom {
-    margin-block-start: var(--space-8); /* auth.css:13 .form-bottom 32px */
-    max-inline-size: 420px; /* auth.css:13 .form-bottom */
+  .ui-auth-entry__theme {
+    inset-block-start: var(--space-5);
+    inset-inline-end: var(--space-5);
   }
   .ui-auth-entry--context {
     gap: var(--space-6); /* auth.css:13 .context-layout 24px */

@@ -5,6 +5,7 @@ import {
 } from "../app/auth-paths.ts";
 import { RouterLink } from "../app/router-link.tsx";
 import type { SecurityFailure } from "../app/security-failures.ts";
+import { formatWait } from "../app/retry-wait.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import {
   isDisconnected,
@@ -54,7 +55,7 @@ export function ChangePasswordScreen(
     state,
   }: ChangePasswordScreenProps,
 ) {
-  const { translate } = useI18n();
+  const { locale, translate } = useI18n();
   const revealLabels = {
     hide: translate("auth.signIn.hidePassword"),
     show: translate("auth.signIn.showPassword"),
@@ -98,7 +99,7 @@ export function ChangePasswordScreen(
                   {failure.retryAfterSeconds === null
                     ? translate(failure.messageKey)
                     : translate(failure.messageKey, {
-                      retryAfterSeconds: failure.retryAfterSeconds,
+                      wait: formatWait(failure.retryAfterSeconds, locale),
                     })}
                 </UI.InlineNotice>
               )

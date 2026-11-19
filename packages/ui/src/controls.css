@@ -164,6 +164,13 @@ input:not([type="hidden"]) {
   column-gap: var(--space-6);
   grid-template-columns: var(--layout-field-label) minmax(0, 1fr);
 }
+.ui-field__label-row {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  justify-content: space-between;
+}
 .ui-field__heading {
   display: grid;
   gap: var(--space-0-5);

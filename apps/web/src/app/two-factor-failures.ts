@@ -95,7 +95,7 @@ export function twoFactorFailure(error: unknown): TwoFactorFailure {
       return error.retryAfterSeconds === null
         ? {
           kind: "notice",
-          messageKey: "auth.signIn.unavailable",
+          messageKey: "auth.signIn.rateLimitedNoWait",
           retryAfterSeconds: null,
         }
         : {

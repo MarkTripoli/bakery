@@ -7,6 +7,8 @@ export type FieldProps = {
   hint?: ReactNode;
   htmlFor?: string;
   label: ReactNode;
+  /** A link or short action at the end of the label row, such as "Forgot password?"; stacked layout only. */
+  labelEnd?: ReactNode;
   /** Quiet line under an inline label, e.g. "Optional". */
   note?: ReactNode;
   /** `inline` puts the label in a left column beside the control (collapses to stacked on narrow screens). */
@@ -23,6 +25,7 @@ export function Field(
     hint,
     htmlFor,
     label,
+    labelEnd,
     layout = "stacked",
     note,
     required = false,
@@ -46,6 +49,16 @@ export function Field(
               {required ? <span aria-hidden="true">*</span> : null}
             </label>
             {note ? <span className="ui-field__note">{note}</span> : null}
+          </div>
+        )
+        : labelEnd
+        ? (
+          <div className="ui-field__label-row">
+            <label htmlFor={htmlFor}>
+              {label}
+              {required ? <span aria-hidden="true">*</span> : null}
+            </label>
+            {labelEnd}
           </div>
         )
         : (
