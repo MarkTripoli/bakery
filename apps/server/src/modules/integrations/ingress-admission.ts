@@ -119,8 +119,17 @@ function admitWithin(
 
   const verified = ingress.verify(input);
   if (!verified.ok) {
-    // One answer for every failure. A caller that could tell "wrong secret"
-    // from "forged" could use a delivery endpoint to test candidate secrets.
+    // `malformed` is only ever answered after the signature has verified (the
+    // port refuses to read a body it could not authenticate), so it is the one
+    // refusal that says nothing about a secret: the sender holds the secret and
+    // sent something unreadable or without its delivery headers. That is a
+    // malformed request, not an authentication failure.
+    if (verified.reason === "malformed") {
+      throw new StandardError({ code: "MALFORMED_REQUEST" });
+    }
+    // One answer for every other failure. A caller that could tell "wrong
+    // secret" from "forged" could use a delivery endpoint to test candidate
+    // secrets.
     throw new StandardError({ code: "AUTH_INVALID" });
   }
 

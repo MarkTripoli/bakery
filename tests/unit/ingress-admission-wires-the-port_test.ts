@@ -97,28 +97,64 @@ Deno.test("every verify failure is one answer, so the endpoint cannot test secre
       "x-github-event": "installation",
       "x-github-delivery": "d",
     }),
-    // A correctly signed body that is not a delivery.
-    new Headers({
-      "x-hub-signature-256": `sha256=${hex(hmacSha256(SECRET, body))}`,
-      "x-github-event": "installation",
-      "x-github-delivery": "d",
-    }),
   ];
-  for (const [index, headers] of cases.entries()) {
+  for (const headers of cases) {
     const error = assertThrows(
       () =>
         admitDelivery(githubIngress, {
-          body: index === 3 ? enc("not json") : body,
+          body,
           headers,
           secrets: [SECRET],
           now: NOW,
         }),
       StandardError,
     );
-    // The same code for a forgery, a bad secret and a body the provider could
-    // not read: the caller learns nothing about which one it was.
+    // The same code for a forgery, a bad secret and a malformed signature
+    // header: the caller learns nothing about which one it was.
     assertEquals(error.code, "AUTH_INVALID");
   }
+});
+
+Deno.test("a validly signed delivery without its id or event header is malformed, not unauthorised", () => {
+  const body = enc(JSON.stringify(installation("created")));
+  const signature = `sha256=${hex(hmacSha256(SECRET, body))}`;
+  for (
+    const headers of [
+      new Headers({
+        "x-hub-signature-256": signature,
+        "x-github-event": "installation",
+      }),
+      new Headers({
+        "x-hub-signature-256": signature,
+        "x-github-delivery": "d",
+      }),
+    ]
+  ) {
+    const error = assertThrows(
+      () =>
+        admitDelivery(githubIngress, {
+          body,
+          headers,
+          secrets: [SECRET],
+          now: NOW,
+        }),
+      StandardError,
+    );
+    assertEquals(error.code, "MALFORMED_REQUEST");
+  }
+  // And without the signature the same missing headers are still a refusal to
+  // authenticate: the 400 is only for a sender that proved it holds the secret.
+  const unsigned = assertThrows(
+    () =>
+      admitDelivery(githubIngress, {
+        body,
+        headers: new Headers({ "x-github-event": "installation" }),
+        secrets: [SECRET],
+        now: NOW,
+      }),
+    StandardError,
+  );
+  assertEquals(unsigned.code, "AUTH_INVALID");
 });
 
 Deno.test("a delivery naming no installation is acknowledged as ignored", () => {

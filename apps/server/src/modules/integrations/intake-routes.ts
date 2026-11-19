@@ -20,7 +20,7 @@ import {
   parseIntakeContentType,
 } from "./intake-events.ts";
 import { deliveryFailure, readWebhookSecret } from "./intake-receipts.ts";
-import { sha256Hex } from "./intake-signature.ts";
+import { parseSignatureHeader, sha256Hex } from "./intake-signature.ts";
 import { admitDelivery } from "./ingress-admission.ts";
 import type { WebhookIngress } from "@bakery/integration-sdk";
 
@@ -124,11 +124,14 @@ async function handleDelivery(
     options.deadlineMs ?? INTAKE_DEADLINE_MS,
   );
   try {
-    // The signature header is still checked for presence here, before the body
-    // is read: a delivery that carries no signature at all is refused without
-    // spending the read. What the signature *means* is the provider's question,
+    // The signature header's form is checked here, before the body is read and
+    // before any secret is: a delivery with no signature, or one that is not a
+    // signature at all, is refused without spending the read or touching the
+    // database. Whether the signature is *right* is the provider's question,
     // answered by the ingress port below.
-    if (request.headers.get("x-hub-signature-256") === null) {
+    if (
+      parseSignatureHeader(request.headers.get("x-hub-signature-256")) === null
+    ) {
       discardBody(request);
       throw authInvalid();
     }
