@@ -11417,6 +11417,40 @@ const transportSchemas = {
         "Idempotency-Key and If-Match required; If-Match is the grant version the caller last saw and a stale version fails with PRECONDITION_FAILED. Needs the caller's own sharing authority (conversation:share); a mention-only recipient cannot revoke. Removes only the direct grant; inherited access is untouched. Audited."
       ],
       "description": "Removes one person's mention-granted access to one conversation under compare-and-set on the grant version."
+    },
+    "PasswordResetLinkCreate": {
+      "fields": [
+        {
+          "name": "principalId",
+          "type": "uuid",
+          "required": true,
+          "description": "Enabled human principal whose password the link resets; any installation person, whichever organizations they belong to."
+        }
+      ],
+      "description": "Installation administrator's request for a one-hour, single-use password reset link for one person. Issuing revokes that person's earlier unused links."
+    },
+    "PasswordResetRedemption": {
+      "fields": [
+        {
+          "name": "token",
+          "type": "secretString",
+          "required": true,
+          "bounds": {
+            "maxLength": 256
+          },
+          "description": "Reset token from the link's token query parameter, sent exactly as issued. The server stores only its SHA-256 digest."
+        },
+        {
+          "name": "newPassword",
+          "type": "secretString",
+          "required": true,
+          "bounds": {
+            "maxLength": 1024
+          },
+          "description": "The person's new sign-in password; it must meet the same length rule as sign-up and password change, and is hashed by the auth provider before storage."
+        }
+      ],
+      "description": "Unauthenticated redemption of a password reset link: sets the new password, consumes the link and signs the person out of every browser session. An unknown, used, expired or revoked link gets one identical refusal."
     }
   },
   "projections": {
@@ -29006,6 +29040,24 @@ const transportSchemas = {
     "Page<ConversationAccessGrant>": {
       "pageOf": "ConversationAccessGrant",
       "description": "Cursor page of live direct grants on one conversation, oldest first. `nextCursor: null` marks the last page."
+    },
+    "PasswordResetLinkIssued": {
+      "fields": [
+        "id",
+        "url",
+        "expiresAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "url": "secretString",
+        "expiresAt": "timestamp"
+      },
+      "description": "A newly issued password reset link. The URL carries the only copy of the token and is returned in this response alone; it is never stored, replayed or readable again.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of the reset link record, as the audit trail names it.",
+        "url": "Absolute web URL of the reset page with the one-time token; hand it to the person over a trusted channel.",
+        "expiresAt": "UTC timestamp one hour after issue, after which the link no longer works."
+      }
     }
   },
   "pageEnvelope": {

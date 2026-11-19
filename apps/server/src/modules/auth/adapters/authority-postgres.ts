@@ -612,7 +612,8 @@ export class PostgresAuthorityRunner implements ActionAuthorityRunner {
           action.name ===
             AuthImplementedAction.InstallationAdministratorsCreate ||
           action.name ===
-            AuthImplementedAction.InstallationAdministratorsRevoke;
+            AuthImplementedAction.InstallationAdministratorsRevoke ||
+          action.name === AuthImplementedAction.PasswordResetLinksCreate;
         const organizationCreation =
           action.name === AuthImplementedAction.OrganizationsCreate;
         if (installationMutation || organizationCreation) {
@@ -621,7 +622,8 @@ export class PostgresAuthorityRunner implements ActionAuthorityRunner {
             installationMutation ? "update" : "share",
           );
           const target = action.name ===
-              AuthImplementedAction.InstallationAdministratorsCreate
+                AuthImplementedAction.InstallationAdministratorsCreate ||
+              action.name === AuthImplementedAction.PasswordResetLinksCreate
             ? (input as { principalId: string }).principalId
             : action.name ===
                 AuthImplementedAction.InstallationAdministratorsRevoke
