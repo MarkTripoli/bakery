@@ -313,6 +313,37 @@ Deno.test("route continuations: a step with two matching routes, or two live job
   }
 });
 
+Deno.test("route continuations: a closed incident still linked to the route offers nothing", async () => {
+  const fixture = await openApprovalFixture();
+  try {
+    const run = await seedRun(fixture);
+    const source = await seedRoute(fixture);
+    const incident = await openIncident(fixture, source);
+    assertEquals((await offersOk(fixture, run.runId)).offers.length, 1);
+    // The incident recovers or is superseded while the route still points at it
+    // (the pointer is cleared by the writer that closes it, and a stale link is
+    // exactly the state a reader must not trust).
+    for (const status of ["recovered", "superseded"]) {
+      await fixture.fx.ownerPg.query(
+        "update bakery.provider_incidents set status = $2, closed_at = now() where id = $1",
+        [incident, status],
+      );
+      const link = await fixture.fx.ownerPg.query(
+        "select incident_id from bakery.provider_routes where id = $1",
+        [source],
+      );
+      assertEquals(link.rows[0].incident_id, incident);
+      assertEquals(
+        (await offersOk(fixture, run.runId)).offers,
+        [],
+        status,
+      );
+    }
+  } finally {
+    await fixture.close();
+  }
+});
+
 Deno.test("route continuations: the job's billing spelling maps, and local never matches", async () => {
   const fixture = await openApprovalFixture();
   try {

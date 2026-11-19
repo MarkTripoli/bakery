@@ -140,6 +140,9 @@ Deno.test("every statement is a select inside the organization", async () => {
   const stalledQuery = recorded[1]!;
   assertEquals(stalledQuery.values[1], RUN);
   assert(/j\.status <> all/.test(stalledQuery.sql));
+  // Only an open incident stalls a step: a route may still point at one that has
+  // recovered or been superseded, and that link must not make an offer.
+  assert(/i\.status = 'open'/.test(stalledQuery.sql));
   assert(/not exists[\s\S]*route_continuations/.test(stalledQuery.sql));
 });
 
