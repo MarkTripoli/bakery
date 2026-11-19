@@ -20,6 +20,7 @@ import {
   createRunDeliveryDecisionsListHandler,
   createRunReviewsListHandler,
 } from "./postgres.ts";
+import { acceptReview } from "./review-accept.ts";
 
 export function createDeliveryHandlers(
   secret: string,
@@ -28,6 +29,8 @@ export function createDeliveryHandlers(
   return {
     checksList: createChecksListHandler(secret),
     runReviewsList: createRunReviewsListHandler(secret),
+    runReviewsAccept: async (context, input) =>
+      contractSchemas.ReviewCycle.parse(await acceptReview(context, input)),
     reviewFindingsList: createReviewFindingsListHandler(secret),
     runDeliveryDecisionsList: createRunDeliveryDecisionsListHandler(secret),
     pullRequestsList: createPullRequestsListHandler(secret),
