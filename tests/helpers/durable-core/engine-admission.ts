@@ -89,6 +89,11 @@ export type EngineAdmission = {
   readonly observation: EngineAdmissionObservation;
 };
 
+export type SecretIdentityEngineAdmission = EngineAdmission & {
+  readonly applicationId: string;
+  readonly secretId: string;
+};
+
 export async function postJson(
   client: Client,
   path: string,
@@ -339,6 +344,7 @@ async function createWorkflow(
   stack: DurableCoreStack,
   organizationId: string,
   principalId: string,
+  secretId?: string,
 ): Promise<{ workflowId: string; workflowVersionId: string }> {
   const workflowId = crypto.randomUUID();
   const workflowVersionId = crypto.randomUUID();
@@ -346,26 +352,43 @@ async function createWorkflow(
   // Every run is a compiled plan: a sequence container holds the one worker
   // step, and the repository comes in as a declared run input (a plan cannot
   // bind a uuid field from the task).
-  const spec = {
-    apiVersion: "bakery.dev/v1",
-    kind: "workflow",
-    name: `durable-core-${suffix}`,
-    inputs: {
-      repositoryId: { type: "uuid", required: true },
-      taskId: { type: "uuid", required: false },
-    },
-    steps: [{
-      id: "flow",
+  const spec = secretId === undefined
+    ? {
+      apiVersion: "bakery.dev/v1",
+      kind: "workflow",
+      name: `durable-core-${suffix}`,
+      inputs: {
+        repositoryId: { type: "uuid", required: true },
+        taskId: { type: "uuid", required: false },
+      },
       steps: [{
-        id: "worker",
-        uses: "harness.implement",
-        with: {
-          repositoryId: "$input.repositoryId",
-          planArtifact: crypto.randomUUID(),
-        },
+        id: "flow",
+        steps: [{
+          id: "worker",
+          uses: "harness.implement",
+          with: {
+            repositoryId: "$input.repositoryId",
+            planArtifact: crypto.randomUUID(),
+          },
+        }],
       }],
-    }],
-  };
+    }
+    : {
+      // The fixed identity read: the plan names the opaque reference as a
+      // declared run input, and the server adds the frozen repository context.
+      apiVersion: "bakery.dev/v1",
+      kind: "workflow",
+      name: `durable-core-identity-${suffix}`,
+      inputs: { identityRef: { type: "uuid", required: true } },
+      steps: [{
+        id: "flow",
+        steps: [{
+          id: "worker",
+          uses: "secret.identity.read",
+          with: { identityRef: "$input.identityRef" },
+        }],
+      }],
+    };
   const digest = await sha256Hex(canonicalJson(spec));
   await stack.psql(
     `insert into bakery.workflow_definitions (
@@ -1579,7 +1602,8 @@ async function waitForEngineAdmission(
 
 async function admitEngineOwnedActionRun(
   stack: DurableCoreStack,
-): Promise<EngineAdmission> {
+  identity?: { readonly credential: string },
+): Promise<EngineAdmission | SecretIdentityEngineAdmission> {
   await waitForEngineFunctionRegistration(stack);
   const clients = await authenticatedClients(stack);
   const application = await responseJson(
@@ -1600,7 +1624,31 @@ async function admitEngineOwnedActionRun(
   if (typeof applicationId !== "string" || !UUID.test(applicationId)) {
     throw new Error("DURABLE_CORE_ADMISSION_APPLICATION_ID_MISSING");
   }
-  const agentVersionId = await createModelAgentVersion(
+  let secretId: string | undefined;
+  if (identity) {
+    const secret = await responseJson(
+      await postJson(
+        clients.producer,
+        "/v1/secrets",
+        {
+          applicationId,
+          name: "Controlled full-stack identity fixture",
+          provider: "github",
+          value: identity.credential,
+          allowedPrincipalIds: [clients.identity.principalId],
+          allowedActions: ["identity.read"],
+        },
+        `durable-core-secret-${crypto.randomUUID()}`,
+      ),
+      201,
+      "SECRET_CREATE",
+    );
+    if (typeof secret.id !== "string" || !UUID.test(secret.id)) {
+      throw new Error("DURABLE_CORE_ADMISSION_SECRET_ID_MISSING");
+    }
+    secretId = secret.id;
+  }
+  const agentVersionId = secretId ? undefined : await createModelAgentVersion(
     stack,
     clients.identity.organizationId,
     clients.identity.principalId,
@@ -1616,6 +1664,7 @@ async function admitEngineOwnedActionRun(
     stack,
     clients.identity.organizationId,
     clients.identity.principalId,
+    secretId,
   );
   const task = await responseJson(
     await postJson(
@@ -1644,8 +1693,10 @@ async function admitEngineOwnedActionRun(
         workflowVersionId: workflow.workflowVersionId,
         executionMode: "repository",
         repositoryProfileId: repository.repositoryProfileId,
-        budgetLimitUsd: "0.500000",
-        inputs: { taskId, repositoryId: repository.repositoryId },
+        budgetLimitUsd: secretId ? "0.005000" : "0.500000",
+        inputs: secretId
+          ? { identityRef: secretId }
+          : { taskId, repositoryId: repository.repositoryId },
       },
       `durable-core-run-${crypto.randomUUID()}`,
     ),
@@ -1666,17 +1717,27 @@ async function admitEngineOwnedActionRun(
   assertEquals(admitted.job.taskId, taskId);
   assertEquals(admitted.job.workflowId, workflow.workflowId);
   assertEquals(admitted.job.workflowVersionId, workflow.workflowVersionId);
-  return {
+  const result = {
     clients,
     job: admitted.job,
     observation: admitted.observation,
   };
+  return secretId ? { ...result, applicationId, secretId } : result;
 }
 
 export async function admitEngineOwnedRun(
   stack: DurableCoreStack,
 ): Promise<EngineAdmission> {
-  return await admitEngineOwnedActionRun(stack);
+  return await admitEngineOwnedActionRun(stack) as EngineAdmission;
+}
+
+export async function admitEngineOwnedSecretIdentityRun(
+  stack: DurableCoreStack,
+  credential: string,
+): Promise<SecretIdentityEngineAdmission> {
+  return await admitEngineOwnedActionRun(stack, {
+    credential,
+  }) as SecretIdentityEngineAdmission;
 }
 
 export async function waitForEngineInvocation(
