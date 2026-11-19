@@ -583,3 +583,97 @@ Deno.test("audit failure rolls every SSO mutation back: no change without its au
     );
   });
 });
+
+Deno.test("removal: the last verified provider is refused while SSO is required, unless the admin also stops requiring it", async () => {
+  await withOidc(async ({ issuer, f }) => {
+    const remove = (providerId: string, extra: Record<string, unknown> = {}) =>
+      authPost(f, "/api/auth/sso/delete-provider", {
+        providerId,
+        ...extra,
+      }, f.adminCookie);
+    const state = async () =>
+      await (await authGet(
+        f,
+        `/api/auth/bakery-sso/providers?organizationId=${f.organizationId}`,
+        f.adminCookie,
+      )).json() as {
+        enforce: boolean;
+        providers: Record<string, unknown>[];
+      };
+
+    assertEquals((await registerOidc(f, issuer)).status, 200);
+    assertEquals(
+      (await registerOidc(f, issuer, {
+        providerId: "oidc-two",
+        domain: "two.example.test",
+      })).status,
+      200,
+    );
+    await markDomainVerified(f, "oidc-acme");
+    await markDomainVerified(f, "oidc-two");
+    assertEquals(
+      (await authPost(f, "/api/auth/bakery-sso/enforcement", {
+        organizationId: f.organizationId,
+        enforce: true,
+      }, f.adminCookie)).status,
+      200,
+    );
+
+    // Another verified provider remains: removal is allowed and SSO stays required.
+    assertEquals((await remove("oidc-two")).status, 200);
+    assertEquals(await state(), {
+      enforce: true,
+      providers: [{
+        providerId: "oidc-acme",
+        issuer: issuer.issuer,
+        domain: "example.test",
+        domainVerified: true,
+        protocol: "oidc",
+      }],
+    });
+
+    // The only verified provider, no explicit flag: refused with a named code and nothing changes.
+    const auditBefore =
+      (await auditRows(f, "auth.sso", f.organizationId)).length;
+    const refused = await remove("oidc-acme");
+    assertEquals(refused.status, 409, await refused.clone().text());
+    assertEquals(await problemCode(refused), "SSO_LAST_PROVIDER_REQUIRED");
+    assertEquals((await state()).providers.length, 1);
+    assertEquals((await state()).enforce, true);
+    assertEquals(
+      (await auditRows(f, "auth.sso", f.organizationId)).length,
+      auditBefore,
+    );
+
+    // A flag from a member who is not an admin never reaches the guard.
+    const forged = await authPost(f, "/api/auth/sso/delete-provider", {
+      providerId: "oidc-acme",
+      stopRequiringSso: true,
+    }, f.developerCookie);
+    assertEquals(forged.status, 403);
+    assertEquals((await state()).providers.length, 1);
+
+    // The admin says so explicitly: the provider goes and SSO stops being required, each audited.
+    const both = await remove("oidc-acme", { stopRequiringSso: true });
+    assertEquals(both.status, 200, await both.clone().text());
+    assertEquals(await state(), { enforce: false, providers: [] });
+    const rows = await auditRows(f, "auth.sso", f.organizationId);
+    assertEquals(rows.slice(auditBefore).map((row) => row.operation), [
+      "auth.sso.provider.delete",
+      "auth.sso.enforcement.update",
+    ]);
+    assertEquals(rows.at(-1)?.details, { enforce: false });
+    assertEquals(
+      (await passwordSignIn(f, f.developerEmail, f.password)).status,
+      200,
+    );
+
+    // An unverified provider changes nothing for members: removal needs no flag and leaves the setting alone.
+    assertEquals((await registerOidc(f, issuer)).status, 200);
+    assertEquals((await remove("oidc-acme")).status, 200);
+    assertEquals(
+      (await auditRows(f, "auth.sso.enforcement", f.organizationId)).length,
+      2,
+    );
+  });
+});
