@@ -560,6 +560,29 @@ export async function runAuditMatrix(
       }),
     },
     {
+      // Runs after the developer's installation administrator grant is
+      // revoked, so only installation authority can refuse the developer.
+      operation: "passwordResetLinks.create",
+      failure: () =>
+        call(f, "POST", "/v1/installation/password-resets", developer, {
+          body: { principalId: f.adminId },
+        }),
+      success: async () => {
+        const response = await call(
+          f,
+          "POST",
+          "/v1/installation/password-resets",
+          f.adminCookie,
+          { body: { principalId: f.developerId } },
+        );
+        return {
+          response,
+          organizationId: null,
+          resourceId: String((await response.clone().json()).id),
+        };
+      },
+    },
+    {
       // Needs the fixture's mounted secrets key; runs after the developer's
       // installation administrator grant is revoked.
       operation: "integrationAppRegistrations.begin",
