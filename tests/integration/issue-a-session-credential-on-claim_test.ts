@@ -48,6 +48,12 @@ Deno.test("a real claim hands back a credential bound to its attempt", () =>
     // Bound to this attempt and to the person it acts for.
     assertEquals(resolved.claim.attemptId, assignment.attemptId);
     assertEquals(resolved.claim.actsForPrincipalId, fixture.principalId);
+    // And specifically NOT the worker host. The fixture's human and the enrolled
+    // worker are different principals, so this catches the fallback that used to
+    // be here: `job.actsForPrincipalId ?? identity.host.principalId`. A host
+    // principal is a worker, and a credential acting for one would let a session
+    // speak as the machine rather than as the person who asked for the work.
+    assertEquals(resolved.claim.actsForPrincipalType, "human");
     assert(
       resolved.claim.scopes.length > 0,
       "the credential was issued with no scopes, so it can call nothing",
@@ -97,4 +103,54 @@ Deno.test("only the digest is stored, never the token", () =>
       "the token itself was stored instead of its digest",
     );
     assertEquals(stored.length, 64, "the stored value is not a sha-256 digest");
+  }));
+
+Deno.test("a replayed claim does not re-serve the token and revokes it", () =>
+  withWorkerFixture(async (fixture) => {
+    const worker = await registeredWorker(fixture, { slots: 1 });
+    await seedFundedModelJob(
+      fixture.pgDatabase,
+      fixture.organizationId,
+      fixture.principalId,
+    );
+    const claimKey = crypto.randomUUID();
+    const first = await claimAssignment(fixture, worker, {
+      claimKey,
+    }) as unknown as { attemptId?: string; sessionCredential?: string };
+    assert(
+      typeof first.sessionCredential === "string",
+      "first claim: no token",
+    );
+
+    const replay = await claimAssignment(fixture, worker, {
+      claimKey,
+    }) as unknown as { attemptId?: string; sessionCredential?: string };
+    // The token is served once. A replay reads the stored ciphertext, so
+    // returning it whole would make that promise false for as long as the
+    // replay record lives - and would hand a second copy to anyone who could
+    // re-issue the same claim key.
+    assert(
+      replay.sessionCredential === undefined,
+      "a replayed claim re-served the token",
+    );
+    assertEquals(replay.attemptId, first.attemptId);
+
+    // Revoked, not merely withheld.
+    const resolved = await withPgTransaction(
+      fixture.pgDatabase,
+      async (transaction) => {
+        try {
+          return await resolveSessionCredential(
+            transaction,
+            first.sessionCredential ?? "",
+          );
+        } catch (error) {
+          return error as Error;
+        }
+      },
+    );
+    assert(
+      resolved instanceof Error,
+      "the token from the first claim still resolves after a replay",
+    );
   }));

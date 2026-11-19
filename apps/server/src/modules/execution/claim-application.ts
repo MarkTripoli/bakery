@@ -5,6 +5,7 @@ import {
   issueCredentialForAttempt,
   type MintedSessionCredential,
 } from "./session-claim-credential.ts";
+import { revokeAttemptCredentials } from "./session-credential-store.ts";
 import { StandardError } from "@bakery/contracts/http";
 import { workerActionOutputCarriesSession } from "@bakery/contracts/contracts";
 import { DEFAULT_LEASE_SECONDS } from "@bakery/persistence";
@@ -119,9 +120,13 @@ export function assignmentFromJob(
     leaseDurationSeconds,
     serverTime: iso(serverTime),
     sealedCredentialOperation,
-    // Handed back once, here, and never stored in the clear. Absent for a host
-    // without a session: the credential names the session that made the call.
-    sessionCredential: sessionCredential?.token ?? null,
+    // Handed back once, here, and never stored in the clear. Omitted rather
+    // than null when there is none: the contract types this field as a string,
+    // so a null is a shape the schema rejects - and a claim that fails to parse
+    // is a worse outcome than a claim without a credential.
+    ...(sessionCredential === null
+      ? {}
+      : { sessionCredential: sessionCredential.token }),
     // Only actions whose result names a session receive the server-created one.
     ...(job.agentSessionId === null ||
         !workerActionOutputCarriesSession(job.action)
@@ -209,9 +214,24 @@ export async function executeClaim(
           }
           await persistence.rebindLiveAttempt(replay.attemptId);
           await persistence.rebindPreparedIdentityOperation(replay.attemptId);
-          const response = contractSchemas.JobAssignment.parse(
+          const replayed = contractSchemas.JobAssignment.parse(
             await unprotect(options.secret, replay.responseCiphertext),
           ) as Assignment;
+          // The token is served exactly once, on the response that minted it.
+          // A replay re-serves the stored ciphertext, so handing it back whole
+          // would make "returned once" false: the token would be readable from
+          // the replay store for as long as the replay lives. The credential is
+          // revoked and the replay carries none, because a worker that lost its
+          // token should claim again rather than recover a secret from a cache.
+          await revokeAttemptCredentials(context.transaction, {
+            organizationId: identity.host.organizationId,
+            attemptId: replay.attemptId,
+          });
+          const {
+            sessionCredential: _withheld,
+            ...withoutCredential
+          } = replayed;
+          const response = withoutCredential as Assignment;
           return { status: 200 as const, response, replayed: true };
         }
         throw new Error("WORKER_CLAIM_REPLAY_INVALID");
@@ -307,17 +327,24 @@ export async function executeClaim(
       // attempt and the credential it authorises appear together or not at all.
       // A credential issued outside the claim could name an attempt that was
       // never leased, which is authority for work that does not exist.
-      const sessionCredential = identity.host.workerSessionId === null
+      // No run, no person, no credential. A job with no run - a coordinator
+      // turn, an onboarding job - has no requester, and falling back to the
+      // worker host's principal would mint a credential that acts for the
+      // machine's owner. That is the one thing this must never do: the audit
+      // would name someone who did not ask for the work, and a host principal
+      // is usually the widest one in the organisation. Refusing to mint costs
+      // the session its tools; minting for the wrong person costs the audit its
+      // meaning.
+      const sessionCredential = identity.host.workerSessionId === null ||
+          job.actsForPrincipalId === null
         ? null
         : await issueCredentialForAttempt(context.transaction, {
           organizationId: identity.host.organizationId,
           attemptId: lease.attemptId,
-          // The person the agent acts for is the run's requester, not the host
-          // that picked the job up: O50 audits the principal, and a worker
-          // identity would name the machine.
+          // The person the agent acts for is the run's requester, never the
+          // host that picked the job up: O50 audits the principal.
           actsForPrincipalType: job.actsForPrincipalType ?? "worker",
-          actsForPrincipalId: job.actsForPrincipalId ??
-            identity.host.principalId,
+          actsForPrincipalId: job.actsForPrincipalId,
           workerSessionId: identity.host.workerSessionId,
           workerSessionGeneration: BigInt(
             identity.host.workerSessionGeneration ?? "1",
