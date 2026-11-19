@@ -1962,6 +1962,18 @@ button.ui-activity-line__row:hover {
   }
 }
 
+/* The shortcuts button sits over the thread's top end corner, so the first
+   message keeps that corner clear of its name and time. */
+.ui-session-thread__turns > .ui-session-thread__turn:first-child header {
+  padding-inline-end: var(--space-8);
+}
+
+@media (pointer: coarse) {
+  .ui-session-thread__turns > .ui-session-thread__turn:first-child header {
+    padding-inline-end: var(--space-0);
+  }
+}
+
 .ui-session-thread__bar {
   align-items: center;
   display: flex;
