@@ -287,6 +287,93 @@ Deno.test("issue 82 reader: readIssue returns the bounded snapshot and calls the
   });
 });
 
+Deno.test("issue 82 reader: readStatuses names GitHub's own state vocabulary, not display text", async () => {
+  await withSource(async (s) => {
+    // A source policy names these ids, so they are an interface: `open`,
+    // `closed:completed` and `closed:not_planned` must survive anybody
+    // renaming a column or translating the board. The display name is allowed
+    // to change; the id is not.
+    seedIssues(s, { number: 10, state: "open", updatedAt: at(0) });
+    seedIssues(s, {
+      number: 11,
+      state: "closed",
+      stateReason: "completed",
+      updatedAt: at(1),
+    });
+    seedIssues(s, {
+      number: 12,
+      state: "closed",
+      stateReason: "not_planned",
+      updatedAt: at(2),
+    });
+    for (
+      const [number, id] of [
+        [10, "open"],
+        [11, "closed:completed"],
+        [12, "closed:not_planned"],
+      ] as const
+    ) {
+      const read = await s.reader.readStatuses(
+        s.handle,
+        ticketRef(number),
+        signal(),
+      );
+      assert(read.kind === "present", `issue ${number} has a status`);
+      assertEquals(read.statuses.map((status) => status.id), [id]);
+    }
+
+    // A pull request, a gone issue and a moved issue have no status to report,
+    // and admission has already refused on the issue read by then.
+    seedIssues(s, { number: 20, pullRequest: true }, { number: 21 }, {
+      number: 22,
+    });
+    s.f.github.deleteIssue(s.repositoryId, 21);
+    s.f.github.transferIssue(s.repositoryId, 22);
+    for (const number of [20, 21, 22, 99]) {
+      assertEquals(
+        await s.reader.readStatuses(s.handle, ticketRef(number), signal()),
+        { kind: "unsupported" },
+        `issue ${number}`,
+      );
+    }
+  });
+});
+
+Deno.test("issue 82 reader: a status read given the snapshot costs no second provider call", async () => {
+  await withSource(async (s) => {
+    // Admission reads the issue first and then asks for its statuses. Handing
+    // that snapshot back means one provider call for both answers; asking again
+    // would spend a second call to learn what the first already returned.
+    seedIssues(s, {
+      number: 30,
+      state: "closed",
+      stateReason: "completed",
+      updatedAt: at(0),
+    });
+    const read = await s.reader.readIssue(s.handle, ticketRef(30), signal());
+    assert(read.kind === "present");
+
+    const before = s.f.github.calls.length;
+    const fromSnapshot = await s.reader.readStatuses(
+      s.handle,
+      ticketRef(30),
+      signal(),
+      read.snapshot,
+    );
+    assertEquals(
+      s.f.github.calls.length,
+      before,
+      "the snapshot answers the status read with no request",
+    );
+
+    // The answer is the same one a fresh read would give.
+    assertEquals(
+      fromSnapshot,
+      await s.reader.readStatuses(s.handle, ticketRef(30), signal()),
+    );
+  });
+});
+
 Deno.test("issue 82 reader: an oversized body is reported and kept as no text", async () => {
   await withSource(async (s) => {
     seedIssues(s, { number: 1 });
@@ -350,6 +437,7 @@ function manualStartInput(
     preset: { id: "fixed-coding", revision: 1, digest: "c".repeat(64) },
     issue,
     links,
+    statuses: null,
     proofs: [],
     authority: { principalActive: true, provenance: null, actorRole: null },
     activeRequest: null,
@@ -2216,6 +2304,53 @@ Deno.test("issue 82 reader: a key this provider cannot address is refused, not r
     seedIssues(s, { number: 1 });
     assertEquals(
       (await s.reader.readIssue(s.handle, ticketRef(1), signal())).kind,
+      "present",
+    );
+  });
+});
+
+Deno.test("issue 82 reader: a reference whose id disagrees with its key is refused, never read as that key", async () => {
+  await withSource(async (s) => {
+    // The key is what a link or a poll carries; the id is what the engine dedupes
+    // on. If a link was written before a ticket moved, the two disagree, and the
+    // key alone would read whatever now answers to it - a different ticket with
+    // its own labels, status and readiness. Checking the id turns that into an
+    // unavailable read, which admission refuses, instead of an admission onto the
+    // wrong ticket.
+    seedIssues(s, { number: 1 }, { number: 2 });
+    const wrongId = ticketRef(1, "9999");
+    assertEquals(
+      await s.reader.readIssue(s.handle, wrongId, signal()),
+      unavailable("provider_error"),
+      "the key resolves to a ticket whose id is not the one asked for",
+    );
+    assertEquals(
+      await s.reader.readLinks(s.handle, wrongId, signal()),
+      unavailable("provider_error"),
+      "the links read refuses it too",
+    );
+    // Provenance is the one read that takes no issue body, so it has no id to
+    // compare and stays key-addressed; admission always reads the issue first,
+    // which is where the mismatch is caught. Asserted so the gap is deliberate
+    // rather than discovered later.
+    assertEquals(
+      (await s.reader.readLabelProvenance(
+        s.handle,
+        wrongId,
+        "bakery:execute",
+        signal(),
+      )).kind !== "unavailable",
+      true,
+      "provenance answers by key; the issue read is the one that checks the id",
+    );
+
+    // The right id for the same key still reads, so the check is about
+    // agreement rather than about supplying an id at all.
+    const plain = await s.reader.readIssue(s.handle, ticketRef(1), signal());
+    if (plain.kind !== "present") throw new Error("issue 1 should read");
+    const rightId = ticketRef(1, plain.snapshot.externalId);
+    assertEquals(
+      (await s.reader.readIssue(s.handle, rightId, signal())).kind,
       "present",
     );
   });

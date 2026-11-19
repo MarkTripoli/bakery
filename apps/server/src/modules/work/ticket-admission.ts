@@ -101,7 +101,7 @@ import {
   updateRequest,
   upsertExternalTicket,
 } from "./ticket-store.ts";
-import { githubTicketRef } from "./ticket-source-reader.ts";
+import { ticketRef } from "./ticket-source-reader.ts";
 import type { TicketSourceReader } from "./ticket-source-reader.ts";
 import {
   readRouteRules,
@@ -464,6 +464,7 @@ async function evaluate(
     preset: PRESET_PIN,
     issue: prefetch.issue,
     links: prefetch.links,
+    statuses: prefetch.statuses,
     proofs: prefetch.proofs,
     authority: {
       principalActive: context.principalActive,
@@ -641,7 +642,7 @@ async function prefetchForCall(
     deps.reader,
     handle,
     {
-      ref: githubTicketRef(call.number),
+      ref: ticketRef(call.number),
       policy: source.policy,
       origin: call.origin,
     },
@@ -1795,7 +1796,7 @@ async function prefetchForRecheck(
     deps.reader,
     handle,
     {
-      ref: githubTicketRef(number),
+      ref: ticketRef(number),
       policy: source.policy,
       origin: call.origin,
     },

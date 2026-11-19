@@ -40,7 +40,7 @@ import type {
   TicketSourceHandle,
   TicketSourceReader,
 } from "./ticket-source-reader.ts";
-import { githubTicketRef } from "./ticket-source-reader.ts";
+import { ticketRef } from "./ticket-source-reader.ts";
 import { requireWorkTransaction } from "./work-transaction.ts";
 
 /**
@@ -261,7 +261,7 @@ async function readProvider(
             reader,
             handle,
             {
-              ref: githubTicketRef(number),
+              ref: ticketRef(number),
               policy: sourcePolicy,
               origin: "poll",
             },
@@ -303,7 +303,7 @@ async function readProvider(
       reader,
       plan.handle,
       {
-        ref: githubTicketRef(plan.number),
+        ref: ticketRef(plan.number),
         policy: plan.policy,
         origin: plan.origin,
       },

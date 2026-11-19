@@ -22,6 +22,7 @@ import type {
   TicketRef,
   TicketSourceHandle,
   TicketSourceReader,
+  TicketStatusRead,
 } from "../work/ticket-source-reader.ts";
 import { readAppCredentials } from "./callbacks.ts";
 import {
@@ -386,7 +387,7 @@ const COLLABORATOR_LOGIN = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/;
  * mistake, and answering it with an issue number read out of someone else's
  * name would be worse than refusing.
  */
-function githubIssueNumber(ref: TicketRef): number | null {
+export function githubIssueNumber(ref: TicketRef): number | null {
   // Exact, not tolerant: `Number` also reads " 1", "1.0", "0x1" and "1e0" as 1,
   // so comparing the parse back to the key without trimming is what keeps a
   // name a name. A key arrives from stored data and links, never from a person
@@ -479,6 +480,12 @@ export function createTicketSourceReader(
         // The caller read the issue first; an issue that vanished or became
         // a pull request since gives no links to rely on.
         if (detail.kind !== "issue") return failure("provider_error");
+        // The caller's reference may carry the id it believes this key has. A key
+        // that now resolves to another id is a ticket that moved, so its links
+        // belong to the wrong ticket and must not gate anything.
+        if (ref.externalId !== null && String(detail.id) !== ref.externalId) {
+          return failure("provider_error");
+        }
         let parent: IssueRef | null = null;
         if (
           detail.parent !== null &&
@@ -715,6 +722,49 @@ export function createTicketSourceReader(
       );
     },
 
+    async readStatuses(
+      handle,
+      ref,
+      signal,
+      issue,
+    ): Promise<TicketStatusRead> {
+      // The caller has usually just read the issue; deriving the statuses from
+      // that snapshot costs nothing, while re-reading would spend a second
+      // provider call to learn what is already known.
+      let snapshot = issue;
+      if (snapshot === undefined) {
+        const read = await this.readIssue(handle, ref, signal);
+        // A pull request is not a ticket, and a gone or moved issue has no
+        // status to report; admission refuses on the issue read before it ever
+        // asks for a status, so `unsupported` here is the honest answer rather
+        // than a second failure type with no caller.
+        if (
+          read.kind === "pull_request" || read.kind === "gone" ||
+          read.kind === "moved"
+        ) {
+          return { kind: "unsupported" };
+        }
+        if (read.kind !== "present") return read;
+        snapshot = read.snapshot;
+      }
+      // An issue without a project board still has GitHub's own state, and both
+      // halves of it are stable vocabulary rather than display text: `open`, or
+      // `closed` together with the reason the issue was closed. A source policy
+      // therefore names `closed:completed` and keeps meaning the same thing
+      // after anybody renames a column.
+      const { state, stateReason } = snapshot;
+      return {
+        kind: "present",
+        statuses: [{
+          id: state === "closed" && stateReason
+            ? `closed:${stateReason}`
+            : state,
+          name: state === "closed" && stateReason
+            ? `closed (${stateReason})`
+            : state,
+        }],
+      };
+    },
     async readActorRole(handle, login, signal): Promise<TicketActorRole> {
       // A login GitHub cannot issue (a bot's `[bot]` suffix, spaces, slashes)
       // names no collaborator and never reaches a request path.

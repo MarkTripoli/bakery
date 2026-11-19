@@ -394,6 +394,35 @@ async function prefetchOf(
   );
 }
 
+/**
+ * Runs the real admission for one ticket and returns the report it produced.
+ *
+ * The prefetch and the admission both run for real here: a test that builds
+ * `ReadinessInput` by hand proves the rule and says nothing about the two
+ * layers that decide what the rule is given.
+ */
+async function admitOf(
+  fx: TicketFixture,
+  sourceId: string,
+  number: number,
+): Promise<TicketReadinessReport> {
+  const prefetch = await prefetchOf(fx, sourceId, number);
+  const admin = await fx.actor(fx.adminId);
+  const result = await fx.inTransaction((transaction) =>
+    admitTicket(fx.operationDeps(transaction), {
+      organizationId: fx.organizationId,
+      sourceId,
+      number,
+      intent: "start",
+      origin: "manual",
+      caller: admin,
+      prefetch,
+      signal: new AbortController().signal,
+    })
+  );
+  return result.report;
+}
+
 Deno.test("issue 82 admission AC2: a prefetch writes nothing, and operation mode without answers throws instead of reading", () =>
   withTicketFixture(async (fx) => {
     const sourceId = await fx.insertSource({ policy: fx.policy() });
@@ -1591,4 +1620,99 @@ Deno.test("issue 82 admission F1: a duplicate with a digest that is not the pin 
       }
       assertEquals(await stateOf(autoSource, auto.request!.id), autoBefore);
     }
+  }));
+
+Deno.test("issue 82 admission AC2: the status read is requested only when the policy names statuses", () =>
+  withTicketFixture(async (fx) => {
+    // The pure rule is pinned elsewhere; this pins the layer that feeds it.
+    // Prefetch deciding not to read is correct for a label-only source and
+    // wrong for one that names statuses, and only a call count can say which.
+    const labelOnly = await fx.insertSource({ policy: fx.policy() });
+    fx.reader.setIssue({ number: 40, labels: [EXECUTE_LABEL] });
+    fx.reader.clearCalls();
+    await prefetchOf(fx, labelOnly, 40);
+    assertEquals(
+      fx.reader.callsOf("readStatuses").length,
+      0,
+      "a source that names no statuses must not pay for a status read",
+    );
+
+    const byStatus = await fx.insertSource({
+      policy: fx.policy({ statuses: ["open"] }),
+    });
+    fx.reader.setIssue({ number: 41, labels: [EXECUTE_LABEL] });
+    fx.reader.clearCalls();
+    const prefetch = await prefetchOf(fx, byStatus, 41);
+    assertEquals(
+      fx.reader.callsOf("readStatuses").length,
+      1,
+      "a source that names statuses must read them exactly once",
+    );
+    assertEquals(prefetch.statuses?.kind, "present");
+  }));
+
+Deno.test("issue 82 admission AC2: the status read reuses the issue already read, rather than asking again", () =>
+  withTicketFixture(async (fx) => {
+    // The unit case pins that a read given a snapshot costs no provider call;
+    // this pins the wiring that gives it one. Dropping the argument at the
+    // prefetch leaves every case above green, because the answer is right either
+    // way - it just costs a second provider read per admission.
+    const sourceId = await fx.insertSource({
+      policy: fx.policy({ statuses: ["open"] }),
+    });
+    fx.reader.setIssue({ number: 44, labels: [EXECUTE_LABEL], state: "open" });
+    fx.reader.clearCalls();
+    await admitOf(fx, sourceId, 44);
+    assertEquals(
+      fx.reader.callsOf("readIssue").length,
+      1,
+      "the issue is read once per admission",
+    );
+    const statusReads = fx.reader.callsOf("readStatuses");
+    assertEquals(statusReads.length, 1, "the statuses are read once");
+    assertEquals(
+      statusReads[0].hadSnapshot,
+      true,
+      "the status read is handed the issue the prefetch already read",
+    );
+  }));
+
+Deno.test("issue 82 admission AC2: admission carries the status answer through, so a status policy waits or is ready", () =>
+  withTicketFixture(async (fx) => {
+    // A prefetch that reads statuses and then drops the answer on the floor
+    // would leave the rule with nothing to look at, and 103 unit cases that
+    // build ReadinessInput by hand cannot see it.
+    const sourceId = await fx.insertSource({
+      policy: fx.policy({ statuses: ["open"] }),
+    });
+    fx.reader.setIssue({
+      number: 42,
+      labels: [EXECUTE_LABEL],
+      state: "closed",
+      stateReason: "completed",
+    });
+    const closed = await admitOf(fx, sourceId, 42);
+    const closedCheck = closed.checks.find((check) =>
+      check.id === "status_ready"
+    );
+    assertEquals(
+      closedCheck?.status,
+      "wait",
+      "a ticket in another status waits",
+    );
+    assertEquals(closedCheck?.reason, "status_missing");
+    const afterWait = await fx.counts(sourceId);
+    assertEquals(
+      [afterWait.requests, afterWait.tasks, afterWait.links],
+      [0, 0, 0],
+      "nothing is admitted",
+    );
+
+    fx.reader.setIssue({ number: 43, labels: [EXECUTE_LABEL], state: "open" });
+    const open = await admitOf(fx, sourceId, 43);
+    assertEquals(
+      open.checks.find((check) => check.id === "status_ready")?.status,
+      "pass",
+      "a ticket in the named status is ready",
+    );
   }));

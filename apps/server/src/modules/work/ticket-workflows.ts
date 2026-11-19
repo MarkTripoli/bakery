@@ -18,7 +18,7 @@ import type {
   TicketFactIndex,
   TicketSourceReader,
 } from "./ticket-source-reader.ts";
-import { githubTicketRef } from "./ticket-source-reader.ts";
+import { ticketRef } from "./ticket-source-reader.ts";
 import {
   findTicketForNumber,
   readSourceHandle,
@@ -164,7 +164,7 @@ async function intakeSource(
       deps.reader,
       handle,
       {
-        ref: githubTicketRef(number),
+        ref: ticketRef(number),
         policy: source.policy,
         origin: "webhook",
       },
