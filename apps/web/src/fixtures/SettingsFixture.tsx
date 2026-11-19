@@ -3,7 +3,7 @@ import { useState } from "react";
 import * as UI from "@bakery/ui";
 import { I18nText, useI18n } from "../i18n/I18nProvider.tsx";
 import type { ShellViewport } from "../app/responsive.ts";
-import { securitySpecimens } from "./auth/security.tsx";
+import { securityHubSpecimens } from "./auth/security-hub.tsx";
 
 export const settingsRoutes = [
   {
@@ -122,7 +122,7 @@ export function SettingsFixturePage(
 ) {
   const { translate } = useI18n();
   if (kind === "security") {
-    const SecurityDefault = securitySpecimens.default;
+    const SecurityDefault = securityHubSpecimens.default;
     return <SecurityDefault />;
   }
   return (

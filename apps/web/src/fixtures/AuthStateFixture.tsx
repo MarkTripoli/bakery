@@ -3,6 +3,7 @@ import { useParams } from "@tanstack/react-router";
 import { expiredSpecimens } from "./auth/expired.tsx";
 import { inviteSpecimens } from "./auth/invite.tsx";
 import { inviteLoginSpecimens } from "./auth/invite-login.tsx";
+import { forgotSpecimens } from "./auth/forgot.tsx";
 import { joinSpecimens } from "./auth/join.tsx";
 import { loginSpecimens } from "./auth/login.tsx";
 import { sectionIndexSpecimens } from "./auth/section-index.tsx";
@@ -10,7 +11,6 @@ import { accessSpecimens } from "./auth/access.tsx";
 import { appearanceSpecimens } from "./auth/appearance.tsx";
 import { profileSpecimens } from "./auth/profile.tsx";
 import { organizationsSpecimens } from "./auth/organizations.tsx";
-import { securitySpecimens } from "./auth/security.tsx";
 import { sessionsSpecimens } from "./auth/sessions.tsx";
 import { revokeSpecimens } from "./auth/revoke.tsx";
 import { clientsSpecimens } from "./auth/clients.tsx";
@@ -52,6 +52,7 @@ function prefixed(screen: string, specimens: Specimens): Specimens {
 const registry: Specimens = {
   ...prefixed("setup", setupSpecimens),
   ...prefixed("login", loginSpecimens),
+  ...prefixed("forgot", forgotSpecimens),
   ...prefixed("expired", expiredSpecimens),
   ...prefixed("join", joinSpecimens),
   ...prefixed("register", registerSpecimens),
@@ -62,7 +63,6 @@ const registry: Specimens = {
   ...prefixed("appearance", appearanceSpecimens),
   ...prefixed("your-access", accessSpecimens),
   ...prefixed("section-index", sectionIndexSpecimens),
-  ...prefixed("security", securitySpecimens),
   ...prefixed("sessions", sessionsSpecimens),
   ...prefixed("revoke", revokeSpecimens),
   ...prefixed("revoke-client", revokeClientSpecimens),
