@@ -99,6 +99,17 @@ Deno.test("one flipped byte of the body is refused as a signature failure", () =
   assertEquals(result, { ok: false, reason: "signature" });
 });
 
+/**
+ * Mutant note: "drop the signature presence check" survives this file, and it is
+ * an equivalent mutant rather than a gap. Both refusals - an absent or unparseable
+ * `x-hub-signature-256`, and no candidate secret at all - answer the same
+ * `{ ok: false, reason: "signature" }`, so moving the null test into the comparison
+ * below it, or deleting it and letting an empty secret list fail to match, changes
+ * no observable outcome. Verified by applying both refactors and re-running this
+ * file: 20 passed either way. A test cannot kill it without inventing a reason
+ * string the ingress deliberately does not have - it does not disclose which check
+ * refused, and that is the security property, not an oversight.
+ */
 Deno.test("a wrong secret, a wrong length and no secret are all refused", () => {
   const body = enc(JSON.stringify(installation("created")));
   const signature = `sha256=${hex(hmacSha256(secret, body))}`;
@@ -568,6 +579,33 @@ Deno.test("a verified delivery exposes its id so a redelivery can be refused", (
     now: NOW,
   });
   assertEquals(noId, { ok: false, reason: "malformed" });
+
+  // The id comes from the header, and only from the header. A body that carries its
+  // own idea of a delivery id - a real GitHub body never does - must not be able to
+  // choose the key the receipt deduplicates on, because then a sender could replay
+  // one delivery under new keys forever. A mutant that prefers the body's id passes
+  // every other test in this file: they all leave the body's id absent, so the
+  // mutant only differs when both are present, which is the case below.
+  const bodyWithId = enc(JSON.stringify({
+    action: "created",
+    installation: { id: 42 },
+    deliveryId: "claimed-by-the-body",
+  }));
+  const spoofed = githubIngress.verify({
+    body: bodyWithId,
+    headers: new Headers({
+      "x-hub-signature-256": `sha256=${hex(hmacSha256(secret, bodyWithId))}`,
+      "x-github-event": "installation",
+      "x-github-delivery": "from-the-header",
+    }),
+    secrets: [secret],
+    now: NOW,
+  });
+  assertEquals(
+    (spoofed as { deliveryId?: string }).deliveryId,
+    "from-the-header",
+    "a body must not name its own delivery id",
+  );
 });
 
 Deno.test("a legacy form-encoded delivery reads the same as the JSON one", () => {
