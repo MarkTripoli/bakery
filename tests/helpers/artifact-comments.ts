@@ -150,6 +150,10 @@ export async function commentFixture() {
       async cleanup() {
         try {
           await db.query(
+            `delete from bakery.artifact_comment_mentions where organization_id=$1`,
+            [organizationId],
+          );
+          await db.query(
             `delete from bakery.artifact_comments where organization_id=$1`,
             [organizationId],
           );
@@ -161,6 +165,10 @@ export async function commentFixture() {
     };
   } catch (error) {
     try {
+      await db.query(
+        "delete from bakery.artifact_comment_mentions where organization_id=$1",
+        [organizationId],
+      );
       await db.query(
         "delete from bakery.artifact_comments where organization_id=$1",
         [organizationId],

@@ -18,6 +18,13 @@ import {
   isStorableDecisionText,
 } from "@bakery/contracts/human-approval";
 import { appendDecision } from "../work/human-approval-store.ts";
+import { DEFAULT_AGENT_SPAWN } from "@bakery/config";
+import type { AgentSpawnConfig } from "@bakery/config";
+import {
+  admitAgentSteer,
+  steerRecordDetail,
+  stepIsReviewer,
+} from "../work/agent-steer.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import {
   adapterSupportsSteering,
@@ -294,6 +301,7 @@ function excerptForLedger(body: string): string {
 export async function steerAgentSession(
   context: ActionContext,
   rawInput: unknown,
+  limits: AgentSpawnConfig = DEFAULT_AGENT_SPAWN,
 ) {
   const { transaction, organizationId, principalId } = requireWorkTransaction(
     context,
@@ -315,6 +323,36 @@ export async function steerAgentSession(
     transaction,
     organizationId,
     sessionId(context),
+  );
+
+  // An agent steers only a session of a run it spawned, only with the steer
+  // grant, never a reviewer's, and within a bound; a person passes untouched.
+  // Before the first write, so a refusal leaves no trace.
+  const target = await transaction.query<{ run_id: string; step_key: string }>(
+    `select step.run_id, step.step_key
+       from bakery.run_steps as step
+      where step.organization_id = $1 and step.id = $2`,
+    [organizationId, session.run_step_id],
+  );
+  // The target step must resolve for everyone. A session with no step has no
+  // run tree an agent could be admitted to, and a person's steer is just as
+  // meaningless without the step it is recorded against. Admission then runs
+  // for every caller (it is a no-op for a person), so there is no branch on which
+  // an agent's steer reaches the ledger under a person's label.
+  const targetRow = target.rows[0];
+  if (!targetRow) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  const admission = await admitAgentSteer(transaction, context, {
+    organizationId,
+    principalId,
+    targetRunId: targetRow.run_id,
+    targetStepKey: targetRow.step_key,
+    limits,
+  });
+  const steersReviewer = await stepIsReviewer(
+    transaction,
+    organizationId,
+    targetRow.run_id,
+    targetRow.step_key,
   );
 
   // Conversation first, then command locks: the same order message admission uses.
@@ -420,6 +458,7 @@ export async function steerAgentSession(
       mode,
       messageId: message.id,
       truncated: input.body.length > DECISION_NOTE_MAX_LENGTH,
+      ...steerRecordDetail(principalId, admission, steersReviewer),
     },
   });
 
