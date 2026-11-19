@@ -94,9 +94,16 @@ export async function takeOverRunStep(
   }
 
   const job = await transaction.query<
-    { id: string; action: string; status: string; version: number }
+    {
+      id: string;
+      action: string;
+      status: string;
+      version: number;
+      installation_reservation_id: string | null;
+    }
   >(
-    `select id, action, status, version from bakery.jobs
+    `select id, action, status, version, installation_reservation_id
+       from bakery.jobs
       where organization_id = $1 and run_step_id = $2
         for update`,
     [organizationId, stepRow.id],
@@ -116,6 +123,18 @@ export async function takeOverRunStep(
     )
   ) conflict("attempt_live");
   if (jobRow.status !== "queued") conflict("job_not_queued");
+  // A job with finished attempts may have spent against its reservation, which
+  // usage reconciliation settles. Cancelling it here would leave that money
+  // held, and releasing it could miss what was spent, so the takeover waits for
+  // reconciliation instead.
+  if (attempts.rows.length > 0 && jobRow.installation_reservation_id !== null) {
+    const reservation = await transaction.query<{ status: string }>(
+      `select status from bakery.budget_reservations
+        where organization_id = $1 and id = $2`,
+      [organizationId, jobRow.installation_reservation_id],
+    );
+    if (reservation.rows[0]?.status === "held") conflict("budget_unsettled");
+  }
 
   const metadata = Object.hasOwn(WORKFLOW_ACTION_METADATA, jobRow.action)
     ? WORKFLOW_ACTION_METADATA[jobRow.action as WorkflowActionName]
@@ -161,6 +180,7 @@ export async function takeOverRunStep(
   await releaseCanceledUnclaimedJobReservation(transaction, {
     organizationId,
     jobId: jobRow.id,
+    onUnreleasable: "throw",
   });
 
   const settled = await transaction.query<RunStepRow>(

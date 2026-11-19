@@ -461,6 +461,7 @@ export async function cancelQueuedJobsOfRun(
     await releaseCanceledUnclaimedJobReservation(transaction, {
       organizationId: input.organizationId,
       jobId: id,
+      onUnreleasable: "skip",
     });
     const last = await transaction.query<{ id: string }>(
       `select id from bakery.job_attempts
@@ -584,6 +585,7 @@ export async function cancelRunWithoutAttempt(
     await releaseCanceledUnclaimedJobReservation(transaction, {
       organizationId: input.organizationId,
       jobId: job.id,
+      onUnreleasable: "skip",
     });
     canceledJobs.push({ id: job.id, version });
   }

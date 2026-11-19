@@ -2478,10 +2478,40 @@ export async function budgetContentDigest(value: unknown): Promise<string> {
  * call is still `pending` with no provider call id. That is the proof the
  * evidence-gated release asks for, read from the job itself, so it needs no
  * separate evidence record. A job with attempts is left to the usage
- * reconciliation that settles what those attempts spent. Returns whether a
- * reservation was released.
+ * reconciliation that settles what those attempts spent.
+ *
+ * `onUnreleasable` says what to do when the proof does not hold or the release
+ * cannot be made: `"throw"` refuses with the conflict (a person's takeover must
+ * not go on with money in doubt); `"skip"` leaves the reservation held for
+ * reconciliation and returns false, so cancelling a run is never blocked by
+ * the budget. A skipped release is rolled back to a savepoint, so it writes
+ * nothing. Returns whether a reservation was released.
  */
 export async function releaseCanceledUnclaimedJobReservation(
+  transaction: PgTransactionClient,
+  options: Readonly<{
+    organizationId: string;
+    jobId: string;
+    onUnreleasable: "throw" | "skip";
+  }>,
+): Promise<boolean> {
+  if (options.onUnreleasable === "throw") {
+    return await releaseUnclaimedJob(transaction, options);
+  }
+  await transaction.query("savepoint release_unclaimed_job");
+  try {
+    const released = await releaseUnclaimedJob(transaction, options);
+    await transaction.query("release savepoint release_unclaimed_job");
+    return released;
+  } catch (error) {
+    if (!(error instanceof StandardError)) throw error;
+    await transaction.query("rollback to savepoint release_unclaimed_job");
+    await transaction.query("release savepoint release_unclaimed_job");
+    return false;
+  }
+}
+
+async function releaseUnclaimedJob(
   transaction: PgTransactionClient,
   options: Readonly<{ organizationId: string; jobId: string }>,
 ): Promise<boolean> {

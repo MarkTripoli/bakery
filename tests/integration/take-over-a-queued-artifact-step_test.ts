@@ -1,5 +1,6 @@
 import { assert, assertEquals } from "@std/assert";
 import { withWorkerFixture } from "../helpers/worker-execution/scenarios.ts";
+import { registeredWorker } from "../helpers/worker-execution.ts";
 import {
   apiCall,
   createPresetTask,
@@ -367,4 +368,150 @@ Deno.test("AC: cancelQueuedJobsOfRun gives back the held budget of the queued jo
     const after = await held(fixture, s.run.id, s.implementJobId);
     assertEquals([after.reservation, after.intent], ["released", "released"]);
     assertEquals(Number(after.reserved), 0);
+  }));
+
+// The reviewer's two cases: cancelling a run must always succeed, and a
+// takeover must not leave money held or release money that may be spent.
+
+/** Makes the job's provider call look dispatched, so its release is in doubt. */
+const looksDispatched = (fixture: Fixture, jobId: string) =>
+  fixture.pgDatabase.query(
+    `update bakery.provider_call_intents call
+        set provider_call_id = 'dispatched-' || call.id::text
+       from bakery.jobs job
+      where job.id = $1
+        and call.installation_reservation_id = job.installation_reservation_id`,
+    [jobId],
+  );
+
+Deno.test("AC: canceling a run still succeeds when a job's reservation cannot be released, and leaves it held", () =>
+  withFixture(async (fixture) => {
+    const s = await queuedImplementStep(fixture, "cancel-unreleasable");
+    await looksDispatched(fixture, s.implementJobId);
+
+    const response = await apiCall(
+      fixture,
+      fixture,
+      "POST",
+      `/v1/runs/${s.run.id}/controls`,
+      { body: { action: "cancel" } },
+    );
+    assert(response.status < 300, await response.clone().text());
+
+    const run = await fixture.pgDatabase.query<{ status: string }>(
+      `select status from bakery.workflow_runs where id = $1`,
+      [s.run.id],
+    );
+    assertEquals(run.rows[0].status, "canceled");
+    // Left for reconciliation, untouched by the failed attempt to release it.
+    const after = await held(fixture, s.run.id, s.implementJobId);
+    assertEquals([after.reservation, after.intent], ["held", "held"]);
+  }));
+
+Deno.test("AC: canceling a run whose job's reservation is already released still succeeds", () =>
+  withFixture(async (fixture) => {
+    const s = await queuedImplementStep(fixture, "cancel-released");
+    await fixture.pgDatabase.query(
+      `update bakery.budget_action_intents set status = 'released'
+        where installation_reservation_id = (
+          select installation_reservation_id from bakery.jobs where id = $1)`,
+      [s.implementJobId],
+    );
+    const response = await apiCall(
+      fixture,
+      fixture,
+      "POST",
+      `/v1/runs/${s.run.id}/controls`,
+      { body: { action: "cancel" } },
+    );
+    assert(response.status < 300, await response.clone().text());
+  }));
+
+Deno.test("AC: a takeover refuses by name when releasing the job's budget is in doubt, and changes nothing", () =>
+  withFixture(async (fixture) => {
+    const s = await queuedImplementStep(fixture, "takeover-doubt");
+    await fixture.pgDatabase.query(
+      `update bakery.jobs set action = 'rpi.design' where id = $1`,
+      [s.implementJobId],
+    );
+    await looksDispatched(fixture, s.implementJobId);
+    const artifact = await artifactFor(fixture, s.taskId);
+
+    await refusedWith(
+      await takeOver(fixture, s.run.id, s.implementKey.stepKey, {
+        mode: "complete",
+        artifactId: artifact.artifactId,
+        versionId: artifact.versionId,
+      }),
+      409,
+      "budget_release_dispatch_ambiguous",
+    );
+    const job = await fixture.pgDatabase.query<{ status: string }>(
+      `select status from bakery.jobs where id = $1`,
+      [s.implementJobId],
+    );
+    assertEquals(job.rows[0].status, "queued");
+    const after = await held(fixture, s.run.id, s.implementJobId);
+    assertEquals([after.reservation, after.intent], ["held", "held"]);
+  }));
+
+Deno.test("AC: a takeover of a retry-waiting job is refused while its reservation is unsettled, and goes through once it is", () =>
+  withFixture(async (fixture) => {
+    const s = await queuedImplementStep(fixture, "takeover-retry");
+    await fixture.pgDatabase.query(
+      `update bakery.jobs set action = 'rpi.design' where id = $1`,
+      [s.implementJobId],
+    );
+    // One attempt already ended, so the job waits for a retry.
+    const worker = await registeredWorker(fixture);
+    await fixture.pgDatabase.query(
+      `insert into bakery.job_attempts (
+         organization_id, job_id, worker_host_id, worker_session_id,
+         worker_session_generation, attempt_no, fence, lease_token_hash,
+         lease_expires_at, status, ended_at
+       ) select host.organization_id, $2, host.id, host.worker_session_id,
+                host.worker_session_generation, 1, 1, 'lease',
+                clock_timestamp() - interval '1 minute', 'failed',
+                clock_timestamp() - interval '1 minute'
+           from bakery.worker_hosts host
+          where host.organization_id = $1 and host.id = $3`,
+      [
+        fixture.organizationId,
+        s.implementJobId,
+        worker.registration.workerHostId,
+      ],
+    );
+    const artifact = await artifactFor(fixture, s.taskId);
+    const body = {
+      mode: "complete",
+      artifactId: artifact.artifactId,
+      versionId: artifact.versionId,
+    };
+
+    await refusedWith(
+      await takeOver(fixture, s.run.id, s.implementKey.stepKey, body),
+      409,
+      "budget_unsettled",
+    );
+    const job = await fixture.pgDatabase.query<{ status: string }>(
+      `select status from bakery.jobs where id = $1`,
+      [s.implementJobId],
+    );
+    assertEquals(job.rows[0].status, "queued");
+
+    // Once reconciliation has settled what the attempt spent, nothing is left
+    // held and the takeover goes through.
+    await fixture.pgDatabase.query(
+      `update bakery.budget_reservations set status = 'settled'
+        where id = (select installation_reservation_id from bakery.jobs
+                     where id = $1)`,
+      [s.implementJobId],
+    );
+    const response = await takeOver(
+      fixture,
+      s.run.id,
+      s.implementKey.stepKey,
+      body,
+    );
+    assertEquals(response.status, 201, await response.clone().text());
   }));
