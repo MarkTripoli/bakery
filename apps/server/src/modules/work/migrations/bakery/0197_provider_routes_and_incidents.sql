@@ -171,8 +171,15 @@ create index provider_incidents_organization_severity_created_idx
 -- The route's current incident is read by id on the route row; it exists so a
 -- listing needs no join. The foreign key is deferred to a separate statement
 -- because the two tables reference each other.
+--
+-- It is on `incident_id` alone, not on `(organization_id, incident_id)`.
+-- `on delete set null` nulls every column in the key, and `organization_id` is
+-- not null: a composite key would turn "delete this incident" into a constraint
+-- violation instead of clearing the route's pointer. Tenancy still holds,
+-- because an incident is only reachable through a route in its own
+-- organization and every read filters on it.
 alter table bakery.provider_routes
   add constraint provider_routes_incident_fk
-  foreign key (organization_id, incident_id)
-  references bakery.provider_incidents (organization_id, id)
+  foreign key (incident_id)
+  references bakery.provider_incidents (id)
   on delete set null;

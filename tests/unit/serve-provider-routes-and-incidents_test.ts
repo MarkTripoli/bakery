@@ -1,6 +1,7 @@
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import { StandardError } from "../../packages/contracts/src/http.ts";
 import type { ActionContext } from "../../packages/contracts/src/action-registry.ts";
+import { catalogActions } from "../../packages/contracts/src/contracts.ts";
 import {
   createProviderReadHandlers,
   toProviderIncident,
@@ -402,4 +403,33 @@ Deno.test("a route with no health row answers from the route's own projection", 
   assertEquals(health.updatedAt, "2026-11-18T09:30:00.000Z");
   // The second statement is the existence proof, not a health read.
   assert(/from bakery\.provider_routes/.test(recorded[1]!.sql));
+});
+
+Deno.test("the registered policy matches the catalog for all five reads", () => {
+  // QA could not boot the server at 22c86c60: the catalog said every provider
+  // read was `none` while the handlers registered
+  // `RequiredAuthenticatedContext`, and `createApp` compares the two. The
+  // handler tests never saw it because they call the handler directly with a
+  // context they built themselves.
+  //
+  // This is that comparison without a database: the same rows `createApp` reads,
+  // checked against the fact the handlers register. The full boot (which needs
+  // PostgreSQL) lives in the recovery lane.
+  const reads = [
+    "providerRoutes.list",
+    "providerRoutes.get",
+    "providerRoutes.health",
+    "providerIncidents.list",
+    "providerIncidents.get",
+  ] as const;
+  for (const action of reads) {
+    const row = catalogActions.find((entry) => entry.action === action);
+    assert(row !== undefined, `catalog has no row for ${action}`);
+    assertEquals(
+      row.organizationContext,
+      "required_authenticated_context",
+      `${action} is organization-scoped in the catalog, as the handler registers`,
+    );
+    assertEquals(row.access, "Developer", `${action} access agrees`);
+  }
 });

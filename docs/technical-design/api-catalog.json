@@ -4831,7 +4831,8 @@
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN"
-      ]
+      ],
+      "organizationContext": "required_authenticated_context"
     },
     {
       "group": "Providers",
@@ -4849,7 +4850,8 @@
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND"
-      ]
+      ],
+      "organizationContext": "required_authenticated_context"
     },
     {
       "group": "Providers",
@@ -4867,7 +4869,8 @@
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND"
-      ]
+      ],
+      "organizationContext": "required_authenticated_context"
     },
     {
       "group": "Providers",
@@ -4884,7 +4887,8 @@
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN"
-      ]
+      ],
+      "organizationContext": "required_authenticated_context"
     },
     {
       "group": "Providers",
@@ -4902,7 +4906,8 @@
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND"
-      ]
+      ],
+      "organizationContext": "required_authenticated_context"
     },
     {
       "group": "Providers",
