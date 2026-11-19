@@ -17,6 +17,7 @@ import {
   artifactsListQueryOptions,
   artifactStorageQueryOptions,
   artifactVersionsQueryOptions,
+  effectiveAccessQueryOptions,
 } from "../api/query.ts";
 import {
   ORGANIZATIONS_PATH,
@@ -43,6 +44,7 @@ import { ArtifactPinControl } from "./ArtifactPinControl.tsx";
 import { ArtifactPreviewHandoff } from "./ArtifactPreviewHandoff.tsx";
 import { ArtifactComments } from "./ArtifactComments.tsx";
 import { ArtifactContentPreview } from "./ArtifactContentPreview.tsx";
+import { ArtifactEditor } from "./ArtifactEditor.tsx";
 import { isExtractableMediaType } from "./artifact-media.ts";
 import { invalidateArtifactQueries } from "./artifact-live.ts";
 
@@ -400,6 +402,15 @@ export function ArtifactRetrievalPage(
   const selectedVersion =
     versionPages.items.find((version) => version.id === selectedVersionId) ??
       null;
+  // A document in plain text may be edited by people who can write drafts.
+  const [editing, setEditing] = useState(false);
+  const access = useQuery({
+    ...effectiveAccessQueryOptions(api, scope),
+    enabled: scope.organizationId !== null,
+  });
+  const canEdit = (access.data?.role === "admin" ||
+    access.data?.role === "developer") &&
+    selectedVersion !== null && selectedVersion.mediaType.startsWith("text/");
   useEffect(() => {
     if (
       linkedVersionId && selectedVersion === null && versionPages.hasNext &&
@@ -950,6 +961,20 @@ export function ArtifactRetrievalPage(
             testId: "artifact-retrieval-download",
           }
           : undefined}
+        editControl={canEdit
+          ? (
+            <UI.Button
+              aria-pressed={editing}
+              data-testid="artifact-edit-toggle"
+              onClick={() => setEditing((on) => !on)}
+              variant={editing ? "outline" : "primary"}
+            >
+              {translate(
+                editing ? "artifact.edit.stop" : "artifact.edit.action",
+              )}
+            </UI.Button>
+          )
+          : undefined}
         pinControl={
           <ArtifactPinControl
             key={`pin:${scope.sessionGeneration}:${artifactId}`}
@@ -1031,7 +1056,14 @@ export function ArtifactRetrievalPage(
             ),
           },
         }}
-        preview={selectedVersion
+        preview={editing && canEdit
+          ? (
+            <ArtifactEditor
+              artifactId={artifactId}
+              key={`edit:${scope.sessionGeneration}:${artifactId}`}
+            />
+          )
+          : selectedVersion
           ? (
             <ArtifactContentPreview
               key={`${scope.sessionGeneration}:${selectedVersion.id}`}

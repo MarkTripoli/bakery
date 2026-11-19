@@ -137,6 +137,12 @@ importers:
       '@bakery/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      '@codemirror/state':
+        specifier: 6.7.6
+        version: 6.7.6
+      '@codemirror/view':
+        specifier: 6.43.15
+        version: 6.43.15
       '@sentry/react':
         specifier: 11.6.0
         version: 11.6.0(react@19.3.0)
@@ -146,6 +152,9 @@ importers:
       '@tanstack/react-router':
         specifier: 1.170.36
         version: 1.170.36(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+      loro-codemirror:
+        specifier: 0.3.3
+        version: 0.3.3(patch_hash=53ab910290a766060b2cf71c6308b7d4821ada140ce15b81c20cb7644e5a7267)(@codemirror/state@6.7.6)(@codemirror/view@6.43.15)(loro-crdt@1.16.0)
       loro-crdt:
         specifier: 1.16.0
         version: 1.16.0

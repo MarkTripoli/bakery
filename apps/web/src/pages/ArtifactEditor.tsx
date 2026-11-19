@@ -1,0 +1,417 @@
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
+import { EditorView } from "@codemirror/view";
+import * as UI from "@bakery/ui";
+import { useBakeryApi } from "../api/context.tsx";
+import type { DraftResponse } from "../api/client.ts";
+import { useProtectedScope } from "../app/query-scope-context.tsx";
+import { useI18n } from "../i18n/I18nProvider.tsx";
+import { loroExtensions, sizeLimit } from "../collaboration/editor-binding.ts";
+import { peopleOf } from "../collaboration/people.ts";
+import {
+  CollaborationSession,
+  DOCUMENT_LIMIT_BYTES,
+  type RefusedPiece,
+  type SocketLike,
+} from "../collaboration/session.ts";
+
+type Opened =
+  | { readonly status: "loading" }
+  | { readonly status: "forbidden" }
+  | { readonly status: "error" }
+  | { readonly status: "ready"; readonly draft: DraftResponse };
+
+const PRESENCE_COLORS = [1, 2, 3, 4, 5, 6] as const;
+
+/**
+ * Opens an artifact's shared draft and edits it in place: the editor with
+ * everyone's changes, who is here, where this person's own changes stand, and
+ * what became of text the server did not keep (#71).
+ */
+export function ArtifactEditor(
+  { artifactId }: { readonly artifactId: string },
+) {
+  const api = useBakeryApi();
+  const scope = useProtectedScope();
+  const { translate: t } = useI18n();
+  const [attempt, setAttempt] = useState(0);
+  const [opened, setOpened] = useState<Opened>({ status: "loading" });
+  useEffect(() => {
+    const organizationId = scope.organizationId;
+    if (organizationId === null) return;
+    const abort = new AbortController();
+    setOpened({ status: "loading" });
+    void api.openArtifactDraft({
+      organizationId,
+      artifactId,
+      signal: abort.signal,
+    }).then((result) => {
+      if (abort.signal.aborted) return;
+      if (result.ok) setOpened({ status: "ready", draft: result.data });
+      else if (
+        result.error.kind === "problem" &&
+        (result.error.problem.status === 403 ||
+          result.error.problem.status === 404)
+      ) setOpened({ status: "forbidden" });
+      else setOpened({ status: "error" });
+    });
+    return () => abort.abort();
+  }, [api, scope.organizationId, artifactId, attempt]);
+
+  if (opened.status === "loading") {
+    return (
+      <UI.Stack
+        aria-busy="true"
+        aria-label={t("artifact.edit.loading")}
+        gap="standard"
+      >
+        <UI.Skeleton shape="row" />
+        <UI.Skeleton shape="surface" />
+      </UI.Stack>
+    );
+  }
+  if (opened.status === "forbidden") {
+    return (
+      <UI.InlineNotice tone="error">
+        {t("artifact.edit.forbidden")}
+      </UI.InlineNotice>
+    );
+  }
+  if (opened.status === "error") {
+    return (
+      <UI.ErrorState
+        action={
+          <UI.Button onClick={() => setAttempt((n) => n + 1)} variant="outline">
+            {t("artifact.edit.retry")}
+          </UI.Button>
+        }
+        description={t("artifact.edit.error.body")}
+        title={t("artifact.edit.error.title")}
+      />
+    );
+  }
+  return <OpenDraft draftId={opened.draft.id} />;
+}
+
+function OpenDraft({ draftId }: { readonly draftId: string }) {
+  const api = useBakeryApi();
+  const scope = useProtectedScope();
+  const [session, setSession] = useState<CollaborationSession | null>(null);
+  useEffect(() => {
+    const organizationId = scope.organizationId;
+    if (organizationId === null) return;
+    const created = new CollaborationSession({
+      draftId,
+      createSocket: () =>
+        new WebSocket(
+          api.collaborationSocketUrl(organizationId),
+        ) as unknown as SocketLike,
+      storage: browserStorage(),
+    });
+    created.start();
+    setSession(created);
+    return () => {
+      created.destroy();
+      setSession(null);
+    };
+  }, [api, scope.organizationId, draftId]);
+  return session ? <DraftEditor session={session} /> : null;
+}
+
+function browserStorage(): Storage | null {
+  try {
+    return globalThis.localStorage ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function DraftEditor({ session }: { readonly session: CollaborationSession }) {
+  const { translate: t, locale } = useI18n();
+  const snapshot = useSyncExternalStore(session.subscribe, session.getSnapshot);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [discarding, setDiscarding] = useState<RefusedPiece | null>(null);
+  const [typedAt, setTypedAt] = useState(0);
+  const typing = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Text this device kept from an earlier visit is told about once, on arrival.
+  const [restored] = useState(() =>
+    session.getSnapshot().refused[0]?.typedAt ?? null
+  );
+  const [restoredShown, setRestoredShown] = useState(restored !== null);
+
+  const time = useMemo(
+    () =>
+      new Intl.DateTimeFormat(locale, { hour: "numeric", minute: "2-digit" }),
+    [locale],
+  );
+  const clock = (milliseconds: number) => time.format(new Date(milliseconds));
+
+  // The editor binds to the session's document and starts again whenever the
+  // session rebuilds it from the server's text.
+  const extensions = useMemo(
+    () => [
+      ...loroExtensions(session.document),
+      sizeLimit(),
+      EditorView.updateListener.of((update) => {
+        if (!update.docChanged) return;
+        setTypedAt(Date.now());
+      }),
+    ],
+    // documentVersion is the rebuild signal; the document object changes with it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [session, snapshot.documentVersion],
+  );
+
+  // Others see "is typing" while this person's changes keep coming.
+  useEffect(() => {
+    if (typedAt === 0) return;
+    session.setPresence({ activity: "active", typing: true, cursor: null });
+    if (typing.current !== null) clearTimeout(typing.current);
+    typing.current = setTimeout(() => {
+      session.setPresence({ activity: "active", typing: false, cursor: null });
+    }, 2000);
+    return () => {
+      if (typing.current !== null) clearTimeout(typing.current);
+    };
+  }, [session, typedAt]);
+
+  // Closing the tab with text not yet sent or kept asks first (the browser's own warning).
+  useEffect(() => {
+    if (snapshot.pendingCount === 0 && snapshot.refused.length === 0) return;
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    globalThis.addEventListener("beforeunload", warn);
+    return () => globalThis.removeEventListener("beforeunload", warn);
+  }, [snapshot.pendingCount, snapshot.refused.length]);
+
+  const people = useMemo(() => peopleOf(snapshot.participants), [
+    snapshot.participants,
+  ]);
+  const colours = useRef(new Map<string, (typeof PRESENCE_COLORS)[number]>());
+  const presence = people.map((person) => {
+    if (!colours.current.has(person.principalId)) {
+      colours.current.set(
+        person.principalId,
+        PRESENCE_COLORS[colours.current.size % PRESENCE_COLORS.length],
+      );
+    }
+    return {
+      id: person.principalId,
+      name: person.displayName,
+      kind: person.principalType === "human"
+        ? "person" as const
+        : "agent" as const,
+      color: colours.current.get(person.principalId),
+    };
+  });
+  const status = people
+    .filter((person) => person.status !== "away" || people.length > 0)
+    .map((person) =>
+      t(`artifact.edit.presence.${person.status}`, { name: person.displayName })
+    )
+    .join(" · ");
+  const pieces = snapshot.refused;
+  const bytesUsed = useSizeNote(session, snapshot.documentVersion, typedAt);
+
+  const copy = (piece: RefusedPiece) =>
+    void globalThis.navigator?.clipboard?.writeText(piece.text);
+  const sheet = (
+    <UI.Sheet
+      dismissLabel={t("artifact.edit.sheet.close")}
+      onOpenChange={setSheetOpen}
+      open={sheetOpen && pieces.length > 0}
+      title={t("artifact.edit.sheet.title")}
+      variant="side"
+    >
+      <UI.Stack gap="standard">
+        <UI.Text>{t("artifact.edit.sheet.intro")}</UI.Text>
+        <Pieces
+          clock={clock}
+          copy={copy}
+          onDiscard={setDiscarding}
+          pieces={pieces}
+          t={t}
+        />
+      </UI.Stack>
+    </UI.Sheet>
+  );
+
+  return (
+    <UI.Stack gap="standard">
+      <UI.PresenceRow
+        aria-label={t("artifact.edit.presence.label")}
+        overflowLabel={t("artifact.edit.presence.more", {
+          count: Math.max(presence.length - 5, 0),
+        })}
+        people={presence}
+        saveLabel={t(`artifact.edit.save.${snapshot.saveState}`)}
+        saveState={snapshot.saveState}
+        status={status}
+      />
+      {snapshot.banner?.kind === "published" && (
+        <UI.AlertBanner
+          onDismiss={() => session.dismissBanner()}
+          tone="information"
+        >
+          {snapshot.banner.name
+            ? t("artifact.edit.banner.published", {
+              name: snapshot.banner.name,
+              version: snapshot.banner.versionNumber,
+            })
+            : t("artifact.edit.banner.publishedUnnamed", {
+              version: snapshot.banner.versionNumber,
+            })}
+        </UI.AlertBanner>
+      )}
+      {snapshot.banner?.kind === "replaced" && (
+        <UI.AlertBanner
+          onDismiss={() => session.dismissBanner()}
+          tone="information"
+        >
+          {t("artifact.edit.banner.replaced")}
+        </UI.AlertBanner>
+      )}
+      {snapshot.banner?.kind === "revoked" && (
+        <UI.AlertBanner tone="error">
+          {t("artifact.edit.banner.revoked")}
+        </UI.AlertBanner>
+      )}
+      {restoredShown && restored !== null && pieces.length > 0 && (
+        <UI.AlertBanner
+          action={
+            <UI.Button
+              onClick={() => {
+                setRestoredShown(false);
+                setSheetOpen(true);
+              }}
+              variant="outline"
+            >
+              {t("artifact.edit.restored.review")}
+            </UI.Button>
+          }
+          onDismiss={() => setRestoredShown(false)}
+          tone="information"
+        >
+          {t("artifact.edit.restored.body", { time: clock(restored) })}
+        </UI.AlertBanner>
+      )}
+      {pieces.length > 0 && (
+        <UI.InlineNotice
+          action={
+            <UI.Button onClick={() => setSheetOpen(true)} variant="outline">
+              {t("artifact.edit.refused.show")}
+            </UI.Button>
+          }
+          tone="error"
+        >
+          {pieces.length > 1
+            ? t("artifact.edit.refused.many", { count: pieces.length })
+            : pieces[0].cause === "stale"
+            ? t("artifact.edit.refused.stale")
+            : t("artifact.edit.refused.one")}
+        </UI.InlineNotice>
+      )}
+      {bytesUsed >= DOCUMENT_LIMIT_BYTES && (
+        <UI.InlineNotice tone="warning">
+          {t("artifact.edit.limit")}
+        </UI.InlineNotice>
+      )}
+      <UI.DocumentEditor
+        aria-label={t("artifact.edit.label")}
+        data-testid="artifact-editor"
+        extensions={extensions}
+        key={snapshot.documentVersion}
+        placeholder={t("artifact.edit.placeholder")}
+        readOnly={snapshot.readOnly}
+      />
+      {snapshot.banner?.kind === "revoked" && pieces.length > 0 && (
+        <Pieces
+          clock={clock}
+          copy={copy}
+          onDiscard={setDiscarding}
+          pieces={pieces}
+          t={t}
+        />
+      )}
+      {sheet}
+      <UI.AlertDialog
+        cancelAction={
+          <UI.Button onClick={() => setDiscarding(null)} variant="outline">
+            {t("artifact.edit.discard.cancel")}
+          </UI.Button>
+        }
+        confirmAction={
+          <UI.Button
+            onClick={() => {
+              if (discarding) session.discardRefused(discarding.id);
+              setDiscarding(null);
+            }}
+            variant="destructive"
+          >
+            {t("artifact.edit.discard.confirm")}
+          </UI.Button>
+        }
+        onOpenChange={(open) => !open && setDiscarding(null)}
+        open={discarding !== null}
+        title={t("artifact.edit.discard.title")}
+      >
+        {t("artifact.edit.discard.body")}
+      </UI.AlertDialog>
+    </UI.Stack>
+  );
+}
+
+/** The size the shared text has reached, re-read when it changes. */
+function useSizeNote(
+  session: CollaborationSession,
+  version: number,
+  changedAt: number,
+): number {
+  return useMemo(
+    () =>
+      new TextEncoder().encode(session.document.getText("body").toString())
+        .length,
+    // The document's own changes are the trigger.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [session, version, changedAt],
+  );
+}
+
+function Pieces(
+  { clock, copy, onDiscard, pieces, t }: {
+    readonly clock: (milliseconds: number) => string;
+    readonly copy: (piece: RefusedPiece) => void;
+    readonly onDiscard: (piece: RefusedPiece) => void;
+    readonly pieces: readonly RefusedPiece[];
+    readonly t: ReturnType<typeof useI18n>["translate"];
+  },
+) {
+  return (
+    <UI.Stack gap="standard">
+      {[...pieces].sort((a, b) => b.typedAt - a.typedAt).map((piece) => (
+        <UI.Stack gap="compact" key={piece.id}>
+          <UI.Text variant="caption">
+            {t("artifact.edit.sheet.typedAt", { time: clock(piece.typedAt) })}
+          </UI.Text>
+          <UI.CodeBlock code={piece.text} />
+          <UI.Inline gap="compact">
+            <UI.Button onClick={() => copy(piece)} variant="outline">
+              {t("artifact.edit.sheet.copy")}
+            </UI.Button>
+            <UI.Button
+              onClick={() =>
+                onDiscard(piece)}
+              variant="outline"
+            >
+              {t("artifact.edit.sheet.discard")}
+            </UI.Button>
+          </UI.Inline>
+        </UI.Stack>
+      ))}
+    </UI.Stack>
+  );
+}
