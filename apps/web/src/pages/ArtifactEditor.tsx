@@ -20,7 +20,11 @@ import {
 } from "../collaboration/editor-binding.ts";
 import { peopleOf } from "../collaboration/people.ts";
 import { usePublish } from "./ArtifactPublish.tsx";
-import { SuggestionsPanel, useSuggestions } from "./ArtifactSuggestions.tsx";
+import {
+  SuggestionsConfirm,
+  SuggestionsPanel,
+  useSuggestions,
+} from "./ArtifactSuggestions.tsx";
 import {
   CollaborationSession,
   DOCUMENT_LIMIT_BYTES,
@@ -475,22 +479,25 @@ function DraftEditor(
         )}
       {suggestionsHost !== null &&
         createPortal(<SuggestionsPanel state={suggestions} />, suggestionsHost)}
-      <UI.Sheet
-        dismissLabel={t("artifact.edit.suggestions.sheetClose")}
-        onOpenChange={setSuggestionsOpen}
-        open={suggestionsHost === null && suggestionsOpen}
-        title={t("artifact.edit.suggestions.titleNoCount")}
-        variant="side"
-      >
-        <SuggestionsPanel
-          afterChoose={() => {
-            setSuggestionsOpen(false);
-            // Once the sheet is gone, show the text the card points at.
-            globalThis.requestAnimationFrame(() => reshowChosen());
-          }}
-          state={suggestions}
-        />
-      </UI.Sheet>
+      <SuggestionsConfirm state={suggestions} />
+      {suggestionsHost === null && suggestionsOpen && (
+        <UI.Sheet
+          dismissLabel={t("artifact.edit.suggestions.sheetClose")}
+          onOpenChange={setSuggestionsOpen}
+          open
+          title={t("artifact.edit.suggestions.titleNoCount")}
+          variant="side"
+        >
+          <SuggestionsPanel
+            afterChoose={() => {
+              setSuggestionsOpen(false);
+              // Once the sheet is gone, show the text the card points at.
+              globalThis.requestAnimationFrame(() => reshowChosen());
+            }}
+            state={suggestions}
+          />
+        </UI.Sheet>
+      )}
       {bytesUsed >= DOCUMENT_LIMIT_BYTES && (
         <UI.InlineNotice tone="warning">
           {t("artifact.edit.limit")}

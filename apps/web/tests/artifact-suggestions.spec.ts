@@ -5,6 +5,9 @@ import { still } from "./helpers/stills.ts";
 const TEXT = "Hello brave new world";
 const card = (page: Page, summary: RegExp | string) =>
   page.getByRole("article", { name: summary });
+/** The visible result line (the same sentence is also announced from a hidden region). */
+const noticeText = (scope: Page | ReturnType<Page["locator"]>, text: string) =>
+  scope.locator(".ui-inline-notice__content", { hasText: text });
 const isPhone = (page: Page) => (page.viewportSize()?.width ?? 1280) < 744;
 
 /** The list: in the side column from 744px, behind the Suggestions button below it. */
@@ -241,7 +244,7 @@ test.describe("Agent suggestions on a draft", () => {
     ).toBeVisible();
     await still(page, "suggestions-accept-all", dialog);
     await dialog.getByRole("button", { name: "Accept 3" }).click();
-    await expect(page.getByText("Accepted 3 suggestions.").first())
+    await expect(noticeText(page, "Accepted 3 suggestions."))
       .toBeVisible();
     expect(decisions.map((entry) => entry.action)).toEqual([
       "accept",
@@ -261,7 +264,8 @@ test.describe("Agent suggestions on a draft", () => {
       name: "Accept 3",
     }).click();
     await expect(
-      section.getByText(
+      noticeText(
+        section,
         "Accepted 1 of 3 suggestions. The rest were not changed.",
       ),
     ).toBeVisible();
@@ -283,7 +287,8 @@ test.describe("Agent suggestions on a draft", () => {
       name: "Accept 3",
     }).click();
     await expect(
-      section.getByText(
+      noticeText(
+        section,
         "Accepted 2 of 3 suggestions. 1 no longer fits the text and is still listed.",
       ),
     ).toBeVisible();

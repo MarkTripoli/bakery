@@ -304,7 +304,6 @@ export function SuggestionsPanel(
     working,
     failures,
     denied,
-    bulk,
     bulkRunning,
     result,
     announcement,
@@ -478,40 +477,53 @@ export function SuggestionsPanel(
             />
           );
       })}
-      <UI.AlertDialog
-        cancelAction={
-          <UI.Button onClick={() => state.askBulk(null)} variant="outline">
-            {t("core.actions.cancel")}
-          </UI.Button>
-        }
-        confirmAction={
-          <UI.Button
-            onClick={() => bulk && void state.decideAll(bulk)}
-            variant="primary"
-          >
-            {t(
-              bulk === "reject"
-                ? "artifact.edit.suggestions.rejectAll.confirm"
-                : "artifact.edit.suggestions.acceptAll.confirm",
-              { count: waiting },
-            )}
-          </UI.Button>
-        }
-        onOpenChange={(open) => !open && state.askBulk(null)}
-        open={bulk !== null}
-        title={t(
-          bulk === "reject"
-            ? "artifact.edit.suggestions.rejectAll.title"
-            : "artifact.edit.suggestions.acceptAll.title",
-          { count: waiting },
-        )}
-      >
-        {t(
-          bulk === "reject"
-            ? "artifact.edit.suggestions.rejectAll.body"
-            : "artifact.edit.suggestions.acceptAll.body",
-        )}
-      </UI.AlertDialog>
     </UI.Stack>
+  );
+}
+
+/**
+ * The questions of Accept all and Reject all. It stands apart from the cards,
+ * not inside the phone sheet, so closing it does not close the sheet.
+ */
+export function SuggestionsConfirm(
+  { state }: { readonly state: SuggestionsState },
+) {
+  const { translate: t } = useI18n();
+  const { bulk, waiting } = state;
+  return (
+    <UI.AlertDialog
+      cancelAction={
+        <UI.Button onClick={() => state.askBulk(null)} variant="outline">
+          {t("core.actions.cancel")}
+        </UI.Button>
+      }
+      confirmAction={
+        <UI.Button
+          onClick={() => bulk && void state.decideAll(bulk)}
+          variant="primary"
+        >
+          {t(
+            bulk === "reject"
+              ? "artifact.edit.suggestions.rejectAll.confirm"
+              : "artifact.edit.suggestions.acceptAll.confirm",
+            { count: waiting },
+          )}
+        </UI.Button>
+      }
+      onOpenChange={(open) => !open && state.askBulk(null)}
+      open={bulk !== null}
+      title={t(
+        bulk === "reject"
+          ? "artifact.edit.suggestions.rejectAll.title"
+          : "artifact.edit.suggestions.acceptAll.title",
+        { count: waiting },
+      )}
+    >
+      {t(
+        bulk === "reject"
+          ? "artifact.edit.suggestions.rejectAll.body"
+          : "artifact.edit.suggestions.acceptAll.body",
+      )}
+    </UI.AlertDialog>
   );
 }
