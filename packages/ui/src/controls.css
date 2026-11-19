@@ -193,6 +193,9 @@ input:not([type="hidden"]) {
     align-items: center;
     display: inline-flex;
     min-block-size: var(--target-coarse);
+    /* The touch target overhangs the row (less than the gap to the control)
+       so this row is no taller than the other labels. */
+    margin-block: calc((1lh - var(--target-coarse)) / 2);
   }
 }
 .ui-field__heading {
