@@ -1045,7 +1045,8 @@ function Steps({ model }: Readonly<{ model: DeliveryModel }>) {
   // or moved merge is failed; otherwise it simply has not happened yet.
   const mergeStepStatus = mergeCommit !== null
     ? "done"
-    : model.merge?.state === "refused" || model.merge?.state === "moved"
+    : model.merge?.state === "refused" ||
+        (model.merge?.state === "moved" && model.merge.attemptedSha !== null)
     ? "failed"
     : model.merge?.state === "unknown" || pullRequest === null ||
         pullRequest.status === "merged"
@@ -1325,9 +1326,23 @@ function Steps({ model }: Readonly<{ model: DeliveryModel }>) {
             statusLabel={APPROVAL_STEP[model.approval.state].label === null
               ? label(APPROVAL_STEP[model.approval.state].status)
               : t(APPROVAL_STEP[model.approval.state].label as MessageKey)}
-            summary={t(
-              `tasks.delivery.approval.step.${model.approval.state}` as MessageKey,
-            )}
+            summary={
+              <>
+                {t(
+                  `tasks.delivery.approval.step.${model.approval.state}` as MessageKey,
+                )}
+                {model.pullRequestMoved && model.merge?.approvedSha != null && (
+                  <>
+                    {" "}
+                    <UI.Badge>
+                      {t("tasks.delivery.olderCommit", {
+                        sha: model.merge.approvedSha.slice(0, 7),
+                      })}
+                    </UI.Badge>
+                  </>
+                )}
+              </>
+            }
             title={
               <>
                 {t("tasks.delivery.approval.title")}

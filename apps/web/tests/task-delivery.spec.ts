@@ -1914,6 +1914,11 @@ test("a pull request that moved after the approval is not offered to merge, and 
     "The changes were updated after these results",
   );
   await expect(section).toContainText("Older commit 91d0aa3");
+  // The approval was for that older commit too, and nothing was tried, so the
+  // Merge step is not marked as failed.
+  await expect(page.getByTestId("delivery-approval-step")).toContainText(
+    "Older commit 91d0aa3",
+  );
   // Nothing is re-running: the page must not say the results are running again.
   await expect(section).toContainText("No results for commit 4be19c2.");
   await expect(section).not.toContainText("Running again");
