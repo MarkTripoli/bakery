@@ -46,6 +46,7 @@ import { useTaskReadSync } from "./task-read-sync.ts";
 import { type LandingSearch, parseLanding } from "../notifications/landing.ts";
 import { useLandingArrival } from "../notifications/useLandingArrival.ts";
 import { useTaskLanding } from "../notifications/useTaskLanding.ts";
+import { TaskFromIssue } from "./TaskFromIssue.tsx";
 
 const statuses = [
   "draft",
@@ -614,6 +615,7 @@ function Detail(
                 {t("tasks.detail.refreshFailed")}
               </UI.InlineNotice>
             )}
+            <TaskFromIssue taskId={task.id} />
             <TaskLiveReads
               task={task}
               enabled={!query.isError && valid}

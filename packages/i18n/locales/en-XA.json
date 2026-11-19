@@ -4458,5 +4458,9 @@
   "issues.work.banner.labelRemoved": "⟦Þàûšëð: ŧĥë \"{label}\" ļàƀëļ ŵàš ŕëɱôṽëð. Ŵôŕķ çôñŧïñûëš ŵĥëñ ïŧ ïš ƀàçķ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
   "issues.work.banner.labelRemovedPlain": "⟦Þàûšëð: ŧĥë ļàƀëļ ŧĥàŧ šŧàŕŧëð ŧĥïš ŵôŕķ ŵàš ŕëɱôṽëð. Ŵôŕķ çôñŧïñûëš ŵĥëñ ïŧ ïš ƀàçķ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "issues.work.banner.onHold": "⟦Þàûšëð: ôñ ĥôļð. ŧëš⟧",
-  "issues.work.banner.dependencyUnreadable": "⟦Þàûšëð: Ɓàķëŕÿ çàññôŧ ŕëàð àñ ïššûë ŧĥïš ôñë ðëþëñðš ôñ. ŧëšŧ çôþÿ ŧëšŧ çô⟧"
+  "issues.work.banner.dependencyUnreadable": "⟦Þàûšëð: Ɓàķëŕÿ çàññôŧ ŕëàð àñ ïššûë ŧĥïš ôñë ðëþëñðš ôñ. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
+  "tasks.fromIssue.fromIssue": "⟦Ƒŕôɱ ïššûë ŧ⟧",
+  "tasks.fromIssue.mentions": "⟦Ṁëñŧïôñš…⟧",
+  "tasks.fromIssue.view": "⟦Ṽïëŵ ôñ ĜïŧĤûƀ ŧë⟧",
+  "tasks.fromIssue.viewNamed": "⟦Ṽïëŵ {reference} ôñ ĜïŧĤûƀ ŧëšŧ çô⟧"
 }
