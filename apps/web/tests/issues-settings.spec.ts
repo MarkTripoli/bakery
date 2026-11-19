@@ -381,7 +381,7 @@ for (
       expect(sent.automatic).toEqual({ enabled: true });
       expect(sent.delegation).toEqual({
         principalId: uuid(910),
-        githubActorIds: ["4242"],
+        externalActorIds: ["4242"],
       });
       await expect(page.getByText(/Only for labels added after/)).toBeVisible();
       await shot(page, "issue-settings-automatic", [], { windowOnly: true });
