@@ -1219,7 +1219,11 @@ Deno.test("a personal skill is visible to its owner alone and never reaches an a
       { slug: "private-notes", name: "Other private notes", scope: "personal" },
       "other-private-notes",
     );
-    assertEquals(otherPersonal.status, 201, await otherPersonal.text());
+    assertEquals(
+      otherPersonal.status,
+      201,
+      await otherPersonal.clone().text(),
+    );
     // A Developer may keep a personal skill but not add an organization one,
     // and an Admin cannot act on somebody else's personal skill.
     const developerOrganization = await create(

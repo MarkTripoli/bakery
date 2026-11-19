@@ -30425,6 +30425,24 @@ const transportSchemas = {
       "inngestTrigger": null,
       "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
     },
+    "skillUseGrant.created": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification for a skill use grant recorded when an author confirms attaching a personal skill to a workflow step; consumers fetch the authoritative grants through the skill use grants list."
+    },
+    "skillUseGrant.deleted": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification for a skill use grant its owner revoked; consumers re-read the skill use grants list."
+    },
     "skills.created": {
       "schemaVersion": 1,
       "payloadFields": {
