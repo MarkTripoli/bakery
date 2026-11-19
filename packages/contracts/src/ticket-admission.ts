@@ -984,6 +984,9 @@ export const TicketAuthorityEvidenceSchema = z.object({
   }).strict().nullable().describe(
     "Who applied the request label and when, for a webhook or poll origin; null otherwise.",
   ),
+  labelName: providerLabelName.nullable().optional().describe(
+    "The request label the issue carried when a label-based request (webhook, poll or adoption) was admitted; null for a manual request. Omitted on requests admitted before it was recorded.",
+  ),
   actorRole: z.object({
     userId: providerOpaqueId.describe(
       "Provider id of the actor the role answer is about.",
