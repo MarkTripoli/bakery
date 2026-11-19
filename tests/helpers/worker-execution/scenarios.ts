@@ -30,10 +30,14 @@ export async function withWorkerFixture<T>(
   options: Parameters<typeof openWorkerFixture>[0] = {},
 ): Promise<T> {
   const fixture = await openWorkerFixture(options);
+  let failed = false;
   try {
     return await work(fixture);
+  } catch (error) {
+    failed = true;
+    throw error;
   } finally {
-    await closeWorkerFixture(fixture);
+    await closeWorkerFixture(fixture, { failed });
   }
 }
 
