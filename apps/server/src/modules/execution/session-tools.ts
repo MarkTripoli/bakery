@@ -58,6 +58,9 @@ const OPERATION_SCOPES: Readonly<Record<string, OperationScope>> = Object
     "skills.get": "library.read",
     "agents.list": "library.read",
     "agents.get": "library.read",
+    // One text search across skills, agents and artifacts: the same guard as the
+    // list operations, so it reaches nothing a list would not.
+    "library.search": "library.read",
   });
 
 export type SessionTool = Readonly<{
