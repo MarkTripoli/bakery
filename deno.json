@@ -44,6 +44,7 @@
     "hono": "npm:hono@4.13.7",
     "inngest": "npm:inngest@4.20.0",
     "loro-crdt": "npm:loro-crdt@1.16.0/base64",
+    "loro-crdt/base64": "npm:loro-crdt@1.16.0/base64",
     "pg": "npm:pg@8.23.0",
     "postgres": "npm:postgres@3.4.7",
     "@types/node": "npm:@types/node@22.13.4",
