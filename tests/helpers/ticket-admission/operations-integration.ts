@@ -1282,6 +1282,7 @@ Deno.test("issue 82 ops: ticketRequests.create answers an unready issue with tic
     const error = unadmittedError(result.report, {
       issue: { kind: "gone" },
       links: null,
+      statuses: null,
       proofs: [],
       provenance: null,
       actorRole: null,
