@@ -1650,6 +1650,32 @@ Deno.test("issue 82 admission AC2: the status read is requested only when the po
     assertEquals(prefetch.statuses?.kind, "present");
   }));
 
+Deno.test("issue 82 admission AC2: the status read reuses the issue already read, rather than asking again", () =>
+  withTicketFixture(async (fx) => {
+    // The unit case pins that a read given a snapshot costs no provider call;
+    // this pins the wiring that gives it one. Dropping the argument at the
+    // prefetch leaves every case above green, because the answer is right either
+    // way - it just costs a second provider read per admission.
+    const sourceId = await fx.insertSource({
+      policy: fx.policy({ statuses: ["open"] }),
+    });
+    fx.reader.setIssue({ number: 44, labels: [EXECUTE_LABEL], state: "open" });
+    fx.reader.clearCalls();
+    await admitOf(fx, sourceId, 44);
+    assertEquals(
+      fx.reader.callsOf("readIssue").length,
+      1,
+      "the issue is read once per admission",
+    );
+    const statusReads = fx.reader.callsOf("readStatuses");
+    assertEquals(statusReads.length, 1, "the statuses are read once");
+    assertEquals(
+      statusReads[0].hadSnapshot,
+      true,
+      "the status read is handed the issue the prefetch already read",
+    );
+  }));
+
 Deno.test("issue 82 admission AC2: admission carries the status answer through, so a status policy waits or is ready", () =>
   withTicketFixture(async (fx) => {
     // A prefetch that reads statuses and then drops the answer on the floor
