@@ -51,11 +51,31 @@ const run = {
   repositoryProfileDigest: null,
   observationId: null,
   observationDigest: null,
-  proposedByTurnId: null,
-  supersedesRevision: null,
-  createdAt: stamp,
-  updatedAt: stamp,
+  baseSha: null,
+  workspaceBaseSha: null,
+  requestedBy: uuid(1),
+  inngestRunId: null,
+  status: "completed",
+  budgetLimitUsd: "10.00",
+  startedAt: "2026-01-01T00:00:01.000Z",
+  finishedAt: "2026-01-01T00:01:00.000Z",
+  createdAt: "2026-01-01T00:00:00.000Z",
+  updatedAt: "2026-01-01T00:01:00.000Z",
   version: 1,
+  budgetSummary: {
+    installation: null,
+    run: {
+      scope: "run",
+      runId,
+      periodStart: null,
+      periodEnd: null,
+      limitUsd: "10",
+      reservedUsd: "0",
+      settledUsd: "1",
+      availableUsd: "9",
+      unknownCount: 0,
+    },
+  },
 };
 
 const link = (id: number, issue: number, role: "primary" | "reference") => ({
@@ -95,7 +115,6 @@ async function world(page: Page, links: ReturnType<typeof link>[]) {
   );
   for (
     const empty of [
-      `**/v1/runs/${runId}/steps*`,
       `**/v1/runs/${runId}/checks*`,
       `**/v1/runs/${runId}/reviews*`,
       `**/v1/runs/${runId}/delivery-decisions*`,
@@ -108,6 +127,7 @@ async function world(page: Page, links: ReturnType<typeof link>[]) {
       "**/v1/coordination-plans*",
       "**/v1/plan-revisions*",
       "**/v1/approvals*",
+      "**/v1/output-streams?*",
     ]
   ) {
     await page.route(
@@ -125,6 +145,44 @@ async function world(page: Page, links: ReturnType<typeof link>[]) {
           ? null
           : "cursor-0",
         resetRequired: false,
+      },
+    }));
+  const step = (id: string, stepKey: string, status: string) => ({
+    id,
+    runId,
+    stepKey,
+    iteration: 1,
+    status,
+    input: {},
+    output: null,
+    error: null,
+    startedAt: stamp,
+    finishedAt: stamp,
+    createdAt: stamp,
+    updatedAt: stamp,
+    version: 1,
+  });
+  await page.route(`**/v1/runs/${runId}/steps*`, (route) =>
+    route.fulfill({
+      json: {
+        items: [
+          step("00000000-0000-4000-8000-000000000021", "publish", "completed"),
+          step("00000000-0000-4000-8000-000000000031", "verify", "completed"),
+        ],
+        nextCursor: null,
+      },
+    }));
+  await page.route(`**/v1/applications/${uuid(904)}`, (route) =>
+    route.fulfill({
+      json: {
+        id: uuid(904),
+        slug: "storefront",
+        name: "Storefront",
+        description: "",
+        archivedAt: null,
+        createdAt: stamp,
+        updatedAt: stamp,
+        version: 1,
       },
     }));
   await page.route(
