@@ -22357,7 +22357,7 @@ export const clientManifest = {
             "complete",
             "restart"
           ],
-          "description": "How the person takes the step over. `complete` makes the person the step's completer by naming an existing artifact version as its result. `restart` gives the step's job one more attempt that starts fresh, optionally with a note, and keeps the step's frozen agent and its budget reservation."
+          "description": "How the person takes the step over. `complete` makes the person the step's completer by naming an existing artifact version as its result. `restart` gives the step's job one more attempt that starts fresh, optionally with a note, and keeps the step's frozen agent and its budget reservation. A funded job must not have a finished attempt (see the operation description)."
         },
         "artifactId": {
           "description": "Required for mode `complete`; ignored otherwise. Identifier of an existing artifact of this run's task that becomes the step's result. The artifact must exist in the organization and belong to the run's task.",
@@ -22387,7 +22387,7 @@ export const clientManifest = {
         "mode"
       ],
       "additionalProperties": false,
-      "description": "Makes the caller the completer of a workflow step, or restarts it. Allowed only for a step of a compiled-plan run whose job is still queued with no live attempt, and only for a caller holding run control; a step with a live attempt is refused with STATE_CONFLICT `attempt_live` and must be stopped through run control first. `complete` also needs the action to produce an artifact. `restart` needs the job's budget reservation to still be held, else it is refused with `budget_not_reserved`."
+      "description": "Makes the caller the completer of a workflow step, or restarts it. Allowed only for a step of a compiled-plan run whose job is still queued with no live attempt, and only for a caller holding run control; a step with a live attempt is refused with STATE_CONFLICT `attempt_live` and must be stopped through run control first. `complete` also needs the action to produce an artifact. `restart` of a job with a budget reservation needs the job to have no finished attempt and the reservation to still be held: a finished attempt may already have spent against that reservation, so it is refused with `budget_unsettled` until reconciliation settles it, and with `budget_not_reserved` once the reservation is gone. A job with no budget reservation can be restarted after any number of attempts."
     },
     "PluginState": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

@@ -754,3 +754,87 @@ Deno.test("AC: canceling a retry-waiting job that had an attempt leaves its rese
     assertEquals([after.reservation, after.intent], ["held", "held"]);
     assert(Number(after.reserved) > 0, "the money is still held");
   }));
+
+// qa2's finding: two restarts at once could append their notes to the job in
+// job-lock order while the notes were stamped with their transaction start, so
+// the job's stepNotes and its recorded deliveries disagreed and the job could
+// never be admitted again.
+Deno.test("AC: simultaneous restarts keep a job's notes and deliveries in the same order", () =>
+  withFixture(async (fixture) => {
+    const s = await queuedBriefStep(fixture, "restart-concurrent");
+    const admit = () =>
+      withPgTransaction(
+        fixture.pgDatabase,
+        (transaction) =>
+          admitRepositoryExecutionJob(
+            transaction,
+            fixture.organizationId,
+            s.jobId,
+            { enqueue: false },
+          ),
+      );
+    for (let round = 0; round < 8; round++) {
+      const pair = await Promise.all(
+        ["a", "b"].map((side) =>
+          takeOver(fixture, s.run.id, s.key.stepKey, {
+            mode: "restart",
+            note: `round ${round} ${side}`,
+          })
+        ),
+      );
+      for (const response of pair) {
+        assertEquals(response.status, 201, await response.clone().text());
+      }
+      // The integrity check admission and claim run: stepNotes equal the
+      // recorded deliveries, in order. A mismatch refuses the job for good.
+      await admit();
+    }
+    const job = await fixture.pgDatabase.query<{ n: number }>(
+      `select jsonb_array_length(input->'stepNotes') as n
+         from bakery.jobs where id = $1`,
+      [s.jobId],
+    );
+    assertEquals(job.rows[0].n, 16);
+  }));
+
+// qa2's second finding, settled as a documented rule: a funded job that has a
+// finished attempt is not restartable while its reservation is held, because
+// that attempt may already have spent against it; an unfunded job is.
+Deno.test("AC: restart of a funded job with a finished attempt is refused budget_unsettled, and changes nothing", () =>
+  withFixture(async (fixture) => {
+    const s = await queuedImplementStep(fixture, "restart-funded-attempted");
+    await addAttempt(fixture, s.implementJobId, "failed");
+    const before = await jobRow(fixture, s.implementJobId);
+
+    await refusedWith(
+      await takeOver(fixture, s.run.id, s.implementKey.stepKey, {
+        mode: "restart",
+        note: "Try again.",
+      }),
+      409,
+      "budget_unsettled",
+    );
+    assertEquals(await jobRow(fixture, s.implementJobId), before);
+    const notes = await fixture.pgDatabase.query<{ n: string }>(
+      `select count(*)::text as n from bakery.run_step_notes where run_id = $1`,
+      [s.run.id],
+    );
+    assertEquals(notes.rows[0].n, "0");
+  }));
+
+Deno.test("AC: restart of an unfunded job after an ended attempt gives it one more attempt and the note", () =>
+  withFixture(async (fixture) => {
+    const s = await queuedBriefStep(fixture, "restart-unfunded-attempted");
+    await addAttempt(fixture, s.jobId, "failed");
+    const before = await jobRow(fixture, s.jobId);
+
+    const response = await takeOver(fixture, s.run.id, s.key.stepKey, {
+      mode: "restart",
+      note: "Use the brief template.",
+    });
+    assertEquals(response.status, 201, await response.clone().text());
+    const after = await jobRow(fixture, s.jobId);
+    assertEquals(after.maxAttempts, before.maxAttempts + 1);
+    assertEquals(after.stepNotes, ["Use the brief template."]);
+    assertEquals(after.checkpoints, []);
+  }));

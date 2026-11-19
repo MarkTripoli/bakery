@@ -360,10 +360,15 @@ async function restartStep(
     }
     // The same two records a note left before the step started writes, so the
     // job's notes still equal its recorded deliveries (#679).
+    // Stamped now, not at transaction start: this runs after the job row is
+    // locked, so two simultaneous restarts get stamps in lock order, which is
+    // the order each appends to `stepNotes`. The integrity check reads the
+    // deliveries back by this stamp, so the two orders must agree.
     const inserted = await transaction.query<{ id: string }>(
       `insert into bakery.run_step_notes
-         (organization_id, run_id, step_key, author_id, body, client_note_id)
-       values ($1, $2, $3, $4, $5, $6)
+         (organization_id, run_id, step_key, author_id, body, client_note_id,
+          created_at)
+       values ($1, $2, $3, $4, $5, $6, clock_timestamp())
        returning id`,
       [
         organizationId,
@@ -377,7 +382,8 @@ async function restartStep(
     noteId = inserted.rows[0]!.id;
     await transaction.query(
       `insert into bakery.run_step_note_deliveries
-         (organization_id, note_id, job_id) values ($1, $2, $3)`,
+         (organization_id, note_id, job_id, delivered_at)
+       values ($1, $2, $3, clock_timestamp())`,
       [organizationId, noteId, job.id],
     );
   }
