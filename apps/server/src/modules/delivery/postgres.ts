@@ -261,18 +261,40 @@ type DeliveryDecisionPage = z.output<
 const ORDINAL_ORDERING = "position:asc,iteration:asc,id:asc";
 const REVIEW_FINDING_ORDERING = "createdAt:asc,id:asc";
 
-const REVIEW_CYCLE_COLUMNS =
+export const REVIEW_CYCLE_COLUMNS =
   "id, run_id, run_step_id, ordinal, reviewer_session_id, " +
   "reviewer_principal_id, implementer_session_id, implementer_principal_id, " +
   "head_sha, base_sha, policy_digest, status, finding_count, blocking_count, " +
   "created_at";
+
+/**
+ * The owner's accept-with-reason decision on a review, read from the decisions
+ * ledger: the latest such entry whose subject is this review. The review row is
+ * immutable, so the acceptance is a separate record shown beside it.
+ */
+export const ACCEPTANCE_COLUMNS = `
+  (select entry.decided_by from bakery.decisions_ledger as entry
+    where entry.organization_id = review_cycles.organization_id
+      and entry.kind = 'accept_with_reason' and entry.subject_kind = 'review'
+      and entry.subject_id = review_cycles.id
+    order by entry.decided_at desc, entry.id desc limit 1) as accepted_by,
+  (select entry.decided_at from bakery.decisions_ledger as entry
+    where entry.organization_id = review_cycles.organization_id
+      and entry.kind = 'accept_with_reason' and entry.subject_kind = 'review'
+      and entry.subject_id = review_cycles.id
+    order by entry.decided_at desc, entry.id desc limit 1) as accepted_at,
+  (select entry.reason from bakery.decisions_ledger as entry
+    where entry.organization_id = review_cycles.organization_id
+      and entry.kind = 'accept_with_reason' and entry.subject_kind = 'review'
+      and entry.subject_id = review_cycles.id
+    order by entry.decided_at desc, entry.id desc limit 1) as accept_reason`;
 
 const DELIVERY_DECISION_COLUMNS =
   "id, run_id, ordinal, review_cycle_id, decision, reason, head_sha, " +
   "base_sha, policy_digest, failed_checks, blocking_fingerprints, limits, " +
   "created_at";
 
-type ReviewCycleRow = {
+export type ReviewCycleRow = {
   id: string;
   run_id: string;
   run_step_id: string;
@@ -289,6 +311,9 @@ type ReviewCycleRow = {
   blocking_count: number;
   created_at: Date | string;
   pull_request_id: string | null;
+  accepted_by: string | null;
+  accepted_at: Date | string | null;
+  accept_reason: string | null;
 };
 
 type DeliveryDecisionRow = {
@@ -321,7 +346,7 @@ type ReviewFindingRow = {
 };
 
 /** The `ReviewCycle` projection; rows are immutable, so `updatedAt` is `createdAt`. */
-function toReviewCycle(row: ReviewCycleRow) {
+export function toReviewCycle(row: ReviewCycleRow) {
   if (!isDecisionReviewStatus(row.status)) {
     throw new Error("DELIVERY_READ_REVIEW_CYCLE_INVALID");
   }
@@ -343,6 +368,9 @@ function toReviewCycle(row: ReviewCycleRow) {
     findingCount: row.finding_count,
     blockingCount: row.blocking_count,
     artifactVersionId: null,
+    acceptedBy: row.accepted_by,
+    acceptedAt: row.accepted_at === null ? null : toIso(row.accepted_at),
+    acceptReason: row.accept_reason,
     createdAt,
     updatedAt: createdAt,
     version: 1,
@@ -470,7 +498,8 @@ export function createRunReviewsListHandler(secret: string) {
                    and pull_request.head_sha = review_cycles.head_sha
                  order by pull_request.provider_number asc
                  limit 1
-              ) as pull_request_id
+              ) as pull_request_id,
+              ${ACCEPTANCE_COLUMNS}
          from bakery.review_cycles
         where organization_id = $1 and run_id = $2
           and (

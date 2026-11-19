@@ -363,6 +363,7 @@ export const DeliveryImplementedAction = Object.freeze(
   {
     ChecksList: "checks.list",
     RunReviewsList: "runReviews.list",
+    RunReviewsAccept: "runReviews.accept",
     ReviewFindingsList: "reviewFindings.list",
     RunDeliveryDecisionsList: "runDeliveryDecisions.list",
     PullRequestsList: "pullRequests.list",

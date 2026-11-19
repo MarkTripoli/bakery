@@ -11309,6 +11309,21 @@ const transportSchemas = {
         }
       ],
       "description": "Makes the caller the completer of a workflow step, or restarts it. Allowed only for a step of a compiled-plan run whose job is still queued with no live attempt, and only for a caller holding run control; a step with a live attempt is refused with STATE_CONFLICT `attempt_live` and must be stopped through run control first. `complete` also needs the action to produce an artifact. A job with a budget reservation and a finished attempt is refused with `budget_unsettled` in either mode while the reservation is still held, because that attempt may already have spent against it. Once reconciliation settles it, `complete` goes through; `restart` does not: a restart reuses the held reservation, so a funded job that has had a finished attempt is never restartable (`budget_not_reserved` once the reservation is settled or released). `restart` of any funded job also needs its reservation held, and a funded job with no reservation is refused with `budget_not_reserved`. A job whose action has no budget can be completed or restarted after any number of attempts."
+    },
+    "ReviewAccept": {
+      "fields": [
+        {
+          "name": "reason",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "description": "Why the owner overrules the reviewer and accepts the candidate anyway. It is recorded verbatim in the work item's decisions ledger and shown on the review, in the open; a blank reason is refused."
+        }
+      ],
+      "description": "Records an owner's accept-with-reason decision against one review that requested changes, overruling that reviewer (chapter 25 section 9, O18). Only an organization administrator may record it, and an agent never may. The review stays what it was, immutable; the decision is a separate record shown on it. It does not restart a run that has already stopped: that needs a workflow that reads decisions."
     }
   },
   "projections": {
@@ -18100,7 +18115,10 @@ const transportSchemas = {
         "artifactVersionId",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "acceptedBy",
+        "acceptedAt",
+        "acceptReason"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -18121,7 +18139,10 @@ const transportSchemas = {
         "artifactVersionId": "uuid|null",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "acceptedBy": "uuid|null",
+        "acceptedAt": "timestamp|null",
+        "acceptReason": "string|null"
       },
       "fieldBounds": {
         "ordinal": {
@@ -18141,7 +18162,10 @@ const transportSchemas = {
       },
       "nullableFields": [
         "pullRequestId",
-        "artifactVersionId"
+        "artifactVersionId",
+        "acceptedBy",
+        "acceptedAt",
+        "acceptReason"
       ],
       "description": "One immutable independent automated review of one exact candidate of a run: the head and base commits and the effective policy digest it judged, the reviewer's fresh server-created agent session and worker principal, and the implementing session and principal it reviewed. A cycle is recorded only after the server verified the report against its own pins and the independence rules, so its approval is evidence for that exact candidate and is invalid once the head, base or policy digest changes. Only approved and changes_requested are written; running and failed are never stored because a review that did not complete leaves no cycle. Rows are never updated, so updatedAt equals createdAt and version is always 1.",
       "fieldDescriptions": {
@@ -18163,8 +18187,16 @@ const transportSchemas = {
         "artifactVersionId": "Stable UUID linking this record to the related artifact version entity; always null because a cycle keeps its findings in rows.",
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated; equals createdAt because rows are immutable.",
-        "version": "Always 1 because review cycle rows are immutable."
-      }
+        "version": "Always 1 because review cycle rows are immutable.",
+        "acceptedBy": "Principal of the organization administrator who recorded an accept-with-reason decision overruling this review; null when none was recorded.",
+        "acceptedAt": "UTC timestamp of that decision; null when none was recorded.",
+        "acceptReason": "The reason the administrator gave, verbatim; null when none was recorded."
+      },
+      "optionalFields": [
+        "acceptedBy",
+        "acceptedAt",
+        "acceptReason"
+      ]
     },
     "ReviewFinding": {
       "projection": "review_findings",
