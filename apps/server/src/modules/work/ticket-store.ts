@@ -400,6 +400,29 @@ const TICKET_COLUMNS = `id, organization_id, ticket_source_id,
   external_ticket_id, key, number, snapshot, requirements_digest,
   provider_update_marker, state, version`;
 
+/**
+ * Brings a stored snapshot up to the current shape.
+ *
+ * Snapshots written before the container generalisation carry
+ * `repositoryFullName` and no container. They are only rewritten when the ticket
+ * is next observed, so a read has to understand both shapes or an old ticket
+ * would report no container at all and fail every comparison that uses one.
+ */
+function normalisedSnapshot(stored: TicketSnapshot): TicketSnapshot {
+  if (stored.container !== undefined) return stored;
+  const legacy = (stored as { repositoryFullName?: unknown })
+    .repositoryFullName;
+  if (typeof legacy !== "string") return stored;
+  return {
+    ...stored,
+    container: {
+      kind: "repository",
+      externalId: legacy,
+      displayName: legacy,
+    },
+  };
+}
+
 function toTicket(row: TicketRowRaw): TicketRow {
   return {
     id: row.id,
@@ -408,7 +431,7 @@ function toTicket(row: TicketRowRaw): TicketRow {
     externalTicketId: row.external_ticket_id,
     key: row.key,
     number: row.number,
-    snapshot: row.snapshot,
+    snapshot: normalisedSnapshot(row.snapshot),
     requirementsDigest: row.requirements_digest,
     providerUpdateMarker: row.provider_update_marker,
     state: row.state,
@@ -471,7 +494,10 @@ export async function upsertExternalTicket(
       },
     });
   }
-  const repositoryFullName = observation.snapshot.repositoryFullName;
+  // The stored container names the ticket's home in provider terms; GitHub's
+  // own key and URL are still built here, which is what `TicketsPort.present()`
+  // takes over in a later slice.
+  const repositoryFullName = observation.snapshot.container.displayName;
   const identity = [
     `${repositoryFullName}#${observation.number}`,
     String(observation.number),

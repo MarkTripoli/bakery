@@ -493,10 +493,10 @@ Deno.test("issue 82 contract: policy bounds on labels and delegation", () => {
   );
 
   const principalId = crypto.randomUUID();
-  const withDelegation = (githubActorIds: unknown) =>
+  const withDelegation = (externalActorIds: unknown) =>
     TicketSourcePolicySchema.safeParse({
       ...validPolicy(),
-      delegation: { principalId, githubActorIds },
+      delegation: { principalId, externalActorIds },
     }).success;
   const ids = (count: number) =>
     Array.from({ length: count }, (_, index) => String(1000 + index));
@@ -504,14 +504,21 @@ Deno.test("issue 82 contract: policy bounds on labels and delegation", () => {
   assertEquals(withDelegation(ids(25)), true);
   assertEquals(withDelegation(ids(26)), false, "26 actors are too many");
   assertEquals(withDelegation([]), false, "at least one actor");
-  assertEquals(withDelegation(["octocat"]), false, "ids are numeric");
-  assertEquals(withDelegation(["012"]), false, "no leading zero");
+  // Opaque ids: a login, a UUID and a leading-zero key are all valid now, and
+  // only the shape that is never an id is refused.
+  assertEquals(
+    withDelegation(["octocat"]),
+    true,
+    "an opaque id may be a login",
+  );
+  assertEquals(withDelegation(["012"]), true, "a leading zero is a valid id");
+  assertEquals(withDelegation([""]), false, "an empty id is not an id");
   assertEquals(withDelegation([12]), false, "ids are strings");
   assertEquals(withDelegation(["12", "12"]), false, "ids are unique");
   assertEquals(
     TicketSourcePolicySchema.safeParse({
       ...validPolicy(),
-      delegation: { principalId: "not-a-uuid", githubActorIds: ids(1) },
+      delegation: { principalId: "not-a-uuid", externalActorIds: ids(1) },
     }).success,
     false,
   );
@@ -526,7 +533,11 @@ Deno.test("issue 82 contract: snapshot bounds count UTF-16 code units and the re
     state: "open",
     stateReason: null,
     locked: false,
-    repositoryFullName: "owner/repo",
+    container: {
+      kind: "repository",
+      externalId: "owner/repo",
+      displayName: "owner/repo",
+    },
     links: null,
   };
   assertEquals(TicketSnapshotSchema.safeParse(snapshot).success, true);
@@ -558,7 +569,11 @@ Deno.test("issue 82 contract: snapshot bounds count UTF-16 code units and the re
     TicketSnapshotSchema.safeParse({
       ...snapshot,
       labels: ["see https://example.test/guide", "`odd` ${label}"],
-      repositoryFullName: "octo_cat/repo.name",
+      container: {
+        kind: "repository",
+        externalId: "octo_cat/repo.name",
+        displayName: "octo_cat/repo.name",
+      },
     }).success,
     true,
     "labels on an issue are evidence: whatever GitHub holds must be storable",
@@ -590,7 +605,11 @@ Deno.test("issue 82 contract: snapshot bounds count UTF-16 code units and the re
     state: "open",
     stateReason: null,
     locked: false,
-    repositoryFullName: "owner/repo",
+    container: {
+      kind: "repository",
+      externalId: "owner/repo",
+      displayName: "owner/repo",
+    },
   };
   assertEquals(
     TicketSnapshotInputSchema.safeParse(input).success,
@@ -797,7 +816,7 @@ Deno.test("issue 82 contract: authority evidence names the principal and, for au
       actorLogin: "labeler",
       appliedAt: "2026-07-01T00:00:00Z",
     },
-    actorRole: { userId: "4242", permission: "write" },
+    actorRole: { userId: "4242", permission: "write", rank: 2 },
   };
   assertEquals(
     TicketAuthorityEvidenceSchema.parse(evidence).labelBasis,
@@ -817,8 +836,11 @@ Deno.test("issue 82 contract: authority evidence names the principal and, for au
       { version: 2 },
       { labelBasis: "implicit" },
       { actingPrincipalId: "admin" },
-      { provenance: { ...evidence.provenance, actorId: "0042" } },
-      { actorRole: { userId: "4242", permission: "owner" } },
+      // An actor id is opaque now, so a leading zero is a legitimate id and no
+      // longer evidence of a malformed one; what is still refused is a role
+      // name outside the provider's vocabulary and a rank that is not a number.
+      { actorRole: { userId: "4242", permission: "owner", rank: 2 } },
+      { actorRole: { userId: "4242", permission: "write" } },
       { extra: 1 },
     ]
   ) {

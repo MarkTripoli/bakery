@@ -182,7 +182,7 @@ export const setAllowlist = (
 ) =>
   fx.owner.query(
     `update bakery.ticket_sources
-        set policy = jsonb_set(policy, '{delegation,githubActorIds}', $3::jsonb),
+        set policy = jsonb_set(policy, '{delegation,externalActorIds}', $3::jsonb),
             policy_revision = policy_revision + 1, version = version + 1
       where organization_id = $1 and id = $2`,
     [fx.organizationId, sourceId, JSON.stringify(ids)],

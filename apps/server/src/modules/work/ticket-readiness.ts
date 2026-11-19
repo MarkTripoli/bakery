@@ -1,4 +1,5 @@
 import {
+  ACTOR_ROLE_RANK_ACT,
   TICKET_CHECK_MAX_EVIDENCE,
   type TicketIssueRef,
   type TicketPresetPin,
@@ -190,7 +191,7 @@ function providerUnavailable(failure: TicketReadFailure | null): Outcome {
 }
 
 function issueRefText(ref: TicketIssueRef): string {
-  return `${ref.repositoryFullName}#${ref.number}`;
+  return `${ref.container.displayName}#${ref.number}`;
 }
 
 /**
@@ -325,12 +326,15 @@ function ticketSupported(context: Context): Outcome {
   if (present === null) return providerUnavailable(null);
   const { snapshot } = present.normalized;
   if (
-    snapshot.repositoryFullName.toLowerCase() !==
+    snapshot.container.externalId.toLowerCase() !==
       input.source.repositoryFullName.toLowerCase()
   ) {
+    // The source names its repository in GitHub terms; the snapshot carries the
+    // neutral container. Comparing their ids is what keeps a ticket from another
+    // repository out, without admission learning what a repository is.
     return rejected(
       "repository_mismatch",
-      evidenceRef(`repository:${snapshot.repositoryFullName}`),
+      evidenceRef(`repository:${snapshot.container.displayName}`),
     );
   }
   if (snapshot.state === "closed") {
@@ -596,7 +600,7 @@ function authorityLive(context: Context): Outcome {
     return waiting("actor_unverifiable", evidenceRef("label:unverified"));
   }
   const actor = evidenceRef(`github_actor:${provenance.actorId}`);
-  if (!delegation.githubActorIds.includes(provenance.actorId)) {
+  if (!delegation.externalActorIds.includes(provenance.actorId)) {
     return waiting("actor_not_allowlisted", actor);
   }
   const role = authority.actorRole;
@@ -607,7 +611,9 @@ function authorityLive(context: Context): Outcome {
   if (role.userId !== provenance.actorId) {
     return waiting("actor_unverifiable", actor);
   }
-  if (role.permission !== "admin" && role.permission !== "write") {
+  // A rank, not a role name: the provider's own ladder is mapped once where
+  // the role is read, so admission never learns what "write" means.
+  if (role.rank < ACTOR_ROLE_RANK_ACT) {
     return waiting("actor_role_insufficient", actor);
   }
   return passed(actor, evidenceRef(`role:${role.permission}`));

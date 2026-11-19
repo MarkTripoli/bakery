@@ -1,5 +1,8 @@
 import { assert, assertEquals, assertNotEquals } from "@std/assert";
 import {
+  ACTOR_ROLE_RANK_ACT,
+  ACTOR_ROLE_RANK_MAX,
+  ACTOR_ROLE_RANK_MIN,
   defaultTicketSourcePolicy,
   TICKET_CHECK_IDS,
   TICKET_CHECK_MAX_EVIDENCE,
@@ -28,6 +31,7 @@ import {
   normalizeSnapshot,
   requirementsDigest,
 } from "../../../apps/server/src/modules/work/ticket-snapshot.ts";
+import { githubRoleRank } from "../../../apps/server/src/modules/work/ticket-source-reader.ts";
 import type {
   PredecessorProof,
   TicketActorRole,
@@ -64,8 +68,21 @@ const FAILURE: TicketReadFailure = {
   retryAfterSeconds: 30,
 };
 
+/** A container for a GitHub repository, the shape the contract stores. */
+function containerOf(repository: string) {
+  return {
+    kind: "repository",
+    externalId: repository,
+    displayName: repository,
+  };
+}
+
 function ref(number: number, repository = "owner/repo"): TicketIssueRef {
-  return { id: String(9000 + number), number, repositoryFullName: repository };
+  return {
+    id: String(9000 + number),
+    number,
+    container: containerOf(repository),
+  };
 }
 
 function issueSnapshot(
@@ -81,7 +98,7 @@ function issueSnapshot(
     state: "open",
     stateReason: null,
     locked: false,
-    repositoryFullName: "owner/repo",
+    container: containerOf("owner/repo"),
     ...overrides,
   };
 }
@@ -136,7 +153,7 @@ function delegatedPolicy(
     ...defaultTicketSourcePolicy(),
     delegation: {
       principalId: PRINCIPAL_ID,
-      githubActorIds: [ACTOR_ID, "1002"],
+      externalActorIds: [ACTOR_ID, "1002"],
     },
     automatic: {
       enabled,
@@ -158,7 +175,12 @@ function role(
   permission: "admin" | "write" | "read" | "none" = "write",
   userId = ACTOR_ID,
 ): TicketActorRole {
-  return { kind: "present", userId, permission };
+  return {
+    kind: "present",
+    userId,
+    permission,
+    rank: { none: 0, read: 1, write: 2, admin: 3 }[permission],
+  };
 }
 
 /** A manual request on a clean issue: every check passes. */
@@ -308,7 +330,7 @@ Deno.test("issue 82 unit readiness: ticket_supported accepts an open issue of th
     ["moved", { kind: "moved" }, "reject", "ticket_moved"],
     [
       "other repository",
-      presentIssue({ repositoryFullName: "owner/elsewhere" }),
+      presentIssue({ container: containerOf("owner/elsewhere") }),
       "reject",
       "repository_mismatch",
     ],
@@ -321,7 +343,7 @@ Deno.test("issue 82 unit readiness: ticket_supported accepts an open issue of th
     ["provider unavailable", FAILURE, "wait", "provider_unavailable"],
     [
       "repository case differs",
-      presentIssue({ repositoryFullName: "Owner/Repo" }),
+      presentIssue({ container: containerOf("Owner/Repo") }),
       "pass",
       "ok",
     ],
@@ -2113,7 +2135,9 @@ function randomInput(random: () => number): ReadinessInput {
           : CRITERIA_BODY,
         bodyTooLarge: flip(0.04),
         state: flip() ? "closed" : "open",
-        repositoryFullName: flip(0.04) ? "owner/other" : "owner/repo",
+        container: containerOf(
+          flip(0.04) ? "owner/other" : "owner/repo",
+        ),
         title: `Title ${Math.floor(random() * 3)}`,
       },
       chance(0.5) ? MARKER : "2027-01-01T00:00:00Z",
@@ -2317,4 +2341,24 @@ Deno.test("issue 82 unit readiness: property run over random inputs (seed 82) ho
     "the seed exercises every verdict",
   );
   assert(ready >= 20, `the seed reaches ready ${ready} times`);
+});
+
+Deno.test("issue 82 unit readiness: GitHub's ladder conforms to the contract's act threshold", () => {
+  // The contract states the band and the rank at which an actor may act; the
+  // provider maps its own names into it. If either side moves without the
+  // other, admission would either refuse everyone or admit a reader, so the
+  // conformance is pinned rather than assumed.
+  for (const permission of ["none", "read", "write", "admin"] as const) {
+    const rank = githubRoleRank(permission);
+    assert(
+      rank >= ACTOR_ROLE_RANK_MIN && rank <= ACTOR_ROLE_RANK_MAX,
+      `${permission} ranks inside the contract band`,
+    );
+    const mayAct = permission === "write" || permission === "admin";
+    assertEquals(
+      rank >= ACTOR_ROLE_RANK_ACT,
+      mayAct,
+      `${permission} may act exactly when it meets the act threshold`,
+    );
+  }
 });

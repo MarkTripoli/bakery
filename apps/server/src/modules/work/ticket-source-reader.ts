@@ -103,12 +103,25 @@ export type TicketLabelProvenance =
   | { kind: "unverifiable"; reason: string }
   | TicketReadFailure;
 
-/** Answer of `readActorRole`: the actor's repository permission. */
+/** GitHub's role names, mapped to the ladder the contract compares. */
+const GITHUB_ROLE_RANK = { none: 0, read: 1, write: 2, admin: 3 } as const;
+
+/** The rank a GitHub permission name sits at on the ladder. */
+export function githubRoleRank(permission: keyof typeof GITHUB_ROLE_RANK) {
+  return GITHUB_ROLE_RANK[permission];
+}
+
+/**
+ * Answer of `readActorRole`: the actor's role, as its provider name and its
+ * position on that provider's ladder. Admission compares the rank, so a
+ * provider with other role names fits without admission learning them.
+ */
 export type TicketActorRole =
   | {
     kind: "present";
     userId: string;
     permission: "admin" | "write" | "read" | "none";
+    rank: number;
   }
   | { kind: "absent" }
   | TicketReadFailure;

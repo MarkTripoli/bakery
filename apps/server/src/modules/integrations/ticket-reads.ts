@@ -7,6 +7,7 @@ import {
   type PgTransactionClient,
   withPgTransaction,
 } from "../../platform/database.ts";
+import { githubRoleRank } from "../work/ticket-source-reader.ts";
 import type {
   IssueRef,
   PredecessorProof,
@@ -321,11 +322,21 @@ async function readIssueOrAbsent(
 const sameRepository = (left: string, right: string): boolean =>
   left.toLowerCase() === right.toLowerCase();
 
-/** The reference to a blocker the snapshot stores. */
+/**
+ * The reference to a blocker the snapshot stores.
+ *
+ * The GitHub reader knows the blocker by its repository; the contract stores a
+ * container. The conversion belongs here, where a provider's own vocabulary
+ * meets the neutral one.
+ */
 const refOfBlocker = (blocker: GitHubBlocker): IssueRef => ({
   id: String(blocker.id),
   number: blocker.number,
-  repositoryFullName: blocker.repositoryFullName,
+  container: {
+    kind: "repository",
+    externalId: blocker.repositoryFullName,
+    displayName: blocker.repositoryFullName,
+  },
 });
 
 /**
@@ -410,7 +421,11 @@ export function createTicketSourceReader(
             ? null
             : detail.stateReason.slice(0, 40),
           locked: detail.locked,
-          repositoryFullName: access.fullName,
+          container: {
+            kind: "repository",
+            externalId: access.fullName,
+            displayName: access.fullName,
+          },
         });
         // An answer outside the contract is never admitted.
         if (!snapshot.success) return failure("provider_error");
@@ -454,10 +469,15 @@ export function createTicketSourceReader(
           );
           if (read.kind === "unavailable") return read;
           if (read.kind === "issue") {
+            const parentContainer = {
+              kind: "repository",
+              externalId: detail.parent.repositoryFullName,
+              displayName: detail.parent.repositoryFullName,
+            };
             parent = {
               id: String(read.id),
               number: read.number,
-              repositoryFullName: detail.parent.repositoryFullName,
+              container: parentContainer,
             };
           }
         }
@@ -514,7 +534,7 @@ export function createTicketSourceReader(
         signal,
         async (access): Promise<PredecessorProof | TicketReadFailure> => {
           // The token reaches only the source repository.
-          if (!sameRepository(blocker.repositoryFullName, access.fullName)) {
+          if (!sameRepository(blocker.container.externalId, access.fullName)) {
             return { kind: "inaccessible" };
           }
           const issue = await readIssueOrAbsent(
@@ -691,6 +711,9 @@ export function createTicketSourceReader(
             kind: "present",
             userId: String(read.userId),
             permission: read.permission,
+            // GitHub's own ladder, mapped once here so admission compares a
+            // number and never a provider's role name.
+            rank: githubRoleRank(read.permission),
           };
         },
       );

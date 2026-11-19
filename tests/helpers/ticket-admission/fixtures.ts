@@ -266,8 +266,11 @@ export function createMemoryTicketReader(): MemoryTicketReader {
           state: seeded.state,
           stateReason: seeded.stateReason,
           locked: false,
-          repositoryFullName: seeded.repositoryFullName ??
-            handle.repositoryFullName,
+          container: {
+            kind: "repository",
+            externalId: seeded.repositoryFullName ?? handle.repositoryFullName,
+            displayName: seeded.repositoryFullName ?? handle.repositoryFullName,
+          },
         },
         providerUpdatedAt: seeded.updatedAt,
         visibility: seeded.visibility,
@@ -453,7 +456,7 @@ export type SourceCounts = {
 export type TicketFixture = Awaited<ReturnType<typeof openTicketFixture>>;
 
 export type PolicyOverrides = {
-  delegation?: boolean | { principalId?: string; githubActorIds?: string[] };
+  delegation?: boolean | { principalId?: string; externalActorIds?: string[] };
   automatic?: { enabled: boolean; since: string | null };
   approval?: "automatic" | "human_approval";
   requireAcceptanceCriteria?: boolean;
@@ -515,7 +518,7 @@ export async function openTicketFixture(
         ? null
         : {
           principalId: f.developerId!,
-          githubActorIds: [LABELER_ID],
+          externalActorIds: [LABELER_ID],
           ...(overrides.delegation === true ? {} : overrides.delegation),
         };
       return {
@@ -838,6 +841,9 @@ export function seedLabeler(
     kind: "present",
     userId: LABELER_ID,
     permission,
+    // GitHub's own ladder, so the helper states a real rank rather than a
+    // placeholder that would satisfy the type and prove nothing.
+    rank: { none: 0, read: 1, write: 2, admin: 3 }[permission],
   });
 }
 

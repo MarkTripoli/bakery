@@ -852,7 +852,11 @@ function evidenceOf(
       }
       : null,
     actorRole: automatic && actorRole?.kind === "present"
-      ? { userId: actorRole.userId, permission: actorRole.permission }
+      ? {
+        userId: actorRole.userId,
+        permission: actorRole.permission,
+        rank: actorRole.rank,
+      }
       : null,
   };
 }
