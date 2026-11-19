@@ -438,6 +438,65 @@ function authorizeThroughBindings(
 }
 
 /**
+ * Conversation actions a direct mention grant can open, and only on the
+ * conversation named by the route id: read the conversation and its
+ * transcript, see who takes part, find people to mention, and reply. Agent
+ * execution, turn control, task and repository actions are never here.
+ */
+const CONVERSATION_GRANT_ACTIONS: ReadonlySet<string> = new Set([
+  "conversations.get",
+  "messages.list",
+  "messages.create",
+  "conversationParticipants.list",
+  "conversations.mentionCandidates",
+]);
+
+/**
+ * When the organization role refused a conversation action, a live direct
+ * grant on exactly that conversation may still allow it. The grant row is read
+ * `for share`, so a concurrent revoke is ordered before or after this request
+ * rather than interleaved with it. A grant never helps a non-human, a member
+ * without a system role, or a guest with no custom role, and a token still has
+ * to carry the scope the action needs.
+ */
+async function authorizeWithConversationGrant(
+  transaction: PgTransactionClient,
+  action: ActionDefinition,
+  actor: OrganizationActor,
+  conversationId: string | undefined,
+  denied: unknown,
+): Promise<OrganizationActor> {
+  if (
+    !CONVERSATION_GRANT_ACTIONS.has(action.name) ||
+    conversationId === undefined || !isUuid(conversationId) ||
+    actor.subject.principalType !== PrincipalType.Human ||
+    actor.role === undefined ||
+    (actor.role === OrganizationRole.Guest && actor.customRole === undefined)
+  ) throw denied;
+  // Only a permission miss falls back to a grant; any other error is the answer.
+  if (!isPermissionMiss(denied)) throw denied;
+  const grant = await transaction.query(
+    `select 1 from bakery.conversation_access_grants
+     where organization_id = $1 and conversation_id = $2
+       and principal_id = $3 and revoked_at is null
+     for share`,
+    [actor.organizationId, conversationId, actor.subject.principalId],
+  );
+  if (grant.rows.length !== 1) throw denied;
+  const permission = permissionForAction(action.name as CatalogActionName);
+  if (
+    actor.tokenScopes !== undefined &&
+    !scopeAllows(permission, actor.tokenScopes)
+  ) {
+    throw new StandardError({
+      code: "INSUFFICIENT_SCOPE",
+      params: { requiredScopes: minimalScopes(permission) },
+    });
+  }
+  return { ...actor, conversationGrant: { conversationId } };
+}
+
+/**
  * Read-state changes on the caller's OWN inbox. Every one of these handlers
  * scopes to recipient = the authenticated principal and never accepts a
  * recipient from the request, so a member whose role lacks
@@ -687,7 +746,20 @@ export class PostgresAuthorityRunner implements ActionAuthorityRunner {
                 context.params.id,
               ),
           )
-            .catch((denied) => authorizeOwnInboxWrite(action, actor, denied))
+            .catch(async (denied) => {
+              // The two fallbacks cover disjoint actions and each rethrows the
+              // original denial untouched, so only a permission miss is widened.
+              if (CONVERSATION_GRANT_ACTIONS.has(action.name)) {
+                return await authorizeWithConversationGrant(
+                  transaction,
+                  action,
+                  actor,
+                  context.params.id,
+                  denied,
+                );
+              }
+              return authorizeOwnInboxWrite(action, actor, denied);
+            })
             .catch((denied) => authorizeOwnRequestRead(action, actor, denied));
           subject = permitted.subject;
           authority = permitted;
