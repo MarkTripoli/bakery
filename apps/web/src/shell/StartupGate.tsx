@@ -1,6 +1,7 @@
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import * as UI from "@bakery/ui";
+import type { SceneId } from "@bakery/ui";
 import { authProblemCode } from "../api/client.ts";
 import { asyncKindForError } from "../app/async-state.ts";
 import {
@@ -25,10 +26,17 @@ export const STARTUP_SLOW_AFTER_MS = 8_000;
 
 /** An information card for a refusal; focus lands on its title so it is read. */
 function RefusalCard(
-  { action, description, title }: {
+  { action, description, title, scene }: {
     readonly action: ReactNode;
     readonly description: string;
     readonly title: string;
+    /**
+     * The character scene for this refusal, when the whole content area has
+     * nothing else to offer. "Choose another organization" is that moment;
+     * "sign in" and "verify" are not, because the sign-in page the person is
+     * about to reach carries the brand pane already.
+     */
+    readonly scene?: SceneId;
   },
 ) {
   useEffect(() => {
@@ -38,6 +46,17 @@ function RefusalCard(
       )
     );
   }, []);
+  if (scene) {
+    return (
+      <UI.SceneState
+        action={action}
+        data-testid="startup-error"
+        description={description}
+        scene={scene}
+        title={title}
+      />
+    );
+  }
   return (
     <UI.EmptyState
       action={action}
@@ -219,7 +238,29 @@ export function StartupGate(
             </UI.Inline>
           }
           description={translate(`shell.startup.${kind}.body` as never)}
+          scene={forbidden ? "forbidden" : undefined}
           title={translate(`shell.startup.${kind}.title` as never)}
+        />
+      );
+    }
+    // Offline takes the character scene: the whole content area has one thing
+    // to say and the person can do nothing else. A server that answered badly
+    // keeps the plain region error, because the person may still have a page
+    // to go back to and a scene would overstate how stuck they are.
+    if (offline) {
+      return (
+        <UI.SceneState
+          action={
+            <UI.Inline gap="compact">
+              <UI.Button onClick={onRetry} type="button" variant="secondary">
+                {translate("core.actions.retry")}
+              </UI.Button>
+            </UI.Inline>
+          }
+          data-testid="startup-error"
+          description={translate("shell.startup.offline.body")}
+          scene="offline"
+          title={translate("shell.startup.offline.title")}
         />
       );
     }
@@ -234,16 +275,8 @@ export function StartupGate(
           </UI.Inline>
         }
         data-testid="startup-error"
-        description={translate(
-          offline
-            ? "shell.startup.offline.body"
-            : "shell.startup.organizationError.body",
-        )}
-        title={translate(
-          offline
-            ? "shell.startup.offline.title"
-            : "shell.startup.organizationError.title",
-        )}
+        description={translate("shell.startup.organizationError.body")}
+        title={translate("shell.startup.organizationError.title")}
         variant="region"
       />
     );

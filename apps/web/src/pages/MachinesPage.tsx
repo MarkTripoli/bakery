@@ -242,15 +242,18 @@ export function MachinesPage() {
           )
           : rows.length === 0 && !workers.isPending
           ? (
-            <UI.EmptyState
-              title={translate("machines.empty.title")}
+            // The whole content area has one thing to say, and this list has
+            // no filters to blame: nothing is being hidden. That is the
+            // first-run moment, so it carries the scene.
+            <UI.SceneState
+              action={isAdmin ? addMachine : undefined}
               description={translate(
                 (isAdmin
                   ? "machines.empty.description"
                   : "machines.empty.adminOnly") as never,
               )}
-              action={isAdmin ? addMachine : undefined}
-              variant="firstUse"
+              scene="empty-workers"
+              title={translate("machines.empty.title")}
             />
           )
           : (

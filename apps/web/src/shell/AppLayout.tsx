@@ -852,13 +852,19 @@ export function RoutePending() {
   );
 }
 
+/**
+ * A failed page and a missing page are the two moments the whole content area
+ * has one thing to say, so they carry the character scene. The copy is
+ * unchanged: the scene is decoration and the heading still says what happened.
+ */
 export function RouteError(_props: ErrorComponentProps) {
   const { translate } = useI18n();
   return (
-    <UI.ErrorState
+    <UI.SceneState
       description={translate("shell.states.errorDescription")}
+      inset="page"
+      scene="server-error"
       title={translate("shell.states.errorTitle")}
-      variant="page"
     />
   );
 }
@@ -866,10 +872,11 @@ export function RouteError(_props: ErrorComponentProps) {
 export function RouteNotFound() {
   const { translate } = useI18n();
   return (
-    <UI.ErrorState
+    <UI.SceneState
       description={translate("shell.states.notFoundDescription")}
+      inset="page"
+      scene="not-found"
       title={translate("shell.states.notFoundTitle")}
-      variant="page"
     />
   );
 }
