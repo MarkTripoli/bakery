@@ -7,8 +7,10 @@ import { sha256Bytes } from "../../apps/server/src/modules/knowledge/bytes.ts";
 import { StandardError } from "../../packages/contracts/src/http.ts";
 import { ScopedOrganizationBlobStore } from "../../apps/server/src/modules/catalog/blob-store.ts";
 import { collectArtifactVersion } from "../../apps/server/src/modules/knowledge/retention/collector.ts";
-import { collectBlob } from "../../apps/server/src/modules/knowledge/collect-blob.ts";
-import { hasLiveBlobReference } from "../../apps/server/src/modules/knowledge/blob-references.ts";
+import {
+  collectBlob,
+  sweepCollectableBlobs,
+} from "../../apps/server/src/modules/knowledge/collect-blob.ts";
 import type { OrganizationBlobStore } from "../../apps/server/src/modules/catalog/storage-port.ts";
 import type { SkillObjectStore } from "../../apps/server/src/modules/catalog/storage-port.ts";
 
@@ -890,48 +892,144 @@ Deno.test("a blob no live version names is collected, and one a live version nam
   });
 });
 
-Deno.test("the reference lookup answers by digest, which is all a bundle collector knows", async () => {
+Deno.test("a completed upload is kept through a sweep until it expires, so the publish that follows still finds its bytes", async () => {
   await withWorkerFixture(async (fixture) => {
     const seeded = await seedArtifact(fixture);
-    const content = new TextEncoder().encode("shared digest question");
+    const store = objectStore();
+    const content = new TextEncoder().encode("uploaded, not yet published");
     const digest = await sha256Bytes(content);
-    const published = await publish(fixture, seeded, content);
 
-    const byDigest = await withPgTransaction(
-      fixture.pgDatabase,
-      async (transaction) =>
-        await hasLiveBlobReference(transaction, {
-          organizationId: fixture.organizationId,
-          sha256: digest,
-        }),
+    // The upload completes: the blob row and the bytes exist and the session
+    // names the row. No version names it yet - that is the next step, and the
+    // gap between the two is the window a sweep must not act in.
+    const published = await publish(
+      fixture,
+      seeded,
+      content,
+      { blobStore: new ScopedOrganizationBlobStore(store) },
     );
-    assertEquals(byDigest, true);
+    const blobId = (
+      await fixture.pgDatabase.query<{ blob_id: string }>(
+        `select blob_id from bakery.artifact_versions
+          where organization_id = $1 and id = $2`,
+        [fixture.organizationId, published.id],
+      )
+    ).rows[0].blob_id;
+    // Rewind to the moment before the publish: the version forgets the blob and
+    // the session claims it, exactly as completion leaves things.
+    await fixture.pgDatabase.query(
+      `update bakery.artifact_versions
+          set content = null, blob_id = null, purged_at = now()
+        where organization_id = $1 and id = $2`,
+      [fixture.organizationId, published.id],
+    );
+    const session = await fixture.pgDatabase.query<{ id: string }>(
+      `insert into bakery.blob_upload_sessions
+         (organization_id, created_by_id, sha256, size_bytes, media_type,
+          state, expires_at, completed_blob_id)
+       values ($1, $2, $3, $4, 'text/markdown', 'completed',
+               now() + interval '1 hour', $5)
+       returning id`,
+      [
+        fixture.organizationId,
+        fixture.principalId,
+        digest,
+        content.byteLength,
+        blobId,
+      ],
+    );
 
-    // A digest nobody published never answers true, and its absence is not an
-    // error: the collector asks this for every candidate.
-    const absent = await withPgTransaction(
-      fixture.pgDatabase,
-      async (transaction) =>
-        await hasLiveBlobReference(transaction, {
-          organizationId: fixture.organizationId,
-          sha256: await sha256Bytes(new TextEncoder().encode("never stored")),
-        }),
+    // A sweep in the gap keeps the bytes, and so does a direct collect: the
+    // session's own expiry is the grace window, not a number invented here.
+    const swept = await sweepCollectableBlobs(fixture.pgDatabase, store);
+    assertEquals(swept.collected, 0);
+    assertEquals(store.objects.size, 1);
+    assertEquals(
+      await collectBlob(fixture.pgDatabase, store, {
+        organizationId: fixture.organizationId,
+        blobId,
+      }),
+      false,
     );
-    assertEquals(absent, false);
 
-    // A question with neither id nor digest cannot be answered, and answering
-    // `false` would let a collector delete bytes nothing had checked.
-    await assertRejects(
-      () =>
-        withPgTransaction(
-          fixture.pgDatabase,
-          async (transaction) =>
-            await hasLiveBlobReference(transaction, {
-              organizationId: fixture.organizationId,
-            }),
-        ),
-      TypeError,
+    // Once the session expires it has given up its claim, and the same sweep
+    // takes the bytes.
+    await fixture.pgDatabase.query(
+      `update bakery.blob_upload_sessions
+          set expires_at = now() - interval '1 minute'
+        where id = $1`,
+      [session.rows[0].id],
     );
-    assertNotEquals(published.id, "");
+    const after = await sweepCollectableBlobs(fixture.pgDatabase, store);
+    assertEquals(after.collected, 1);
+    assertEquals(store.objects.size, 0);
+  });
+});
+
+Deno.test("an upload still in flight keeps its bytes until it expires or is abandoned", async () => {
+  await withWorkerFixture(async (fixture) => {
+    const seeded = await seedArtifact(fixture);
+    const store = objectStore();
+    const content = new TextEncoder().encode("bytes an upload is assembling");
+    const published = await publish(
+      fixture,
+      seeded,
+      content,
+      { blobStore: new ScopedOrganizationBlobStore(store) },
+    );
+    const blobId = (
+      await fixture.pgDatabase.query<{ blob_id: string }>(
+        `select blob_id from bakery.artifact_versions
+          where organization_id = $1 and id = $2`,
+        [fixture.organizationId, published.id],
+      )
+    ).rows[0].blob_id;
+
+    // No version names the blob, and the session holds only the digest it was
+    // promised - so it can only be found by digest, which is why the registry
+    // carries that shape of reference at all.
+    await fixture.pgDatabase.query(
+      `update bakery.artifact_versions
+          set content = null, blob_id = null, purged_at = now()
+        where organization_id = $1 and id = $2`,
+      [fixture.organizationId, published.id],
+    );
+    const session = await fixture.pgDatabase.query<{ id: string }>(
+      `insert into bakery.blob_upload_sessions
+         (organization_id, created_by_id, sha256, size_bytes, media_type,
+          state, expires_at)
+       values ($1, $2, $3, $4, 'text/markdown', 'pending',
+               now() + interval '1 hour')
+       returning id`,
+      [
+        fixture.organizationId,
+        fixture.principalId,
+        await sha256Bytes(content),
+        content.byteLength,
+      ],
+    );
+    assertEquals(
+      await collectBlob(fixture.pgDatabase, store, {
+        organizationId: fixture.organizationId,
+        blobId,
+      }),
+      false,
+    );
+    assertEquals(store.objects.size, 1);
+
+    await fixture.pgDatabase.query(
+      `update bakery.blob_upload_sessions
+          set state = 'abandoned', expires_at = now() - interval '1 minute'
+        where id = $1`,
+      [session.rows[0].id],
+    );
+    assertEquals(
+      await collectBlob(fixture.pgDatabase, store, {
+        organizationId: fixture.organizationId,
+        blobId,
+      }),
+      true,
+    );
+    assertEquals(store.objects.size, 0);
   });
 });

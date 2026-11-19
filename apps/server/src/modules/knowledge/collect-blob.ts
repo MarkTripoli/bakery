@@ -5,17 +5,26 @@ import type { SkillObjectStore } from "../catalog/storage-port.ts";
 import { blobObjectKey } from "../catalog/storage-port.ts";
 import { blobKeyLock } from "../../platform/blob-key-lock.ts";
 import { postgresErrorCode } from "../../platform/postgres-errors.ts";
-import { hasLiveBlobReference } from "./blob-references.ts";
+import {
+  blobReferenceKinds,
+  collectableBlobQuery,
+  hasLiveBlobReference,
+} from "./blob-references.ts";
 
 /**
- * Removes one blob row, and its bytes, when no live artifact version names it.
+ * Removes one blob row, and its bytes, when no registered table holds them.
  *
- * The order is the same one the plugin-bundle collector uses, for the same
- * reason: the object store cannot join a PostgreSQL transaction, so a crash
- * between the two writes leaves a state that a retry can finish. Bytes first,
- * row second - a blob row naming an object that is gone is a lie the read path
- * would have to defend against, while an object with no row is merely
- * unreferenced bytes that the next sweep reclaims.
+ * The order is row first, then bytes, and it is the opposite of the
+ * plugin-bundle collector's for a reason that is not stylistic. A blob can be
+ * named by foreign keys this collector does not own - `storage_file_versions`
+ * has one `on delete restrict` - and those keys only get a say when the row is
+ * deleted. Deleting the bytes first and then failing the row delete would leave
+ * a live row pointing at bytes that are gone, which is data loss; deleting the
+ * row first turns the same race into a refused delete with nothing touched.
+ *
+ * The object store cannot join a PostgreSQL transaction, so the bytes are still
+ * written outside it: a crash between the two leaves an orphan object with no
+ * row. That is a leak, and a leak is the failure to prefer over a loss.
  *
  * The blob-key advisory lock is held across both writes, and it is the same lock
  * the plugin-bundle collector takes for the same organization and digest. Two
@@ -23,10 +32,10 @@ import { hasLiveBlobReference } from "./blob-references.ts";
  * reason this matters - a bundle whose digest coincides with an artifact blob's
  * cannot be deleted while the artifact's row is being read.
  *
- * A blob is only collectable when nothing references it *and* its upload
- * session, if any, is closed. A pending session's parts are assembled into the
- * very object the row names, so reclaiming during an upload would delete bytes
- * a completing session is about to verify.
+ * A blob is only collectable when no registered table holds it. That includes
+ * upload sessions: a pending one is assembling the very object the row names,
+ * and a completed one names the blob before the version that will use it is
+ * published, so it counts until its own `expires_at`.
  */
 export async function collectBlob(
   ownerDatabase: PgDatabase,
@@ -67,24 +76,17 @@ export async function collectBlob(
         })
       ) return null;
 
-      // An upload in flight holds the bytes it is about to verify. Its session
-      // names the digest, not the blob row, so the check is by digest.
-      const open = await transaction.query(
-        `select 1 from bakery.blob_upload_sessions
-          where organization_id = $1 and sha256 = $2
-            and state = 'pending'
-          limit 1`,
-        [input.organizationId, row.sha256],
-      );
-      if (open.rows.length > 0) return null;
-
-      const objectKey = blobObjectKey(input.organizationId, row.sha256);
-      const held = await store.stat(objectKey);
-      const removed = held === null ? false : await store.delete(objectKey);
+      // The row goes before the bytes: every foreign key to bakery.blobs gets
+      // its say here, and a reference that arrived since the check above makes
+      // this delete fail with nothing deleted rather than the other way round.
       await transaction.query(
         `delete from bakery.blobs where organization_id = $1 and id = $2`,
         [input.organizationId, input.blobId],
       );
+
+      const objectKey = blobObjectKey(input.organizationId, row.sha256);
+      const held = await store.stat(objectKey);
+      const removed = held === null ? false : await store.delete(objectKey);
       await appendAudit(transaction, {
         organizationId: input.organizationId,
         principalId: null,
@@ -122,10 +124,10 @@ export async function collectBlob(
 /**
  * Collects every unreferenced blob in every organization, oldest first.
  *
- * Candidates are selected conservatively - a blob with no live version naming
- * it and no pending upload at its digest - and `collectBlob` decides again
- * under the row lock, so a blob that gains a reference between the scan and the
- * delete is kept. The scan is a convenience, never the authority.
+ * Candidates come from `collectableBlobQuery`, which asks every registered
+ * table at once, and `collectBlob` decides again under the row lock, so a blob
+ * that gains a reference between the scan and the delete is kept. The scan is a
+ * convenience, never the authority.
  */
 export async function sweepCollectableBlobs(
   ownerDatabase: PgDatabase,
@@ -138,25 +140,7 @@ export async function sweepCollectableBlobs(
   }
   const candidates = await ownerDatabase.query<
     { organization_id: string; id: string }
-  >(
-    `select blob.organization_id, blob.id
-       from bakery.blobs blob
-      where not exists (
-          select 1 from bakery.artifact_versions version
-           where version.organization_id = blob.organization_id
-             and version.blob_id = blob.id
-             and version.purged_at is null
-        )
-        and not exists (
-          select 1 from bakery.blob_upload_sessions session
-           where session.organization_id = blob.organization_id
-             and session.sha256 = blob.sha256
-             and session.state = 'pending'
-        )
-      order by blob.created_at
-      limit $1`,
-    [limit],
-  );
+  >(collectableBlobQuery(blobReferenceKinds), [limit]);
   let collected = 0;
   for (const row of candidates.rows) {
     if (

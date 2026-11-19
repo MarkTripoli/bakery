@@ -1,101 +1,157 @@
 import type { PgTransactionClient } from "@bakery/persistence";
 
 /**
- * Which artifact rows keep a blob's bytes alive.
+ * Every table whose rows keep one blob's bytes alive.
  *
  * A blob row is the organization's single copy of some bytes, keyed by their
- * SHA-256. Nothing referenced it back: the plugin-bundle collector could only
- * ask the registry "does a blob row exist at this digest" and had to answer
- * "then keep the object", because it had no way to learn whether any artifact
- * version still wanted those bytes. That conservatism is safe and permanently
- * wrong - a dead artifact blob pinned a plugin bundle's object forever.
+ * SHA-256. Collection is destructive and irreversible, so the question "does
+ * anything still want these bytes" has to be asked of the whole schema, not of
+ * the table the collector was written for. This list is that answer, and it is
+ * the only place the answer lives: the existence check and the sweep's
+ * candidate query are both built from it, so a table added here is protected by
+ * every caller at once.
  *
- * This is the missing direction of the reference. It answers, for one blob,
- * which artifact versions name it, so a collector can decide instead of
- * guessing.
+ * `tests/rails/blob-reference-registry_test.ts` reads the migrations and fails
+ * when a foreign key to `bakery.blobs` is not on this list, so the list cannot
+ * quietly fall behind the schema.
  *
- * Two details are load-bearing:
+ * Three details are load-bearing in the entries themselves:
  *
- * - A purged version does not count. Collection clears `blob_id` along with the
- *   inline content, so a purged row cannot keep bytes alive; counting the row
- *   anyway would make every purged version a permanent pin.
- * - The lookup is by the blob's id, not only its digest. A version names a blob
- *   row, and that row carries the organization; resolving the digest first would
- *   be a second, avoidable question about tenancy.
+ * - `liveCondition` says which rows of that table do *not* count. A purged
+ *   artifact version has had its `blob_id` cleared and must not keep bytes
+ *   alive; a closed upload session has given up its claim. Counting them anyway
+ *   would turn every collected version into a permanent pin.
+ * - `names` says whether the row points at the blob row or at its bytes. An
+ *   upload in flight knows only the digest it promised, so it can only be found
+ *   by digest; a published version knows the row.
+ * - A completed upload session is live until it expires. The session names the
+ *   blob row at completion, but the version that will use it is published a
+ *   moment later, and a sweep in that gap would delete bytes the publish is
+ *   about to name. `expires_at` is the grace window, and it is the session's
+ *   own stated lifetime rather than a number invented here.
  */
-export const blobReferenceKinds = [
+export type BlobReferenceKind = Readonly<{
+  kind: string;
+  table: string;
+  /** The foreign key this reference rides on, or null when the column has none. */
+  constraint: string | null;
+  /** Whether the column holds a blob id or a SHA-256 digest. */
+  names: "blob" | "digest";
+  column: string;
+  /** Rows of this table that do not hold the bytes alive. */
+  liveCondition: string;
+}>;
+
+export const blobReferenceKinds: readonly BlobReferenceKind[] = [
   {
     kind: "artifact-version",
     table: "artifact_versions",
     constraint: "artifact_versions_blob_fk",
-    protection: "active",
+    names: "blob",
+    column: "blob_id",
+    liveCondition: "purged_at is null",
   },
-] as const;
+  {
+    // A completed upload has claimed the blob but no version names it yet.
+    kind: "upload-session-completed",
+    table: "blob_upload_sessions",
+    constraint: "blob_upload_sessions_blob_fk",
+    names: "blob",
+    column: "completed_blob_id",
+    liveCondition: "state = 'completed' and expires_at > now()",
+  },
+  {
+    // An upload in flight holds the bytes it is about to assemble and verify.
+    // It knows the digest it was promised, never a blob row.
+    kind: "upload-session-pending",
+    table: "blob_upload_sessions",
+    constraint: null,
+    names: "digest",
+    column: "sha256",
+    liveCondition: "state = 'pending' and expires_at > now()",
+  },
+];
 
-/** One live reference: the artifact version that names this blob. */
-export type BlobReference = Readonly<{
-  organizationId: string;
-  artifactId: string;
-  versionId: string;
-}>;
-
-/**
- * Every artifact version in one organization that still names this blob.
- *
- * A caller that only needs yes-or-no should use `hasLiveBlobReference`, which
- * stops at the first row rather than materialising a list a collector would
- * only ask the length of.
- */
-export async function readBlobReferences(
-  transaction: PgTransactionClient,
-  input: Readonly<{ organizationId: string; blobId: string }>,
-): Promise<readonly BlobReference[]> {
-  const result = await transaction.query<
-    { artifactId: string; versionId: string }
-  >(
-    `select artifact_id as "artifactId", id as "versionId"
-       from bakery.artifact_versions
-      where organization_id = $1 and blob_id = $2 and purged_at is null
-      order by created_at, id`,
-    [input.organizationId, input.blobId],
-  );
-  return result.rows.map((row) => ({
-    organizationId: input.organizationId,
-    artifactId: row.artifactId,
-    versionId: row.versionId,
-  }));
+function assertRegistry(kinds: readonly BlobReferenceKind[]): void {
+  if (kinds.length === 0) {
+    // An empty registry would make "does anything reference this" answer false
+    // for every blob, which is a delete the schema never agreed to.
+    throw new TypeError("BLOB_REFERENCE_REGISTRY_IS_EMPTY");
+  }
 }
 
 /**
- * Whether any live artifact version still names this blob.
+ * Every row in one organization that still holds this blob's bytes alive.
  *
- * This is the question the plugin-bundle collector needed and could not ask, so
- * it must be answerable by digest as well as by id: the bundle collector knows
- * an object key and a digest, never a blob id.
+ * One statement built from the registry, so no caller can check a subset of the
+ * tables. A digest-named reference is joined to the blob row to learn the
+ * digest, which is why the statement takes a blob id and not a digest: the id
+ * is what the caller has, and it also carries the organization.
  */
+export function liveBlobReferenceQuery(
+  kinds: readonly BlobReferenceKind[],
+): string {
+  assertRegistry(kinds);
+  const parts = kinds.map((kind) =>
+    kind.names === "blob"
+      ? `select 1 from bakery.${kind.table} held
+          where held.organization_id = $1 and held.${kind.column} = $2
+            and (${kind.liveCondition})`
+      : `select 1
+           from bakery.${kind.table} held
+           join bakery.blobs blob
+             on blob.organization_id = held.organization_id
+            and blob.id = $2
+          where held.organization_id = $1
+            and held.${kind.column} = blob.sha256
+            and (${kind.liveCondition})`
+  );
+  return `select 1 from (${parts.join("\n union all\n")}) live limit 1`;
+}
+
+/** Whether any registered table still holds this blob's bytes alive. */
 export async function hasLiveBlobReference(
   transaction: PgTransactionClient,
-  input: Readonly<{
-    organizationId: string;
-    blobId?: string;
-    sha256?: string;
-  }>,
+  input: Readonly<{ organizationId: string; blobId: string }>,
+  kinds: readonly BlobReferenceKind[] = blobReferenceKinds,
 ): Promise<boolean> {
-  if (input.blobId === undefined && input.sha256 === undefined) {
-    // Nothing to look up is not the same as "nothing references it". A caller
-    // that supplies neither is asking a question this cannot answer, and an
-    // answer of `false` would let it delete bytes nothing had checked.
-    throw new TypeError("BLOB_REFERENCE_LOOKUP_REQUIRES_ID_OR_DIGEST");
-  }
-  const result = await transaction.query(
-    `select 1
-       from bakery.artifact_versions version
-      where version.organization_id = $1
-        and version.purged_at is null
-        and ($2::uuid is null or version.blob_id = $2)
-        and ($3::text is null or version.sha256 = $3)
-      limit 1`,
-    [input.organizationId, input.blobId ?? null, input.sha256 ?? null],
-  );
+  const result = await transaction.query(liveBlobReferenceQuery(kinds), [
+    input.organizationId,
+    input.blobId,
+  ]);
   return result.rows.length > 0;
+}
+
+/**
+ * The sweep's candidate query: blobs no registered table holds alive.
+ *
+ * Built from the same registry as `hasLiveBlobReference`, so a table that
+ * protects a blob from `collectBlob` also keeps it out of the candidate list.
+ * Being a convenience rather than the authority, it runs on the owner
+ * connection without a lock: `collectBlob` decides again under the row lock.
+ */
+export function collectableBlobQuery(
+  kinds: readonly BlobReferenceKind[],
+): string {
+  assertRegistry(kinds);
+  const guards = kinds.map((kind) =>
+    kind.names === "blob"
+      ? `not exists (
+          select 1 from bakery.${kind.table} held
+           where held.organization_id = blob.organization_id
+             and held.${kind.column} = blob.id
+             and (${kind.liveCondition})
+        )`
+      : `not exists (
+          select 1 from bakery.${kind.table} held
+           where held.organization_id = blob.organization_id
+             and held.${kind.column} = blob.sha256
+             and (${kind.liveCondition})
+        )`
+  );
+  return `select blob.organization_id, blob.id
+            from bakery.blobs blob
+           where ${guards.join("\n             and ")}
+           order by blob.created_at
+           limit $1`;
 }
