@@ -58,7 +58,7 @@ Deno.test("the desktop handoff issues a bkd_ credential the page API accepts as 
       code,
       codeVerifier: started.verifier,
     });
-    assertEquals(exchanged.status, 200, await exchanged.clone().text());
+    assertEquals(exchanged.status, 201, await exchanged.clone().text());
     const issued = await exchanged.json() as {
       credential: string;
       sessionId: string;

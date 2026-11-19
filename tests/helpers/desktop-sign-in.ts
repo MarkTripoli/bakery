@@ -71,7 +71,7 @@ export async function startDesktopSignIn(
     }),
     env,
   );
-  assertEquals(response.status, 200, await response.clone().text());
+  assertEquals(response.status, 201, await response.clone().text());
   const body = await response.json() as Omit<StartedDesktopSignIn, "verifier">;
   openedDesktopSignIns.push(body.id);
   return { ...body, verifier };
@@ -162,7 +162,7 @@ export async function signInDesktop(
     code,
     codeVerifier: started.verifier,
   });
-  assertEquals(response.status, 200, await response.clone().text());
+  assertEquals(response.status, 201, await response.clone().text());
   const issued = await response.json() as {
     credential: string;
     sessionId: string;
