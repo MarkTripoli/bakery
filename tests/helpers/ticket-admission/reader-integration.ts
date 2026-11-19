@@ -278,6 +278,89 @@ Deno.test("issue 82 reader: readIssue returns the bounded snapshot and calls the
   });
 });
 
+Deno.test("issue 82 reader: readStatuses names GitHub's own state vocabulary, not display text", async () => {
+  await withSource(async (s) => {
+    // A source policy names these ids, so they are an interface: `open`,
+    // `closed:completed` and `closed:not_planned` must survive anybody
+    // renaming a column or translating the board. The display name is allowed
+    // to change; the id is not.
+    seedIssues(s, { number: 10, state: "open", updatedAt: at(0) });
+    seedIssues(s, {
+      number: 11,
+      state: "closed",
+      stateReason: "completed",
+      updatedAt: at(1),
+    });
+    seedIssues(s, {
+      number: 12,
+      state: "closed",
+      stateReason: "not_planned",
+      updatedAt: at(2),
+    });
+    for (
+      const [number, id] of [
+        [10, "open"],
+        [11, "closed:completed"],
+        [12, "closed:not_planned"],
+      ] as const
+    ) {
+      const read = await s.reader.readStatuses(s.handle, number, signal());
+      assert(read.kind === "present", `issue ${number} has a status`);
+      assertEquals(read.statuses.map((status) => status.id), [id]);
+    }
+
+    // A pull request, a gone issue and a moved issue have no status to report,
+    // and admission has already refused on the issue read by then.
+    seedIssues(s, { number: 20, pullRequest: true }, { number: 21 }, {
+      number: 22,
+    });
+    s.f.github.deleteIssue(s.repositoryId, 21);
+    s.f.github.transferIssue(s.repositoryId, 22);
+    for (const number of [20, 21, 22, 99]) {
+      assertEquals(
+        await s.reader.readStatuses(s.handle, number, signal()),
+        { kind: "unsupported" },
+        `issue ${number}`,
+      );
+    }
+  });
+});
+
+Deno.test("issue 82 reader: a status read given the snapshot costs no second provider call", async () => {
+  await withSource(async (s) => {
+    // Admission reads the issue first and then asks for its statuses. Handing
+    // that snapshot back means one provider call for both answers; asking again
+    // would spend a second call to learn what the first already returned.
+    seedIssues(s, {
+      number: 30,
+      state: "closed",
+      stateReason: "completed",
+      updatedAt: at(0),
+    });
+    const read = await s.reader.readIssue(s.handle, 30, signal());
+    assert(read.kind === "present");
+
+    const before = s.f.github.calls.length;
+    const fromSnapshot = await s.reader.readStatuses(
+      s.handle,
+      30,
+      signal(),
+      read.snapshot,
+    );
+    assertEquals(
+      s.f.github.calls.length,
+      before,
+      "the snapshot answers the status read with no request",
+    );
+
+    // The answer is the same one a fresh read would give.
+    assertEquals(
+      fromSnapshot,
+      await s.reader.readStatuses(s.handle, 30, signal()),
+    );
+  });
+});
+
 Deno.test("issue 82 reader: an oversized body is reported and kept as no text", async () => {
   await withSource(async (s) => {
     seedIssues(s, { number: 1 });
@@ -341,6 +424,7 @@ function manualStartInput(
     preset: { id: "fixed-coding", revision: 1, digest: "c".repeat(64) },
     issue,
     links,
+    statuses: null,
     proofs: [],
     authority: { principalActive: true, provenance: null, actorRole: null },
     activeRequest: null,

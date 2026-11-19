@@ -936,3 +936,28 @@ test("a self-hosted label set without a pool label is still refused, naming the 
     /must include ovh, hetzner or bakery-heavy/,
   );
 });
+
+// Run 44475126928: the agx64 runners share their host with the agent seats, and
+// when that host swaps every browser test in flight misses its budget at once.
+// The browser lanes ask for the hetzner half of the heavy pool by label.
+test("the Storybook and web shell browser lanes run on the hetzner half of the heavy pool", () => {
+  const jobs = parseDocument(
+    readFileSync(join(WORKFLOW_DIR, "ci.yml"), "utf8"),
+    { version: "1.2" },
+  ).toJS().jobs;
+  for (
+    const job of [
+      "ui_storybook_browser",
+      "ui_web",
+      "ui_web_b",
+      "ui_web_c",
+      "ui_web_d",
+    ]
+  ) {
+    const labels = jobs[job]["runs-on"];
+    assert(Array.isArray(labels), `${job} must list its runner labels`);
+    for (const label of ["self-hosted", "linux", "hetzner", "bakery-heavy"]) {
+      assert(labels.includes(label), `${job} must ask for ${label}`);
+    }
+  }
+});
