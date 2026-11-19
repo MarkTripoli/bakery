@@ -18,7 +18,8 @@ import {
   McpServerImplementedAction as Action,
   mcpServerImplementedActions,
 } from "@bakery/contracts/implemented-actions";
-import { createApiRouter } from "@bakery/contracts/http";
+import { createApiRouter, StandardError } from "@bakery/contracts/http";
+import type { ActionContext } from "@bakery/contracts/action-registry";
 import { PostgresAuthorityRunner } from "../auth/adapters/authority-postgres.ts";
 import { type AuthVariables, createActionContext } from "../auth/middleware.ts";
 import { createPostgresCommandRunner } from "../../platform/command-replay.ts";
@@ -50,6 +51,21 @@ import {
   getMcpServer,
   updateMcpServer,
 } from "./server-commands.ts";
+
+/**
+ * The role floor for an action whose access depends on the object (organization
+ * scope is an Admin's, personal scope is the owner's). The runner only trusts the
+ * three base access levels on their own; anything else needs a guard of its own. This
+ * is that guard: the caller must be a Developer or an Admin. Which object they may
+ * touch is decided by the handler, which reads the row.
+ */
+export function requireDeveloperOrAdmin(context: ActionContext): void {
+  const role = (context as unknown as { authority?: { role?: string } })
+    .authority?.role;
+  if (role !== "admin" && role !== "developer") {
+    throw new StandardError({ code: "AUTH_FORBIDDEN" });
+  }
+}
 
 /** The MCP management registry: server definitions (#434), growing as slices land. */
 export function createMcpActionRegistry(
@@ -116,11 +132,13 @@ export function createMcpActionRegistry(
     type: ActionKind.Command,
     access: ActionAccess.DeveloperForPersonalAdminForOrganization,
     organizationContext,
+    authorize: requireDeveloperOrAdmin,
   } as const;
   const ownerOrAdmin = {
     type: ActionKind.Command,
     access: ActionAccess.OwnerForPersonalAdminForOrganization,
     organizationContext,
+    authorize: requireDeveloperOrAdmin,
   } as const;
   registry.register({
     name: ConnectionAction.McpConnectionsList,
