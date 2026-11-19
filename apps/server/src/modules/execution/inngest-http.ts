@@ -38,6 +38,8 @@ import {
   createTicketIntakeWorkflow,
   createTicketPollWorkflow,
 } from "../work/ticket-workflows.ts";
+import { selectTicketSourceReader } from "../work/ticket-reader-selection.ts";
+import { GITHUB_PROVIDER } from "../integrations/registry.ts";
 import { createAuditRetentionFunction } from "../auth/audit/mod.ts";
 import { createAutomationIntakeFunction } from "../workflows/automations/event-intake.ts";
 import { createAutomationPromoteFunction } from "../workflows/automations/promote.ts";
@@ -85,10 +87,19 @@ function createTicketAutomation(options: {
   const deps = {
     client: options.client,
     database: options.database,
-    reader: createTicketSourceReader({
-      database: options.database,
-      ...options.integrations,
-    }),
+    // The same per-provider choice the HTTP app makes: one reader per provider
+    // this build deploys, and a source whose provider has none fails closed.
+    reader: selectTicketSourceReader(
+      new Map([
+        [
+          GITHUB_PROVIDER,
+          createTicketSourceReader({
+            database: options.database,
+            ...options.integrations,
+          }),
+        ],
+      ]),
+    ),
     factIndex: createTicketFactIndex(),
     budget: options.budget,
   };

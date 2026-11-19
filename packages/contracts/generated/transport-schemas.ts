@@ -3325,6 +3325,12 @@ const transportSchemas = {
           "description": "Restrict results to pull requests opened by this workflow run; pull requests registered without a run never match."
         },
         {
+          "name": "externalTicketId",
+          "type": "uuid",
+          "required": false,
+          "description": "Restrict results to pull requests of tasks linked to this external ticket through ticket_task_links, primary or reference. A ticket with no linked task, or one outside the caller's organization, matches nothing rather than revealing whether it exists."
+        },
+        {
           "name": "cursor",
           "type": "string",
           "required": false,
@@ -7188,19 +7194,28 @@ const transportSchemas = {
     "TicketPreviewCreate": {
       "fields": [
         {
+          "name": "policy",
+          "type": "json",
+          "required": false,
+          "bounds": {
+            "maxBytes": 65536
+          },
+          "description": "Draft TicketSourcePolicy version 1 document to evaluate instead of the saved one, validated exactly as ticketSources.update validates a replacement policy (422 ticket_source_policy_invalid, or delegation_principal_unknown for a delegation principal outside the organization). automatic.since is stamped as saving would stamp it, so the draft is judged by the window it would get. The draft is never stored and moves no revision; omitted, the saved policy is evaluated."
+        },
+        {
           "name": "filters",
           "type": "json",
           "required": false,
           "bounds": {
             "maxBytes": 16000
           },
-          "description": "Optional filter criteria, such as labels or repositories, narrowing which candidate tickets the preview evaluates, without changing the source's saved policy."
+          "description": "Optional TicketPreviewFilters object narrowing the issues the preview evaluates, without changing the policy: labels (1 to 10 label names; only issues carrying at least one are evaluated) and numbers (1 to 25 issue numbers, evaluated instead of the provider's first page of open issues). Unknown keys answer 422 filters_invalid; an empty object is the same as no filters."
         }
       ],
       "rules": [
-        "Returns a durable preview operation; never admits or starts matching tickets."
+        "Evaluates and returns; writes no ticket, report, link, request, task or run and never stores the draft policy."
       ],
-      "description": "Requests a preview of which external tickets and repositories would match this ticket source's current policy; returns a durable operation and never admits or starts any matching ticket."
+      "description": "Asks how this ticket source's issues would be judged now, under the saved policy or a draft one, at most 25 issues from one provider read. The answer is computed and returned; nothing is admitted, started or recorded."
     },
     "TicketSyncCreate": {
       "fields": [],
@@ -7261,6 +7276,130 @@ const transportSchemas = {
       ],
       "pagination": "pagination",
       "description": "Query parameters for listing this organization's cached external ticket snapshots; results reflect the last synchronized state, not a live provider fetch."
+    },
+    "TicketTaskLinkQuery": {
+      "fields": [
+        {
+          "name": "externalTicketId",
+          "type": "uuid",
+          "required": false,
+          "description": "Lists the links of this one external ticket: every task linked to it. Exactly one of externalTicketId and taskId is required (422 ticket_task_link_scope_required otherwise); a ticket outside the caller's organization answers 404."
+        },
+        {
+          "name": "taskId",
+          "type": "uuid",
+          "required": false,
+          "description": "Lists the links of this one Bakery task: every external ticket it is linked to, at most one of them as primary. Exactly one of externalTicketId and taskId is required; a task outside the caller's organization answers 404."
+        },
+        {
+          "name": "role",
+          "type": "enum(primary|reference)",
+          "required": false,
+          "description": "Keeps only links with this role: primary for the link an admission created (the task was started from the ticket), reference for a link a person added. Omitted, both roles are listed."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from a previous page's nextCursor, bound to the caller and the filters in force; pass it back verbatim and never construct it."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum number of links in one page, capped at 100; defaults to 25 when omitted."
+        }
+      ],
+      "rules": [
+        "Exactly one of externalTicketId and taskId; keyset pages newest link first."
+      ],
+      "pagination": "pagination",
+      "description": "Query for the links between external tickets and Bakery tasks, from either side, with each link's role and the sync health of Bakery's status note on the ticket."
+    },
+    "TicketRequestQuery": {
+      "fields": [
+        {
+          "name": "externalTicketId",
+          "type": "uuid",
+          "required": true,
+          "description": "Lists the admission generations of this one external ticket; a ticket outside the caller's organization answers 404, exactly as a missing one."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from a previous page's nextCursor, bound to the caller and the ticket; pass it back verbatim and never construct it."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum number of requests in one page, capped at 100; defaults to 25 when omitted."
+        }
+      ],
+      "rules": [
+        "Keyset pages newest request first, ordered by createdAt then id."
+      ],
+      "pagination": "pagination",
+      "description": "Query for the start requests (admission generations) of one external ticket, newest first, each with its progress, pause state and routed targets (#69)."
+    },
+    "TicketSourceLabelQuery": {
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "Ticket source whose provider labels are read; supplied via the request's {id} path segment."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from a previous page's nextCursor; it names the provider's next page, is bound to the caller and the source, and must be passed back verbatim."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 100
+          },
+          "description": "Maximum number of labels in one page, capped at 100; defaults to 100. The provider's own page size decides where a page ends, so a page may hold fewer."
+        }
+      ],
+      "rules": [
+        "A live provider read, never cached; a provider failure answers 503 DEPENDENCY_UNAVAILABLE, a provider without labels 422 labels_unsupported."
+      ],
+      "pagination": "pagination",
+      "description": "Query for the labels the ticket source's provider holds right now, so a routing rule or trigger can name one by its stable id (#69)."
+    },
+    "TicketTaskLinkNoteSync": {
+      "fields": [],
+      "rules": [
+        "Idempotency-Key and If-Match on the link version required; refused while a write of the same link is in flight; never refused because the note is already posted."
+      ],
+      "description": "Asks Bakery to bring its status note on the ticket of one primary link up to date: the note already posted is rewritten in place by the provider's update action, one the provider no longer has (deleted there) is posted again under a new id and the link's lastProblemCode says note_recreated, and a link with none gets its first. Every call writes; no digest of the posted text is kept. The note is written by the source provider's registered comment action as the caller, through the integration gate and the effect ledger, so the caller needs that action's grant on the repository; a write the gate or the provider refuses is recorded on the link as failed with its problem code, not answered as an error."
     },
     "TicketReadinessCreate": {
       "fields": [
@@ -11212,21 +11351,32 @@ const transportSchemas = {
           "type": "enum",
           "required": true,
           "enum": [
-            "complete"
+            "complete",
+            "restart"
           ],
-          "description": "How the person takes the step over. `complete` makes the person the step's completer by naming an existing artifact version as its result; a restart with a fresh agent is a later mode."
+          "description": "How the person takes the step over. `complete` makes the person the step's completer by naming an existing artifact version as its result. `restart` gives the step's job one more attempt that starts fresh, optionally with a note, and keeps the step's frozen agent and its budget reservation. A funded job must not have a finished attempt (see the operation description)."
         },
         {
           "name": "artifactId",
           "type": "uuid",
-          "required": true,
-          "description": "Identifier of an existing artifact of this run's task that becomes the step's result. The artifact must exist in the organization and belong to the run's task."
+          "required": false,
+          "description": "Required for mode `complete`; ignored otherwise. Identifier of an existing artifact of this run's task that becomes the step's result. The artifact must exist in the organization and belong to the run's task."
         },
         {
           "name": "versionId",
           "type": "uuid",
-          "required": true,
-          "description": "Identifier of the immutable artifact version of that artifact that becomes the step's result. The server reads its content digest from its own record; the caller never supplies one."
+          "required": false,
+          "description": "Required for mode `complete`; ignored otherwise. Identifier of the immutable artifact version of that artifact that becomes the step's result. The server reads its content digest from its own record; the caller never supplies one."
+        },
+        {
+          "name": "note",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 4000
+          },
+          "description": "Used by mode `restart`: a note the restarted agent receives with its input, delivered exactly like a note left for a step that has not started."
         },
         {
           "name": "reason",
@@ -11238,7 +11388,7 @@ const transportSchemas = {
           "description": "Why the person took the step over, recorded verbatim in the work item's decisions ledger."
         }
       ],
-      "description": "Makes the caller the completer of a workflow step instead of its agent. Allowed only for a step of a compiled-plan run whose action produces an artifact, whose job is still queued with no live attempt, and only for a caller holding run control; a step with a live attempt is refused with STATE_CONFLICT `attempt_live` and must be stopped through run control first."
+      "description": "Makes the caller the completer of a workflow step, or restarts it. Allowed only for a step of a compiled-plan run whose job is still queued with no live attempt, and only for a caller holding run control; a step with a live attempt is refused with STATE_CONFLICT `attempt_live` and must be stopped through run control first. `complete` also needs the action to produce an artifact. A job with a budget reservation and a finished attempt is refused with `budget_unsettled` in either mode while the reservation is still held, because that attempt may already have spent against it. Once reconciliation settles it, `complete` goes through; `restart` does not: a restart reuses the held reservation, so a funded job that has had a finished attempt is never restartable (`budget_not_reserved` once the reservation is settled or released). `restart` of any funded job also needs its reservation held, and a funded job with no reservation is refused with `budget_not_reserved`. A job whose action has no budget can be completed or restarted after any number of attempts."
     },
     "QuestionAsk": {
       "fields": [
@@ -11278,6 +11428,40 @@ const transportSchemas = {
         "A role nobody holds answers UNPROCESSABLE with reason no_one_holds_role rather than opening a question nobody can answer."
       ],
       "description": "Puts a free-text question from a running step to one named role (chapter 25 section 18.2). Off by default and granted per workflow and role; recorded as an agent's action."
+    },
+    "PasswordResetLinkCreate": {
+      "fields": [
+        {
+          "name": "principalId",
+          "type": "uuid",
+          "required": true,
+          "description": "Enabled human principal whose password the link resets; any installation person, whichever organizations they belong to."
+        }
+      ],
+      "description": "Installation administrator's request for a one-hour, single-use password reset link for one person. Issuing revokes that person's earlier unused links."
+    },
+    "PasswordResetRedemption": {
+      "fields": [
+        {
+          "name": "token",
+          "type": "secretString",
+          "required": true,
+          "bounds": {
+            "maxLength": 256
+          },
+          "description": "Reset token from the link's token query parameter, sent exactly as issued. The server stores only its SHA-256 digest."
+        },
+        {
+          "name": "newPassword",
+          "type": "secretString",
+          "required": true,
+          "bounds": {
+            "maxLength": 1024
+          },
+          "description": "The person's new sign-in password; it must meet the same length rule as sign-up and password change, and is hashed by the auth provider before storage."
+        }
+      ],
+      "description": "Unauthenticated redemption of a password reset link: sets the new password, consumes the link and signs the person out of every browser session. An unknown, used, expired or revoked link gets one identical refusal."
     }
   },
   "projections": {
@@ -15802,11 +15986,11 @@ const transportSchemas = {
         "organizationId": "UUID of the organization that owns this record.",
         "externalTicketId": "UUID identifying the related external ticket resource.",
         "taskId": "UUID identifying the related task resource.",
-        "role": "Access role assigned to this ticket task link record.",
-        "statusCommentExternalId": "UUID identifying the related status comment external resource. May be null when unavailable.",
-        "lastSyncedRunRevision": "Last synced run revision value recorded for this ticket task link record. May be null when unavailable.",
-        "syncHealth": "Current lifecycle state of this ticket task link record.",
-        "lastProblemCode": "Bounded string|null value identifying or describing this ticket task link record. May be null when unavailable.",
+        "role": "primary for the link an admission created (the task was started from the ticket; at most one per task), reference for a link a person added (the task mentions the ticket).",
+        "statusCommentExternalId": "The provider's id of Bakery's status note on the ticket, as the comment action confirmed it; null until a note is posted.",
+        "lastSyncedRunRevision": "Run revision the status note last described; null until a note records one.",
+        "syncHealth": "State of Bakery's status note on the ticket: unknown before any write, pending while a write is in flight, healthy once the provider confirmed the note, failed when the last write was refused (lastProblemCode says why).",
+        "lastProblemCode": "Fixed lowercase code of the last note write that did not go as asked: a failure (for example auth_forbidden when the caller holds no grant for the provider's comment action) with syncHealth failed, or note_recreated with syncHealth healthy when the earlier note was gone on the provider and a new one replaced it; null after a note rewritten or first posted as asked, and before any write.",
         "createdAt": "Timestamp recording when the created event occurred for this ticket task link record.",
         "updatedAt": "Timestamp recording the last update to this ticket task link record.",
         "version": "Monotonic revision used to order or conditionally update this ticket task link record."
@@ -24710,7 +24894,7 @@ const transportSchemas = {
         "lastSyncedRunRevision",
         "lastProblemCode"
       ],
-      "description": "An explicit, same-organization link between one external ticket and one Bakery task, carrying its role (primary or reference) and per-link sync health. Returned by ticketTaskLinks.create; a ticket/task pair is unique, at most one link per task is primary, and linking alone starts no work and widens no audience.",
+      "description": "An explicit, same-organization link between one external ticket and one Bakery task, carrying its role (primary or reference) and the state of Bakery's status note on the ticket. Returned by ticketTaskLinks.create, ticketTaskLinks.list and ticketTaskLinks.resyncNote; a ticket/task pair is unique, at most one link per task is primary, and linking alone starts no work and widens no audience.",
       "fieldDescriptions": {
         "id": "Stable UUID identifying this ticket task link record.",
         "organizationId": "UUID of the organization that owns this record.",
@@ -24824,6 +25008,132 @@ const transportSchemas = {
     },
     "Page<TicketRequest>": {
       "pageOf": "TicketRequest"
+    },
+    "TicketRequestView": {
+      "projection": "ticket_requests",
+      "fields": [
+        "id",
+        "externalTicketId",
+        "ticketTaskLinkId",
+        "intent",
+        "origin",
+        "requestedByPrincipalId",
+        "triggerLabelName",
+        "disposition",
+        "dispositionReasonCode",
+        "pausedAt",
+        "pausedReason",
+        "progress",
+        "workflowRunId",
+        "createdAt",
+        "updatedAt",
+        "version",
+        "targets"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "externalTicketId": "uuid",
+        "ticketTaskLinkId": "uuid",
+        "intent": "enum(plan|start)",
+        "origin": "enum(manual|adoption|webhook|poll)",
+        "requestedByPrincipalId": "uuid|null",
+        "triggerLabelName": "string|null",
+        "disposition": "enum(pending|waiting|admitted|active|suspended|rejected|completed|failed|canceled)",
+        "dispositionReasonCode": "enum(held|label_missing|status_missing|status_unsupported|label_withdrawn|predecessor_open|closed_unmerged|proof_unavailable|inaccessible|links_truncated|provider_unavailable|no_delegation|actor_not_allowlisted|actor_role_insufficient|actor_unverifiable|principal_inactive|source_disabled|connection_not_enabled|installation_not_enabled|resource_not_selected|repository_archived|no_active_profile|preset_setup_required|acceptance_changed|ticket_closed|ticket_gone|ticket_moved|pull_request_not_ticket|repository_mismatch|requirements_too_large|has_sub_issues|run_completed|run_failed|run_canceled|task_completed|task_failed|task_canceled)|null",
+        "pausedAt": "timestamp|null",
+        "pausedReason": "enum(edited_after_setup|label_removed|hold_label_added|dependency_unreadable)|null",
+        "progress": "enum(pending|waiting|admitted|active|suspended|completed|failed|canceled|rejected)",
+        "workflowRunId": "uuid|null",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp",
+        "version": "integer",
+        "targets": "TicketRequestViewTarget[]"
+      },
+      "nullableFields": [
+        "requestedByPrincipalId",
+        "triggerLabelName",
+        "dispositionReasonCode",
+        "pausedAt",
+        "pausedReason",
+        "workflowRunId"
+      ],
+      "description": "One start request (admission generation) of an external ticket as the ticket's history shows it (#69): who or what started it, the stored disposition with a machine-readable reason, whether its run was paused and why, and one progress value computed from the disposition and the run's state.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of this ticket request.",
+        "externalTicketId": "External ticket this request admitted.",
+        "ticketTaskLinkId": "Link between the ticket and the task this request owns.",
+        "intent": "Requested scope: plan stops after the plan for review, start plans and then runs.",
+        "origin": "How the request began: manual for an explicit request by a member, adoption for an explicit request on an issue that already carried the request label, webhook for a provider delivery, poll for a source sync.",
+        "requestedByPrincipalId": "Principal that asked for a manual or adoption start; null for a webhook or poll start.",
+        "triggerLabelName": "The request label that started a webhook, poll or adoption request, as the issue carried it at admission; null for a manual start and for requests admitted before the label was recorded.",
+        "disposition": "Stored lifecycle state of the request.",
+        "dispositionReasonCode": "Machine-readable reason behind the disposition: a readiness reason for a suspended request, or run_*/task_* for one that ended with its run or task; null while none is recorded.",
+        "pausedAt": "When Bakery asked the request's live run to pause after the request was suspended; null when no pause was requested.",
+        "pausedReason": "Why the run was paused, from the suspension reason: edited_after_setup when the acceptance criteria changed, label_removed when the request label was withdrawn, hold_label_added when the hold label was set, dependency_unreadable when a blocker could not be read. Null when not paused or paused for another reason, which dispositionReasonCode names.",
+        "progress": "One progress value for display, computed by the server from the disposition and the run: a nonterminal request whose run finished shows the run's end, a queued run shows admitted, a running run active, a paused run suspended, a run waiting for input, capacity or a block waiting.",
+        "workflowRunId": "Workflow run the request owns; null before one starts.",
+        "createdAt": "When the request was admitted.",
+        "updatedAt": "When the request last changed.",
+        "version": "Monotonic revision of the request.",
+        "targets": "Repository-scoped children pinned at admission, ordered by role then repository."
+      }
+    },
+    "Page<TicketRequestView>": {
+      "pageOf": "TicketRequestView"
+    },
+    "TicketRequestViewTarget": {
+      "projection": "ticket_request_targets",
+      "fields": [
+        "repositoryId",
+        "role",
+        "routingRuleId",
+        "routingRuleVersion",
+        "childTaskId"
+      ],
+      "fieldTypes": {
+        "repositoryId": "uuid",
+        "role": "string",
+        "routingRuleId": "uuid|null",
+        "routingRuleVersion": "integer|null",
+        "childTaskId": "uuid|null"
+      },
+      "nullableFields": [
+        "routingRuleId",
+        "routingRuleVersion",
+        "childTaskId"
+      ],
+      "description": "One repository a ticket request was routed to, as pinned at admission.",
+      "fieldDescriptions": {
+        "repositoryId": "Repository this target is scoped to.",
+        "role": "Role the repository plays; default for the fallback to the source's own repository.",
+        "routingRuleId": "Rule that routed the ticket here as pinned at admission, or null for the fallback.",
+        "routingRuleVersion": "Version of that rule at admission, or null for the fallback.",
+        "childTaskId": "Child task that runs this target, or null for the fallback, which runs on the request's own task."
+      }
+    },
+    "TicketSourceLabel": {
+      "fields": [
+        "id",
+        "name",
+        "color"
+      ],
+      "fieldTypes": {
+        "id": "string",
+        "name": "string",
+        "color": "string|null"
+      },
+      "nullableFields": [
+        "color"
+      ],
+      "description": "One label the ticket source's provider holds, read live (#69).",
+      "fieldDescriptions": {
+        "id": "The provider's stable, opaque label id; the value a routing rule stores, which survives a rename.",
+        "name": "The label's current name.",
+        "color": "The label's colour as six hex digits without a leading #, or null when the provider gives none."
+      }
+    },
+    "Page<TicketSourceLabel>": {
+      "pageOf": "TicketSourceLabel"
     },
     "PluginPackage": {
       "projection": "plugin_packages",
@@ -25341,6 +25651,114 @@ const transportSchemas = {
         "reconciliationId": "Stable UUID linking this record to the related reconciliation entity.",
         "effectId": "Stable UUID linking this record to the related effect entity.",
         "status": "Current lifecycle status of the record."
+      }
+    },
+    "TicketPreviewResult": {
+      "fields": [
+        "sourceId",
+        "policyRevision",
+        "draft",
+        "evaluatedAt",
+        "counts",
+        "issues",
+        "skipped"
+      ],
+      "fieldTypes": {
+        "sourceId": "uuid",
+        "policyRevision": "integer",
+        "draft": "boolean",
+        "evaluatedAt": "timestamp",
+        "counts": "TicketPreviewCounts",
+        "issues": "TicketPreviewIssue[]",
+        "skipped": "integer"
+      },
+      "description": "What ticketSources.preview computed for one ticket source: how each evaluated issue would be judged under the saved or draft policy, and the totals. Nothing behind it is stored, so a second preview evaluates again from fresh provider reads.",
+      "fieldDescriptions": {
+        "sourceId": "The ticket source the preview evaluated.",
+        "policyRevision": "The saved policy revision at evaluation time. A draft is judged against the source as it is at this revision and would advance it once saved.",
+        "draft": "True when the request carried a draft policy and the answer describes it; false when it describes the saved policy.",
+        "evaluatedAt": "Server time the evaluation ran; the answer describes the issues as the provider returned them just before it.",
+        "counts": "Totals over issues, one bucket per issue.",
+        "issues": "One entry per evaluated issue in provider list order (or in the order of filters.numbers), at most 25.",
+        "skipped": "Issues that were read but could not be evaluated, for example one whose read failed mid-page; they are in no count."
+      },
+      "fieldBounds": {
+        "issues": {
+          "maxItems": 25
+        },
+        "skipped": {
+          "min": 0
+        }
+      }
+    },
+    "TicketPreviewCounts": {
+      "fields": [
+        "wouldStart",
+        "planOnly",
+        "held",
+        "blocked"
+      ],
+      "fieldTypes": {
+        "wouldStart": "integer",
+        "planOnly": "integer",
+        "held": "integer",
+        "blocked": "integer"
+      },
+      "description": "Per-bucket totals of one ticket preview; every evaluated issue is in exactly one bucket.",
+      "fieldDescriptions": {
+        "wouldStart": "Issues whose every check passes and whose label asks for work to start.",
+        "planOnly": "Issues whose every check passes and whose label asks only for a plan.",
+        "held": "Issues carrying the hold label; the hold wins over every other label.",
+        "blocked": "Issues that are not held and fail or wait on at least one check; each one's reasons say which."
+      },
+      "fieldBounds": {
+        "wouldStart": {
+          "min": 0
+        },
+        "planOnly": {
+          "min": 0
+        },
+        "held": {
+          "min": 0
+        },
+        "blocked": {
+          "min": 0
+        }
+      }
+    },
+    "TicketPreviewIssue": {
+      "fields": [
+        "number",
+        "title",
+        "outcome",
+        "verdict",
+        "reasons"
+      ],
+      "fieldTypes": {
+        "number": "integer",
+        "title": "string|null",
+        "outcome": "enum(would_start|plan_only|held|blocked)",
+        "verdict": "enum(ready|waiting|rejected)",
+        "reasons": "string[]"
+      },
+      "nullableFields": [
+        "title"
+      ],
+      "description": "How one issue would be judged by the previewed policy, as a poll would judge it: its bucket, the readiness verdict and the reason codes of every check that did not pass.",
+      "fieldDescriptions": {
+        "number": "The issue number on the provider.",
+        "title": "The issue title as read, or null when the issue could not be read (gone, moved or a pull request).",
+        "outcome": "would_start or plan_only when every check passes (by the label's intent), held when the hold label is present, blocked otherwise.",
+        "verdict": "The readiness verdict the evaluation produced: ready when every check passes, rejected when any check rejects, waiting otherwise.",
+        "reasons": "Distinct TicketReasonCode values of the checks that did not pass, in check order; empty when the verdict is ready."
+      },
+      "fieldBounds": {
+        "number": {
+          "min": 1
+        },
+        "reasons": {
+          "maxItems": 12
+        }
       }
     },
     "TicketOperationReceipt": {
@@ -27716,7 +28134,7 @@ const transportSchemas = {
         "anchor"
       ],
       "fieldTypes": {
-        "status": "enum(available|unavailable)",
+        "status": "enum(available|part_unavailable|unavailable)",
         "targetKind": "enum(conversation_message|run|run_step|approval|question|document_version|comment)",
         "path": "string|null",
         "anchor": "string|null"
@@ -27734,10 +28152,10 @@ const transportSchemas = {
         }
       },
       "fieldDescriptions": {
-        "status": "Whether the stored destination still resolves and the recipient is still authorized to open it; unavailable means the client shows the no-longer-available state.",
+        "status": "Whether the stored destination still resolves and the recipient is still authorized to open it. part_unavailable means the task or document opens but the inner part (step, card, message or comment) is gone, so the client opens the page with no anchor and says so; unavailable means the client shows the no-longer-available state.",
         "targetKind": "The typed kind of the resolved destination, echoed so the client can pick the right view.",
-        "path": "A validated relative internal route to open when available, or null when the destination is gone or no longer accessible.",
-        "anchor": "Optional exact anchor inside the destination to scroll to, or null."
+        "path": "A validated relative internal route to open when available or part_unavailable, or null when the destination is gone or no longer accessible.",
+        "anchor": "Optional exact anchor inside the destination, in kind:id form (step:, approval:, question:, message:, comment:) or version:N for a document version, or null."
       },
       "rules": [
         "Recipient-only, and reauthorizes the destination on every call. A notification ID never grants access; an unauthorized target returns unavailable, not its title."
@@ -28666,6 +29084,24 @@ const transportSchemas = {
       "fieldDescriptions": {
         "runId": "UUID of the run these offers belong to.",
         "offers": "The open choices, empty when no step of the run is stalled behind an incident."
+      }
+    },
+    "PasswordResetLinkIssued": {
+      "fields": [
+        "id",
+        "url",
+        "expiresAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "url": "secretString",
+        "expiresAt": "timestamp"
+      },
+      "description": "A newly issued password reset link. The URL carries the only copy of the token and is returned in this response alone; it is never stored, replayed or readable again.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of the reset link record, as the audit trail names it.",
+        "url": "Absolute web URL of the reset page with the one-time token; hand it to the person over a trusted channel.",
+        "expiresAt": "UTC timestamp one hour after issue, after which the link no longer works."
       }
     }
   },

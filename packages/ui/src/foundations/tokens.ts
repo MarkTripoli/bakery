@@ -1,4 +1,4 @@
-/* Generated from Paper 01M1X504XVC45FC0VDK857A37D revision paper:49fea8f7; pages:14-0,15-0,16-0,V-0; accessed:2026-09-17; digest dd8369ac825c89f4142937ba49896841836f5b1352f88048665ffee249ae69d4. */
+/* Generated from Paper 01M1X504XVC45FC0VDK857A37D revision paper:49fea8f7; pages:14-0,15-0,16-0,V-0; accessed:2026-09-17; digest 087091ac93d0f90d61e5c626377d0ba676ab96b604353cf6cffc6d28dd5cf6f2. */
 export const semanticTokens = {
   "border.default": "--border-default",
   "border.emphasis": "--border-emphasis",
@@ -25,11 +25,17 @@ export const semanticTokens = {
   "color.logo-plate": "--color-logo-plate",
   "color.overlay.backdrop": "--color-overlay-backdrop",
   "color.presence.1": "--color-presence-1",
+  "color.presence.1.surface": "--color-presence-1-surface",
   "color.presence.2": "--color-presence-2",
+  "color.presence.2.surface": "--color-presence-2-surface",
   "color.presence.3": "--color-presence-3",
+  "color.presence.3.surface": "--color-presence-3-surface",
   "color.presence.4": "--color-presence-4",
+  "color.presence.4.surface": "--color-presence-4-surface",
   "color.presence.5": "--color-presence-5",
+  "color.presence.5.surface": "--color-presence-5-surface",
   "color.presence.6": "--color-presence-6",
+  "color.presence.6.surface": "--color-presence-6-surface",
   "color.preview.ink": "--color-preview-ink",
   "color.primary": "--color-primary",
   "color.primary.foreground": "--color-primary-foreground",

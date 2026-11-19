@@ -12,6 +12,12 @@ import { createArtifactKindsRoutes } from "./modules/artifact-kinds/index.ts";
 import { createMemoryRoutes } from "./modules/knowledge/memory-routes.ts";
 import { createPluginPackageRoutes } from "./modules/catalog/plugin-routes.ts";
 import { githubIngress } from "./modules/catalog/integration-providers/github-ingress.ts";
+import {
+  TICKET_NOTE_ACTION,
+  TICKET_NOTE_UPDATE_ACTION,
+} from "./modules/catalog/integration-providers/github.ts";
+import { createGateTicketNoteWriter } from "./modules/integrations/ticket-notes.ts";
+import type { TicketNoteWriter } from "./modules/work/ticket-notes.ts";
 import { createPluginInstallRoutes } from "./modules/catalog/plugin-install-routes.ts";
 import { createDeliveryRoutes } from "./modules/delivery/index.ts";
 import {
@@ -24,6 +30,8 @@ import {
   type InstallationTokenBroker,
 } from "./modules/integrations/index.ts";
 import { createProviderRequestPort } from "./modules/integrations/credential-port.ts";
+import { GITHUB_PROVIDER } from "./modules/integrations/registry.ts";
+import { selectTicketSourceReader } from "./modules/work/ticket-reader-selection.ts";
 import { readAppCredentials } from "./modules/integrations/callbacks.ts";
 import { loadSnapshot } from "./modules/catalog/authority-snapshot-postgres.ts";
 import { withPgTransaction } from "./platform/database.ts";
@@ -102,6 +110,7 @@ import {
   createNotificationRoutes,
   createTicketRoutes,
   createWorkTaskHandlers,
+  registerNotificationProjection,
 } from "./modules/work/index.ts";
 import type {
   TicketFactIndex,
@@ -148,6 +157,16 @@ import {
   createApprovalRoutes,
 } from "./modules/conversation/approval-routes.ts";
 
+/** The auth provider's password hashing, read from its initialized context; undefined for a provider that exposes none. */
+function providerPasswordHasher(auth: AuthHttpProvider) {
+  const context = auth.$context;
+  return context ? async () => (await context).password : undefined;
+}
+
+// The inbox is derived from committed domain events, so every process that
+// serves requests registers the projection once, before any event is written.
+registerNotificationProjection();
+
 export function createApp(options: {
   /**
    * Told of lease renewals, completions and usage settlements after they have
@@ -173,6 +192,8 @@ export function createApp(options: {
   ticketReader?: TicketSourceReader;
   /** Fact index sync candidates come from; the stored-fact index by default. */
   ticketFactIndex?: TicketFactIndex;
+  /** Writes Bakery's status note on a ticket; the integration gate by default, an in-memory one in tests. */
+  ticketNoteWriter?: TicketNoteWriter;
   draftIsolation?: DraftIsolation;
   skillFileStore?: SkillFileStoreOperations;
   /** Verification probe override; tests inject one so none reaches a provider. */
@@ -407,6 +428,7 @@ export function createApp(options: {
     installationSettings,
     availableLocales: availableLocalesFor(options.config.environment),
     publicBaseUrl: options.config.publicBaseUrl,
+    passwordHasher: providerPasswordHasher(auth),
   });
   app.route(
     "/",
@@ -795,12 +817,36 @@ export function createApp(options: {
       session: tokenSession,
       publicBaseUrl: options.config.publicBaseUrl,
       cursorSecret: options.config.auth.secret,
-      reader: options.ticketReader ?? createTicketSourceReader({
-        ...integrations,
-        database: options.pgDatabase,
-      }),
+      // Chosen per source, by the provider its connection names: a build that
+      // deploys one provider's reader must not read another provider's sources
+      // with it. A provider with no reader here fails closed rather than falling
+      // back to whichever reader a map happened to yield first.
+      reader: options.ticketReader ?? selectTicketSourceReader(
+        new Map([
+          [
+            GITHUB_PROVIDER,
+            createTicketSourceReader({
+              ...integrations,
+              database: options.pgDatabase,
+            }),
+          ],
+        ]),
+      ),
       factIndex: options.ticketFactIndex ?? createTicketFactIndex(),
       budget: options.config.budget,
+      // The composition root names the provider whose comment action writes
+      // the note, as it names the webhook ingress below.
+      noteWriter: options.ticketNoteWriter ?? createGateTicketNoteWriter({
+        database: options.pgDatabase,
+        registry: integrationRegistry,
+        providerRequests,
+        noteActions: {
+          github: {
+            create: TICKET_NOTE_ACTION,
+            update: TICKET_NOTE_UPDATE_ACTION,
+          },
+        },
+      }),
     }),
   );
   app.route(
