@@ -141,6 +141,9 @@ importers:
       '@tanstack/react-router':
         specifier: 1.170.36
         version: 1.170.36(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+      loro-crdt:
+        specifier: 1.16.0
+        version: 1.16.0
       qrcode:
         specifier: 1.5.4
         version: 1.5.4

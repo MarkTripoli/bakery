@@ -294,11 +294,11 @@ export const IntegrationsImplementedAction = Object.freeze(
     IntegrationAppRegistrationsGet: "integrationAppRegistrations.get",
     IntegrationAppRegistrationsBegin: "integrationAppRegistrations.begin",
     IntegrationAppRegistrationsPut: "integrationAppRegistrations.put",
-    GitHubManifestCallback: "integrationAuth.githubManifestCallback",
+    IntegrationManifestCallback: "integrationAuth.manifestCallback",
     IntegrationAuthAttemptsCreate: "integrationAuthAttempts.create",
     IntegrationAuthAttemptsGet: "integrationAuthAttempts.get",
-    GitHubSetup: "integrationAuth.githubSetup",
-    GitHubCallback: "integrationAuth.githubCallback",
+    IntegrationSetup: "integrationAuth.setup",
+    IntegrationAuthorizationCallback: "integrationAuth.authorizationCallback",
     IntegrationConnectionsGet: "integrationConnections.get",
     IntegrationConnectionsCreate: "integrationConnections.create",
     IntegrationConnectionsList: "integrationConnections.list",
@@ -316,7 +316,7 @@ export const IntegrationsImplementedAction = Object.freeze(
     IntegrationDiscoveriesCreate: "integrationDiscoveries.create",
     IntegrationInstallationsList: "integrationInstallations.list",
     IntegrationInstallationsGet: "integrationInstallations.get",
-    IntakeGithub: "intake.github",
+    IntakeWebhook: "intake.webhook",
   } as const satisfies Record<string, CatalogActionName>,
 );
 export const integrationsImplementedActions = Object.freeze(

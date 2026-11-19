@@ -2,11 +2,20 @@ import type { ApiFailure } from "../api/client.ts";
 import type { IntentStore } from "./task-composer-intent.ts";
 
 /** A refused admission is client-observed evidence, not an inferred run state. */
-export type RunAdmissionRefusal = Readonly<{ code: string; title: string }>;
+export type RunAdmissionRefusal = Readonly<{
+  code: string;
+  title: string;
+  /** The server's plain reason for a refusal it chose to explain, when it gave one. */
+  reason?: string;
+}>;
 
 export function admissionRefusal(failure: ApiFailure): RunAdmissionRefusal {
   return failure.kind === "problem"
-    ? { code: failure.problem.code, title: failure.problem.title }
+    ? {
+      code: failure.problem.code,
+      title: failure.problem.title,
+      ...(failure.problem.reason ? { reason: failure.problem.reason } : {}),
+    }
     : { code: "", title: "" };
 }
 
@@ -21,7 +30,13 @@ export function readAdmissionRefusal(
     return typeof value === "object" && value !== null &&
         "code" in value && typeof value.code === "string" &&
         "title" in value && typeof value.title === "string"
-      ? { code: value.code, title: value.title }
+      ? {
+        code: value.code,
+        title: value.title,
+        ...("reason" in value && typeof value.reason === "string"
+          ? { reason: value.reason }
+          : {}),
+      }
       : null;
   } catch {
     return null;

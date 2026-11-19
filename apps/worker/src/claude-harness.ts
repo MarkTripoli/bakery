@@ -26,9 +26,30 @@ import {
   repairRevisionMismatch,
   requireCleanHarnessWorktree,
   runBoundedHarness,
+  traceEnvironment,
   withHarnessRestore,
 } from "./harness-common.ts";
 import { executeClaudeCoordinatorTurn } from "./claude-coordinator.ts";
+/**
+ * The child environment for one Claude turn.
+ *
+ * Named and exported so a test can assert what the adapter actually launches
+ * with: inlined in the run function it was unprovable, and a mutant that
+ * dropped the trace spread passed every test.
+ */
+export function claudeChildEnvironment(
+  config: { readonly home: string; readonly path: string },
+  assignment: { readonly traceparent?: string },
+):
+  & Readonly<{ HOME: string; CLAUDE_CONFIG_DIR: string }>
+  & Record<string, string> {
+  return {
+    HOME: config.home,
+    CLAUDE_CONFIG_DIR: config.path,
+    // The harness continues the trace that caused this work.
+    ...traceEnvironment(assignment),
+  };
+}
 import { provenCanceledOutcome, type PublishArtifact } from "./task-brief.ts";
 import type {
   JobAssignment,
@@ -1367,10 +1388,7 @@ async function executeClaudeHarness(
         "The Claude Code harness could not complete the bounded task",
       );
     }
-    const childEnvironment = {
-      HOME: config.home,
-      CLAUDE_CONFIG_DIR: config.path,
-    };
+    const childEnvironment = claudeChildEnvironment(config, assignment);
     const claudeExecutable = options.claudeExecutable ?? "claude";
     const versionProbe = await probeHarnessVersion(
       claudeExecutable,

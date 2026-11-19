@@ -5510,10 +5510,10 @@ export const clientManifest = {
       "group": "Integrations intake",
       "method": "POST",
       "path": "/v1/webhooks/github",
-      "action": "intake.github",
+      "action": "intake.webhook",
       "access": "Verified GitHub App raw-body signature; installation/resource routes to existing organization connection",
       "permission": null,
-      "input": "GitHubWebhook",
+      "input": "IntegrationWebhook",
       "output": "WebhookReceipt",
       "event": "intake.received",
       "mcp": "",
@@ -6200,7 +6200,7 @@ export const clientManifest = {
       "group": "Integration setup",
       "method": "GET",
       "path": "/v1/integration-auth/github/callback",
-      "action": "integrationAuth.githubCallback",
+      "action": "integrationAuth.authorizationCallback",
       "access": "Bound browser auth attempt",
       "permission": null,
       "input": "OAuthCallback",
@@ -6226,10 +6226,10 @@ export const clientManifest = {
       "group": "Integration setup",
       "method": "GET",
       "path": "/v1/integration-auth/github/setup",
-      "action": "integrationAuth.githubSetup",
+      "action": "integrationAuth.setup",
       "access": "Bound browser auth attempt",
       "permission": null,
-      "input": "GitHubSetupCallback",
+      "input": "IntegrationSetupCallback",
       "output": "AuthRedirect",
       "event": "integration.auth_attempt_changed",
       "mcp": "",
@@ -6531,10 +6531,10 @@ export const clientManifest = {
       "group": "Installation administration",
       "method": "GET",
       "path": "/v1/integration-auth/github/manifest-callback",
-      "action": "integrationAuth.githubManifestCallback",
+      "action": "integrationAuth.manifestCallback",
       "access": "Installation administrator",
       "permission": "installationSetting:manage",
-      "input": "GitHubManifestCallback",
+      "input": "IntegrationManifestCallback",
       "output": "AuthRedirect",
       "event": "",
       "mcp": "",
@@ -11314,22 +11314,22 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "Empty request body reused by operations that need no input beyond their route parameters and authorization, such as a connection health check or MCP capability discovery."
     },
-    "GitHubWebhook": {
+    "IntegrationWebhook": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
       "properties": {
         "deliveryId": {
           "type": "string",
           "maxLength": 255,
-          "description": "GitHub's X-GitHub-Delivery ID for this webhook attempt, scoped to the configured GitHub App registration; combined with the raw-body digest it deduplicates redelivery, so an identical retry returns the original receipt instead of reprocessing. GitHubWebhook.deliveryId must contain at most 255 characters."
+          "description": "GitHub's X-GitHub-Delivery ID for this webhook attempt, scoped to the configured GitHub App registration; combined with the raw-body digest it deduplicates redelivery, so an identical retry returns the original receipt instead of reprocessing. IntegrationWebhook.deliveryId must contain at most 255 characters."
         },
         "eventType": {
           "type": "string",
           "maxLength": 100,
-          "description": "GitHub's webhook event name, for example issues.labeled; applying a label and editing a label's definition are different event shapes, and only accepted events reach Tickets admission. GitHubWebhook.eventType must contain at most 100 characters."
+          "description": "GitHub's webhook event name, for example issues.labeled; applying a label and editing a label's definition are different event shapes, and only accepted events reach Tickets admission. IntegrationWebhook.eventType must contain at most 100 characters."
         },
         "payload": {
-          "description": "Raw verified GitHub event body, capped at 256 KiB and streamed before JSON parsing; an oversized delivery is rejected rather than truncated. GitHubWebhook.payload must contain at most 262144 UTF-8 bytes.",
+          "description": "Raw verified GitHub event body, capped at 256 KiB and streamed before JSON parsing; an oversized delivery is rejected rather than truncated. IntegrationWebhook.payload must contain at most 262144 UTF-8 bytes.",
           "anyOf": [
             {
               "type": "string",
@@ -12979,7 +12979,7 @@ export const clientManifest = {
             "sync.snapshot",
             "events.connect",
             "collaboration.connect",
-            "intake.github",
+            "intake.webhook",
             "intake.external",
             "intake.slack.events",
             "intake.slack.commands",
@@ -13013,8 +13013,8 @@ export const clientManifest = {
             "organizationInvitations.cancel",
             "integrationAuthAttempts.create",
             "integrationAuthAttempts.get",
-            "integrationAuth.githubCallback",
-            "integrationAuth.githubSetup",
+            "integrationAuth.authorizationCallback",
+            "integrationAuth.setup",
             "integrationAuth.slackIdentityCallback",
             "integrationInstallations.list",
             "integrationInstallations.get",
@@ -13027,7 +13027,7 @@ export const clientManifest = {
             "blobUploads.start",
             "blobUploads.part",
             "blobUploads.complete",
-            "integrationAuth.githubManifestCallback",
+            "integrationAuth.manifestCallback",
             "integrationResources.list",
             "integrationDiscoveries.create",
             "integrationResources.update",
@@ -19361,17 +19361,17 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "Fixed OAuth callback shared by GitHub authorization and Slack identity-link completion; the bound, single-use state is claimed atomically before any code exchange, so callback fields alone can never select an organization, connection or installation."
     },
-    "GitHubSetupCallback": {
+    "IntegrationSetupCallback": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
       "properties": {
         "state": {
           "type": "string",
           "maxLength": 4096,
-          "description": "Single-use state token binding this setup redirect to the auth attempt that started it; claimed atomically before verification so it cannot be replayed. GitHubSetupCallback.state must contain at most 4096 characters."
+          "description": "Single-use state token binding this setup redirect to the auth attempt that started it; claimed atomically before verification so it cannot be replayed. IntegrationSetupCallback.state must contain at most 4096 characters."
         },
         "installationId": {
-          "description": "GitHub's candidate installation ID for this setup event. Treat as spoofable: the host must verify it against every page of installations accessible to the connecting user's token before it can identify a real installation. GitHubSetupCallback.installationId must contain at most 200 characters.",
+          "description": "GitHub's candidate installation ID for this setup event. Treat as spoofable: the host must verify it against every page of installations accessible to the connecting user's token before it can identify a real installation. IntegrationSetupCallback.installationId must contain at most 200 characters.",
           "type": "string",
           "maxLength": 200
         },
@@ -20412,7 +20412,7 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "Starts GitHub App registration through GitHub's manifest flow for this Bakery installation. The App's URLs derive from the deployment's public base URL; credentials never travel through this request."
     },
-    "GitHubManifestCallback": {
+    "IntegrationManifestCallback": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
       "properties": {
@@ -20420,13 +20420,13 @@ export const clientManifest = {
           "type": "string",
           "minLength": 1,
           "maxLength": 4096,
-          "description": "Temporary code GitHub appends to the manifest redirect; valid for one hour and convertible exactly once into the new App's credentials. Never logged or stored. GitHubManifestCallback.code must contain at least 1 characters. GitHubManifestCallback.code must contain at most 4096 characters."
+          "description": "Temporary code GitHub appends to the manifest redirect; valid for one hour and convertible exactly once into the new App's credentials. Never logged or stored. IntegrationManifestCallback.code must contain at least 1 characters. IntegrationManifestCallback.code must contain at most 4096 characters."
         },
         "state": {
           "type": "string",
           "minLength": 1,
           "maxLength": 4096,
-          "description": "Single-use state issued by integrationAppRegistrations.begin to the same administrator session; claimed atomically by its hash before the code is converted. GitHubManifestCallback.state must contain at least 1 characters. GitHubManifestCallback.state must contain at most 4096 characters."
+          "description": "Single-use state issued by integrationAppRegistrations.begin to the same administrator session; claimed atomically by its hash before the code is converted. IntegrationManifestCallback.state must contain at least 1 characters. IntegrationManifestCallback.state must contain at most 4096 characters."
         }
       },
       "required": [
@@ -33720,7 +33720,7 @@ export const clientManifest = {
                   "sync.snapshot",
                   "events.connect",
                   "collaboration.connect",
-                  "intake.github",
+                  "intake.webhook",
                   "intake.external",
                   "intake.slack.events",
                   "intake.slack.commands",
@@ -33754,8 +33754,8 @@ export const clientManifest = {
                   "organizationInvitations.cancel",
                   "integrationAuthAttempts.create",
                   "integrationAuthAttempts.get",
-                  "integrationAuth.githubCallback",
-                  "integrationAuth.githubSetup",
+                  "integrationAuth.authorizationCallback",
+                  "integrationAuth.setup",
                   "integrationAuth.slackIdentityCallback",
                   "integrationInstallations.list",
                   "integrationInstallations.get",
@@ -33768,7 +33768,7 @@ export const clientManifest = {
                   "blobUploads.start",
                   "blobUploads.part",
                   "blobUploads.complete",
-                  "integrationAuth.githubManifestCallback",
+                  "integrationAuth.manifestCallback",
                   "integrationResources.list",
                   "integrationDiscoveries.create",
                   "integrationResources.update",
@@ -50713,7 +50713,7 @@ export const clientManifest = {
             "sync.snapshot",
             "events.connect",
             "collaboration.connect",
-            "intake.github",
+            "intake.webhook",
             "intake.external",
             "intake.slack.events",
             "intake.slack.commands",
@@ -50747,8 +50747,8 @@ export const clientManifest = {
             "organizationInvitations.cancel",
             "integrationAuthAttempts.create",
             "integrationAuthAttempts.get",
-            "integrationAuth.githubCallback",
-            "integrationAuth.githubSetup",
+            "integrationAuth.authorizationCallback",
+            "integrationAuth.setup",
             "integrationAuth.slackIdentityCallback",
             "integrationInstallations.list",
             "integrationInstallations.get",
@@ -50761,7 +50761,7 @@ export const clientManifest = {
             "blobUploads.start",
             "blobUploads.part",
             "blobUploads.complete",
-            "integrationAuth.githubManifestCallback",
+            "integrationAuth.manifestCallback",
             "integrationResources.list",
             "integrationDiscoveries.create",
             "integrationResources.update",
@@ -53905,7 +53905,7 @@ export const clientManifest = {
                   "type": "boolean"
                 },
                 "reason": {
-                  "description": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; for a refused draft edit, why: text_changed or draft_moved_on on a 412, or for a refused draft comment anchor comment_quote_mismatch, comment_anchor_stale or comment_anchor_splits_character on a 412; agent_edit_requires_suggestion, suggestion_decision_requires_person, definition_proposal_decision_requires_person or workflow_listing_requires_person on a 403. Absent when the problem has no named rule.",
+                  "description": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; for a refused draft edit, why: text_changed or draft_moved_on on a 412, or for a refused draft comment anchor comment_quote_mismatch, comment_anchor_stale or comment_anchor_splits_character on a 412, or for a refused ticket operation source_policy_changed or requirements_changed on a 412; agent_edit_requires_suggestion, suggestion_decision_requires_person, definition_proposal_decision_requires_person or workflow_listing_requires_person on a 403. Absent when the problem has no named rule.",
                   "type": "string",
                   "maxLength": 65536
                 },
@@ -56932,7 +56932,7 @@ export const clientManifest = {
           "type": "boolean"
         },
         "reason": {
-          "description": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; for a refused draft edit, why: text_changed or draft_moved_on on a 412, or for a refused draft comment anchor comment_quote_mismatch, comment_anchor_stale or comment_anchor_splits_character on a 412; agent_edit_requires_suggestion, suggestion_decision_requires_person, definition_proposal_decision_requires_person or workflow_listing_requires_person on a 403. Absent when the problem has no named rule.",
+          "description": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; for a refused draft edit, why: text_changed or draft_moved_on on a 412, or for a refused draft comment anchor comment_quote_mismatch, comment_anchor_stale or comment_anchor_splits_character on a 412, or for a refused ticket operation source_policy_changed or requirements_changed on a 412; agent_edit_requires_suggestion, suggestion_decision_requires_person, definition_proposal_decision_requires_person or workflow_listing_requires_person on a 403. Absent when the problem has no named rule.",
           "type": "string",
           "maxLength": 65536
         },
@@ -57294,7 +57294,7 @@ export const clientManifest = {
                   "type": "boolean"
                 },
                 "reason": {
-                  "description": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; for a refused draft edit, why: text_changed or draft_moved_on on a 412, or for a refused draft comment anchor comment_quote_mismatch, comment_anchor_stale or comment_anchor_splits_character on a 412; agent_edit_requires_suggestion, suggestion_decision_requires_person, definition_proposal_decision_requires_person or workflow_listing_requires_person on a 403. Absent when the problem has no named rule.",
+                  "description": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; for a refused draft edit, why: text_changed or draft_moved_on on a 412, or for a refused draft comment anchor comment_quote_mismatch, comment_anchor_stale or comment_anchor_splits_character on a 412, or for a refused ticket operation source_policy_changed or requirements_changed on a 412; agent_edit_requires_suggestion, suggestion_decision_requires_person, definition_proposal_decision_requires_person or workflow_listing_requires_person on a 403. Absent when the problem has no named rule.",
                   "type": "string",
                   "maxLength": 65536
                 },
@@ -57704,7 +57704,7 @@ export const clientManifest = {
                         "type": "boolean"
                       },
                       "reason": {
-                        "description": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; for a refused draft edit, why: text_changed or draft_moved_on on a 412, or for a refused draft comment anchor comment_quote_mismatch, comment_anchor_stale or comment_anchor_splits_character on a 412; agent_edit_requires_suggestion, suggestion_decision_requires_person, definition_proposal_decision_requires_person or workflow_listing_requires_person on a 403. Absent when the problem has no named rule.",
+                        "description": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; for a refused draft edit, why: text_changed or draft_moved_on on a 412, or for a refused draft comment anchor comment_quote_mismatch, comment_anchor_stale or comment_anchor_splits_character on a 412, or for a refused ticket operation source_policy_changed or requirements_changed on a 412; agent_edit_requires_suggestion, suggestion_decision_requires_person, definition_proposal_decision_requires_person or workflow_listing_requires_person on a 403. Absent when the problem has no named rule.",
                         "type": "string",
                         "maxLength": 65536
                       },

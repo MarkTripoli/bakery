@@ -130,7 +130,7 @@ export const DeliveryIdentitySchema = z.object({
 );
 export type DeliveryIdentity = z.output<typeof DeliveryIdentitySchema>;
 
-/** A verified delivery handed to the registered `intake.github` action. */
+/** A verified delivery handed to the registered `intake.webhook` action. */
 export type PreparedDelivery = DeliveryIdentity & { event: ParsedDelivery };
 
 /** The active webhook secret of the registered App; the caller zeroes `secret`. */

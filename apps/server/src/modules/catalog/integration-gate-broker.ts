@@ -1,6 +1,8 @@
 import { StandardError } from "@bakery/contracts/http";
 import { retryAfterSeconds } from "../../platform/retry-after.ts";
 import {
+  graphqlBody,
+  graphqlBodyCarriesDocument,
   parsePathTemplate,
   type RequestTemplate,
 } from "@bakery/integration-sdk";
@@ -376,7 +378,30 @@ export function createBrokerWithProfiles(
       }
     }
     let body: string | undefined;
-    if (template.body) {
+    if (template.kind === "graphql") {
+      // The document comes from the template and the caller supplies variables
+      // only. Sending the caller's body through here would make `effect: read`
+      // a claim about a document nobody sends, so a template could post a
+      // mutation from a read and skip the write and approval gates.
+      // An absent document is refused rather than defaulted: sending "" would
+      // be a request the template never declared.
+      const document = template.graphqlQuery;
+      if (document === undefined) {
+        throw unprocessable("a graphql request needs a document");
+      }
+      if (!template.body) throw unprocessable("a graphql request needs a body");
+      const parsedBody = template.body.safeParse(bodyInput);
+      if (!parsedBody.success) throw unprocessable("invalid request body");
+      if (graphqlBodyCarriesDocument(parsedBody.data)) {
+        throw unprocessable("a graphql body may not carry a document");
+      }
+      body = JSON.stringify(
+        graphqlBody(document, parsedBody.data as Record<string, unknown>),
+      );
+      if (new TextEncoder().encode(body).byteLength > MAX_REQUEST_BODY_BYTES) {
+        throw unprocessable("request body too large");
+      }
+    } else if (template.body) {
       const parsedBody = template.body.safeParse(bodyInput);
       if (!parsedBody.success) throw unprocessable("invalid request body");
       body = JSON.stringify(parsedBody.data);
