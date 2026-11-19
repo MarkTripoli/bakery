@@ -18,19 +18,27 @@ type Version = { id: string; version: number; status: string };
 Deno.test("a workflow shows who may use each personal skill, and a copy keeps only a slot", async () => {
   const f = await openPersonalSkillFixture();
   try {
-    const skill = await (await f.post(
+    const skillResponse = await f.post(
       f.ownerCookie,
       "/v1/skills",
       { slug: "my-notes", name: "My notes", scope: "personal" },
       "reads-personal-skill",
-    )).json() as { id: string };
+    );
+    assertEquals(skillResponse.status, 201, await skillResponse.clone().text());
+    const skill = await skillResponse.json() as { id: string };
     const skillVersion = await f.insertSkillVersion(skill.id);
-    const workflow = await (await f.post(
+    const workflowResponse = await f.post(
       f.ownerCookie,
       "/v1/workflows",
       { slug: "reads-flow", name: "Reads flow", description: "Reads flow" },
       "reads-workflow",
-    )).json() as { id: string };
+    );
+    assertEquals(
+      workflowResponse.status,
+      201,
+      await workflowResponse.clone().text(),
+    );
+    const workflow = await workflowResponse.json() as { id: string };
     const versionsPath = `/v1/workflows/${workflow.id}/versions`;
     const definition = {
       steps: [{ id: "write", action: "agent.run", skills: [skillVersion] }],
