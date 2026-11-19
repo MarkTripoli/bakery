@@ -13,9 +13,12 @@ import {
 } from "../../middleware.ts";
 import type { InstallationSettingsReader } from "../../application/installation-settings.ts";
 import { createAuthV1Routes } from "./v1/routes.ts";
+import type { PasswordHasher } from "../../adapters/password-reset-links-postgres.ts";
 
 export type AuthHttpProvider = BrowserSessionAuth & {
   handler(request: Request): Promise<Response>;
+  /** The provider's initialized context; password reset redemption hashes through its `password`. */
+  $context?: Promise<{ password: PasswordHasher }>;
 };
 
 const invitationLookupPaths = new Set([

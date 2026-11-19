@@ -157,6 +157,12 @@ import {
   createApprovalRoutes,
 } from "./modules/conversation/approval-routes.ts";
 
+/** The auth provider's password hashing, read from its initialized context; undefined for a provider that exposes none. */
+function providerPasswordHasher(auth: AuthHttpProvider) {
+  const context = auth.$context;
+  return context ? async () => (await context).password : undefined;
+}
+
 // The inbox is derived from committed domain events, so every process that
 // serves requests registers the projection once, before any event is written.
 registerNotificationProjection();
@@ -422,6 +428,7 @@ export function createApp(options: {
     installationSettings,
     availableLocales: availableLocalesFor(options.config.environment),
     publicBaseUrl: options.config.publicBaseUrl,
+    passwordHasher: providerPasswordHasher(auth),
   });
   app.route(
     "/",

@@ -310,10 +310,13 @@ export function createActionContext(
   context: Context<{ Variables: AuthVariables }>,
 ): ActionContextSeed {
   const principal = context.get("principal");
+  const peer = (context.env as { remoteAddr?: Deno.Addr } | undefined)
+    ?.remoteAddr;
   return {
     principal,
     locale: requestLocale(context.req.raw, principal),
     sessionId: context.get("sessionId"),
     accessToken: context.get("accessToken"),
+    clientAddress: peer?.transport === "tcp" ? peer.hostname : undefined,
   };
 }

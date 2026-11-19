@@ -130,6 +130,12 @@ export type ActionContext = {
    */
   sessionId?: string;
   /**
+   * Address of the client that sent the request (the socket peer, or the
+   * client resolved through a trusted proxy), when the transport knows one.
+   * Only per-client rate limits key on it; it grants nothing.
+   */
+  clientAddress?: string;
+  /**
    * How the request reached the action. `mcp` marks a tool call dispatched by
    * the MCP catalog runner, which authenticates with an MCP principal and
    * carries neither a browser session nor an access token: a session-only
