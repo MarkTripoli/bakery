@@ -20,6 +20,11 @@ import { useI18n } from "../i18n/I18nProvider.tsx";
 import { OrganizationSectionBreadcrumbs } from "../shell/SettingsShellSlots.tsx";
 import { ShellActiveNavigation } from "../shell/shell-slots.tsx";
 import { DomainVerificationRecord } from "./DomainVerificationRecord.tsx";
+import {
+  type RemovalProblem,
+  removalSituation,
+  SsoRemoveDialog,
+} from "./SsoRemoveDialog.tsx";
 
 type View =
   | { readonly kind: "list" }
@@ -30,7 +35,15 @@ type Protocol = SsoProvider["protocol"];
 
 const FORBIDDEN_CODES = new Set(["AUTH_FORBIDDEN", "RESOURCE_NOT_FOUND"]);
 
-type Notice = { tone: "success" | "error" | "information"; key: MessageKey };
+type Notice = {
+  tone: "success" | "error" | "information";
+  key: MessageKey;
+  values?: Record<string, string>;
+};
+
+const ADD_PROVIDER_ID = "sso-add-provider";
+const editButtonId = (providerId: string) => `sso-edit-${providerId}`;
+const removeButtonId = (providerId: string) => `sso-remove-${providerId}`;
 
 /**
  * `/settings/organization/sso`: the organization's single sign-on providers (OIDC and
@@ -75,6 +88,12 @@ export function SsoPage() {
     organizationQueryOptions(api, { ...scope, organizationId }),
   );
   const [confirmingRequire, setConfirmingRequire] = useState(false);
+  // The provider whose removal the admin is confirming, and why the last try
+  // did not remove it.
+  const [removing, setRemoving] = useState<SsoProvider | null>(null);
+  const [removeProblem, setRemoveProblem] = useState<RemovalProblem | null>(
+    null,
+  );
   const [view, setView] = useState<View>({ kind: "list" });
   const [notice, setNotice] = useState<Notice | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -152,6 +171,68 @@ export function SsoPage() {
       );
       await refresh();
     });
+  // The row as the page now holds it: the dialog's text, its situation and the
+  // flag Confirm sends all follow this one row, never the row captured when
+  // Remove was clicked (its domain may have been verified since).
+  const removingNow = removing
+    ? data?.providers.find((row) => row.providerId === removing.providerId)
+    : undefined;
+  const stopRemoving = (providerId: string) => {
+    setRemoving(null);
+    setRemoveProblem(null);
+    focusAfterPaint(() => document.getElementById(removeButtonId(providerId)));
+  };
+  const confirmRemoval = (provider: SsoProvider, stopRequiring: boolean) =>
+    run(`remove:${provider.providerId}`, async () => {
+      const name = { name: provider.providerId };
+      const result = await ssoApi.remove(provider.providerId, stopRequiring);
+      if (result.ok) {
+        // Focus moves to the next row's Edit, or to Add provider when none is left.
+        const rows = data?.providers ?? [];
+        const index = rows.findIndex((row) =>
+          row.providerId === provider.providerId
+        );
+        const next = rows[index + 1] ?? rows[index - 1];
+        setRemoving(null);
+        setRemoveProblem(null);
+        setNotice({
+          tone: "success",
+          key: stopRequiring
+            ? "settings.sso.provider.delete.removedStopRequiring"
+            : "settings.sso.provider.delete.removed",
+          values: name,
+        });
+        await refresh();
+        focusAfterPaint(() =>
+          document.getElementById(
+            next ? editButtonId(next.providerId) : ADD_PROVIDER_ID,
+          )
+        );
+        return;
+      }
+      if (result.status === 404) {
+        setRemoving(null);
+        setRemoveProblem(null);
+        setNotice({
+          tone: "information",
+          key: "settings.sso.provider.delete.alreadyRemoved",
+          values: name,
+        });
+        await refresh();
+        return;
+      }
+      if (result.code === "SESSION_REQUIRED") {
+        setRemoving(null);
+        setNotice(failure(result, "settings.sso.sessionRequired"));
+        return;
+      }
+      // SSO became required (or another provider went) since the page loaded:
+      // reload, and the dialog shows what will now happen.
+      const outOfDate = result.status === 409 &&
+        result.code === "SSO_LAST_PROVIDER_REQUIRED";
+      setRemoveProblem(outOfDate ? "outOfDate" : "failed");
+      if (outOfDate) await refresh();
+    });
   const requireSwitchId = useId();
   const returnToRequireSwitch = () =>
     focusAfterPaint(() => document.getElementById(requireSwitchId));
@@ -193,7 +274,7 @@ export function SsoPage() {
     value
       ? (
         <UI.AlertBanner tone={value.tone}>
-          {translate(value.key)}
+          {translate(value.key, value.values)}
         </UI.AlertBanner>
       )
       : undefined;
@@ -237,14 +318,6 @@ export function SsoPage() {
                       setNotice({ tone: "success", key: saved });
                       await refresh();
                     }}
-                    onRemoved={async () => {
-                      backToList();
-                      setNotice({
-                        tone: "success",
-                        key: "settings.sso.provider.deleted",
-                      });
-                      await refresh();
-                    }}
                     checkDomain={checkDomain}
                     checking={busy?.startsWith("check:") ?? false}
                     token={view.kind === "edit"
@@ -264,6 +337,7 @@ export function SsoPage() {
               actions={data && data.providers.length > 0
                 ? (
                   <UI.Button
+                    id={ADD_PROVIDER_ID}
                     type="button"
                     onClick={() => setView({ kind: "add" })}
                   >
@@ -277,6 +351,7 @@ export function SsoPage() {
                   <UI.EmptyState
                     action={
                       <UI.Button
+                        id={ADD_PROVIDER_ID}
                         type="button"
                         onClick={() => setView({ kind: "add" })}
                       >
@@ -315,16 +390,34 @@ export function SsoPage() {
                   </>
                 ),
                 action: (
-                  <UI.Button
-                    type="button"
-                    variant="outline"
-                    aria-label={translate("settings.sso.provider.editLabel", {
-                      name: provider.providerId,
-                    })}
-                    onClick={() => setView({ kind: "edit", provider })}
-                  >
-                    {translate("settings.sso.provider.edit")}
-                  </UI.Button>
+                  <UI.Inline gap="compact">
+                    <UI.Button
+                      id={editButtonId(provider.providerId)}
+                      type="button"
+                      variant="outline"
+                      aria-label={translate("settings.sso.provider.editLabel", {
+                        name: provider.providerId,
+                      })}
+                      onClick={() => setView({ kind: "edit", provider })}
+                    >
+                      {translate("settings.sso.provider.edit")}
+                    </UI.Button>
+                    <UI.Button
+                      id={removeButtonId(provider.providerId)}
+                      type="button"
+                      variant="destructive-quiet"
+                      aria-label={translate(
+                        "settings.sso.provider.removeLabel",
+                        { name: provider.providerId },
+                      )}
+                      onClick={() => {
+                        setRemoveProblem(null);
+                        setRemoving(provider);
+                      }}
+                    >
+                      {translate("settings.sso.provider.delete")}
+                    </UI.Button>
+                  </UI.Inline>
                 ),
                 onSelect: () => setView({ kind: "edit", provider }),
               }))}
@@ -391,6 +484,22 @@ export function SsoPage() {
                 : undefined}
             />
           )}
+        {data && removingNow
+          ? (
+            <SsoRemoveDialog
+              busy={busy === `remove:${removingNow.providerId}`}
+              onCancel={() => stopRemoving(removingNow.providerId)}
+              onConfirm={() =>
+                void confirmRemoval(
+                  removingNow,
+                  removalSituation(data, removingNow) === "onlyVerified",
+                )}
+              problem={removeProblem}
+              provider={removingNow}
+              situation={removalSituation(data, removingNow)}
+            />
+          )
+          : null}
         {data
           ? (
             <UI.AlertDialog
@@ -463,7 +572,6 @@ function ProviderForm({
   failure,
   onCancel,
   onSaved,
-  onRemoved,
 }: {
   readonly view: Exclude<View, { kind: "list" }>;
   readonly organizationId: string;
@@ -477,7 +585,6 @@ function ProviderForm({
   ) => Notice;
   readonly onCancel: () => void;
   readonly onSaved: (notice: MessageKey) => Promise<void>;
-  readonly onRemoved: () => Promise<void>;
 }) {
   const { translate } = useI18n();
   const ids = {
@@ -505,7 +612,6 @@ function ProviderForm({
   const [metadata, setMetadata] = useState("");
   const [problem, setProblem] = useState<Notice | null>(null);
   const [saving, setSaving] = useState(false);
-  const [confirmingRemove, setConfirmingRemove] = useState(false);
 
   const save = async () => {
     if (saving) return;
@@ -573,21 +679,6 @@ function ProviderForm({
         return;
       }
       await onSaved("settings.sso.provider.saved");
-    } finally {
-      setSaving(false);
-    }
-  };
-  const remove = async () => {
-    if (!editing || saving) return;
-    setConfirmingRemove(false);
-    setSaving(true);
-    try {
-      const result = await ssoApi.remove(editing.providerId);
-      if (!result.ok) {
-        setProblem(failure(result, "settings.sso.provider.deleteError"));
-        return;
-      }
-      await onRemoved();
     } finally {
       setSaving(false);
     }
@@ -799,18 +890,6 @@ function ProviderForm({
           )
           : null}
         <UI.Inline variant="actions">
-          {editing
-            ? (
-              <UI.Button
-                type="button"
-                variant="destructive-outline"
-                loading={saving}
-                onClick={() => setConfirmingRemove(true)}
-              >
-                {translate("settings.sso.provider.delete")}
-              </UI.Button>
-            )
-            : null}
           <UI.Button type="button" variant="outline" onClick={onCancel}>
             {translate("settings.sso.dialog.cancel")}
           </UI.Button>
@@ -819,44 +898,6 @@ function ProviderForm({
           </UI.Button>
         </UI.Inline>
       </form>
-      {editing
-        ? (
-          <UI.AlertDialog
-            open={confirmingRemove}
-            onOpenChange={setConfirmingRemove}
-            state={saving ? "confirming" : "open"}
-            title={translate("settings.sso.provider.delete.title", {
-              name: editing.providerId,
-            })}
-            variant="destructive"
-            cancelAction={
-              <UI.Button
-                type="button"
-                variant="secondary"
-                onClick={() => setConfirmingRemove(false)}
-              >
-                {translate("settings.sso.dialog.cancel")}
-              </UI.Button>
-            }
-            confirmAction={
-              <UI.Button
-                type="button"
-                variant="destructive"
-                loading={saving}
-                onClick={() => void remove()}
-              >
-                {translate("settings.sso.provider.delete.confirm")}
-              </UI.Button>
-            }
-          >
-            <UI.Text>
-              {translate("settings.sso.provider.delete.body", {
-                domain: editing.domain,
-              })}
-            </UI.Text>
-          </UI.AlertDialog>
-        )
-        : null}
     </>
   );
 }

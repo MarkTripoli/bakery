@@ -320,6 +320,21 @@
       "slug": "session-required",
       "title": "Browser session required",
       "detail": "This action needs a signed-in browser session; an access token cannot perform it."
+    },
+    "STORAGE_AREA_REFUSED": {
+      "status": 409,
+      "retryable": false,
+      "slug": "storage-area-refused"
+    },
+    "STORAGE_QUOTA_EXCEEDED": {
+      "status": 409,
+      "retryable": false,
+      "slug": "storage-quota-exceeded"
+    },
+    "STORAGE_FILE_TOO_LARGE": {
+      "status": 422,
+      "retryable": false,
+      "slug": "storage-file-too-large"
     }
   },
   "conventions": {
@@ -11668,6 +11683,166 @@
         }
       ],
       "description": "Unauthenticated redemption of a password reset link: sets the new password, consumes the link and signs the person out of every browser session. An unknown, used, expired or revoked link gets one identical refusal."
+    },
+    "StorageFilePut": {
+      "fields": [
+        {
+          "name": "path",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 2,
+            "maxLength": 4096
+          },
+          "description": "Where the file goes: Absolute path in the organization's storage tree, such as /shared/briefs/plan.md. Segments are compared case-insensitively after Unicode normalization; an empty segment, '.', '..', a control character or a missing leading slash is refused. Its parent folder must exist and be in a working, personal (owner only) or scratch area."
+        },
+        {
+          "name": "mediaType",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "description": "IANA media type the version records and later serves, such as text/markdown or application/octet-stream."
+        },
+        {
+          "name": "content",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 1398104
+          },
+          "description": "The file's bytes, base64, for a small file of at most 1 MiB. Send exactly one of content or blobId."
+        },
+        {
+          "name": "blobId",
+          "type": "uuid",
+          "required": false,
+          "description": "A blob a completed resumable upload stored in this organization (blobUploads.complete). This is how a large file is uploaded: upload the bytes, then put the blob at a path. Send exactly one of content or blobId."
+        }
+      ],
+      "rules": [
+        "Idempotency-Key is required. Writing a new file needs no If-Match and refuses one (412). Replacing an existing file needs a strong If-Match with the entry's version (428 when missing, 412 when stale).",
+        "Identical bytes and media type change nothing and return the entry as it is, so a retried put is idempotent. A larger file than the organization's maxFileBytes is 422 STORAGE_FILE_TOO_LARGE; a write that would take usage past 90% of the organization, project or personal quota is 409 STORAGE_QUOTA_EXCEEDED with reason organization, project or personal.",
+        "A parent in a record area, the library, /connections, /trash or /system is 409 STORAGE_AREA_REFUSED with a reason; a missing parent, or another member's personal folder, is 404."
+      ],
+      "description": "Writes a file at a path in a working area (O42, chapter 25 section 17.4 put and upload): the first write makes the file entry, each later write adds a version. Working areas keep the newest versions up to the organization's setting; scratch keeps only the latest."
+    },
+    "StorageFolderCreate": {
+      "fields": [
+        {
+          "name": "path",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 2,
+            "maxLength": 4096
+          },
+          "description": "The new folder: Absolute path in the organization's storage tree, such as /shared/briefs/plan.md. Segments are compared case-insensitively after Unicode normalization; an empty segment, '.', '..', a control character or a missing leading slash is refused. Its parent must exist and be writable by the caller."
+        }
+      ],
+      "rules": [
+        "Idempotency-Key is required. An existing folder at the path is returned unchanged; a file there is 409 STATE_CONFLICT reason name_taken."
+      ],
+      "description": "Makes a folder in a working, personal or scratch area. People add folders only in assets, attachments, /shared, workspaces and their own personal folder (section 17.2); everywhere else is refused."
+    },
+    "StorageEntryDestination": {
+      "fields": [
+        {
+          "name": "destinationPath",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 2,
+            "maxLength": 4096
+          },
+          "description": "Where the entry ends up, name included: Absolute path in the organization's storage tree, such as /shared/briefs/plan.md. Segments are compared case-insensitively after Unicode normalization; an empty segment, '.', '..', a control character or a missing leading slash is refused. Its parent must be a folder the caller may write."
+        }
+      ],
+      "rules": [
+        "Idempotency-Key is required; a move also needs a strong If-Match with the entry's version.",
+        "A destination name already taken in that folder is 409 STATE_CONFLICT reason name_taken. Moving a folder into itself is 422."
+      ],
+      "description": "The destination of a copy or a move inside the storage tree. A copy makes a new entry naming the same bytes; a move changes only the entry's parent and name, so nothing pinned to its versions breaks (O34)."
+    },
+    "StorageSettingsPut": {
+      "fields": [
+        {
+          "name": "workingVersionsKept",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1,
+            "max": 1000
+          },
+          "description": "How many versions a working-area file keeps; older ones are removed on the next write. Default 20."
+        },
+        {
+          "name": "trashRetentionDays",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1,
+            "max": 3650
+          },
+          "description": "Days a deleted working file stays in /trash, restorable, before the hourly sweep removes it. Default 30."
+        },
+        {
+          "name": "scratchRetentionDays",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1,
+            "max": 3650
+          },
+          "description": "Days a file in a personal scratch folder lives after its last write before the sweep removes it. Default 30."
+        },
+        {
+          "name": "maxFileBytes",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1,
+            "max": 5368709120
+          },
+          "description": "Largest single file a put accepts, in bytes; at most the 5 GiB blob limit. Default 5 GiB."
+        },
+        {
+          "name": "organizationQuotaBytes",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1,
+            "max": 1125899906842624
+          },
+          "description": "Bytes all working-area files of the organization may hold. Usage warns at 75% and new writes pause at 90%. Default 100 GiB."
+        },
+        {
+          "name": "projectQuotaBytes",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1,
+            "max": 1125899906842624
+          },
+          "description": "Bytes each project's working-area files (assets, workspaces, attachments) may hold, with the same 75% warning and 90% pause. Default 50 GiB."
+        },
+        {
+          "name": "personalQuotaBytes",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1,
+            "max": 1125899906842624
+          },
+          "description": "Bytes each member's personal folder may hold, with the same 75% warning and 90% pause. Default 10 GiB."
+        }
+      ],
+      "rules": [
+        "Organization Admin only. Idempotency-Key is required. The first save needs no If-Match and refuses one; every later save needs a strong If-Match with the settings version (428 when missing, 412 when stale). Every value is replaced; a value outside its bounds is 422 and nothing is stored."
+      ],
+      "description": "Replaces the organization's storage limits (O42): versions kept, trash and scratch retention, maximum file size and the organization, project and personal quotas."
     },
     "RunRequestCreate": {
       "fields": [
@@ -29796,6 +29971,166 @@
         "id": "Stable UUID of the reset link record, as the audit trail names it.",
         "url": "Absolute web URL of the reset page with the one-time token; hand it to the person over a trusted channel.",
         "expiresAt": "UTC timestamp one hour after issue, after which the link no longer works."
+      }
+    },
+    "StorageEntry": {
+      "fields": [
+        "id",
+        "parentId",
+        "path",
+        "name",
+        "kind",
+        "policy",
+        "artifactId",
+        "currentVersionId",
+        "revision",
+        "sha256",
+        "sizeBytes",
+        "mediaType",
+        "trashedAt",
+        "restoreParentId",
+        "originalName",
+        "originalFolderPath",
+        "trashedById",
+        "trashedByName",
+        "deletionRequestedAt",
+        "version",
+        "updatedAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "parentId": "uuid|null",
+        "path": "string",
+        "name": "string",
+        "kind": "enum(folder|file)",
+        "policy": "enum(record|working|scratch|library|personal|system)",
+        "artifactId": "uuid|null",
+        "currentVersionId": "uuid|null",
+        "revision": "integer|null",
+        "sha256": "string|null",
+        "sizeBytes": "integer|null",
+        "mediaType": "string|null",
+        "trashedAt": "timestamp|null",
+        "restoreParentId": "uuid|null",
+        "originalName": "string|null",
+        "originalFolderPath": "string|null",
+        "trashedById": "uuid|null",
+        "trashedByName": "string|null",
+        "deletionRequestedAt": "timestamp|null",
+        "version": "integer",
+        "updatedAt": "timestamp"
+      },
+      "nullableFields": [
+        "parentId",
+        "artifactId",
+        "currentVersionId",
+        "revision",
+        "sha256",
+        "sizeBytes",
+        "mediaType",
+        "trashedAt",
+        "restoreParentId",
+        "originalName",
+        "originalFolderPath",
+        "trashedById",
+        "trashedByName",
+        "deletionRequestedAt"
+      ],
+      "description": "A folder or file in the organization's storage tree as the caller may see it: where it is, what policy it follows and, for a working-area file, its current version's digest and size.",
+      "fieldDescriptions": {
+        "id": "Stable id of the entry. A rename or move never changes it, so links and pins keep working.",
+        "parentId": "Folder that holds the entry now; the /trash folder while it is deleted. Null only for a top-level area.",
+        "path": "The entry's path now, a label that changes with a rename or move; the id is its identity.",
+        "name": "The entry's display name, unique in its folder when compared case-insensitively.",
+        "kind": "Whether this is a folder or a file.",
+        "policy": "Folder policy the entry follows: record areas keep their files, working and personal areas take writes and delete to trash, scratch keeps only the latest version and expires.",
+        "artifactId": "The artifact a record-area file shows; null for a file written into a working area and for folders.",
+        "currentVersionId": "The working-area file's current version; null for folders and record-area files, whose version is their artifact's.",
+        "revision": "Revision number of the current working-area version, counting from 1.",
+        "sha256": "Lowercase hexadecimal SHA-256 of the current working-area version's bytes.",
+        "sizeBytes": "Size of the current working-area version in bytes.",
+        "mediaType": "Media type of the current working-area version.",
+        "trashedAt": "When the entry was deleted to trash; null while it is live.",
+        "restoreParentId": "Folder a restore puts a trashed entry back into; null while it is live.",
+        "originalName": "Name the entry had before it was deleted, which a restore gives it back; null while it is live.",
+        "originalFolderPath": "Path of the folder the entry was deleted from, for showing where it came from; null while it is live.",
+        "trashedById": "Person or agent that deleted the entry to trash; null while it is live.",
+        "trashedByName": "Display name of whoever deleted the entry, as shown in the trash list; null while it is live.",
+        "deletionRequestedAt": "When an Admin asked to delete this record-area file forever; set while that request waits for the owner maintenance task, so the page can show it as being deleted. Null when no deletion is pending.",
+        "version": "Optimistic concurrency version; send it as If-Match to replace, move, delete or restore this entry.",
+        "updatedAt": "When the entry or its current version last changed."
+      }
+    },
+    "Page<StorageEntry>": {
+      "pageOf": "StorageEntry",
+      "description": "Cursor page of the entries in the organization's trash the caller may see, most recently deleted first. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers or offsets."
+    },
+    "StorageSettings": {
+      "fields": [
+        "workingVersionsKept",
+        "trashRetentionDays",
+        "scratchRetentionDays",
+        "maxFileBytes",
+        "organizationQuotaBytes",
+        "projectQuotaBytes",
+        "personalQuotaBytes",
+        "organizationUsedBytes",
+        "organizationQuotaState",
+        "customized",
+        "version"
+      ],
+      "fieldTypes": {
+        "workingVersionsKept": "integer",
+        "trashRetentionDays": "integer",
+        "scratchRetentionDays": "integer",
+        "maxFileBytes": "integer",
+        "organizationQuotaBytes": "integer",
+        "projectQuotaBytes": "integer",
+        "personalQuotaBytes": "integer",
+        "organizationUsedBytes": "integer",
+        "organizationQuotaState": "enum(ok|warning|paused)",
+        "customized": "boolean",
+        "version": "integer"
+      },
+      "nullableFields": [],
+      "description": "The organization's storage limits and how much of its quota working-area files use. Every limit is an organization setting with a default (O42).",
+      "fieldDescriptions": {
+        "workingVersionsKept": "Versions a working-area file keeps.",
+        "trashRetentionDays": "Days a deleted working file stays restorable in /trash.",
+        "scratchRetentionDays": "Days a scratch file lives after its last write.",
+        "maxFileBytes": "Largest single file a put accepts, in bytes.",
+        "organizationQuotaBytes": "Bytes the organization's working-area files may hold.",
+        "projectQuotaBytes": "Bytes each project's working-area files may hold.",
+        "personalQuotaBytes": "Bytes each member's personal folder may hold.",
+        "organizationUsedBytes": "Bytes working-area file versions hold now, trash included until it is swept or purged.",
+        "organizationQuotaState": "Where usage stands against the organization quota: warning from 75%, paused from 90%, when new writes are refused.",
+        "customized": "False while the organization uses Bakery's defaults; true once an Admin saved its own values.",
+        "version": "Settings version for If-Match on the next save; 0 while the defaults apply."
+      }
+    },
+    "StoragePurgeResult": {
+      "fields": [
+        "id",
+        "status",
+        "alreadyRequested",
+        "entriesRemoved",
+        "bytesRemoved"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "status": "enum(removed|queued)",
+        "alreadyRequested": "boolean",
+        "entriesRemoved": "integer",
+        "bytesRemoved": "integer"
+      },
+      "nullableFields": [],
+      "description": "What an Admin purge did. A purge is permanent and audited. A working, personal or scratch entry is removed at once; a record-area file is queued, because only the owner-privileged purge job may clear an artifact's bytes. A record-area folder is refused.",
+      "fieldDescriptions": {
+        "id": "The purged entry.",
+        "status": "removed when the entry and everything under it were deleted in this request; queued when a record-area file's purge was recorded for the owner-privileged job, which clears every version's bytes and leaves the entry as a tombstone. Purging the same file again before the job runs returns queued for the same request.",
+        "alreadyRequested": "True when the record-area file already had a pending purge request, so this call queued nothing new; false when this call made the request or removed the entry.",
+        "entriesRemoved": "Entries deleted with their versions: the entry and everything under it. Zero when the purge is queued.",
+        "bytesRemoved": "Bytes of working-area versions deleted. Zero when the purge is queued."
       }
     },
     "RunRequestPerson": {
