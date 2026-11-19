@@ -227,6 +227,7 @@ Deno.test("Bakery migrations follow the globally unique migration sequence", asy
       "0228_provider_probe_writers",
       "0230_route_continuations",
       "0231_agent_power_grants",
+      "0232_storage_entries",
       "0234_job_restart_privileges",
     ],
   );

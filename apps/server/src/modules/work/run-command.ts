@@ -31,7 +31,11 @@ import type { PgTransactionClient } from "../../platform/database.ts";
 import { nextOrganizationSequence } from "../../platform/event-clock.ts";
 import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
 import { requireWorkTransaction } from "./work-transaction.ts";
-import { pinDeclaredRunInputs } from "./run-input-pins.ts";
+import {
+  pinDeclaredRunInputs,
+  recordInputPaths,
+  resolveInputPaths,
+} from "./run-input-pins.ts";
 import { requestRunStart } from "./run-start.ts";
 import { resolveDependencyReadiness } from "./dependency-readiness.ts";
 import {
@@ -1036,11 +1040,21 @@ export async function createRunCommand(
   const budgetLimitUsd = validateBudgetLimitUsd(
     input.budgetLimitUsd ?? preset?.defaultBudgetLimitUsd,
   );
-  const inputs = preset
+  const suppliedInputs = preset
     ? presetBriefInputs(task, approvedPlan)
     : input.inputs === undefined
     ? null
     : input.inputs;
+  validateRunInputs(suppliedInputs);
+  // A storage path an input names is resolved now, to the version it points at,
+  // and the run keeps that pin; the path stays only as a label.
+  if (preset && input.inputPaths !== undefined) {
+    throw unprocessable(["inputPaths"], "input_paths_not_allowed_with_preset");
+  }
+  const { inputs, resolved: resolvedInputPaths } = await resolveInputPaths(
+    transaction,
+    { organizationId, inputs: suppliedInputs, inputPaths: input.inputPaths },
+  );
   validateRunInputs(inputs);
 
   let profile: ProfileRow | null = null;
@@ -1379,6 +1393,11 @@ export async function createRunCommand(
     organizationId,
     runId: run.id,
     inputs,
+  });
+  await recordInputPaths(transaction, {
+    organizationId,
+    runId: run.id,
+    resolved: resolvedInputPaths,
   });
   const taskUpdate = await transaction.query<{ id: string; version: number }>(
     `update bakery.tasks

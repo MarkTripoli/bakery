@@ -26,6 +26,7 @@ import {
   validateArtifactUpload,
 } from "./bytes.ts";
 import { assertParentVersion } from "./authority.ts";
+import { projectArtifactEntry, storageQueryOf } from "./storage-tree.ts";
 import { DRAFT_SOURCE_METADATA_KEYS } from "./draft-source-metadata.ts";
 import { reconcileCoordinationForCommittedOutput } from "../work/coordination-projection.ts";
 
@@ -372,6 +373,12 @@ export async function publishArtifact(
     throw new StandardError({ code: "INTERNAL" });
   }
   assertParentVersion(parent.current_version_id, input.parentVersionId);
+  // The artifact appears in the storage tree under its work item in the same
+  // transaction that made it (#444); no artifact or version row changes.
+  await projectArtifactEntry(storageQueryOf(transaction), {
+    organizationId: scope.organization_id,
+    artifactId: parent.id,
+  });
   const response = await commitArtifactVersion(transaction, {
     scope: {
       organizationId: scope.organization_id,
