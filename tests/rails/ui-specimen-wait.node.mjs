@@ -1,10 +1,11 @@
 // Storybook mounts `.storybook-story` after `load`, so every navigation races
 // the first render. The canonical loops walk every canonical story in sequence while
-// the other worker does the same, and `packages/ui/playwright.config.ts` sets
-// no retries, so one specimen that paints late fails `ui / storybook browser`
-// — the lane all three `ui / paper parity` lanes gate on. This rail keeps the
-// whole suite on the harness's single shared wait so the 5 s `expect` default
-// cannot creep back onto that element.
+// the other worker does the same, and a specimen that paints late fails
+// `ui / storybook browser` — the lane all three `ui / paper parity` lanes gate
+// on. This rail keeps the whole suite on the harness's single shared wait so
+// the 5 s `expect` default cannot creep back onto that element, and keeps one
+// CI retry in the config so a host stall that freezes every test in flight does
+// not fail the lane when nothing in a story is wrong.
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { test } from "node:test";
@@ -282,6 +283,13 @@ test("the shared wait outlasts the expect default it replaced", () => {
     budget >= 30_000,
     `specimenTimeout ${budget}ms must keep at least the 30 s locator budget ` +
       "the harness used before it was named",
+  );
+});
+
+test("the config retries a failed test once on CI, so a host stall alone does not fail the lane", () => {
+  assert.ok(
+    execInCode(config, /retries:\s*process\.env\.CI\s*\?\s*1\s*:\s*0/) !== null,
+    "packages/ui/playwright.config.ts must set retries: process.env.CI ? 1 : 0",
   );
 });
 
