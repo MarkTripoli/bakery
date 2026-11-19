@@ -9,6 +9,7 @@ const TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z$/;
 const DECIMAL_SEQUENCE = /^(0|[1-9]\d*)$/;
 /** Filter text longer than this is bound by its SHA-256, keeping a cursor small. */
 const MAX_INLINE_FILTER_CHARS = 96;
+const HASHED = "sha256:";
 
 /**
  * The filters a cursor is bound to. Short filters are carried as written. Long
@@ -17,11 +18,15 @@ const MAX_INLINE_FILTER_CHARS = 96;
  * row cursors do this; a sequence cursor may be asked for its filters back.
  */
 async function boundFilters(filters: string): Promise<string> {
-  if (filters.length <= MAX_INLINE_FILTER_CHARS) return filters;
+  // Text that already looks like a hash is hashed too, so the hashed form of one
+  // filter set can never be mistaken for another set written as that text.
+  if (
+    filters.length <= MAX_INLINE_FILTER_CHARS && !filters.startsWith(HASHED)
+  ) return filters;
   const digest = new Uint8Array(
     await crypto.subtle.digest("SHA-256", new TextEncoder().encode(filters)),
   );
-  return `sha256:${
+  return `${HASHED}${
     Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("")
   }`;
 }
@@ -221,13 +226,16 @@ async function decodePayload(
 async function validPayloadBinding(
   record: Record<string, unknown>,
   binding: CursorBinding,
+  filters: "bound" | "verbatim" = "verbatim",
 ): Promise<boolean> {
   return record.v === CURSOR_VERSION && record.a === binding.action &&
     record.p === binding.principalId &&
     record.o === (binding.organizationId ?? UNSCOPED) &&
     record.r === binding.ordering &&
-    (record.f === binding.filters ||
-      record.f === await boundFilters(binding.filters)) &&
+    record.f ===
+      (filters === "bound"
+        ? await boundFilters(binding.filters)
+        : binding.filters) &&
     record.s === binding.schemaVersion;
 }
 
@@ -285,7 +293,8 @@ export async function decodeCursor(
     }
     : null;
   if (
-    !(await validPayloadBinding(record, binding)) || record.k !== "row" ||
+    !(await validPayloadBinding(record, binding, "bound")) ||
+    record.k !== "row" ||
     !position || positionKind(position) !== expectedKind
   ) return invalidCursor();
   return position;
