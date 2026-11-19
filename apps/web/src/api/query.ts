@@ -38,6 +38,8 @@ import type {
   IntegrationAppRegistration,
   IntegrationConnection,
   IntegrationResource,
+  MemoryEntryResponse,
+  MemoryRevisionResponse,
   MessageListResponse,
   NotificationCountResponse,
   NotificationCursorQuery,
@@ -1950,6 +1952,71 @@ export function libraryWorkflowsQueryOptions(
         cursor = read.nextCursor;
       }
       return { items, truncated: true };
+    },
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/** Every remembered fact of the organization (a few pages at most), each with its current revision, and whether the list was cut short. */
+export function libraryMemoriesQueryOptions(
+  client: Pick<BakeryApiClient, "listMemories">,
+  scope: ApiScope,
+) {
+  return queryOptions<
+    { items: MemoryEntryResponse[]; truncated: boolean },
+    ApiFailure
+  >({
+    queryKey: protectedQueryKey(scope, "library.memories", {}),
+    queryFn: async ({ signal }) => {
+      const items: MemoryEntryResponse[] = [];
+      let cursor: string | undefined;
+      for (let page = 0; page < LIBRARY_COLLECTION_PAGES; page += 1) {
+        const read = unwrap(
+          await client.listMemories({
+            organizationId: requireOrganization(scope),
+            cursor,
+            limit: 100,
+            signal,
+          }),
+        );
+        items.push(...read.items);
+        if (read.nextCursor === null) return { items, truncated: false };
+        cursor = read.nextCursor;
+      }
+      return { items, truncated: true };
+    },
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/** Every wording one remembered fact has had (a few pages at most): the history shown under it. */
+export function memoryRevisionsQueryOptions(
+  client: Pick<BakeryApiClient, "listMemoryRevisions">,
+  scope: ApiScope,
+  id: string,
+) {
+  return queryOptions<MemoryRevisionResponse[], ApiFailure>({
+    queryKey: protectedQueryKey(scope, "memory.revisions", { id }),
+    queryFn: async ({ signal }) => {
+      const items: MemoryRevisionResponse[] = [];
+      let cursor: string | undefined;
+      for (let page = 0; page < LIBRARY_COLLECTION_PAGES; page += 1) {
+        const read = unwrap(
+          await client.listMemoryRevisions({
+            organizationId: requireOrganization(scope),
+            id,
+            cursor,
+            limit: 100,
+            signal,
+          }),
+        );
+        items.push(...read.items);
+        if (read.nextCursor === null) return items;
+        cursor = read.nextCursor;
+      }
+      return items;
     },
     enabled: Boolean(scope.organizationId),
     retry: retryNetworkOnce,
