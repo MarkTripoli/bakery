@@ -179,6 +179,7 @@ export * from "./molecules/Sheet.tsx";
 export * from "./molecules/Tabs.tsx";
 export * from "./molecules/Toast.tsx";
 export * from "./molecules/ExpandableText.tsx";
+export * from "./molecules/DocumentEditor.tsx";
 export * from "./molecules/PresenceRow.tsx";
 export * from "./molecules/SuggestionCard.tsx";
 export * from "./molecules/HelpTip.tsx";

@@ -10,6 +10,20 @@ const config: StorybookConfig = {
     name: "@storybook/react-vite",
     options: {},
   },
+  // loro-crdt's default entry needs a wasm loader; its base64 entry does not, and
+  // it is the one build every importer must share.
+  viteFinal: (viteConfig) => ({
+    ...viteConfig,
+    resolve: {
+      ...viteConfig.resolve,
+      alias: [
+        ...(Array.isArray(viteConfig.resolve?.alias)
+          ? viteConfig.resolve.alias
+          : []),
+        { find: /^loro-crdt$/, replacement: "loro-crdt/base64" },
+      ],
+    },
+  }),
   staticDirs: ["../../../apps/web/public"],
 };
 
