@@ -32,7 +32,7 @@ import { requireWorkTransaction } from "../work/work-transaction.ts";
 const ROUTES_ORDERING = "createdAt:desc,id:desc";
 const INCIDENTS_ORDERING = "openedAt:desc,id:desc";
 
-const ROUTE_COLUMNS = `id, provider, endpoint, region, model, harness,
+export const ROUTE_COLUMNS = `id, provider, endpoint, region, model, harness,
   billing_route, provider_account_id, worker_binding_id, credential_location,
   status, health, incident_id, incident_generation, last_probe_at,
   next_probe_at, inference_verified_at, created_at, updated_at, version`;
@@ -49,7 +49,7 @@ const INCIDENT_COLUMNS = `id, route_id, generation, status, severity, reason,
   switched_task_count, still_blocked_task_count, opened_at, closed_at,
   updated_at, version`;
 
-type ProviderRouteRow = {
+export type ProviderRouteRow = {
   id: string;
   provider: string;
   endpoint: string;

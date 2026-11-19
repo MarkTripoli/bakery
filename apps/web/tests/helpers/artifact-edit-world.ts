@@ -10,6 +10,7 @@ import {
   ARTIFACT_ID,
   json,
   PATH,
+  problem,
   stubArtifactPage,
   TASK_ID,
 } from "./artifact-page-fixture.ts";
@@ -17,6 +18,7 @@ import {
 export const DRAFT = "11111111-1111-4111-8111-111111111111";
 const ROOM = { kind: "draft", id: DRAFT };
 const CHECKPOINT = "88888888-8888-4888-8888-888888888888";
+const CHECKPOINT_AFTER = "99999999-9999-4999-8999-999999999999";
 const NIL = "00000000-0000-0000-0000-000000000000";
 
 export type Behaviour = {
@@ -25,7 +27,39 @@ export type Behaviour = {
   readonly participants?: readonly unknown[];
   /** After serverClose() every new connection is closed at once, so the page stays offline. */
   readonly refuseReconnect?: boolean;
+  /** Whether this person may publish (the draft's canPublish). Default true. */
+  readonly canPublish?: boolean;
+  /** Agent suggestions waiting on the draft. Default none. */
+  readonly suggestions?: number;
+  /**
+   * The answer to each publish request in turn: ok creates version 3, moved is
+   * a 412 (the text moved on), lost is a 503 that may have happened, and
+   * forbidden is a 403. The last answer repeats.
+   */
+  readonly publish?: readonly ("ok" | "moved" | "lost" | "forbidden")[];
+  /** After a refused publish the text differs (otherwise only the checkpoint moves). */
+  readonly textMoves?: boolean;
+  /** What looking the checkpoint up finds after a lost answer. Default absent. */
+  readonly lookup?: "found" | "absent";
+  /** Holds the draft read open until released, to show the reading state. */
+  readonly holdRead?: Promise<void>;
 };
+
+const publication = (versionNumber: number) => ({
+  draftId: DRAFT,
+  epoch: 1,
+  checkpointId: CHECKPOINT,
+  serverSequence: "1",
+  textDigest: "0".repeat(64),
+  artifactId: ARTIFACT_ID,
+  artifactVersionId: "00000000-0000-4000-8000-000000000199",
+  versionNumber,
+  sha256: "0".repeat(64),
+  publishedById: "33333333-3333-4333-8333-333333333333",
+  publishedByName: "Ana Reyes",
+  actorKind: "person",
+  publishedAt: "2026-01-01T00:00:00.000Z",
+});
 
 /**
  * Opens the page with a scripted draft and collaboration socket: the server's
@@ -55,10 +89,94 @@ export async function openEditor(
           textDigest: createHash("sha256").update(text).digest("hex"),
           text,
           receipts: [],
-          canPublish: true,
+          canPublish: behaviour.canPublish ?? true,
         }))
         : route.fallback(),
   );
+  const publishes: unknown[] = [];
+  const draftBody = {
+    id: DRAFT,
+    artifactId: ARTIFACT_ID,
+    taskId: TASK_ID,
+    epoch: 1,
+    serverSequence: "1",
+    checkpointId: CHECKPOINT,
+    textDigest: createHash("sha256").update(text).digest("hex"),
+    text,
+    receipts: [],
+    canPublish: behaviour.canPublish ?? true,
+  };
+  await page.route(`**/v1/drafts/${DRAFT}`, async (route) => {
+    await behaviour.holdRead;
+    // After a refused publish the server is on a newer checkpoint, with the
+    // text changed only when the test says so.
+    const moved = publishes.length > 0;
+    await route.fulfill(json(
+      moved
+        ? {
+          ...draftBody,
+          checkpointId: CHECKPOINT_AFTER,
+          textDigest: behaviour.textMoves
+            ? createHash("sha256").update(`${text}!`).digest("hex")
+            : draftBody.textDigest,
+        }
+        : draftBody,
+    ));
+  });
+  await page.route(
+    `**/v1/drafts/${DRAFT}/suggestions*`,
+    (route) =>
+      route.fulfill(json({
+        items: Array.from(
+          { length: behaviour.suggestions ?? 0 },
+          (_, index) => ({
+            id: `00000000-0000-4000-8000-0000000002${
+              String(index).padStart(2, "0")
+            }`,
+            draftId: DRAFT,
+            epoch: 1,
+            sourceCheckpointId: CHECKPOINT,
+            startCursor: "c0",
+            endCursor: "c1",
+            expectedText: "Hello",
+            replacement: "Hi",
+            state: "waiting",
+            refusalReason: null,
+            requestedById: "44444444-4444-4444-8444-444444444444",
+            requestedByName: "Review agent",
+            actorKind: "agent",
+            agentName: "review-agent",
+            requestId: "req-1",
+            decidedById: null,
+            decidedByName: null,
+            decidedAt: null,
+            appliedServerSequence: null,
+            createdAt: "2026-01-01T00:00:00.000Z",
+          }),
+        ),
+        nextCursor: null,
+      })),
+  );
+  const answers = behaviour.publish ?? ["ok"];
+  await page.route(`**/v1/drafts/${DRAFT}/publications`, (route) => {
+    publishes.push(route.request().postDataJSON());
+    const answer = answers[Math.min(publishes.length - 1, answers.length - 1)];
+    if (answer === "ok") return route.fulfill(json(publication(3)));
+    if (answer === "moved") {
+      return route.fulfill(problem(412, "PRECONDITION_FAILED"));
+    }
+    if (answer === "forbidden") {
+      return route.fulfill(problem(403, "AUTH_FORBIDDEN"));
+    }
+    return route.fulfill(problem(503, "SERVICE_UNAVAILABLE"));
+  });
+  const lookups: string[] = [];
+  await page.route(`**/v1/drafts/${DRAFT}/publications/*`, (route) => {
+    lookups.push(route.request().url());
+    return behaviour.lookup === "found"
+      ? route.fulfill(json(publication(3)))
+      : route.fulfill(problem(404, "RESOURCE_NOT_FOUND"));
+  });
   const updates: ReturnType<typeof decodeBinaryFrame>[] = [];
   let socket: { send(message: string | Buffer): void; close(): void } | null =
     null;
@@ -140,6 +258,8 @@ export async function openEditor(
   return {
     editor,
     updates,
+    publishes,
+    lookups,
     serverSend: (frame: unknown) => socket?.send(JSON.stringify(frame)),
     serverClose: () => {
       refusing = behaviour.refuseReconnect ?? false;
