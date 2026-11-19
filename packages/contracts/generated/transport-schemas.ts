@@ -2091,7 +2091,7 @@ const transportSchemas = {
       ],
       "description": "Filters the external write effects (issue comments, webhook deliveries and other outbound provider actions) visible to the caller, typically to audit what a specific workflow run triggered."
     },
-    "GitHubWebhook": {
+    "IntegrationWebhook": {
       "fields": [
         {
           "name": "deliveryId",
@@ -7964,7 +7964,7 @@ const transportSchemas = {
       ],
       "description": "Fixed OAuth callback shared by GitHub authorization and Slack identity-link completion; the bound, single-use state is claimed atomically before any code exchange, so callback fields alone can never select an organization, connection or installation."
     },
-    "GitHubSetupCallback": {
+    "IntegrationSetupCallback": {
       "fields": [
         {
           "name": "state",
@@ -9846,7 +9846,7 @@ const transportSchemas = {
       ],
       "description": "Starts GitHub App registration through GitHub's manifest flow for this Bakery installation. The App's URLs derive from the deployment's public base URL; credentials never travel through this request."
     },
-    "GitHubManifestCallback": {
+    "IntegrationManifestCallback": {
       "fields": [
         {
           "name": "code",
