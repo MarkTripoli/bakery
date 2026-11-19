@@ -978,31 +978,35 @@ export function WorkQueueView(
 ) {
   const { translate: t } = useI18n();
   const unknown = t("tasks.queue.unknown");
+  // Told there is no access, a person is not offered the primary action or tabs.
+  const noAccess = state === "forbidden";
   const selected = groups.flatMap((group) => group.rows).find((row) =>
     row.id === selectedId
   );
   return (
     <>
       <ShellFlushMain />
-      <ShellSlot name="actions">
-        <UI.Inline gap="compact">
-          <RouterLink
-            to="/tasks/new"
-            activeProps={{}}
-            inactiveProps={{}}
-            variant={layout === "sheet" ? "primaryIcon" : "primaryButton"}
-            aria-label={layout === "sheet"
-              ? t("tasks.queue.newTask")
-              : undefined}
-          >
-            <UI.IconGlyph
-              name="plus"
-              size={layout === "sheet" ? "large" : "medium"}
-            />
-            {layout === "rail" && t("tasks.queue.newTask")}
-          </RouterLink>
-        </UI.Inline>
-      </ShellSlot>
+      {!noAccess && (
+        <ShellSlot name="actions">
+          <UI.Inline gap="compact">
+            <RouterLink
+              to="/tasks/new"
+              activeProps={{}}
+              inactiveProps={{}}
+              variant={layout === "sheet" ? "primaryIcon" : "primaryButton"}
+              aria-label={layout === "sheet"
+                ? t("tasks.queue.newTask")
+                : undefined}
+            >
+              <UI.IconGlyph
+                name="plus"
+                size={layout === "sheet" ? "large" : "medium"}
+              />
+              {layout === "rail" && t("tasks.queue.newTask")}
+            </RouterLink>
+          </UI.Inline>
+        </ShellSlot>
+      )}
       {/* E8-0 has no worker strip on phones; readiness stays a desktop footer. */}
       {statusStrip && layout === "rail" && (
         <ShellSlot name="statusStrip">{statusStrip}</ShellSlot>
@@ -1038,7 +1042,7 @@ export function WorkQueueView(
         stateContent={stateContent}
         resultSummary={layout === "rail" ? summary : undefined}
         variant={layout === "sheet" ? "sheet" : "queue"}
-        views={views}
+        views={noAccess ? undefined : views}
         viewsLabel={t("tasks.queue.views")}
         maxVisibleViews={layout === "sheet" ? 2 : undefined}
         moreViewsLabel={t("tasks.queue.moreViews")}

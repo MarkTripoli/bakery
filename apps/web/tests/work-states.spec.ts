@@ -197,6 +197,9 @@ test("a Work list the person cannot read says so, with no button and no filters"
     "Ask an organization administrator for access.",
   );
   await expect(empty.getByRole("button")).toHaveCount(0);
+  // The header shows only the title: no New task, no tabs.
+  await expect(page.getByRole("link", { name: "New task" })).toHaveCount(0);
+  await expect(page.getByRole("tab")).toHaveCount(0);
   await expect(page.getByRole("searchbox", { name: "Search tasks" }))
     .toHaveCount(0);
   await still(page, "work-forbidden");
