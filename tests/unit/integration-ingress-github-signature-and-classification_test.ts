@@ -209,19 +209,60 @@ Deno.test("a delivery with no timestamp is not refused as a replay", () => {
   assertEquals(result.ok, true);
 });
 
-Deno.test("a signed body that is not a delivery is refused as malformed", () => {
+Deno.test("a signed body this provider cannot read is ignored, not refused", () => {
+  // This used to answer `malformed`, which was wrong in two ways a real
+  // delivery proved (see the integration lane):
+  //
+  //   - GitHub also sends legacy form-encoded deliveries, whose body is not
+  //     JSON at all;
+  //   - an event this provider does not mirror is acknowledged without reading
+  //     its body, which is a security property, not a leniency.
+  //
+  // The signature is what proves the sender, and it is still required. Whether
+  // an unreadable body is an error depends on the event, and only the host
+  // knows which events it consumes, so this provider answers `ignored` and the
+  // host's projection step still refuses a corrupt body for an event it does
+  // consume.
   for (const body of [enc("not json"), enc("[]"), enc('"a string"')]) {
     const result = githubIngress.verify({
       body,
       headers: new Headers({
         "x-hub-signature-256": `sha256=${hex(hmacSha256(secret, body))}`,
-        "x-github-event": "push",
+        "x-github-event": "star",
         "x-github-delivery": "d1",
       }),
       secrets: [secret],
       now: NOW,
     });
-    assertEquals(result, { ok: false, reason: "malformed" });
+    assert(
+      result.ok,
+      `unreadable body verified: ${new TextDecoder().decode(body)}`,
+    );
+    assertEquals(githubIngress.classify(result.delivery), { kind: "ignored" });
+  }
+
+  // A body that names no event or no delivery id is still not a delivery.
+  for (
+    const headers of [
+      new Headers({
+        "x-hub-signature-256": `sha256=${hex(hmacSha256(secret, enc("{}")))}`,
+        "x-github-delivery": "d1",
+      }),
+      new Headers({
+        "x-hub-signature-256": `sha256=${hex(hmacSha256(secret, enc("{}")))}`,
+        "x-github-event": "push",
+      }),
+    ]
+  ) {
+    assertEquals(
+      githubIngress.verify({
+        body: enc("{}"),
+        headers,
+        secrets: [secret],
+        now: NOW,
+      }),
+      { ok: false, reason: "malformed" },
+    );
   }
 });
 
@@ -527,4 +568,49 @@ Deno.test("a verified delivery exposes its id so a redelivery can be refused", (
     now: NOW,
   });
   assertEquals(noId, { ok: false, reason: "malformed" });
+});
+
+Deno.test("a legacy form-encoded delivery reads the same as the JSON one", () => {
+  // GitHub's older Apps post `payload=<urlencoded json>`. The route used to
+  // parse that itself; now the provider does, because the encoding is GitHub's
+  // wire format and the host should only ever see the payload.
+  const payload = { action: "created", installation: { id: 42 } };
+  const body = enc(`payload=${encodeURIComponent(JSON.stringify(payload))}`);
+  const result = githubIngress.verify({
+    body,
+    headers: new Headers({
+      "x-hub-signature-256": `sha256=${hex(hmacSha256(secret, body))}`,
+      "x-github-event": "installation",
+      "x-github-delivery": "d1",
+      "content-type": "application/x-www-form-urlencoded",
+    }),
+    secrets: [secret],
+    now: NOW,
+  });
+  assert(result.ok);
+  const delivery = result.delivery as { payload: unknown };
+  assertEquals(delivery.payload, payload);
+  assertEquals(githubIngress.classify(result.delivery), {
+    kind: "routed",
+    externalAuthorizationId: "42",
+    projection: payload,
+    intents: [{ kind: "lifecycle", event: "installed" }],
+  });
+
+  // A form whose single field is not `payload` is not a GitHub delivery body.
+  const other = enc("notpayload=%7B%7D");
+  const rejected = githubIngress.verify({
+    body: other,
+    headers: new Headers({
+      "x-hub-signature-256": `sha256=${hex(hmacSha256(secret, other))}`,
+      "x-github-event": "star",
+      "x-github-delivery": "d1",
+      "content-type": "application/x-www-form-urlencoded",
+    }),
+    secrets: [secret],
+    now: NOW,
+  });
+  // Unreadable, not refused: the signature is what proves the sender.
+  assert(rejected.ok);
+  assertEquals(githubIngress.classify(rejected.delivery), { kind: "ignored" });
 });
