@@ -2012,6 +2012,12 @@ button.ui-activity-line__row:hover {
   outline-offset: var(--focus-offset-inset);
 }
 
+/* What a notification opened: outlined once, then it fades (see landed.ts). */
+[data-landed="true"] {
+  outline: var(--focus-width) solid var(--color-focus);
+  outline-offset: var(--focus-offset-inset);
+}
+
 .ui-session-thread__started {
   color: var(--color-fg-muted);
   font: var(--type-hint);

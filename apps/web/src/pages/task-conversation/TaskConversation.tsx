@@ -508,6 +508,7 @@ export function TaskConversation(
   const coordinationLink = (coordination.data?.items.length ?? 0) > 0;
   const planCard = (
     <UI.PlanSummaryCard
+      data-approval-id={approval?.id}
       title={revision
         ? t("tasks.conversation.plan.revision", {
           revision: String(revision.revision),
