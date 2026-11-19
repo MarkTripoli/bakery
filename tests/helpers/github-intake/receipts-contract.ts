@@ -19,7 +19,7 @@ import { createFakeGitHubApp } from "../fake-github-app.ts";
 import { activateDeployedIntegrations } from "../../../apps/server/src/modules/catalog/integration-gate.ts";
 import { deployedIntegrations } from "../../../apps/server/src/modules/catalog/integration-gate-registry.ts";
 
-const ACTION = "intake.github";
+const ACTION = "intake.webhook";
 const ACCESS =
   "Verified GitHub App raw-body signature; installation/resource routes to existing organization connection";
 
@@ -54,14 +54,14 @@ function registry() {
   });
 }
 
-Deno.test("issue 71 contract: intake.github is implemented in the registry, the implemented list and the generated contracts", async () => {
-  assertEquals(IntegrationsImplementedAction.IntakeGithub, ACTION);
+Deno.test("issue 71 contract: intake.webhook is implemented in the registry, the implemented list and the generated contracts", async () => {
+  assertEquals(IntegrationsImplementedAction.IntakeWebhook, ACTION);
   assert(integrationsImplementedActions.includes(ACTION));
   const action = registry().get(ACTION);
   assertEquals(action.method, "POST");
   assertEquals(action.path, GitHubAppPath.Webhook);
   assertEquals(action.path, "/v1/webhooks/github");
-  assert(action.input === contractSchemas.GitHubWebhook);
+  assert(action.input === contractSchemas.IntegrationWebhook);
   assert(action.output === contractSchemas.WebhookReceipt);
   assertEquals(action.policy.access, ACCESS);
 
@@ -98,7 +98,7 @@ Deno.test("issue 71 contract: the action has no organization context, no session
     /no client Idempotency-Key/.test(String(entry.idempotency)),
     "the catalog says no Idempotency-Key is expected",
   );
-  assertEquals(entry.input, "GitHubWebhook");
+  assertEquals(entry.input, "IntegrationWebhook");
   assertEquals(entry.output, "WebhookReceipt");
   assertEquals(entry.event, "intake.received");
 });
@@ -160,7 +160,7 @@ Deno.test("issue 71 contract: WebhookReceipt is the four-field acknowledgement w
   );
 
   const schemas = (await generatedContracts()).schemas;
-  for (const name of ["WebhookReceipt", "GitHubWebhook"]) {
+  for (const name of ["WebhookReceipt", "IntegrationWebhook"]) {
     const schema = schemas[name];
     assertEquals(descriptionDefectKind(schema.description, name), undefined);
     assertEquals(schema.additionalProperties, false, `${name} is closed`);
@@ -188,26 +188,26 @@ Deno.test("issue 71 contract: the verified-delivery envelope carries the deliver
     eventType: "issues",
     payload: { action: "opened" },
   };
-  assertEquals(contractSchemas.GitHubWebhook.parse(envelope), envelope);
+  assertEquals(contractSchemas.IntegrationWebhook.parse(envelope), envelope);
   assertThrows(() =>
-    contractSchemas.GitHubWebhook.parse({
+    contractSchemas.IntegrationWebhook.parse({
       ...envelope,
       deliveryId: "x".repeat(256),
     })
   );
   assertThrows(() =>
-    contractSchemas.GitHubWebhook.parse({
+    contractSchemas.IntegrationWebhook.parse({
       ...envelope,
       eventType: "e".repeat(101),
     })
   );
   assertThrows(() =>
-    contractSchemas.GitHubWebhook.parse({
+    contractSchemas.IntegrationWebhook.parse({
       ...envelope,
       payload: { text: "x".repeat(262_145) },
     })
   );
   assertThrows(() =>
-    contractSchemas.GitHubWebhook.parse({ ...envelope, installationId: 1 })
+    contractSchemas.IntegrationWebhook.parse({ ...envelope, installationId: 1 })
   );
 });

@@ -1,13 +1,21 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "f8018bd37aaeb7d88b0799c41f2f03d842955cf2"
+    "b2e7419bba9aff695dd23a1c67bfe759984c4fbe"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:fc6128799994a7ec2ab43bc364c1f126b47537717d43b7e6770761889a3a9684",
-  "reason": "Re-bind by dev-agx2 on 2026-11-18 for PR #638 (#15 slice 1) after folding main f85be00c, under the owner's standing breaking-change authorization: the merged tree carries main's #640 credential-store and #645 repository-rules deltas plus this branch's plugin delta. Move of 0193's nine CHECK constraints into TypeScript: PluginPackageCreate and PluginVersionCreate gain minLength, maxLength and pattern bounds on name, displayName, versionName, sdkRange, bundleObjectRef and bundleDigest. Constraint added, so it is breaking for a producer that sent a blank or malformed value; every value the database accepted unchanged still validates. Additive for every other schema.",
+  "targetCompatibilityDigest": "sha256:fc5c7bededbed24e8541ca3168cde358c616922447161ade6ee7cec2f39ee429",
+  "reason": "Provider-neutral operation ids: integrationAuth.setup, integrationAuth.authorizationCallback, integrationAuth.manifestCallback and intake.webhook replace the four ids that named one provider. The catalog sees this as four actions removed and four added; URLs are unchanged.",
   "priorApprovals": [
+    {
+      "fromBaseRefs": [
+        "f8018bd37aaeb7d88b0799c41f2f03d842955cf2"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:fc6128799994a7ec2ab43bc364c1f126b47537717d43b7e6770761889a3a9684"
+    },
     {
       "fromBaseRefs": [
         "f85be00c54fd47df1d119c724e384c051c91b385"
