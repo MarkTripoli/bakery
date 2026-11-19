@@ -485,10 +485,16 @@ function DraftEditor(
           dismissLabel={t("artifact.edit.suggestions.sheetClose")}
           onOpenChange={setSuggestionsOpen}
           open
-          title={t("artifact.edit.suggestions.titleNoCount")}
+          title={suggestions.phase === "failed" &&
+              suggestions.listed.length === 0
+            ? t("artifact.edit.suggestions.titleNoCount")
+            : t("artifact.edit.suggestions.title", {
+              count: suggestions.listed.length,
+            })}
           variant="side"
         >
           <SuggestionsPanel
+            hideTitle
             afterChoose={() => {
               setSuggestionsOpen(false);
               // Once the sheet is gone, show the text the card points at.

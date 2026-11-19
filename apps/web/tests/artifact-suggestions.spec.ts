@@ -46,7 +46,7 @@ test.describe("Agent suggestions on a draft", () => {
       ],
     });
     const section = await showList(page);
-    await expect(section.getByRole("heading", { name: "Suggestions (4)" }))
+    await expect(page.getByRole("heading", { name: "Suggestions (4)" }))
       .toBeVisible();
     const names = await section.getByRole("article").evaluateAll((els) =>
       els.map((el) =>
@@ -337,7 +337,7 @@ test.describe("Agent suggestions on a draft", () => {
     await openEditor(page, TEXT, { suggestionsRead: "fail" });
     const section = await showList(page);
     await expect(
-      section.getByRole("heading", { name: "Suggestions", exact: true }),
+      page.getByRole("heading", { name: "Suggestions", exact: true }),
     ).toBeVisible();
     await expect(section.getByText("Suggestions could not be loaded."))
       .toBeVisible();
@@ -358,7 +358,7 @@ test.describe("Agent suggestions on a draft", () => {
     await page.evaluate(() => globalThis.dispatchEvent(new Event("focus")));
     await expect(section.getByText("This list may be out of date."))
       .toBeVisible();
-    await expect(section.getByRole("heading", { name: "Suggestions (1)" }))
+    await expect(page.getByRole("heading", { name: "Suggestions (1)" }))
       .toBeVisible();
     await expect(card(page, /Replace “brave”/)).toBeVisible();
     await expect(section.getByRole("button", { name: "Try again" }))

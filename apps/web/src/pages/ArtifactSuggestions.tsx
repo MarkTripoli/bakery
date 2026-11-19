@@ -280,8 +280,10 @@ function resultText(result: Result, t: Translate): string {
 
 /** The cards, their notices and the questions of Accept all / Reject all. */
 export function SuggestionsPanel(
-  { afterChoose, state }: {
+  { afterChoose, hideTitle = false, state }: {
     readonly state: SuggestionsState;
+    /** The sheet already names the list, so its own heading is left out there. */
+    readonly hideTitle?: boolean;
     /** Called when a card is chosen, so a sheet can close. */
     readonly afterChoose?: () => void;
   },
@@ -364,11 +366,13 @@ export function SuggestionsPanel(
   return (
     <UI.Stack data-testid="draft-suggestions" gap="compact">
       <UI.Inline gap="compact" variant="between">
-        <UI.Heading level="subsection" rank={2}>
-          {firstFailed
-            ? t("artifact.edit.suggestions.titleNoCount")
-            : t("artifact.edit.suggestions.title", { count: listed.length })}
-        </UI.Heading>
+        {hideTitle ? null : (
+          <UI.Heading level="subsection" rank={2}>
+            {firstFailed
+              ? t("artifact.edit.suggestions.titleNoCount")
+              : t("artifact.edit.suggestions.title", { count: listed.length })}
+          </UI.Heading>
+        )}
         {waiting >= BULK_FROM && !denied && (
           <UI.Inline gap="compact">
             <UI.Button
@@ -469,6 +473,7 @@ export function SuggestionsPanel(
                 <UI.ExpandableText
                   hideLabel={t("core.actions.showLess")}
                   showLabel={t("core.actions.showAll")}
+                  lines={3}
                   variant="body"
                 >
                   {summaryOf(item)}

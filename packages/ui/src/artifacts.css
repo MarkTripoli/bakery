@@ -74,7 +74,10 @@
   display: none;
 }
 .ui-artifact-layout__aside {
+  /* Room for the chosen card's outline, which would be cut at the edge. */
   align-self: stretch;
+  margin: calc(-1 * var(--space-1));
+  padding: var(--space-1);
   max-block-size: calc(100dvb - var(--space-8));
   overflow-y: auto;
   position: sticky;
