@@ -9964,6 +9964,112 @@
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
         "MALFORMED_REQUEST"
       ]
+    },
+    {
+      "group": "Installation administration",
+      "access": "Installation administrator",
+      "permission": "installationSetting:read",
+      "mcp": null,
+      "organizationContext": "installation_administrator_scope",
+      "event": "",
+      "method": "GET",
+      "path": "/v1/installation/email",
+      "action": "emailSettings.get",
+      "input": "Empty",
+      "output": "EmailSettings",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "INTERNAL"
+      ]
+    },
+    {
+      "group": "Installation administration",
+      "access": "Installation administrator",
+      "permission": "installationSetting:manage",
+      "mcp": null,
+      "organizationContext": "installation_administrator_scope",
+      "event": "",
+      "method": "PUT",
+      "path": "/v1/installation/email",
+      "action": "emailSettings.put",
+      "input": "EmailSettingsPut",
+      "output": "EmailSettings",
+      "idempotency": "Idempotency-Key required; If-Match with the current version once settings exist",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
+        "PRECONDITION_REQUIRED",
+        "PRECONDITION_FAILED",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "INTERNAL"
+      ]
+    },
+    {
+      "group": "Installation administration",
+      "access": "Installation administrator",
+      "permission": "installationSetting:manage",
+      "mcp": null,
+      "organizationContext": "installation_administrator_scope",
+      "event": "",
+      "method": "POST",
+      "path": "/v1/installation/email/test",
+      "action": "emailSettings.test",
+      "input": "Empty",
+      "output": "EmailTestResult",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "INTERNAL"
+      ]
+    },
+    {
+      "group": "Installation administration",
+      "access": "Installation administrator",
+      "permission": "installationSetting:manage",
+      "mcp": null,
+      "organizationContext": "installation_administrator_scope",
+      "event": "",
+      "method": "DELETE",
+      "path": "/v1/installation/email",
+      "action": "emailSettings.delete",
+      "input": "Empty",
+      "output": "NoContent",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "PRECONDITION_REQUIRED",
+        "PRECONDITION_FAILED",
+        "RESOURCE_NOT_FOUND",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "INTERNAL"
+      ]
     }
   ]
 }

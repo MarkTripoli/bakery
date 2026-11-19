@@ -8574,6 +8574,116 @@ export const clientManifest = {
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true
+    },
+    {
+      "group": "Installation administration",
+      "method": "GET",
+      "path": "/v1/installation/email",
+      "action": "emailSettings.get",
+      "access": "Installation administrator",
+      "permission": "installationSetting:read",
+      "input": "Empty",
+      "output": "EmailSettings",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
+      "method": "PUT",
+      "path": "/v1/installation/email",
+      "action": "emailSettings.put",
+      "access": "Installation administrator",
+      "permission": "installationSetting:manage",
+      "input": "EmailSettingsPut",
+      "output": "EmailSettings",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required; If-Match with the current version once settings exist",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
+        "PRECONDITION_REQUIRED",
+        "PRECONDITION_FAILED",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
+      "method": "POST",
+      "path": "/v1/installation/email/test",
+      "action": "emailSettings.test",
+      "access": "Installation administrator",
+      "permission": "installationSetting:manage",
+      "input": "Empty",
+      "output": "EmailTestResult",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
+      "method": "DELETE",
+      "path": "/v1/installation/email",
+      "action": "emailSettings.delete",
+      "access": "Installation administrator",
+      "permission": "installationSetting:manage",
+      "input": "Empty",
+      "output": "NoContent",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "PRECONDITION_REQUIRED",
+        "PRECONDITION_FAILED",
+        "RESOURCE_NOT_FOUND",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
     }
   ],
   "schemas": {
@@ -13690,7 +13800,11 @@ export const clientManifest = {
             "groups.list",
             "groups.create",
             "groups.update",
-            "groups.delete"
+            "groups.delete",
+            "emailSettings.get",
+            "emailSettings.put",
+            "emailSettings.test",
+            "emailSettings.delete"
           ],
           "description": "Exact registered Bakery action name to grant within the selected organization; wildcard and prefix matching are forbidden."
         },
@@ -23079,6 +23193,71 @@ export const clientManifest = {
       },
       "additionalProperties": false,
       "description": "Partial update to a group's name, purpose or members. The mention name is immutable."
+    },
+    "EmailSettingsPut": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "host": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 253,
+          "description": "SMTP server name, such as smtp.example.com, without a scheme or port. EmailSettingsPut.host must contain at least 1 characters. EmailSettingsPut.host must contain at most 253 characters."
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535,
+          "description": "SMTP server port; 587 is usual for STARTTLS and 465 for TLS. EmailSettingsPut.port must be at least 1. EmailSettingsPut.port must be at most 65535."
+        },
+        "security": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 8,
+          "description": "Connection security: starttls (the default) or tls. Bakery never sends without encryption. EmailSettingsPut.security must contain at least 3 characters. EmailSettingsPut.security must contain at most 8 characters."
+        },
+        "username": {
+          "description": "EmailSettingsPut.username may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 256,
+              "description": "Account name for the SMTP server, or null for a server that needs none. Required when a password is supplied. EmailSettingsPut.username must contain at most 256 characters."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "password": {
+          "description": "SMTP password. Write-only: stored as an installation-owned AES-GCM ciphertext and never returned. Omit to keep the stored password; supply a new one to replace it. EmailSettingsPut.password must contain at most 1024 characters.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        },
+        "fromAddress": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 254,
+          "description": "Email address people see as the sender, such as bakery@example.com. EmailSettingsPut.fromAddress must contain at least 3 characters. EmailSettingsPut.fromAddress must contain at most 254 characters."
+        },
+        "fromName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "description": "Display name people see as the sender; defaults to Bakery in the settings page. EmailSettingsPut.fromName must contain at least 1 characters. EmailSettingsPut.fromName must contain at most 120 characters."
+        }
+      },
+      "required": [
+        "host",
+        "port",
+        "security",
+        "fromAddress",
+        "fromName"
+      ],
+      "additionalProperties": false,
+      "description": "Saves how this installation sends email over SMTP. The password is write-only and is never returned."
     },
     "PluginState": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -35733,7 +35912,11 @@ export const clientManifest = {
                   "groups.list",
                   "groups.create",
                   "groups.update",
-                  "groups.delete"
+                  "groups.delete",
+                  "emailSettings.get",
+                  "emailSettings.put",
+                  "emailSettings.test",
+                  "emailSettings.delete"
                 ],
                 "description": "Exact Bakery action name granted to the principal; wildcard and prefix meanings are forbidden."
               },
@@ -53350,7 +53533,11 @@ export const clientManifest = {
             "groups.list",
             "groups.create",
             "groups.update",
-            "groups.delete"
+            "groups.delete",
+            "emailSettings.get",
+            "emailSettings.put",
+            "emailSettings.test",
+            "emailSettings.delete"
           ],
           "description": "Exact Bakery action name granted to the principal; wildcard and prefix meanings are forbidden."
         },
@@ -80395,6 +80582,249 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Everything an organization member can ask by one name: the organization's own groups and the read-only groups made from roles."
+    },
+    "EmailTestResult": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "delivered",
+            "not_configured",
+            "unreachable",
+            "auth_refused",
+            "from_refused",
+            "tls_failed",
+            "timeout",
+            "server_error"
+          ],
+          "description": "delivered when the server accepted the message; not_configured without saved settings; unreachable when the server could not be reached; auth_refused when it refused the username or password; from_refused when it refused the From address; tls_failed when the secure connection could not be set up; timeout when it did not answer in time; server_error for anything else."
+        },
+        "testedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC time the test finished."
+        },
+        "address": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The administrator's address the test was sent to, or null when none was sent."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "EmailTestResult.address may be null in this transport value."
+        }
+      },
+      "required": [
+        "outcome",
+        "testedAt",
+        "address"
+      ],
+      "additionalProperties": false,
+      "description": "Fixed result of a test email sent to the signed-in administrator's own address. The server's own reply, host and credentials are never returned."
+    },
+    "EmailSettings": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": [
+            "off",
+            "not_tested",
+            "working",
+            "not_working"
+          ],
+          "description": "off when nothing is set up; not_tested after a save; working when the last test was delivered; not_working when it failed."
+        },
+        "host": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Saved SMTP server name, or null when off."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "EmailSettings.host may be null in this transport value."
+        },
+        "port": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Saved SMTP port, or null when off."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "EmailSettings.port may be null in this transport value."
+        },
+        "security": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Saved connection security (starttls or tls), or null when off."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "EmailSettings.security may be null in this transport value."
+        },
+        "username": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Saved SMTP account name, or null."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "EmailSettings.username may be null in this transport value."
+        },
+        "passwordStored": {
+          "type": "boolean",
+          "description": "Whether a password is stored; the value is never returned."
+        },
+        "passwordSavedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC time the stored password was last saved, or null."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "EmailSettings.passwordSavedAt may be null in this transport value."
+        },
+        "fromAddress": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Saved sender address, or null when off."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "EmailSettings.fromAddress may be null in this transport value."
+        },
+        "fromName": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Saved sender display name, or null when off."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "EmailSettings.fromName may be null in this transport value."
+        },
+        "lastTest": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "outcome": {
+                  "type": "string",
+                  "enum": [
+                    "delivered",
+                    "not_configured",
+                    "unreachable",
+                    "auth_refused",
+                    "from_refused",
+                    "tls_failed",
+                    "timeout",
+                    "server_error"
+                  ],
+                  "description": "delivered when the server accepted the message; not_configured without saved settings; unreachable when the server could not be reached; auth_refused when it refused the username or password; from_refused when it refused the From address; tls_failed when the secure connection could not be set up; timeout when it did not answer in time; server_error for anything else."
+                },
+                "testedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "description": "UTC time the test finished."
+                },
+                "address": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "The administrator's address the test was sent to, or null when none was sent."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "EmailTestResult.address may be null in this transport value."
+                }
+              },
+              "required": [
+                "outcome",
+                "testedAt",
+                "address"
+              ],
+              "additionalProperties": false,
+              "description": "The last test email result since the settings were saved, or null if none was sent."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "EmailSettings.lastTest may be null in this transport value."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Settings revision used as If-Match; 0 while off."
+        }
+      },
+      "required": [
+        "state",
+        "host",
+        "port",
+        "security",
+        "username",
+        "passwordStored",
+        "passwordSavedAt",
+        "fromAddress",
+        "fromName",
+        "lastTest",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "How this installation sends email, with the status of its last test. Carries no password, ciphertext or secret record id."
     }
   }
 } as const;

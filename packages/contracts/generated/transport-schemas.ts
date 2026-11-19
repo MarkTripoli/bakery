@@ -11380,6 +11380,82 @@ const transportSchemas = {
         "Organization Admin only; requires If-Match. The mention name is fixed at creation and cannot be sent."
       ],
       "description": "Partial update to a group's name, purpose or members. The mention name is immutable."
+    },
+    "EmailSettingsPut": {
+      "fields": [
+        {
+          "name": "host",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 253
+          },
+          "description": "SMTP server name, such as smtp.example.com, without a scheme or port."
+        },
+        {
+          "name": "port",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1,
+            "max": 65535
+          },
+          "description": "SMTP server port; 587 is usual for STARTTLS and 465 for TLS."
+        },
+        {
+          "name": "security",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 3,
+            "maxLength": 8
+          },
+          "description": "Connection security: starttls (the default) or tls. Bakery never sends without encryption."
+        },
+        {
+          "name": "username",
+          "type": "string|null",
+          "required": false,
+          "bounds": {
+            "maxLength": 256
+          },
+          "description": "Account name for the SMTP server, or null for a server that needs none. Required when a password is supplied."
+        },
+        {
+          "name": "password",
+          "type": "secretString",
+          "required": false,
+          "bounds": {
+            "maxLength": 1024
+          },
+          "description": "SMTP password. Write-only: stored as an installation-owned AES-GCM ciphertext and never returned. Omit to keep the stored password; supply a new one to replace it."
+        },
+        {
+          "name": "fromAddress",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 3,
+            "maxLength": 254
+          },
+          "description": "Email address people see as the sender, such as bakery@example.com."
+        },
+        {
+          "name": "fromName",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "description": "Display name people see as the sender; defaults to Bakery in the settings page."
+        }
+      ],
+      "rules": [
+        "Installation administrator, session only. Requires If-Match once settings exist. Saving resets the last test, so the state is not_tested until a test email is sent."
+      ],
+      "description": "Saves how this installation sends email over SMTP. The password is write-only and is never returned."
     }
   },
   "projections": {
@@ -28969,6 +29045,80 @@ const transportSchemas = {
       "fieldDescriptions": {
         "groups": "The organization's own groups, ordered by name.",
         "fromRoles": "Read-only groups made from roles; they follow the Members page and cannot be edited here."
+      }
+    },
+    "EmailTestResult": {
+      "fields": [
+        "outcome",
+        "testedAt",
+        "address"
+      ],
+      "fieldTypes": {
+        "outcome": "enum(delivered|not_configured|unreachable|auth_refused|from_refused|tls_failed|timeout|server_error)",
+        "testedAt": "timestamp",
+        "address": "string|null"
+      },
+      "nullableFields": [
+        "address"
+      ],
+      "description": "Fixed result of a test email sent to the signed-in administrator's own address. The server's own reply, host and credentials are never returned.",
+      "fieldDescriptions": {
+        "outcome": "delivered when the server accepted the message; not_configured without saved settings; unreachable when the server could not be reached; auth_refused when it refused the username or password; from_refused when it refused the From address; tls_failed when the secure connection could not be set up; timeout when it did not answer in time; server_error for anything else.",
+        "testedAt": "UTC time the test finished.",
+        "address": "The administrator's address the test was sent to, or null when none was sent."
+      }
+    },
+    "EmailSettings": {
+      "projection": "installation_email_settings",
+      "fields": [
+        "state",
+        "host",
+        "port",
+        "security",
+        "username",
+        "passwordStored",
+        "passwordSavedAt",
+        "fromAddress",
+        "fromName",
+        "lastTest",
+        "version"
+      ],
+      "fieldTypes": {
+        "state": "enum(off|not_tested|working|not_working)",
+        "host": "string|null",
+        "port": "integer|null",
+        "security": "string|null",
+        "username": "string|null",
+        "passwordStored": "boolean",
+        "passwordSavedAt": "timestamp|null",
+        "fromAddress": "string|null",
+        "fromName": "string|null",
+        "lastTest": "EmailTestResult|null",
+        "version": "integer"
+      },
+      "nullableFields": [
+        "host",
+        "port",
+        "security",
+        "username",
+        "passwordSavedAt",
+        "fromAddress",
+        "fromName",
+        "lastTest"
+      ],
+      "description": "How this installation sends email, with the status of its last test. Carries no password, ciphertext or secret record id.",
+      "fieldDescriptions": {
+        "state": "off when nothing is set up; not_tested after a save; working when the last test was delivered; not_working when it failed.",
+        "host": "Saved SMTP server name, or null when off.",
+        "port": "Saved SMTP port, or null when off.",
+        "security": "Saved connection security (starttls or tls), or null when off.",
+        "username": "Saved SMTP account name, or null.",
+        "passwordStored": "Whether a password is stored; the value is never returned.",
+        "passwordSavedAt": "UTC time the stored password was last saved, or null.",
+        "fromAddress": "Saved sender address, or null when off.",
+        "fromName": "Saved sender display name, or null when off.",
+        "lastTest": "The last test email result since the settings were saved, or null if none was sent.",
+        "version": "Settings revision used as If-Match; 0 while off."
       }
     }
   },
