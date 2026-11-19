@@ -3,6 +3,7 @@ import type { ActionContext } from "../../packages/contracts/src/action-registry
 import { openAuthFixture } from "../helpers/auth.ts";
 import { cleanupSeededOrganizations } from "../helpers/coordinator-turns.ts";
 import {
+  addMember,
   type Fixture,
   request,
   type Seed,
@@ -529,4 +530,73 @@ Deno.test("AC: GET /v1/files/search serves the contract, library included, and r
     const none = await request(fixture, seed, "/v1/files/search");
     assertEquals(none.status, 422, await none.clone().text());
     assert((await none.text()).includes("file_search_needs_a_filter"));
+  }));
+
+Deno.test("AC: through the route, a member with artifact:read but not library:read searches files and never sees the library", () =>
+  withFixture(async (fixture) => {
+    const seed = await seedOrganization(fixture, "route-permission");
+    await libraryItems(fixture, seed, "perm");
+    // A custom role that can read files and nothing else.
+    const reader = await addMember(fixture, seed, "files-only", "guest");
+    const roleId = crypto.randomUUID();
+    await fixture.pgDatabase.query(
+      `insert into bakery.organization_roles
+         (id, organization_id, key, name, permissions, created_by_principal_id)
+       values ($1, $2, 'files-only', 'Files only', $3, $4)`,
+      [roleId, seed.organizationId, ["artifact:read"], seed.principalId],
+    );
+    await fixture.pgDatabase.query(
+      `update bakery.organization_memberships set custom_role_id = $3
+        where organization_id = $1 and principal_id = $2`,
+      [seed.organizationId, reader.principalId, roleId],
+    );
+    const names = async (identity: { cookie: string }) => {
+      const response = await request(
+        fixture,
+        { cookie: identity.cookie, organizationId: seed.organizationId },
+        "/v1/files/search?query=perm",
+      );
+      assertEquals(response.status, 200, await response.clone().text());
+      return (await response.json() as {
+        items: { source: string; path: string }[];
+      }).items.map((hit) => `${hit.source}:${hit.path}`);
+    };
+
+    // The organization's owner can read the library, so the items are there to
+    // be found: this is what the files-only member must not see.
+    const owner = await names(seed);
+    assert(
+      owner.some((hit) => hit.startsWith("library:/library/agents/perm-agent")),
+      `the owner finds the library items: ${owner}`,
+    );
+    assertEquals(
+      (await names(reader)).filter((hit) => hit.startsWith("library:")),
+      [],
+    );
+  }));
+
+Deno.test("AC: the /library section list never shows another organization's sections", () =>
+  withFixture(async (fixture) => {
+    const mine = await seedOrganization(fixture, "sections-mine");
+    const theirs = await seedOrganization(fixture, "sections-theirs");
+    const sectionsOf = async (seed: Seed) =>
+      (await withPgTransaction(
+        fixture.pgDatabase,
+        (transaction) =>
+          listLibraryFolder(transaction, {
+            organizationId: seed.organizationId,
+          }),
+      ))?.map((child) => child.name) ?? [];
+
+    const before = await sectionsOf(mine);
+    // The other organization publishes sections this one has none of.
+    await libraryItems(fixture, theirs, "other");
+    const theirSections = await sectionsOf(theirs);
+    const foreign = theirSections.filter((name) => !before.includes(name));
+    assert(
+      foreign.length > 0,
+      "the other organization must add a section this one lacks",
+    );
+
+    assertEquals(await sectionsOf(mine), before);
   }));
