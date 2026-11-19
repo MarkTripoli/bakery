@@ -20,7 +20,10 @@ import {
 } from "./fixtures.ts";
 import { assertNoDeadlock, holdRow } from "../lock-race.ts";
 import { addMember } from "../durable-questions.ts";
-import { cleanupSeededOrganizations } from "../coordinator-turns.ts";
+import {
+  cleanupSeededOrganizations,
+  seedOrganization,
+} from "../coordinator-turns.ts";
 import {
   factsOf,
   idleInTransaction,
@@ -1025,6 +1028,117 @@ Deno.test("issue 69: an admin looks up a username on the source's repository, a 
   });
 });
 
+Deno.test("issue 69: a lookup refuses a malformed username before any read, waits out a rate limit, and hides another organization's source", async () => {
+  await withTicketFixture(async (fx) => {
+    const sourceId = await fx.insertSource({ policy: automaticPolicy(fx) });
+    fx.reader.setRole("octo-writer", {
+      kind: "present",
+      userId: "583231",
+      permission: "write",
+    });
+    const lookup = (
+      login: string,
+      options: { cookie?: string; organizationId?: string; source?: string } =
+        {},
+    ) =>
+      ticketCall(
+        fx,
+        "GET",
+        `${SOURCES}/${options.source ?? sourceId}/people/${
+          encodeURIComponent(login)
+        }`,
+        {
+          ...(options.cookie === undefined ? {} : { cookie: options.cookie }),
+          ...(options.organizationId === undefined
+            ? {}
+            : { organizationId: options.organizationId }),
+        },
+      );
+
+    // Login rules: letters, digits or single hyphens, no hyphen at either
+    // end. A login breaking them is 422 login_invalid and reads nothing.
+    fx.reader.clearCalls();
+    for (
+      const bad of [
+        "-octo",
+        "octo-",
+        "oc--to",
+        "octo_cat",
+        "octo.cat",
+        "octo cat",
+      ]
+    ) {
+      const refused = await lookup(bad);
+      assertEquals(refused.status, 422, bad);
+      const problem = await refused.json() as Problem;
+      assertEquals(problem.code, "UNPROCESSABLE", bad);
+      assertEquals(problem.issues?.[0].code, "login_invalid", bad);
+    }
+    // Over 39 characters breaks the schema's length bound: refused, unread.
+    const long = await lookup("a".repeat(40));
+    assertEquals(long.status, 400);
+    assertEquals((await long.json() as Problem).code, "MALFORMED_REQUEST");
+    assertEquals(fx.reader.calls.length, 0);
+    // The rules' edges are accepted and read: unknown to the provider, so 404.
+    for (const edge of ["a", "a-b", "A1-b2-C3", "a".repeat(39)]) {
+      assertEquals((await lookup(edge)).status, 404, edge);
+    }
+    assertEquals(fx.reader.callsOf("readActorRole").length, 4);
+
+    // A provider rate limit is DEPENDENCY_UNAVAILABLE with the provider's wait.
+    fx.reader.failNext("readActorRole", {
+      kind: "unavailable",
+      reason: "rate_limited",
+      retryAfterSeconds: 30,
+    });
+    const limited = await lookup("octo-writer");
+    assertEquals(limited.status, 503);
+    const wait = await limited.json() as Problem & {
+      retryAfterSeconds?: number;
+    };
+    assertEquals([wait.code, wait.retryAfterSeconds], [
+      "DEPENDENCY_UNAVAILABLE",
+      30,
+    ]);
+    assertEquals((await lookup("octo-writer")).status, 200);
+
+    // Another organization's admin naming this source gets the answer an
+    // unknown source gets, and nothing is read for it.
+    try {
+      const other = await seedOrganization(fx.f, "ticket-lookup-other", {
+        role: "admin",
+        agent: false,
+      });
+      const asOther = {
+        cookie: other.cookie,
+        organizationId: other.organizationId,
+      };
+      fx.reader.clearCalls();
+      const named = await lookup("octo-writer", asOther);
+      const absent = await lookup("octo-writer", {
+        ...asOther,
+        source: crypto.randomUUID(),
+      });
+      assertEquals(named.status, 404);
+      const strip = (body: Record<string, unknown>) => {
+        for (const key of ["requestId", "traceId", "instance"]) {
+          delete body[key];
+        }
+        return body;
+      };
+      assertEquals(
+        strip(await named.json()),
+        strip(await absent.json()),
+        "no existence leak",
+      );
+      assertEquals(absent.status, 404);
+      assertEquals(fx.reader.calls.length, 0);
+    } finally {
+      await cleanupSeededOrganizations(fx.f);
+    }
+  });
+});
+
 Deno.test("issue 82 ops: preview judges every issue when one read fails", async () => {
   await withTicketFixture(async (fx) => {
     const sourceId = await fx.insertSource();
@@ -1938,6 +2052,7 @@ Deno.test("issue 82 ops: ticketRequests.create answers an unready issue with tic
     const error = unadmittedError(result.report, {
       issue: { kind: "gone" },
       links: null,
+      statuses: null,
       proofs: [],
       provenance: null,
       actorRole: null,

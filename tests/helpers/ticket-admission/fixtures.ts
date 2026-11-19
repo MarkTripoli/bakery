@@ -105,7 +105,16 @@ export const AFTER_SINCE = "2026-07-01T00:00:00Z";
 export const BEFORE_SINCE = "2025-06-01T00:00:00Z";
 
 /** One call a reader received. */
-export type ReaderCall = { method: string; number: number | null };
+export type ReaderCall = {
+  method: string;
+  number: number | null;
+  /**
+   * Whether `readStatuses` was handed the issue snapshot by its caller, so a
+   * test can tell "used the read already in hand" from "asked the provider
+   * again". Undefined for every other method.
+   */
+  hadSnapshot?: boolean;
+};
 
 /** What `setIssue` accepts; every field has a default. */
 export type IssueInit = {
@@ -242,8 +251,12 @@ export function createMemoryTicketReader(): MemoryTicketReader {
   const nextMarker = () =>
     new Date(BASE_MARKER + (++tick) * 1000).toISOString();
 
-  const enter = async (method: string, number: number | null) => {
-    const call = { method, number };
+  const enter = async (
+    method: string,
+    number: number | null,
+    extra?: { hadSnapshot?: boolean },
+  ) => {
+    const call = { method, number, ...extra };
     reader.calls.push(call);
     reader.onCall?.(call);
     await reader.pause?.(call);
@@ -386,6 +399,33 @@ export function createMemoryTicketReader(): MemoryTicketReader {
         provenance.get(`${number}\u0000${label}`) ??
           { kind: "absent" as const },
       );
+    },
+    async readStatuses(_handle, number, _signal, issue) {
+      const failure = await enter("readStatuses", null, {
+        hadSnapshot: issue !== undefined,
+      });
+      if (failure) return Promise.resolve(failure);
+      // A double stands in for the provider, so it answers the way GitHub does:
+      // the issue's own state, with the close reason when there is one.
+      const seed = issues.get(number);
+      if (seed === undefined) {
+        return Promise.resolve({ kind: "unsupported" as const });
+      }
+      if ("kind" in seed) {
+        return Promise.resolve({ kind: "unsupported" as const });
+      }
+      const reason = seed.stateReason ?? null;
+      return Promise.resolve({
+        kind: "present" as const,
+        statuses: [{
+          id: seed.state === "closed" && reason
+            ? `closed:${reason}`
+            : seed.state,
+          name: seed.state === "closed" && reason
+            ? `closed (${reason})`
+            : seed.state,
+        }],
+      });
     },
     async readActorRole(_handle, login) {
       const failure = await enter("readActorRole", null);
@@ -541,6 +581,11 @@ export type PolicyOverrides = {
   automatic?: { enabled: boolean; since: string | null };
   approval?: "automatic" | "human_approval";
   requireAcceptanceCriteria?: boolean;
+  /**
+   * Statuses the source requires, by provider id. Omitted leaves readiness
+   * deciding on the label alone, which is what every existing source does.
+   */
+  statuses?: string[];
 };
 
 /**
@@ -657,6 +702,9 @@ export async function openTicketFixture(
         readiness: {
           requireAcceptanceCriteria: overrides.requireAcceptanceCriteria ??
             true,
+          ...(overrides.statuses === undefined
+            ? {}
+            : { statuses: overrides.statuses }),
         },
       };
     };

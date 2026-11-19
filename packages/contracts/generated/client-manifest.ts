@@ -4683,6 +4683,62 @@ export const clientManifest = {
     },
     {
       "group": "Providers",
+      "method": "POST",
+      "path": "/v1/provider-routes",
+      "action": "providerRoutes.create",
+      "access": "Admin",
+      "permission": "providerRoute:manage",
+      "input": "ProviderRouteCreate",
+      "output": "ProviderRoute",
+      "event": "providerRoutes.created",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Providers",
+      "method": "PATCH",
+      "path": "/v1/provider-routes/{id}",
+      "action": "providerRoutes.update",
+      "access": "Admin",
+      "permission": "providerRoute:manage",
+      "input": "ProviderRouteUpdate",
+      "output": "ProviderRoute",
+      "event": "providerRoutes.updated",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required; PATCH also If-Match",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Providers",
       "method": "GET",
       "path": "/v1/provider-incidents",
       "action": "providerIncidents.list",
@@ -13220,6 +13276,8 @@ export const clientManifest = {
             "providerRoutes.list",
             "providerRoutes.get",
             "providerRoutes.health",
+            "providerRoutes.create",
+            "providerRoutes.update",
             "providerIncidents.list",
             "providerIncidents.get",
             "workerProviderBindings.create",
@@ -21337,7 +21395,7 @@ export const clientManifest = {
           "type": "string",
           "minLength": 1,
           "maxLength": 39,
-          "description": "The person's username on the ticket source's provider, as typed; supplied via the request's {login} path segment. TicketSourcePersonPath.login must contain at least 1 characters. TicketSourcePersonPath.login must contain at most 39 characters."
+          "description": "The person's username on the ticket source's provider, as typed; supplied via the request's {login} path segment. Letters, digits and single hyphens only, never starting or ending with a hyphen; any other login is refused 422 with issue code login_invalid on login, before any provider read. TicketSourcePersonPath.login must contain at least 1 characters. TicketSourcePersonPath.login must contain at most 39 characters."
         }
       },
       "required": [
@@ -22328,6 +22386,112 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Replaces the label routing rules of one ticket source as a whole, under compare-and-swap on the source version."
+    },
+    "ProviderRouteCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "provider": {
+          "type": "string",
+          "maxLength": 64,
+          "description": "Provider key this route sends to, lowercase and stable (for example the name an operator matches against a status page); it is not a display label. ProviderRouteCreate.provider must contain at most 64 characters."
+        },
+        "endpoint": {
+          "type": "string",
+          "maxLength": 2048,
+          "description": "Provider endpoint host and path the route calls. It must be an https URL with no credentials, query or fragment, on a fully-qualified public name (at least one dot) or a public address, and not on port 0; a loopback, private, link-local or internal host is refused as unprocessable, because the server calls it. ProviderRouteCreate.endpoint must contain at most 2048 characters."
+        },
+        "region": {
+          "description": "Provider region the endpoint serves; omit for a provider with no regional endpoints. ProviderRouteCreate.region must contain at most 64 characters.",
+          "type": "string",
+          "maxLength": 64
+        },
+        "model": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "Model identifier pinned for work admitted on this route. ProviderRouteCreate.model must contain at most 200 characters."
+        },
+        "harness": {
+          "type": "string",
+          "enum": [
+            "pi",
+            "claude_code",
+            "codex",
+            "mastra"
+          ],
+          "description": "Harness path that executes work on this route: pi, claude_code, codex or mastra."
+        },
+        "billingRoute": {
+          "type": "string",
+          "enum": [
+            "subscription",
+            "api_metered",
+            "local"
+          ],
+          "description": "Billing route the route's spend follows: subscription, api_metered or local."
+        },
+        "providerAccountId": {
+          "description": "Provider account of this organization whose identity and quota observation the route uses; omit for a route with no verified account, which then reports usage as unknown rather than zero.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "workerBindingId": {
+          "description": "Machine provider binding of this organization that places the route; omit for a route served without a machine binding.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "credentialLocation": {
+          "type": "string",
+          "enum": [
+            "harness_host",
+            "bakery_secret"
+          ],
+          "description": "Where the credential is kept: harness_host (the machine holds it) or bakery_secret (Bakery holds a secret reference). The credential value is never part of a route."
+        }
+      },
+      "required": [
+        "provider",
+        "endpoint",
+        "model",
+        "harness",
+        "billingRoute",
+        "credentialLocation"
+      ],
+      "additionalProperties": false,
+      "description": "Registers one organization-scoped provider route: the endpoint, region, model, harness and credential binding that outbound work is admitted against. A new route starts active and unverified with no incident; identity fields cannot change afterwards, so a different endpoint or model is a new route. Account and binding ids must belong to the same organization."
+    },
+    "ProviderRouteUpdate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "status": {
+          "description": "Moves the route between active and disabled, or revokes it. A disabled route stays readable but is not probed or admitted for new work; revoked is permanent and cannot be undone.",
+          "type": "string",
+          "enum": [
+            "active",
+            "disabled",
+            "revoked"
+          ]
+        },
+        "region": {
+          "description": "ProviderRouteUpdate.region may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 64,
+              "description": "Replaces the route's region; set to null to clear it. Omit to leave the current region unchanged. ProviderRouteUpdate.region must contain at most 64 characters."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "description": "Compare-and-swap partial update to a provider route's lifecycle status or region; unset fields are left unchanged and an update that changes nothing is refused. The route's identity (provider, endpoint, model, harness, billing route, credential location, account and binding) is immutable."
     },
     "LibrarySearchQuery": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -34830,6 +34994,8 @@ export const clientManifest = {
                   "providerRoutes.list",
                   "providerRoutes.get",
                   "providerRoutes.health",
+                  "providerRoutes.create",
+                  "providerRoutes.update",
                   "providerIncidents.list",
                   "providerIncidents.get",
                   "workerProviderBindings.create",
@@ -51860,6 +52026,8 @@ export const clientManifest = {
             "providerRoutes.list",
             "providerRoutes.get",
             "providerRoutes.health",
+            "providerRoutes.create",
+            "providerRoutes.update",
             "providerIncidents.list",
             "providerIncidents.get",
             "workerProviderBindings.create",
@@ -59876,6 +60044,7 @@ export const clientManifest = {
               "worker:read",
               "worker:manage",
               "providerRoute:read",
+              "providerRoute:manage",
               "providerIncident:read",
               "job:read",
               "jobAttempt:read",

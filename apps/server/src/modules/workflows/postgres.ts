@@ -1,4 +1,5 @@
 import type { ActionContext } from "@bakery/contracts/action-registry";
+import { WorkflowStartsSchema } from "@bakery/contracts/workflow-starts";
 import type { JsonValue } from "@bakery/contracts/contracts";
 import type {
   WorkflowActionCapability,
@@ -33,6 +34,7 @@ import {
   type WorkflowValidationIssue,
 } from "./validation.ts";
 import { assertWorkflowSatisfiesRepositoryRules } from "./rule-guard.ts";
+import { readStartSchedules } from "./start-schedules.ts";
 import { attributeAction } from "../auth/application/action-attribution.ts";
 import {
   assertMayPublishDefinition,
@@ -1049,6 +1051,12 @@ export type WorkflowVersionInsert = Readonly<{
   /** The compiler pin: both set or both null, enforced here, not by the database. */
   compilerVersion: string | null;
   semanticDigest: string | null;
+  /**
+   * Canonical JSON text of the version's starts. Beside the specification, not
+   * inside it, so the digest a version was published under is unchanged by a
+   * start, and a start is switched on by publishing rather than by editing.
+   */
+  starts: string;
 }>;
 
 /**
@@ -1068,8 +1076,9 @@ export async function insertWorkflowVersion(
       `insert into bakery.workflow_versions (
          id, organization_id, workflow_id, revision, source_yaml,
          normalized_spec, digest, status, created_by,
-         compiler_version, semantic_digest
-       ) values ($1, $2, $3, $4, $5, $6::jsonb, $7, 'published', $8, $9, $10)
+         compiler_version, semantic_digest, starts
+       ) values ($1, $2, $3, $4, $5, $6::jsonb, $7, 'published', $8, $9, $10,
+                 $11::jsonb)
        returning id, workflow_id, revision, source_yaml,
                  normalized_spec as spec, digest, status, created_by,
                  created_at, updated_at, version`,
@@ -1084,6 +1093,7 @@ export async function insertWorkflowVersion(
         row.createdBy,
         row.compilerVersion,
         row.semanticDigest,
+        row.starts,
       ],
     )
   );
@@ -1126,9 +1136,11 @@ export async function publishWorkflowVersion(
       digest: string;
       created_by: string;
       version: number;
+      starts: unknown;
     }
   >(
-    `select id, revision, source_yaml, definition, digest, created_by, version
+    `select id, revision, source_yaml, definition, digest, created_by, version,
+            starts
        from bakery.workflow_drafts
       where organization_id = $1 and workflow_id = $2 and id = $3
       for update`,
@@ -1207,6 +1219,12 @@ export async function publishWorkflowVersion(
     createdBy: draft.created_by,
     compilerVersion: pin?.compilerVersion ?? null,
     semanticDigest: pin?.semanticDigest ?? null,
+    // Validated on the way in, because the column is jsonb and the database
+    // can say nothing about its shape: a version that published a start the
+    // contract refuses would be one no matcher could ever read back.
+    starts: canonicalJson(
+      readStartSchedules(WorkflowStartsSchema.parse(draft.starts)),
+    ),
   });
   await transaction.query(
     `delete from bakery.workflow_drafts
