@@ -290,6 +290,7 @@ test.describe("organization repository rules", () => {
     await expect(content).not.toContainText(digest("3").slice(0, 8));
     await expect(page.getByRole("columnheader", { name: "Digest" }))
       .toHaveCount(0);
+    await shot(page, "rules-current");
   });
 
   test("both column headers carry a help button that explains the column", async ({ page }) => {
@@ -303,6 +304,7 @@ test.describe("organization repository rules", () => {
       page.getByText("Require blocks delivery until the check passes."),
     )
       .toBeVisible();
+    await shot(page, "rules-help-enforcement", [], { windowOnly: true });
     await page.keyboard.press("Escape");
     await page.getByRole("button", {
       name: "About what repositories can change",
@@ -312,6 +314,7 @@ test.describe("organization repository rules", () => {
       page.getByText("Locked rules apply to every repository as set here."),
     )
       .toBeVisible();
+    await shot(page, "rules-help-access", [], { windowOnly: true });
   });
 
   test("a failed read says so and offers no rules", async ({ page }) => {
