@@ -80,6 +80,7 @@ export const RESOURCE_AREAS = {
   skillFile: "automation",
   skillSource: "automation",
   skillVersion: "automation",
+  library: "automation",
   evaluationCase: "automation",
   evaluationDefinition: "automation",
   evaluationResult: "automation",

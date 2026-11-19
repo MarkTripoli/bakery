@@ -41,7 +41,7 @@ type SourceRow = {
   organization_id: string;
   integration_connection_id: string;
   integration_resource_id: string;
-  application_id: string;
+  application_id: string | null;
   repository_id: string | null;
   external_container_id: string;
   enabled: boolean;

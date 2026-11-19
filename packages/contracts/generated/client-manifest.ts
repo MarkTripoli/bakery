@@ -2669,6 +2669,29 @@ export const clientManifest = {
       "implemented": true
     },
     {
+      "group": "Library",
+      "method": "GET",
+      "path": "/v1/library/search",
+      "action": "library.search",
+      "access": "Developer",
+      "permission": "library:read",
+      "input": "LibrarySearchQuery",
+      "output": "Page<LibrarySearchHit>",
+      "event": "",
+      "mcp": "bakery_library_search",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
       "group": "Skills",
       "method": "GET",
       "path": "/v1/skills/{id}",
@@ -6940,6 +6963,54 @@ export const clientManifest = {
         "MALFORMED_REQUEST",
         "SCOPE_REQUIRED",
         "DEPENDENCY_UNAVAILABLE"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Tickets",
+      "method": "GET",
+      "path": "/v1/ticket-sources/{id}/routing-rules",
+      "action": "ticketRoutingRules.get",
+      "access": "Developer",
+      "permission": "ticketSource:read",
+      "input": "IdPath",
+      "output": "TicketRoutingRuleSet",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Tickets",
+      "method": "PUT",
+      "path": "/v1/ticket-sources/{id}/routing-rules",
+      "action": "ticketRoutingRules.replace",
+      "access": "Admin",
+      "permission": "ticketSource:manage",
+      "input": "TicketRoutingRulesReplace",
+      "output": "TicketRoutingRuleSet",
+      "event": "ticket.source_changed",
+      "mcp": "",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "PRECONDITION_FAILED",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true
@@ -12977,6 +13048,7 @@ export const clientManifest = {
             "skills.import",
             "skills.create",
             "skills.list",
+            "library.search",
             "skills.get",
             "skills.update",
             "skillVersions.list",
@@ -13216,6 +13288,8 @@ export const clientManifest = {
             "ticketSources.preview",
             "ticketSources.lookupPerson",
             "ticketSources.sync",
+            "ticketRoutingRules.get",
+            "ticketRoutingRules.replace",
             "externalTickets.list",
             "externalTickets.get",
             "ticketReadiness.create",
@@ -21910,6 +21984,104 @@ export const clientManifest = {
       },
       "additionalProperties": false,
       "description": "Filters and page position for listing provider incidents. An incident is one durable record per affected route and generation, not one per failed attempt, so duplicate and stale probe results do not multiply rows."
+    },
+    "TicketRoutingRulesReplace": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "rules": {
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "labelId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100,
+                "description": "The provider's stable id of one label of the ticket source (for example a numeric label id written as a string), exactly as the source's ticket reader reports it. Rules match this id, never the name, so renaming the label keeps its routing. TicketRoutingRuleInput.labelId must contain at least 1 characters. TicketRoutingRuleInput.labelId must contain at most 100 characters."
+              },
+              "labelName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100,
+                "description": "Display name of the label, shown in settings and in readiness evidence; never matched. Send the current name to rename it; a rename alone changes nothing about routing. TicketRoutingRuleInput.labelName must contain at least 1 characters. TicketRoutingRuleInput.labelName must contain at most 100 characters."
+              },
+              "repositoryId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Bakery repository the label routes to. It must belong to the ticket source's application and must not be archived when the rules are saved; otherwise the whole replacement answers 422."
+              },
+              "role": {
+                "type": "string",
+                "maxLength": 63,
+                "pattern": "^[a-z0-9]+(?:[-_][a-z0-9]+)*$",
+                "description": "Role the repository plays for a routed ticket, such as backend or frontend. The application must bind this repository to this role with an alias (applicationRepositoryRoles.set), because the target runs as a lane of a coordination plan that names it by that alias. Within one ticket a role must resolve to one repository and a repository to one role, or admission is blocked as ambiguous. TicketRoutingRuleInput.role must contain at most 63 characters."
+              },
+              "presetId": {
+                "description": "Workflow preset the routed repository target runs; omitted means fixed-coding, the only preset admission runs. The preset's revision and digest are pinned on each admitted target.",
+                "type": "string",
+                "enum": [
+                  "fixed-coding"
+                ]
+              }
+            },
+            "required": [
+              "labelId",
+              "labelName",
+              "repositoryId",
+              "role"
+            ],
+            "additionalProperties": false,
+            "description": "The complete rule set of the ticket source, at most 50 rules, each (labelId, repositoryId) pair at most once. An empty list removes every rule, so tickets route to the source's own repository again. Each array item follows this format."
+          },
+          "description": "The complete rule set of the ticket source, at most 50 rules, each (labelId, repositoryId) pair at most once. An empty list removes every rule, so tickets route to the source's own repository again. TicketRoutingRulesReplace.rules must contain at most 50 items."
+        }
+      },
+      "required": [
+        "rules"
+      ],
+      "additionalProperties": false,
+      "description": "Replaces the label routing rules of one ticket source as a whole, under compare-and-swap on the source version."
+    },
+    "LibrarySearchQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "Text to find, matched case-insensitively as a substring of a skill, agent or artifact name or of a skill or agent description; wildcard characters in it are matched literally. LibrarySearchQuery.query must contain at least 1 characters. LibrarySearchQuery.query must contain at most 200 characters."
+        },
+        "kind": {
+          "description": "Restricts the search to one kind of library item (skill, agent or artifact); omit to search all three.",
+          "type": "string",
+          "enum": [
+            "skill",
+            "agent",
+            "artifact"
+          ]
+        },
+        "cursor": {
+          "description": "Opaque continuation token from a prior library.search page; bound to this operation, the caller and organization, the same query text and the same kind filter, so it is rejected if any of them change. LibrarySearchQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "limit": {
+          "description": "Maximum number of hits returned per page; defaults to 25 and cannot exceed 100. LibrarySearchQuery.limit must be at least 1. LibrarySearchQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false,
+      "description": "Text query over the organization library: skills, agents and artifacts found by name or description, newest first."
     },
     "PluginState": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -34256,6 +34428,7 @@ export const clientManifest = {
                   "skills.import",
                   "skills.create",
                   "skills.list",
+                  "library.search",
                   "skills.get",
                   "skills.update",
                   "skillVersions.list",
@@ -34495,6 +34668,8 @@ export const clientManifest = {
                   "ticketSources.preview",
                   "ticketSources.lookupPerson",
                   "ticketSources.sync",
+                  "ticketRoutingRules.get",
+                  "ticketRoutingRules.replace",
                   "externalTickets.list",
                   "externalTickets.get",
                   "ticketReadiness.create",
@@ -35133,6 +35308,16 @@ export const clientManifest = {
                 ],
                 "description": "MemoryEntry.currentRevisionId may be null in this transport value."
               },
+              "sourceState": {
+                "type": "string",
+                "enum": [
+                  "available",
+                  "deleted",
+                  "no_access",
+                  "unknown"
+                ],
+                "description": "Whether the artifact version cited by the current revision is available, deleted, not readable by this reader (no_access) or unknown, judged against the reader's live access at read time."
+              },
               "status": {
                 "type": "string",
                 "enum": [
@@ -35167,6 +35352,7 @@ export const clientManifest = {
               "topic",
               "tags",
               "currentRevisionId",
+              "sourceState",
               "status",
               "createdAt",
               "updatedAt",
@@ -35390,10 +35576,29 @@ export const clientManifest = {
                 ]
               },
               "sourceArtifactVersionId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Artifact version whose evidence justifies this revision. Invariant: sourceArtifactVersionId is null if and only if sourceState is no_access, so a reader who cannot read artifact versions is never shown the id and every other state names it."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MemoryRevision.sourceArtifactVersionId may be null in this transport value."
+              },
+              "sourceState": {
                 "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "Stable UUID linking this record to the related source artifact version entity."
+                "enum": [
+                  "available",
+                  "deleted",
+                  "no_access",
+                  "unknown"
+                ],
+                "description": "Whether the cited artifact version is available, deleted (its content was purged), not readable by this reader (no_access) or unknown, judged against the reader's live access at read time rather than at write time. sourceArtifactVersionId is null if and only if sourceState is no_access."
               },
               "supersedesId": {
                 "anyOf": [
@@ -35461,6 +35666,7 @@ export const clientManifest = {
               "revision",
               "body",
               "sourceArtifactVersionId",
+              "sourceState",
               "supersedesId",
               "confidence",
               "expiresAt",
@@ -35470,7 +35676,7 @@ export const clientManifest = {
               "version"
             ],
             "additionalProperties": false,
-            "description": "One versioned, confidence-scored statement belonging to a memory entry, created by memoryRevisions.create; confidence reflects model judgment rather than verified fact, and a revision can supersede an earlier one or carry its own expiry after which it stops being offered as active context."
+            "description": "One versioned, confidence-scored statement belonging to a memory entry, created by memoryRevisions.create; confidence reflects model judgment rather than verified fact, and a revision can supersede an earlier one or carry its own expiry after which it stops being offered as active context. sourceArtifactVersionId is null if and only if sourceState is no_access."
           },
           "description": "MemoryRevision items in this cursor page. Page<MemoryRevision>.items must contain at most 100 items."
         },
@@ -51249,6 +51455,7 @@ export const clientManifest = {
             "skills.import",
             "skills.create",
             "skills.list",
+            "library.search",
             "skills.get",
             "skills.update",
             "skillVersions.list",
@@ -51488,6 +51695,8 @@ export const clientManifest = {
             "ticketSources.preview",
             "ticketSources.lookupPerson",
             "ticketSources.sync",
+            "ticketRoutingRules.get",
+            "ticketRoutingRules.replace",
             "externalTickets.list",
             "externalTickets.get",
             "ticketReadiness.create",
@@ -51946,6 +52155,16 @@ export const clientManifest = {
           ],
           "description": "MemoryEntry.currentRevisionId may be null in this transport value."
         },
+        "sourceState": {
+          "type": "string",
+          "enum": [
+            "available",
+            "deleted",
+            "no_access",
+            "unknown"
+          ],
+          "description": "Whether the artifact version cited by the current revision is available, deleted, not readable by this reader (no_access) or unknown, judged against the reader's live access at read time."
+        },
         "status": {
           "type": "string",
           "enum": [
@@ -51980,6 +52199,7 @@ export const clientManifest = {
         "topic",
         "tags",
         "currentRevisionId",
+        "sourceState",
         "status",
         "createdAt",
         "updatedAt",
@@ -52143,10 +52363,29 @@ export const clientManifest = {
           ]
         },
         "sourceArtifactVersionId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Artifact version whose evidence justifies this revision. Invariant: sourceArtifactVersionId is null if and only if sourceState is no_access, so a reader who cannot read artifact versions is never shown the id and every other state names it."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "MemoryRevision.sourceArtifactVersionId may be null in this transport value."
+        },
+        "sourceState": {
           "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "Stable UUID linking this record to the related source artifact version entity."
+          "enum": [
+            "available",
+            "deleted",
+            "no_access",
+            "unknown"
+          ],
+          "description": "Whether the cited artifact version is available, deleted (its content was purged), not readable by this reader (no_access) or unknown, judged against the reader's live access at read time rather than at write time. sourceArtifactVersionId is null if and only if sourceState is no_access."
         },
         "supersedesId": {
           "anyOf": [
@@ -52214,6 +52453,7 @@ export const clientManifest = {
         "revision",
         "body",
         "sourceArtifactVersionId",
+        "sourceState",
         "supersedesId",
         "confidence",
         "expiresAt",
@@ -52223,7 +52463,7 @@ export const clientManifest = {
         "version"
       ],
       "additionalProperties": false,
-      "description": "One versioned, confidence-scored statement belonging to a memory entry, created by memoryRevisions.create; confidence reflects model judgment rather than verified fact, and a revision can supersede an earlier one or carry its own expiry after which it stops being offered as active context."
+      "description": "One versioned, confidence-scored statement belonging to a memory entry, created by memoryRevisions.create; confidence reflects model judgment rather than verified fact, and a revision can supersede an earlier one or carry its own expiry after which it stops being offered as active context. sourceArtifactVersionId is null if and only if sourceState is no_access."
     },
     "WorkerHost": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -59275,6 +59515,7 @@ export const clientManifest = {
               "skillSource:manage",
               "skill:manage",
               "skill:read",
+              "library:read",
               "skillVersion:read",
               "skillVersion:readPinned",
               "skillFile:read",
@@ -64014,6 +64255,143 @@ export const clientManifest = {
           "minimum": -9007199254740991,
           "maximum": 9007199254740991,
           "description": "Monotonic revision used to order or conditionally update this ticket request record."
+        },
+        "targets": {
+          "description": "Repository-scoped children pinned at admission, one per routed repository and ordered by role: the union of the matched routing rules deduplicated by repository, or the source's own repository when no rule matched. Never retargeted by a later rule or policy edit. Omitted by servers that predate label routing.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "repositoryId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the repository this child is scoped to; a request holds each repository at most once."
+              },
+              "role": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Role the repository plays for the request; default when the ticket matched no rule and fell back to the source's own repository."
+              },
+              "routingRuleId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "UUID of the rule that routed the ticket here as pinned at admission (the rule may since have been deleted), or null for the fallback to the source's repository."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "TicketRequestTarget.routingRuleId may be null in this transport value."
+              },
+              "routingRuleVersion": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Version of that rule at admission, or null for the fallback."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "TicketRequestTarget.routingRuleVersion may be null in this transport value."
+              },
+              "sourcePolicyRevision": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Ticket source policy revision the child was admitted under."
+              },
+              "pinnedPreset": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "Workflow preset identity (id, revision, digest) the child was admitted with."
+              },
+              "coordinationPlanId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Ticket-origin coordination plan whose lane runs this target, or null for the fallback to the source's repository, which runs on the request's own task."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "TicketRequestTarget.coordinationPlanId may be null in this transport value."
+              },
+              "childTaskId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Child task of the request's task that runs this target in its repository, or null for the fallback. The request completes only when every child task completes and fails when any fails."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "TicketRequestTarget.childTaskId may be null in this transport value."
+              }
+            },
+            "required": [
+              "repositoryId",
+              "role",
+              "routingRuleId",
+              "routingRuleVersion",
+              "sourcePolicyRevision",
+              "pinnedPreset",
+              "coordinationPlanId",
+              "childTaskId"
+            ],
+            "additionalProperties": false,
+            "description": "Repository-scoped children pinned at admission, one per routed repository and ordered by role: the union of the matched routing rules deduplicated by repository, or the source's own repository when no rule matched. Never retargeted by a later rule or policy edit. Omitted by servers that predate label routing. Each array item follows this format."
+          }
         }
       },
       "required": [
@@ -64137,6 +64515,117 @@ export const clientManifest = {
                     },
                     "additionalProperties": {
                       "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        },
+        "__schema1": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema1"
                     },
                     "description": "JSON object value."
                   }
@@ -77149,6 +77638,241 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "The monitoring view of one provider route: circuit state, the typed reason for it, the bounded evidence watermark, the probe schedule and the current incident generation. It exists so a caller can answer why a route is paused and when it will be probed without reading free-form provider output. A status-page corroboration and a successful health read are reachability evidence only; neither proves the inference path, which is why inferenceVerifiedAt is separate and only an already-authorized trial sets it."
+    },
+    "TicketRoutingRuleSet": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "ticketSourceId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "UUID of the ticket source."
+        },
+        "policyRevision": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Ticket source policy revision the rules belong to; every rule change advances it."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Ticket source version; the If-Match value a replacement must send."
+        },
+        "rules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID of the rule; an unchanged rule keeps it across replacements, and admitted targets pin it."
+              },
+              "organizationId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the organization that owns the rule."
+              },
+              "ticketSourceId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the ticket source the rule belongs to."
+              },
+              "labelId": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Provider label id the rule matches, compared exactly with the label ids on a ticket."
+              },
+              "labelName": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Display name of the label as last saved; shown only, never matched."
+              },
+              "repositoryId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the repository the label routes to."
+              },
+              "role": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Role the repository plays for a routed ticket."
+              },
+              "presetId": {
+                "type": "string",
+                "enum": [
+                  "fixed-coding"
+                ],
+                "description": "Workflow preset the routed target runs."
+              },
+              "version": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Edit count of this rule, starting at 1; admitted targets pin it."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the rule was first saved."
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the rule last changed."
+              }
+            },
+            "required": [
+              "id",
+              "organizationId",
+              "ticketSourceId",
+              "labelId",
+              "labelName",
+              "repositoryId",
+              "role",
+              "presetId",
+              "version",
+              "createdAt",
+              "updatedAt"
+            ],
+            "additionalProperties": false,
+            "description": "Every rule of the source, at most 50, ordered by label key and then repository id. Each array item follows this format."
+          },
+          "description": "Every rule of the source, at most 50, ordered by label key and then repository id."
+        }
+      },
+      "required": [
+        "ticketSourceId",
+        "policyRevision",
+        "version",
+        "rules"
+      ],
+      "additionalProperties": false,
+      "description": "The complete label routing rule set of one ticket source, with the source's policy revision and version. Send version as If-Match to replace it; pass policyRevision as expectedSourcePolicyRevision to admit under these rules."
+    },
+    "Page<LibrarySearchHit>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "skill",
+                  "agent",
+                  "artifact"
+                ],
+                "description": "Which library the hit belongs to: skill, agent or artifact."
+              },
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID of the matched record, usable with that kind's get operation."
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Human-readable name of the matched record."
+              },
+              "description": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Free-text description of the matched record; null for artifacts, which carry none."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "LibrarySearchHit.description may be null in this transport value."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the matched record was created."
+              }
+            },
+            "required": [
+              "kind",
+              "id",
+              "name",
+              "description",
+              "createdAt"
+            ],
+            "additionalProperties": false,
+            "description": "One library item matched by library.search: its kind, identity and name, plus its description when the kind has one, so a caller can pick a hit and then read it with the kind's own get operation."
+          },
+          "description": "LibrarySearchHit items in this cursor page. Page<LibrarySearchHit>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<LibrarySearchHit>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<LibrarySearchHit>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<LibrarySearchHit>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<LibrarySearchHit>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of LibrarySearchHit."
     }
   }
 } as const;

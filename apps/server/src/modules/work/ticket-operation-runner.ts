@@ -11,6 +11,7 @@ import {
   StandardError,
   unprocessable,
 } from "@bakery/contracts/http";
+import { ACTOR_ROLE_RANK_ACT } from "@bakery/contracts/ticket-admission";
 import type {
   TicketRequestOrigin,
   TicketSourcePolicy,
@@ -373,6 +374,6 @@ export function lookupTicketSourcePerson(context: ActionContext): {
     login,
     externalUserId: role.userId,
     permission: role.permission,
-    canTrigger: role.permission === "write" || role.permission === "admin",
+    canTrigger: role.rank >= ACTOR_ROLE_RANK_ACT,
   };
 }

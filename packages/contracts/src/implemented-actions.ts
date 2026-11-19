@@ -354,6 +354,8 @@ export const TicketImplementedAction = Object.freeze(
     TicketSourcesPreview: "ticketSources.preview",
     TicketSourcesLookupPerson: "ticketSources.lookupPerson",
     TicketSourcesSync: "ticketSources.sync",
+    TicketRoutingRulesGet: "ticketRoutingRules.get",
+    TicketRoutingRulesReplace: "ticketRoutingRules.replace",
     ExternalTicketsList: "externalTickets.list",
     ExternalTicketsGet: "externalTickets.get",
     TicketReadinessCreate: "ticketReadiness.create",
@@ -522,6 +524,7 @@ export const CatalogImplementedAction = Object.freeze(
     SkillsCreate: "skills.create",
     SkillsUpdate: "skills.update",
     SkillVersionsCreate: "skillVersions.create",
+    LibrarySearch: "library.search",
   } as const satisfies Record<string, CatalogActionName>,
 );
 export const catalogImplementedActions = Object.freeze(

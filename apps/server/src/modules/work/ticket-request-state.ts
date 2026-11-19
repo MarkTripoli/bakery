@@ -2,6 +2,7 @@ import {
   isNonterminalTicketDisposition,
   isTicketAutoResumableReason,
   isTicketExplicitResumeReason,
+  isTicketNonSuspendingReason,
   type TicketReadinessReport,
   type TicketReasonCode,
   type TicketRequestDisposition,
@@ -42,6 +43,12 @@ export type RecheckCurrent = {
   pinnedRequirementsDigest: string | null;
   /** When a pause was requested of the run, or null if none was. */
   pauseRequestedAt: string | null;
+  /**
+   * Status of the ticket-origin coordination plan the request's routed
+   * targets run in (#31), or null/omitted when it runs on its own task. When
+   * set, the plan's projection of its child tasks decides the outcome.
+   */
+  planStatus?: string | null;
 };
 
 export type RecheckDecision =
@@ -105,7 +112,33 @@ function finishedDisposition(
 }
 
 /** The run's end state wins; a request without a run follows its task. */
+/**
+ * The request's end state from its plan, in the task vocabulary of its child
+ * tasks: done only when every child is, failed when any failed or stopped.
+ */
+function planOutcome(status: string): RecheckDecision | null {
+  if (status === "completed") {
+    return {
+      action: "terminal",
+      disposition: "completed",
+      reason: "task_completed",
+    };
+  }
+  if (status === "failed" || status === "partially_delivered") {
+    return { action: "terminal", disposition: "failed", reason: "task_failed" };
+  }
+  if (status === "canceled") {
+    return {
+      action: "terminal",
+      disposition: "canceled",
+      reason: "task_canceled",
+    };
+  }
+  return null;
+}
+
 function terminalOutcome(current: RecheckCurrent): RecheckDecision | null {
+  if (current.planStatus != null) return planOutcome(current.planStatus);
   const run = current.hasRun ? finishedDisposition(current.runStatus) : null;
   if (run !== null) {
     return { action: "terminal", disposition: run, reason: `run_${run}` };
@@ -130,11 +163,10 @@ export function suspensionReason(
   for (const check of report.checks) {
     if (check.status === "pass") continue;
     if (check.reason === "acceptance_missing") return "acceptance_changed";
-    if (
-      check.reason === "active_request" || check.reason === "adoption_required"
-    ) {
-      continue;
-    }
+    // Reasons that exist only before a request does never suspend one,
+    // including the label routing blocks (#31): an admitted request keeps the
+    // targets it was admitted with.
+    if (isTicketNonSuspendingReason(check.reason)) continue;
     return check.reason;
   }
   return null;
@@ -220,7 +252,7 @@ export function decideRecheck(
   }
   if (
     current.disposition === "waiting" && current.intent === "start" &&
-    current.approvalAvailable && pinChecked
+    current.approvalAvailable && pinChecked && current.planStatus == null
   ) {
     return { action: "advance" };
   }

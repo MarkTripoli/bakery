@@ -5,6 +5,7 @@ import {
 import {
   deployedIntegrations,
   deployedIntegrationsDefects,
+  deployedProviders,
 } from "../../apps/server/src/modules/catalog/integration-gate-registry.ts";
 import {
   deployedProviderSlugs,
@@ -59,13 +60,21 @@ Deno.test("every deployed slug resolves, and only deployed slugs resolve", () =>
   // active list is the thing under test, and an assertion that walks it can only
   // confirm what it already contains. A provider added to `PROVIDER_IDENTITIES`
   // must not be silently unreachable by name.
-  const registry = activateDeployedIntegrations(deployedIntegrations);
+  const registry = activateDeployedIntegrations(
+    deployedIntegrations,
+    undefined,
+    deployedProviders,
+  );
   const slugs = deployedProviderSlugs();
   assert(slugs.length > 0, "the build deploys at least one provider");
   for (const slug of slugs) {
+    // Either tier answers by name: the legacy definition tier for the provider that
+    // carries actions, the provider tier for a package that carries a manifest. What
+    // this rail refuses is the third case - deployed, registered, and reachable by
+    // nothing - which is how a provider ends up existing with no caller.
     assert(
-      registry.getBySlug(slug),
-      `deployed slug ${slug} must resolve to an active integration`,
+      registry.getBySlug(slug) ?? registry.getProvider(slug),
+      `deployed slug ${slug} must resolve to an active integration or provider`,
     );
   }
   assertEquals(

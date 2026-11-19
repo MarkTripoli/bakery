@@ -192,6 +192,8 @@ function fakeApi(
     createArtifactComment: rejecting,
     updateArtifactComment: rejecting,
     updateArtifact: rejecting,
+    openArtifactDraft: rejecting,
+    collaborationSocketUrl: () => "ws://127.0.0.1/v1/collaboration",
     createMessage: rejecting,
     listMessages: rejecting,
     listConversationTurns: rejecting,

@@ -188,7 +188,15 @@ export async function callSessionTool(
     & Readonly<{
       tool: string;
       arguments: unknown;
-      execute: (tool: SessionTool) => Promise<unknown>;
+      /**
+       * Runs the operation. Handed the resolved claim, because the operation
+       * runs as the person the run is for: `actsForPrincipalId` and its type
+       * live on the claim, and a session must never exceed that person.
+       */
+      execute: (
+        tool: SessionTool,
+        claim: SessionOperationClaim,
+      ) => Promise<unknown>;
     }>,
 ): Promise<SessionCallResult> {
   // A refusal that happens before a credential resolves cannot be recorded in
@@ -252,7 +260,7 @@ export async function callSessionTool(
   }
 
   try {
-    const result = await input.execute(tool);
+    const result = await input.execute(tool, open.claim);
     // After the work, before the answer: a lease that lapsed while the
     // operation ran must leave the caller with nothing.
     await reassertAttempt(open.claimed);

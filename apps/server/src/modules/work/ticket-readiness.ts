@@ -1,4 +1,5 @@
 import {
+  ACTOR_ROLE_RANK_ACT,
   TICKET_CHECK_MAX_EVIDENCE,
   type TicketIssueRef,
   type TicketPresetPin,
@@ -34,6 +35,7 @@ import type {
   TicketLinksRead,
   TicketReadFailure,
 } from "./ticket-source-reader.ts";
+import type { TicketRouteResolution } from "./ticket-routing.ts";
 
 /**
  * The readiness evaluator. `evaluateReadiness` turns facts that were already
@@ -128,6 +130,12 @@ export type ReadinessInput = {
    * still detected.
    */
   pinnedRequirementsDigest: string | null;
+  /**
+   * Label routing (#31) of a new admission: the targets the ticket's labels
+   * resolve to, or why they cannot. Omitted for a request that exists, which
+   * keeps the targets it was admitted with, and by callers with no routing.
+   */
+  route?: TicketRouteResolution;
 };
 
 type PresentIssue = {
@@ -190,7 +198,7 @@ function providerUnavailable(failure: TicketReadFailure | null): Outcome {
 }
 
 function issueRefText(ref: TicketIssueRef): string {
-  return `${ref.repositoryFullName}#${ref.number}`;
+  return `${ref.container.displayName}#${ref.number}`;
 }
 
 /**
@@ -325,12 +333,15 @@ function ticketSupported(context: Context): Outcome {
   if (present === null) return providerUnavailable(null);
   const { snapshot } = present.normalized;
   if (
-    snapshot.repositoryFullName.toLowerCase() !==
+    snapshot.container.externalId.toLowerCase() !==
       input.source.repositoryFullName.toLowerCase()
   ) {
+    // The source names its repository in GitHub terms; the snapshot carries the
+    // neutral container. Comparing their ids is what keeps a ticket from another
+    // repository out, without admission learning what a repository is.
     return rejected(
       "repository_mismatch",
-      evidenceRef(`repository:${snapshot.repositoryFullName}`),
+      evidenceRef(`repository:${snapshot.container.displayName}`),
     );
   }
   if (snapshot.state === "closed") {
@@ -540,17 +551,57 @@ function noActiveAdmission({ activeRequest, intent }: ReadinessInput): Outcome {
   );
 }
 
-function repositoryReady({ source }: ReadinessInput): Outcome {
+function repositoryReady({ source, route }: ReadinessInput): Outcome {
+  // A route that cannot resolve needs a person to fix the rules or the
+  // repository; it is never admitted with a target dropped.
+  if (route?.kind === "blocked") {
+    return rejected(
+      route.reason,
+      ...route.refs.slice(0, TICKET_CHECK_MAX_EVIDENCE).map((ref) =>
+        evidenceRef(`route:${ref}`)
+      ),
+    );
+  }
   if (source.repositoryArchived) return waiting("repository_archived");
   if (!source.repositoryHasActiveProfile) return waiting("no_active_profile");
-  return passed();
+  if (route === undefined) return passed();
+  // Every routed target needs its own ready profile, not only the source's.
+  const noProfile = route.unready?.profile ?? [];
+  if (noProfile.length > 0) {
+    return waiting(
+      "no_active_profile",
+      ...noProfile.slice(0, TICKET_CHECK_MAX_EVIDENCE).map((ref) =>
+        evidenceRef(`route:${ref}`)
+      ),
+    );
+  }
+  if (route.fallback) return passed(evidenceRef("route:fallback"));
+  // The evidence names routed targets only; the plain source repository
+  // carries none, as it did before routing.
+  return passed(
+    ...route.targets.filter((target) => target.ruleId !== null).slice(
+      0,
+      TICKET_CHECK_MAX_EVIDENCE,
+    ).map((target) => evidenceRef(`route:${target.role}`)),
+  );
 }
 
-function presetReady({ source, preset }: ReadinessInput): Outcome {
+function presetReady({ source, preset, route }: ReadinessInput): Outcome {
   // The policy and the pin both name the one fixed preset by literal type, so
   // there is no identity to compare; only the repository's setup can fail.
   if (!source.presetReady) {
     return waiting("preset_setup_required", evidenceRef(`preset:${preset.id}`));
+  }
+  // A routed target whose repository cannot run the preset waits too.
+  const unready = route?.kind === "routed" ? route.unready?.preset ?? [] : [];
+  if (unready.length > 0) {
+    return waiting(
+      "preset_setup_required",
+      evidenceRef(`preset:${preset.id}`),
+      ...unready.slice(0, TICKET_CHECK_MAX_EVIDENCE - 1).map((ref) =>
+        evidenceRef(`route:${ref}`)
+      ),
+    );
   }
   return passed(evidenceRef(`preset:${preset.id}`));
 }
@@ -596,7 +647,7 @@ function authorityLive(context: Context): Outcome {
     return waiting("actor_unverifiable", evidenceRef("label:unverified"));
   }
   const actor = evidenceRef(`github_actor:${provenance.actorId}`);
-  if (!delegation.githubActorIds.includes(provenance.actorId)) {
+  if (!delegation.externalActorIds.includes(provenance.actorId)) {
     return waiting("actor_not_allowlisted", actor);
   }
   const role = authority.actorRole;
@@ -607,7 +658,9 @@ function authorityLive(context: Context): Outcome {
   if (role.userId !== provenance.actorId) {
     return waiting("actor_unverifiable", actor);
   }
-  if (role.permission !== "admin" && role.permission !== "write") {
+  // A rank, not a role name: the provider's own ladder is mapped once where
+  // the role is read, so admission never learns what "write" means.
+  if (role.rank < ACTOR_ROLE_RANK_ACT) {
     return waiting("actor_role_insufficient", actor);
   }
   return passed(actor, evidenceRef(`role:${role.permission}`));
