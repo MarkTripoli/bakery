@@ -11467,6 +11467,17 @@ const transportSchemas = {
         "the tool must be in the connection's current snapshot"
       ],
       "description": "Classifies one tool's side effects (O26). Server hints are suggestions only: this is the Admin's statement and the only one Bakery acts on. An unclassified tool is a write that runs at most once."
+    },
+    "McpUseGrantCreate": {
+      "fields": [
+        {
+          "name": "workflowId",
+          "type": "uuid",
+          "required": true,
+          "description": "The workflow this grant lets use the connection. It must be a workflow of this organization."
+        }
+      ],
+      "description": "The owner of a personal MCP connection lets one shared workflow use it. Without a grant a workflow started by someone else cannot use a personal connection, and the connection is always labelled as acting for its owner (O27)."
     }
   },
   "projections": {
@@ -29159,6 +29170,53 @@ const transportSchemas = {
       "description": "Every tool of a connection's current snapshot with its effect classification, in name order. Empty when nothing has been discovered.",
       "fieldDescriptions": {
         "items": "The snapshot's tools with their classifications."
+      }
+    },
+    "McpUseGrant": {
+      "fields": [
+        "id",
+        "connectionId",
+        "workflowId",
+        "grantedBy",
+        "createdAt",
+        "revokedAt",
+        "revokedBy"
+      ],
+      "nullableFields": [
+        "revokedAt",
+        "revokedBy"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "connectionId": "uuid",
+        "workflowId": "uuid",
+        "grantedBy": "uuid",
+        "createdAt": "timestamp",
+        "revokedAt": "timestamp",
+        "revokedBy": "uuid"
+      },
+      "description": "One owner's grant of a personal connection to one workflow. Revoking stamps it; it is never deleted, so what was once granted stays on record.",
+      "fieldDescriptions": {
+        "id": "Stable UUID identifying the grant.",
+        "connectionId": "The personal connection the grant covers.",
+        "workflowId": "The workflow the grant lets use the connection.",
+        "grantedBy": "The owner who granted it.",
+        "createdAt": "UTC timestamp when the grant was made.",
+        "revokedAt": "UTC timestamp when the grant was revoked, or null while it is live.",
+        "revokedBy": "The principal who revoked it, or null while it is live."
+      }
+    },
+    "McpUseGrantList": {
+      "fields": [
+        "items"
+      ],
+      "nullableFields": [],
+      "fieldTypes": {
+        "items": "McpUseGrant[]"
+      },
+      "description": "The use grants of a personal connection, newest first, live and revoked. Always empty for an organization connection, which needs no grant.",
+      "fieldDescriptions": {
+        "items": "The connection's grants, newest first."
       }
     }
   },

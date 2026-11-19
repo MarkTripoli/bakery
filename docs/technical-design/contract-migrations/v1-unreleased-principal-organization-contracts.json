@@ -5,7 +5,7 @@
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:b6a0d20d38fa6c8d6b71694f79b2ce3fec4859c6a7fb1abe67f0551df9a089ba",
+  "targetCompatibilityDigest": "sha256:117a62b8ecd823ce6bf71be50c97ab0d21c628ab0fc888f5d4a63f380b5eed46",
   "reason": "#434 MCP connections re-bind by dev-agx4 on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main 5b8d39e853b302f1424cf36da10a1e8ca0d71c4d: McpConnectionCreate and McpConnectionUpdate drop the secretId reference input and gain a write-only secret (a caller can no longer point a connection at an arbitrary secret id; the credential is sealed server-side), McpConnectionCreate gains an optional scope (organization|personal), and McpConnection gains ownerPrincipalId. mcpConnections create, update and discover change from Admin to Developer-for-personal/Admin-for-organization access. No client writes these shapes: no handler existed before this change. mcpConnections.discover returns the McpCapabilitySnapshot it pinned instead of a Run (a remote server is asked inline; a Run belongs to local servers launched on a worker, a later slice) and carries no domain event. The approval it displaced is preserved unchanged first below.",
   "priorApprovals": [
     {

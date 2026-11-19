@@ -484,6 +484,9 @@ export const McpConnectionImplementedAction = Object.freeze(
     McpConnectionsCapabilities: "mcpConnections.capabilities",
     McpToolClassificationsList: "mcpToolClassifications.list",
     McpToolClassificationsPut: "mcpToolClassifications.put",
+    McpUseGrantsList: "mcpUseGrants.list",
+    McpUseGrantsCreate: "mcpUseGrants.create",
+    McpUseGrantsRevoke: "mcpUseGrants.revoke",
   } as const satisfies Record<string, CatalogActionName>,
 );
 export const mcpConnectionImplementedActions = Object.freeze(

@@ -3367,6 +3367,66 @@
     },
     {
       "group": "Extensions",
+      "method": "GET",
+      "path": "/v1/mcp-connections/{id}/use-grants",
+      "action": "mcpUseGrants.list",
+      "access": "Developer",
+      "permission": "mcpConnection:read",
+      "input": "IdPath",
+      "output": "McpUseGrantList",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND"
+      ]
+    },
+    {
+      "group": "Extensions",
+      "method": "POST",
+      "path": "/v1/mcp-connections/{id}/use-grants",
+      "action": "mcpUseGrants.create",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "mcpConnection:manage",
+      "input": "McpUseGrantCreate",
+      "output": "McpUseGrant",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH"
+      ]
+    },
+    {
+      "group": "Extensions",
+      "method": "POST",
+      "path": "/v1/mcp-connections/{id}/use-grants/{grantId}/revocation",
+      "action": "mcpUseGrants.revoke",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "mcpConnection:manage",
+      "input": "Empty",
+      "output": "McpUseGrant",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH"
+      ]
+    },
+    {
+      "group": "Extensions",
       "method": "POST",
       "path": "/v1/capability-bindings",
       "action": "capabilityBindings.create",

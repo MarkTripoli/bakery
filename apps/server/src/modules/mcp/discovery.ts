@@ -1,4 +1,5 @@
-import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
+import { canonicalJson } from "../../platform/canonical-json.ts";
+import { mcpManifestDigest } from "./invoke.ts";
 import {
   MCP_DEADLINE_MS,
   type McpHttpResult,
@@ -191,6 +192,7 @@ function toolFrom(raw: unknown): DiscoveredTool {
 /** A validated, name-ordered manifest and its digest, from what the server listed. */
 export async function buildManifest(
   rawTools: readonly unknown[],
+  protocolVersion: string = MCP_TARGET_PROTOCOL_VERSION,
 ): Promise<{ manifest: { tools: DiscoveredTool[] }; digest: string }> {
   if (rawTools.length > MAX_TOOLS) throw new DiscoveryError("too_many_tools");
   const tools = rawTools.map(toolFrom);
@@ -205,7 +207,11 @@ export async function buildManifest(
   if (new TextEncoder().encode(text).length > MAX_MANIFEST_BYTES) {
     throw new DiscoveryError("manifest_too_large");
   }
-  return { manifest, digest: `sha256:${await sha256Hex(text)}` };
+  // The one digest a binding pins and an invoke compares (plain lowercase hex).
+  return {
+    manifest,
+    digest: await mcpManifestDigest({ protocolVersion, tools }),
+  };
 }
 
 /**
@@ -285,7 +291,10 @@ export async function discoverTools(
     if (rawTools.length > MAX_TOOLS) throw new DiscoveryError("too_many_tools");
     const next = listed.result.nextCursor;
     if (typeof next !== "string" || next === "") {
-      const { manifest, digest } = await buildManifest(rawTools);
+      const { manifest, digest } = await buildManifest(
+        rawTools,
+        protocolVersion,
+      );
       return { protocolVersion, manifest, digest };
     }
     cursor = next;

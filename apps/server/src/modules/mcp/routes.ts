@@ -35,6 +35,11 @@ import {
   putMcpToolClassification,
 } from "./classification-commands.ts";
 import {
+  createMcpUseGrant,
+  listMcpUseGrants,
+  revokeMcpUseGrant,
+} from "./use-grant-commands.ts";
+import {
   createMcpDiscoverer,
   getMcpCapabilities,
 } from "./connection-discovery.ts";
@@ -185,6 +190,30 @@ export function createMcpActionRegistry(
     output: contractSchemas.McpToolClassification,
     policy: ownerOrAdmin,
     handler: putMcpToolClassification,
+  }).register({
+    name: ConnectionAction.McpUseGrantsList,
+    method: HttpMethod.Get,
+    path: "/v1/mcp-connections/:id/use-grants",
+    input: contractSchemas.IdPath,
+    output: contractSchemas.McpUseGrantList,
+    policy: query,
+    handler: listMcpUseGrants,
+  }).register({
+    name: ConnectionAction.McpUseGrantsCreate,
+    method: HttpMethod.Post,
+    path: "/v1/mcp-connections/:id/use-grants",
+    input: contractSchemas.McpUseGrantCreate,
+    output: contractSchemas.McpUseGrant,
+    policy: ownerOrAdmin,
+    handler: createMcpUseGrant,
+  }).register({
+    name: ConnectionAction.McpUseGrantsRevoke,
+    method: HttpMethod.Post,
+    path: "/v1/mcp-connections/:id/use-grants/:grantId/revocation",
+    input: contractSchemas.Empty,
+    output: contractSchemas.McpUseGrant,
+    policy: ownerOrAdmin,
+    handler: revokeMcpUseGrant,
   });
   assertRegisteredActions(registry);
   assertImplementedActionRegistry(registry, [

@@ -86,7 +86,7 @@ Deno.test("the exchange: initialize with nothing offered, the notification, then
   });
   assertEquals(found.protocolVersion, "2026-07-28");
   assertEquals(found.manifest.tools.map((entry) => entry.name), ["search"]);
-  assert(found.digest.startsWith("sha256:"));
+  assert(/^[a-f0-9]{64}$/.test(found.digest), found.digest);
   assertEquals(sent.map((entry) => entry.body.method), [
     "initialize",
     "notifications/initialized",
