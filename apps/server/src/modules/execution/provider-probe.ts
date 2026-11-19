@@ -154,8 +154,8 @@ export type Classified =
  *
  * Only a failure and a plain "it answered" are possible. A 429 is a slowdown, so
  * `degraded` with the provider's own wait; a 5xx, a timeout and a failed
- * connection are `outage`. Everything else the endpoint answers (including 401,
- * 403 and 404) is reachable, which is deliberately weak.
+ * connection are `outage`; a redirect is `redirected` and proves nothing. Everything else the endpoint answers (including
+ * 401, 403 and 404) is reachable, which is deliberately weak.
  */
 export function classifyProbe(
   result: ProbeTransportResult,
@@ -189,6 +189,19 @@ export function classifyProbe(
     );
   }
   if (result.status >= 500) return failure("provider_error", "outage");
+  // A redirect is not an answer from the endpoint the route names. The probe
+  // follows none, so it cannot say where the redirect leads or that the real
+  // endpoint is up. Counting it reachable would let a redirecting host (a moved
+  // API, a captive page, a hostile one) pass as healthy; counting it a failure
+  // would blame the provider for a host that did answer. It is its own outcome and
+  // it proves nothing: only the probe time and schedule are recorded.
+  if (result.status >= 300 && result.status < 400) {
+    return {
+      kind: "outcome",
+      outcome: { kind: "redirected", evidenceWatermark: watermark },
+      retryAfterMs: null,
+    };
+  }
   return {
     kind: "outcome",
     outcome: { kind: "reachable", evidenceWatermark: watermark },

@@ -61,6 +61,13 @@ export type ProbeOutcome =
     evidenceWatermark: string;
   }
   | { kind: "reachable"; evidenceWatermark: string }
+  /**
+   * The endpoint answered with a redirect, which the probe does not follow. It
+   * proves nothing: not reachable (the real endpoint was never asked), not a
+   * failure (the host did answer), and not a reason to touch the route's state.
+   * Only the probe time and schedule are recorded.
+   */
+  | { kind: "redirected"; evidenceWatermark: string }
   | { kind: "inference_proven"; evidenceWatermark: string };
 
 export type ProbeResult =
@@ -143,6 +150,12 @@ export async function recordProbeResult(
     return { kind: "duplicate", generation: route.incident_generation };
   }
 
+  // A redirect proves nothing and touches no incident, so it is settled before
+  // any incident is read or locked.
+  if (outcome.kind === "redirected") {
+    return await recordRedirected(transaction, probe, route);
+  }
+
   const open = route.incident_id === null ? undefined : (await transaction
     .query<IncidentState>(
       `select id, generation, severity
@@ -163,6 +176,7 @@ export async function recordProbeResult(
   if (outcome.kind === "reachable") {
     return await recordReachable(transaction, probe, route, open);
   }
+
   return await recordInferenceProven(transaction, probe, route, open);
 }
 
@@ -296,6 +310,56 @@ async function extendIncident(
   return {
     kind: "updated",
     incidentId: open.id,
+    generation: route.incident_generation,
+  };
+}
+
+/**
+ * A redirect, recorded as a probe that happened and nothing more.
+ *
+ * The route's circuit state, incident, inference proof, failure count, reason and
+ * last-success time are all left as they were. Counting it as a failure would
+ * blame the provider for a host that answered; counting it as reachable would let
+ * a redirecting host pass as healthy. Only when the route was last probed and
+ * when it is next probed move, and the lease is released.
+ */
+async function recordRedirected(
+  transaction: PgTransactionClient,
+  probe: Parameters<typeof recordProbeResult>[1],
+  route: RouteState,
+): Promise<ProbeResult> {
+  await transaction.query(
+    `update bakery.provider_routes
+        set last_probe_at = $3, next_probe_at = $4,
+            updated_at = now(), version = version + 1
+      where organization_id = $1 and id = $2`,
+    [probe.organizationId, probe.routeId, probe.observedAt, probe.nextProbeAt],
+  );
+  await transaction.query(
+    `insert into bakery.provider_route_health (
+       organization_id, route_id, health, evidence_watermark, last_probe_at,
+       next_probe_at, probe_lease_expires_at, incident_id, incident_generation
+     ) values ($1, $2, $3, $4, $5, $6, null, $7, $8)
+     on conflict (organization_id, route_id) do update
+       set evidence_watermark = excluded.evidence_watermark,
+           last_probe_at = excluded.last_probe_at,
+           next_probe_at = excluded.next_probe_at,
+           probe_lease_expires_at = null,
+           updated_at = now()`,
+    [
+      probe.organizationId,
+      probe.routeId,
+      route.health,
+      probe.outcome.evidenceWatermark,
+      probe.observedAt,
+      probe.nextProbeAt,
+      route.incident_id,
+      route.incident_generation,
+    ],
+  );
+  return {
+    kind: "updated",
+    incidentId: route.incident_id,
     generation: route.incident_generation,
   };
 }

@@ -258,6 +258,41 @@ Deno.test("probe: reachable proves nothing about inference and clears the failur
   }
 });
 
+Deno.test("probe: a redirect proves nothing: no reachable credit, no failure, schedule only", async () => {
+  const fx = await openCoordinationFixture();
+  try {
+    const id = await seedRoute(fx);
+    // A failure first, so there is a count and a reason a redirect must not touch.
+    await runDueProbes(fx.appPg, { transport: answer({ kind: "timeout" }) });
+    const before = (await health(fx, id))!;
+    assertEquals(before.consecutive_failures, 1);
+    assertEquals(before.reason, "timeout");
+    await makeDue(fx, id);
+    await runDueProbes(fx.appPg, {
+      transport: answer({ kind: "response", status: 302, retryAfter: null }),
+      random: () => 0.5,
+    });
+    const after = (await health(fx, id))!;
+    // Neither cleared (reachable would) nor increased (a failure would).
+    assertEquals(after.consecutive_failures, 1);
+    assertEquals(after.reason, "timeout");
+    assertEquals(after.probe_lease_expires_at, null);
+    const state = await route(fx, id);
+    assertEquals(state.health, "unverified");
+    assertEquals(state.incident_id, null);
+    assertEquals(state.inference_verified_at, null);
+    const delay = secondsFromNow(state.next_probe_at);
+    assert(delay > 290 && delay <= 301, String(delay));
+    const success = await fx.ownerPg.query(
+      "select last_success_at from bakery.provider_route_health where route_id = $1",
+      [id],
+    );
+    assertEquals(success.rows[0].last_success_at, null);
+  } finally {
+    await fx.close();
+  }
+});
+
 Deno.test("probe: a refused host leaves the route alone and is retried rarely", async () => {
   const fx = await openCoordinationFixture();
   try {

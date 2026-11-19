@@ -67,7 +67,7 @@ Deno.test("an answer below 500 is reachable and nothing more, and never a creden
   // 401 and 403 are the normal answers to an unauthenticated read; 404 is a
   // provider with no route at its base. None of them says anything about a
   // credential, so none may become `credential_invalid` or `quota_exhausted`.
-  for (const status of [200, 204, 301, 302, 400, 401, 402, 403, 404, 418]) {
+  for (const status of [200, 204, 400, 401, 402, 403, 404, 418]) {
     const classified = classifyProbe(
       { kind: "response", status, retryAfter: null },
       WATERMARK,
@@ -78,6 +78,52 @@ Deno.test("an answer below 500 is reachable and nothing more, and never a creden
       assertEquals(classified.outcome.kind, "reachable", String(status));
     }
   }
+});
+
+Deno.test("a redirect is its own outcome and proves nothing", () => {
+  // The probe follows none, so it cannot say the real endpoint is up (not
+  // reachable) and the host did answer (not a failure). Every 3xx, including the
+  // ones that look harmless (304) and the ones that preserve the method (307, 308).
+  for (const status of [300, 301, 302, 303, 304, 305, 307, 308, 399]) {
+    const classified = classifyProbe(
+      { kind: "response", status, retryAfter: "30" },
+      WATERMARK,
+      NOW,
+    );
+    assertEquals(
+      classified,
+      {
+        kind: "outcome",
+        outcome: { kind: "redirected", evidenceWatermark: WATERMARK },
+        // A redirect is not a slowdown: Retry-After is not honoured on it.
+        retryAfterMs: null,
+      },
+      String(status),
+    );
+  }
+  // The edges: 299 is still an answer, and 400 is still reachable.
+  for (const status of [299, 400]) {
+    const classified = classifyProbe(
+      { kind: "response", status, retryAfter: null },
+      WATERMARK,
+      NOW,
+    );
+    assert(
+      classified.kind === "outcome" && classified.outcome.kind === "reachable",
+      String(status),
+    );
+  }
+});
+
+Deno.test("a redirected probe is looked at again on the steady interval", () => {
+  const delay = nextProbeAt(
+    { kind: "redirected", evidenceWatermark: WATERMARK },
+    3,
+    null,
+    NOW,
+    fixedRandom(0.5),
+  ).getTime() - NOW.getTime();
+  assertEquals(delay, 300_000);
 });
 
 Deno.test("the watermark names the evidence and is carried through unchanged", () => {

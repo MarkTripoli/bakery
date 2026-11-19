@@ -450,3 +450,81 @@ Deno.test("with incidents off, reachable and a proven inference behave as before
     "recovered",
   );
 });
+
+// -- redirected: proves nothing ------------------------------------------------
+
+Deno.test("a redirect records the probe and changes nothing else", async () => {
+  for (
+    const mode of ["on", "off"] as const
+  ) {
+    const { transaction, recorded } = stand(openWorld());
+    const result = await recordProbeResult(transaction as never, {
+      organizationId: ORG,
+      routeId: ROUTE,
+      generation: 3,
+      observedAt: NOW,
+      nextProbeAt: NEXT,
+      incidents: mode,
+      outcome: { kind: "redirected", evidenceWatermark: "w-redirect" },
+    });
+    assertEquals(result.kind, mode === "on" ? "updated" : "updated");
+    // No incident is read for update, inserted or changed.
+    assert(
+      !recorded.some(({ sql }) => /bakery\.provider_incidents/.test(sql)),
+      mode,
+    );
+    const routeUpdate = writes(recorded).find(({ sql }) =>
+      /update bakery\.provider_routes/.test(sql)
+    )!;
+    // Only the probe times move: no health, incident or inference columns.
+    assert(
+      !/health|incident|inference_verified/.test(
+        routeUpdate.sql.split("where")[0]!,
+      ),
+    );
+    assert(routeUpdate.values.includes(NEXT));
+    const healthWrite = writes(recorded).find(({ sql }) =>
+      /insert into bakery\.provider_route_health/.test(sql)
+    )!;
+    // The conflict branch leaves the failure count, reason and success time alone.
+    const onConflict = healthWrite.sql.split("on conflict")[1]!;
+    assert(
+      !/consecutive_failures|reason|last_success_at|last_failure_at/.test(
+        onConflict,
+      ),
+    );
+    assert(!/inference_verified_at/.test(onConflict));
+    assert(healthWrite.values.includes(NEXT));
+  }
+});
+
+Deno.test("a redirect still obeys the fence and the duplicate rule", async () => {
+  const stale = stand(openWorld());
+  assertEquals(
+    await recordProbeResult(stale.transaction as never, {
+      organizationId: ORG,
+      routeId: ROUTE,
+      generation: 2,
+      observedAt: NOW,
+      nextProbeAt: NEXT,
+      incidents: "off",
+      outcome: { kind: "redirected", evidenceWatermark: "w1" },
+    }),
+    { kind: "stale", currentGeneration: 3 },
+  );
+  assertEquals(writes(stale.recorded), []);
+  const duplicate = stand(openWorld());
+  assertEquals(
+    await recordProbeResult(duplicate.transaction as never, {
+      organizationId: ORG,
+      routeId: ROUTE,
+      generation: 3,
+      observedAt: NOW,
+      nextProbeAt: NEXT,
+      incidents: "off",
+      outcome: { kind: "redirected", evidenceWatermark: "w-old" },
+    }),
+    { kind: "duplicate", generation: 3 },
+  );
+  assertEquals(writes(duplicate.recorded), []);
+});
