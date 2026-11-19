@@ -884,7 +884,7 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
   // The approval currently in force: the base it was bound to, and the digest
   // of the tree it authorises.
   const approvedBases = [
-    "3b8d4ef5651aeb7feb2a38518001271c1436646f",
+    "5b8d39e853b302f1424cf36da10a1e8ca0d71c4d",
   ];
   const approvedDigest =
     "sha256:117a62b8ecd823ce6bf71be50c97ab0d21c628ab0fc888f5d4a63f380b5eed46";
@@ -894,6 +894,10 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
   const rejectedPriorDigests = [
     // Newest first, matching the file: a displaced approval is prepended, so the
     // approval this change removed from force heads the history it joins.
+    // Displaced by the #434 MCP connections re-bind: McpConnection create and update
+    // drop secretId for a write-only secret, and discovery, classification and use
+    // grants add their actions.
+    "sha256:fde2bf41e3caf11df66620b7a2a88273a0a65d334f02a2ee432fde53c0d59580",
     // Displaced by the #69 ticket preview, link reads and status note re-bind.
     "sha256:c22cd3f2f4e54fa2a414d3d24c1f9872c04df3eaead7354f46ea1cfaea241c5d",
     // Displaced by the #26 probe re-bind: RouteHealth gains reasonSince and the
