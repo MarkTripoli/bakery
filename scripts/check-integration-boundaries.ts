@@ -187,6 +187,11 @@ function webReachesServer(from: string, specifier: string): Violation | null {
 
 /** (b) Only the two registries import /server and /web entries. */
 function registryOnly(from: string, specifier: string): Violation | null {
+  // `@bakery/integration-sdk` is the SDK every provider is written against, not a
+  // provider, so its own `/web` and `/server` entries are ordinary imports. The
+  // pattern excluded the SDK from `isProviderPackage` but not from here, which made
+  // a provider's web module unable to import the types it exists to satisfy.
+  if (/^@bakery\/integration-sdk\//.test(specifier)) return null;
   if (/^@bakery\/integration-[^/]+\/server$/.test(specifier)) {
     if (from === SERVER_REGISTRY) return null;
     return {

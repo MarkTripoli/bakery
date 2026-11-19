@@ -4390,5 +4390,15 @@
   "artifact.edit.suggestions.bulk.acceptedStopped": "⟦Àççëþŧëð {done} ôƒ {total, plural, one {# suggestion} other {# suggestions}}. Ŧĥë ŕëšŧ ŵëŕë ñôŧ çĥàñĝëð. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
   "artifact.edit.suggestions.bulk.rejectedStopped": "⟦Ŕëĵëçŧëð {done} ôƒ {total, plural, one {# suggestion} other {# suggestions}}. Ŧĥë ŕëšŧ ŵëŕë ñôŧ çĥàñĝëð. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
   "artifact.edit.suggestions.bulk.acceptedSkipped": "⟦Àççëþŧëð {done} ôƒ {total, plural, one {# suggestion} other {# suggestions}}. {skipped, plural, one {# no longer fits} other {# no longer fit}} ŧĥë ŧëẋŧ àñð {skipped, plural, one {is} other {are}} šŧïļļ ļïšŧëð. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
-  "artifact.edit.suggestions.bulk.rejectedSkipped": "⟦Ŕëĵëçŧëð {done} ôƒ {total, plural, one {# suggestion} other {# suggestions}}. {skipped, plural, one {# no longer fits} other {# no longer fit}} ŧĥë ŧëẋŧ àñð {skipped, plural, one {is} other {are}} šŧïļļ ļïšŧëð. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧"
+  "artifact.edit.suggestions.bulk.rejectedSkipped": "⟦Ŕëĵëçŧëð {done} ôƒ {total, plural, one {# suggestion} other {# suggestions}}. {skipped, plural, one {# no longer fits} other {# no longer fit}} ŧĥë ŧëẋŧ àñð {skipped, plural, one {is} other {are}} šŧïļļ ļïšŧëð. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
+  "integrations.linear.name": "⟦Ļïñëàŕ…⟧",
+  "integrations.linear.fields.client_id": "⟦Çļïëñŧ ÏÐ ŧ⟧",
+  "integrations.linear.fields.client_secret": "⟦Çļïëñŧ šëçŕëŧ ŧë⟧",
+  "integrations.linear.kinds.issue": "⟦Ïššûë⟧",
+  "integrations.linear.kinds.project": "⟦Þŕôĵëçŧ…⟧",
+  "integrations.linear.permission.read": "⟦Ɓàķëŕÿ çàñ ŕëàð ÿôûŕ Ļïñëàŕ ïššûëš àñð þŕôĵëçŧš. ŧëšŧ çôþÿ ŧëšŧ⟧",
+  "integrations.linear.permission.write": "⟦Ɓàķëŕÿ çàñ çĥàñĝë Ļïñëàŕ ïššûëš àñð þôšŧ çôɱɱëñŧš. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
+  "integrations.linear.permission.other": "⟦Ļïñëàŕ ĝŕàñŧëð {scope} àççëšš, ŵĥïçĥ Ɓàķëŕÿ ðôëš ñôŧ ûšë. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
+  "integrations.linear.resource.project": "⟦À Ļïñëàŕ þŕôĵëçŧ ŧëš⟧",
+  "integrations.linear.resource.team": "⟦À Ļïñëàŕ ŧëàɱ ŧë⟧"
 }
