@@ -267,26 +267,43 @@ async function world(
 const announcer = (page: Page) =>
   page.getByRole("status").filter({ hasText: "Opened from a notification." });
 
-/** Holds a landing's outline (it fades after 2.5s) and frames the still on the part. */
+/**
+ * Holds a landing's outline (it fades after 2.5s) and frames the still on the
+ * part. The still widens a desktop window to 1500px, which re-clamps the
+ * scroll the landing made, so the part is centred again at that height the
+ * way the landing centres it, instead of keeping the old offset.
+ */
 async function landedStill(page: Page, name: string, part: Locator) {
   await part.evaluate((element) => element.setAttribute("data-landed", "true"));
+  const size = page.viewportSize();
+  if (size && size.width > 743) {
+    await page.setViewportSize({ width: size.width, height: 1500 });
+  }
+  await part.evaluate((element) => element.scrollIntoView({ block: "center" }));
   await still(page, name, undefined, { scrollTo: part });
 }
 
-/** The outline stands clear of the part's text, and is the only box: no focus ring inside it. */
+/**
+ * The outline stands clear of the part's text, and is the only box: no focus
+ * ring inside it. A part that fills a panel (the plan in the inspector) draws
+ * the line just inside, because the panel would clip it outside.
+ */
 async function oneBoxWithRoom(page: Page, part: Locator) {
+  const fillsPanel = await part.evaluate((element) =>
+    element.classList.contains("ui-pane-section")
+  );
   expect(
     await part.evaluate((element) => getComputedStyle(element).outlineOffset),
   )
-    .toBe("8px");
+    .toBe(fillsPanel ? "-2px" : "8px");
   const ring = await page.evaluate(() => {
     const active = document.activeElement as HTMLElement | null;
     const landed = document.querySelector("[data-landed]");
     return active && landed && active !== landed && landed.contains(active)
-      ? getComputedStyle(active).outlineStyle
-      : "none";
+      ? getComputedStyle(active).outlineWidth
+      : "0px";
   });
-  expect(ring).toBe("none");
+  expect(ring).toBe("0px");
 }
 
 /**
@@ -337,6 +354,12 @@ test.describe("Opening a notification", () => {
     const thread = page.locator(`[data-landing-step="${stepB}"]`);
     await expect(thread).toHaveAttribute("data-landed", "true");
     await oneBoxWithRoom(page, thread);
+    // Room above the thread: its Step label is on screen, not under the header.
+    const selector = await page.getByRole("combobox", { name: "Step" })
+      .boundingBox();
+    const scroller = await page.locator(".ui-task-detail__transcript")
+      .boundingBox();
+    expect(selector!.y - scroller!.y).toBeGreaterThanOrEqual(32);
     await shellLeavesLandingFocus(page);
     await expect(announcer(page)).toHaveCount(1);
     // Read once the place is on screen, and the read marker leaves the address.

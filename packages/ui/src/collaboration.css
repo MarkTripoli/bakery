@@ -1031,6 +1031,10 @@
   flex: 0 0 auto;
   padding: var(--space-0) var(--space-8) var(--space-4);
 }
+/* A notice under the stages (a notification's part is gone) gets the page's normal gap above it. */
+.ui-task-detail__stages > .ui-inline-notice {
+  margin-block-start: var(--space-3);
+}
 .ui-task-detail--conversation .ui-task-detail__transcript {
   /* intentional: the transcript scrolls while the composer stays pinned */
   overflow-y: auto;
@@ -2019,9 +2023,18 @@ button.ui-activity-line__row:hover {
   /* Stands clear of the part's text instead of sitting on its first letters. */
   outline-offset: var(--space-2);
 }
+/* A step's thread lands with its Step label and selector above it, not under the header. */
+[data-landing-step] {
+  scroll-margin-block-start: var(--space-16);
+}
+/* A part that fills a panel (the plan in the inspector) would have its line clipped outside it: draw it inside, in the section's own padding. */
+.ui-pane-section[data-landed="true"],
+.ui-pane-section[data-landed="true"]:focus-visible {
+  outline-offset: var(--focus-offset-inset);
+}
 /* One box: while a part is outlined, the heading focused inside it shows no ring of its own. */
 [data-landed="true"] [data-landing-focus]:focus-visible {
-  outline: none;
+  outline-width: var(--border-none);
 }
 
 .ui-session-thread__started {
