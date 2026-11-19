@@ -14,12 +14,16 @@ import { extname, join, relative } from "node:path";
  *   `ticket_sources` with one command each. Its request writer refuses a
  *   disposition move the state machine does not allow (`canTransition`).
  * - `ticket-request-command.ts` adds a task link (`createTicketTaskLink`).
- * - `ticket-source-command.ts` creates and updates a source.
+ * - `ticket-source-command.ts` creates and updates a source and replaces its
+ *   label routing rules (`ticket_routing_rules`, #31).
+ * - `ticket-store.ts` alone inserts a request's scoped targets
+ *   (`ticket_request_targets`), which are insert-only.
  *
  * `ticket_readiness_reports` is insert-only everywhere: a recorded evaluation
  * is never rewritten, and the role has no update grant either. No table has a
  * delete grant, so no file may delete from, merge into, truncate or copy any of
- * them. This rail fails on any other writer, so adding one is a reviewed
+ * them, except that the source command deletes a routing rule a replacement
+ * drops (rules are configuration; the targets that pinned it keep their pins). This rail fails on any other writer, so adding one is a reviewed
  * decision that edits this list, not an accident.
  *
  * It is a guardrail against the accidental writer, not a proof. It reads
@@ -49,6 +53,8 @@ export const TABLES = [
   "ticket_readiness_reports",
   "ticket_task_links",
   "ticket_sources",
+  "ticket_routing_rules",
+  "ticket_request_targets",
 ] as const;
 export type TicketTable = typeof TABLES[number];
 
@@ -59,6 +65,8 @@ const writers: Readonly<Record<TicketTable, ReadonlySet<string>>> = {
   ticket_readiness_reports: new Set([STORE]),
   ticket_task_links: new Set([STORE, REQUEST_COMMAND]),
   ticket_sources: new Set([SOURCE_COMMAND, STORE]),
+  ticket_routing_rules: new Set([SOURCE_COMMAND]),
+  ticket_request_targets: new Set([STORE]),
 };
 
 export type Verb =
@@ -143,9 +151,19 @@ export function ticketWrites(path: string, source: string): TicketWrite[] {
   return writes.sort((a, b) => a.line - b.line);
 }
 
+/** The one delete the rail allows: a dropped routing rule, by the source command. */
+function deleteAllowed(write: TicketWrite): boolean {
+  return write.verb === "delete" && write.table === "ticket_routing_rules" &&
+    write.path === SOURCE_COMMAND;
+}
+
 /** Whether the rail lets `write` be: an insert or update by an allowed file, and no update of a report. */
 function permitted(write: TicketWrite): boolean {
+  if (deleteAllowed(write)) return true;
   if (write.verb !== "insert" && write.verb !== "update") return false;
+  if (write.table === "ticket_request_targets" && write.verb === "update") {
+    return false;
+  }
   if (write.table === "ticket_readiness_reports" && write.verb === "update") {
     return false;
   }
@@ -234,7 +252,10 @@ Deno.test("no source file deletes from, merges into, truncates or copies a ticke
   const forbidden: string[] = [];
   for (const [path, source] of await productionSources()) {
     for (const write of ticketWrites(path, source)) {
-      if (write.verb !== "insert" && write.verb !== "update") {
+      if (
+        write.verb !== "insert" && write.verb !== "update" &&
+        !deleteAllowed(write)
+      ) {
         forbidden.push(`${path}:${write.line} ${write.verb} ${write.table}`);
       }
     }

@@ -108,6 +108,11 @@ export type IssueInit = {
   title?: string;
   body?: string;
   labels?: string[];
+  /**
+   * Provider label ids, one per label; defaults to the names themselves.
+   * Null models a reader that names no label ids.
+   */
+  labelIds?: string[] | null;
   state?: "open" | "closed";
   stateReason?: string | null;
   repositoryFullName?: string;
@@ -120,6 +125,35 @@ type IssueSeed = Required<Omit<IssueInit, "repositoryFullName">> & {
   repositoryFullName: string | null;
 };
 
+/** The permission names a GitHub role can hold. */
+type RolePermission = "admin" | "write" | "read" | "none";
+
+/** GitHub's own ladder, the one the real reader maps into the contract band. */
+const GITHUB_ROLE_RANK: Record<RolePermission, number> = {
+  none: 0,
+  read: 1,
+  write: 2,
+  admin: 3,
+};
+
+/** A blocker reference as a test may state it: a repository, not a container. */
+type LegacyRef = { id: string; number: number; repositoryFullName: string };
+
+function asContainerRef(
+  ref: LegacyRef | IssueRef,
+): IssueRef {
+  if ("container" in ref) return ref;
+  return {
+    id: ref.id,
+    number: ref.number,
+    container: {
+      kind: "repository",
+      externalId: ref.repositoryFullName,
+      displayName: ref.repositoryFullName,
+    },
+  };
+}
+
 /** Scripted in-memory reader with a call log. */
 export type MemoryTicketReader = TicketSourceReader & {
   calls: ReaderCall[];
@@ -130,9 +164,20 @@ export type MemoryTicketReader = TicketSourceReader & {
   setIssue(init: IssueInit): void;
   /** Replaces the issue answer with gone, moved, pull_request or a failure. */
   setIssueRead(number: number, read: TicketIssueRead): void;
+  /**
+   * Blockers may be stated either way: a container, or the repository this
+   * GitHub-shaped double is standing in for.
+   */
   setLinks(
     number: number,
-    links: Partial<Extract<TicketLinksRead, { kind: "present" }>>,
+    links:
+      & Omit<
+        Partial<Extract<TicketLinksRead, { kind: "present" }>>,
+        "blockedBy"
+      >
+      & {
+        blockedBy?: (IssueRef | LegacyRef)[];
+      },
   ): void;
   setLinksRead(number: number, read: TicketLinksRead): void;
   setProof(
@@ -149,7 +194,22 @@ export type MemoryTicketReader = TicketSourceReader & {
     label: string,
     answer: TicketLabelProvenance,
   ): void;
-  setRole(login: string, answer: TicketActorRole): void;
+  /**
+   * A present role may omit its rank: this double is the provider, so it maps
+   * its own permission names to the contract's ladder the way the real reader
+   * does.
+   */
+  setRole(
+    login: string,
+    answer:
+      | Exclude<TicketActorRole, { kind: "present" }>
+      | {
+        kind: "present";
+        userId: string;
+        permission: RolePermission;
+        rank?: number;
+      },
+  ): void;
   /** Makes the next call of a method answer with a failure. */
   failNext(method: keyof TicketSourceReader, failure?: TicketReadFailure): void;
   callsOf(method: keyof TicketSourceReader): ReaderCall[];
@@ -196,6 +256,9 @@ export function createMemoryTicketReader(): MemoryTicketReader {
         title: init.title ?? `Issue ${init.number}`,
         body: init.body ?? ACCEPTANCE_BODY,
         labels: init.labels ?? [],
+        labelIds: init.labelIds === null
+          ? null
+          : init.labelIds ?? init.labels ?? [],
         state: init.state ?? "open",
         stateReason: init.stateReason ?? null,
         repositoryFullName: init.repositoryFullName ?? null,
@@ -207,14 +270,20 @@ export function createMemoryTicketReader(): MemoryTicketReader {
       issues.set(number, read);
     },
     setLinks(number, partial) {
+      // This double stands in for the GitHub reader, which knows a ticket by
+      // its repository. The contract stores a container, so the conversion is
+      // the double's job, exactly as the real reader's is: a test can keep
+      // saying "owner/repo".
       links.set(number, {
         kind: "present",
         parent: null,
         subIssuesTotal: 0,
-        blockedBy: [],
         blockingTotal: 0,
         truncated: false,
         ...partial,
+        // After the spread: the caller's blockedBy is in the double's own
+        // vocabulary, and this is the line that converts it.
+        blockedBy: (partial.blockedBy ?? []).map(asContainerRef),
       });
     },
     setLinksRead(number, read) {
@@ -235,7 +304,12 @@ export function createMemoryTicketReader(): MemoryTicketReader {
       provenance.set(`${number}\u0000${label}`, answer);
     },
     setRole(login, answer) {
-      roles.set(login, answer);
+      roles.set(
+        login,
+        answer.kind === "present" && answer.rank === undefined
+          ? { ...answer, rank: GITHUB_ROLE_RANK[answer.permission] }
+          : answer as TicketActorRole,
+      );
     },
     failNext(method, failure = UNAVAILABLE) {
       failures.set(method, [...(failures.get(method) ?? []), failure]);
@@ -263,11 +337,15 @@ export function createMemoryTicketReader(): MemoryTicketReader {
           body: seeded.body,
           bodyTooLarge: false,
           labels: seeded.labels,
+          ...(seeded.labelIds === null ? {} : { labelIds: seeded.labelIds }),
           state: seeded.state,
           stateReason: seeded.stateReason,
           locked: false,
-          repositoryFullName: seeded.repositoryFullName ??
-            handle.repositoryFullName,
+          container: {
+            kind: "repository",
+            externalId: seeded.repositoryFullName ?? handle.repositoryFullName,
+            displayName: seeded.repositoryFullName ?? handle.repositoryFullName,
+          },
         },
         providerUpdatedAt: seeded.updatedAt,
         visibility: seeded.visibility,
@@ -453,7 +531,7 @@ export type SourceCounts = {
 export type TicketFixture = Awaited<ReturnType<typeof openTicketFixture>>;
 
 export type PolicyOverrides = {
-  delegation?: boolean | { principalId?: string; githubActorIds?: string[] };
+  delegation?: boolean | { principalId?: string; externalActorIds?: string[] };
   automatic?: { enabled: boolean; since: string | null };
   approval?: "automatic" | "human_approval";
   requireAcceptanceCriteria?: boolean;
@@ -515,7 +593,7 @@ export async function openTicketFixture(
         ? null
         : {
           principalId: f.developerId!,
-          githubActorIds: [LABELER_ID],
+          externalActorIds: [LABELER_ID],
           ...(overrides.delegation === true ? {} : overrides.delegation),
         };
       return {
@@ -553,6 +631,12 @@ export async function openTicketFixture(
           policy?: TicketSourcePolicy;
           enabled?: boolean;
           repositoryId?: string | null;
+          /**
+           * The source's application. Defaults to the fixture's, and may be
+           * null: a provider-neutral source has none, and admission must still
+           * serialise on something.
+           */
+          applicationId?: string | null;
           /** The container id; unique per connection. Defaults to the resource's, then a numbered one. */
           externalContainerId?: string;
         } = {},
@@ -560,16 +644,18 @@ export async function openTicketFixture(
         const id = crypto.randomUUID();
         await f.pgDatabase.query(
           `insert into bakery.ticket_sources (
-             id, organization_id, integration_connection_id,
+             id, organization_id, provider, integration_connection_id,
              integration_resource_id, application_id, repository_id,
              external_container_id, enabled, policy
-           ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)`,
+           ) values ($1, $2, 'github', $3, $4, $5, $6, $7, $8, $9::jsonb)`,
           [
             id,
             f.organizationId,
             connection.connectionId,
             resource.id,
-            repository.applicationId,
+            options.applicationId === undefined
+              ? repository.applicationId
+              : options.applicationId,
             options.repositoryId === undefined
               ? repository.repositoryId
               : options.repositoryId,
@@ -838,6 +924,9 @@ export function seedLabeler(
     kind: "present",
     userId: LABELER_ID,
     permission,
+    // GitHub's own ladder, so the helper states a real rank rather than a
+    // placeholder that would satisfy the type and prove nothing.
+    rank: { none: 0, read: 1, write: 2, admin: 3 }[permission],
   });
 }
 

@@ -32,6 +32,8 @@ export function SessionNowLine(
     <p
       className="ui-session-now"
       data-tone={tone}
+      data-variant={tone}
+      data-state="default"
       role="status"
       aria-live="polite"
       aria-atomic="true"

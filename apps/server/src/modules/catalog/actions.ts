@@ -62,6 +62,10 @@ export type CatalogActionHandlers = {
     context: ActionContext,
     input: z.output<typeof contractSchemas.LocalSkillVersion>,
   ) => Promise<z.output<typeof contractSchemas.SkillVersion>>;
+  searchLibrary: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.LibrarySearchQuery>,
+  ) => Promise<z.output<typeof contractSchemas["Page<LibrarySearchHit>"]>>;
 };
 
 const queryPolicy = {
@@ -178,6 +182,15 @@ export function createCatalogActionRegistry(
     output: contractSchemas.Skill,
     policy: commandPolicy,
     handler: handlers.updateSkill,
+  });
+  registry.register({
+    name: CatalogImplementedAction.LibrarySearch,
+    method: HttpMethod.Get,
+    path: "/v1/library/search",
+    input: contractSchemas.LibrarySearchQuery,
+    output: contractSchemas["Page<LibrarySearchHit>"],
+    policy: queryPolicy,
+    handler: handlers.searchLibrary,
   });
   if (options.includeSkillVersionPublication !== false) {
     registry.register({

@@ -41,6 +41,8 @@ import {
   createTicketSource,
   createTicketSourcePreviewHandler,
   createTicketSourceSyncHandler,
+  getTicketRoutingRules,
+  replaceTicketRoutingRules,
   updateTicketSource,
 } from "./ticket-source-command.ts";
 
@@ -147,6 +149,24 @@ export function createTicketActionRegistry(
     output: contractSchemas.TicketOperationReceipt,
     policy: admin,
     handler: createTicketSourceSyncHandler(dependencies),
+  }).register({
+    name: TicketImplementedAction.TicketRoutingRulesGet,
+    method: HttpMethod.Get,
+    path: "/v1/ticket-sources/:id/routing-rules",
+    input: contractSchemas.IdPath,
+    output: contractSchemas.TicketRoutingRuleSet,
+    policy: query,
+    handler: getTicketRoutingRules,
+  }).register({
+    name: TicketImplementedAction.TicketRoutingRulesReplace,
+    method: HttpMethod.Put,
+    path: "/v1/ticket-sources/:id/routing-rules",
+    input: contractSchemas.TicketRoutingRulesReplace,
+    output: contractSchemas.TicketRoutingRuleSet,
+    policy: admin,
+    // A whole-set replace: the source version is always the precondition.
+    explicitIdempotency: "key-and-if-match",
+    handler: replaceTicketRoutingRules,
   }).register({
     name: TicketImplementedAction.ExternalTicketsList,
     method: HttpMethod.Get,

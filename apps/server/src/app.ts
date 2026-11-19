@@ -10,6 +10,7 @@ import { createRepositoryRulesRoutes } from "./modules/repository-rules/index.ts
 import { createArtifactKindsRoutes } from "./modules/artifact-kinds/index.ts";
 import { createMemoryRoutes } from "./modules/knowledge/memory-routes.ts";
 import { createPluginPackageRoutes } from "./modules/catalog/plugin-routes.ts";
+import { githubIngress } from "./modules/catalog/integration-providers/github-ingress.ts";
 import { createPluginInstallRoutes } from "./modules/catalog/plugin-install-routes.ts";
 import { createDeliveryRoutes } from "./modules/delivery/index.ts";
 import {
@@ -31,6 +32,7 @@ import {
   activateDeployedIntegrations,
   createCatalogRoutes,
   deployedIntegrations,
+  deployedProviders,
 } from "./modules/catalog/index.ts";
 import {
   createSkillSourceAdapter,
@@ -116,6 +118,12 @@ import {
 } from "./modules/projects/index.ts";
 
 import { createExecutionRoutes } from "./modules/execution/index.ts";
+import { createCatalogActionRegistry } from "./modules/catalog/actions.ts";
+import { createCatalogHandlers } from "./modules/catalog/persistence.ts";
+import { createAgentsActionRegistry } from "./modules/agents/actions.ts";
+import { createAgentsHandlers } from "./modules/agents/postgres.ts";
+import { createSessionToolRegistry } from "./modules/execution/session-registry.ts";
+import { sessionOperationScopes } from "./modules/execution/session-tools.ts";
 import {
   createArtifactPreviewHost,
   createPreviewHostDispatch,
@@ -190,6 +198,8 @@ export function createApp(options: {
   // start disagreeing.
   const integrationRegistry = activateDeployedIntegrations(
     deployedIntegrations,
+    undefined,
+    deployedProviders,
   );
   if (!options.config.auth) throw new Error(AuthErrorCode.ConfigRequired);
   const installationSettings = options.installationSettings ??
@@ -307,6 +317,30 @@ export function createApp(options: {
     database: options.pgDatabase,
     cursorSecret: options.config.auth.secret,
   });
+  /**
+   * The catalog operations, built here once so the worker tool gateway and the
+   * catalog routes share a single registration. Two registrations would be two
+   * handlers to keep in step, and the first disagreement would make a session
+   * call something different from the route the rest of the product calls.
+   */
+  const catalogRegistry = createCatalogActionRegistry(
+    createCatalogHandlers(options.config.auth.secret, {
+      normalizeSourceLocator: options.skillSourceLocatorNormalizer,
+    }),
+    {
+      authorityRunner: new PostgresAuthorityRunner(options.pgDatabase),
+      commandRunner: createPostgresCommandRunner(),
+      includeSkillVersionPublication: false,
+    },
+  );
+  /**
+   * Agent operations, built here for the same reason as the catalog ones: the
+   * worker tool gateway must call the same registration the agent routes serve.
+   */
+  const agentsRegistry = createAgentsActionRegistry(
+    options.pgDatabase,
+    createAgentsHandlers(options.config.auth.secret),
+  );
   const artifactActions = createArtifactActions({
     database: options.pgDatabase,
     publicBaseUrl: options.config.publicBaseUrl,
@@ -568,6 +602,19 @@ export function createApp(options: {
       artifactPreviewOrigin: previewOrigin,
       artifactActions,
       integrations,
+      // The tool gateway's operations: whatever these registries already
+      // implement, narrowed to the operation map a session is defined by.
+      // Composed rather than re-registered so a session calls the same handler
+      // and the same authority guard as the route the rest of the product uses.
+      sessionTools: createSessionToolRegistry({
+        registries: [
+          taskRegistry,
+          catalogRegistry,
+          agentsRegistry,
+          artifactActions.registry,
+        ],
+        offered: sessionOperationScopes(),
+      }),
       ...(skillFileStore
         ? {
           skillImport: {
@@ -746,6 +793,9 @@ export function createApp(options: {
       githubAppClient,
       broker: installationTokenBroker,
       cursorSecret: options.config.auth.secret,
+      // The webhook path is GitHub's, so the composition root - the one place
+      // that already names the GitHub App client above - names its ingress too.
+      ingress: githubIngress,
       // The one activated registry this process owns, bound above and handed to
       // the invoke door. Every consumer now reads the same set of deployed
       // providers instead of re-deriving one.
@@ -825,6 +875,7 @@ export function createApp(options: {
       skillFileRoot: options.config.skillFileRoot?.root,
       skillFileStore,
       normalizeSourceLocator: options.skillSourceLocatorNormalizer,
+      registry: catalogRegistry,
     }),
   );
   return app;

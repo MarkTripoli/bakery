@@ -593,13 +593,33 @@ function boundedLabelNames(
   );
 }
 
+/**
+ * The ids of the kept labels as decimal strings, or null when GitHub sent any
+ * kept label as a bare name (no id to route by).
+ */
+function boundedLabelIds(
+  labels: readonly (string | { id?: number; name: string })[],
+): string[] | null {
+  const ids: string[] = [];
+  for (const label of labels.slice(0, GITHUB_MAX_LABELS)) {
+    if (typeof label === "string" || label.id === undefined) return null;
+    ids.push(String(label.id));
+  }
+  return ids;
+}
+
 /** The labels of an issue list item or issue read, as names or label objects. */
 const GitHubIssueLabelsSchema = z.array(
   z.union([
     z.string().describe("A label name sent as a bare string."),
     z.object({
+      id: z.number().int().positive().optional().describe(
+        "Numeric GitHub id of the label; stable across renames.",
+      ),
       name: z.string().describe("Name of the label."),
-    }).describe("A label object; every field except its name is dropped."),
+    }).describe(
+      "A label object; every field except its id and name is dropped.",
+    ),
   ]).describe("One label of the issue, as a name or an object."),
 ).describe("Labels on the issue; reduced to bounded names.");
 
@@ -973,6 +993,7 @@ const GitHubIssueDetailSchema = z.object({
     body: bodyTooLarge ? "" : body,
     bodyTooLarge,
     labels: boundedLabelNames(wire.labels),
+    labelIds: boundedLabelIds(wire.labels),
     labelsTruncated: wire.labels.length > GITHUB_MAX_LABELS,
     locked: wire.locked,
     updatedAt: wire.updated_at,
