@@ -648,3 +648,73 @@ Deno.test("issue 82 ops security: the admission guard checks run:write by itself
     assertEquals(code, "AUTH_FORBIDDEN", missing.join());
   }
 });
+
+Deno.test("issue 69 note security: a read-only role cannot resync Bakery's note, and the write permission is the only difference", async () => {
+  await withTicketFixture(async (fx) => {
+    try {
+      const { ticketId } = await seededSource(fx);
+      const taskId = await insertBareTask(fx);
+      const linkId = crypto.randomUUID();
+      await fx.owner.query(
+        `insert into bakery.ticket_task_links (
+           id, organization_id, external_ticket_id, task_id, role
+         ) values ($1, $2, $3, $4, 'primary')`,
+        [linkId, fx.organizationId, ticketId, taskId],
+      );
+      const roleId = crypto.randomUUID();
+      const hold = (permissions: readonly string[]) =>
+        fx.owner.query(
+          `update bakery.organization_roles set permissions = $3::text[]
+            where organization_id = $1 and id = $2`,
+          [fx.organizationId, roleId, permissions],
+        );
+      await fx.owner.query(
+        `insert into bakery.organization_roles (
+           id, organization_id, key, name, permissions, created_by_principal_id
+         ) values ($1, $2, 'note-reader', 'Note reader', '{}'::text[], $3)`,
+        [roleId, fx.organizationId, fx.adminId],
+      );
+      await hold(["externalTicket:read", "task:read"]);
+      const reader = await addMember(fx.f, seedFor(fx), "note-reader", "guest");
+      await fx.owner.query(
+        `update bakery.organization_memberships set custom_role_id = $3
+          where organization_id = $1 and principal_id = $2`,
+        [fx.organizationId, reader.principalId, roleId],
+      );
+      const path = `/v1/ticket-task-links/${linkId}/note-syncs`;
+      const sync = () =>
+        ticketCall(fx, "POST", path, {
+          cookie: reader.cookie,
+          body: {},
+          headers: { "If-Match": '"v1"' },
+        });
+      const refused = await sync();
+      assert(
+        refused.status === 403 || refused.status === 404,
+        `read-only resync answered ${refused.status}`,
+      );
+      await refused.body?.cancel();
+      assertEquals(fx.notes.posts.length, 0, "a refused resync writes nothing");
+
+      // A token scoped to reading is refused on the same call.
+      const account = await createServiceAccount(fx.f, "note bot", "admin");
+      const readOnly = await mintToken(fx.f, account.id, ["bakery:read"]);
+      const scoped = await bearerCall(fx.f, "POST", path, readOnly.secret, {
+        body: {},
+        headers: { "If-Match": '"v1"' },
+      });
+      assertEquals(scoped.status, 403);
+      assertEquals((await scoped.json() as Problem).code, "INSUFFICIENT_SCOPE");
+      assertEquals(fx.notes.posts.length, 0);
+
+      // With the link write permission the same call reaches the writer.
+      await hold(["externalTicket:read", "task:read", "ticketTaskLink:write"]);
+      const allowed = await sync();
+      assertEquals(allowed.status, 201);
+      await allowed.body?.cancel();
+      assertEquals(fx.notes.posts.length, 1);
+    } finally {
+      await cleanupSeededOrganizations(fx.f);
+    }
+  });
+});

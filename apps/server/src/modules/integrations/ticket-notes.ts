@@ -104,39 +104,66 @@ export function createGateTicketNoteWriter(deps: {
           };
         }
       };
-      const create = async (recreated: boolean): Promise<TicketNoteResult> => {
-        const posted = await send(refs.create, {
-          issueNumber: request.issueNumber,
-          body: request.body,
-        }, `${request.idempotencyKey}:create`);
-        if ("remoteId" in posted) {
-          return { kind: "posted", externalId: posted.remoteId, recreated };
-        }
-        return {
-          kind: "failed",
-          problemCode: "problemCode" in posted
-            ? posted.problemCode
-            : "note_post_failed",
-        };
-      };
-      if (request.existingExternalId === null) return await create(false);
-      const updated = await send(refs.update, {
-        issueNumber: request.issueNumber,
-        commentId: request.existingExternalId,
-        body: request.body,
-      }, `${request.idempotencyKey}:update`);
-      if ("remoteId" in updated) {
-        return {
-          kind: "posted",
-          externalId: updated.remoteId,
-          recreated: false,
-        };
-      }
-      // Post again only when the provider action confirmed the comment is
-      // gone. Any other refusal (a 403 or a 422) keeps the stored id, so a
-      // resync never leaves a second public comment.
-      if ("missing" in updated) return await create(true);
-      return { kind: "failed", problemCode: updated.problemCode };
+      return await writeTicketNote(
+        request,
+        (which, args, key) =>
+          send(which === "create" ? refs.create : refs.update, args, key),
+      );
     },
   };
+}
+
+/** What one send of a note action answers. */
+export type NoteSendResult =
+  | { remoteId: string }
+  | { missing: true }
+  | { problemCode: string };
+
+/**
+ * The note write decision, apart from the gate so it can be tested: post when
+ * no comment is stored; otherwise rewrite it, and post again only when the
+ * rewrite confirmed the comment is gone. Any other refusal fails with its code
+ * and keeps the stored id, so a resync never leaves a second public comment.
+ */
+export async function writeTicketNote(
+  request: TicketNoteRequest,
+  send: (
+    which: "create" | "update",
+    args: Record<string, unknown>,
+    key: string,
+  ) => Promise<NoteSendResult>,
+): Promise<TicketNoteResult> {
+  const create = async (recreated: boolean): Promise<TicketNoteResult> => {
+    const posted = await send("create", {
+      issueNumber: request.issueNumber,
+      body: request.body,
+    }, `${request.idempotencyKey}:create`);
+    if ("remoteId" in posted) {
+      return { kind: "posted", externalId: posted.remoteId, recreated };
+    }
+    return {
+      kind: "failed",
+      problemCode: "problemCode" in posted
+        ? posted.problemCode
+        : "note_post_failed",
+    };
+  };
+  if (request.existingExternalId === null) return await create(false);
+  const updated = await send("update", {
+    issueNumber: request.issueNumber,
+    commentId: request.existingExternalId,
+    body: request.body,
+  }, `${request.idempotencyKey}:update`);
+  if ("remoteId" in updated) {
+    return {
+      kind: "posted",
+      externalId: updated.remoteId,
+      recreated: false,
+    };
+  }
+  // Post again only when the provider action confirmed the comment is
+  // gone. Any other refusal (a 403 or a 422) keeps the stored id, so a
+  // resync never leaves a second public comment.
+  if ("missing" in updated) return await create(true);
+  return { kind: "failed", problemCode: updated.problemCode };
 }

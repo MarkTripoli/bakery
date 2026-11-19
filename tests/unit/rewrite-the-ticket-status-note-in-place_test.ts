@@ -1,6 +1,10 @@
 import { assertEquals, assertRejects } from "@std/assert";
 import { githubIntegration } from "../../apps/server/src/modules/catalog/integration-providers/github.ts";
 import { ticketNoteBody } from "../../apps/server/src/modules/work/ticket-notes.ts";
+import {
+  type NoteSendResult,
+  writeTicketNote,
+} from "../../apps/server/src/modules/integrations/ticket-notes.ts";
 
 type Handler = {
   execute(ctx: unknown, input: unknown): Promise<unknown>;
@@ -77,4 +81,79 @@ Deno.test("the note shows the task title as inert inline code", () => {
     "Task: `ping @octocat about #12 'x' <!- - bakery-effect:1 -->`",
   );
   assertEquals(/<!--\s*bakery-effect:/i.test(body), false);
+});
+
+const request = (existingExternalId: string | null) =>
+  ({
+    provider: "github",
+    organizationId: crypto.randomUUID(),
+    actorPrincipalId: crypto.randomUUID(),
+    connectionId: crypto.randomUUID(),
+    resourceId: crypto.randomUUID(),
+    issueNumber: 7,
+    existingExternalId,
+    body: "Bakery is working on this issue.",
+    idempotencyKey: "k",
+  }) as unknown as Parameters<typeof writeTicketNote>[0];
+
+/** A send double: answers each action from a script and records what was sent. */
+function scripted(answers: Record<"create" | "update", NoteSendResult>) {
+  const sent: string[] = [];
+  return {
+    sent,
+    send: (which: "create" | "update") => {
+      sent.push(which);
+      return Promise.resolve(answers[which]);
+    },
+  };
+}
+
+Deno.test("the writer re-posts only when the rewrite confirmed the comment is gone", async () => {
+  const gone = scripted({
+    update: { missing: true },
+    create: { remoteId: "1002" },
+  });
+  assertEquals(await writeTicketNote(request("1001"), gone.send), {
+    kind: "posted",
+    externalId: "1002",
+    recreated: true,
+  });
+  assertEquals(gone.sent, ["update", "create"]);
+});
+
+Deno.test("a refused rewrite fails with its code and never posts a second comment", async () => {
+  for (const problemCode of ["note_failed", "auth_forbidden"]) {
+    const refused = scripted({
+      update: { problemCode },
+      create: { remoteId: "9999" },
+    });
+    assertEquals(await writeTicketNote(request("1001"), refused.send), {
+      kind: "failed",
+      problemCode,
+    });
+    assertEquals(refused.sent, ["update"], problemCode);
+  }
+});
+
+Deno.test("a rewrite keeps the comment id, and a first note posts", async () => {
+  const rewrite = scripted({
+    update: { remoteId: "1001" },
+    create: { remoteId: "9999" },
+  });
+  assertEquals(await writeTicketNote(request("1001"), rewrite.send), {
+    kind: "posted",
+    externalId: "1001",
+    recreated: false,
+  });
+  assertEquals(rewrite.sent, ["update"]);
+  const first = scripted({
+    update: { remoteId: "9999" },
+    create: { remoteId: "1001" },
+  });
+  assertEquals(await writeTicketNote(request(null), first.send), {
+    kind: "posted",
+    externalId: "1001",
+    recreated: false,
+  });
+  assertEquals(first.sent, ["create"]);
 });
