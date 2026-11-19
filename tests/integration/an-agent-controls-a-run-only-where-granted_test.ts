@@ -115,7 +115,18 @@ const noControlAudit = async (fixture: AgentFixture) =>
 Deno.test("an agent never controls its own run", () =>
   withWorkerFixture(async (fixture) => {
     const session = await agentSession(fixture, { granted: "run_control" });
-    const response = await cancel(session, session.own.runId);
+    // Bounded: without the own-work guard the cancel stops the agent's own
+    // session and never returns, so a hang is a failure, not a stuck test.
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const response = await Promise.race([
+      cancel(session, session.own.runId),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error("cancelling its own run did not return")),
+          30_000,
+        );
+      }),
+    ]).finally(() => clearTimeout(timer));
     assertEquals(response.status, 403, await response.text());
     assertEquals(
       await runStatus(fixture, session.own.runId) === "canceled",
@@ -144,6 +155,33 @@ Deno.test("an agent never controls a run in its own task lineage", () =>
     const response = await cancel(session, below);
     assertEquals(response.status, 403, await response.text());
     assertEquals(await runStatus(fixture, below) === "canceled", false);
+  }));
+
+Deno.test("an agent never controls a run of the task its own task hangs under", () =>
+  withWorkerFixture(async (fixture) => {
+    const session = await agentSession(fixture, { granted: "run_control" });
+    const parent = await seedOtherRun(fixture);
+    // The parent's workflow holds the power too, so a refusal is the lineage
+    // check and not a missing grant.
+    await grantPower(fixture, parent.workflowId, "run_control");
+    await fixture.pgDatabase.query(
+      `update bakery.tasks set parent_task_id = $3
+        where organization_id = $1 and id = $2`,
+      [fixture.organizationId, session.own.taskId, parent.taskId],
+    );
+    const response = await cancel(session, parent.runId);
+    assertEquals(response.status, 403, await response.text());
+    assertEquals(await runStatus(fixture, parent.runId) === "canceled", false);
+    assertEquals(await noControlAudit(fixture), 0);
+    // Control: with the parent link cut, the same cancel goes through.
+    await fixture.pgDatabase.query(
+      `update bakery.tasks set parent_task_id = null
+        where organization_id = $1 and id = $2`,
+      [fixture.organizationId, session.own.taskId],
+    );
+    const allowed = await cancel(session, parent.runId);
+    assertEquals(allowed.status, 200, await allowed.text());
+    assertEquals(await runStatus(fixture, parent.runId), "canceled");
   }));
 
 Deno.test("a run_control grant reaches only the workflows it names: the target's must be granted too", () =>

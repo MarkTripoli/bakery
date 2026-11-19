@@ -254,9 +254,19 @@ Deno.test("an agent cannot approve work in its own task lineage, below it or abo
         where organization_id = $1 and id = $2`,
       [fixture.organizationId, own.taskId, parent.taskId],
     );
+    // The parent's workflow holds the power too, so the refusal below is the
+    // lineage check and not a missing grant.
+    await grantPower(fixture, parent.workflowId, "decide");
     const aboveApproval = await approvalIn(fixture, parent);
     assertEquals((await decide(aboveApproval)).status, 403);
     await assertUntouched(fixture, aboveApproval);
+    // Control: the same approval, with the parent link cut, goes through.
+    await fixture.pgDatabase.query(
+      `update bakery.tasks set parent_task_id = null
+        where organization_id = $1 and id = $2`,
+      [fixture.organizationId, own.taskId],
+    );
+    assertEquals((await decide(aboveApproval)).status, 200);
   }));
 
 Deno.test("a decide grant reaches only the workflows it names: the target's must be granted too", () =>
