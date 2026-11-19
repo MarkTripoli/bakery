@@ -20,6 +20,9 @@ export function landOn(
   );
   const focus = focusTarget ?? element;
   if (!focus.hasAttribute("tabindex")) focus.setAttribute("tabindex", "-1");
+  // The shell moves focus to the page title after a route change; a landing's
+  // own focus must not be taken back (see AppLayout).
+  focus.setAttribute("data-landing-focus", "true");
   focus.focus({ preventScroll: true });
   return true;
 }
