@@ -3750,11 +3750,15 @@
         "packageJson": {
           "dependencies": [
             "npm:@axe-core/playwright@4.13.0",
+            "npm:@codemirror/state@6.7.6",
+            "npm:@codemirror/view@6.43.15",
             "npm:@playwright/test@1.63.0",
             "npm:@storybook/addon-a11y@10.6.0",
             "npm:@storybook/react-vite@10.6.0",
             "npm:@types/react@19.3.0",
             "npm:esbuild@0.28.2",
+            "npm:loro-codemirror@0.3.3",
+            "npm:loro-crdt@1.16.0",
             "npm:react-dom@19.3.0",
             "npm:react@19.3.0",
             "npm:storybook@10.6.0",
