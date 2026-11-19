@@ -15,6 +15,13 @@ test.describe("Other people's carets", () => {
     await expect(caret.locator(".ui-document-editor__caret-label")).toHaveText(
       "Ana",
     );
+    // Clipping does not make a label invisible to Playwright, so compare the
+    // boxes: the whole label sits inside the editor, not above its top edge.
+    const label = await caret.locator(".ui-document-editor__caret-label")
+      .boundingBox();
+    const frame = await page.locator(".ui-document-editor .cm-editor")
+      .boundingBox();
+    expect(label!.y).toBeGreaterThanOrEqual(frame!.y);
     await still(page, "caret-one");
   });
 

@@ -2489,7 +2489,8 @@ button.ui-activity-line__row:hover {
 }
 .ui-document-editor .cm-content {
   caret-color: var(--color-fg);
-  padding: var(--space-3) var(--space-4);
+  /* Headroom above the first line for another person's name label. */
+  padding: var(--space-6) var(--space-4) var(--space-3);
 }
 .ui-document-editor .cm-line {
   padding: 0;
