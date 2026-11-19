@@ -7,6 +7,24 @@ const UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z$/;
 const DECIMAL_SEQUENCE = /^(0|[1-9]\d*)$/;
+/** Filter text longer than this is bound by its SHA-256, keeping a cursor small. */
+const MAX_INLINE_FILTER_CHARS = 96;
+
+/**
+ * The filters a cursor is bound to. Short filters are carried as written. Long
+ * ones (a list with several UUID filters) are carried as their SHA-256, which
+ * binds exactly the same filters but keeps the cursor under its size cap. Only
+ * row cursors do this; a sequence cursor may be asked for its filters back.
+ */
+async function boundFilters(filters: string): Promise<string> {
+  if (filters.length <= MAX_INLINE_FILTER_CHARS) return filters;
+  const digest = new Uint8Array(
+    await crypto.subtle.digest("SHA-256", new TextEncoder().encode(filters)),
+  );
+  return `sha256:${
+    Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("")
+  }`;
+}
 
 export type CursorBinding = {
   action: string;
@@ -200,14 +218,16 @@ async function decodePayload(
   return payload as Record<string, unknown>;
 }
 
-function validPayloadBinding(
+async function validPayloadBinding(
   record: Record<string, unknown>,
   binding: CursorBinding,
-): boolean {
+): Promise<boolean> {
   return record.v === CURSOR_VERSION && record.a === binding.action &&
     record.p === binding.principalId &&
     record.o === (binding.organizationId ?? UNSCOPED) &&
-    record.r === binding.ordering && record.f === binding.filters &&
+    record.r === binding.ordering &&
+    (record.f === binding.filters ||
+      record.f === await boundFilters(binding.filters)) &&
     record.s === binding.schemaVersion;
 }
 
@@ -227,7 +247,7 @@ export async function encodeCursor(
     p: binding.principalId,
     o: binding.organizationId ?? UNSCOPED,
     r: binding.ordering,
-    f: binding.filters,
+    f: await boundFilters(binding.filters),
     s: binding.schemaVersion,
     k: "row",
     ...(kind === "timestamp"
@@ -265,7 +285,7 @@ export async function decodeCursor(
     }
     : null;
   if (
-    !validPayloadBinding(record, binding) || record.k !== "row" ||
+    !(await validPayloadBinding(record, binding)) || record.k !== "row" ||
     !position || positionKind(position) !== expectedKind
   ) return invalidCursor();
   return position;
@@ -304,7 +324,7 @@ export async function decodeSequenceCursor(
   const record = await decodePayload(secret, cursor);
   if (
     Object.keys(record).sort().join(",") !== "a,f,k,o,p,q,r,s,v" ||
-    !validPayloadBinding(record, binding) || record.k !== "sequence" ||
+    !(await validPayloadBinding(record, binding)) || record.k !== "sequence" ||
     typeof record.q !== "string" || !DECIMAL_SEQUENCE.test(record.q)
   ) return invalidCursor();
   return { sequence: record.q };
@@ -344,7 +364,8 @@ export async function decodeSequenceIdCursor(
   const record = await decodePayload(secret, cursor);
   if (
     Object.keys(record).sort().join(",") !== "a,f,i,k,o,p,q,r,s,v" ||
-    !validPayloadBinding(record, binding) || record.k !== "sequence-row" ||
+    !(await validPayloadBinding(record, binding)) ||
+    record.k !== "sequence-row" ||
     typeof record.q !== "string" || !DECIMAL_SEQUENCE.test(record.q) ||
     typeof record.i !== "string" || !UUID.test(record.i)
   ) return invalidCursor();
