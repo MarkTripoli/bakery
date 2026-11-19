@@ -3402,8 +3402,8 @@
       "access": "Owner for personal; Admin for organization",
       "permission": "mcpConnection:manage",
       "input": "Empty",
-      "output": "Run",
-      "event": "run.requested",
+      "output": "McpCapabilitySnapshot",
+      "event": "",
       "mcp": "bakery_mcpConnections_discover",
       "idempotency": "Idempotency-Key required; PATCH also If-Match",
       "errors": [
@@ -3416,7 +3416,7 @@
         "IDEMPOTENCY_PAYLOAD_MISMATCH"
       ],
       "organizationContext": "none",
-      "implemented": false
+      "implemented": true
     },
     {
       "group": "Extensions",
@@ -3436,7 +3436,7 @@
         "RESOURCE_NOT_FOUND"
       ],
       "organizationContext": "none",
-      "implemented": false
+      "implemented": true
     },
     {
       "group": "Extensions",
@@ -10761,6 +10761,8 @@
     "mcpConnections.get",
     "mcpConnections.create",
     "mcpConnections.update",
+    "mcpConnections.discover",
+    "mcpConnections.capabilities",
     "blobUploads.start",
     "blobUploads.part",
     "blobUploads.complete",
@@ -19383,7 +19385,7 @@
               "content": {
                 "application/json": {
                   "schema": {
-                    "$ref": "#/components/schemas/Run"
+                    "$ref": "#/components/schemas/McpCapabilitySnapshot"
                   }
                 }
               }
@@ -224389,7 +224391,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:e5e861c5b69b0d2855cfaba001ef7ad93be519c159fe490b5e3b4511aa7d6317",
+  "compatibilityDigest": "sha256:54d8ef40abc33f6f3dc1033758490fbe4f1f2955c870ca60de3e26ae49749faf",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

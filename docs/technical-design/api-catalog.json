@@ -3292,8 +3292,8 @@
       "access": "Owner for personal; Admin for organization",
       "permission": "mcpConnection:manage",
       "input": "Empty",
-      "output": "Run",
-      "event": "run.requested",
+      "output": "McpCapabilitySnapshot",
+      "event": "",
       "mcp": "bakery_mcpConnections_discover",
       "idempotency": "Idempotency-Key required; PATCH also If-Match",
       "errors": [

@@ -31,6 +31,11 @@ import {
   getMcpConnection,
 } from "./connection-commands.ts";
 import {
+  createMcpDiscoverer,
+  getMcpCapabilities,
+} from "./connection-discovery.ts";
+import { httpsMcpTransport, type McpTransport } from "./discovery-transport.ts";
+import {
   createMcpServer,
   createMcpServersListHandler,
   getMcpServer,
@@ -43,6 +48,8 @@ export function createMcpActionRegistry(
   dependencies: {
     cursorSecret: string;
     secretsKey: SecretsKeyConfig | undefined;
+    /** Replaceable so a test can answer discovery without a network. */
+    transport?: McpTransport;
   },
 ): ActionRegistry {
   const registry = new ActionRegistry(
@@ -139,6 +146,25 @@ export function createMcpActionRegistry(
     output: contractSchemas.McpConnection,
     policy: ownerOrAdmin,
     handler: createMcpConnectionUpdater(dependencies),
+  }).register({
+    name: ConnectionAction.McpConnectionsDiscover,
+    method: HttpMethod.Post,
+    path: "/v1/mcp-connections/:id/discoveries",
+    input: contractSchemas.Empty,
+    output: contractSchemas.McpCapabilitySnapshot,
+    policy: ownerOrAdmin,
+    handler: createMcpDiscoverer({
+      secretsKey: dependencies.secretsKey,
+      transport: dependencies.transport ?? httpsMcpTransport(),
+    }),
+  }).register({
+    name: ConnectionAction.McpConnectionsCapabilities,
+    method: HttpMethod.Get,
+    path: "/v1/mcp-connections/:id/capabilities",
+    input: contractSchemas.IdPath,
+    output: contractSchemas.McpCapabilitySnapshot,
+    policy: query,
+    handler: getMcpCapabilities,
   });
   assertRegisteredActions(registry);
   assertImplementedActionRegistry(registry, [
@@ -155,6 +181,7 @@ export function createMcpManagementRoutes(options: {
   publicBaseUrl: string;
   cursorSecret: string;
   secretsKey: SecretsKeyConfig | undefined;
+  transport?: McpTransport;
 }) {
   const app = new Hono<{ Variables: AuthVariables }>();
   for (const path of ["/v1/mcp-servers", "/v1/mcp-connections"]) {

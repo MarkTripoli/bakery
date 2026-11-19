@@ -472,7 +472,7 @@ export const mcpServerImplementedActions = Object.freeze(
 
 /**
  * MCP connections (#434): one use of a server definition, organization or personal.
- * Discovery and capability reads join this group in their own slice.
+ * Discovery pins what a server offers; the capabilities read shows the pin.
  */
 export const McpConnectionImplementedAction = Object.freeze(
   {
@@ -480,6 +480,8 @@ export const McpConnectionImplementedAction = Object.freeze(
     McpConnectionsGet: "mcpConnections.get",
     McpConnectionsCreate: "mcpConnections.create",
     McpConnectionsUpdate: "mcpConnections.update",
+    McpConnectionsDiscover: "mcpConnections.discover",
+    McpConnectionsCapabilities: "mcpConnections.capabilities",
   } as const satisfies Record<string, CatalogActionName>,
 );
 export const mcpConnectionImplementedActions = Object.freeze(

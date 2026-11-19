@@ -48,7 +48,7 @@ export type McpConnectionDependencies = {
   cursorSecret: string;
 };
 
-type ConnectionRow = {
+export type ConnectionRow = {
   id: string;
   server_id: string;
   integration_connection_id: string | null;
@@ -105,7 +105,7 @@ function isAdmin(context: ActionContext): boolean {
   return authority?.role === "admin";
 }
 
-function connectionId(context: ActionContext): string {
+export function connectionId(context: ActionContext): string {
   if (!context.params.id) {
     throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
   }
@@ -116,7 +116,7 @@ function connectionId(context: ActionContext): string {
  * A connection the actor may see: the organization's, or their own personal one.
  * Someone else's personal connection is absent, the same as an unknown id.
  */
-async function loadVisible(
+export async function loadVisible(
   transaction: PgTransactionClient,
   actor: { organizationId: string; principalId: string },
   id: string,
@@ -140,7 +140,7 @@ async function loadVisible(
  * Who may change a connection: an Admin an organization connection, and only its
  * owner a personal one. An Admin has no say over a member's personal connection.
  */
-function requireMayChange(
+export function requireMayChange(
   context: ActionContext,
   row: { owner_principal_id: string | null },
 ): void {
@@ -222,7 +222,7 @@ async function sealCredential(
   return { secretId, revision };
 }
 
-async function loadServerForConnection(
+export async function loadServerForConnection(
   transaction: PgTransactionClient,
   organizationId: string,
   serverId: string,
@@ -287,7 +287,7 @@ async function snapshotToolNames(
   return names;
 }
 
-async function record(
+export async function record(
   context: ActionContext,
   transaction: PgTransactionClient,
   actor: { organizationId: string; principalId: string },
