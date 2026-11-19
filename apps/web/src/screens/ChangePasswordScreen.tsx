@@ -122,7 +122,14 @@ export function ChangePasswordScreen(
                   {translate("settings.async.offlineNotice")}
                 </UI.InlineNotice>
               )
-              : null}
+              : failure.kind === "invalidPassword" ||
+                  failure.kind === "weakPassword"
+              ? null
+              : (
+                <UI.InlineNotice tone="error">
+                  {translate("settings.password.formError")}
+                </UI.InlineNotice>
+              )}
             <form
               onSubmit={(event) => {
                 event.preventDefault();

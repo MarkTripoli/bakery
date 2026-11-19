@@ -479,12 +479,16 @@ test.describe("security suite states are honest", () => {
   test("errors and failures use alert regions, confirmations use status regions: password-invalid", async ({ page }) => {
     test.setTimeout(MATRIX_CASE_TIMEOUT_MS);
     await open(page, "password", "invalid");
-    // The field says what is wrong; there is no second banner repeating it.
+    // The field says what is wrong and states the rule; no second banner
+    // repeats it.
     await expect(
       page.getByRole("alert").filter({
-        hasText: "We couldn’t verify your current password.",
+        hasText: "That password does not meet the rule.",
       }),
     ).toBeVisible();
+    await expect(
+      page.getByRole("alert").filter({ hasText: "We couldn’t complete that" }),
+    ).toHaveCount(0);
   });
 
   test("errors and failures use alert regions, confirmations use status regions: password-success", async ({ page }) => {
