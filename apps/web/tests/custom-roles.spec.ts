@@ -242,10 +242,19 @@ for (
         area.getByText("Overrule reviews that asked for changes"),
       ).toBeVisible();
       await expect(area.getByText("Overrule and accept")).toHaveCount(0);
-      await row.scrollIntoViewIfNeeded();
-      await shot(page, `roles-overrule-${viewport.name}`, [], {
-        windowOnly: true,
-      });
+      // The still is the window with the row in it, at the design's sizes.
+      const evidence = process.env.BAKERY_EVIDENCE_DIR;
+      if (evidence) {
+        await page.setViewportSize(
+          viewport.name === "desktop"
+            ? { width: 1440, height: 900 }
+            : { width: 390, height: 844 },
+        );
+        await row.scrollIntoViewIfNeeded();
+        await page.screenshot({
+          path: `${evidence}/roles-overrule-${viewport.name}.png`,
+        });
+      }
     });
 
     test("creates, edits, assigns, unassigns and deletes a custom role", async ({ page }) => {
