@@ -184,6 +184,7 @@ async function querySkill(
   organizationId: string,
   skillId: string,
   sourceType: SkillSnapshot["sourceType"],
+  principalId: string,
   lockRows = false,
 ): Promise<SkillSnapshot> {
   const result = await transaction.query<SkillSnapshot>(
@@ -198,8 +199,10 @@ async function querySkill(
         and source.id = skill.source_id
       where skill.organization_id = $1 and skill.id = $2
         and source.source_type = $3
+        and (skill.scope = 'organization'
+          or skill.owner_principal_id = $4::uuid)
       ${lockRows ? "for update of skill, source" : ""}`,
-    [organizationId, skillId, sourceType],
+    [organizationId, skillId, sourceType, principalId],
   );
   const row = result.rows[0];
   if (!row) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
@@ -309,6 +312,7 @@ export async function prepareSkillVersionPublication(options: {
     organizationId,
     validated.skillId,
     sourceType,
+    principalId,
   );
   const existing = await transaction.query<SkillVersionRow>(
     `select ${VERSION_COLUMNS} from bakery.skill_versions
@@ -474,6 +478,7 @@ export async function reserveSkillVersionPublication(
     organizationId,
     validated.skillId,
     preparation.skill.sourceType,
+    principalId,
     true,
   );
   if (
@@ -610,6 +615,7 @@ export async function finalizeSkillVersionPublication(options: {
     organizationId,
     validated.skillId,
     preparation.skill.sourceType,
+    principalId,
     true,
   );
   const remote = preparation.skill.sourceType !== "local_bundle";

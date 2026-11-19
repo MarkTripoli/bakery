@@ -3913,9 +3913,15 @@
             "maxLength": 200
           },
           "description": "Organization-facing display name for the skill created with its private local-bundle source."
+        },
+        {
+          "name": "scope",
+          "type": "enum(global|organization|personal)",
+          "required": false,
+          "description": "Who the skill belongs to: global (shown as Shared by Bakery, comes with Bakery and is never created through this action), organization (the default, visible to the whole organization) or personal (shown as Private, belongs to the calling person alone, and only that person can list, open, change or publish it). A personal skill reaches other people only through a workflow it is attached to, with its owner confirming the attachment."
         }
       ],
-      "description": "Creates a tenant-owned skill identity and its private local-bundle source before any immutable version bytes are published."
+      "description": "Creates a tenant-owned skill identity and its private local-bundle source before any immutable version bytes are published, as an organization skill or as a personal skill that belongs to the calling person."
     },
     "SkillImport": {
       "fields": [
@@ -12993,6 +12999,8 @@
         "name",
         "activeVersionId",
         "enabled",
+        "scope",
+        "ownerPrincipalId",
         "createdAt",
         "updatedAt",
         "version"
@@ -13006,11 +13014,14 @@
         "enabled": "boolean",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "scope": "enum(global|organization|personal)",
+        "ownerPrincipalId": "uuid|null"
       },
       "nullableFields": [
         "sourceId",
-        "activeVersionId"
+        "activeVersionId",
+        "ownerPrincipalId"
       ],
       "sourceColumns": {
         "id": "id",
@@ -13021,7 +13032,9 @@
         "enabled": "enabled",
         "createdAt": "created_at",
         "updatedAt": "updated_at",
-        "version": "version"
+        "version": "version",
+        "scope": "scope",
+        "ownerPrincipalId": "owner_principal_id"
       },
       "description": "Explicit safe projection list. Runtime serializers use this allowlist; never auto-export new database columns. Config JSON is validated/redacted by its provider or action schema.",
       "fieldDescriptions": {
@@ -13031,6 +13044,8 @@
         "name": "Human-readable name displayed for the skill record.",
         "activeVersionId": "Stable UUID linking this skill record to the related active version entity.",
         "enabled": "Whether the skill record is enabled.",
+        "scope": "Whether the skill comes with Bakery (global), belongs to the whole organization, or is personal to one person.",
+        "ownerPrincipalId": "Stable UUID of the person who owns a personal skill; null for a global or organization skill.",
         "createdAt": "UTC timestamp when the skill record was created.",
         "updatedAt": "UTC timestamp when the skill record was last updated.",
         "version": "Optimistic-concurrency version used when updating the skill record."
@@ -20241,6 +20256,8 @@
         "name",
         "activeVersionId",
         "enabled",
+        "scope",
+        "ownerPrincipalId",
         "createdAt",
         "updatedAt",
         "version"
@@ -20254,13 +20271,16 @@
         "enabled": "boolean",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "scope": "enum(global|organization|personal)",
+        "ownerPrincipalId": "uuid|null"
       },
       "nullableFields": [
         "sourceId",
-        "activeVersionId"
+        "activeVersionId",
+        "ownerPrincipalId"
       ],
-      "description": "Stable identity for one organization skill: slug and name for discovery, an optional link back to the SkillSource it was imported from (null for built-ins), the currently active published SkillVersion, and whether it is enabled for use.",
+      "description": "Stable identity for one global, organization or personal skill: slug and name for discovery, an optional link back to the SkillSource it was imported from (null for built-ins), the currently active published SkillVersion, and whether it is enabled for use.",
       "fieldDescriptions": {
         "id": "Stable UUID identifying the skill record.",
         "sourceId": "Stable UUID linking this record to the related source entity.",
@@ -20270,7 +20290,9 @@
         "enabled": "Whether the record is enabled.",
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
-        "version": "Optimistic-concurrency version used when updating the record."
+        "version": "Optimistic-concurrency version used when updating the record.",
+        "scope": "Whether the skill comes with Bakery (global), belongs to the whole organization, or is personal to one person.",
+        "ownerPrincipalId": "Stable UUID of the person who owns a personal skill; null for a global or organization skill."
       }
     },
     "SkillVersion": {

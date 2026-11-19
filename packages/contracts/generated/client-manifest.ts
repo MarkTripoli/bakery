@@ -15441,6 +15441,15 @@ export const clientManifest = {
           "type": "string",
           "maxLength": 200,
           "description": "Organization-facing display name for the skill created with its private local-bundle source. SkillCreate.name must contain at most 200 characters."
+        },
+        "scope": {
+          "description": "Who the skill belongs to: global (shown as Shared by Bakery, comes with Bakery and is never created through this action), organization (the default, visible to the whole organization) or personal (shown as Private, belongs to the calling person alone, and only that person can list, open, change or publish it). A personal skill reaches other people only through a workflow it is attached to, with its owner confirming the attachment.",
+          "type": "string",
+          "enum": [
+            "global",
+            "organization",
+            "personal"
+          ]
         }
       },
       "required": [
@@ -15448,7 +15457,7 @@ export const clientManifest = {
         "name"
       ],
       "additionalProperties": false,
-      "description": "Creates a tenant-owned skill identity and its private local-bundle source before any immutable version bytes are published."
+      "description": "Creates a tenant-owned skill identity and its private local-bundle source before any immutable version bytes are published, as an organization skill or as a personal skill that belongs to the calling person."
     },
     "SkillImport": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -34676,6 +34685,30 @@ export const clientManifest = {
                 "type": "boolean",
                 "description": "Whether the record is enabled."
               },
+              "scope": {
+                "type": "string",
+                "enum": [
+                  "global",
+                  "organization",
+                  "personal"
+                ],
+                "description": "Whether the skill comes with Bakery (global), belongs to the whole organization, or is personal to one person."
+              },
+              "ownerPrincipalId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Stable UUID of the person who owns a personal skill; null for a global or organization skill."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "Skill.ownerPrincipalId may be null in this transport value."
+              },
               "createdAt": {
                 "type": "string",
                 "format": "date-time",
@@ -34702,12 +34735,14 @@ export const clientManifest = {
               "name",
               "activeVersionId",
               "enabled",
+              "scope",
+              "ownerPrincipalId",
               "createdAt",
               "updatedAt",
               "version"
             ],
             "additionalProperties": false,
-            "description": "Stable identity for one organization skill: slug and name for discovery, an optional link back to the SkillSource it was imported from (null for built-ins), the currently active published SkillVersion, and whether it is enabled for use."
+            "description": "Stable identity for one global, organization or personal skill: slug and name for discovery, an optional link back to the SkillSource it was imported from (null for built-ins), the currently active published SkillVersion, and whether it is enabled for use."
           },
           "description": "Skill items in this cursor page. Page<Skill>.items must contain at most 100 items."
         },
@@ -52238,6 +52273,30 @@ export const clientManifest = {
           "type": "boolean",
           "description": "Whether the record is enabled."
         },
+        "scope": {
+          "type": "string",
+          "enum": [
+            "global",
+            "organization",
+            "personal"
+          ],
+          "description": "Whether the skill comes with Bakery (global), belongs to the whole organization, or is personal to one person."
+        },
+        "ownerPrincipalId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Stable UUID of the person who owns a personal skill; null for a global or organization skill."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "Skill.ownerPrincipalId may be null in this transport value."
+        },
         "createdAt": {
           "type": "string",
           "format": "date-time",
@@ -52264,12 +52323,14 @@ export const clientManifest = {
         "name",
         "activeVersionId",
         "enabled",
+        "scope",
+        "ownerPrincipalId",
         "createdAt",
         "updatedAt",
         "version"
       ],
       "additionalProperties": false,
-      "description": "Stable identity for one organization skill: slug and name for discovery, an optional link back to the SkillSource it was imported from (null for built-ins), the currently active published SkillVersion, and whether it is enabled for use."
+      "description": "Stable identity for one global, organization or personal skill: slug and name for discovery, an optional link back to the SkillSource it was imported from (null for built-ins), the currently active published SkillVersion, and whether it is enabled for use."
     },
     "SkillVersion": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

@@ -15,6 +15,7 @@ import {
 } from "../../platform/postgres-errors.ts";
 import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
+import { attributeAction } from "../auth/application/action-attribution.ts";
 import {
   type RunRow,
   runWorkspaceBaseShaColumn,
@@ -31,7 +32,14 @@ const PAGE_ORDERING = "createdAt:desc,id:desc";
 const SOURCE_COLUMNS = `id, source_type, locator, publisher, license,
   last_checked_at, enabled, created_at, updated_at, version`;
 const SKILL_COLUMNS = `id, source_id, slug, name, active_version_id, enabled,
-  created_at, updated_at, version`;
+  scope, owner_principal_id, created_at, updated_at, version`;
+/**
+ * A person sees every shared skill and their own personal (Private) skills, and
+ * nobody else's. The one place a personal skill reaches another person is a
+ * workflow it is attached to; that path never goes through these reads.
+ */
+const SKILL_VISIBLE_TO = (principalParam: string) =>
+  `(scope <> 'personal' or owner_principal_id = ${principalParam}::uuid)`;
 const IMPORT_RUN_COLUMNS = `run.id, run.kind, run.task_id,
   run.workflow_version_id, run.skill_source_id, run.repository_profile_id,
   run.repository_profile_revision, run.repository_profile_digest,
@@ -43,7 +51,11 @@ const IMPORT_RUN_COLUMNS = `run.id, run.kind, run.task_id,
 type CursorInput = { cursor?: string; limit?: number };
 type SourceCreateInput = z.output<typeof contractSchemas.SkillSourceCreate>;
 type SourceUpdateInput = { name?: string; enabled?: boolean };
-type SkillCreateInput = { slug: string; name: string };
+type SkillCreateInput = {
+  slug: string;
+  name: string;
+  scope?: "global" | "organization" | "personal";
+};
 type SkillImportInput = z.output<typeof contractSchemas.SkillImport>;
 type SkillUpdateInput = {
   name?: string;
@@ -55,6 +67,9 @@ type SkillUpdateInput = {
 export const SkillCreatePersistenceSchema = z.object({
   slug: z.string().min(1).max(120).describe("Tenant-unique skill slug."),
   name: z.string().min(1).max(200).describe("Human-readable skill name."),
+  scope: z.enum(["global", "organization", "personal"]).optional().describe(
+    "Whether the skill comes with Bakery, belongs to the organization or only to its creator.",
+  ),
 }).describe(
   "Validated local skill identity fields accepted before SQL writes.",
 );
@@ -119,6 +134,8 @@ type SkillRow = {
   name: string;
   active_version_id: string | null;
   enabled: boolean;
+  scope: "global" | "organization" | "personal";
+  owner_principal_id: string | null;
   created_at: Date | string;
   updated_at: Date | string;
   version: number;
@@ -162,6 +179,8 @@ export function toSkill(row: SkillRow) {
     name: row.name,
     activeVersionId: row.active_version_id,
     enabled: row.enabled,
+    scope: row.scope,
+    ownerPrincipalId: row.owner_principal_id,
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),
     version: row.version,
@@ -239,6 +258,9 @@ async function listPage<
   columns: string;
   project: (row: T) => O;
 }) {
+  const visibility = options.table === "skills"
+    ? `and ${SKILL_VISIBLE_TO("$5")}`
+    : "";
   const binding: CursorBinding = {
     action: options.action,
     principalId: options.principalId,
@@ -260,6 +282,7 @@ async function listPage<
        from bakery.${options.table}
       where organization_id = $1
         and ($2::timestamptz is null or (created_at, id) < ($2, $3::uuid))
+        ${visibility}
       order by created_at desc, id desc
       limit $4`,
     [
@@ -267,6 +290,7 @@ async function listPage<
       position?.createdAt ?? null,
       position?.id ?? null,
       limit + 1,
+      ...(visibility === "" ? [] : [options.principalId]),
     ],
   );
   const visible = result.rows.slice(0, limit);
@@ -338,6 +362,7 @@ async function searchLibraryPage(options: {
          select 'skill'::text as kind, id, name, description, created_at
            from bakery.skills
           where organization_id = $1 and ($5::text is null or $5 = 'skill')
+            and (scope <> 'personal' or owner_principal_id = $8::uuid)
             and (strpos(lower(name), lower($6)) > 0
               or strpos(lower(coalesce(description, '')), lower($6)) > 0)
          union all
@@ -364,6 +389,7 @@ async function searchLibraryPage(options: {
       kind,
       options.input.query,
       options.includeArtifacts,
+      options.principalId,
     ],
   );
   const visible = result.rows.slice(0, limit);
@@ -693,11 +719,13 @@ export function createCatalogHandlers(
     },
 
     async getSkill(context: ActionContext) {
-      const { transaction, organizationId } = requireWorkTransaction(context);
+      const { transaction, organizationId, principalId } =
+        requireWorkTransaction(context);
       const result = await transaction.query<SkillRow>(
         `select ${SKILL_COLUMNS} from bakery.skills
-          where organization_id = $1 and id = $2`,
-        [organizationId, idFromPath(context)],
+          where organization_id = $1 and id = $2
+            and ${SKILL_VISIBLE_TO("$3")}`,
+        [organizationId, idFromPath(context), principalId],
       );
       const row = result.rows[0];
       if (!row) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
@@ -708,6 +736,24 @@ export function createCatalogHandlers(
       const { transaction, organizationId, principalId } =
         requireWorkTransaction(context);
       const persistedInput = requireSkillCreatePersistence(input);
+      const scope = persistedInput.scope ?? "organization";
+      // A global skill comes with Bakery and is never created through the API.
+      if (scope === "global") {
+        throw new StandardError({
+          code: "AUTH_FORBIDDEN",
+          params: { reason: "global_skill_comes_with_bakery" },
+        });
+      }
+      // A personal skill is a person's own; an agent or a token never owns one.
+      if (
+        scope === "personal" &&
+        attributeAction(context, principalId).actorKind !== "person"
+      ) {
+        throw new StandardError({
+          code: "AUTH_FORBIDDEN",
+          params: { reason: "personal_skill_requires_person" },
+        });
+      }
       const skillId = crypto.randomUUID();
       const sourceId = crypto.randomUUID();
       const locator =
@@ -723,8 +769,8 @@ export function createCatalogHandlers(
         return await transaction.query<SkillRow>(
           `insert into bakery.skills (
              id, organization_id, source_id, slug, name, active_version_id,
-             enabled
-           ) values ($1, $2, $3, $4, $5, null, true)
+             enabled, scope, owner_principal_id
+           ) values ($1, $2, $3, $4, $5, null, true, $6, $7)
            returning ${SKILL_COLUMNS}`,
           [
             skillId,
@@ -732,6 +778,8 @@ export function createCatalogHandlers(
             sourceId,
             persistedInput.slug,
             persistedInput.name,
+            scope,
+            scope === "personal" ? principalId : null,
           ],
         );
       });
@@ -774,6 +822,7 @@ export function createCatalogHandlers(
                   enabled = coalesce($7, enabled),
                   updated_at = now(), version = version + 1
             where organization_id = $1 and id = $2 and version = $3
+              and ${SKILL_VISIBLE_TO("$8")}
             returning ${SKILL_COLUMNS}`,
           [
             organizationId,
@@ -783,14 +832,16 @@ export function createCatalogHandlers(
             input.description !== undefined,
             input.description ?? null,
             input.enabled ?? null,
+            principalId,
           ],
         )
       );
       const row = result.rows[0];
       if (!row) {
         const visible = await transaction.query(
-          "select 1 from bakery.skills where organization_id = $1 and id = $2",
-          [organizationId, skillId],
+          `select 1 from bakery.skills where organization_id = $1 and id = $2
+              and ${SKILL_VISIBLE_TO("$3")}`,
+          [organizationId, skillId, principalId],
         );
         throw new StandardError({
           code: visible.rows.length === 1
