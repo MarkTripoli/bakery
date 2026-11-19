@@ -46,7 +46,9 @@ test.describe("Editing a document in place", () => {
     const sheet = page.getByRole("dialog", { name: "Text that was not saved" });
     await expect(sheet).toContainText("!");
     await sheet.getByRole("button", { name: "Discard" }).click();
-    const confirm = page.getByRole("dialog", { name: "Discard this text?" });
+    const confirm = page.getByRole("alertdialog", {
+      name: "Discard this text?",
+    });
     await expect(confirm).toContainText("It was never saved.");
     await confirm.getByRole("button", { name: "Discard" }).click();
     await expect(page.getByText("Some of your changes could not be saved."))

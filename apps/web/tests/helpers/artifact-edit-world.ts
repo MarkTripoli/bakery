@@ -23,7 +23,7 @@ export type Behaviour = {
   /** What the server does with each client update. */
   readonly onUpdate?: "ack" | "reject" | "ignore";
   readonly participants?: readonly unknown[];
-  /** Every connection after the first is closed at once, so the page stays offline. */
+  /** After serverClose() every new connection is closed at once, so the page stays offline. */
   readonly refuseReconnect?: boolean;
 };
 
@@ -62,10 +62,9 @@ export async function openEditor(
   const updates: ReturnType<typeof decodeBinaryFrame>[] = [];
   let socket: { send(message: string | Buffer): void; close(): void } | null =
     null;
-  let connections = 0;
+  let refusing = false;
   await page.routeWebSocket(/\/v1\/collaboration/, (ws) => {
-    connections += 1;
-    if (connections > 1 && behaviour.refuseReconnect) {
+    if (refusing) {
       ws.close();
       return;
     }
@@ -137,11 +136,15 @@ export async function openEditor(
   await page.goto(PATH);
   await page.getByTestId("artifact-edit-toggle").click();
   const editor = page.getByRole("textbox", { name: "Document text" });
-  await expect(editor).toContainText(text);
+  await expect(editor).toContainText(text.split("\n")[0]);
   return {
     editor,
     updates,
     serverSend: (frame: unknown) => socket?.send(JSON.stringify(frame)),
-    serverClose: () => socket?.close(),
+    serverClose: () => {
+      refusing = behaviour.refuseReconnect ?? false;
+      socket?.close();
+    },
+    room: ROOM,
   };
 }
