@@ -8912,7 +8912,7 @@
         "SCOPE_REQUIRED"
       ],
       "organizationContext": "required_authenticated_context",
-      "implemented": false
+      "implemented": true
     },
     {
       "group": "Plugins",
@@ -8938,7 +8938,7 @@
         "SCOPE_REQUIRED"
       ],
       "organizationContext": "required_authenticated_context",
-      "implemented": false
+      "implemented": true
     },
     {
       "group": "Plugins",
@@ -8961,7 +8961,7 @@
         "SCOPE_REQUIRED"
       ],
       "organizationContext": "required_authenticated_context",
-      "implemented": false
+      "implemented": true
     },
     {
       "group": "Plugins",
@@ -8987,7 +8987,7 @@
         "SCOPE_REQUIRED"
       ],
       "organizationContext": "required_authenticated_context",
-      "implemented": false
+      "implemented": true
     },
     {
       "group": "Plugins",
@@ -9010,7 +9010,7 @@
         "SCOPE_REQUIRED"
       ],
       "organizationContext": "required_authenticated_context",
-      "implemented": false
+      "implemented": true
     },
     {
       "group": "Plugins",
@@ -9036,7 +9036,7 @@
         "SCOPE_REQUIRED"
       ],
       "organizationContext": "required_authenticated_context",
-      "implemented": false
+      "implemented": true
     },
     {
       "group": "Plugins",
@@ -10286,6 +10286,12 @@
     "pluginPackages.get",
     "pluginVersions.list",
     "pluginVersions.create",
+    "pluginInstalls.list",
+    "pluginInstalls.create",
+    "pluginInstalls.get",
+    "pluginInstalls.update",
+    "pluginState.get",
+    "pluginState.put",
     "skillStorageSettings.get",
     "skillStorageSettings.put",
     "skillStorageSettings.verify",
@@ -218891,7 +218897,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:f04dc5358aeb17b38ae0764b6acc17c68885db9151db1c2e9069d535330cd8ff",
+  "compatibilityDigest": "sha256:490f441ee5ac814a06d1a5fc9dc28644b8527d40cf5bc4fa4ca9b523959565fb",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
