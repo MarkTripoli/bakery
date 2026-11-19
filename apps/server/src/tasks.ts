@@ -17,6 +17,7 @@ import {
   EVENT_CLOCK_SCHEMA_BOUNDARY,
 } from "./modules/work/migrations.ts";
 import { BAKERY_MIGRATION_SOURCES } from "./migration-sources.ts";
+import { runStoragePurgesTask } from "./platform/storage-purges-task.ts";
 import { AuthErrorCode } from "./modules/auth/domain/errors.ts";
 import {
   authEnvironmentNames,
@@ -145,6 +146,7 @@ const tasks = [
   "register-oauth-client",
   "settings",
   "reset",
+  "storage-purges",
 ];
 if (!task || !tasks.includes(task)) {
   console.error(`Expected ${tasks.join(", ")}`);
@@ -166,6 +168,11 @@ const authConfig =
   task === "createsuperuser" || task === "register-oauth-client"
     ? readAuthTaskConfig(databaseConfig)
     : undefined;
+
+if (task === "storage-purges") {
+  console.log(JSON.stringify(await runStoragePurgesTask(databaseConfig.url)));
+  Deno.exit(0);
+}
 
 if (task === "auth:migrations:generate") {
   const pgDatabase = openPgDatabase(databaseConfig.url);

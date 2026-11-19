@@ -61,6 +61,19 @@ export const blobReferenceKinds: readonly BlobReferenceKind[] = [
     liveCondition: "state = 'completed' and expires_at > now()",
   },
   {
+    // A file version names a blob when its content was stored, rather than
+    // written inline: the working-area rows (#715) keep the bytes a person is
+    // still editing, and pruning, the trash reaper and a working-area purge all
+    // delete the row. Restricting the delete means the row goes first, so this
+    // entry is what stops the sweep taking bytes a version still shows.
+    kind: "storage-file-version",
+    table: "storage_file_versions",
+    constraint: "storage_file_versions_blob_fk",
+    names: "blob",
+    column: "blob_id",
+    liveCondition: "true",
+  },
+  {
     // An upload in flight holds the bytes it is about to assemble and verify.
     // It knows the digest it was promised, never a blob row.
     kind: "upload-session-pending",

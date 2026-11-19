@@ -1257,6 +1257,12 @@
   "problems.ARTIFACT_CONTENT_EXPIRED.description": "⟦Ŕëŧëñŧïôñ çôļļëçŧïôñ ŕëɱôṽëð ŧĥëšë ƀÿŧëš. Ṽëŕšïôñ ɱëŧàðàŧà ŕëɱàïñš àṽàïļàƀļë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
   "problems.RANGE_NOT_SATISFIABLE.title": "[Range not served]",
   "problems.RANGE_NOT_SATISFIABLE.description": "[This object is too large to serve a partial range. Request the whole file instead.]",
+  "problems.STORAGE_AREA_REFUSED.title": "[Change not allowed]",
+  "problems.STORAGE_AREA_REFUSED.description": "[This folder does not allow that change.]",
+  "problems.STORAGE_QUOTA_EXCEEDED.title": "[Storage nearly full]",
+  "problems.STORAGE_QUOTA_EXCEEDED.description": "[Saving new files is paused because storage is nearly full. Delete files you no longer need, or ask an administrator to raise the limit.]",
+  "problems.STORAGE_FILE_TOO_LARGE.title": "[File too large]",
+  "problems.STORAGE_FILE_TOO_LARGE.description": "[This file is larger than the organization's maximum file size.]",
   "tasks.run.output.archive": "⟦Ðôŵñļôàð ŧŕàñšçŕïþŧ {number} · šëǫûëñçëš {first}–{last} ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "tasks.run.output.archiveExpired": "⟦Ŧŕàñšçŕïþŧ ƀÿŧëš ëẋþïŕëð. Ïɱɱûŧàƀļë ṽëŕšïôñ ɱëŧàðàŧà ŕëɱàïñš àṽàïļàƀļë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
   "tasks.run.output.archiveError": "⟦Ŧŕàñšçŕïþŧ ðôŵñļôàð ƒàïļëð. Ŕëŧŕÿ ŧô ŕëŧŕïëṽë ṽëŕïƒïëð ƀÿŧëš. ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
@@ -4404,5 +4410,7 @@
   "auth.settings.clients.emptyDescription": "⟦Àþþš ÿôû àļļôŵ ŧô àçŧ ƒôŕ ÿôû, šûçĥ àš ŧĥë Ɓàķëŕÿ ÇĻÏ, šĥôŵ ûþ ĥëŕë. Ÿôû çôññëçŧ ôñë ƒŕôɱ ŧĥë àþþ ïŧšëļƒ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
   "access.level.manage": "⟦Ÿôû çàñ çĥàñĝë ŧĥïš. ŧëšŧ⟧",
   "access.level.scoped": "⟦Ôñļÿ ïñ ŕëþôšïŧôŕïëš ÿôû ŵëŕë ĝïṽëñ. ŧëšŧ çôþÿŧ⟧",
-  "access.level.view": "⟦Ÿôû çàñ ôñļÿ ṽïëŵ ŧĥïš. ŧëšŧ ç⟧"
+  "access.level.view": "⟦Ÿôû çàñ ôñļÿ ṽïëŵ ŧĥïš. ŧëšŧ ç⟧",
+  "settings.roles.verb.accept": "⟦Ôṽëŕŕûļë {things} ŧĥàŧ àšķëð ƒôŕ çĥàñĝëš ŧëšŧ çôþÿ ŧ⟧",
+  "settings.roles.thing.runRequest": "⟦ŕëǫûëšŧš…⟧"
 }
