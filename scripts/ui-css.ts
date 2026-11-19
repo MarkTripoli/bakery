@@ -23,6 +23,12 @@ const structuralLines = [
   /^min-inline-size: 16rem$/,
   /^min-inline-size: 200px$/,
   /^max-inline-size: 65ch$/,
+  // SceneState (issue #81, design comment 7021409931): the character scene is
+  // 240px on a desktop and 160px on a phone, and the sentence under it is held
+  // to a readable measure rather than the page width.
+  /^inline-size: 240px$/,
+  /^inline-size: 160px$/,
+  /^max-inline-size: 52ch$/,
   /^max-inline-size: 32ch$/,
   // HelpTip's phone panel: at most half the screen, longer text scrolls inside it.
   /^max-block-size: 50dvb$/,

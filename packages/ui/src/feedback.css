@@ -680,3 +680,46 @@
   outline: var(--border-emphasis) solid var(--color-destructive);
   outline-offset: var(--space-1);
 }
+
+/* A whole page with one thing to say, and the character scene above it.
+   The scene is 240px on a desktop and 160px on a phone, centred above the
+   heading with 16px between them; the height follows the art, so nothing here
+   sets one. No animation: the art is a still, and a page that has failed or
+   has nothing yet is not a place to add movement. */
+.ui-scene-state {
+  display: grid;
+  gap: var(--space-4);
+  justify-items: center;
+  max-inline-size: var(--layout-content);
+  padding: var(--space-6);
+  text-align: center;
+}
+
+.ui-scene-state[data-inset="page"] {
+  padding: var(--space-8);
+}
+
+.ui-scene-state__art {
+  display: block;
+  inline-size: 240px;
+  max-inline-size: 100%;
+}
+
+.ui-scene-state__art img {
+  block-size: auto;
+  display: block;
+  inline-size: 100%;
+}
+
+/* The heading and the sentence are the page's own, so they keep their own
+   type; only the measure is bounded, because a centred sentence that runs the
+   full width of a 1440px page is unreadable. */
+.ui-scene-state .ui-feedback-description {
+  max-inline-size: 52ch;
+}
+
+@media (max-width: 640px) {
+  .ui-scene-state__art {
+    inline-size: 160px;
+  }
+}
