@@ -30257,7 +30257,7 @@ const transportSchemas = {
     "secret.identity.read": {
       "inputSchema": "SecretIdentityReadInput",
       "outputSchema": "SecretIdentityOutput",
-      "schemaSource": "packages/contracts/src/secret-identity.ts",
+      "schemaSource": "packages/contracts/src/contracts.ts",
       "capabilities": [
         "secret.identity"
       ],
