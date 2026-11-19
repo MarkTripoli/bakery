@@ -11024,6 +11024,27 @@ const transportSchemas = {
         "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind the cursor to this operation, current principal and organization scope, query text, kind filter and ordering; validate and reauthorize before the keyset query."
       ],
       "description": "Text query over the organization library: skills, agents and artifacts found by name or description, newest first."
+    },
+    "RunStepNoteCreate": {
+      "fields": [
+        {
+          "name": "body",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 4000
+          },
+          "description": "The note text the step's agent receives with its input when the step starts. It is recorded in the work item's decisions ledger and cannot add tools, grants, skills or a role."
+        },
+        {
+          "name": "clientNoteId",
+          "type": "uuid",
+          "required": false,
+          "description": "Caller-generated identifier that makes a retry of the same note return the original note instead of writing a second one. Defaults to the request Idempotency-Key."
+        }
+      ],
+      "description": "Leaves a note for a workflow step that has not started yet, addressed by the run id and step key in the path. The agent that runs the step receives the note once, with its input; a step that has already started refuses the note with a state conflict, and a steer on its live session is the way to reach it."
     }
   },
   "projections": {
@@ -20349,6 +20370,7 @@ const transportSchemas = {
         "topic",
         "tags",
         "currentRevisionId",
+        "sourceState",
         "status",
         "createdAt",
         "updatedAt",
@@ -20360,6 +20382,7 @@ const transportSchemas = {
         "topic": "string",
         "tags": "json",
         "currentRevisionId": "uuid|null",
+        "sourceState": "enum(available|deleted|no_access|unknown)",
         "status": "enum(proposed|active|retired)",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
@@ -20375,6 +20398,7 @@ const transportSchemas = {
         "topic": "Topic used to organize the memory entry.",
         "tags": "Labels used to classify the record.",
         "currentRevisionId": "Stable UUID linking this record to the related current revision entity.",
+        "sourceState": "Whether the artifact version cited by the current revision is available, deleted, not readable by this reader (no_access) or unknown, judged against the reader's live access at read time.",
         "status": "Current lifecycle status of the record.",
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
@@ -20390,6 +20414,7 @@ const transportSchemas = {
         "body",
         "reason",
         "sourceArtifactVersionId",
+        "sourceState",
         "supersedesId",
         "confidence",
         "expiresAt",
@@ -20403,7 +20428,8 @@ const transportSchemas = {
         "memoryId": "uuid",
         "revision": "integer",
         "body": "string",
-        "sourceArtifactVersionId": "uuid",
+        "sourceArtifactVersionId": "uuid|null",
+        "sourceState": "enum(available|deleted|no_access|unknown)",
         "supersedesId": "uuid|null",
         "confidence": "decimal",
         "expiresAt": "timestamp|null",
@@ -20416,15 +20442,17 @@ const transportSchemas = {
       "nullableFields": [
         "supersedesId",
         "expiresAt",
-        "reason"
+        "reason",
+        "sourceArtifactVersionId"
       ],
-      "description": "One versioned, confidence-scored statement belonging to a memory entry, created by memoryRevisions.create; confidence reflects model judgment rather than verified fact, and a revision can supersede an earlier one or carry its own expiry after which it stops being offered as active context.",
+      "description": "One versioned, confidence-scored statement belonging to a memory entry, created by memoryRevisions.create; confidence reflects model judgment rather than verified fact, and a revision can supersede an earlier one or carry its own expiry after which it stops being offered as active context. sourceArtifactVersionId is null if and only if sourceState is no_access.",
       "fieldDescriptions": {
         "id": "Stable UUID identifying the memory revision record.",
         "memoryId": "Stable UUID linking this record to the related memory entity.",
         "revision": "Monotonic revision number used to order updates to the record.",
         "body": "User-visible body content carried by the record.",
-        "sourceArtifactVersionId": "Stable UUID linking this record to the related source artifact version entity.",
+        "sourceArtifactVersionId": "Artifact version whose evidence justifies this revision. Invariant: sourceArtifactVersionId is null if and only if sourceState is no_access, so a reader who cannot read artifact versions is never shown the id and every other state names it.",
+        "sourceState": "Whether the cited artifact version is available, deleted (its content was purged), not readable by this reader (no_access) or unknown, judged against the reader's live access at read time rather than at write time. sourceArtifactVersionId is null if and only if sourceState is no_access.",
         "supersedesId": "Stable UUID linking this record to the related supersedes entity.",
         "confidence": "Confidence assigned to the revision.",
         "expiresAt": "UTC timestamp when the record expires.",
@@ -28249,6 +28277,33 @@ const transportSchemas = {
     "Page<LibrarySearchHit>": {
       "pageOf": "LibrarySearchHit",
       "description": "Cursor page of library search hits, newest first, returned by GET /v1/library/search. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, totalPages or offsets."
+    },
+    "RunStepNote": {
+      "fields": [
+        "id",
+        "runId",
+        "stepKey",
+        "authorId",
+        "body",
+        "createdAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "runId": "uuid",
+        "stepKey": "string",
+        "authorId": "uuid",
+        "body": "string",
+        "createdAt": "timestamp"
+      },
+      "description": "One note left for a workflow step that had not started, with who left it and when; the step's agent receives it once with its input.",
+      "fieldDescriptions": {
+        "id": "Stable UUID identifying the note.",
+        "runId": "Stable UUID of the run whose step the note is for.",
+        "stepKey": "Key of the run step the note is addressed to.",
+        "authorId": "Stable UUID of the principal who left the note.",
+        "body": "The note text, at most 4000 characters.",
+        "createdAt": "When the note was recorded."
+      }
     }
   },
   "pageEnvelope": {
@@ -28710,6 +28765,15 @@ const transportSchemas = {
       "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
     },
     "memory.revised": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "memory.source_changed": {
       "schemaVersion": 1,
       "payloadFields": {
         "resourceId": "uuid",
