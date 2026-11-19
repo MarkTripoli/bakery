@@ -1340,6 +1340,7 @@ function Steps({ model }: Readonly<{ model: DeliveryModel }>) {
               )
               : t("tasks.delivery.approval.step.approvedOlder", {
                 sha: approvalOlder,
+                current: (model.headSha ?? "").slice(0, 7),
               })}
             title={
               <>

@@ -1915,13 +1915,16 @@ test("a pull request that moved after the approval is not offered to merge, and 
   await expect(now).toContainText(
     "The results below are for the older commit and no longer count.",
   );
+  await expect(now).toContainText(
+    "Checks and the review need to pass for 4be19c2, and it needs approving again, before it can merge.",
+  );
   await expect(page.getByTestId("delivery-outcome-badge")).toContainText(
     "Changed after approval",
   );
   await expect(section).toContainText("Older commit 91d0aa3");
   // The approval was for that older commit: it says so and promises nothing.
   await expect(page.getByTestId("delivery-approval-step")).toContainText(
-    "Approved for older commit 91d0aa3.",
+    "Approved for older commit 91d0aa3. Commit 4be19c2 needs approving again.",
   );
   await expect(page.getByTestId("delivery-approval-step")).not.toContainText(
     "Bakery may merge these changes",
