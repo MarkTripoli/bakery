@@ -548,6 +548,22 @@ export const integrationClientCredentialsImplementedActions = Object.freeze(
   Object.values(IntegrationClientCredentialsImplementedAction),
 );
 
+/**
+ * Which integration providers are ready to connect (#410).
+ *
+ * The organization-visible half of provider setup: whether an installation
+ * administrator has registered each provider's application. A read, with no
+ * credential and no detail of what was registered.
+ */
+export const IntegrationProviderSetupImplementedAction = Object.freeze(
+  {
+    IntegrationProviderSetupList: "integrationProviderSetup.list",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const integrationProviderSetupImplementedActions = Object.freeze(
+  Object.values(IntegrationProviderSetupImplementedAction),
+);
+
 export const SkillStorageImplementedAction = Object.freeze(
   {
     SkillStorageSettingsGet: "skillStorageSettings.get",
@@ -683,6 +699,7 @@ export const implementedActions = Object.freeze(
     ...pluginInstallImplementedActions,
     ...skillStorageImplementedActions,
     ...integrationClientCredentialsImplementedActions,
+    ...integrationProviderSetupImplementedActions,
     ...blobUploadImplementedActions,
     ...memoryImplementedActions,
   ] as const,

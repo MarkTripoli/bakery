@@ -3044,6 +3044,32 @@
     {
       "group": "Extensions",
       "method": "GET",
+      "path": "/v1/integration-provider-setup",
+      "action": "integrationProviderSetup.list",
+      "access": "Developer",
+      "permission": "integrationConnection:read",
+      "input": "Empty",
+      "output": "IntegrationProviderSetupList",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Extensions",
+      "method": "GET",
       "path": "/v1/integration-connections/{id}",
       "action": "integrationConnections.get",
       "access": "Developer",
@@ -10688,6 +10714,7 @@
     "skillStorageSettings.verify",
     "integrationClientCredentials.get",
     "integrationClientCredentials.put",
+    "integrationProviderSetup.list",
     "blobUploads.start",
     "blobUploads.part",
     "blobUploads.complete",
@@ -18610,6 +18637,49 @@
                   "$ref": "#/components/schemas/IntegrationConnectionCreate"
                 }
               }
+            }
+          }
+        }
+      },
+      "/v1/integration-provider-setup": {
+        "get": {
+          "operationId": "integrationProviderSetup.list",
+          "parameters": [
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/IntegrationProviderSetupList"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request."
+            },
+            "401": {
+              "description": "Authentication required."
+            },
+            "403": {
+              "description": "Forbidden."
+            },
+            "500": {
+              "description": "Internal server error."
             }
           }
         }
@@ -44177,6 +44247,7 @@
                 "skillVersions.create",
                 "integrationProviders.list",
                 "integrationConnections.list",
+                "integrationProviderSetup.list",
                 "integrationConnections.get",
                 "integrationConnections.create",
                 "integrationConnections.update",
@@ -89219,6 +89290,7 @@
                 "skillVersions.create",
                 "integrationProviders.list",
                 "integrationConnections.list",
+                "integrationProviderSetup.list",
                 "integrationConnections.get",
                 "integrationConnections.create",
                 "integrationConnections.update",
@@ -89741,6 +89813,7 @@
                 "skillVersions.create",
                 "integrationProviders.list",
                 "integrationConnections.list",
+                "integrationProviderSetup.list",
                 "integrationConnections.get",
                 "integrationConnections.create",
                 "integrationConnections.update",
@@ -90263,6 +90336,7 @@
                 "skillVersions.create",
                 "integrationProviders.list",
                 "integrationConnections.list",
+                "integrationProviderSetup.list",
                 "integrationConnections.get",
                 "integrationConnections.create",
                 "integrationConnections.update",
@@ -135102,6 +135176,7 @@
                       "skillVersions.create",
                       "integrationProviders.list",
                       "integrationConnections.list",
+                      "integrationProviderSetup.list",
                       "integrationConnections.get",
                       "integrationConnections.create",
                       "integrationConnections.update",
@@ -221582,6 +221657,70 @@
           "additionalProperties": false,
           "description": "Whether an integration provider's OAuth client credentials are registered on this installation, which client ID, when the secret was last saved, and the callback URL to give the provider. The secret itself is never part of it. Version is 0 until credentials are saved and is the If-Match value for the next save."
         },
+        "IntegrationProviderSetup": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "provider": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Provider slug, as the provider registry names it."
+            },
+            "setupState": {
+              "type": "string",
+              "enum": [
+                "needs_setup",
+                "ready"
+              ],
+              "description": "needs_setup while an installation administrator has not yet registered the provider's application, so a connection cannot be started; ready once it has, or when the provider needs no registration."
+            }
+          },
+          "required": [
+            "provider",
+            "setupState"
+          ],
+          "additionalProperties": false,
+          "description": "Whether one integration provider this server deploys is ready for an organization to connect. It states only whether the installation has registered the provider's application; it carries no credential and no detail of what was registered."
+        },
+        "IntegrationProviderSetupList": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "providers": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "provider": {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Provider slug, as the provider registry names it."
+                  },
+                  "setupState": {
+                    "type": "string",
+                    "enum": [
+                      "needs_setup",
+                      "ready"
+                    ],
+                    "description": "needs_setup while an installation administrator has not yet registered the provider's application, so a connection cannot be started; ready once it has, or when the provider needs no registration."
+                  }
+                },
+                "required": [
+                  "provider",
+                  "setupState"
+                ],
+                "additionalProperties": false,
+                "description": "Every deployed provider, in registry order, with its setup state. Each array item follows this format."
+              },
+              "description": "Every deployed provider, in registry order, with its setup state."
+            }
+          },
+          "required": [
+            "providers"
+          ],
+          "additionalProperties": false,
+          "description": "Every integration provider this server deploys, in registry order, each with whether it is ready to connect. It is the organization-visible half of provider setup: installation administrators register a provider's application, and everyone who can see integrations can tell whether that has happened."
+        },
         "ArtifactOutput": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
@@ -223135,7 +223274,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:90710268e950b1a2d6e8a4ed47d0be441e6eb23c87da8d4294e2a0206672d24f",
+  "compatibilityDigest": "sha256:fddd9bd8cfc3c6c4e3f2ecb1e8dc134c8f167c643c859da255905ff65c2fef5b",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -230480,6 +230619,7 @@
             "skillVersions.create",
             "integrationProviders.list",
             "integrationConnections.list",
+            "integrationProviderSetup.list",
             "integrationConnections.get",
             "integrationConnections.create",
             "integrationConnections.update",
@@ -275674,6 +275814,7 @@
             "skillVersions.create",
             "integrationProviders.list",
             "integrationConnections.list",
+            "integrationProviderSetup.list",
             "integrationConnections.get",
             "integrationConnections.create",
             "integrationConnections.update",
@@ -276196,6 +276337,7 @@
             "skillVersions.create",
             "integrationProviders.list",
             "integrationConnections.list",
+            "integrationProviderSetup.list",
             "integrationConnections.get",
             "integrationConnections.create",
             "integrationConnections.update",
@@ -276718,6 +276860,7 @@
             "skillVersions.create",
             "integrationProviders.list",
             "integrationConnections.list",
+            "integrationProviderSetup.list",
             "integrationConnections.get",
             "integrationConnections.create",
             "integrationConnections.update",
@@ -321705,6 +321848,7 @@
                   "skillVersions.create",
                   "integrationProviders.list",
                   "integrationConnections.list",
+                  "integrationProviderSetup.list",
                   "integrationConnections.get",
                   "integrationConnections.create",
                   "integrationConnections.update",
@@ -408302,6 +408446,70 @@
       ],
       "additionalProperties": false,
       "description": "Whether an integration provider's OAuth client credentials are registered on this installation, which client ID, when the secret was last saved, and the callback URL to give the provider. The secret itself is never part of it. Version is 0 until credentials are saved and is the If-Match value for the next save."
+    },
+    "IntegrationProviderSetup": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "provider": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Provider slug, as the provider registry names it."
+        },
+        "setupState": {
+          "type": "string",
+          "enum": [
+            "needs_setup",
+            "ready"
+          ],
+          "description": "needs_setup while an installation administrator has not yet registered the provider's application, so a connection cannot be started; ready once it has, or when the provider needs no registration."
+        }
+      },
+      "required": [
+        "provider",
+        "setupState"
+      ],
+      "additionalProperties": false,
+      "description": "Whether one integration provider this server deploys is ready for an organization to connect. It states only whether the installation has registered the provider's application; it carries no credential and no detail of what was registered."
+    },
+    "IntegrationProviderSetupList": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "providers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "provider": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Provider slug, as the provider registry names it."
+              },
+              "setupState": {
+                "type": "string",
+                "enum": [
+                  "needs_setup",
+                  "ready"
+                ],
+                "description": "needs_setup while an installation administrator has not yet registered the provider's application, so a connection cannot be started; ready once it has, or when the provider needs no registration."
+              }
+            },
+            "required": [
+              "provider",
+              "setupState"
+            ],
+            "additionalProperties": false,
+            "description": "Every deployed provider, in registry order, with its setup state. Each array item follows this format."
+          },
+          "description": "Every deployed provider, in registry order, with its setup state."
+        }
+      },
+      "required": [
+        "providers"
+      ],
+      "additionalProperties": false,
+      "description": "Every integration provider this server deploys, in registry order, each with whether it is ready to connect. It is the organization-visible half of provider setup: installation administrators register a provider's application, and everyone who can see integrations can tell whether that has happened."
     },
     "ArtifactOutput": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

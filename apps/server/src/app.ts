@@ -5,6 +5,7 @@ import {
 } from "./modules/catalog/storage-backend.ts";
 import { createSkillStorageRoutes } from "./modules/catalog/skill-storage-actions.ts";
 import { createClientCredentialsRoutes } from "./modules/integrations/client-credentials.ts";
+import { createProviderSetupRoutes } from "./modules/integrations/provider-setup.ts";
 import { createAgentsRoutes } from "./modules/agents/index.ts";
 import { createProviderReadRoutes } from "./modules/execution/provider-read-routes.ts";
 import { createRouteContinuationRoutes } from "./modules/execution/route-continuations.ts";
@@ -934,6 +935,14 @@ export function createApp(options: {
       browserSession,
       publicBaseUrl: options.config.publicBaseUrl,
       secretsKey: options.config.secretsKey,
+    }),
+  );
+  app.route(
+    "/",
+    createProviderSetupRoutes({
+      database: options.pgDatabase,
+      browserSession,
+      publicBaseUrl: options.config.publicBaseUrl,
     }),
   );
   app.route(

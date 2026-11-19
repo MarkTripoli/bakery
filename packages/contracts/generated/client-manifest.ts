@@ -2906,6 +2906,32 @@ export const clientManifest = {
     {
       "group": "Extensions",
       "method": "GET",
+      "path": "/v1/integration-provider-setup",
+      "action": "integrationProviderSetup.list",
+      "access": "Developer",
+      "permission": "integrationConnection:read",
+      "input": "Empty",
+      "output": "IntegrationProviderSetupList",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Extensions",
+      "method": "GET",
       "path": "/v1/integration-connections/{id}",
       "action": "integrationConnections.get",
       "access": "Developer",
@@ -13352,6 +13378,7 @@ export const clientManifest = {
             "skillVersions.create",
             "integrationProviders.list",
             "integrationConnections.list",
+            "integrationProviderSetup.list",
             "integrationConnections.get",
             "integrationConnections.create",
             "integrationConnections.update",
@@ -35353,6 +35380,7 @@ export const clientManifest = {
                   "skillVersions.create",
                   "integrationProviders.list",
                   "integrationConnections.list",
+                  "integrationProviderSetup.list",
                   "integrationConnections.get",
                   "integrationConnections.create",
                   "integrationConnections.update",
@@ -52968,6 +52996,7 @@ export const clientManifest = {
             "skillVersions.create",
             "integrationProviders.list",
             "integrationConnections.list",
+            "integrationProviderSetup.list",
             "integrationConnections.get",
             "integrationConnections.create",
             "integrationConnections.update",
@@ -80108,6 +80137,45 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Whether an integration provider's OAuth client credentials are registered on this installation, which client ID, when the secret was last saved, and the callback URL to give the provider. The secret itself is never part of it. Version is 0 until credentials are saved and is the If-Match value for the next save."
+    },
+    "IntegrationProviderSetupList": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "providers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "provider": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Provider slug, as the provider registry names it."
+              },
+              "setupState": {
+                "type": "string",
+                "enum": [
+                  "needs_setup",
+                  "ready"
+                ],
+                "description": "needs_setup while an installation administrator has not yet registered the provider's application, so a connection cannot be started; ready once it has, or when the provider needs no registration."
+              }
+            },
+            "required": [
+              "provider",
+              "setupState"
+            ],
+            "additionalProperties": false,
+            "description": "Every deployed provider, in registry order, with its setup state. Each array item follows this format."
+          },
+          "description": "Every deployed provider, in registry order, with its setup state."
+        }
+      },
+      "required": [
+        "providers"
+      ],
+      "additionalProperties": false,
+      "description": "Every integration provider this server deploys, in registry order, each with whether it is ready to connect. It is the organization-visible half of provider setup: installation administrators register a provider's application, and everyone who can see integrations can tell whether that has happened."
     }
   }
 } as const;
