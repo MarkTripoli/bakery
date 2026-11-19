@@ -586,7 +586,7 @@ Deno.test("an upload completing for identical bytes and a sweep contend for one 
               sha256: digest,
               sizeBytes: 12,
               mediaType: "text/plain",
-            });
+            }, { stat: () => Promise.resolve({ sizeBytes: 12 }) });
             return "recorded";
           } catch (error) {
             return postgresErrorCode(error);
@@ -607,7 +607,7 @@ Deno.test("an upload completing for identical bytes and a sweep contend for one 
             sha256: digest,
             sizeBytes: 12,
             mediaType: "text/plain",
-          })).sha256,
+          }, { stat: () => Promise.resolve({ sizeBytes: 12 }) })).sha256,
       ),
       digest,
     );
@@ -648,5 +648,47 @@ Deno.test("an object already gone is not deleted again, and still gets its tombs
       true,
     );
     assertEquals(deleting.deleted, [live.objectRef]);
+  });
+});
+
+Deno.test("bytes deleted between the upload and the record are a named refusal, not a row", async () => {
+  await withWorkerFixture(async (fixture) => {
+    // The upload writes the object, then records it. A bundle sweep of a
+    // withdrawn plugin that shares the digest can delete the key in between -
+    // the registry has no row yet, so nothing tells the sweep to spare it. The
+    // record therefore looks under the lock it shares with the sweep, and
+    // refuses by name rather than storing a row that claims bytes nothing holds.
+    const missing = {
+      stat: () => Promise.resolve(null),
+    };
+    const refused = await withPgTransaction(fixture.pgDatabase, async (tx) => {
+      try {
+        await recordBlob(tx, {
+          organizationId: fixture.organizationId,
+          principalId: fixture.principalId,
+          sha256: "f".repeat(64),
+          sizeBytes: 12,
+          mediaType: "text/plain",
+        }, missing);
+        return "recorded";
+      } catch (error) {
+        const standard = error as {
+          code?: string;
+          params?: { reason?: string };
+        };
+        return `${standard.code}:${standard.params?.reason}`;
+      }
+    });
+    assertEquals(
+      refused,
+      "PRECONDITION_FAILED:blob_bytes_missing",
+      "the refusal names what went wrong",
+    );
+    const blobs = await fixture.pgDatabase.query<{ count: string }>(
+      `select count(*)::text as count from bakery.blobs
+        where organization_id = $1 and sha256 = $2`,
+      [fixture.organizationId, "f".repeat(64)],
+    );
+    assertEquals(blobs.rows[0].count, "0", "nothing is recorded");
   });
 });
