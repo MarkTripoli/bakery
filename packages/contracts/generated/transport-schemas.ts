@@ -11185,6 +11185,41 @@ const transportSchemas = {
         "A second grant for the same power, workflow and seat is STATE_CONFLICT with reason agent_power_grant_exists."
       ],
       "description": "Grants agents an off-by-default power for one workflow or one seat (chapter 25 O52). Every use is labelled as an agent's action, and a grant never lets an agent act on its own output."
+    },
+    "RunStepTakeOver": {
+      "fields": [
+        {
+          "name": "mode",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "complete"
+          ],
+          "description": "How the person takes the step over. `complete` makes the person the step's completer by naming an existing artifact version as its result; a restart with a fresh agent is a later mode."
+        },
+        {
+          "name": "artifactId",
+          "type": "uuid",
+          "required": true,
+          "description": "Identifier of an existing artifact of this run's task that becomes the step's result. The artifact must exist in the organization and belong to the run's task."
+        },
+        {
+          "name": "versionId",
+          "type": "uuid",
+          "required": true,
+          "description": "Identifier of the immutable artifact version of that artifact that becomes the step's result. The server reads its content digest from its own record; the caller never supplies one."
+        },
+        {
+          "name": "reason",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 2000
+          },
+          "description": "Why the person took the step over, recorded verbatim in the work item's decisions ledger."
+        }
+      ],
+      "description": "Makes the caller the completer of a workflow step instead of its agent. Allowed only for a step of a compiled-plan run whose action produces an artifact, whose job is still queued with no live attempt, and only for a caller holding run control; a step with a live attempt is refused with STATE_CONFLICT `attempt_live` and must be stopped through run control first."
     }
   },
   "projections": {
@@ -28960,7 +28995,7 @@ const transportSchemas = {
         "runId": "uuid",
         "stepId": "uuid",
         "jobId": "uuid",
-        "attemptId": "uuid",
+        "attemptId": "uuid|null",
         "status": "enum(completed|failed|canceled)"
       },
       "inngestTrigger": "bakery/job.completed.v1",

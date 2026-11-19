@@ -1717,9 +1717,22 @@ export async function releaseWorkflowAction(
     if (intent.status === "released") return;
     conflict("budget_reservation_not_held");
   }
+  await releaseHeldIntent(transaction, options.organizationId, intent);
+}
+
+/**
+ * Gives a held intent's money back: both reservations and the intent become
+ * `released` and both accounts' reserved totals fall by the reserved amount.
+ * The caller has already shown that nothing was or can be spent.
+ */
+async function releaseHeldIntent(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  intent: IntentRow,
+): Promise<void> {
   await assertReservationsFreeOfLiveEffects(
     transaction,
-    options.organizationId,
+    organizationId,
     [intent.installationReservationId, intent.runReservationId],
   );
   const reservations = await loadReservations(transaction, intent);
@@ -1727,7 +1740,7 @@ export async function releaseWorkflowAction(
     reservations.installation.budgetAccountId,
     reservations.run.budgetAccountId,
   ]);
-  await lockReservations(transaction, options.organizationId, [
+  await lockReservations(transaction, organizationId, [
     reservations.installation.id,
     reservations.run.id,
   ]);
@@ -1746,7 +1759,7 @@ export async function releaseWorkflowAction(
     `update bakery.budget_reservations
         set status = 'released', updated_at = now(), version = version + 1
       where organization_id = $1 and id = any($2::uuid[]) and status = 'held'`,
-    [options.organizationId, [
+    [organizationId, [
       reservations.installation.id,
       reservations.run.id,
     ]],
@@ -1755,7 +1768,7 @@ export async function releaseWorkflowAction(
     `update bakery.budget_action_intents
         set status = 'released', updated_at = now(), version = version + 1
       where organization_id = $1 and id = $2 and status = 'held'`,
-    [options.organizationId, intent.id],
+    [organizationId, intent.id],
   );
 }
 
@@ -2455,4 +2468,233 @@ export async function readPersistedUsageFact(
 
 export async function budgetContentDigest(value: unknown): Promise<string> {
   return await sha256Hex(canonicalJson(value));
+}
+
+/**
+ * Releases the reservation held for a job that was canceled before any worker
+ * took it, in the caller's transaction.
+ *
+ * Nothing can have been spent: the job has no attempt and the intent's provider
+ * call is still `pending` with no provider call id. That is the proof the
+ * evidence-gated release asks for, read from the job itself, so it needs no
+ * separate evidence record. A job with attempts is left to the usage
+ * reconciliation that settles what those attempts spent.
+ *
+ * `onUnreleasable` says what to do when the proof does not hold or the release
+ * cannot be made: `"throw"` refuses with the conflict (a person's takeover must
+ * not go on with money in doubt); `"skip"` leaves the reservation held for
+ * reconciliation and returns false, so cancelling a run is never blocked by
+ * the budget. A skipped release is rolled back to a savepoint, so it writes
+ * nothing. Returns whether a reservation was released.
+ */
+export async function releaseCanceledUnclaimedJobReservation(
+  transaction: PgTransactionClient,
+  options: Readonly<{
+    organizationId: string;
+    jobId: string;
+    onUnreleasable: "throw" | "skip";
+  }>,
+): Promise<boolean> {
+  if (options.onUnreleasable === "throw") {
+    return await releaseUnclaimedJob(transaction, options);
+  }
+  await transaction.query("savepoint release_unclaimed_job");
+  try {
+    const released = await releaseUnclaimedJob(transaction, options);
+    await transaction.query("release savepoint release_unclaimed_job");
+    return released;
+  } catch (error) {
+    if (!(error instanceof StandardError)) throw error;
+    await transaction.query("rollback to savepoint release_unclaimed_job");
+    await transaction.query("release savepoint release_unclaimed_job");
+    return false;
+  }
+}
+
+async function releaseUnclaimedJob(
+  transaction: PgTransactionClient,
+  options: Readonly<{ organizationId: string; jobId: string }>,
+): Promise<boolean> {
+  const job = await transaction.query<{
+    status: string;
+    installationReservationId: string | null;
+    attempts: string;
+  }>(
+    `select job.status, job.installation_reservation_id as "installationReservationId",
+            (select count(*)::text from bakery.job_attempts attempt
+              where attempt.organization_id = job.organization_id
+                and attempt.job_id = job.id) as attempts
+       from bakery.jobs job
+      where job.organization_id = $1 and job.id = $2`,
+    [options.organizationId, options.jobId],
+  );
+  const row = job.rows[0];
+  if (
+    !row || row.installationReservationId === null ||
+    row.status !== "canceled" || Number(row.attempts) !== 0
+  ) return false;
+  const intent = await loadIntent(
+    transaction,
+    options.organizationId,
+    row.installationReservationId,
+  );
+  if (intent.status !== "held") return false;
+  const providerCall = await transaction.query<{
+    status: string;
+    providerCallId: string | null;
+  }>(
+    `select call.status, call.provider_call_id as "providerCallId"
+       from bakery.provider_call_intents call
+      where call.organization_id = $1 and call.id = $2
+      for update`,
+    [options.organizationId, intent.providerCallIntentId],
+  );
+  const call = providerCall.rows[0];
+  if (!call || call.status !== "pending" || call.providerCallId !== null) {
+    conflict("budget_release_dispatch_ambiguous");
+  }
+  await releaseHeldIntent(transaction, options.organizationId, intent);
+  return true;
+}
+
+/** A canceled job whose held reservation the sweep may release. */
+export type CanceledJobReleaseCandidate = Readonly<{
+  organizationId: string;
+  installationReservationId: string;
+  jobId: string;
+}>;
+
+/**
+ * Canceled jobs whose reservation is still held and whose provider call never
+ * went out, oldest first.
+ *
+ * The cancel paths release a job that never ran at the moment they cancel it;
+ * this sweep is what releases the rest, so a held reservation cannot outlive
+ * its job. A candidate has no live attempt and no live external effect, and
+ * its provider call is still `pending` with no provider call id (nothing was
+ * dispatched, so nothing can be owed). A job that had attempts waits until the
+ * reservation's own expiry, which gives any usage those attempts published time
+ * to settle the reservation first.
+ */
+export async function findCanceledJobReleaseCandidates(
+  transaction: PgTransactionClient,
+  limit = 50,
+): Promise<CanceledJobReleaseCandidate[]> {
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 1_000) {
+    conflict("budget_reconciliation_limit_invalid");
+  }
+  const result = await transaction.query<CanceledJobReleaseCandidate>(
+    `select job.organization_id as "organizationId",
+            intent.installation_reservation_id as "installationReservationId",
+            job.id as "jobId"
+       from bakery.jobs job
+       join bakery.budget_action_intents intent
+         on intent.organization_id = job.organization_id
+        and intent.installation_reservation_id = job.installation_reservation_id
+       join bakery.budget_reservations reservation
+         on reservation.organization_id = intent.organization_id
+        and reservation.id = intent.installation_reservation_id
+       join bakery.provider_call_intents call
+         on call.organization_id = intent.organization_id
+        and call.id = intent.provider_call_intent_id
+      where job.status = 'canceled'
+        and intent.status = 'held'
+        and reservation.status = 'held'
+        and call.status = 'pending'
+        and call.provider_call_id is null
+        and not exists (
+          select 1 from bakery.job_attempts live
+           where live.organization_id = job.organization_id
+             and live.job_id = job.id
+             and live.status in ('leased', 'running', 'canceling'))
+        and (
+          reservation.expires_at <= clock_timestamp()
+          or not exists (
+            select 1 from bakery.job_attempts any_attempt
+             where any_attempt.organization_id = job.organization_id
+               and any_attempt.job_id = job.id)
+        )
+        and ${
+      noLiveEffectOnReservationsSql("intent.organization_id", [
+        "intent.installation_reservation_id",
+        "intent.run_reservation_id",
+      ])
+    }
+        and not exists (
+          select 1 from bakery.budget_reconciliation_failures failure
+           where failure.candidate_kind = 'release'
+             and failure.organization_id = job.organization_id
+             and failure.candidate_id = job.id)
+      order by job.updated_at asc, job.id asc
+      limit $1`,
+    [limit],
+  );
+  return result.rows;
+}
+
+/**
+ * Releases one candidate, after checking again under locks that it still
+ * qualifies. Returns whether a reservation was released; a candidate that
+ * changed since it was found is left alone.
+ */
+export async function releaseCanceledJobReservation(
+  transaction: PgTransactionClient,
+  candidate: CanceledJobReleaseCandidate,
+): Promise<boolean> {
+  const state = await transaction.query<{
+    status: string;
+    live: string;
+    attempts: string;
+    expired: boolean;
+  }>(
+    `select job.status,
+            (select count(*)::text from bakery.job_attempts live
+              where live.organization_id = job.organization_id
+                and live.job_id = job.id
+                and live.status in ('leased', 'running', 'canceling')) as live,
+            (select count(*)::text from bakery.job_attempts a
+              where a.organization_id = job.organization_id
+                and a.job_id = job.id) as attempts,
+            reservation.expires_at <= clock_timestamp() as expired
+       from bakery.jobs job
+       join bakery.budget_reservations reservation
+         on reservation.organization_id = job.organization_id
+        and reservation.id = job.installation_reservation_id
+      where job.organization_id = $1 and job.id = $2
+        and job.installation_reservation_id = $3
+        for update of job`,
+    [
+      candidate.organizationId,
+      candidate.jobId,
+      candidate.installationReservationId,
+    ],
+  );
+  const row = state.rows[0];
+  if (
+    !row || row.status !== "canceled" || Number(row.live) !== 0 ||
+    (Number(row.attempts) > 0 && !row.expired)
+  ) return false;
+  const intent = await loadIntent(
+    transaction,
+    candidate.organizationId,
+    candidate.installationReservationId,
+  );
+  if (intent.status !== "held") return false;
+  const call = await transaction.query<{
+    status: string;
+    providerCallId: string | null;
+  }>(
+    `select status, provider_call_id as "providerCallId"
+       from bakery.provider_call_intents
+      where organization_id = $1 and id = $2
+        for update`,
+    [candidate.organizationId, intent.providerCallIntentId],
+  );
+  const providerCall = call.rows[0];
+  if (
+    !providerCall || providerCall.status !== "pending" ||
+    providerCall.providerCallId !== null
+  ) return false;
+  await releaseHeldIntent(transaction, candidate.organizationId, intent);
+  return true;
 }

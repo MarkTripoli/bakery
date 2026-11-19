@@ -72,6 +72,7 @@ import {
   steerAgentSession,
 } from "./sessions.ts";
 import { createRunStepNote } from "./step-notes.ts";
+import { takeOverRunStep } from "./step-takeover.ts";
 import { createSessionFeedHandler } from "./session-feed.ts";
 import { openSessionFeedStream } from "./session-feed-stream.ts";
 import type { ExecutionRouteOptions } from "./shared.ts";
@@ -644,6 +645,20 @@ export function createRunControlRegistry(
         OrganizationContextPolicy.RequiredAuthenticatedContext,
     },
     handler: createRunStepNote,
+  });
+  registry.register({
+    name: ExecutionImplementedAction.RunStepsTakeOver,
+    method: HttpMethod.Post,
+    path: "/v1/runs/:id/steps/:stepKey/takeover",
+    input: contractSchemas.RunStepTakeOver,
+    output: contractSchemas.RunStep,
+    policy: {
+      type: ActionKind.Command,
+      access: ActionAccess.Developer,
+      organizationContext:
+        OrganizationContextPolicy.RequiredAuthenticatedContext,
+    },
+    handler: takeOverRunStep,
   });
   assertRegisteredActions(registry);
   assertImplementedActionRegistry(registry, executionImplementedActions);
