@@ -8474,6 +8474,106 @@ export const clientManifest = {
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true
+    },
+    {
+      "group": "Organizations",
+      "method": "GET",
+      "path": "/v1/groups",
+      "action": "groups.list",
+      "access": "Current member",
+      "permission": "group:read",
+      "input": "Empty",
+      "output": "Groups",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Organizations",
+      "method": "POST",
+      "path": "/v1/groups",
+      "action": "groups.create",
+      "access": "Admin",
+      "permission": "group:manage",
+      "input": "GroupCreate",
+      "output": "Group",
+      "event": "organizationGroup.created",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Organizations",
+      "method": "PATCH",
+      "path": "/v1/groups/{id}",
+      "action": "groups.update",
+      "access": "Admin",
+      "permission": "group:manage",
+      "input": "GroupUpdate",
+      "output": "Group",
+      "event": "organizationGroup.updated",
+      "mcp": "",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Organizations",
+      "method": "DELETE",
+      "path": "/v1/groups/{id}",
+      "action": "groups.delete",
+      "access": "Admin",
+      "permission": "group:manage",
+      "input": "IdPath",
+      "output": "NoContent",
+      "event": "organizationGroup.deleted",
+      "mcp": "",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
     }
   ],
   "schemas": {
@@ -13586,7 +13686,11 @@ export const clientManifest = {
             "worker.output.revoke",
             "outputStreams.transcript",
             "pullRequests.merge",
-            "mergeAttempts.reconcile"
+            "mergeAttempts.reconcile",
+            "groups.list",
+            "groups.create",
+            "groups.update",
+            "groups.delete"
           ],
           "description": "Exact registered Bakery action name to grant within the selected organization; wildcard and prefix matching are forbidden."
         },
@@ -22896,6 +23000,85 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Makes the caller the completer of a workflow step instead of its agent. Allowed only for a step of a compiled-plan run whose action produces an artifact, whose job is still queued with no live attempt, and only for a caller holding run control; a step with a live attempt is refused with STATE_CONFLICT `attempt_live` and must be stopped through run control first."
+    },
+    "GroupCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "description": "Display name of the group; unique in the organization, ignoring case. GroupCreate.name must contain at least 1 characters. GroupCreate.name must contain at most 80 characters."
+        },
+        "mentionName": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 40,
+          "description": "Handle people and workflows use to ask the group (lowercase letters, digits and single hyphens); fixed at creation and unique in the organization. GroupCreate.mentionName must contain at least 2 characters. GroupCreate.mentionName must contain at most 40 characters."
+        },
+        "purpose": {
+          "description": "Optional one line saying what the group is for. GroupCreate.purpose must contain at most 140 characters.",
+          "type": "string",
+          "maxLength": 140
+        },
+        "memberIds": {
+          "description": "Active organization members in the group; any one of them can answer a request to it. Empty or omitted makes a group with no members, which routes to the workflow owner until someone is added. GroupCreate.memberIds must contain at most 200 items.",
+          "maxItems": 200,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "Active organization members in the group; any one of them can answer a request to it. Empty or omitted makes a group with no members, which routes to the workflow owner until someone is added. Each array item follows this format."
+          }
+        }
+      },
+      "required": [
+        "name",
+        "mentionName"
+      ],
+      "additionalProperties": false,
+      "description": "Creates an organization group: a named set of members that a workflow or a person can ask by one name, where any one member can answer."
+    },
+    "GroupUpdate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "Replaces the group's display name; the mention name never changes. GroupUpdate.name must contain at least 1 characters. GroupUpdate.name must contain at most 80 characters.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "purpose": {
+          "description": "GroupUpdate.purpose may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 140,
+              "description": "Replaces the one-line purpose; null clears it. GroupUpdate.purpose must contain at most 140 characters."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "memberIds": {
+          "description": "Replaces the whole member set with these active organization members. GroupUpdate.memberIds must contain at most 200 items.",
+          "maxItems": 200,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "Replaces the whole member set with these active organization members. Each array item follows this format."
+          }
+        }
+      },
+      "additionalProperties": false,
+      "description": "Partial update to a group's name, purpose or members. The mention name is immutable."
     },
     "PluginState": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -35546,7 +35729,11 @@ export const clientManifest = {
                   "worker.output.revoke",
                   "outputStreams.transcript",
                   "pullRequests.merge",
-                  "mergeAttempts.reconcile"
+                  "mergeAttempts.reconcile",
+                  "groups.list",
+                  "groups.create",
+                  "groups.update",
+                  "groups.delete"
                 ],
                 "description": "Exact Bakery action name granted to the principal; wildcard and prefix meanings are forbidden."
               },
@@ -53159,7 +53346,11 @@ export const clientManifest = {
             "worker.output.revoke",
             "outputStreams.transcript",
             "pullRequests.merge",
-            "mergeAttempts.reconcile"
+            "mergeAttempts.reconcile",
+            "groups.list",
+            "groups.create",
+            "groups.update",
+            "groups.delete"
           ],
           "description": "Exact Bakery action name granted to the principal; wildcard and prefix meanings are forbidden."
         },
@@ -61069,7 +61260,9 @@ export const clientManifest = {
               "applicationRepositoryRole:read",
               "applicationRepositoryRole:manage",
               "pullRequest:merge",
-              "mergeAttempt:write"
+              "mergeAttempt:write",
+              "group:read",
+              "group:manage"
             ],
             "description": "Bounded set of exact Bakery permission keys currently effective in this organization; entries never imply wildcard or prefix matching. Each array item follows this format."
           },
@@ -79941,6 +80134,266 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "The route continuations a run is waiting on: one offer per step that is pinned to a route with an open incident and has not already been continued for that incident. Empty when nothing is stalled. It is a read of current state, never a decision: nothing is admitted, paused or charged by reading it."
+    },
+    "Group": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID of the group."
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Display name, unique in the organization ignoring case."
+        },
+        "mentionName": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Fixed handle used to ask the group; never changes after creation."
+        },
+        "purpose": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Optional one line saying what the group is for."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "Group.purpose may be null in this transport value."
+        },
+        "members": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "principalId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable principal UUID of the member."
+              },
+              "displayName": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The member's saved display name."
+              }
+            },
+            "required": [
+              "principalId",
+              "displayName"
+            ],
+            "additionalProperties": false,
+            "description": "Current members, ordered by display name. Each array item follows this format."
+          },
+          "description": "Current members, ordered by display name."
+        },
+        "memberCount": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Number of current members."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when the group was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when the group last changed."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Optimistic-concurrency version for mutations of this group."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "mentionName",
+        "purpose",
+        "members",
+        "memberCount",
+        "createdAt",
+        "updatedAt",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "An organization group with its members; a group with no members is valid and routes to the workflow owner."
+    },
+    "Groups": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "groups": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID of the group."
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Display name, unique in the organization ignoring case."
+              },
+              "mentionName": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Fixed handle used to ask the group; never changes after creation."
+              },
+              "purpose": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Optional one line saying what the group is for."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "Group.purpose may be null in this transport value."
+              },
+              "members": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "principalId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "Stable principal UUID of the member."
+                    },
+                    "displayName": {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "The member's saved display name."
+                    }
+                  },
+                  "required": [
+                    "principalId",
+                    "displayName"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Current members, ordered by display name. Each array item follows this format."
+                },
+                "description": "Current members, ordered by display name."
+              },
+              "memberCount": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Number of current members."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the group was created."
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the group last changed."
+              },
+              "version": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Optimistic-concurrency version for mutations of this group."
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "mentionName",
+              "purpose",
+              "members",
+              "memberCount",
+              "createdAt",
+              "updatedAt",
+              "version"
+            ],
+            "additionalProperties": false,
+            "description": "The organization's own groups, ordered by name. Each array item follows this format."
+          },
+          "description": "The organization's own groups, ordered by name."
+        },
+        "fromRoles": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "roleKey": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The role's stable key (admin, developer or a custom role key)."
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Plural display name such as Administrators, Developers or the custom role's name."
+              },
+              "mentionName": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Handle derived from the role, such as admins, developers or the custom role key."
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "system",
+                  "custom"
+                ],
+                "description": "Whether the role is a system role or a custom organization role."
+              },
+              "memberCount": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Number of members holding the role right now, read live."
+              }
+            },
+            "required": [
+              "roleKey",
+              "name",
+              "mentionName",
+              "kind",
+              "memberCount"
+            ],
+            "additionalProperties": false,
+            "description": "Read-only groups made from roles; they follow the Members page and cannot be edited here. Each array item follows this format."
+          },
+          "description": "Read-only groups made from roles; they follow the Members page and cannot be edited here."
+        }
+      },
+      "required": [
+        "groups",
+        "fromRoles"
+      ],
+      "additionalProperties": false,
+      "description": "Everything an organization member can ask by one name: the organization's own groups and the read-only groups made from roles."
     }
   }
 } as const;

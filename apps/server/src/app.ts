@@ -107,6 +107,7 @@ import {
   type EventsSocketRegistry,
 } from "./modules/work/events-socket.ts";
 import {
+  createGroupRoutes,
   createNotificationRoutes,
   createTicketRoutes,
   createWorkTaskHandlers,
@@ -835,6 +836,10 @@ export function createApp(options: {
         },
       }),
     }),
+  );
+  app.route(
+    "/",
+    createGroupRoutes({ database: options.pgDatabase, session: tokenSession }),
   );
   app.route(
     "/",

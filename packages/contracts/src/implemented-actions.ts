@@ -420,6 +420,18 @@ export const notificationImplementedActions = Object.freeze(
   Object.values(NotificationImplementedAction),
 );
 
+export const GroupImplementedAction = Object.freeze(
+  {
+    GroupsList: "groups.list",
+    GroupsCreate: "groups.create",
+    GroupsUpdate: "groups.update",
+    GroupsDelete: "groups.delete",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const groupImplementedActions = Object.freeze(
+  Object.values(GroupImplementedAction),
+);
+
 export const WorkflowImplementedAction = Object.freeze(
   {
     WorkflowsList: "workflows.list",
@@ -654,6 +666,7 @@ export const implementedActions = Object.freeze(
     ...deliveryImplementedActions,
     ...ticketImplementedActions,
     ...notificationImplementedActions,
+    ...groupImplementedActions,
     ...workflowImplementedActions,
     ...workflowActionDiscoveryImplementedActions,
     ...automationImplementedActions,
