@@ -453,7 +453,7 @@ test.describe("security suite states are honest", () => {
     await open(page, "security-hub", "error");
     await page.getByRole("button", { name: "Try again" }).click();
     await expect(page.getByTestId("security-error")).toHaveCount(0);
-    await expect(page.getByText("Sign-in methods")).toBeVisible();
+    await expect(page.getByText("Passkeys").first()).toBeVisible();
   });
 
   test("loading announces itself and reserves the rows", async ({ page }) => {
@@ -505,11 +505,11 @@ test.describe("security suite keyboard-only completion", () => {
   test("change password: invalid focuses the field, then saves", async ({ page }) => {
     await open(page, "password", "default");
     const current = page.getByLabel("Current password");
-    const next = page.getByLabel("New password");
+    const next = page.getByLabel("New password", { exact: true });
     // Focus order inside the page: current field + reveal, new field + reveal,
-    // Save, Cancel.
+    // confirmation field + reveal, Cancel, Save.
     const order: string[] = [];
-    for (let presses = 0; presses < 40 && order.length < 6; presses += 1) {
+    for (let presses = 0; presses < 40 && order.length < 8; presses += 1) {
       await page.keyboard.press("Tab");
       const label = await page.evaluate(() => {
         const element = document.activeElement as HTMLElement | null;
@@ -525,8 +525,10 @@ test.describe("security suite keyboard-only completion", () => {
       "Show password",
       "New password",
       "Show password",
-      "Save password",
+      "Confirm new password",
+      "Show password",
       "Cancel",
+      "Save password",
     ]);
     await tabTo(page, current);
     await page.keyboard.type("old-password");
@@ -537,10 +539,17 @@ test.describe("security suite keyboard-only completion", () => {
     await page.keyboard.press("Tab");
     await expect(next).toBeFocused();
     await page.keyboard.type("short");
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("Tab");
+    await page.keyboard.type("short");
     await page.keyboard.press("Enter");
-    await expect(page.getByText("Choose a different password")).toBeVisible();
+    await expect(page.getByText("That password does not meet the rule."))
+      .toBeVisible();
     await expect(next).toBeFocused();
     await page.keyboard.type("-and-much-longer");
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("Tab");
+    await page.keyboard.type("short-and-much-longer");
     await page.keyboard.press("Enter");
     await expect(page.locator("main h1")).toHaveText("Password changed");
     await expect(
@@ -661,7 +670,7 @@ test.describe("security suite keyboard-only completion", () => {
 });
 
 test.describe("security suite accessible names and landmarks", () => {
-  test("hub rows have unique link names, including connected clients", async ({ page }) => {
+  test("hub rows have unique button names, including connected clients", async ({ page }) => {
     await open(page, "security-hub", "protected");
     for (
       const name of [
@@ -670,11 +679,10 @@ test.describe("security suite accessible names and landmarks", () => {
         "Manage two-factor authentication",
         "Manage active sessions",
         "Manage connected clients",
-        "Sign out of this session",
       ]
     ) {
       await expect(
-        page.locator("main").getByRole("link", { name, exact: true }),
+        page.locator("main").getByRole("button", { name, exact: true }),
       ).toHaveCount(
         1,
       );

@@ -52,7 +52,7 @@ export const loginSpecimens: Readonly<Record<string, () => JSX.Element>> = {
     failure: "auth.signIn.rateLimited",
     failureParams: { wait: "3 minutes" },
   }),
-  locked: specimen({ failure: "auth.signIn.locked" }),
+  blocked: specimen({ failure: "auth.signIn.locked" }),
   offline: specimen({
     failure: "auth.signIn.offlineNotice",
     failureTone: "warning",

@@ -4,5 +4,5 @@ import { JoinScreen } from "../../screens/JoinScreen.tsx";
 /** `/register` with no invitation: the invitation-needed page and the paused one. */
 export const joinSpecimens: Readonly<Record<string, () => JSX.Element>> = {
   default: () => <JoinScreen onSignIn={() => {}} />,
-  paused: () => <JoinScreen onSignIn={() => {}} registrationPaused />,
+  disabled: () => <JoinScreen onSignIn={() => {}} registrationPaused />,
 };

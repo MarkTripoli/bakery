@@ -491,7 +491,7 @@ export const routeCoverage = [
       "invalid",
       "loading",
       "rate-limited",
-      "locked",
+      "blocked",
       "offline",
       "unavailable",
       "expired",
