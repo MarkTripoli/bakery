@@ -284,10 +284,90 @@ export async function ensureWorkItemFolder(
 }
 
 /**
+ * A folder of this name under `parentId`, made if it is missing. Returns
+ * undefined when the name is taken by a file, so the caller can fall back.
+ */
+async function ensureChildFolder(
+  db: StorageQuery,
+  input: { organizationId: string; parentId: string; segment: string },
+): Promise<string | undefined> {
+  const { name, nameKey } = normalizeEntryName(input.segment);
+  await db.query(
+    `insert into bakery.storage_entries
+       (organization_id, parent_id, name, name_key, kind, policy)
+     values ($1, $2, $3, $4, 'folder', 'record')
+     on conflict do nothing`,
+    [input.organizationId, input.parentId, name, nameKey],
+  );
+  const found = await db.query<{ id: string; kind: string }>(
+    `select id, kind from bakery.storage_entries
+      where organization_id = $1 and parent_id = $2 and name_key = $3`,
+    [input.organizationId, input.parentId, nameKey],
+  );
+  const row = found.rows[0];
+  return row && row.kind === "folder" ? row.id : undefined;
+}
+
+/** An artifact name made into one safe entry name when it cannot be a path. */
+function flatName(name: string, artifactId: string): string {
+  let flat = "";
+  for (const character of name.normalize("NFC")) {
+    const code = character.codePointAt(0)!;
+    flat += code <= 0x1f || code === 0x7f || character === "/"
+      ? "_"
+      : character;
+  }
+  flat = flat.trim().slice(0, MAX_NAME_LENGTH);
+  return flat === "" || flat === "." || flat === ".."
+    ? `unnamed-${artifactId.slice(0, 8)}`
+    : flat;
+}
+
+/** Tries to insert one file entry; returns its id, or undefined if the name is taken. */
+async function insertFileEntry(
+  db: StorageQuery,
+  input: {
+    organizationId: string;
+    parentId: string;
+    name: string;
+    artifactId: string;
+  },
+): Promise<string | undefined> {
+  let normalized;
+  try {
+    normalized = normalizeEntryName(input.name);
+  } catch (error) {
+    if (error instanceof StorageNameError) return undefined;
+    throw error;
+  }
+  const inserted = await db.query<{ id: string }>(
+    `insert into bakery.storage_entries
+       (organization_id, parent_id, name, name_key, kind, policy, artifact_id)
+     values ($1, $2, $3, $4, 'file', 'record', $5)
+     on conflict do nothing
+     returning id`,
+    [
+      input.organizationId,
+      input.parentId,
+      normalized.name,
+      normalized.nameKey,
+      input.artifactId,
+    ],
+  );
+  return inserted.rows[0]?.id;
+}
+
+/**
  * Projects one existing artifact as a file entry under its work item's folder,
  * without moving data. Idempotent: an artifact that already has an entry keeps
- * it. Two artifacts of one work item whose names collide after normalization
- * get `name (type)`, then `name (type id)`, so none is dropped.
+ * it.
+ *
+ * It never fails the write it rides on. An artifact name is a document name and
+ * may be a path (`output-transcript/<session>/manifest`): when every segment is
+ * a valid name, the leading segments become folders and the last the file;
+ * otherwise the name is made safe and kept flat. Two artifacts whose names
+ * collide get `name (type)`, then `name (type id)`, and the last resort is the
+ * artifact's own id, so none is dropped and none can fail.
  */
 export async function projectArtifactEntry(
   db: StorageQuery,
@@ -308,38 +388,53 @@ export async function projectArtifactEntry(
   );
   const row = artifact.rows[0];
   if (!row) return undefined;
-  const folderId = await ensureWorkItemFolder(db, {
+  const workItemId = await ensureWorkItemFolder(db, {
     organizationId: input.organizationId,
     taskId: row.task_id,
   });
+
+  // A path-like name: folders for the leading segments, the file for the last.
+  let parentId = workItemId;
+  let leaf = flatName(row.name, input.artifactId);
+  const segments = row.name.split("/");
+  if (segments.length > 1) {
+    try {
+      let current: string | undefined = workItemId;
+      for (const segment of segments.slice(0, -1)) {
+        current = await ensureChildFolder(db, {
+          organizationId: input.organizationId,
+          parentId: current,
+          segment,
+        });
+        if (current === undefined) break;
+      }
+      const last = segments[segments.length - 1];
+      if (current !== undefined) {
+        normalizeEntryName(last);
+        parentId = current;
+        leaf = last;
+      }
+    } catch (error) {
+      if (!(error instanceof StorageNameError)) throw error;
+      parentId = workItemId;
+      leaf = flatName(row.name, input.artifactId);
+    }
+  }
+
   const candidates = [
-    row.name,
-    `${row.name} (${row.artifact_type})`,
-    `${row.name} (${row.artifact_type} ${input.artifactId.slice(0, 8)})`,
+    leaf,
+    `${leaf} (${row.artifact_type})`,
+    `${leaf} (${row.artifact_type} ${input.artifactId.slice(0, 8)})`,
+    input.artifactId,
   ];
   for (const candidate of candidates) {
-    let normalized;
-    try {
-      normalized = normalizeEntryName(candidate);
-    } catch (error) {
-      if (error instanceof StorageNameError) continue;
-      throw error;
-    }
-    const inserted = await db.query<{ id: string }>(
-      `insert into bakery.storage_entries
-         (organization_id, parent_id, name, name_key, kind, policy, artifact_id)
-       values ($1, $2, $3, $4, 'file', 'record', $5)
-       on conflict do nothing
-       returning id`,
-      [
-        input.organizationId,
-        folderId,
-        normalized.name,
-        normalized.nameKey,
-        input.artifactId,
-      ],
-    );
-    if (inserted.rows[0]) return inserted.rows[0].id;
+    const id = await insertFileEntry(db, {
+      organizationId: input.organizationId,
+      parentId,
+      name: candidate,
+      artifactId: input.artifactId,
+    });
+    if (id) return id;
     // Lost to a concurrent projection of this same artifact?
     const raced = await db.query<{ id: string }>(
       `select id from bakery.storage_entries

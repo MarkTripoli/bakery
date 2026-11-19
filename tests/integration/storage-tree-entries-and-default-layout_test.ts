@@ -389,3 +389,73 @@ Deno.test("AC: a path never resolves another organization's entry", () =>
       undefined,
     );
   }));
+
+Deno.test("AC: a path-like artifact name becomes nested folders and resolves by that path", () =>
+  withFixture(async (fixture) => {
+    const seed = await seedOrganization(fixture, "tree-pathlike");
+    const taskId = await seedTask(fixture, seed);
+    // The name transcripts really use: output-transcript/<session>/manifest.
+    const name = `output-transcript/${crypto.randomUUID()}/manifest`;
+    const made = await artifact(fixture, seed, taskId, name, "log");
+    const entryId = await projectArtifactEntry(db(fixture), {
+      organizationId: seed.organizationId,
+      artifactId: made.artifactId,
+    });
+    const slug = await slugOf(fixture, seed);
+    const folder = (await fixture.pgDatabase.query<{ name: string }>(
+      `select name from bakery.storage_entries
+        where organization_id = $1 and system_key = $2`,
+      [seed.organizationId, `task:${taskId}`],
+    )).rows[0].name;
+    const resolved = await resolveStoragePath(db(fixture), {
+      organizationId: seed.organizationId,
+      path: `/projects/${slug}/artifacts/${folder}/${name}`,
+    });
+    assertEquals(resolved?.id, entryId);
+    assertEquals(resolved?.name, "manifest");
+    // Its parents are folders.
+    const parents = await fixture.pgDatabase.query<{ kind: string }>(
+      `select kind from bakery.storage_entries
+        where id = $1 or id = (select parent_id from bakery.storage_entries where id = $1)`,
+      [entryId],
+    );
+    assertEquals(parents.rows.map((row) => row.kind).sort(), [
+      "file",
+      "folder",
+    ]);
+  }));
+
+Deno.test("AC: a name the tree refuses is made safe and kept, never failing the write it rides on", () =>
+  withFixture(async (fixture) => {
+    const seed = await seedOrganization(fixture, "tree-odd-names");
+    const taskId = await seedTask(fixture, seed);
+    const odd = [
+      "   ",
+      "..",
+      "a//b",
+      "tab\tname",
+      "/leading",
+      "trailing/",
+      "x".repeat(300),
+    ];
+    const ids: string[] = [];
+    for (const name of odd) {
+      const made = await artifact(fixture, seed, taskId, name, "plan");
+      const id = await projectArtifactEntry(db(fixture), {
+        organizationId: seed.organizationId,
+        artifactId: made.artifactId,
+      });
+      assert(id, `an entry was made for ${JSON.stringify(name.slice(0, 20))}`);
+      ids.push(id);
+    }
+    assertEquals(new Set(ids).size, odd.length);
+    // Every artifact has exactly one entry.
+    const files = Number(
+      (await fixture.pgDatabase.query<{ n: string }>(
+        `select count(*)::text as n from bakery.storage_entries
+        where organization_id = $1 and kind = 'file'`,
+        [seed.organizationId],
+      )).rows[0].n,
+    );
+    assertEquals(files, odd.length);
+  }));
