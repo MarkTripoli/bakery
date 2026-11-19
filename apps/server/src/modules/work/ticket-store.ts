@@ -326,9 +326,10 @@ export async function readSourceScope(
     installation_id: string;
     external_id: string;
     display_name: string;
+    provider: string;
   }>(
     `select connection.installation_id, resource.external_id,
-            resource.display_name
+            resource.display_name, connection.provider
        from bakery.integration_connections as connection
        join bakery.integration_resources as resource
          on resource.connection_id = connection.id
@@ -344,6 +345,7 @@ export async function readSourceScope(
       organizationId: source.organizationId,
       connectionId: source.connectionId,
       resourceId: source.resourceId,
+      provider: row.provider,
       repositoryFullName: row.display_name,
       externalRepositoryId: row.external_id,
     },

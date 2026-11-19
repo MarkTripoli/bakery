@@ -8,6 +8,8 @@ import {
   webProviderFor,
 } from "../../apps/web/src/integrations/registry.ts";
 import { webProviderDefects } from "@bakery/integration-sdk/web";
+import { catalogs, createTranslator, englishCatalog } from "@bakery/i18n";
+import { supportedLocales } from "@bakery/i18n";
 
 /**
  * The web registry is the one web file that may import a provider `/web` entry
@@ -109,4 +111,76 @@ Deno.test("a slug this build does not deploy is answered as absent, not thrown",
   assertEquals(webProviderFor("linear"), WEB_PROVIDERS[0]);
   assertEquals(webProviderFor("github-app-removed"), null);
   assertEquals(webProviderFor(""), null);
+});
+
+/**
+ * The provider's copy is a message, not a sentence.
+ *
+ * A provider that returned English would put untranslated text on a translated
+ * page, and nothing would fail: the string renders. So every message a module
+ * hands the host is checked against the catalog in every locale this build ships,
+ * and translated with its own arguments to prove the placeholders fill.
+ */
+Deno.test("every message a web module returns is a catalog key in every locale", () => {
+  for (const module of WEB_PROVIDERS) {
+    const messages = [
+      module.describeResource?.({
+        externalId: "1",
+        resourceKindId: "project",
+        name: "Payments",
+      }),
+      module.describeResource?.({
+        externalId: "2",
+        resourceKindId: "team",
+        name: "ENG",
+      }),
+      module.describePermission?.("read", "read"),
+      module.describePermission?.("write", "write"),
+      module.describePermission?.("admin", "admin"),
+    ].filter((message) => message !== undefined);
+
+    assert(
+      messages.length > 0,
+      `${module.manifest.slug} describes something, or the hooks are dead code`,
+    );
+    // Two levels that read the same tell a person nothing about what the wider
+    // one grants, which is the whole reason the hook takes a level.
+    const read = module.describePermission?.("read", "read");
+    const write = module.describePermission?.("write", "write");
+    if (read !== undefined && write !== undefined) {
+      assert(
+        read.key !== write.key,
+        `${module.manifest.slug}: read and write must not share a sentence`,
+      );
+    }
+    // A scope the provider does not use is named, not swallowed: the person is
+    // being asked to grant it.
+    const other = module.describePermission?.("admin", "admin");
+    if (other !== undefined) {
+      assert(
+        createTranslator({ locale: "en" })(other.key, { ...other.arguments })
+          .includes("admin"),
+        `${module.manifest.slug}: an unused scope must be named in its message`,
+      );
+    }
+    for (const message of messages) {
+      assert(
+        message.key in englishCatalog,
+        `${module.manifest.slug}: ${message.key} is not in the English catalog`,
+      );
+      for (const locale of supportedLocales) {
+        assert(
+          catalogs[locale][message.key] !== undefined,
+          `${module.manifest.slug}: ${message.key} is missing from ${locale}`,
+        );
+        const rendered = createTranslator({ locale })(message.key, {
+          ...message.arguments,
+        });
+        assert(
+          !rendered.includes("{"),
+          `${module.manifest.slug}: ${message.key} left a placeholder in ${locale}: ${rendered}`,
+        );
+      }
+    }
+  }
 });

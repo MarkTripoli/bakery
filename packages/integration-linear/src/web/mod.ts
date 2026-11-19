@@ -24,17 +24,29 @@ export const linearWebProvider = defineWebProvider({
   manifest: linearProviderManifest,
   ConnectStep: undefined,
   /**
-   * A Linear issue reads as `ENG-123 · title`, because the identifier is what a
-   * person quotes and searching by title is how they find the wrong one.
+   * What kind of thing a Linear resource is, in the person's language.
+   *
+   * The resource's own name is data and the host renders it as data; this says
+   * which kind of container it is, which is the part a person needs to tell a
+   * project from a team.
    */
-  describeResource: (resource) => resource.name,
+  describeResource: (resource) =>
+    resource.resourceKindId === "team"
+      ? { key: "settings.connections.linear.resource.team" }
+      : { key: "settings.connections.linear.resource.project" },
   /**
    * Linear's permissions are scopes (`read`, `write`), not installation
    * permissions, so the sentence names what the scope lets Bakery do rather than
-   * restating the token.
+   * restating the token. A scope this build does not use is said plainly instead
+   * of being described as if it were one of the two.
    */
   describePermission: (permission, level) =>
     level === "write"
-      ? `${permission}: Bakery can change Linear issues and post comments`
-      : `${permission}: Bakery can read Linear issues and projects`,
+      ? { key: "settings.connections.linear.permission.write" }
+      : level === "read"
+      ? { key: "settings.connections.linear.permission.read" }
+      : {
+        key: "settings.connections.linear.permission.other",
+        arguments: { scope: permission },
+      },
 });

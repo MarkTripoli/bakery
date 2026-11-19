@@ -2,6 +2,7 @@
   "lock": "deno.lock",
   "imports": {
     "@bakery/config": "./packages/config/src/env.ts",
+    "@bakery/i18n": "./packages/i18n/src/index.ts",
     "@bakery/config/sentry": "./packages/config/src/sentry.ts",
     "@bakery/config/sentry-build": "./packages/config/src/sentry-build.ts",
     "@bakery/config/sentry-privacy": "./packages/config/src/sentry-privacy.ts",

@@ -754,6 +754,7 @@ Deno.test("issue 82 contract: the reader port types accept every documented answ
     connectionId: crypto.randomUUID(),
     resourceId: crypto.randomUUID(),
     repositoryFullName: "owner/repo",
+    provider: "github",
     externalRepositoryId: "1",
   };
   const unavailable = {

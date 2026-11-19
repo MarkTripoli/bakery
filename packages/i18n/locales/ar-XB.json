@@ -4351,5 +4351,15 @@
   "settings.orgAccess.accounts.none": "⟪No service accounts yet⟫",
   "settings.orgAccess.clients.none": "⟪No connected clients⟫",
   "settings.audit.operation.scimConnection.rotate": "⟪SCIM token rotated⟫",
-  "machines.error.description": "⟪Check your connection, then try again.⟫"
+  "machines.error.description": "⟪Check your connection, then try again.⟫",
+  "settings.connections.linear.name": "⟪Linear⟫",
+  "settings.connections.linear.fields.client_id": "⟪Client ID⟫",
+  "settings.connections.linear.fields.client_secret": "⟪Client secret⟫",
+  "settings.connections.linear.kinds.issue": "⟪Issue⟫",
+  "settings.connections.linear.kinds.project": "⟪Project⟫",
+  "settings.connections.linear.permission.read": "⟪Bakery can read your Linear issues and projects.⟫",
+  "settings.connections.linear.permission.write": "⟪Bakery can change Linear issues and post comments.⟫",
+  "settings.connections.linear.permission.other": "⟪Linear granted {scope} access, which Bakery does not use.⟫",
+  "settings.connections.linear.resource.project": "⟪A Linear project⟫",
+  "settings.connections.linear.resource.team": "⟪A Linear team⟫"
 }

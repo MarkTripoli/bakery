@@ -6,5 +6,8 @@
     "./manifest": "./src/manifest.ts",
     "./server": "./src/server/mod.ts",
     "./web": "./src/web/mod.ts"
+  },
+  "dependencies": {
+    "@bakery/i18n": "workspace:*"
   }
 }
