@@ -25,7 +25,7 @@ import { resolveOrganizationActor } from "../auth/adapters/authority-postgres.ts
 import { authorityVerdict } from "../integrations/fact-reads.ts";
 import { resolveRepositoryId } from "../integrations/pull-requests.ts";
 import { lockAuthority } from "../integrations/write-authority.ts";
-import { recordReadiness } from "./ticket-admission.ts";
+import { recordReadiness, TICKET_PRESET_ID } from "./ticket-admission.ts";
 import {
   type TicketOperationDependencies,
   ticketReads,
@@ -476,7 +476,7 @@ export async function replaceTicketRoutingRules(
       labelName: rule.labelName,
       repositoryId: rule.repositoryId,
       role: rule.role,
-      presetId: rule.presetId ?? "fixed-coding",
+      presetId: rule.presetId ?? TICKET_PRESET_ID,
     });
   });
   const repositoryIds = [

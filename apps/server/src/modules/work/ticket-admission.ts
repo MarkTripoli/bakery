@@ -196,11 +196,33 @@ export type AdmissionResult = {
   ticketId: string | null;
 };
 
+/**
+ * Whether the pinned preset can run in one repository now. The source's
+ * repository and every routed target are judged by this one call path, with
+ * the preset's default budget limit and the server budget policy.
+ */
+function repositoryAvailability(frame: Frame, repositoryId: string) {
+  return presetAvailability(
+    frame.transaction,
+    frame.source.organizationId,
+    repositoryId,
+    FIXED_CODING_PRESET,
+    FIXED_CODING_PRESET.defaultBudgetLimitUsd,
+    frame.deps.budget,
+  );
+}
+
 const PRESET_PIN: TicketPresetPin = Object.freeze({
   id: FIXED_CODING_PRESET.id as TicketPresetPin["id"],
   revision: FIXED_CODING_PRESET.revision,
   digest: FIXED_CODING_PRESET.digest,
 });
+
+/**
+ * Id of the one preset ticket admission runs, from the pin above, for the
+ * modules that name it (routing rule defaults) without naming it again.
+ */
+export const TICKET_PRESET_ID: string = PRESET_PIN.id;
 
 function stateConflict(reason: string): StandardError {
   return new StandardError({ code: "STATE_CONFLICT", params: { reason } });
@@ -314,7 +336,7 @@ async function sourceAuthority(
  * the application as well.
  */
 async function sourceFacts(frame: Frame): Promise<ReadinessSourceFacts> {
-  const { source, transaction } = frame;
+  const { source } = frame;
   const base = {
     enabled: source.enabled,
     connectionEnabled: frame.authority.connectionEnabled,
@@ -330,13 +352,9 @@ async function sourceFacts(frame: Frame): Promise<ReadinessSourceFacts> {
       presetReady: false,
     };
   }
-  const availability = await presetAvailability(
-    transaction,
-    source.organizationId,
+  const availability = await repositoryAvailability(
+    frame,
     source.repositoryId,
-    FIXED_CODING_PRESET,
-    FIXED_CODING_PRESET.defaultBudgetLimitUsd,
-    frame.deps.budget,
   );
   return {
     ...base,
@@ -388,13 +406,9 @@ async function resolveFrameRoute(
   const unready = { profile: [] as string[], preset: [] as string[] };
   for (const target of route.targets) {
     if (target.ruleId === null) continue;
-    const availability = await presetAvailability(
-      transaction,
-      source.organizationId,
+    const availability = await repositoryAvailability(
+      frame,
       target.repositoryId,
-      FIXED_CODING_PRESET,
-      FIXED_CODING_PRESET.defaultBudgetLimitUsd,
-      frame.deps.budget,
     );
     if (availability.reasons.includes("no_active_profile")) {
       unready.profile.push(`role:${target.role}`);

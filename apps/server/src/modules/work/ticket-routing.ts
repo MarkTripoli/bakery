@@ -52,7 +52,11 @@ export type TicketRouteTarget = {
   /** The rule that routed here, or null for the fallback to the source's repository. */
   ruleId: string | null;
   ruleVersion: number | null;
-  presetId: string;
+  /**
+   * The rule's preset, or null for the fallback, which runs the request's own
+   * pinned preset as before routing.
+   */
+  presetId: string | null;
   /** Role binding alias the coordination lane names; null for the fallback. */
   alias: string | null;
 };
@@ -76,8 +80,6 @@ export type TicketRouteResolution =
     /** Stable references to what blocked it, such as `label:backend`. */
     refs: string[];
   };
-
-const FIXED_PRESET_ID = "fixed-coding";
 
 function byText(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
@@ -119,7 +121,7 @@ export function resolveTicketRoutes(
         role: TICKET_ROUTE_FALLBACK_ROLE,
         ruleId: null,
         ruleVersion: null,
-        presetId: FIXED_PRESET_ID,
+        presetId: null,
         alias: null,
       }],
       fallback: rules.length > 0,

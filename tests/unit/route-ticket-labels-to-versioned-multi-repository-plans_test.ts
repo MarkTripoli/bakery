@@ -79,7 +79,7 @@ Deno.test("#31 unit: no rule, or no matching rule, falls back to the source repo
     role: "default",
     ruleId: null,
     ruleVersion: null,
-    presetId: "fixed-coding",
+    presetId: null,
     alias: null,
   };
   assertEquals(resolveTicketRoutes(["x"], [], SOURCE_REPO), {
