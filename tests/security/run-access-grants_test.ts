@@ -156,6 +156,7 @@ Deno.test("a grant-holder cannot do anything with the run they can see", async (
     await refused("PATCH", `/v1/tasks/${task}`, { title: "Renamed" });
     await refused("POST", `/v1/tasks/${task}/runs`, {
       executionMode: "cloud_only",
+      workflowId: crypto.randomUUID(),
     });
     // Asking others in, which needs to be able to share the run.
     await refused("POST", `/v1/runs/${run}/requests`, {
