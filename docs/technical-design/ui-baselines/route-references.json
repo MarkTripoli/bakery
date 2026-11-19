@@ -243,6 +243,13 @@
       "frames": []
     },
     {
+      "routeId": "forgot-password",
+      "path": "/sign-in/forgot-password",
+      "status": "no-mock",
+      "rationale": "Designed by design-ux on #241 (the UX design comment of 2026-11-19); Paper has no frame for it.",
+      "frames": []
+    },
+    {
       "routeId": "sign-in",
       "path": "/sign-in",
       "status": "baselined",
