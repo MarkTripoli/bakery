@@ -24,6 +24,7 @@
     "@bakery/contracts/integrations": "./packages/contracts/src/integrations.ts",
     "@bakery/contracts/description-quality": "./packages/contracts/src/description-quality.ts",
     "@bakery/contracts/workflow-compiler": "./packages/contracts/src/workflow-compiler/mod.ts",
+    "@bakery/contracts/workflow-starts": "./packages/contracts/src/workflow-starts.ts",
     "@bakery/contracts/workflow-compiler/default-catalog": "./packages/contracts/src/workflow-compiler/default-catalog.ts",
     "@bakery/contracts/worker-skill-read": "./packages/contracts/src/worker-skill-read.ts",
     "@bakery/contracts/memory-promotion": "./packages/contracts/src/memory-promotion.ts",
