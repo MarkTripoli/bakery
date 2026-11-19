@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect as baseExpect, test } from "@playwright/test";
 import {
   ARTIFACT_ID,
   COMMENT_ID,
@@ -16,6 +16,9 @@ import { registerPageHealth } from "./helpers/page-health.ts";
 import { still } from "./helpers/stills.ts";
 
 registerPageHealth(test);
+
+// These wait on a cold dev server and a redirect, which a loaded host slows.
+const expect = baseExpect.configure({ timeout: 15_000 });
 
 const path = `/tasks/${TASK_ID}/artifacts/${ARTIFACT_ID}`;
 

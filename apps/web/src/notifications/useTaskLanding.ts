@@ -11,7 +11,12 @@ const LOOK_MS = 4_000;
  */
 const STABLE_MS = 400;
 
-/** The element a landing names; the run section's heading when it names none. */
+/**
+ * The element a landing names; the run section's heading when it names none.
+ * Null when there is nothing to look for: a chat message has no address on the
+ * page yet (no notification is produced for one), so it lands on the page
+ * without looking and without claiming the part is gone.
+ */
 function selectorFor(landing: LandingSearch): string | null {
   const target = parseLanding(landing.at);
   if (target === null) {
@@ -24,8 +29,6 @@ function selectorFor(landing: LandingSearch): string | null {
       return `[data-question-id="${target.id}"]`;
     case "approval":
       return `[data-approval-id="${target.id}"]`;
-    case "message":
-      return `[data-message-id="${target.id}"]`;
     default:
       return null;
   }
@@ -54,7 +57,11 @@ export function useTaskLanding(
   useEffect(() => {
     if (!enabled || done.current || gone || !arrived) return;
     const selector = selectorFor({ at });
-    if (selector === null) return;
+    if (selector === null) {
+      done.current = true;
+      setState({ settled: true, missing: false });
+      return;
+    }
     const started = performance.now();
     let frame = 0;
     let candidate: HTMLElement | null = null;

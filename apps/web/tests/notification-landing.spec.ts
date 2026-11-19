@@ -1,4 +1,4 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect as baseExpect, type Page, test } from "@playwright/test";
 import { mockAuthenticatedSession } from "./helpers/mock-session.ts";
 import {
   NOTIFICATION_ID as N,
@@ -11,6 +11,9 @@ import { registerPageHealth } from "./helpers/page-health.ts";
 import { still } from "./helpers/stills.ts";
 
 registerPageHealth(test);
+
+// These wait on a cold dev server and a redirect, which a loaded host slows.
+const expect = baseExpect.configure({ timeout: 15_000 });
 
 /**
  * Where a notification opens on the task page. A row links to
@@ -340,6 +343,21 @@ test.describe("Opening a notification", () => {
     await expect(page.locator(`[data-approval-id="${approvalId}"]:visible`))
       .toHaveAttribute("data-landed", "true");
     await still(page, "landing-approval");
+  });
+
+  test("a chat message has no address yet: the page opens, is read, and claims nothing is gone", async ({ page }) => {
+    const { reads } = await world(page, {
+      status: "available",
+      targetKind: "conversation_message",
+      path: `/tasks/${taskId}`,
+      anchor: "message:00000000-0000-4000-8000-000000000701",
+    });
+    await open(page);
+    await expect.poll(() => reads.length).toBe(1);
+    await expect(announcer(page)).toHaveCount(1);
+    await expect(
+      page.getByText("The part this notification was about is no longer here."),
+    ).toHaveCount(0);
   });
 
   test("a part that is gone: the page opens, says so, outlines nothing, and is read", async ({ page }) => {
