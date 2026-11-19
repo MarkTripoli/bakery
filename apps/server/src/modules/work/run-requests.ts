@@ -382,13 +382,48 @@ export async function createRunRequest(context: ActionContext, input: unknown) {
     [organizationId, run.id, recipientId, value.intent, value.stepKey ?? ""],
   );
   if (open.rows[0]) {
-    // Asking again reminds: the same open request, touched.
-    await transaction.query(
+    // Asking again reminds: the same open request, touched. A reminder is an
+    // act like any other, so it is recorded: the decisions ledger, the audit
+    // trail and the invalidation event all say it happened.
+    const reminded = await transaction.query<{ version: number }>(
       `update bakery.person_requests
           set updated_at = now(), version = version + 1
-        where organization_id = $1 and id = $2`,
+        where organization_id = $1 and id = $2
+        returning version`,
       [organizationId, open.rows[0].id],
     );
+    const remindedVersion = reminded.rows[0]?.version;
+    if (remindedVersion === undefined) throw new Error("REQUEST_REMIND_FAILED");
+    const remindedBy = attributeAction(context, principalId).actorKind;
+    await ledger(transaction, {
+      organizationId,
+      taskId: run.task_id,
+      runId: run.id,
+      kind: "request_reminded",
+      decidedBy: principalId,
+      text: value.intent,
+      detail: {
+        requestId: open.rows[0].id,
+        recipientId,
+        intent: value.intent,
+        actorKind: remindedBy,
+      },
+    });
+    await appendFacts(transaction, context, {
+      organizationId,
+      principalId,
+      operation: "runRequests.create",
+      eventType: "runRequest.created",
+      requestId: open.rows[0].id,
+      version: remindedVersion,
+      taskId: run.task_id,
+      runId: run.id,
+      details: {
+        runId: run.id,
+        intent: value.intent,
+        reminded: true,
+      },
+    });
     return toRunRequest(
       await readRequest(transaction, organizationId, open.rows[0].id),
     );

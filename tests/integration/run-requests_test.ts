@@ -174,6 +174,31 @@ Deno.test("asking again reminds instead of stacking, and a developer gets no ext
     );
     assertEquals(again.id, first.id);
     assertEquals(again.version, first.version + 1);
+    // A reminder is recorded like the request itself: ledger, audit and event.
+    const ledger = await o.fixture.pgDatabase.query<{ kind: string }>(
+      `select kind from bakery.decisions_ledger
+        where organization_id = $1 and run_id = $2
+          and kind in ('request', 'request_reminded') order by created_at, id`,
+      [o.fixture.organizationId, o.run.runId],
+    );
+    assertEquals(ledger.rows.map((row) => row.kind), [
+      "request",
+      "request_reminded",
+    ]);
+    const audit = await o.fixture.pgDatabase.query<{ reminded: string | null }>(
+      `select details ->> 'reminded' as reminded from bakery.audit_events
+        where organization_id = $1 and operation = 'runRequests.create'
+          and resource_id = $2 order by created_at, id`,
+      [o.fixture.organizationId, first.id],
+    );
+    assertEquals(audit.rows.map((row) => row.reminded), [null, "true"]);
+    const events = await o.fixture.pgDatabase.query<{ version: number }>(
+      `select aggregate_version as version from bakery.domain_events
+        where organization_id = $1 and event_type = 'runRequest.created'
+          and aggregate_id = $2 order by aggregate_version`,
+      [o.fixture.organizationId, first.id],
+    );
+    assertEquals(events.rows.map((row) => row.version), [1, again.version]);
     const rows = await o.fixture.pgDatabase.query(
       `select 1 from bakery.person_requests where organization_id = $1`,
       [o.fixture.organizationId],
