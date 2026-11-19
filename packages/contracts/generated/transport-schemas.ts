@@ -11680,6 +11680,51 @@ const transportSchemas = {
       ],
       "description": "Unauthenticated redemption of a password reset link: sets the new password, consumes the link and signs the person out of every browser session. An unknown, used, expired or revoked link gets one identical refusal."
     },
+    "RunRequestCreate": {
+      "fields": [
+        {
+          "name": "recipientId",
+          "type": "uuid",
+          "required": true,
+          "description": "The person to ask: an active human member of this organization other than the asker. Resolved once, when the request is made, and frozen on it."
+        },
+        {
+          "name": "intent",
+          "type": "enum(fyi|review|approve|answer|take_over)",
+          "required": true,
+          "description": "What is needed: fyi (just let them know), review, approve, answer or take_over. Only fyi is accepted until the powers for the others are built; the rest answer 422."
+        },
+        {
+          "name": "stepKey",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "description": "The step the request concerns, or omitted for the run as a whole."
+        },
+        {
+          "name": "note",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 280
+          },
+          "description": "Optional one line shown to the person asked."
+        },
+        {
+          "name": "neededBy",
+          "type": "timestamp",
+          "required": false,
+          "description": "Optional deadline shown to the person asked. The request itself still expires after seven days."
+        }
+      ],
+      "rules": [
+        "Developer or Admin who can see the run. Bounded by the asker: nobody hands over a right they do not hold. Asking the same person for the same thing again while a request is open reminds them and returns the open request."
+      ],
+      "description": "Asks one person, on one run, for one thing. Gives the person the right to see this run and nothing else until the intent's power is added."
+    },
     "FileSearchQuery": {
       "fields": [
         {
@@ -29767,6 +29812,100 @@ const transportSchemas = {
         "expiresAt": "UTC timestamp one hour after issue, after which the link no longer works."
       }
     },
+    "RunRequestPerson": {
+      "fields": [
+        "principalId",
+        "displayName"
+      ],
+      "fieldTypes": {
+        "principalId": "uuid",
+        "displayName": "string"
+      },
+      "nullableFields": [],
+      "description": "A person named on a request: stable identity and saved display name.",
+      "fieldDescriptions": {
+        "principalId": "Stable principal UUID.",
+        "displayName": "The person's saved display name."
+      }
+    },
+    "RunRequest": {
+      "projection": "person_requests",
+      "fields": [
+        "id",
+        "runId",
+        "stepKey",
+        "intent",
+        "recipient",
+        "askedBy",
+        "askedByKind",
+        "note",
+        "neededBy",
+        "status",
+        "expiresAt",
+        "ownerFallback",
+        "fallbackForName",
+        "createdAt",
+        "updatedAt",
+        "version"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "runId": "uuid",
+        "stepKey": "string|null",
+        "intent": "enum(fyi|review|approve|answer|take_over)",
+        "recipient": "RunRequestPerson",
+        "askedBy": "RunRequestPerson|null",
+        "askedByKind": "enum(person|agent|workflow)",
+        "note": "string|null",
+        "neededBy": "timestamp|null",
+        "status": "enum(open|answered|handled|expired|withdrawn)",
+        "expiresAt": "timestamp",
+        "ownerFallback": "boolean",
+        "fallbackForName": "string|null",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp",
+        "version": "integer"
+      },
+      "nullableFields": [
+        "stepKey",
+        "askedBy",
+        "note",
+        "neededBy",
+        "fallbackForName"
+      ],
+      "description": "A request: one person asked for one thing on one run, with how it stands.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of the request.",
+        "runId": "The run the request is on.",
+        "stepKey": "The step it concerns, or null for the run as a whole.",
+        "intent": "What was asked for.",
+        "recipient": "The person asked, frozen when the request was made.",
+        "askedBy": "The person who asked, or null when the asker no longer exists.",
+        "askedByKind": "Whether a person, an agent or a workflow's own step asked.",
+        "note": "The optional one-line note, or null.",
+        "neededBy": "The optional deadline, or null.",
+        "status": "open until answered, handled by someone else, expired seven days after it was made, or withdrawn.",
+        "expiresAt": "UTC time the request expires; silence never approves.",
+        "ownerFallback": "True when the person asked for could not be resolved and the run's starter was asked instead.",
+        "fallbackForName": "Who was meant when ownerFallback is true, otherwise null.",
+        "createdAt": "UTC time the request was made.",
+        "updatedAt": "UTC time it last changed.",
+        "version": "Optimistic-concurrency version used as If-Match."
+      }
+    },
+    "RunRequests": {
+      "fields": [
+        "requests"
+      ],
+      "fieldTypes": {
+        "requests": "RunRequest[]"
+      },
+      "nullableFields": [],
+      "description": "The requests made on one run, or the requests addressed to the caller on one run, newest first.",
+      "fieldDescriptions": {
+        "requests": "Requests in newest-first order; bounded to the most recent fifty."
+      }
+    },
     "FileSearchHit": {
       "fields": [
         "source",
@@ -31230,6 +31369,24 @@ const transportSchemas = {
       "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
     },
     "agentPowerGrant.deleted": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "runRequest.created": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "runRequest.withdrawn": {
       "schemaVersion": 1,
       "payloadFields": {
         "resourceId": "uuid",

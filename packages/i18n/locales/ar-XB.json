@@ -4487,5 +4487,6 @@
   "issues.work.banner.dependencyUnreadable": "⟪Paused: Bakery cannot read an issue this one depends on.⟫",
   "issues.settings.draft.detail": "⟪Applies to issues started from now on. Work already started keeps the settings and routing it started with.⟫",
   "issues.settings.workflow.standard": "⟪Every repository runs the standard coding workflow.⟫",
-  "issues.settings.routing.removeShort": "⟪Remove rule⟫"
+  "issues.settings.routing.removeShort": "⟪Remove rule⟫",
+  "settings.roles.thing.runRequest": "⟪requests⟫"
 }

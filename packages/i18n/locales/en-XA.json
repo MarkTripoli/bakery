@@ -4487,5 +4487,6 @@
   "issues.work.banner.dependencyUnreadable": "⟦Þàûšëð: Ɓàķëŕÿ çàññôŧ ŕëàð àñ ïššûë ŧĥïš ôñë ðëþëñðš ôñ. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "issues.settings.draft.detail": "⟦Àþþļïëš ŧô ïššûëš šŧàŕŧëð ƒŕôɱ ñôŵ ôñ. Ŵôŕķ àļŕëàðÿ šŧàŕŧëð ķëëþš ŧĥë šëŧŧïñĝš àñð ŕôûŧïñĝ ïŧ šŧàŕŧëð ŵïŧĥ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "issues.settings.workflow.standard": "⟦Ëṽëŕÿ ŕëþôšïŧôŕÿ ŕûñš ŧĥë šŧàñðàŕð çôðïñĝ ŵôŕķƒļôŵ. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
-  "issues.settings.routing.removeShort": "⟦Ŕëɱôṽë ŕûļë ŧ⟧"
+  "issues.settings.routing.removeShort": "⟦Ŕëɱôṽë ŕûļë ŧ⟧",
+  "settings.roles.thing.runRequest": "⟦ŕëǫûëšŧš…⟧"
 }

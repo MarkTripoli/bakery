@@ -1,13 +1,22 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "bafc1fb3056996606b9392156f474cbbed264c06"
+    "de64639a4d4cfbf49bc3402f7d21deffd06ef74a"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:1d3651ae1239f8f54a3dc7cf7ff3d15dd4427d74ae6c38055011e3448025297b",
-  "reason": "#69 web memberships display name re-bind by dev-web on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main bafc1fb3056996606b9392156f474cbbed264c06: OrganizationMembership gains a required displayName, the principal's display name, served by the memberships list, create and update reads so that any organization member can name the people in their organization (the principals read shows a non-administrator only themselves). The breaking drift is that one field becoming required on the output; the approval it displaced at sha256:bf42491992fc91771fa09e088016f5aa278fd410321433844f342fe80f58b9e1 is preserved unchanged first below.",
+  "targetCompatibilityDigest": "sha256:7c605d89839ef7b4dedd92feda2afa1c33433e9f03109e821aa4d336b492e8dc",
+  "reason": "#69 web memberships display name re-bind by dev-web on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main de64639a4d4cfbf49bc3402f7d21deffd06ef74a: OrganizationMembership gains a required displayName, the principal's display name, served by the memberships list, create and update reads so that any organization member can name the people in their organization (the principals read shows a non-administrator only themselves). The breaking drift is that one field becoming required on the output; the approval it displaced at sha256:1d3651ae1239f8f54a3dc7cf7ff3d15dd4427d74ae6c38055011e3448025297b is preserved unchanged first below.",
   "priorApprovals": [
+    {
+      "fromBaseRefs": [
+        "bafc1fb3056996606b9392156f474cbbed264c06"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:1d3651ae1239f8f54a3dc7cf7ff3d15dd4427d74ae6c38055011e3448025297b",
+      "reason": "#69 web memberships display name re-bind by dev-web on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main bafc1fb3056996606b9392156f474cbbed264c06: OrganizationMembership gains a required displayName, the principal's display name, served by the memberships list, create and update reads so that any organization member can name the people in their organization (the principals read shows a non-administrator only themselves). The breaking drift is that one field becoming required on the output; the approval it displaced at sha256:bf42491992fc91771fa09e088016f5aa278fd410321433844f342fe80f58b9e1 is preserved unchanged first below."
+    },
     {
       "fromBaseRefs": [
         "968c2ab9257fad06adb6132eb743a4f62c578e17",
