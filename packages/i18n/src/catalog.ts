@@ -10,8 +10,10 @@ import type { SupportedLocale } from "./locale.ts";
  * namespace after GHI-35's problems/auth keys and issue 39's worker problem.
  * Version 11 adds the installation object storage rows (`settings.storage.*`).
  * Version 12 adds the artifact preview handoff rows (`artifact.handoff.*`).
+ * Version 13 adds the session thread rows (`session.thread.*`) and the four
+ * kept connection rows under `session.feed.*`.
  */
-export const catalogVersion = "12";
+export const catalogVersion = "13";
 export const englishCatalog: Readonly<Record<MessageKey, string>> = english;
 export const catalogs: Readonly<
   Record<SupportedLocale, Readonly<Partial<Record<MessageKey, string>>>>

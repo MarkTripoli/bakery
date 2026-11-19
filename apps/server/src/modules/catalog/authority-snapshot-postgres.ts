@@ -167,6 +167,29 @@ export async function loadSnapshot(
     installationExternalId === null || botUserId === null
   ) return null;
 
+  // The Bakery repository records this GitHub repository is tracked as. An
+  // `into_bakery` grant names one of these uuids, so a snapshot that never
+  // names one can never match an inbound repository grant. The tracking rule is
+  // the intake's: same organization and connection, not archived, and either
+  // the numeric provider id or the full name. Two matches are ambiguous, and
+  // an ambiguous repository is untracked, so the snapshot names neither.
+  const tracked = await transaction.query<{ id: string }>(
+    `select id from bakery.repositories
+      where organization_id = $1 and integration_connection_id = $2
+        and archived_at is null
+        and (provider_repo_id = $3 or provider_repo_id = $4)
+      limit 2`,
+    [
+      key.organizationId,
+      key.connectionId,
+      String(repositoryId),
+      row.resource_display_name,
+    ],
+  );
+  const bakeryRepositoryId = tracked.rows.length === 1
+    ? tracked.rows[0]!.id
+    : undefined;
+
   const grants = await transaction.query<GrantRow>(
     `select id, subject_type, subject_principal_id, subject_role,
             automation_definition_id, direction, capability, action_version,
@@ -247,6 +270,15 @@ export async function loadSnapshot(
       kind,
       selected: row.resource_selected,
       available: row.resource_available,
+      // The provider's numeric id is part of the resource, not only of its
+      // binding: a token minted without it has nothing to be narrowed to, and
+      // the broker would be handed an empty set and refuse at the last moment.
+      // Named for the provider, because a grant's `repositoryId` names a Bakery
+      // repository record and the two must never be confused.
+      providerRepositoryId: String(repositoryId),
+      // The Bakery repository record a grant targets, when exactly one Bakery
+      // repository tracks this provider repository.
+      ...(bakeryRepositoryId ? { repositoryId: bakeryRepositoryId } : {}),
       binding: {
         owner,
         repo,

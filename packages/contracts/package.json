@@ -24,6 +24,7 @@
     "./integrations": "./src/integrations.ts",
     "./mcp-capabilities": "./src/mcp-capabilities.ts",
     "./output": "./src/output.ts",
+    "./plugin-sdk": "./src/plugin-sdk.ts",
     "./repository-inspection": "./src/repository-inspection.ts",
     "./repository-profile-config": "./src/repository-profile-config.ts",
     "./repository-rule-preview": "./src/repository-rule-preview.ts",
