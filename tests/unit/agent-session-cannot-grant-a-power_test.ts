@@ -9,6 +9,7 @@ import {
   AgentPower,
   assertAgentMayExercise,
 } from "../../apps/server/src/modules/auth/application/agent-power-grants.ts";
+import { askQuestion } from "../../apps/server/src/modules/conversation/questions.ts";
 import { attributeAction } from "../../apps/server/src/modules/auth/application/action-attribution.ts";
 
 // O51: delegating authority is never an agent's act. An agent session acts with
@@ -108,4 +109,13 @@ Deno.test("a session whose attempt belongs to no run holds no power", async () =
   );
   assertEquals(refused.code, "AUTH_FORBIDDEN");
   assertEquals(refused.params?.reason, "agent_power_requires_grant");
+});
+
+Deno.test("a person cannot use questions.ask: it is an agent step's operation", async () => {
+  const refused = await assertRejects(
+    () => askQuestion(context(), { prompt: "Which one?", roleKey: "admin" }),
+    StandardError,
+  );
+  assertEquals(refused.code, "AUTH_FORBIDDEN");
+  assertEquals(refused.params?.reason, "question_ask_requires_agent_session");
 });

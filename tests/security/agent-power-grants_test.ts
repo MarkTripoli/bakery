@@ -73,6 +73,43 @@ Deno.test("only a person grants a bounded power, and a revoke names the version"
       201,
     );
 
+    // The ask power names a role: required for ask, refused for every other
+    // power, and the role must exist. The role is part of the grant's identity.
+    assertEquals(
+      (await create(person, { power: "ask", workflowId })).status,
+      422,
+    );
+    assertEquals(
+      (await create(person, {
+        power: "decide",
+        workflowId,
+        roleKey: "admin",
+      })).status,
+      422,
+    );
+    assertEquals(
+      (await create(person, {
+        power: "ask",
+        workflowId,
+        roleKey: "no-such-role",
+      })).status,
+      404,
+    );
+    const askAdmin = await json<Grant & { roleKey: string | null }>(
+      await create(person, { power: "ask", workflowId, roleKey: "admin" }),
+      201,
+    );
+    assertEquals(askAdmin.roleKey, "admin");
+    assertEquals(
+      (await create(person, { power: "ask", workflowId, roleKey: "admin" }))
+        .status,
+      409,
+    );
+    await json<Grant>(
+      await create(person, { power: "ask", workflowId, roleKey: "developer" }),
+      201,
+    );
+
     // An agent cannot revoke either, and a revoke needs the version.
     const path = `/v1/agent-power-grants/${granted.id}`;
     assertEquals(

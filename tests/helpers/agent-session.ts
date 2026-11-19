@@ -20,19 +20,20 @@ export type AgentFixture = Parameters<
 >[0];
 
 /** The powers a person can grant an agent (#414, O52). */
-export type Power = "decide" | "run_control" | "run_start";
+export type Power = "decide" | "run_control" | "run_start" | "ask";
 
 /** Grants one power to a workflow, as a person, straight into the table. */
 export async function grantPower(
   fixture: AgentFixture,
   workflowId: string,
   power: Power,
+  roleKey: string | null = null,
 ): Promise<string> {
   const row = await fixture.pgDatabase.query<{ id: string }>(
     `insert into bakery.agent_power_grants
-       (organization_id, power, workflow_id, granted_by)
-     values ($1, $2, $3, $4) returning id`,
-    [fixture.organizationId, power, workflowId, fixture.principalId],
+       (organization_id, power, workflow_id, role_key, granted_by)
+     values ($1, $2, $3, $4, $5) returning id`,
+    [fixture.organizationId, power, workflowId, roleKey, fixture.principalId],
   );
   return row.rows[0].id;
 }
@@ -53,7 +54,7 @@ export const seedOtherRun = (fixture: AgentFixture) =>
  */
 export async function agentSession(
   fixture: AgentFixture,
-  options: { granted: Power | null },
+  options: { granted: Power | null; roleKey?: string },
 ) {
   const worker = await registeredWorker(fixture, { slots: 1 });
   const own = await seedEligibleNonmodelJob(
@@ -61,9 +62,12 @@ export async function agentSession(
     fixture.organizationId,
     fixture.principalId,
   );
-  const grantId = options.granted === null
-    ? null
-    : await grantPower(fixture, own.workflowId, options.granted);
+  const grantId = options.granted === null ? null : await grantPower(
+    fixture,
+    own.workflowId,
+    options.granted,
+    options.roleKey ?? null,
+  );
   const assignment = await claimAssignment(fixture, worker) as unknown as {
     attemptId: string;
     sessionCredential: string;
