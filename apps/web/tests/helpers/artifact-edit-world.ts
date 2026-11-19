@@ -400,7 +400,17 @@ export async function openEditor(
   await page.goto(PATH);
   await page.getByTestId("artifact-edit-toggle").click();
   const editor = page.getByRole("textbox", { name: "Document text" });
-  await expect(editor).toContainText(text.split("\n")[0]);
+  // Other people's caret labels sit inside the line (aria-hidden); the text
+  // that counts is the document's, so read it without them.
+  await expect.poll(() =>
+    editor.evaluate((node) => {
+      const copy = node.cloneNode(true) as HTMLElement;
+      copy.querySelectorAll("[aria-hidden=true]").forEach((widget) =>
+        widget.remove()
+      );
+      return copy.textContent ?? "";
+    })
+  ).toContain(text.split("\n")[0]);
   return {
     editor,
     updates,
