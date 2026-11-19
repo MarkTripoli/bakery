@@ -5,7 +5,7 @@ import { rememberReturnTo, safeSessionStorage } from "./auth-return.ts";
 
 /**
  * Search flag the account overview reads to confirm a fresh sign-in landed
- * (`AccountSettingsPage`'s `saved` state, "Your identity was confirmed.").
+ * (`SecurityHubScreen`'s `confirmed` notice, "Your identity was confirmed.").
  */
 const CONFIRMED_SEARCH = "?confirmed=1";
 
