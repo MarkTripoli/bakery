@@ -81,7 +81,49 @@ export type AdmittedRepositoryProfile = RepositoryExecutionPins & {
 };
 
 // Identical canonical JSON convention to profile/observation publication.
-function canonical(value: unknown, omitRootKey?: string): string {
+/**
+ * Root keys a job's stored input carries that the run snapshot does not derive:
+ * the repository profile frozen at admission, and the notes left for the step
+ * before it started (#412), which the server adds once at admission.
+ */
+const ADMISSION_ADDED_ROOT_KEYS: readonly string[] = [
+  "repositoryProfile",
+  "stepNotes",
+];
+
+/**
+ * True when a job's `stepNotes` are exactly the notes recorded as delivered to
+ * that job, in delivery order, or both are empty.
+ *
+ * `stepNotes` is left out of the snapshot comparison because the snapshot
+ * cannot derive it, and the harnesses put it into the agent's prompt. So it is
+ * verified here against the append-only delivery records the server wrote when
+ * it created the job: a list nobody delivered, or an edited one, is refused.
+ */
+async function stepNotesMatchDeliveries(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  jobId: string,
+  input: Record<string, unknown>,
+): Promise<boolean> {
+  const delivered = await transaction.query<{ body: string }>(
+    `select note.body
+       from bakery.run_step_note_deliveries delivery
+       join bakery.run_step_notes note
+         on note.organization_id = delivery.organization_id
+        and note.id = delivery.note_id
+      where delivery.organization_id = $1 and delivery.job_id = $2
+      order by note.created_at, note.id`,
+    [organizationId, jobId],
+  );
+  return canonical(input.stepNotes ?? []) ===
+    canonical(delivered.rows.map((row) => row.body));
+}
+
+function canonical(
+  value: unknown,
+  omitRootKeys: readonly string[] = [],
+): string {
   const normalize = (entry: unknown): unknown => {
     if (
       entry === null || typeof entry === "string" || typeof entry === "boolean"
@@ -91,7 +133,7 @@ function canonical(value: unknown, omitRootKey?: string): string {
     if (entry !== null && typeof entry === "object") {
       const sorted: Record<string, unknown> = {};
       for (const key of Object.keys(entry).sort()) {
-        if (entry === value && key === omitRootKey) continue;
+        if (entry === value && omitRootKeys.includes(key)) continue;
         const child = (entry as Record<string, unknown>)[key];
         if (child !== undefined) sorted[key] = normalize(child);
       }
@@ -904,7 +946,7 @@ export function executionJobInputMatchesSnapshot(
       authorized.input !== null && typeof authorized.input === "object" &&
       !Array.isArray(authorized.input) &&
       !Object.hasOwn(authorized.input, "repositoryProfile") &&
-      canonical(input, "repositoryProfile") === canonical(authorized.input);
+      canonical(input, ["repositoryProfile"]) === canonical(authorized.input);
   } catch {
     return false;
   }
@@ -1542,7 +1584,14 @@ export async function admitRepositoryExecutionJob(
       authorized.input === null || typeof authorized.input !== "object" ||
       Array.isArray(authorized.input) ||
       Object.hasOwn(authorized.input, "repositoryProfile") ||
-      canonical(input, "repositoryProfile") !== canonical(authorized.input)
+      canonical(input, ADMISSION_ADDED_ROOT_KEYS) !==
+        canonical(authorized.input) ||
+      !await stepNotesMatchDeliveries(
+        transaction,
+        organizationId,
+        jobId,
+        input as Record<string, unknown>,
+      )
     ) unavailable();
     frozenAgent = authorized.agent;
     requiredCapabilities = authorized.requiredCapabilities;

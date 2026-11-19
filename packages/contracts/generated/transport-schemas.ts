@@ -11024,6 +11024,27 @@ const transportSchemas = {
         "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind the cursor to this operation, current principal and organization scope, query text, kind filter and ordering; validate and reauthorize before the keyset query."
       ],
       "description": "Text query over the organization library: skills, agents and artifacts found by name or description, newest first."
+    },
+    "RunStepNoteCreate": {
+      "fields": [
+        {
+          "name": "body",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 4000
+          },
+          "description": "The note text the step's agent receives with its input when the step starts. It is recorded in the work item's decisions ledger and cannot add tools, grants, skills or a role."
+        },
+        {
+          "name": "clientNoteId",
+          "type": "uuid",
+          "required": false,
+          "description": "Caller-generated identifier that makes a retry of the same note return the original note instead of writing a second one. Defaults to the request Idempotency-Key."
+        }
+      ],
+      "description": "Leaves a note for a workflow step that has not started yet, addressed by the run id and step key in the path. The agent that runs the step receives the note once, with its input; a step that has already started refuses the note with a state conflict, and a steer on its live session is the way to reach it."
     }
   },
   "projections": {
@@ -28256,6 +28277,33 @@ const transportSchemas = {
     "Page<LibrarySearchHit>": {
       "pageOf": "LibrarySearchHit",
       "description": "Cursor page of library search hits, newest first, returned by GET /v1/library/search. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, totalPages or offsets."
+    },
+    "RunStepNote": {
+      "fields": [
+        "id",
+        "runId",
+        "stepKey",
+        "authorId",
+        "body",
+        "createdAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "runId": "uuid",
+        "stepKey": "string",
+        "authorId": "uuid",
+        "body": "string",
+        "createdAt": "timestamp"
+      },
+      "description": "One note left for a workflow step that had not started, with who left it and when; the step's agent receives it once with its input.",
+      "fieldDescriptions": {
+        "id": "Stable UUID identifying the note.",
+        "runId": "Stable UUID of the run whose step the note is for.",
+        "stepKey": "Key of the run step the note is addressed to.",
+        "authorId": "Stable UUID of the principal who left the note.",
+        "body": "The note text, at most 4000 characters.",
+        "createdAt": "When the note was recorded."
+      }
     }
   },
   "pageEnvelope": {

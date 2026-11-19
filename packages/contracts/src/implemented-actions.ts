@@ -114,6 +114,7 @@ export const ExecutionImplementedAction = Object.freeze(
     SessionsList: "sessions.list",
     SessionsFeed: "sessions.feed",
     SessionsSteer: "sessions.steer",
+    RunStepsNote: "runSteps.note",
     TranscriptStatus: "outputStreams.transcript",
   } as const satisfies Record<string, CatalogActionName>,
 );
