@@ -210,14 +210,16 @@ Deno.test("an archive already gone from the store still gets its tombstone", asy
     const seeded = await seedVersion(fixture, { listingStatus: "withdrawn" });
     // The object was removed by a previous attempt that then failed to write
     // the tombstone. Returning false for an absent key is what lets the retry
-    // finish instead of looping forever on a missing object.
+    // finish instead of looping forever on a missing object, and the retry
+    // still reports the version as collected: the row now reads as collected,
+    // and a sweep that said "kept" would under-report what it just finished.
     assertEquals(
       await collectPluginBundle(
         fixture.pgDatabase,
         trackingStore(true),
         seeded.versionId,
       ),
-      false,
+      true,
     );
     assert(
       (await tombstone(fixture, seeded.versionId)).purged !== null,
@@ -312,20 +314,43 @@ Deno.test("a sweep tick collects a withdrawn uninstalled bundle and leaves an in
 Deno.test("a sweep tick keeps a candidate that becomes installed after the scan", async () => {
   await withWorkerFixture(async (fixture) => {
     const seeded = await seedVersion(fixture, { listingStatus: "withdrawn" });
-    // The scan reads candidates, then the collector decides again under the
-    // row lock. An install arriving between the two must win, so selection is
-    // never treated as the authority.
-    const candidates = await fixture.pgDatabase.query<{ id: string }>(
-      `select id from bakery.plugin_versions
-        where id = $1 and bundle_purged_at is null`,
-      [seeded.versionId],
-    );
-    assertEquals(candidates.rows.length, 1);
-    await install(fixture, seeded);
+    // The install arrives AFTER the sweep's own scan has returned its candidates
+    // and BEFORE the collector runs, so the only thing that can keep the bytes is
+    // the collector deciding again under the row lock.
+    let installed = false;
+    const racing = new Proxy(fixture.pgDatabase, {
+      get(target, property) {
+        if (property === "query") {
+          return async (...args: unknown[]) => {
+            const result =
+              await (target.query as (...a: unknown[]) => Promise<unknown>)(
+                ...args,
+              );
+            if (
+              !installed &&
+              String(args[0]).includes("order by version.created_at")
+            ) {
+              installed = true;
+              await install(fixture, seeded);
+            }
+            return result;
+          };
+        }
+        const value = Reflect.get(target, property, target);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
     const store = trackingStore();
-    const sweep = await sweepCollectablePluginBundles(
-      fixture.pgDatabase,
-      store,
+    const sweep = await sweepCollectablePluginBundles(racing, store);
+    assertEquals(
+      installed,
+      true,
+      "the install was made between the scan and the collect",
+    );
+    assertEquals(
+      sweep.scanned,
+      1,
+      "the sweep selected the version before the install",
     );
     assertEquals(sweep.collected, 0);
     assertEquals(store.deleted, []);

@@ -17,6 +17,12 @@ import { postgresErrorCode } from "../../../platform/postgres-errors.ts";
  * 3. No install names it, in any status. A disabled install is deliberately
  *    still an install — re-enabling must not find the archive gone.
  *
+ * Returns whether the version is now recorded as collected, which is not the
+ * same as whether bytes were deleted. A retry after a crash deleted nothing
+ * because the archive was already gone, and it still finishes the job: an
+ * answer of `false` there would make a sweep report the version as kept when
+ * in fact it has just been collected.
+ *
  * Refusals answer `false` rather than throwing, because "not collectable now"
  * is the normal answer for most versions and a caller sweeping a package needs
  * to move on rather than handle an error per row.
@@ -95,6 +101,9 @@ export async function collectPluginBundle(
       resourceId: versionId,
       requestId: crypto.randomUUID(),
       traceId: crypto.randomUUID(),
+      // The store's own answer is recorded but not returned: it says whether
+      // bytes existed, and the caller needs to know whether the row now reads
+      // as collected.
       details: { policy, objectRemoved: removed },
     });
   }).catch((error: unknown) => {
@@ -109,5 +118,5 @@ export async function collectPluginBundle(
         throw error;
     }
   });
-  return removed;
+  return true;
 }
