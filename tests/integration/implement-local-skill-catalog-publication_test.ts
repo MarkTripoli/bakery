@@ -1153,7 +1153,11 @@ Deno.test("a personal skill is visible to its owner alone and never reaches an a
       { slug: "private-notes", name: "Private notes", scope: "personal" },
       "create-private-notes",
     );
-    assertEquals(personalResponse.status, 201, await personalResponse.text());
+    assertEquals(
+      personalResponse.status,
+      201,
+      await personalResponse.clone().text(),
+    );
     const personal = await personalResponse.json() as Skill;
     assertEquals(personal.scope, "personal");
     assertEquals(personal.ownerPrincipalId, principalId);

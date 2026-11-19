@@ -194,7 +194,11 @@ Deno.test("attaching a personal skill to a shared workflow needs its owner's con
       { definition: definition([sharedVersion]) },
       "attach-organization-skill",
     );
-    assertEquals(organizationDraft.status, 201, await organizationDraft.text());
+    assertEquals(
+      organizationDraft.status,
+      201,
+      await organizationDraft.clone().text(),
+    );
     const draft = await organizationDraft.json() as Version;
 
     // The owner confirms the exact version: the save works and records a grant.
