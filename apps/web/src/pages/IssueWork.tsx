@@ -364,28 +364,28 @@ export function IssueWork(
                   ago(request.createdAt, translate),
                 ].filter(Boolean).join(" · ")}
               </UI.Text>
+              {next === "openTask" && own !== undefined
+                ? (
+                  <UI.Button
+                    variant="secondary"
+                    onClick={() =>
+                      void navigate({
+                        to: "/tasks/$taskId",
+                        params: { taskId: own.taskId },
+                      })}
+                  >
+                    {translate("issues.work.openTask" as never)}
+                  </UI.Button>
+                )
+                : null}
+              {next === "startWork"
+                ? (
+                  <UI.Button variant="secondary" onClick={onStart}>
+                    {translate("issues.start.button" as never)}
+                  </UI.Button>
+                )
+                : null}
             </UI.Inline>
-            {next === "openTask" && own !== undefined
-              ? (
-                <UI.Button
-                  variant="secondary"
-                  onClick={() =>
-                    void navigate({
-                      to: "/tasks/$taskId",
-                      params: { taskId: own.taskId },
-                    })}
-                >
-                  {translate("issues.work.openTask" as never)}
-                </UI.Button>
-              )
-              : null}
-            {next === "startWork"
-              ? (
-                <UI.Button variant="secondary" onClick={onStart}>
-                  {translate("issues.start.button" as never)}
-                </UI.Button>
-              )
-              : null}
           </UI.Stack>
         )
         : null}
