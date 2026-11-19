@@ -1,10 +1,14 @@
 import { assertEquals, assertThrows } from "@std/assert";
 import { contractSchemas } from "../../packages/contracts/src/contracts.ts";
 import {
+  assertPluginNamespace,
+  assertPluginStateKey,
   compareVersions,
+  parsePluginManifest,
   parseSdkRange,
   parseVersion,
   PLUGIN_SDK_VERSION,
+  PluginManifestError,
   satisfiesSdkRange,
   SdkRangeSyntaxError,
 } from "@bakery/contracts/plugin-sdk";
@@ -173,4 +177,103 @@ Deno.test("the package and version vocabularies are validated in the contracts",
     false,
     "an unknown visibility was accepted",
   );
+});
+
+/**
+ * Manifest and state-namespace validation (#15, B14.01, slice 2, AC2).
+ *
+ * Every case here is a refusal, and each refusal is a capability question
+ * rather than a formatting one: a manifest that names a capability the host does
+ * not grant, a locale the host owns, or a namespace that reads as a path would
+ * otherwise become authority nobody reviewed.
+ */
+
+const manifest = (overrides: Record<string, unknown> = {}) => ({
+  name: "demo-plugin",
+  requestedCapabilities: ["state.read", "state.write"],
+  locales: ["demo-plugin.en"],
+  stateSchemaVersion: 1,
+  stateNamespaces: ["settings"],
+  ...overrides,
+});
+
+Deno.test("a manifest that asks only for grantable capabilities is accepted", () => {
+  const parsed = parsePluginManifest(manifest());
+  assertEquals(parsed.requestedCapabilities, ["state.read", "state.write"]);
+  assertEquals(parsed.stateNamespaces, ["settings"]);
+  assertEquals(parsed.stateSchemaVersion, 1);
+});
+
+Deno.test("a capability outside the allowlist is refused, never filtered out", () => {
+  // Filtering would leave an install whose grants disagree with its manifest.
+  assertThrows(
+    () =>
+      parsePluginManifest(
+        manifest({ requestedCapabilities: ["secrets.read"] }),
+      ),
+    PluginManifestError,
+  );
+  assertThrows(
+    () => parsePluginManifest(manifest({ requestedCapabilities: ["*"] })),
+    PluginManifestError,
+  );
+});
+
+Deno.test("a locale that claims the host's namespace is refused", () => {
+  // A plugin may ship its own catalog; it may not replace core Bakery copy.
+  assertThrows(
+    () => parsePluginManifest(manifest({ locales: ["bakery.en"] })),
+    PluginManifestError,
+  );
+  assertEquals(
+    parsePluginManifest(manifest({ locales: ["demo-plugin.fr"] })).locales,
+    [
+      "demo-plugin.fr",
+    ],
+  );
+});
+
+Deno.test("an unknown manifest key is refused rather than ignored", () => {
+  // A key an author believed had an effect it does not have is a security bug
+  // reported as a compatibility bug.
+  assertThrows(
+    () =>
+      parsePluginManifest(manifest({ grantedCapabilities: ["tools.invoke"] })),
+    PluginManifestError,
+  );
+});
+
+Deno.test("a state namespace that reads as a path is refused", () => {
+  for (const bad of ["../escape", "a/b", "a\\b", "", "Settings", "a\u0000b"]) {
+    assertThrows(
+      () => parsePluginManifest(manifest({ stateNamespaces: [bad] })),
+      PluginManifestError,
+      undefined,
+      `namespace ${JSON.stringify(bad)} must be refused`,
+    );
+  }
+  // The names a plugin legitimately uses still pass.
+  for (const good of ["settings", "view-state", "com.example.thing"]) {
+    assertPluginNamespace(good);
+  }
+});
+
+Deno.test("a state key is bounded and cannot traverse", () => {
+  assertPluginStateKey("theme");
+  assertPluginStateKey("panel.order");
+  for (const bad of ["", "..", "a/b", "x".repeat(129)]) {
+    assertThrows(() => assertPluginStateKey(bad), PluginManifestError);
+  }
+});
+
+Deno.test("a manifest is not an object, or has a bad schema version, is refused", () => {
+  for (const bad of [null, [], "manifest", 42]) {
+    assertThrows(() => parsePluginManifest(bad), PluginManifestError);
+  }
+  for (const version of [0, -1, 1.5, "1"]) {
+    assertThrows(
+      () => parsePluginManifest(manifest({ stateSchemaVersion: version })),
+      PluginManifestError,
+    );
+  }
 });

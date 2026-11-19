@@ -546,6 +546,20 @@ export const pluginPackageImplementedActions = Object.freeze(
   Object.values(PluginPackageImplementedAction),
 );
 
+export const PluginInstallImplementedAction = Object.freeze(
+  {
+    PluginInstallsList: "pluginInstalls.list",
+    PluginInstallsCreate: "pluginInstalls.create",
+    PluginInstallsGet: "pluginInstalls.get",
+    PluginInstallsUpdate: "pluginInstalls.update",
+    PluginStateGet: "pluginState.get",
+    PluginStatePut: "pluginState.put",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const pluginInstallImplementedActions = Object.freeze(
+  Object.values(PluginInstallImplementedAction),
+);
+
 export const MemoryImplementedAction = Object.freeze(
   {
     MemoriesList: "memories.list",
@@ -603,6 +617,7 @@ export const implementedActions = Object.freeze(
     ...secretsImplementedActions,
     ...catalogImplementedActions,
     ...pluginPackageImplementedActions,
+    ...pluginInstallImplementedActions,
     ...skillStorageImplementedActions,
     ...blobUploadImplementedActions,
     ...memoryImplementedActions,
