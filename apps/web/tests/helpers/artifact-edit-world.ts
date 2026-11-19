@@ -62,6 +62,15 @@ export type Behaviour = {
    * forbidden is a 403. The last answer repeats.
    */
   readonly publish?: readonly ("ok" | "moved" | "lost" | "forbidden")[];
+  /** Other people in the document, with their caret (from = to) or selection in the text. */
+  readonly peers?: readonly {
+    readonly principalId?: string;
+    /** Default a person; an agent is a service, a worker is a worker. */
+    readonly principalType?: "human" | "service" | "worker";
+    readonly displayName: string;
+    readonly from: number;
+    readonly to: number;
+  }[];
   /** After a refused publish the text differs (otherwise only the checkpoint moves). */
   readonly textMoves?: boolean;
   /** What looking the checkpoint up finds after a lost answer. Default absent. */
@@ -209,6 +218,23 @@ export async function openEditor(
     ),
   ];
   const decisions: { id: string; action: "accept" | "reject" }[] = [];
+  const peerParticipants = (behaviour.peers ?? []).map((peer, index) => ({
+    participantKey: `55555555-5555-4555-8555-0000000000${
+      String(index).padStart(2, "0")
+    }`,
+    principalId: peer.principalId ??
+      `66666666-6666-4666-8666-0000000000${String(index).padStart(2, "0")}`,
+    principalType: peer.principalType ?? "human",
+    displayName: peer.displayName,
+    state: {
+      activity: "active",
+      typing: false,
+      cursor: { anchor: cursorAt(peer.from), head: cursorAt(peer.to) },
+    },
+    receivedAt: "2026-01-01T00:00:00.000Z",
+  }));
+  const presenceUpdates: { cursor: { anchor: string; head: string } | null }[] =
+    [];
   let listReads = 0;
   await page.route(
     `**/v1/drafts/${DRAFT}/suggestions*`,
@@ -343,7 +369,10 @@ export async function openEditor(
           type: "joined",
           requestId: frame.requestId,
           room: ROOM,
-          participants: behaviour.participants ?? [],
+          participants: [
+            ...(behaviour.participants ?? []),
+            ...peerParticipants,
+          ],
         }));
       } else if (frame.type === "sync") {
         ws.send(JSON.stringify({
@@ -363,6 +392,8 @@ export async function openEditor(
           sequence: 1n,
           payload: doc.export({ mode: "snapshot" }),
         })));
+      } else if (frame.type === "presence.update") {
+        presenceUpdates.push(frame.state);
       } else if (frame.type === "ping") {
         ws.send(message);
       }
@@ -371,14 +402,39 @@ export async function openEditor(
   await page.goto(PATH);
   await page.getByTestId("artifact-edit-toggle").click();
   const editor = page.getByRole("textbox", { name: "Document text" });
-  await expect(editor).toContainText(text.split("\n")[0]);
+  // Other people's caret labels sit inside the line (aria-hidden); the text
+  // that counts is the document's, so read it without them.
+  await expect.poll(() =>
+    editor.evaluate((node) => {
+      const copy = node.cloneNode(true) as HTMLElement;
+      copy.querySelectorAll("[aria-hidden=true]").forEach((widget) =>
+        widget.remove()
+      );
+      return copy.textContent ?? "";
+    })
+  ).toContain(text.split("\n")[0]);
   return {
     editor,
     updates,
     publishes,
     lookups,
     decisions,
+    presenceUpdates,
     serverSend: (frame: unknown) => socket?.send(JSON.stringify(frame)),
+    /** Moves peer `index` (in `peers` order) to a new caret or selection. */
+    movePeer: (index: number, from: number, to: number) =>
+      socket?.send(JSON.stringify({
+        type: "presence",
+        room: ROOM,
+        presence: {
+          ...peerParticipants[index],
+          state: {
+            ...peerParticipants[index]!.state,
+            cursor: { anchor: cursorAt(from), head: cursorAt(to) },
+          },
+          receivedAt: new Date().toISOString(),
+        },
+      })),
     serverClose: () => {
       refusing = behaviour.refuseReconnect ?? false;
       socket?.close();
