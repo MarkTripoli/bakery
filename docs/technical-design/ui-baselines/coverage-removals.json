@@ -2,14 +2,14 @@
   "schemaVersion": 1,
   "records": [
     {
-      "baseSha": "a83b7ec57da9bf29078c23b24d3cdda776f255fe",
+      "baseSha": "665c864f9bfdff3c42c0adbef4323d5e6a98f044",
       "kind": "route-state",
       "identity": "apps/web/src/router.tsx|sign-in|throttled",
       "rationale": "The separate \"A short pause\" screen is gone: a rate-limited sign-in now says, under the form, when to try again (#241 UX design).",
       "retired": true
     },
     {
-      "baseSha": "a83b7ec57da9bf29078c23b24d3cdda776f255fe",
+      "baseSha": "665c864f9bfdff3c42c0adbef4323d5e6a98f044",
       "kind": "catalog-rule",
       "identity": "applies:settings:apps/web/src/screens/AccountSettingsScreen.tsx",
       "rationale": "AccountSettingsScreen was an unrouted duplicate of the account page and is deleted; the settings composition now names SecurityHubScreen, the screen /settings/security renders (#241).",
