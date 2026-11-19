@@ -108,6 +108,11 @@ export type IssueInit = {
   title?: string;
   body?: string;
   labels?: string[];
+  /**
+   * Provider label ids, one per label; defaults to the names themselves.
+   * Null models a reader that names no label ids.
+   */
+  labelIds?: string[] | null;
   state?: "open" | "closed";
   stateReason?: string | null;
   repositoryFullName?: string;
@@ -196,6 +201,9 @@ export function createMemoryTicketReader(): MemoryTicketReader {
         title: init.title ?? `Issue ${init.number}`,
         body: init.body ?? ACCEPTANCE_BODY,
         labels: init.labels ?? [],
+        labelIds: init.labelIds === null
+          ? null
+          : init.labelIds ?? init.labels ?? [],
         state: init.state ?? "open",
         stateReason: init.stateReason ?? null,
         repositoryFullName: init.repositoryFullName ?? null,
@@ -263,6 +271,7 @@ export function createMemoryTicketReader(): MemoryTicketReader {
           body: seeded.body,
           bodyTooLarge: false,
           labels: seeded.labels,
+          ...(seeded.labelIds === null ? {} : { labelIds: seeded.labelIds }),
           state: seeded.state,
           stateReason: seeded.stateReason,
           locked: false,
