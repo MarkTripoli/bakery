@@ -422,6 +422,18 @@ export const notificationImplementedActions = Object.freeze(
   Object.values(NotificationImplementedAction),
 );
 
+export const RunRequestImplementedAction = Object.freeze(
+  {
+    RunRequestsCreate: "runRequests.create",
+    RunRequestsList: "runRequests.list",
+    RunRequestsMine: "runRequests.mine",
+    RunRequestsWithdraw: "runRequests.withdraw",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const runRequestImplementedActions = Object.freeze(
+  Object.values(RunRequestImplementedAction),
+);
+
 export const WorkflowImplementedAction = Object.freeze(
   {
     WorkflowsList: "workflows.list",
@@ -656,6 +668,7 @@ export const implementedActions = Object.freeze(
     ...deliveryImplementedActions,
     ...ticketImplementedActions,
     ...notificationImplementedActions,
+    ...runRequestImplementedActions,
     ...workflowImplementedActions,
     ...workflowActionDiscoveryImplementedActions,
     ...automationImplementedActions,
