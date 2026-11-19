@@ -75,6 +75,7 @@ export function invalidLimit(
 export type AreaRefusal =
   | "record_area"
   | "library_area"
+  | "trash_area"
   | "system_area"
   | "system_folder";
 
@@ -127,6 +128,7 @@ export function writeRefusal(
   folder: AreaEntry,
   principalId: string,
 ): AreaRefusal | undefined {
+  if (folder.systemKey === "trash") return "trash_area";
   if (!isWritablePolicy(folder.policy)) return refusalFor(folder.policy);
   if (folder.systemKey === "connections") return "system_area";
   if (

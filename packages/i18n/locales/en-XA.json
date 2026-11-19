@@ -1302,7 +1302,7 @@
   "problems.RANGE_NOT_SATISFIABLE.title": "[Range not served]",
   "problems.RANGE_NOT_SATISFIABLE.description": "[This object is too large to serve a partial range. Request the whole file instead.]",
   "problems.STORAGE_AREA_REFUSED.title": "[Area refused]",
-  "problems.STORAGE_AREA_REFUSED.description": "[This folder does not allow that change. A file kept as a record of finished work cannot be renamed, moved or deleted, and Bakery manages the library, trash and system folders.]",
+  "problems.STORAGE_AREA_REFUSED.description": "[This folder does not allow that change.]",
   "problems.STORAGE_QUOTA_EXCEEDED.title": "[Storage quota reached]",
   "problems.STORAGE_QUOTA_EXCEEDED.description": "[New writes are paused because storage is nearly full. Delete or purge files, or ask an Admin to raise the quota.]",
   "problems.STORAGE_FILE_TOO_LARGE.title": "[File too large]",

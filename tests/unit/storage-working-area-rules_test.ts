@@ -37,6 +37,10 @@ Deno.test("writes land only in working, own personal and own scratch folders", (
   assertEquals(writeRefusal(folder("library"), me), "library_area");
   assertEquals(writeRefusal(folder("system"), me), "system_area");
   assertEquals(
+    writeRefusal(folder("system", { systemKey: "trash" }), me),
+    "trash_area",
+  );
+  assertEquals(
     writeRefusal(folder("personal", { ownerId: other }), me),
     "system_area",
   );
