@@ -16,6 +16,7 @@ import type {
   TicketFactIndex,
   TicketIssueListPage,
   TicketIssueRead,
+  TicketLabelPage,
   TicketLabelProvenance,
   TicketLinksRead,
   TicketReadFailure,
@@ -790,6 +791,24 @@ export function createTicketSourceReader(
             // number and never a provider's role name.
             rank: roleRank(read.permission),
           };
+        },
+      );
+    },
+
+    async readLabels(handle, request, signal): Promise<TicketLabelPage> {
+      return await withAccess(
+        dependencies,
+        handle,
+        signal,
+        async (access): Promise<TicketLabelPage> => {
+          const page = await github.listRepositoryLabels({
+            token: access.token,
+            fullName: access.fullName,
+            page: request.page,
+          }, signal);
+          // A moved or vanished repository path answers nothing about labels.
+          if (page.kind !== "present") return failure("provider_error");
+          return { kind: "present", labels: page.items, hasNext: page.hasNext };
         },
       );
     },
