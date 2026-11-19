@@ -79,7 +79,7 @@ export type Decision =
   | Readonly<{ kind: "finishing"; reason: LimitReason }>
   | Readonly<{ kind: "finish"; reason: FinishReason }>
   | Readonly<{ kind: "stop" }>
-  /** A stop that cancels: the run of the issue still going must be cancelled. */
+  /** A Stopping batch asked to cancel: the run of the issue still going must be cancelled. */
   | Readonly<{ kind: "cancel_current"; issueId: string }>
   /** Ask me first: wait for a person's yes before the next issue. */
   | Readonly<{ kind: "wait" }>
@@ -120,14 +120,14 @@ export function decideBatchStep(batch: StepBatch, world: StepWorld): Decision {
     };
   }
 
-  if (batch.state === "stopped") {
-    // A stop that cancels leaves the supervisor one job: cancel the run still going.
-    return batch.stopCancelledCurrent && current
-      ? { kind: "cancel_current", issueId: current.issueId }
-      : { kind: "none" };
-  }
+  if (batch.state === "stopped") return { kind: "none" };
 
   if (current) {
+    // A stop that asked to cancel: the run still going must be cancelled. The batch
+    // stays Stopping until the issue has actually ended.
+    if (batch.state === "stopping" && batch.stopCancelledCurrent) {
+      return { kind: "cancel_current", issueId: current.issueId };
+    }
     // An issue is running. Nothing new starts after a limit; it finishes first.
     if (batch.state === "running" || batch.state === "waiting") {
       const reason = limitReached(batch, world);

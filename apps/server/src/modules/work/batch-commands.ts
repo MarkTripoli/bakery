@@ -33,6 +33,9 @@ type BatchIssue = z.output<typeof contractSchemas.BatchIssue>;
 type BatchCreate = z.output<typeof contractSchemas.BatchCreate>;
 type BatchStop = z.output<typeof contractSchemas.BatchStop>;
 
+/** The columns the supervisor reads that the Batch output does not carry. */
+export type BatchStateRow = { nextApproved: boolean };
+
 export const LIVE_BATCH_STATES = [
   "running",
   "waiting",
@@ -485,9 +488,11 @@ export function finishBatch(context: ActionContext): Promise<Batch> {
 }
 
 /**
- * `batches.stop`. Nothing new starts either way. Letting the current issue finish
- * leaves the batch Stopping until it does; cancelling it ends the batch now and the
- * supervisor cancels the run. Stopping while already Stopping may escalate to a cancel.
+ * `batches.stop`. Nothing new starts either way, and the batch is Stopping until the
+ * issue being worked on has ended. Letting it finish just waits; asking to cancel it
+ * records the request, and the supervisor cancels the run and the batch is Stopped
+ * once the issue has actually ended. With nothing running it simply stops. Stopping
+ * can be escalated to a cancel, and repeating a stop changes nothing.
  */
 export async function stopBatch(
   context: ActionContext,
@@ -508,20 +513,21 @@ export async function stopBatch(
     throw conflict("batch_ended");
   }
   const running = current.issues.some((issue) => issue.state === "started");
-  if (current.state === "stopping" && !input.cancelCurrent) return current;
-  const endsNow = input.cancelCurrent || !running;
+  const cancels = input.cancelCurrent && running;
+  if (
+    current.state === "stopping" && !(cancels && !current.stopCancelledCurrent)
+  ) return current;
   await transaction.query(
-    endsNow
+    running
       ? `update bakery.batches
-            set state = 'stopped', stopped_by = $2, stop_cancelled_current = $3,
-                finish_reason = 'stopped_by_person', finished_at = now(), ${touch}
+            set state = 'stopping', stopped_by = $2, stop_cancelled_current = $3,
+                ${touch}
           where id = $1`
       : `update bakery.batches
-            set state = 'stopping', stopped_by = $2, ${touch}
+            set state = 'stopped', stopped_by = $2, stop_cancelled_current = false,
+                finish_reason = 'stopped_by_person', finished_at = now(), ${touch}
           where id = $1`,
-    endsNow
-      ? [current.id, principalId, input.cancelCurrent && running]
-      : [current.id, principalId],
+    running ? [current.id, principalId, cancels] : [current.id, principalId],
   );
   const changed = await loadBatch(transaction, organizationId, current.id);
   await audit(

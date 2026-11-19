@@ -38,6 +38,7 @@ import {
   createTicketIntakeWorkflow,
   createTicketPollWorkflow,
 } from "../work/ticket-workflows.ts";
+import { createBatchSupervisorWorkflow } from "../work/batch-tick.ts";
 import { selectTicketSourceReader } from "../work/ticket-reader-selection.ts";
 import { GITHUB_PROVIDER } from "../integrations/registry.ts";
 import { createAuditRetentionFunction } from "../auth/audit/mod.ts";
@@ -238,6 +239,13 @@ export function createDefaultInngestFunctions(options: {
       database: options.database,
     }),
     createDependencyReleaseWorkflow({
+      client: options.client,
+      database: options.database,
+    }),
+    // The batch supervisor: a supervisor over ordinary requests, not an engine. Its
+    // start and cancel adapters are wired in the slice that adds them; until then a
+    // batch that must start an issue pauses with a named reason.
+    createBatchSupervisorWorkflow({
       client: options.client,
       database: options.database,
     }),

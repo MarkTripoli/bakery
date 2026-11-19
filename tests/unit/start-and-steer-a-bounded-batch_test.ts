@@ -303,19 +303,20 @@ Deno.test("resume, start next and finish each need the state they are for", asyn
   }
 });
 
-Deno.test("stop: nothing new starts either way; the current issue finishes or is cancelled as asked", async () => {
+Deno.test("stop: nothing new starts either way, and the batch is Stopping until the current issue has ended", async () => {
   const working = [{ state: "started" }];
-  // Let it finish: Stopping, with nothing cancelled.
+  // Let it finish: Stopping, with no cancel asked for.
   const letFinish = await stopBatch(stand({ issues: working }).context, {
     cancelCurrent: false,
   });
   assertEquals(letFinish.state, "stopping");
   assertEquals(letFinish.stopCancelledCurrent, false);
-  // Cancel it: Stopped now, and the batch records that the supervisor must cancel the run.
+  // Cancel it: still Stopping, and the request to cancel is recorded for the supervisor.
+  // It is not Stopped until the run has really ended.
   const cancel = await stopBatch(stand({ issues: working }).context, {
     cancelCurrent: true,
   });
-  assertEquals(cancel.state, "stopped");
+  assertEquals(cancel.state, "stopping");
   assertEquals(cancel.stopCancelledCurrent, true);
   // Nothing is running: it simply stops, whatever was asked, and cancels nothing.
   for (const cancelCurrent of [false, true]) {
@@ -326,17 +327,19 @@ Deno.test("stop: nothing new starts either way; the current issue finishes or is
     assertEquals(idle.state, "stopped");
     assertEquals(idle.stopCancelledCurrent, false);
   }
-  // Stopping can be escalated to a cancel, and repeated without effect.
+  // Stopping can be escalated to a cancel once, and any repeat changes nothing.
   const stopping = stand({ state: "stopping", issues: working });
   assertEquals(
     (await stopBatch(stopping.context, { cancelCurrent: false })).state,
     "stopping",
   );
   assertEquals(stopping.writes.length, 0);
-  assertEquals(
-    (await stopBatch(stopping.context, { cancelCurrent: true })).state,
-    "stopped",
-  );
+  const escalated = await stopBatch(stopping.context, { cancelCurrent: true });
+  assertEquals(escalated.state, "stopping");
+  assertEquals(escalated.stopCancelledCurrent, true);
+  assertEquals(stopping.writes.length, 1);
+  await stopBatch(stopping.context, { cancelCurrent: true });
+  assertEquals(stopping.writes.length, 1);
   // Already stopped is a repeat; a batch that finished on its own is not stoppable.
   assertEquals(
     (await stopBatch(stand({ state: "stopped" }).context, {

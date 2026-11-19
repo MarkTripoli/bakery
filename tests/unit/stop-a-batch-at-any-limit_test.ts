@@ -118,25 +118,45 @@ Deno.test("an issue's end is recorded before anything else, in every state", () 
   );
 });
 
-Deno.test("a stop that cancels leaves one job: cancel the run still going", () => {
-  const stopped = (over: Over) =>
-    batch({ state: "stopped", issues: ["started"], ...over });
+Deno.test("a Stopping batch that asked to cancel has one job: cancel the run still going", () => {
+  const stopping = (over: Over) =>
+    batch({ state: "stopping", issues: ["started"], ...over });
   assertEquals(
     decideBatchStep(
-      stopped({ stopCancelledCurrent: true }),
+      stopping({ stopCancelledCurrent: true }),
       world({ current: running }),
     ),
     { kind: "cancel_current", issueId: "i0" },
   );
+  // No cancel asked for: the issue runs on, and the batch waits for it.
   assertEquals(
     decideBatchStep(
-      stopped({ stopCancelledCurrent: false }),
+      stopping({ stopCancelledCurrent: false }),
       world({ current: running }),
     ),
     { kind: "none" },
   );
+  // The run has ended (cancelled or merged anyway): record it, then the batch stops.
   assertEquals(
-    decideBatchStep(stopped({ stopCancelledCurrent: true }), world()),
+    decideBatchStep(
+      stopping({ stopCancelledCurrent: true }),
+      world({ current: { issueId: "i0", outcome: "cancelled" } }),
+    ),
+    { kind: "record_end", issueId: "i0", outcome: "cancelled" },
+  );
+  assertEquals(
+    decideBatchStep(
+      stopping({ stopCancelledCurrent: true, issues: ["cancelled"] }),
+      world(),
+    ),
+    { kind: "stop" },
+  );
+  // A batch that is already Stopped has nothing left to do.
+  assertEquals(
+    decideBatchStep(
+      batch({ state: "stopped", issues: ["cancelled"] }),
+      world(),
+    ),
     { kind: "none" },
   );
 });
