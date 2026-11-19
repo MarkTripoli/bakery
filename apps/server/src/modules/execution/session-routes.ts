@@ -22,12 +22,8 @@
  */
 
 import { Hono } from "hono";
-import {
-  type ActionContext,
-  type ActionDefinition,
-} from "@bakery/contracts/action-registry";
+import { type ActionContext } from "@bakery/contracts/action-registry";
 import type { AuthVariables } from "../auth/middleware.ts";
-import type { ActionRegistry } from "@bakery/contracts/action-registry";
 import { StandardError } from "@bakery/contracts/http";
 import {
   callSessionTool,
@@ -39,6 +35,7 @@ import {
 } from "./session-credential.ts";
 import { SessionToolError } from "./session-tools.ts";
 import { workerTransaction } from "./shared.ts";
+import type { SessionToolRegistry } from "./session-registry.ts";
 import type { ExecutionRouteOptions } from "./shared.ts";
 
 /** The header a session credential travels in. Never a query and never a body. */
@@ -58,15 +55,13 @@ function readSessionCredential(headers: Headers): string {
 export type SessionRouteOptions =
   & ExecutionRouteOptions
   & Readonly<{
-    /** Every action a session may be offered; the list and the call share it. */
-    registry: readonly ActionDefinition[];
     /**
-     * The same actions, executable. Dispatching through the registry rather than
-     * calling a handler directly is what makes the offered list and the callable
-     * set one thing: an action cannot be listed and then be uncallable, nor be
-     * callable while never offered.
+     * The operations a session may be offered, and the way to run them.
+     *
+     * One object so the list and the call cannot disagree: an action cannot be
+     * listed and then be uncallable, nor be callable while never offered.
      */
-    executable: ActionRegistry;
+    sessionTools: SessionToolRegistry;
   }>;
 
 /**
@@ -128,7 +123,7 @@ export function createSessionRoutes(
           identity,
           attemptId,
           credentialToken: token,
-          registry: options.registry,
+          registry: options.sessionTools.list(),
         }),
     );
     return context.json({ tools });
@@ -155,11 +150,11 @@ export function createSessionRoutes(
           identity,
           attemptId,
           credentialToken: token,
-          registry: options.registry,
+          registry: options.sessionTools.list(),
           tool,
           arguments: body.arguments ?? {},
           execute: (offered, claim) =>
-            options.executable.execute(
+            options.sessionTools.execute(
               offered.name,
               dispatchedContext(request, attemptId, claim),
               body.arguments ?? {},

@@ -114,6 +114,8 @@ import {
 } from "./modules/projects/index.ts";
 
 import { createExecutionRoutes } from "./modules/execution/index.ts";
+import { createSessionToolRegistry } from "./modules/execution/session-registry.ts";
+import { sessionOperationScopes } from "./modules/execution/session-tools.ts";
 import {
   createArtifactPreviewHost,
   createPreviewHostDispatch,
@@ -566,6 +568,17 @@ export function createApp(options: {
       artifactPreviewOrigin: previewOrigin,
       artifactActions,
       integrations,
+      // The tool gateway's operations: whatever these registries already
+      // implement, narrowed to the operation map a session is defined by.
+      // Composed rather than re-registered so a session calls the same handler
+      // and the same authority guard as the route the rest of the product uses.
+      sessionTools: createSessionToolRegistry({
+        registries: [
+          taskRegistry,
+          artifactActions.registry,
+        ],
+        offered: sessionOperationScopes(),
+      }),
       ...(skillFileStore
         ? {
           skillImport: {

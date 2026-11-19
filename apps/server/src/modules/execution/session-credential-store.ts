@@ -38,18 +38,20 @@ export type SessionCredentialRow = Readonly<{
   revokedAt: Date | null;
 }>;
 
-const COLUMNS = `id,
-  organization_id as "organizationId",
-  attempt_id as "attemptId",
-  acts_for_principal_id as "actsForPrincipalId",
-  worker_session_id as "workerSessionId",
-  worker_session_generation::text as "workerSessionGeneration",
-  fence::text as "fence",
-  lease_token_hash as "leaseTokenHash",
-  token_hash as "tokenHash",
-  scopes,
-  expires_at as "expiresAt",
-  revoked_at as "revokedAt"`;
+// Qualified, because the resolve query joins `bakery.principals` and both
+// tables have an `id`.
+const COLUMNS = `credential.id,
+  credential.organization_id as "organizationId",
+  credential.attempt_id as "attemptId",
+  credential.acts_for_principal_id as "actsForPrincipalId",
+  credential.worker_session_id as "workerSessionId",
+  credential.worker_session_generation::text as "workerSessionGeneration",
+  credential.fence::text as "fence",
+  credential.lease_token_hash as "leaseTokenHash",
+  credential.token_hash as "tokenHash",
+  credential.scopes,
+  credential.expires_at as "expiresAt",
+  credential.revoked_at as "revokedAt"`;
 
 type RawRow =
   & Omit<SessionCredentialRow, "workerSessionGeneration" | "fence">
@@ -136,12 +138,12 @@ export async function resolveSessionCredential(
     // already names the person, `bakery.principals` already knows what kind of
     // principal it is, and a copied column would be a second truth that a
     // rename or a re-typed principal could silently desynchronise.
-    `select ${COLUMNS}, token_hash as "tokenHash",
+    `select ${COLUMNS},
             credential_principal.principal_type as "actsForPrincipalType"
-       from bakery.session_operation_credentials
-       join bakery.principals credential_principal
-         on credential_principal.id = acts_for_principal_id
-      where token_hash = $1`,
+       from bakery.session_operation_credentials as credential
+       join bakery.principals as credential_principal
+         on credential_principal.id = credential.acts_for_principal_id
+      where credential.token_hash = $1`,
     [tokenHash],
   );
   const row = result.rows[0];
