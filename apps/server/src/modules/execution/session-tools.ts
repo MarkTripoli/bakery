@@ -44,7 +44,10 @@ const OPERATION_SCOPES: Readonly<Record<string, OperationScope>> = Object
     // Work items.
     "tasks.list": "work.read",
     "tasks.get": "work.read",
-    "tasks.create": "work.write",
+    // Starting work is a spawn (#413): off by default, granted as run_start,
+    // and admitted under depth, count and budget checks at the action.
+    "tasks.create": "runs.start",
+    "runs.create": "runs.start",
     // Runs and their steps.
     "runs.list": "runs.read",
     "runs.get": "runs.read",
@@ -81,7 +84,7 @@ export const POWER_SESSION_SCOPES: Readonly<
 > = Object.freeze({
   decide: Object.freeze(["approvals.decide"]),
   run_control: Object.freeze(["runs.control"]),
-  run_start: Object.freeze([]),
+  run_start: Object.freeze(["runs.start"]),
 });
 
 export type SessionTool = Readonly<{

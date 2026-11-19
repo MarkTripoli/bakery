@@ -251,7 +251,50 @@ export type BudgetRuntimeConfig = {
   maxRunDurationSeconds: number;
 };
 
+/**
+ * The bounds on what an agent may spawn (issue #413, chapter 25 section 18.1).
+ * An agent that starts runs can recurse, so depth and the live children of one
+ * run are limits an operator can see and set, not literals in code.
+ */
+export type AgentSpawnConfig = {
+  /** Deepest a spawn chain may go; a run started by a person is depth 0. */
+  maxDepth: number;
+  /** Most live (not finished) runs one run may have spawned at once. */
+  maxChildren: number;
+};
+
+export const DEFAULT_AGENT_SPAWN: AgentSpawnConfig = Object.freeze({
+  maxDepth: 3,
+  maxChildren: 5,
+});
+
+const AGENT_SPAWN_MAX_DEPTH = "BAKERY_AGENT_SPAWN_MAX_DEPTH";
+const AGENT_SPAWN_MAX_CHILDREN = "BAKERY_AGENT_SPAWN_MAX_CHILDREN";
+
+/** Reads the spawn bounds, falling back to the defaults for what is unset. */
+export function readAgentSpawnConfig(
+  env: Record<string, string | undefined> = Deno.env.toObject(),
+): AgentSpawnConfig {
+  const read = (name: string, fallback: number) => {
+    const raw = env[name]?.trim();
+    if (raw === undefined || raw === "") return fallback;
+    const value = Number(raw);
+    if (!Number.isSafeInteger(value) || value < 1 || value > 100) {
+      throw new Error("AGENT_SPAWN_POLICY_INVALID");
+    }
+    return value;
+  };
+  return {
+    maxDepth: read(AGENT_SPAWN_MAX_DEPTH, DEFAULT_AGENT_SPAWN.maxDepth),
+    maxChildren: read(
+      AGENT_SPAWN_MAX_CHILDREN,
+      DEFAULT_AGENT_SPAWN.maxChildren,
+    ),
+  };
+}
+
 export type RuntimeConfig = {
+  agentSpawn?: AgentSpawnConfig;
   sentry?: SentryConfig;
   environment: RuntimeEnvironment;
   host: string;
@@ -725,6 +768,12 @@ export function readRuntimeConfig(
     BUDGET_RUN_DURATION,
   ];
   const budgetConfigured = budgetNames.some((name) => env[name]?.trim());
+  let agentSpawn: AgentSpawnConfig | undefined;
+  try {
+    agentSpawn = readAgentSpawnConfig(env);
+  } catch {
+    invalidConfig.push(AGENT_SPAWN_MAX_DEPTH, AGENT_SPAWN_MAX_CHILDREN);
+  }
   let budget: BudgetRuntimeConfig | undefined;
   if (budgetConfigured) {
     const missingBudget = budgetNames.filter((name) => !env[name]?.trim());
@@ -855,6 +904,7 @@ export function readRuntimeConfig(
     ...(draftIsolationLauncher ? { draftIsolationLauncher } : {}),
     ...(draftWorkerPoolSize === undefined ? {} : { draftWorkerPoolSize }),
     ...(budget ? { budget } : {}),
+    ...(agentSpawn ? { agentSpawn } : {}),
     ...(configuredSecretsKey?.success
       ? { secretsKey: configuredSecretsKey.data }
       : {}),

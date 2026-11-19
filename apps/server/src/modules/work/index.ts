@@ -6,6 +6,8 @@ export { createNotificationRoutes } from "./notification-routes.ts";
 
 import { createTaskCommand, updateTaskCommand } from "./postgres.ts";
 import { createRunCommand } from "./run-command.ts";
+import { withAgentSpawnChecks, withAgentTaskChecks } from "./agent-spawn.ts";
+import { DEFAULT_AGENT_SPAWN } from "@bakery/config";
 import {
   createTaskDependencyCommand,
   deleteTaskDependencyCommand,
@@ -15,21 +17,24 @@ import { createRunQueryHandlers } from "./run-query.ts";
 import { createSyncQueryHandler } from "./sync-query.ts";
 import { createUsageQueryHandlers } from "./usage.ts";
 import { createWorkflowPresetHandlers } from "./workflow-presets.ts";
-import type { BudgetRuntimeConfig } from "@bakery/config";
+import type { AgentSpawnConfig, BudgetRuntimeConfig } from "@bakery/config";
 export function createWorkTaskHandlers(
   secret: string,
-  options: { budget?: BudgetRuntimeConfig } = {},
+  options: { budget?: BudgetRuntimeConfig; agentSpawn?: AgentSpawnConfig } = {},
 ) {
   return {
     ...createWorkflowPresetHandlers(options),
     ...createTaskQueryHandlers(secret),
     ...createRunQueryHandlers(secret),
     ...createUsageQueryHandlers(),
-    create: createTaskCommand,
+    create: withAgentTaskChecks(createTaskCommand),
     update: updateTaskCommand,
     createDependency: createTaskDependencyCommand,
     deleteDependency: deleteTaskDependencyCommand,
-    runsCreate: createRunCommand,
+    runsCreate: withAgentSpawnChecks(
+      createRunCommand,
+      options.agentSpawn ?? DEFAULT_AGENT_SPAWN,
+    ),
     sync: createSyncQueryHandler(secret),
   };
 }

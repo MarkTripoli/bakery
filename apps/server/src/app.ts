@@ -382,6 +382,7 @@ export function createApp(options: {
     options.taskHandlers ??
       createWorkTaskHandlers(options.config.auth.secret, {
         budget: options.config.budget,
+        agentSpawn: options.config.agentSpawn,
       }),
     {
       authorityRunner: new PostgresAuthorityRunner(options.pgDatabase),
