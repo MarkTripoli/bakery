@@ -160,6 +160,7 @@ export const PERMISSION_VERBS = [
   "readSelf",
   "readPinned",
   "preview",
+  "share",
 ] as const;
 export type PermissionVerb = (typeof PERMISSION_VERBS)[number];
 
