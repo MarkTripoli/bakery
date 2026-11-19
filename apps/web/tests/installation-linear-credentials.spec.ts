@@ -1,6 +1,9 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
-import { mockAuthenticatedSession } from "./helpers/mock-session.ts";
+import {
+  MOCK_ORGANIZATION_ID,
+  mockAuthenticatedSession,
+} from "./helpers/mock-session.ts";
 
 /**
  * Linear's OAuth client credentials on the installation Integrations page, and the
@@ -243,6 +246,27 @@ test.describe("Linear credentials on installation settings", () => {
 test.describe("Linear on the organization Integrations page", () => {
   test("is listed as Soon, with Connect disabled and pointing at the reason", async ({ page }) => {
     await mockAuthenticatedSession(page);
+    // The page reads the organization's role and its connections: an administrator
+    // with none connected, so only the Available group has anything to show.
+    await page.route(
+      `**/v1/organizations/${MOCK_ORGANIZATION_ID}/effective-access`,
+      (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            organizationId: MOCK_ORGANIZATION_ID,
+            role: "admin",
+            capabilities: [],
+          }),
+        }),
+    );
+    await page.route("**/v1/integration-connections", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ items: [], nextCursor: null }),
+      }));
     await page.goto(ORGANIZATION_PATH);
     const list = page.getByTestId("available-list");
     await expect(list).toContainText("Linear");
