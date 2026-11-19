@@ -295,6 +295,42 @@ test.describe("organization repository rules", () => {
     await shot(page, "rules-current");
   });
 
+  test("on a phone the column help is one closed disclosure under the version line", async ({ page, isMobile }) => {
+    test.skip(!isMobile, "desktop keeps the header help buttons");
+    await rulesFixture(page);
+    await page.goto(PAGE_PATH);
+    const summary = page.getByRole("button", {
+      name: "What Require, Warn, Guide and Off mean",
+    });
+    await expect(summary).toBeVisible();
+    await expect(summary).toHaveAttribute("aria-expanded", "false");
+    await expect(
+      page.getByText("Require blocks delivery until the check passes."),
+    )
+      .toBeHidden();
+    await shot(page, "rules-help-phone-closed", [], { windowOnly: true });
+    await summary.click();
+    await expect(summary).toHaveAttribute("aria-expanded", "true");
+    await expect(
+      page.getByText("Require blocks delivery until the check passes."),
+    )
+      .toBeVisible();
+    await expect(
+      page.getByText("Locked rules apply to every repository as set here."),
+    )
+      .toBeVisible();
+    await shot(page, "rules-help-phone-open", [], { windowOnly: true });
+  });
+
+  test("desktop has no phone disclosure", async ({ page, isMobile }) => {
+    test.skip(isMobile, "a phone has the disclosure");
+    await rulesFixture(page);
+    await page.goto(PAGE_PATH);
+    await expect(page.getByRole("button", {
+      name: "What Require, Warn, Guide and Off mean",
+    })).toHaveCount(0);
+  });
+
   test("both column headers carry a help button that explains the column", async ({ page, isMobile }) => {
     // A phone lists rows, not columns, so there are no headers to explain.
     test.skip(isMobile, "no column headers on a phone");

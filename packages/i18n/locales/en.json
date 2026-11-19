@@ -2157,6 +2157,7 @@
   "settings.repositoryRules.guide": "Edit a rule, review what will change, then publish. Nothing applies until you publish.",
   "settings.repositoryRules.help.access": "Locked rules apply to every repository as set here. Other rules are a default that a repository can replace with its own setting.",
   "settings.repositoryRules.help.accessLabel": "About what repositories can change",
+  "settings.repositoryRules.help.phoneSummary": "What Require, Warn, Guide and Off mean",
   "settings.repositoryRules.enforcementAccess": "{enforcement} · {access}",
   "settings.repositoryRules.rule.commits.semantic": "Semantic commits",
   "settings.repositoryRules.rule.changeRequest.semanticTitle": "PR / MR titles",

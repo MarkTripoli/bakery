@@ -395,6 +395,28 @@ export function OrganizationRepositoryRulesPage() {
                       : null}
                     {phone
                       ? (
+                        <UI.Disclosure
+                          summary={translate(
+                            "settings.repositoryRules.help.phoneSummary",
+                          )}
+                        >
+                          <UI.Stack gap="compact">
+                            <UI.Text>
+                              {translate(
+                                "repository.rules.column.enforcement.help",
+                              )}
+                            </UI.Text>
+                            <UI.Text>
+                              {translate(
+                                "settings.repositoryRules.help.access",
+                              )}
+                            </UI.Text>
+                          </UI.Stack>
+                        </UI.Disclosure>
+                      )
+                      : null}
+                    {phone
+                      ? (
                         <div
                           role="list"
                           aria-label={translate(

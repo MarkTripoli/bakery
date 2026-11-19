@@ -4284,5 +4284,6 @@
   "settings.repositoryRules.stale.useTheirs": "⟦Ûšë ṽëŕšïôñ {revision} ŧëšŧŧ⟧",
   "settings.repositoryRules.stale.useTheirs.named": "⟦Ûšë ṽëŕšïôñ {revision} ƒôŕ {rule} ŧëšŧ çôþÿ⟧",
   "settings.repositoryRules.history.loadMoreError": "⟦Ôļðëŕ ṽëŕšïôñš çôûļð ñôŧ ƀë ļôàðëð. ŧëšŧ çôþÿŧ⟧",
-  "settings.repositoryRules.history.loading": "⟦Ļôàðïñĝ ṽëŕšïôñš… ŧëš⟧"
+  "settings.repositoryRules.history.loading": "⟦Ļôàðïñĝ ṽëŕšïôñš… ŧëš⟧",
+  "settings.repositoryRules.help.phoneSummary": "⟦Ŵĥàŧ Ŕëǫûïŕë, Ŵàŕñ, Ĝûïðë àñð Ôƒƒ ɱëàñ ŧëšŧ çôþÿ ŧ⟧"
 }
