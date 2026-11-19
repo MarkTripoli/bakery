@@ -611,12 +611,16 @@ type BytesRow = {
   removed: boolean;
 };
 
-/** Parses the optional revision query value; anything but a positive integer is 422. */
+/**
+ * Parses the optional revision query value. Anything but a positive integer
+ * without leading zeros is 400 MALFORMED_REQUEST, the same answer the query
+ * schema gives, so every bad revision has one status.
+ */
 export function parseRevision(value: string | undefined): number | null {
   if (value === undefined || value === "") return null;
   if (!/^[1-9]\d{0,8}$/.test(value)) {
     throw new StandardError({
-      code: "UNPROCESSABLE",
+      code: "MALFORMED_REQUEST",
       params: {
         issues: [{ path: ["revision"], message: "invalid", code: "invalid" }],
       },
