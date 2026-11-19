@@ -1,12 +1,12 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "768904e48aa0055156794916e4cd5fe94f4bd0f1"
+    "1ff39fed67f2fa59261bbd393aa8e4acbcbde8e2"
   ],
   "status": "approved",
   "allowBreaking": true,
   "targetCompatibilityDigest": "sha256:c22cd3f2f4e54fa2a414d3d24c1f9872c04df3eaead7354f46ea1cfaea241c5d",
-  "reason": "#26 probe slice re-bind by dev-agx4 on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main 768904e48aa0055156794916e4cd5fe94f4bd0f1: RouteHealth gains a required reasonSince (timestamp|null, when the current reason began) and its reason enum gains 'redirected' (the probe saw a redirect it does not follow, which proves nothing and keeps the route unverified). The drift is that one field becoming required on an output no client writes; the approval it displaced at sha256:b0f68836f1e6252ec3d0c1914d16e96d35da033d0a564548be95ffc8f52d10e1 is preserved unchanged first below.",
+  "reason": "#26 probe slice re-bind by dev-agx4 on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main 1ff39fed67f2fa59261bbd393aa8e4acbcbde8e2: RouteHealth gains a required reasonSince (timestamp|null, when the current reason began) and its reason enum gains 'redirected' (the probe saw a redirect it does not follow, which proves nothing and keeps the route unverified). The drift is that one field becoming required on an output no client writes; the approval it displaced at sha256:b0f68836f1e6252ec3d0c1914d16e96d35da033d0a564548be95ffc8f52d10e1 is preserved unchanged first below.",
   "priorApprovals": [
     {
       "fromBaseRefs": [
