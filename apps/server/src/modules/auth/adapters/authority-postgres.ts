@@ -344,7 +344,7 @@ async function resolveOrganizationActorForSubject(
  * no binding reaches answers exactly as before, so a foreign or hidden
  * resource stays indistinguishable from a missing one.
  */
-function authorizeWithBindings(
+export function authorizeWithBindings(
   action: ActionDefinition,
   actor: OrganizationActor,
   resolveTarget: (
@@ -357,12 +357,15 @@ function authorizeWithBindings(
     try {
       return await authorizeThroughBindings(action, actor, resolveTarget);
     } catch (denied) {
-      // Last: the right to see this one run, given by a request. Only the
-      // actions in RUN_GRANT_ACTIONS ask; any other action keeps the answer the
-      // role and the bindings gave.
+      // Last: the right to see this one run, given by a request. Only a
+      // permission miss is widened, like the other fallbacks: a scope miss, a
+      // binding fault or any later denial is the real answer and passes on. Only
+      // the actions in RUN_GRANT_ACTIONS ask; any other action keeps the answer
+      // the role and the bindings gave.
       const kind = RUN_GRANT_ACTIONS[action.name as CatalogActionName];
       if (
-        kind !== undefined && actor.subject.principalType ===
+        isPermissionMiss(denied) && kind !== undefined &&
+        actor.subject.principalType ===
           PrincipalType.Human &&
         await holdsRunGrant(kind)
       ) {

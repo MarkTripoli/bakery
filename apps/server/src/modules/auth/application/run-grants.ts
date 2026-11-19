@@ -25,7 +25,12 @@ export const RUN_GRANT_ACTIONS: Readonly<
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** Whether the person holds a live grant on this run, or on a run of this task. */
+/**
+ * Whether the person holds a live grant on this run, or on a run of this task.
+ * The row is read `for share`, so a concurrent revoke is ordered before or
+ * after this request rather than interleaved with it (the same as the
+ * conversation grant).
+ */
 export async function hasLiveRunGrant(
   transaction: Pick<PgTransactionClient, "query">,
   organizationId: string,
@@ -40,7 +45,8 @@ export async function hasLiveRunGrant(
       where organization_id = $1 and principal_id = $2
         and ${kind === "run" ? "run_id" : "task_id"} = $3::uuid
         and revoked_at is null
-      limit 1`,
+      limit 1
+      for share`,
     [organizationId, principalId, id],
   );
   return found.rows.length > 0;
