@@ -1,4 +1,9 @@
-import { expect as baseExpect, type Page, test } from "@playwright/test";
+import {
+  expect as baseExpect,
+  type Locator,
+  type Page,
+  test,
+} from "@playwright/test";
 import { mockAuthenticatedSession } from "./helpers/mock-session.ts";
 import {
   NOTIFICATION_ID as N,
@@ -262,6 +267,60 @@ async function world(
 const announcer = (page: Page) =>
   page.getByRole("status").filter({ hasText: "Opened from a notification." });
 
+/** Holds a landing's outline (it fades after 2.5s) and frames the still on the part. */
+async function landedStill(page: Page, name: string, part: Locator) {
+  await part.evaluate((element) => element.setAttribute("data-landed", "true"));
+  await still(page, name, undefined, { scrollTo: part });
+}
+
+/** The outline stands clear of the part's text, and is the only box: no focus ring inside it. */
+async function oneBoxWithRoom(page: Page, part: Locator) {
+  expect(
+    await part.evaluate((element) => getComputedStyle(element).outlineOffset),
+  )
+    .toBe("8px");
+  const ring = await page.evaluate(() => {
+    const active = document.activeElement as HTMLElement | null;
+    const landed = document.querySelector("[data-landed]");
+    return active && landed && active !== landed && landed.contains(active)
+      ? getComputedStyle(active).outlineStyle
+      : "none";
+  });
+  expect(ring).toBe("none");
+}
+
+/**
+ * The shell moves focus to a new page title after a route change; it must not
+ * take focus back from what a landing focused. A fresh title is planted inside
+ * the shell's watch window (a page title that renders late does the same),
+ * and focus must still be on the landing's target once the shell has had its
+ * frame. Without the guard in AppLayout the planted title wins.
+ */
+async function shellLeavesLandingFocus(page: Page) {
+  const state = () =>
+    page.evaluate(() => ({
+      landing: document.activeElement?.hasAttribute("data-landing-focus") ??
+        false,
+      probe: document.activeElement?.id === "landing-probe-title",
+    }));
+  expect(await state()).toEqual({ landing: true, probe: false });
+  await page.evaluate(async () => {
+    const title = document.createElement("h1");
+    title.id = "landing-probe-title";
+    title.textContent = "A page title that rendered late";
+    document.querySelector("main")?.prepend(title);
+    // Two frames for the shell's requestAnimationFrame, then a margin.
+    await new Promise((done) =>
+      requestAnimationFrame(() => requestAnimationFrame(done))
+    );
+    await new Promise((done) => setTimeout(done, 200));
+  });
+  expect(await state()).toEqual({ landing: true, probe: false });
+  await page.evaluate(() =>
+    document.getElementById("landing-probe-title")?.remove()
+  );
+}
+
 test.describe("Opening a notification", () => {
   test("a failed step: the step is selected, outlined once, the notification is read", async ({ page }) => {
     const { reads } = await world(page, {
@@ -275,11 +334,10 @@ test.describe("Opening a notification", () => {
     await expect(page.getByRole("combobox", { name: "Step" })).toHaveValue(
       stepB,
     );
-    await expect(page.locator(`[data-landing-step="${stepB}"]`))
-      .toHaveAttribute(
-        "data-landed",
-        "true",
-      );
+    const thread = page.locator(`[data-landing-step="${stepB}"]`);
+    await expect(thread).toHaveAttribute("data-landed", "true");
+    await oneBoxWithRoom(page, thread);
+    await shellLeavesLandingFocus(page);
     await expect(announcer(page)).toHaveCount(1);
     // Read once the place is on screen, and the read marker leaves the address.
     await expect.poll(() => reads).toEqual([{
@@ -295,7 +353,7 @@ test.describe("Opening a notification", () => {
     await expect(page.locator("[data-landed]")).toHaveCount(0, {
       timeout: 6000,
     });
-    await still(page, "landing-step");
+    await landedStill(page, "landing-step", thread);
   });
 
   test("a finished or failed task with no part: the Current run section is in view", async ({ page }) => {
@@ -323,9 +381,11 @@ test.describe("Opening a notification", () => {
       { questions: true },
     );
     await open(page);
-    await expect(page.locator(`[data-question-id="${questionId}"]:visible`))
-      .toHaveAttribute("data-landed", "true");
-    await still(page, "landing-question");
+    const card = page.locator(`[data-question-id="${questionId}"]:visible`);
+    await expect(card).toHaveAttribute("data-landed", "true");
+    await oneBoxWithRoom(page, card);
+    await shellLeavesLandingFocus(page);
+    await landedStill(page, "landing-question", card);
   });
 
   test("an approval: the plan card is outlined", async ({ page }) => {
@@ -340,9 +400,10 @@ test.describe("Opening a notification", () => {
       { plan: true },
     );
     await open(page);
-    await expect(page.locator(`[data-approval-id="${approvalId}"]:visible`))
-      .toHaveAttribute("data-landed", "true");
-    await still(page, "landing-approval");
+    const card = page.locator(`[data-approval-id="${approvalId}"]:visible`);
+    await expect(card).toHaveAttribute("data-landed", "true");
+    await oneBoxWithRoom(page, card);
+    await landedStill(page, "landing-approval", card);
   });
 
   test("a chat message has no address yet: the page opens, is read, and claims nothing is gone", async ({ page }) => {
@@ -368,11 +429,20 @@ test.describe("Opening a notification", () => {
       anchor: null,
     });
     await open(page);
-    await expect(
-      page.getByText("The part this notification was about is no longer here."),
-    ).toBeVisible();
+    const notice = page.locator(".ui-inline-notice", {
+      hasText: "The part this notification was about is no longer here.",
+    });
+    await expect(notice).toBeVisible();
     await expect(page.locator("[data-landed]")).toHaveCount(0);
     await expect.poll(() => reads.length).toBe(1);
+    // At the top, right under the stages, above everything else on the page.
+    const stages = await page.getByRole("list", { name: "Workflow stages" })
+      .boundingBox();
+    const at = await notice.boundingBox();
+    const run = await page.getByRole("heading", { name: "Current run" })
+      .boundingBox();
+    expect(at!.y).toBeGreaterThanOrEqual(stages!.y + stages!.height - 1);
+    expect(at!.y).toBeLessThan(run!.y);
     await still(page, "landing-part-gone");
   });
 

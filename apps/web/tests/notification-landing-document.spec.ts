@@ -68,11 +68,13 @@ test.describe("Opening a notification about a document", () => {
     );
     await open(page);
     await openComments(page);
-    await expect(page.locator(`#comment-${COMMENT_ID}`)).toHaveAttribute(
-      "data-landed",
-      "true",
-    );
-    await still(page, "landing-comment");
+    const thread = page.locator(`#comment-${COMMENT_ID}`);
+    await expect(thread).toHaveAttribute("data-landed", "true");
+    expect(await thread.evaluate((el) => getComputedStyle(el).outlineOffset))
+      .toBe("8px");
+    // Hold the outline (it fades) and frame the still on the thread.
+    await thread.evaluate((el) => el.setAttribute("data-landed", "true"));
+    await still(page, "landing-comment", undefined, { scrollTo: thread });
   });
 
   test("a document part that is gone: the page says so", async ({ page }) => {
@@ -88,8 +90,11 @@ test.describe("Opening a notification about a document", () => {
       { taskId: TASK_ID },
     );
     await open(page);
+    // The same information notice the task page uses, not a card with a title.
     await expect(
-      page.getByText("The part this notification was about is no longer here."),
+      page.locator(".ui-inline-notice", {
+        hasText: "The part this notification was about is no longer here.",
+      }),
     ).toBeVisible();
     await expect.poll(() => reads.length).toBe(1);
     await still(page, "landing-document-part-gone");

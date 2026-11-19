@@ -571,6 +571,13 @@ function Detail(
         task={task}
         references={references}
         questionDefaults={questionDefaults}
+        banner={partGone
+          ? (
+            <UI.InlineNotice tone="information">
+              {t("notifications.landing.partGone")}
+            </UI.InlineNotice>
+          )
+          : undefined}
         state={syncConnectivity === "reconnecting" ? "reconnecting" : "ready"}
         aside={task.currentRunId
           ? (
@@ -587,11 +594,6 @@ function Detail(
             <UI.VisuallyHidden aria-live="polite" as="div" role="status">
               {arrival}
             </UI.VisuallyHidden>
-            {partGone && (
-              <UI.InlineNotice tone="information">
-                {t("notifications.landing.partGone")}
-              </UI.InlineNotice>
-            )}
             {!online && (
               <UI.InlineNotice tone="warning">
                 {t("tasks.live.offline")}

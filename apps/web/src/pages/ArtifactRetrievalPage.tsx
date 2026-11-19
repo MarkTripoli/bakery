@@ -897,14 +897,6 @@ export function ArtifactRetrievalPage(
       ? undefined
       : versionItems.find((item) => item.id === newestId);
     const notices: UI.ArtifactLayoutNotice[] = [];
-    if (landing.gone) {
-      notices.push({
-        id: "landing-gone",
-        title: translate("notifications.landing.partGone"),
-        description: null,
-        tone: "information",
-      });
-    }
     if (live === "lost") {
       notices.push({
         id: "reconnecting",
@@ -1069,6 +1061,11 @@ export function ArtifactRetrievalPage(
           notices={notices}
           banner={
             <>
+              {landing.gone && (
+                <UI.InlineNotice tone="information">
+                  {translate("notifications.landing.partGone")}
+                </UI.InlineNotice>
+              )}
               <ArtifactStorageStatus
                 key={`storage:${scope.sessionGeneration}:${scope.organizationId}`}
               />

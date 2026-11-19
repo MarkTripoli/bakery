@@ -2013,9 +2013,15 @@ button.ui-activity-line__row:hover {
 }
 
 /* What a notification opened: outlined once, then it fades (see landed.ts). */
-[data-landed="true"] {
+[data-landed="true"],
+[data-landed="true"]:focus-visible {
   outline: var(--focus-width) solid var(--color-focus);
-  outline-offset: var(--focus-offset-inset);
+  /* Stands clear of the part's text instead of sitting on its first letters. */
+  outline-offset: var(--space-2);
+}
+/* One box: while a part is outlined, the heading focused inside it shows no ring of its own. */
+[data-landed="true"] [data-landing-focus]:focus-visible {
+  outline: none;
 }
 
 .ui-session-thread__started {

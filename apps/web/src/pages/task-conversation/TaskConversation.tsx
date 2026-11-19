@@ -81,9 +81,19 @@ type Pending<Input> = { key: string; input: Input };
  * panel only sends the typed requests and re-reads.
  */
 export function TaskConversation(
-  { aside, extras, questionDefaults, references, state = "ready", task }: {
+  {
+    aside,
+    banner,
+    extras,
+    questionDefaults,
+    references,
+    state = "ready",
+    task,
+  }: {
     /** More inspector content, such as the task's artifact pane. */
     aside?: ReactNode;
+    /** A notice that belongs right under the stages, such as a landing's. */
+    banner?: ReactNode;
     /** Transcript-end content: run controls, output and artifacts. */
     extras?: ReactNode;
     /** Option preselected per question id; a design fixture supplies it. */
@@ -727,16 +737,19 @@ export function TaskConversation(
         aria-label={t("tasks.conversation.heading")}
         role="region"
         stages={
-          <StageStrip
-            compact={phone}
-            people={people}
-            current={stage}
-            wait={(id) => stageWait(task, id)}
-            planningOnly={planningPending ?? task.planningOnly ?? false}
-            planningOnlyDisabled={planningPending !== null || !online}
-            planningOnlyFailed={planningFailed}
-            onPlanningOnly={(value) => void setPlanningOnly(value)}
-          />
+          <>
+            <StageStrip
+              compact={phone}
+              people={people}
+              current={stage}
+              wait={(id) => stageWait(task, id)}
+              planningOnly={planningPending ?? task.planningOnly ?? false}
+              planningOnlyDisabled={planningPending !== null || !online}
+              planningOnlyFailed={planningFailed}
+              onPlanningOnly={(value) => void setPlanningOnly(value)}
+            />
+            {banner}
+          </>
         }
         composer={
           <>
