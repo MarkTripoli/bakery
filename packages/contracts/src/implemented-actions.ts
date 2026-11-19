@@ -265,6 +265,22 @@ export const providerReadsImplementedActions = Object.freeze(
   Object.values(ProviderReadsImplementedAction),
 );
 
+/**
+ * The route continuation offers (#26 slice 6a).
+ *
+ * A read only: which steps of a run are stalled behind a provider incident and
+ * which routes they could continue on. Admission is the next slice, and it is a
+ * command of its own, so nothing here decides, pauses or charges anything.
+ */
+export const RouteContinuationsImplementedAction = Object.freeze(
+  {
+    RouteContinuationsList: "routeContinuations.list",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const routeContinuationsImplementedActions = Object.freeze(
+  Object.values(RouteContinuationsImplementedAction),
+);
+
 export const RepositoryRulesImplementedAction = Object.freeze(
   {
     RepositoryRulesGet: "repositoryRules.get",
@@ -607,6 +623,7 @@ export const implementedActions = Object.freeze(
     ...projectsImplementedActions,
     ...agentImplementedActions,
     ...providerReadsImplementedActions,
+    ...routeContinuationsImplementedActions,
     ...repositoryRulesImplementedActions,
     ...artifactKindImplementedActions,
     ...integrationsImplementedActions,
