@@ -34,7 +34,10 @@ export type SafeProblem = Readonly<{
   resetRequired?: boolean;
   retainedFrom?: string;
   retryWithoutAfter?: boolean;
-  /** STATE_CONFLICT rule slug such as `app_mismatch`; never free text. */
+  /**
+   * A STATE_CONFLICT or PRECONDITION_FAILED rule slug such as `app_mismatch` or
+   * `source_policy_changed`; never free text.
+   */
   reason?: string;
   /** Stable issue codes of a 422, such as a storage probe outcome. */
   issueCodes?: readonly string[];
@@ -1659,7 +1662,8 @@ function safeProblem(problem: ApiProblem): SafeProblem | null {
         retryWithoutAfter: true,
       }
       : {}),
-    ...(problem.code === "STATE_CONFLICT" &&
+    ...((problem.code === "STATE_CONFLICT" ||
+        problem.code === "PRECONDITION_FAILED") &&
         typeof problem.reason === "string" &&
         /^[a-z][a-z0-9_]{0,63}$/.test(problem.reason)
       ? { reason: problem.reason }

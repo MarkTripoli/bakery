@@ -29,14 +29,14 @@ const expectedActions = [
   "integrationAppRegistrations.begin",
   "integrationAppRegistrations.get",
   "integrationAppRegistrations.put",
-  "integrationAuth.githubManifestCallback",
+  "integrationAuth.manifestCallback",
 ];
 const implementedIntegrationActions = [
   ...expectedActions,
   "integrationAuthAttempts.create",
   "integrationAuthAttempts.get",
-  "integrationAuth.githubSetup",
-  "integrationAuth.githubCallback",
+  "integrationAuth.setup",
+  "integrationAuth.authorizationCallback",
   "integrationConnections.create",
   "integrationConnections.get",
   "integrationConnections.list",
@@ -54,7 +54,7 @@ const implementedIntegrationActions = [
   "integrationConnections.invoke",
   "integrationInstallations.list",
   "integrationInstallations.get",
-  "intake.github",
+  "intake.webhook",
 ].sort();
 
 Deno.test("integrations registry implements exactly its listed catalog actions with catalog parity", () => {
@@ -79,7 +79,7 @@ Deno.test("integrations registry implements exactly its listed catalog actions w
     implementedIntegrationActions,
   );
   const begin = registry.get("integrationAppRegistrations.begin");
-  const callback = registry.get("integrationAuth.githubManifestCallback");
+  const callback = registry.get("integrationAuth.manifestCallback");
   assertEquals(begin.policy.sessionOnly, true);
   assertEquals(callback.policy.sessionOnly, true);
   const put = registry.get("integrationAppRegistrations.put");
@@ -112,7 +112,7 @@ Deno.test("catalog declares installation-administrator operations with the desig
       "installationSetting:manage",
       "Idempotency-Key required; If-Match with the current version once a registration exists",
     ],
-    "integrationAuth.githubManifestCallback": [
+    "integrationAuth.manifestCallback": [
       "GET",
       "/v1/integration-auth/github/manifest-callback",
       "installationSetting:manage",
@@ -138,7 +138,7 @@ Deno.test("catalog declares installation-administrator operations with the desig
     assertEquals(entry.mcp, null, action);
   }
   assertEquals(
-    entries["integrationAuth.githubManifestCallback"].output,
+    entries["integrationAuth.manifestCallback"].output,
     "AuthRedirect",
   );
   const put = entries["integrationAppRegistrations.put"];
@@ -248,7 +248,7 @@ Deno.test("begin input accepts the optional choices and rejects unsafe values", 
 });
 
 Deno.test("callback input requires code and state and nothing else", () => {
-  const schema = contractSchemas.GitHubManifestCallback;
+  const schema = contractSchemas.IntegrationManifestCallback;
   assert(schema.safeParse({ code: "abc", state: "def" }).success);
   for (
     const invalid of [
@@ -444,7 +444,7 @@ Deno.test("generated JSON schemas describe every new field", async () => {
     const name of [
       "IntegrationAppRegistrationBegin",
       "IntegrationAppRegistrationPut",
-      "GitHubManifestCallback",
+      "IntegrationManifestCallback",
       "IntegrationAppRegistration",
       "IntegrationAppManifestStart",
       "AuthRedirect",
@@ -602,12 +602,12 @@ Deno.test("GitHub callbacks are bound-attempt browser redirects and the connecti
   for (
     const [name, path, input] of [
       [
-        "integrationAuth.githubSetup",
+        "integrationAuth.setup",
         "/v1/integration-auth/github/setup",
-        "GitHubSetupCallback",
+        "IntegrationSetupCallback",
       ],
       [
-        "integrationAuth.githubCallback",
+        "integrationAuth.authorizationCallback",
         "/v1/integration-auth/github/callback",
         "OAuthCallback",
       ],
@@ -657,7 +657,7 @@ Deno.test("GitHub callbacks are bound-attempt browser redirects and the connecti
 });
 
 Deno.test("callback inputs carry only the provider's redirect fields", () => {
-  const setup = contractSchemas.GitHubSetupCallback;
+  const setup = contractSchemas.IntegrationSetupCallback;
   assert(
     setup.safeParse({ state: "s", installationId: "1", setupAction: "install" })
       .success,

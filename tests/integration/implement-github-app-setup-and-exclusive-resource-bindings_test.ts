@@ -284,13 +284,13 @@ Deno.test("the callback converts the code once and stores the App identity and t
       `select operation, organization_id, principal_id, details
        from bakery.audit_events
        where operation in ('integrationAppRegistrations.begin',
-         'integrationAuth.githubManifestCallback') and principal_id = $1
+         'integrationAuth.manifestCallback') and principal_id = $1
        order by created_at, id`,
       [f.adminId],
     );
     assertEquals(audit.rows.map((row) => row.operation), [
       "integrationAppRegistrations.begin",
-      "integrationAuth.githubManifestCallback",
+      "integrationAuth.manifestCallback",
     ]);
     for (const row of audit.rows) {
       assertEquals(row.organization_id, null);

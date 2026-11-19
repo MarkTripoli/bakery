@@ -257,7 +257,7 @@ processIntegrationEvent(receiptId)
 
 Lifecycle events may precede setup or arrive out of order. Setup fetches current state; quarantined payloads never become commands after connection. Reconciliation restores facts, not missing human execution authority. Tickets owns admission. [Tickets](10-tickets.md).
 
-**Implementation note.** The receiver is a hand-written app-level route, mounted ahead of the JSON router, that passes a verified delivery to the registered `intake.github` action. It works from the cheapest check to the dearest: the signature header, the content type (415), a bounded read of the body of at most 256 KiB (413, logged as `github_webhook_body_too_large` and writing no row, because nothing about the sender is known yet), and only then the webhook secret and the HMAC over the raw bytes. A missing or malformed header, a wrong signature, an App with no registration or no webhook secret, and an unreadable secret all answer the same 401, so a caller learns nothing about which check refused it. Once the signature checks out, the receiver validates the delivery id and event name (400), parses the payload (400) and commits one receipt (202). A changed body or event name under a reused delivery id is 422 and changes nothing. A commit failure is a retryable 503. The whole delivery runs under a nine-second deadline: a body that stalls past it is a 504, and nothing is stored.
+**Implementation note.** The receiver is a hand-written app-level route, mounted ahead of the JSON router, that passes a verified delivery to the registered `intake.webhook` action. It works from the cheapest check to the dearest: the signature header, the content type (415), a bounded read of the body of at most 256 KiB (413, logged as `github_webhook_body_too_large` and writing no row, because nothing about the sender is known yet), and only then the webhook secret and the HMAC over the raw bytes. A missing or malformed header, a wrong signature, an App with no registration or no webhook secret, and an unreadable secret all answer the same 401, so a caller learns nothing about which check refused it. Once the signature checks out, the receiver validates the delivery id and event name (400), parses the payload (400) and commits one receipt (202). A changed body or event name under a reused delivery id is 422 and changes nothing. A commit failure is a retryable 503. The whole delivery runs under a nine-second deadline: a body that stalls past it is a 504, and nothing is stored.
 
 Five tables hold the state, all created by migration `0143_github_intake`, and PostgreSQL enforces only their structure; the lifecycles below live in TypeScript.
 
@@ -888,7 +888,7 @@ Host broker binds reviewed issuer/API origin, method/path and credential placeme
 Integrations grew around GitHub. The catalog gate already registers providers declaratively, but the rest does not:
 - **Lifecycle:** connections, auth attempts, checks, discovery, reconcile and webhook intake in `apps/server/src/modules/integrations` hard-code `GITHUB_PROVIDER_ID`, GitHub App credentials or GitHub signatures.
 - **Work:** `work` reads tickets through a port (`TicketSourceReader`) but still imports GitHub-coupled files.
-- **Contracts and data shapes (the deepest coupling):** `ticket-admission` ids, `integrationAuth.github*` and `intake.github` operation ids, and `ticket_sources.provider default 'github'`.
+- **Contracts and data shapes (the deepest coupling):** `ticket-admission` ids, `integrationAuth.github*` and `intake.webhook` operation ids, and `ticket_sources.provider default 'github'`.
 - **Broker:** it cannot yet express Linear, Jira or GitLab. Read-only `POST` (GraphQL) is refused at `request.ts`, bearer is the only credential placement, and every request goes to one fixed origin.
 
 The goal is that a provider becomes an addition, not a rewrite, and that a rail, not discipline, keeps it that way.
@@ -1129,7 +1129,7 @@ export const providers = activateProviders(SERVER_PROVIDERS);       // fails sta
   Either way core stores the connection and audits it the same way, then runs discovery through the separate `ResourceDiscovery` port.
 - **Health:** core runs the provider's `HealthProbe` through the broker and folds it into the connection health (`enabled`, `degraded`, `auth_required`).
 - **Uninstall and remove:** `integrationConnections.remove` (#68). Provider revocation arrives as a `lifecycle` intent from `classify`, not as a normalised event.
-- **Webhook intake:** the route is `/v1/webhooks/:provider` (later `/v1/webhooks/{provider}/{endpointKey}` for per-tenant endpoints). GitHub's URL `/v1/webhooks/github` stays byte-identical, so no alias is needed. (§12's first draft wrongly said `/intake/github`; `intake.github` is an action id.) Core reads the bounded body, persists the receipt, then calls `verify` and `classify`. Subjects for existing `inbound_events` rows are computed on read via `classify` of the stored kind, so no data migration is needed. Endpoint scope is app-level for GitHub and per connection for the others.
+- **Webhook intake:** the route is `/v1/webhooks/:provider` (later `/v1/webhooks/{provider}/{endpointKey}` for per-tenant endpoints). GitHub's URL `/v1/webhooks/github` stays byte-identical, so no alias is needed. (§12's first draft wrongly said `/intake/github`; `intake.webhook` is an action id.) Core reads the bounded body, persists the receipt, then calls `verify` and `classify`. Subjects for existing `inbound_events` rows are computed on read via `classify` of the stored kind, so no data migration is needed. Endpoint scope is app-level for GitHub and per connection for the others.
 
 ### 12.6 Migration plan: cut seams in place, then lift
 
@@ -1159,7 +1159,7 @@ Principle: GitHub stays where it is while seams are cut around it. Pending provi
 **Provider-readiness slices change the contract on purpose.** They are therefore outside the no-behaviour-change GitHub migration, and each is its own pre-approved breaking change with a re-bound contract migration:
 - **13. Breaking contract slice:**
   - generalise `ticket-admission.ts`: opaque ids, a container, `externalActorIds`, trigger ids and a role rank
-  - generic operation ids replace `integrationAuth.github*` and `intake.github`; URLs are unchanged
+  - generic operation ids replace `integrationAuth.github*` and `intake.webhook`; URLs are unchanged
   - broker: a GraphQL request-template kind, path-prefix bindings, `basic`/`raw-authorization` placements, and requests bound to the installation's `InstallationOrigin` (cloud origins only in v1)
   - a core migration generalising `integration_app_registrations` (nullable GitHub columns plus `provider_metadata jsonb`) and `inbound_events.registration_id`
   - drop `ticket_sources.provider default 'github'`

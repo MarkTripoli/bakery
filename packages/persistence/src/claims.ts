@@ -88,6 +88,14 @@ export type ClaimableJob = {
   installationReservationId: string | null;
   /** Oldest server-created harness session for the job's run step, if any. */
   agentSessionId: string | null;
+  /**
+   * The W3C context of the request that created the run, from its
+   * `run.requested` event, or null when there is none (a coordinator turn or an
+   * onboarding job starts no run). The claim request comes from the worker and
+   * carries no trace of its own, so this is the only way the originating
+   * request's trace survives into the worker's envelope.
+   */
+  originalTraceparent: string | null;
   currentFence: string | number;
 };
 
@@ -344,7 +352,19 @@ export function createClaimsRepository(
                and session.run_step_id = jobs.run_step_id
              order by session.created_at asc, session.id asc
              limit 1
-          ) as agent_session_id
+          ) as agent_session_id,
+          (
+            select event.traceparent
+              from bakery.run_steps claim_step
+              join bakery.domain_events event
+                on event.organization_id = claim_step.organization_id
+               and event.aggregate_id = claim_step.run_id
+               and event.event_type = 'run.requested'
+             where claim_step.organization_id = jobs.organization_id
+               and claim_step.id = jobs.run_step_id
+             order by event.organization_sequence asc
+             limit 1
+          ) as original_traceparent
        from bakery.jobs as jobs
        where organization_id = $1 and status = 'queued'
          and available_at <= clock_timestamp()
@@ -445,6 +465,7 @@ export function createClaimsRepository(
           installation_reservation_id: string | null;
           current_fence: string | number;
           agent_session_id: string | null;
+          original_traceparent: string | null;
         }>("fetch forward 1 from claim_candidates");
         const row = jobs.rows[0];
         if (!row) {
@@ -578,6 +599,7 @@ export function createClaimsRepository(
           billing: row.billing,
           installationReservationId: row.installation_reservation_id,
           agentSessionId: row.agent_session_id,
+          originalTraceparent: row.original_traceparent,
           currentFence: row.current_fence,
         };
       }
