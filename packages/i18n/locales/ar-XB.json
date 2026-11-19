@@ -4409,5 +4409,6 @@
   "integrations.linear.resource.team": "⟪A Linear team⟫",
   "notifications.landing.arrived": "⟪Opened from a notification.⟫",
   "notifications.landing.partGone": "⟪The part this notification was about is no longer here.⟫",
-  "settings.roles.verb.share": "⟪Give and remove other people's access to {things}⟫"
+  "settings.roles.verb.share": "⟪Give and remove other people's access to {things}⟫",
+  "settings.roles.thing.group": "⟪groups⟫"
 }
