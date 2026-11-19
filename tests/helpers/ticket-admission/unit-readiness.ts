@@ -31,7 +31,7 @@ import {
   normalizeSnapshot,
   requirementsDigest,
 } from "../../../apps/server/src/modules/work/ticket-snapshot.ts";
-import { githubRoleRank } from "../../../apps/server/src/modules/work/ticket-source-reader.ts";
+import { roleRank } from "../../../apps/server/src/modules/catalog/integration-providers/roles.ts";
 import type {
   PredecessorProof,
   TicketActorRole,
@@ -2359,7 +2359,7 @@ Deno.test("issue 82 unit readiness: GitHub's ladder conforms to the contract's a
   // other, admission would either refuse everyone or admit a reader, so the
   // conformance is pinned rather than assumed.
   for (const permission of ["none", "read", "write", "admin"] as const) {
-    const rank = githubRoleRank(permission);
+    const rank = roleRank(permission);
     assert(
       rank >= ACTOR_ROLE_RANK_MIN && rank <= ACTOR_ROLE_RANK_MAX,
       `${permission} ranks inside the contract band`,

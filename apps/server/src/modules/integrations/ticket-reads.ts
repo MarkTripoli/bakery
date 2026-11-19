@@ -8,7 +8,7 @@ import {
   withPgTransaction,
 } from "../../platform/database.ts";
 import { repositoryContainer } from "../work/ticket-container.ts";
-import { githubRoleRank } from "../work/ticket-source-reader.ts";
+import { roleRank } from "../catalog/integration-providers/roles.ts";
 import type {
   IssueRef,
   PredecessorProof,
@@ -327,7 +327,7 @@ const sameRepository = (left: string, right: string): boolean =>
 /**
  * The reference to a blocker the snapshot stores.
  *
- * The GitHub reader knows the blocker by its repository; the contract stores a
+ * The provider names the blocker's home as a repository; the contract stores a
  * container. The conversion belongs here, where a provider's own vocabulary
  * meets the neutral one.
  */
@@ -734,9 +734,9 @@ export function createTicketSourceReader(
             kind: "present",
             userId: String(read.userId),
             permission: read.permission,
-            // GitHub's own ladder, mapped once here so admission compares a
+            // This provider's ladder, mapped once so admission compares a
             // number and never a provider's role name.
-            rank: githubRoleRank(read.permission),
+            rank: roleRank(read.permission),
           };
         },
       );
