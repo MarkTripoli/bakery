@@ -21,6 +21,7 @@ import type { PgDatabase } from "../../platform/database.ts";
 import { PostgresAuthorityRunner } from "../auth/adapters/authority-postgres.ts";
 import {
   createTicketOperationRunner,
+  createTicketSourceLabelsHandler,
   lookupTicketSourcePerson,
   readsProvider,
   type TicketOperationDependencies,
@@ -38,6 +39,10 @@ import {
   getExternalTicket,
   getTicketSource,
 } from "./ticket-query.ts";
+import {
+  createTicketRequestsListHandler,
+  getTicketRequest,
+} from "./ticket-request-query.ts";
 import {
   createTicketNoteRunner,
   recordTicketNoteSync,
@@ -158,6 +163,14 @@ export function createTicketActionRegistry(
     },
     handler: lookupTicketSourcePerson,
   }).register({
+    name: TicketImplementedAction.TicketSourcesLabels,
+    method: HttpMethod.Get,
+    path: "/v1/ticket-sources/:id/labels",
+    input: contractSchemas.TicketSourceLabelQuery,
+    output: contractSchemas["Page<TicketSourceLabel>"],
+    policy: query,
+    handler: createTicketSourceLabelsHandler(dependencies.cursorSecret),
+  }).register({
     name: TicketImplementedAction.TicketSourcesSync,
     method: HttpMethod.Post,
     path: "/v1/ticket-sources/:id/syncs",
@@ -249,6 +262,23 @@ export function createTicketActionRegistry(
       authorize: authorizeTicketAdmission,
     },
     handler: createTicketRequestHandler(dependencies),
+  }).register({
+    name: TicketImplementedAction.TicketRequestsList,
+    method: HttpMethod.Get,
+    path: "/v1/ticket-requests",
+    input: contractSchemas.TicketRequestQuery,
+    output: contractSchemas["Page<TicketRequestView>"],
+    policy: query,
+    transactionIsolation: TransactionIsolation.RepeatableRead,
+    handler: createTicketRequestsListHandler(dependencies.cursorSecret),
+  }).register({
+    name: TicketImplementedAction.TicketRequestsGet,
+    method: HttpMethod.Get,
+    path: "/v1/ticket-requests/:id",
+    input: contractSchemas.IdPath,
+    output: contractSchemas.TicketRequestView,
+    policy: query,
+    handler: getTicketRequest,
   });
 
   assertRegisteredActions(registry);
