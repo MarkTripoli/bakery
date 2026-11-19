@@ -226,6 +226,24 @@ export function harnessTeardownFault(
   );
 }
 
+/**
+ * The trace context a harness subprocess should continue.
+ *
+ * The W3C convention is `TRACEPARENT` in the child's environment, and following
+ * it is what lets a harness's own spans join the trace that caused the work
+ * rather than starting an unrelated one. A harness that ignores the variable
+ * loses correlation, not correctness, so this is never a reason to refuse work.
+ *
+ * Returns an empty map when the assignment carried no context, so callers can
+ * spread it unconditionally.
+ */
+export function traceEnvironment(
+  assignment: { readonly traceparent?: string },
+): Readonly<Record<string, string>> {
+  const traceparent = assignment.traceparent;
+  return traceparent === undefined ? {} : { TRACEPARENT: traceparent };
+}
+
 function childEnvironment(
   additions: HarnessChildEnvironment,
 ): Record<string, string> {

@@ -185003,6 +185003,11 @@
                 "additionalProperties": false,
                 "description": "Input slots the step declared, pinned at admission: the worker materializes exactly these bytes into its context directory and never re-fetches the artifact, so the digest it verifies is the one admission pinned. Each array item follows this format."
               }
+            },
+            "traceparent": {
+              "description": "W3C trace context of the request that caused this work, so the worker continues the caller's trace instead of starting an unrelated one.",
+              "type": "string",
+              "pattern": "^(?!00-0{32}-|00-[0-9a-f]{32}-0{16}-)00-[0-9a-f]{32}-[0-9a-f]{16}-0[01]$"
             }
           },
           "required": [
@@ -218886,7 +218891,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:fc5c7bededbed24e8541ca3168cde358c616922447161ade6ee7cec2f39ee429",
+  "compatibilityDigest": "sha256:4641100246aebbd960e4f3de08eeb15a3b802f37c91f27ec97a7230f062fbbc8",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -368768,6 +368773,11 @@
             "additionalProperties": false,
             "description": "Input slots the step declared, pinned at admission: the worker materializes exactly these bytes into its context directory and never re-fetches the artifact, so the digest it verifies is the one admission pinned. Each array item follows this format."
           }
+        },
+        "traceparent": {
+          "description": "W3C trace context of the request that caused this work, so the worker continues the caller's trace instead of starting an unrelated one.",
+          "type": "string",
+          "pattern": "^(?!00-0{32}-|00-[0-9a-f]{32}-0{16}-)00-[0-9a-f]{32}-[0-9a-f]{16}-0[01]$"
         }
       },
       "required": [
