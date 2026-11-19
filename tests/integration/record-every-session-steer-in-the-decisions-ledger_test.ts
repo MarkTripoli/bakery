@@ -47,9 +47,13 @@ const steerEntries = async (fixture: Fixture, sessionId: string) =>
     decidedBy: string;
     text: string | null;
     mode: string;
+    messageId: string;
+    truncated: string;
   }>(
     `select task_id as "taskId", run_id as "runId", decided_by as "decidedBy",
-            text, detail->>'mode' as mode
+            text, detail->>'mode' as mode,
+            detail->>'messageId' as "messageId",
+            detail->>'truncated' as truncated
        from bakery.decisions_ledger
       where subject_kind = 'session' and subject_id = $1 and kind = 'steer'`,
     [sessionId],
@@ -126,6 +130,42 @@ Deno.test("AC: a steer the worker cannot take leaves no ledger entry", () =>
       mode: "steer",
     });
     assertEquals(response.status, 409);
+
+    assertEquals(
+      (await steerEntries(fixture, session.agentSessionId)).length,
+      0,
+    );
+  }));
+
+Deno.test("AC: a long steer is recorded as a bounded excerpt with its message id", () =>
+  withFixture(async (fixture) => {
+    const seed = await seedOrganization(fixture, "steer-ledger-long");
+    const session = await seedSession(fixture, seed, ["steer"]);
+
+    const response = await steer(fixture, seed, session.agentSessionId, {
+      body: "x".repeat(20000),
+      mode: "steer",
+    });
+    assertEquals(response.status, 201);
+    const message = await response.json() as { id: string };
+
+    const entries = await steerEntries(fixture, session.agentSessionId);
+    assertEquals(entries.length, 1);
+    assertEquals(entries[0].text?.length, 4000);
+    assertEquals(entries[0].messageId, message.id);
+    assertEquals(entries[0].truncated, "true");
+  }));
+
+Deno.test("AC: a steer with a lone surrogate is a 400 and writes nothing", () =>
+  withFixture(async (fixture) => {
+    const seed = await seedOrganization(fixture, "steer-ledger-surrogate");
+    const session = await seedSession(fixture, seed, ["steer"]);
+
+    const response = await steer(fixture, seed, session.agentSessionId, {
+      body: "bad \ud800 text",
+      mode: "steer",
+    });
+    assertEquals(response.status, 400);
 
     assertEquals(
       (await steerEntries(fixture, session.agentSessionId)).length,

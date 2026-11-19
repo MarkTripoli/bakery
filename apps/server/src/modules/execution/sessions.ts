@@ -13,6 +13,10 @@ import {
   decodeCursor,
   encodeCursor,
 } from "../../platform/cursor.ts";
+import {
+  DECISION_NOTE_MAX_LENGTH,
+  isStorableDecisionText,
+} from "@bakery/contracts/human-approval";
 import { appendDecision } from "../work/human-approval-store.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import {
@@ -286,6 +290,11 @@ export async function steerAgentSession(
     input.mode === "follow_up" || input.mode === "append"
       ? "follow_up"
       : "steer";
+  // PostgreSQL jsonb rejects NUL and lone surrogates; refuse them at the door
+  // as a 400 instead of failing the insert as a 500.
+  if (!isStorableDecisionText(input.body)) {
+    throw new StandardError({ code: "MALFORMED_REQUEST" });
+  }
   const clientMessageId = input.clientMessageId ??
     requireCommandMetadata(context).idempotencyKey;
   const session = await loadSession(
@@ -390,8 +399,14 @@ export async function steerAgentSession(
     subjectKind: "session",
     subjectId: session.id,
     decidedBy: principalId,
-    text: input.body,
-    detail: { mode, messageId: message.id },
+    // The full text lives on the message; the ledger keeps a bounded excerpt
+    // (its note limit) and the id to find the rest.
+    text: input.body.slice(0, DECISION_NOTE_MAX_LENGTH),
+    detail: {
+      mode,
+      messageId: message.id,
+      truncated: input.body.length > DECISION_NOTE_MAX_LENGTH,
+    },
   });
 
   const metadata = requireCommandMetadata(context);
