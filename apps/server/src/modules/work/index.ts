@@ -4,6 +4,7 @@ export { workBakeryMigrationSource } from "./migrations.ts";
 export { createTicketRoutes } from "./ticket-routes.ts";
 export { createGroupRoutes } from "./group-routes.ts";
 export { createNotificationRoutes } from "./notification-routes.ts";
+export { registerNotificationProjection } from "./notification-projection.ts";
 
 import { createTaskCommand, updateTaskCommand } from "./postgres.ts";
 import { createRunCommand } from "./run-command.ts";
