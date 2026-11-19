@@ -4403,6 +4403,8 @@
   "integrations.linear.resource.team": "⟪A Linear team⟫",
   "notifications.landing.arrived": "⟪Opened from a notification.⟫",
   "notifications.landing.partGone": "⟪The part this notification was about is no longer here.⟫",
+  "settings.roles.verb.share": "⟪Give and remove other people's access to {things}⟫",
+  "settings.roles.thing.group": "⟪groups⟫",
   "issues.work.title": "⟪Bakery's work⟫",
   "issues.work.loadFailed": "⟪Bakery's work could not be loaded.⟫",
   "issues.work.justNow": "⟪just now⟫",
@@ -4427,6 +4429,8 @@
   "issues.work.by.member": "⟪started by a teammate⟫",
   "issues.work.by.youAdopted": "⟪started by you; the label was already on the issue⟫",
   "issues.work.by.memberAdopted": "⟪started by a teammate; the label was already on the issue⟫",
+  "issues.work.by.named": "⟪started by {name}⟫",
+  "issues.work.by.namedAdopted": "⟪started by {name}; the label was already on the issue⟫",
   "issues.work.by.label": "⟪started from the \"{label}\" label on GitHub⟫",
   "issues.work.task.draft": "⟪Draft⟫",
   "issues.work.task.queued": "⟪Queued⟫",
@@ -4454,7 +4458,5 @@
   "issues.work.banner.labelRemoved": "⟪Paused: the \"{label}\" label was removed. Work continues when it is back.⟫",
   "issues.work.banner.labelRemovedPlain": "⟪Paused: the label that started this work was removed. Work continues when it is back.⟫",
   "issues.work.banner.onHold": "⟪Paused: on hold.⟫",
-  "issues.work.banner.dependencyUnreadable": "⟪Paused: Bakery cannot read an issue this one depends on.⟫",
-  "issues.work.by.named": "⟪started by {name}⟫",
-  "issues.work.by.namedAdopted": "⟪started by {name}; the label was already on the issue⟫"
+  "issues.work.banner.dependencyUnreadable": "⟪Paused: Bakery cannot read an issue this one depends on.⟫"
 }

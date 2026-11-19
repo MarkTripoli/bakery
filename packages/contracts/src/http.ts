@@ -330,6 +330,14 @@ export const DRAFT_EDIT_REFUSAL_REASONS = Object.freeze(
       // An agent acting without a grant, or on its own work or lineage (#414).
       "agent_power_requires_grant",
       "agent_target_own_work",
+      // An agent starting a run or creating a task without the run_start power
+      // along its spawn chain (#413).
+      "spawn_requires_grant",
+      // An agent steering without the steer power, its own run, or a reviewer
+      // (#413).
+      "steer_requires_grant",
+      "steer_own_run",
+      "steer_reviewer_unavailable",
     ]),
   } as const,
 );
@@ -756,6 +764,7 @@ export function createNormalizedCommandMetadata(
   // parsed when sent and the handler decides whether it was required.
   const conditionalPutActions: ReadonlySet<ActionDefinition["name"]> = new Set(
     [
+      "emailSettings.put",
       "integrationAppRegistrations.put",
       "scopeProfiles.put",
       "skillStorageSettings.put",
