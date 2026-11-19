@@ -9,6 +9,7 @@ import {
   workflowPresetsQueryOptions,
 } from "../api/query.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
+import { RouterLink } from "../app/router-link.tsx";
 import { useSession } from "../app/session-context.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import {
@@ -161,6 +162,8 @@ export function TaskStartRun({ task }: { task: TaskResponse }) {
       budgetLimitUsd: preset.defaultBudgetLimitUsd,
       ...(approvalId === undefined ? {} : { approvalId }),
     };
+    // The next Start run clears what the last refusal said.
+    setRefusal(null);
     const fresh = loadIntent<RunSubmission>(store, key);
     const next = { intent: fresh.intent, submission: { run }, run };
     record.current = { intent: next.intent, submission: next.submission };
@@ -176,6 +179,11 @@ export function TaskStartRun({ task }: { task: TaskResponse }) {
     start();
   };
 
+  // A refusal the server explained in plain terms, shown as the words it chose.
+  const explained = refusal?.reason === "source_policy_changed" ||
+      refusal?.reason === "requirements_changed"
+    ? refusal.reason
+    : null;
   const copy = preset ? presetCopy(t, preset.id) : null;
   const notice = phase === "unknown"
     ? { tone: "warning" as const, text: t("tasks.startRun.unknown") }
@@ -206,7 +214,29 @@ export function TaskStartRun({ task }: { task: TaskResponse }) {
             {notice.text}
           </UI.InlineNotice>
         )}
-        {refusal && (
+        {refusal && explained && (
+          <UI.InlineNotice role="none" tone="warning">
+            <UI.Stack gap="compact">
+              <UI.Text>
+                {t(
+                  explained === "source_policy_changed"
+                    ? "tasks.startRun.refused.sourcePolicyChanged"
+                    : "tasks.startRun.refused.requirementsChanged",
+                )}
+              </UI.Text>
+              {explained === "source_policy_changed" &&
+                task.repositoryId !== null && (
+                <RouterLink
+                  params={{ repositoryId: task.repositoryId }}
+                  to="/projects/repositories/$repositoryId/rules"
+                >
+                  {t("tasks.run.rules.open")}
+                </RouterLink>
+              )}
+            </UI.Stack>
+          </UI.InlineNotice>
+        )}
+        {refusal && !explained && (
           <UI.InlineNotice role="none" tone="error">
             {labels.setupRequired[
               refusal.code as keyof typeof labels.setupRequired

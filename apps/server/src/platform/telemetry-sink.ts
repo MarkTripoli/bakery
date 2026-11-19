@@ -467,7 +467,12 @@ export function createTelemetrySink(
   };
 
   const send: ExportSink<TelemetryRecord> = async (batch, signal) => {
-    if (destinations.length === 0) return;
+    if (destinations.length === 0) {
+      // A batch that reached no destination is lost, and saying so is the only
+      // honest answer. Returning normally made the exporter count records as
+      // exported while nothing was written anywhere.
+      throw new Error("TELEMETRY_SINK_NO_DESTINATION");
+    }
     let failed = 0;
     let firstError: unknown;
     for (const [name, sink] of destinations) {

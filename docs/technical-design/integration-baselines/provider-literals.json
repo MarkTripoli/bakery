@@ -40,7 +40,6 @@
     "apps/web/src/pages/IssuesPage.tsx\tgithub": 3,
     "apps/web/src/pages/IssuesTroubleBanner.tsx\tgithub": 2,
     "packages/contracts/src/integrations.ts\tgithub": 2,
-    "packages/contracts/src/implemented-actions.ts\tgithub": 8,
     "packages/contracts/src/ticket-admission.ts\tgithub": 19,
     "packages/i18n/locales/en.json\tgithub": 18
   }
