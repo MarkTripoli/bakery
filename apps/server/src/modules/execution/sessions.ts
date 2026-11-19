@@ -334,23 +334,26 @@ export async function steerAgentSession(
       where step.organization_id = $1 and step.id = $2`,
     [organizationId, session.run_step_id],
   );
-  const admission = target.rows[0]
-    ? await admitAgentSteer(transaction, context, {
-      organizationId,
-      principalId,
-      targetRunId: target.rows[0].run_id,
-      targetStepKey: target.rows[0].step_key,
-      limits,
-    })
-    : null;
-  const steersReviewer = target.rows[0]
-    ? await stepIsReviewer(
-      transaction,
-      organizationId,
-      target.rows[0].run_id,
-      target.rows[0].step_key,
-    )
-    : false;
+  // The target step must resolve for everyone. A session with no step has no
+  // run tree an agent could be admitted to, and a person's steer is just as
+  // meaningless without the step it is recorded against. Admission then runs
+  // for every caller (it is a no-op for a person), so there is no branch on which
+  // an agent's steer reaches the ledger under a person's label.
+  const targetRow = target.rows[0];
+  if (!targetRow) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  const admission = await admitAgentSteer(transaction, context, {
+    organizationId,
+    principalId,
+    targetRunId: targetRow.run_id,
+    targetStepKey: targetRow.step_key,
+    limits,
+  });
+  const steersReviewer = await stepIsReviewer(
+    transaction,
+    organizationId,
+    targetRow.run_id,
+    targetRow.step_key,
+  );
 
   // Conversation first, then command locks: the same order message admission uses.
   await transaction.query(
