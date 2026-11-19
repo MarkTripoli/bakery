@@ -1,4 +1,5 @@
 import {
+  appendAudit,
   type DomainEventFacts,
   type PgTransactionClient,
   registerDomainEventProjection,
@@ -54,6 +55,29 @@ type Draft = Readonly<{
   conversationId: string | null;
   actorId: string | null;
 }>;
+
+/**
+ * A data case the projection cannot write a row for: the thing the event names
+ * is gone, or nobody is to be told. It never throws, so only a real bug can
+ * roll back the domain write it rides on. The reason is recorded in the audit
+ * trail, where an operator can find why a person was not told.
+ */
+async function skip(
+  transaction: PgTransactionClient,
+  event: DomainEventFacts,
+  reason: string,
+): Promise<void> {
+  await appendAudit(transaction, {
+    organizationId: event.organizationId,
+    principalId: null,
+    operation: "notifications.skipped",
+    resourceType: "domain_event",
+    resourceId: event.eventId,
+    requestId: crypto.randomUUID(),
+    traceId: event.traceId,
+    details: { reason, eventType: event.eventType },
+  });
+}
 
 /** Principals that may be told something: active human members of the organization. */
 async function activeHumans(
@@ -114,6 +138,7 @@ async function write(
   drafts: readonly Draft[],
 ): Promise<void> {
   const changed = new Set<string>();
+  if (drafts.length === 0) await skip(transaction, event, "no_recipient");
   for (const draft of drafts) {
     const inserted = await transaction.query<{ id: string }>(
       `insert into bakery.notifications (
@@ -121,8 +146,7 @@ async function write(
          target_anchor, conversation_id, run_id, task_id, actor_id,
          source_event_id, source_version
        ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-       on conflict (organization_id, recipient_id, kind, source_event_id,
-                    source_version) do nothing
+       on conflict do nothing
        returning id`,
       [
         event.organizationId,
@@ -168,10 +192,23 @@ async function stepFailed(
     [event.organizationId, payload.runId],
   );
   const taskId = run.rows[0]?.taskId;
-  if (taskId === undefined) return;
+  if (taskId === undefined) return await skip(transaction, event, "run_gone");
   if (!(await isTopLevelTask(transaction, event.organizationId, taskId))) {
     return;
   }
+  // One notification per step, on its final failure: a failed attempt that has
+  // a later iteration of the same step is being retried, which is not news.
+  const retried = await transaction.query(
+    `select 1 from bakery.run_steps as step
+       join bakery.run_steps as later
+         on later.organization_id = step.organization_id
+        and later.run_id = step.run_id and later.step_key = step.step_key
+        and later.iteration > step.iteration
+      where step.organization_id = $1 and step.id = $2
+      limit 1`,
+    [event.organizationId, payload.stepId],
+  );
+  if (retried.rows.length > 0) return;
   const recipients = await initiatingHuman(
     transaction,
     event.organizationId,
@@ -206,7 +243,7 @@ async function runTerminal(
     [event.organizationId, payload.runId],
   );
   const row = run.rows[0];
-  if (row === undefined) return;
+  if (row === undefined) return await skip(transaction, event, "run_gone");
   // Blocked and canceled are not outcomes to announce: a blocked run is already
   // waiting on a question or an approval, and a person canceled the other.
   const kind: Kind | null = row.status === "completed"
@@ -223,19 +260,8 @@ async function runTerminal(
     event.organizationId,
     row.taskId,
   );
-  // The source transition is the run reaching this state, not each event that
-  // happens to mention it afterwards: one notification per recipient per run.
-  const fresh: string[] = [];
-  for (const recipientId of recipients) {
-    const existing = await transaction.query(
-      `select 1 from bakery.notifications
-        where organization_id = $1 and recipient_id = $2 and kind = $3
-          and run_id = $4
-        limit 1`,
-      [event.organizationId, recipientId, kind, payload.runId],
-    );
-    if (existing.rows.length === 0) fresh.push(recipientId);
-  }
+  // One outcome per recipient per run, enforced by a unique index so two
+  // events racing to announce the same run cannot both write.
   // Where it lands: the failed step on a failure, the last step that had a
   // session on a success.
   const step = await transaction.query<{ id: string }>(
@@ -255,7 +281,7 @@ async function runTerminal(
   await write(
     transaction,
     event,
-    fresh.map((recipientId) => ({
+    recipients.map((recipientId) => ({
       recipientId,
       kind,
       targetKind: "run",
@@ -293,7 +319,10 @@ async function questionOpened(
     [event.organizationId, questionId],
   );
   const question = found.rows[0];
-  if (question === undefined || question.kind !== expectedKind) return;
+  if (question === undefined) {
+    return await skip(transaction, event, "target_gone");
+  }
+  if (question.kind !== expectedKind) return;
   // An explicit audience is who is asked; otherwise the person who started it.
   const named = question.audience.type === "principals"
     ? question.audience.principalIds ?? []
@@ -335,7 +364,9 @@ async function documentVersion(
     [event.organizationId, payload.resourceId],
   );
   const row = version.rows[0];
-  if (row === undefined) return;
+  if (row === undefined) {
+    return await skip(transaction, event, "target_gone");
+  }
   const recipients = (await initiatingHuman(
     transaction,
     event.organizationId,
@@ -378,7 +409,9 @@ async function commentCreated(
     [event.organizationId, payload.resourceId],
   );
   const row = comment.rows[0];
-  if (row === undefined) return;
+  if (row === undefined) {
+    return await skip(transaction, event, "target_gone");
+  }
   // The task's initiator, and everyone who already commented on this document.
   const prior = await transaction.query<{ authorId: string }>(
     `select distinct comment.author_id as "authorId"

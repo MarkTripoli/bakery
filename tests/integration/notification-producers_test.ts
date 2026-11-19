@@ -408,3 +408,139 @@ Deno.test("a document's new version and comments reach the initiator, never thei
     await fixture.close();
   }
 });
+
+Deno.test("two events racing to announce one run write one notification", async () => {
+  const fixture = await openSocketFixture();
+  try {
+    const run = await seedRun(fixture, "completed");
+    await Promise.all([
+      emit(fixture, "run.updated", { runId: run.runId, version: 2 }),
+      emit(fixture, "run.updated", { runId: run.runId, version: 3 }),
+      emit(fixture, "run.updated", { runId: run.runId, version: 4 }),
+    ]);
+    assertEquals((await rows(fixture, "run_completed")).length, 1);
+  } finally {
+    await cleanupAuthFixture(fixture.pgDatabase, [fixture.email]);
+    await fixture.close();
+  }
+});
+
+Deno.test("a step is announced on its final failure only, and once", async () => {
+  const fixture = await openSocketFixture();
+  try {
+    const { runId, stepId } = await seedRun(fixture, "running");
+    const failed = (id: string) =>
+      emit(fixture, "job.completed", {
+        runId,
+        stepId: id,
+        jobId: crypto.randomUUID(),
+        attemptId: crypto.randomUUID(),
+        status: "failed",
+      });
+    // A later iteration of the same step exists: this failure is being retried.
+    const retryId = crypto.randomUUID();
+    await fixture.pgDatabase.query(
+      `insert into bakery.run_steps (id, organization_id, run_id, step_key,
+         position, iteration, status, input)
+       values ($1, $2, $3, 'build', 1, 1, 'running', '{}')`,
+      [retryId, fixture.organizationId, runId],
+    );
+    await failed(stepId);
+    assertEquals((await rows(fixture, "step_failed")).length, 0);
+
+    // The retry fails too: that is the final failure, announced once even if
+    // the event is delivered twice.
+    await failed(retryId);
+    await failed(retryId);
+    const announced = await rows(fixture, "step_failed");
+    assertEquals(announced.length, 1);
+    assertEquals(announced[0].target_id, retryId);
+  } finally {
+    await cleanupAuthFixture(fixture.pgDatabase, [fixture.email]);
+    await fixture.close();
+  }
+});
+
+Deno.test("a data case the projection cannot serve is skipped with a recorded reason, never thrown", async () => {
+  const fixture = await openSocketFixture();
+  try {
+    const skipped = async () =>
+      (await fixture.pgDatabase.query<{ reason: string; event: string }>(
+        `select details ->> 'reason' as reason, details ->> 'eventType' as event
+           from bakery.audit_events
+          where organization_id = $1 and operation = 'notifications.skipped'
+          order by id`,
+        [fixture.organizationId],
+      )).rows.map((row) => `${row.event}:${row.reason}`);
+    const gone = () => crypto.randomUUID();
+
+    // The run is gone.
+    await emit(fixture, "job.completed", {
+      runId: gone(),
+      stepId: gone(),
+      jobId: gone(),
+      attemptId: gone(),
+      status: "failed",
+    });
+    await emit(fixture, "run.updated", { runId: gone(), version: 2 });
+    // The thing the event names is gone.
+    await emit(fixture, "question.opened", {
+      questionId: gone(),
+      conversationId: fixture.conversationId,
+    });
+    await emit(fixture, "approval.requested", {
+      resourceId: gone(),
+      resourceVersion: 1,
+    });
+    await emit(fixture, "artifact.version_created", {
+      resourceId: gone(),
+      resourceVersion: 1,
+    });
+    await emit(fixture, "artifact.comment_created", {
+      resourceId: gone(),
+      resourceVersion: 1,
+      artifactId: gone(),
+      artifactVersionId: gone(),
+      rootId: gone(),
+      rootVersion: 1,
+    });
+    // Nobody to tell: the task was started by a service, which has no inbox.
+    const service = crypto.randomUUID();
+    await fixture.pgDatabase.query(
+      `insert into bakery.principals (id, display_name, principal_type)
+       values ($1, 'Service', 'service')`,
+      [service],
+    );
+    await fixture.pgDatabase.query(
+      `update bakery.tasks set created_by = $2 where id = $1`,
+      [fixture.taskId, service],
+    );
+    const run = await seedRun(fixture, "failed");
+    await emit(fixture, "run.updated", { runId: run.runId, version: 2 });
+
+    assertEquals(
+      (await skipped()).sort(),
+      [
+        "job.completed:run_gone",
+        "run.updated:run_gone",
+        "question.opened:target_gone",
+        "approval.requested:target_gone",
+        "artifact.version_created:target_gone",
+        "artifact.comment_created:target_gone",
+        "run.updated:no_recipient",
+      ].sort(),
+    );
+    const total = await fixture.pgDatabase.query(
+      `select 1 from bakery.notifications where organization_id = $1`,
+      [fixture.organizationId],
+    );
+    assertEquals(total.rows.length, 0);
+  } finally {
+    await fixture.pgDatabase.query(
+      `update bakery.tasks set created_by = $2 where id = $1`,
+      [fixture.taskId, fixture.principalId],
+    );
+    await cleanupAuthFixture(fixture.pgDatabase, [fixture.email]);
+    await fixture.close();
+  }
+});
