@@ -5055,6 +5055,20 @@
       "frames": []
     },
     {
+      "routeId": "settings-organization-plugins",
+      "path": "/settings/organization/plugins",
+      "status": "no-mock",
+      "rationale": "Designed in design-ux's #76 revision 3 (design-76/v3 on the pr-evidence branch): token-value mocks, not Paper frames, so there is no Paper artboard to score. Not searched against the Paper artboard list; the page is judged against those mocks in the PR's visual evidence and by the Storybook component lanes.",
+      "frames": []
+    },
+    {
+      "routeId": "settings-organization-plugin",
+      "path": "/settings/organization/plugins/$installId",
+      "status": "no-mock",
+      "rationale": "Designed in design-ux's #76 revision 3 (design-76/v3 on the pr-evidence branch): token-value mocks, not Paper frames, so there is no Paper artboard to score. Not searched against the Paper artboard list; the page is judged against those mocks in the PR's visual evidence and by the Storybook component lanes.",
+      "frames": []
+    },
+    {
       "routeId": "settings-organization-repository-rules",
       "path": "/settings/organization/repository-rules",
       "status": "no-mock",

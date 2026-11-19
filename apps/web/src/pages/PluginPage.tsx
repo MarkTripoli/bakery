@@ -20,6 +20,7 @@ import {
 } from "../app/plugins.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useRestoreOrganizationScope } from "../app/restore-organization.ts";
+import { useShellViewport } from "../app/responsive.ts";
 import { useSession } from "../app/session-context.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { SETTINGS_HOME } from "../shell/breadcrumb-paths.ts";
@@ -61,6 +62,7 @@ export function PluginPage({ installId }: { readonly installId: string }) {
   const session = useSession();
   const { locale, timeZone, translate } = useI18n();
   useRestoreOrganizationScope();
+  const phone = useShellViewport() === "phone";
   const access = useQuery(effectiveAccessQueryOptions(api, scope));
   const organization = useQuery(organizationQueryOptions(api, scope));
   const packages = useQuery(pluginPackagesQueryOptions(api, scope));
@@ -216,7 +218,7 @@ export function PluginPage({ installId }: { readonly installId: string }) {
           : (
             <>
               <UI.Stack gap="tight">
-                <UI.Inline variant="between">
+                <UI.Inline gap="compact">
                   <UI.Heading level="page">{row.name}</UI.Heading>
                   <UI.Badge
                     tone={row.state === "on"
@@ -356,81 +358,128 @@ export function PluginPage({ installId }: { readonly installId: string }) {
                 <UI.Heading level="section">
                   {translate("settings.plugins.versions.heading")}
                 </UI.Heading>
-                <UI.Stack
-                  gap="none"
-                  role="list"
-                  aria-label={translate("settings.plugins.versions.heading")}
-                >
-                  {published.map((version) => {
-                    const isCurrent = version.id === row.versionId;
+                {(() => {
+                  const status = (version: PluginVersion) =>
+                    version.id === row.versionId
+                      ? (
+                        <UI.Badge tone="information">
+                          {translate("settings.plugins.versions.current")}
+                        </UI.Badge>
+                      )
+                      : didNotStart.has(version.id)
+                      ? (
+                        <UI.Badge tone="danger">
+                          {translate("settings.plugins.versions.didNotStart")}
+                        </UI.Badge>
+                      )
+                      : null;
+                  const action = (version: PluginVersion) => {
+                    if (version.id === row.versionId || !mayChange) return null;
                     const newer = current?.publishedAt != null &&
                       version.publishedAt! > current.publishedAt;
                     return (
-                      <div
-                        key={version.id}
-                        role="listitem"
-                        data-plugin-version={version.id}
+                      <UI.Button
+                        variant={newer && version.id === newest?.id
+                          ? "primary"
+                          : "secondary"}
+                        aria-label={newer
+                          ? translate("settings.plugins.versions.updateNamed", {
+                            version: version.versionName,
+                          })
+                          : translate("settings.plugins.versions.goBackNamed", {
+                            version: version.versionName,
+                          })}
+                        onClick={() => {
+                          setFailure(null);
+                          setDialog({
+                            kind: "version",
+                            version,
+                            direction: newer ? "update" : "goBack",
+                          });
+                        }}
                       >
-                        <UI.StackedRow
-                          title={version.versionName}
-                          status={isCurrent
-                            ? (
-                              <UI.Badge tone="information">
-                                {translate("settings.plugins.versions.current")}
-                              </UI.Badge>
-                            )
-                            : didNotStart.has(version.id)
-                            ? (
-                              <UI.Badge tone="danger">
-                                {translate(
-                                  "settings.plugins.versions.didNotStart",
-                                )}
-                              </UI.Badge>
-                            )
-                            : undefined}
-                        >
-                          <UI.Text variant="caption">
-                            {translate("settings.plugins.update.published", {
-                              when: date(version.publishedAt!),
-                            })}
-                          </UI.Text>
-                          {isCurrent || !mayChange ? null : (
-                            <UI.Button
-                              variant={newer && version.id === newest?.id
-                                ? "primary"
-                                : "secondary"}
-                              aria-label={newer
-                                ? translate(
-                                  "settings.plugins.versions.updateNamed",
-                                  {
-                                    version: version.versionName,
-                                  },
-                                )
-                                : translate(
-                                  "settings.plugins.versions.goBackNamed",
-                                  {
-                                    version: version.versionName,
-                                  },
-                                )}
-                              onClick={() => {
-                                setFailure(null);
-                                setDialog({
-                                  kind: "version",
-                                  version,
-                                  direction: newer ? "update" : "goBack",
-                                });
-                              }}
-                            >
-                              {newer
-                                ? translate("settings.plugins.versions.update")
-                                : translate("settings.plugins.versions.goBack")}
-                            </UI.Button>
-                          )}
-                        </UI.StackedRow>
-                      </div>
+                        {newer
+                          ? translate("settings.plugins.versions.update")
+                          : translate("settings.plugins.versions.goBack")}
+                      </UI.Button>
                     );
-                  })}
-                </UI.Stack>
+                  };
+                  const publishedLine = (version: PluginVersion) =>
+                    translate("settings.plugins.update.published", {
+                      when: date(version.publishedAt!),
+                    });
+                  return phone
+                    ? (
+                      <UI.Stack
+                        gap="none"
+                        role="list"
+                        aria-label={translate(
+                          "settings.plugins.versions.heading",
+                        )}
+                      >
+                        {published.map((version) => (
+                          <div
+                            key={version.id}
+                            role="listitem"
+                            data-plugin-version={version.id}
+                          >
+                            <UI.StackedRow
+                              title={version.versionName}
+                              status={status(version) ?? undefined}
+                            >
+                              <UI.Text variant="caption">
+                                {publishedLine(version)}
+                              </UI.Text>
+                              {action(version)}
+                            </UI.StackedRow>
+                          </div>
+                        ))}
+                      </UI.Stack>
+                    )
+                    : (
+                      <UI.DataTable<PluginVersion>
+                        caption={translate("settings.plugins.versions.heading")}
+                        captionHidden
+                        headingsHidden
+                        variant="ruled"
+                        inset="edge"
+                        rowSize="double"
+                        rows={published}
+                        state="ready"
+                        getRowKey={(version) => version.id}
+                        getRowAttributes={(version) => ({
+                          "data-plugin-version": version.id,
+                        })}
+                        columns={[
+                          {
+                            id: "version",
+                            width: "50%",
+                            header: translate("settings.plugins.page.version"),
+                            cell: (version) => (
+                              <UI.Stack gap="none">
+                                <UI.Text>{version.versionName}</UI.Text>
+                                <UI.Text variant="caption">
+                                  {publishedLine(version)}
+                                </UI.Text>
+                              </UI.Stack>
+                            ),
+                          },
+                          {
+                            id: "status",
+                            width: "20%",
+                            header: translate("settings.plugins.column.status"),
+                            cell: (version) => status(version),
+                          },
+                          {
+                            id: "action",
+                            align: "end",
+                            header: translate("settings.plugins.column.action"),
+                            cell: (version) => action(version),
+                          },
+                        ]}
+                      />
+                    );
+                })()}
               </UI.Stack>
             </>
           )}
