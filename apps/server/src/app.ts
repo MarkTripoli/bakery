@@ -11,7 +11,10 @@ import { createArtifactKindsRoutes } from "./modules/artifact-kinds/index.ts";
 import { createMemoryRoutes } from "./modules/knowledge/memory-routes.ts";
 import { createPluginPackageRoutes } from "./modules/catalog/plugin-routes.ts";
 import { githubIngress } from "./modules/catalog/integration-providers/github-ingress.ts";
-import { TICKET_NOTE_ACTION } from "./modules/catalog/integration-providers/github.ts";
+import {
+  TICKET_NOTE_ACTION,
+  TICKET_NOTE_UPDATE_ACTION,
+} from "./modules/catalog/integration-providers/github.ts";
 import { createGateTicketNoteWriter } from "./modules/integrations/ticket-notes.ts";
 import type { TicketNoteWriter } from "./modules/work/ticket-notes.ts";
 import { createPluginInstallRoutes } from "./modules/catalog/plugin-install-routes.ts";
@@ -784,7 +787,12 @@ export function createApp(options: {
         database: options.pgDatabase,
         registry: integrationRegistry,
         providerRequests,
-        noteActions: { github: TICKET_NOTE_ACTION },
+        noteActions: {
+          github: {
+            create: TICKET_NOTE_ACTION,
+            update: TICKET_NOTE_UPDATE_ACTION,
+          },
+        },
       }),
     }),
   );

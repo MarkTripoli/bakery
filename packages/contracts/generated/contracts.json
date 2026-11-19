@@ -56942,7 +56942,7 @@
           "type": "object",
           "properties": {},
           "additionalProperties": false,
-          "description": "Asks Bakery to post its status note on the ticket of one primary link again, after the last write failed or when none was posted yet. The note is written by the source provider's registered comment action as the caller, through the integration gate and the effect ledger, so the caller needs that action's grant on the repository; a write the gate or the provider refuses is recorded on the link as failed with its problem code, not answered as an error."
+          "description": "Asks Bakery to bring its status note on the ticket of one primary link up to date: the note already posted is rewritten in place by the provider's update action, one the provider no longer has (deleted there) is posted again under a new id and the link's lastProblemCode says note_recreated, and a link with none gets its first. Every call writes; no digest of the posted text is kept. The note is written by the source provider's registered comment action as the caller, through the integration gate and the effect ledger, so the caller needs that action's grant on the repository; a write the gate or the provider refuses is recorded on the link as failed with its problem code, not answered as an error."
         },
         "TicketReadinessCreate": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -112581,7 +112581,7 @@
                 {
                   "type": "string",
                   "maxLength": 65536,
-                  "description": "Fixed lowercase code of the last failed note write (for example auth_forbidden when the caller holds no grant for the provider's comment action); null after a confirmed note and before any failure."
+                  "description": "Fixed lowercase code of the last note write that did not go as asked: a failure (for example auth_forbidden when the caller holds no grant for the provider's comment action) with syncHealth failed, or note_recreated with syncHealth healthy when the earlier note was gone on the provider and a new one replaced it; null after a note rewritten or first posted as asked, and before any write."
                 },
                 {
                   "type": "null",
@@ -112706,7 +112706,7 @@
                 {
                   "type": "string",
                   "maxLength": 65536,
-                  "description": "Fixed lowercase code of the last failed note write (for example auth_forbidden when the caller holds no grant for the provider's comment action); null after a confirmed note and before any failure."
+                  "description": "Fixed lowercase code of the last note write that did not go as asked: a failure (for example auth_forbidden when the caller holds no grant for the provider's comment action) with syncHealth failed, or note_recreated with syncHealth healthy when the earlier note was gone on the provider and a new one replaced it; null after a note rewritten or first posted as asked, and before any write."
                 },
                 {
                   "type": "null",
@@ -221471,7 +221471,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:d82f0d7ef9344aa507745ac8aae22c94fbf84d23da4eb4c75ca09b539fbc168b",
+  "compatibilityDigest": "sha256:6d432b438a28021c630e2423e0915709d77b0b01a3e65717e6bfdf31e0096ede",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -242287,7 +242287,7 @@
       "type": "object",
       "properties": {},
       "additionalProperties": false,
-      "description": "Asks Bakery to post its status note on the ticket of one primary link again, after the last write failed or when none was posted yet. The note is written by the source provider's registered comment action as the caller, through the integration gate and the effect ledger, so the caller needs that action's grant on the repository; a write the gate or the provider refuses is recorded on the link as failed with its problem code, not answered as an error."
+      "description": "Asks Bakery to bring its status note on the ticket of one primary link up to date: the note already posted is rewritten in place by the provider's update action, one the provider no longer has (deleted there) is posted again under a new id and the link's lastProblemCode says note_recreated, and a link with none gets its first. Every call writes; no digest of the posted text is kept. The note is written by the source provider's registered comment action as the caller, through the integration gate and the effect ledger, so the caller needs that action's grant on the repository; a write the gate or the provider refuses is recorded on the link as failed with its problem code, not answered as an error."
     },
     "TicketReadinessCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -298124,7 +298124,7 @@
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Fixed lowercase code of the last failed note write (for example auth_forbidden when the caller holds no grant for the provider's comment action); null after a confirmed note and before any failure."
+              "description": "Fixed lowercase code of the last note write that did not go as asked: a failure (for example auth_forbidden when the caller holds no grant for the provider's comment action) with syncHealth failed, or note_recreated with syncHealth healthy when the earlier note was gone on the provider and a new one replaced it; null after a note rewritten or first posted as asked, and before any write."
             },
             {
               "type": "null",
@@ -298249,7 +298249,7 @@
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Fixed lowercase code of the last failed note write (for example auth_forbidden when the caller holds no grant for the provider's comment action); null after a confirmed note and before any failure."
+              "description": "Fixed lowercase code of the last note write that did not go as asked: a failure (for example auth_forbidden when the caller holds no grant for the provider's comment action) with syncHealth failed, or note_recreated with syncHealth healthy when the earlier note was gone on the provider and a new one replaced it; null after a note rewritten or first posted as asked, and before any write."
             },
             {
               "type": "null",

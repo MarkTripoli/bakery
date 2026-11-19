@@ -2,9 +2,12 @@ import { z } from "zod";
 import { defineAction, defineIntegration } from "@bakery/integration-sdk";
 
 const COMMENT_REF = { id: "github.issue.comment.create", version: 1 } as const;
+const UPDATE_REF = { id: "github.issue.comment.update", version: 1 } as const;
 
 /** The action that writes Bakery's status note on an issue (#69): the comment action. */
 export const TICKET_NOTE_ACTION = COMMENT_REF;
+/** The action that rewrites Bakery's status note in place (#69). */
+export const TICKET_NOTE_UPDATE_ACTION = UPDATE_REF;
 const LIST_REF = { id: "github.issue.comments.list", version: 1 } as const;
 const MAX_PAGES = 20;
 const PAGE_SIZE = 100;
@@ -130,6 +133,56 @@ const createComment = defineAction({
   },
 });
 
+const commentId = z.string().regex(/^[1-9][0-9]{0,19}$/).describe(
+  "GitHub comment id as a decimal string, as an earlier create receipt returned it.",
+);
+
+const updateInput = z.strictObject({
+  commentId,
+  body: z.string().min(1).max(16_000).refine(
+    (body) => !/<!--\s*bakery-effect:/i.test(body),
+    "Reserved effect marker",
+  ).describe(
+    "Replacement comment Markdown, 1 to 16000 characters; Bakery effect markers are reserved for the executor.",
+  ),
+}).describe(
+  "Authorized comment rewrite arguments: which comment of the bound repository and its new text.",
+);
+
+const updateComment = defineAction({
+  id: UPDATE_REF.id,
+  version: UPDATE_REF.version,
+  input: updateInput,
+  output: commentReceipt,
+  // A PATCH with the same body leaves the same comment: replaying it is safe.
+  effect: "native-idempotent",
+  resourceKind: "github.repository",
+  requests: [UPDATE_REF],
+  providerPermissions: { issues: "write" },
+  resourceProjection: [],
+  async execute(ctx, input) {
+    const raw = await ctx.provider.request(UPDATE_REF, {
+      comment_id: input.commentId,
+      body: input.body,
+    });
+    const comment = providerComment.parse(raw);
+    return { remoteId: String(comment.id) };
+  },
+});
+
+const updateRequestInput = z.strictObject({
+  comment_id: commentId,
+  body: z.string().min(1).max(16_000).describe(
+    "Replacement comment Markdown sent as the JSON body.",
+  ),
+}).describe("Comment rewrite request input: comment id and its new text.");
+
+const updateBody = z.strictObject({
+  body: z.string().min(1).max(16_000).describe(
+    "Replacement comment Markdown sent as the JSON body of the rewrite request.",
+  ),
+}).describe("JSON body of the comment rewrite request.");
+
 const createRequestInput = z.strictObject({
   issue_number: issueNumber(
     "Issue number placed in the request path; the host fills owner and repository from the bound resource.",
@@ -164,7 +217,7 @@ export const githubIntegration = defineIntegration({
   version: "1.0.0",
   authenticationProfile: "github-app",
   bakery: { required: [], optional: [] },
-  actions: [{ ...COMMENT_REF }],
+  actions: [{ ...COMMENT_REF }, { ...UPDATE_REF }],
   resourceKinds: ["github.repository"],
   requests: [
     {
@@ -204,9 +257,29 @@ export const githubIntegration = defineIntegration({
       maxResponseBytes: 8_388_608,
       providerPermissions: { issues: "read" },
     },
+    {
+      ...UPDATE_REF,
+      method: "PATCH",
+      effect: "write",
+      idempotent: true,
+      resourceKind: "github.repository",
+      pathTemplate: "/repos/{owner}/{repo}/issues/comments/{comment_id}",
+      pathParams: {
+        owner: "binding:owner",
+        repo: "binding:repo",
+        comment_id: "input",
+      },
+      input: updateRequestInput,
+      query: [],
+      body: updateBody,
+      response: providerComment,
+      maxResponseBytes: 524_288,
+      providerPermissions: { issues: "write" },
+    },
   ],
   optionalFeatures: [],
   subscriptions: [],
 }, {
   [`${COMMENT_REF.id}@${COMMENT_REF.version}`]: createComment,
+  [`${UPDATE_REF.id}@${UPDATE_REF.version}`]: updateComment,
 });

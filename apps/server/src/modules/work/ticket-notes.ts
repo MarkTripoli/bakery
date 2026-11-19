@@ -42,8 +42,12 @@ import { requireWorkTransaction } from "./work-transaction.ts";
  *
  * A claim whose writer never answered (the process died between 1 and 3)
  * stops counting as in flight after `NOTE_IN_FLIGHT_SECONDS`, so a crash
- * cannot hold a link forever. The comment action only creates comments, so
- * a note that is up to date is never written again.
+ * cannot hold a link forever. A link that already has a note gets it
+ * rewritten in place by the provider's update action, so the note stays true
+ * after the first post; when the provider no longer has that comment (it was
+ * deleted there) a new one is posted, its id stored, and `last_problem_code`
+ * says `note_recreated`. No digest of the posted text is stored, so every
+ * resync writes, even when the text would be unchanged.
  */
 
 type LinkOutput = z.output<typeof contractSchemas.TicketTaskLink>;
@@ -59,15 +63,21 @@ export type TicketNoteRequest = {
   /** The repository resource of the source (`integration_resources.id`). */
   resourceId: string;
   issueNumber: number;
+  /** The note already on the ticket (`status_comment_external_id`): rewritten in place; null posts a new one. */
+  existingExternalId: string | null;
   body: string;
   /** Names this write in the effect ledger: one per claim, so a retry of the same claim is one effect. */
   idempotencyKey: string;
   signal: AbortSignal;
 };
 
-/** What a write produced: the provider's comment id, or a fixed problem code. */
+/**
+ * What a write produced: the provider's comment id, or a fixed problem code.
+ * `recreated` says the note named by `existingExternalId` was gone on the
+ * provider (deleted there), so a new one was posted under a new id.
+ */
 export type TicketNoteResult =
-  | { kind: "posted"; externalId: string }
+  | { kind: "posted"; externalId: string; recreated: boolean }
   | { kind: "failed"; problemCode: string };
 
 /** Posts Bakery's status note; implemented over the integration gate, in memory in tests. */
@@ -199,9 +209,6 @@ async function claimNote(
   if (target.sync_health === "pending" && target.in_flight) {
     throw stateConflict("note_sync_in_flight");
   }
-  if (target.sync_health === "healthy") {
-    throw stateConflict("note_up_to_date");
-  }
   if (target.number === null) {
     throw unprocessable(["id"], "ticket_number_missing");
   }
@@ -223,6 +230,7 @@ async function claimNote(
       connectionId: target.integration_connection_id,
       resourceId: target.integration_resource_id,
       issueNumber: Number(target.number),
+      existingExternalId: target.status_comment_external_id,
       body: ticketNoteBody({
         title: target.task_title,
         status: target.task_status,
@@ -294,7 +302,7 @@ export function createTicketNoteRunner(
 /**
  * `ticketTaskLinks.resyncNote`: Developer, `Idempotency-Key` and `If-Match`
  * on the link version. Posts Bakery's status note on the ticket of a primary
- * link when none is posted yet or the last write failed, and answers the link
+ * link, or rewrites the one already posted, and answers the link
  * as recorded: `healthy` with the comment id, or `failed` with the problem
  * code. A failure is an answer, not an error: the caller may try again.
  */
@@ -324,7 +332,9 @@ export async function recordTicketNoteSync(
       claim.claimedVersion,
       posted ? "healthy" : "failed",
       posted ? result.externalId : null,
-      posted ? null : noteProblemCode(result.problemCode),
+      posted
+        ? (result.recreated ? "note_recreated" : null)
+        : noteProblemCode(result.problemCode),
     ],
   );
   const row = updated.rows[0];
@@ -359,6 +369,7 @@ export async function recordTicketNoteSync(
     details: {
       syncHealth: row.sync_health,
       problemCode: row.last_problem_code,
+      recreated: posted && result.recreated,
     },
   });
   await appendDomainEvent(transaction, {

@@ -18842,7 +18842,7 @@ export const clientManifest = {
       "type": "object",
       "properties": {},
       "additionalProperties": false,
-      "description": "Asks Bakery to post its status note on the ticket of one primary link again, after the last write failed or when none was posted yet. The note is written by the source provider's registered comment action as the caller, through the integration gate and the effect ledger, so the caller needs that action's grant on the repository; a write the gate or the provider refuses is recorded on the link as failed with its problem code, not answered as an error."
+      "description": "Asks Bakery to bring its status note on the ticket of one primary link up to date: the note already posted is rewritten in place by the provider's update action, one the provider no longer has (deleted there) is posted again under a new id and the link's lastProblemCode says note_recreated, and a link with none gets its first. Every call writes; no digest of the posted text is kept. The note is written by the source provider's registered comment action as the caller, through the integration gate and the effect ledger, so the caller needs that action's grant on the repository; a write the gate or the provider refuses is recorded on the link as failed with its problem code, not answered as an error."
     },
     "TicketReadinessCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

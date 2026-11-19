@@ -549,9 +549,15 @@ export type PolicyOverrides = {
  * `budget` gives the app the server budget policy (so a ready issue can be
  * admitted over HTTP); `liveFactIndex` leaves the app its stored-fact index.
  */
-/** An in-memory status-note writer: records every post, answers scripted results. */
+/**
+ * An in-memory status-note writer standing in for the provider: it keeps the
+ * comments it holds by id, rewrites one in place when the request names it,
+ * and posts a new one (recreated) when the named comment was deleted.
+ */
 export type MemoryNoteWriter = TicketNoteWriter & {
   posts: TicketNoteRequest[];
+  /** The comments the fake provider holds: id to body. */
+  comments: Map<string, string>;
   /** Answers of the next posts, oldest first; an empty queue posts comment ids 1001, 1002, ... */
   next: TicketNoteResult[];
   /** Awaited inside a post, before it answers; lets a test hold a write in flight. */
@@ -562,13 +568,27 @@ export function createMemoryNoteWriter(): MemoryNoteWriter {
   let counter = 1000;
   const writer: MemoryNoteWriter = {
     posts: [],
+    comments: new Map(),
     next: [],
     hold: null,
     async post(request) {
       writer.posts.push(request);
       if (writer.hold !== null) await writer.hold;
-      return writer.next.shift() ??
-        { kind: "posted", externalId: String(++counter) };
+      const scripted = writer.next.shift();
+      if (scripted !== undefined) {
+        if (scripted.kind === "posted") {
+          writer.comments.set(scripted.externalId, request.body);
+        }
+        return scripted;
+      }
+      const existing = request.existingExternalId;
+      if (existing !== null && writer.comments.has(existing)) {
+        writer.comments.set(existing, request.body);
+        return { kind: "posted", externalId: existing, recreated: false };
+      }
+      const id = String(++counter);
+      writer.comments.set(id, request.body);
+      return { kind: "posted", externalId: id, recreated: existing !== null };
     },
   };
   return writer;

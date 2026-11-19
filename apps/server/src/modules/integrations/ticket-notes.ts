@@ -31,69 +31,103 @@ export function createGateTicketNoteWriter(deps: {
   database: PgDatabase;
   registry: ActiveIntegrationRegistry;
   providerRequests: ProviderRequestPort;
-  /** The comment action of each provider that can carry a note. */
-  noteActions: Readonly<Record<string, NoteActionRef>>;
+  /** The comment actions of each provider that can carry a note: post one, and rewrite one by id. */
+  noteActions: Readonly<
+    Record<string, Readonly<{ create: NoteActionRef; update: NoteActionRef }>>
+  >;
 }): TicketNoteWriter {
   const invoke = connectionInvokeDeps(deps.registry, deps.providerRequests);
   return {
     async post(request: TicketNoteRequest): Promise<TicketNoteResult> {
-      const ref = Object.hasOwn(deps.noteActions, request.provider)
+      const refs = Object.hasOwn(deps.noteActions, request.provider)
         ? deps.noteActions[request.provider]
         : undefined;
-      if (ref === undefined) {
+      if (refs === undefined) {
         return { kind: "failed", problemCode: "provider_capability_missing" };
       }
-      try {
-        const result = await invokeIntegration({
-          database: deps.database,
-          registry: deps.registry,
-          snapshotsFor: invoke.snapshotsFor,
-          providerRequests: deps.providerRequests,
-          snapshots: {
-            load: (key) =>
-              withPgTransaction(
-                deps.database,
-                (transaction) => invoke.snapshotsFor(transaction).load(key),
-              ),
-          },
-          signal: request.signal,
-        }, {
-          organizationId: request.organizationId,
-          actorRef: request.actorPrincipalId,
-          connectionId: request.connectionId,
-          input: {
-            actionId: ref.id,
-            actionVersion: ref.version,
-            resourceId: request.resourceId,
-            arguments: { issueNumber: request.issueNumber, body: request.body },
-          },
-          idempotencyKey: request.idempotencyKey,
-        });
-        if (result.route !== "ledger") {
-          return { kind: "failed", problemCode: "note_action_not_a_write" };
-        }
-        const remoteId = result.run.outcome === "confirmed"
-          ? (result.run.effect.safeResult as { remoteId?: unknown } | null)
-            ?.remoteId
-          : undefined;
-        return typeof remoteId === "string"
-          ? { kind: "posted", externalId: remoteId }
-          : {
-            kind: "failed",
-            problemCode: noteProblemCode(`note_${result.run.outcome}`),
+      const send = async (
+        ref: NoteActionRef,
+        args: Record<string, unknown>,
+        key: string,
+      ): Promise<{ remoteId: string } | { problemCode: string }> => {
+        try {
+          const result = await invokeIntegration({
+            database: deps.database,
+            registry: deps.registry,
+            snapshotsFor: invoke.snapshotsFor,
+            providerRequests: deps.providerRequests,
+            snapshots: {
+              load: (snapshotKey) =>
+                withPgTransaction(
+                  deps.database,
+                  (transaction) =>
+                    invoke.snapshotsFor(transaction).load(snapshotKey),
+                ),
+            },
+            signal: request.signal,
+          }, {
+            organizationId: request.organizationId,
+            actorRef: request.actorPrincipalId,
+            connectionId: request.connectionId,
+            input: {
+              actionId: ref.id,
+              actionVersion: ref.version,
+              resourceId: request.resourceId,
+              arguments: args,
+            },
+            idempotencyKey: key,
+          });
+          if (result.route !== "ledger") {
+            return { problemCode: "note_action_not_a_write" };
+          }
+          const remoteId = result.run.outcome === "confirmed"
+            ? (result.run.effect.safeResult as { remoteId?: unknown } | null)
+              ?.remoteId
+            : undefined;
+          return typeof remoteId === "string"
+            ? { remoteId }
+            : { problemCode: noteProblemCode(`note_${result.run.outcome}`) };
+        } catch (error) {
+          if (!(error instanceof StandardError)) throw error;
+          const reason = error.params?.reason;
+          return {
+            problemCode: noteProblemCode(
+              typeof reason === "string" && /^[a-z_]+$/.test(reason)
+                ? reason
+                : String(error.code).toLowerCase(),
+            ),
           };
-      } catch (error) {
-        if (!(error instanceof StandardError)) throw error;
-        const reason = error.params?.reason;
+        }
+      };
+      const create = async (recreated: boolean): Promise<TicketNoteResult> => {
+        const posted = await send(refs.create, {
+          issueNumber: request.issueNumber,
+          body: request.body,
+        }, `${request.idempotencyKey}:create`);
+        return "remoteId" in posted
+          ? { kind: "posted", externalId: posted.remoteId, recreated }
+          : { kind: "failed", problemCode: posted.problemCode };
+      };
+      if (request.existingExternalId === null) return await create(false);
+      const updated = await send(refs.update, {
+        commentId: request.existingExternalId,
+        body: request.body,
+      }, `${request.idempotencyKey}:update`);
+      if ("remoteId" in updated) {
         return {
-          kind: "failed",
-          problemCode: noteProblemCode(
-            typeof reason === "string" && /^[a-z_]+$/.test(reason)
-              ? reason
-              : String(error.code).toLowerCase(),
-          ),
+          kind: "posted",
+          externalId: updated.remoteId,
+          recreated: false,
         };
       }
+      // The broker reports every terminal provider refusal (a 404 for a
+      // deleted comment among them) as one fixed failure, so the note is
+      // posted again: if that succeeds the old one was gone, and the new id
+      // replaces it. If it fails too, that failure is the answer.
+      if (updated.problemCode !== "note_failed") {
+        return { kind: "failed", problemCode: updated.problemCode };
+      }
+      return await create(true);
     },
   };
 }

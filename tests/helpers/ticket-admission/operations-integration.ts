@@ -711,7 +711,7 @@ async function insertPrimaryLink(fx: TicketFixture, ticketId: string) {
 
 type NoteLink = LinkView & { version: number };
 
-Deno.test("issue 69 note: a resync posts Bakery's note, records a failure as failed, and retries", async () => {
+Deno.test("issue 69 note: a resync posts Bakery's note, rewrites it in place, re-creates a deleted one and records failures", async () => {
   await withTicketFixture(async (fx) => {
     const sourceId = await fx.insertSource();
     seedIssues(fx, 1);
@@ -771,23 +771,72 @@ Deno.test("issue 69 note: a resync posts Bakery's note, records a failure as fai
       healthy,
     );
     assertEquals(fx.notes.posts.length, 2);
-    // A note that is up to date is not written again.
-    const current = await post(fx, path, {}, { ifMatch: 5 });
-    assertEquals(current.status, 409);
-    assertEquals((await current.json() as Problem).reason, "note_up_to_date");
-    assertEquals(fx.notes.posts.length, 2);
+    // A later resync rewrites the same comment in place with the new text.
+    await fx.owner.query(
+      `update bakery.tasks set title = 'renamed task' where id = $1`,
+      [taskId],
+    );
+    const rewritten = await read<NoteLink>(
+      await post(fx, path, {}, { ifMatch: 5 }),
+      201,
+    );
+    assertEquals(
+      [
+        rewritten.syncHealth,
+        rewritten.statusCommentExternalId,
+        rewritten.lastProblemCode,
+        rewritten.version,
+      ],
+      ["healthy", "1001", null, 7],
+    );
+    assertEquals(fx.notes.posts.at(-1)?.existingExternalId, "1001");
+    assert(fx.notes.comments.get("1001")!.includes("Task: renamed task"));
+    assertEquals(fx.notes.comments.size, 1);
+
+    // A note deleted on the provider is posted again under a new id, and the
+    // link says so.
+    fx.notes.comments.delete("1001");
+    const recreated = await read<NoteLink>(
+      await post(fx, path, {}, { ifMatch: 7 }),
+      201,
+    );
+    assertEquals(
+      [
+        recreated.syncHealth,
+        recreated.statusCommentExternalId,
+        recreated.lastProblemCode,
+        recreated.version,
+      ],
+      ["healthy", "1002", "note_recreated", 9],
+    );
+    assert(fx.notes.comments.has("1002"));
+
+    // A provider failure on a rewrite is recorded as failed, the id kept.
+    fx.notes.next.push({ kind: "failed", problemCode: "note_failed" });
+    const refusedWrite = await read<NoteLink>(
+      await post(fx, path, {}, { ifMatch: 9 }),
+      201,
+    );
+    assertEquals(
+      [
+        refusedWrite.syncHealth,
+        refusedWrite.statusCommentExternalId,
+        refusedWrite.lastProblemCode,
+      ],
+      ["failed", "1002", "note_failed"],
+    );
+    const notesWritten = fx.notes.posts.length;
 
     // The link list shows the note's state.
     const listed = await read<Page<LinkView>>(
       await ticketCall(fx, "GET", `/v1/ticket-task-links?taskId=${taskId}`),
       200,
     );
-    assertEquals(listed.items.map((link) => link.syncHealth), ["healthy"]);
-    assertEquals(await factsOf(fx, "ticket_task_link", id), {
-      audit: ["ticketTaskLinks.resyncNote", "ticketTaskLinks.resyncNote"],
-      events: ["ticket.link_changed", "ticket.link_changed"],
-      outbox: 0,
-    });
+    assertEquals(listed.items.map((link) => link.syncHealth), ["failed"]);
+    assertEquals(
+      (await factsOf(fx, "ticket_task_link", id)).audit,
+      Array(5).fill("ticketTaskLinks.resyncNote"),
+    );
 
     // A reference link carries no note.
     const reference = await read<NoteLink>(
@@ -818,7 +867,7 @@ Deno.test("issue 69 note: a resync posts Bakery's note, records a failure as fai
       )).status,
       404,
     );
-    assertEquals(fx.notes.posts.length, 2);
+    assertEquals(fx.notes.posts.length, notesWritten);
   });
 });
 

@@ -7318,9 +7318,9 @@ const transportSchemas = {
     "TicketTaskLinkNoteSync": {
       "fields": [],
       "rules": [
-        "Idempotency-Key and If-Match on the link version required; refused while a write of the same link is in flight."
+        "Idempotency-Key and If-Match on the link version required; refused while a write of the same link is in flight; never refused because the note is already posted."
       ],
-      "description": "Asks Bakery to post its status note on the ticket of one primary link again, after the last write failed or when none was posted yet. The note is written by the source provider's registered comment action as the caller, through the integration gate and the effect ledger, so the caller needs that action's grant on the repository; a write the gate or the provider refuses is recorded on the link as failed with its problem code, not answered as an error."
+      "description": "Asks Bakery to bring its status note on the ticket of one primary link up to date: the note already posted is rewritten in place by the provider's update action, one the provider no longer has (deleted there) is posted again under a new id and the link's lastProblemCode says note_recreated, and a link with none gets its first. Every call writes; no digest of the posted text is kept. The note is written by the source provider's registered comment action as the caller, through the integration gate and the effect ledger, so the caller needs that action's grant on the repository; a write the gate or the provider refuses is recorded on the link as failed with its problem code, not answered as an error."
     },
     "TicketReadinessCreate": {
       "fields": [
@@ -15642,7 +15642,7 @@ const transportSchemas = {
         "statusCommentExternalId": "The provider's id of Bakery's status note on the ticket, as the comment action confirmed it; null until a note is posted.",
         "lastSyncedRunRevision": "Run revision the status note last described; null until a note records one.",
         "syncHealth": "State of Bakery's status note on the ticket: unknown before any write, pending while a write is in flight, healthy once the provider confirmed the note, failed when the last write was refused (lastProblemCode says why).",
-        "lastProblemCode": "Fixed lowercase code of the last failed note write (for example auth_forbidden when the caller holds no grant for the provider's comment action); null after a confirmed note and before any failure.",
+        "lastProblemCode": "Fixed lowercase code of the last note write that did not go as asked: a failure (for example auth_forbidden when the caller holds no grant for the provider's comment action) with syncHealth failed, or note_recreated with syncHealth healthy when the earlier note was gone on the provider and a new one replaced it; null after a note rewritten or first posted as asked, and before any write.",
         "createdAt": "Timestamp recording when the created event occurred for this ticket task link record.",
         "updatedAt": "Timestamp recording the last update to this ticket task link record.",
         "version": "Monotonic revision used to order or conditionally update this ticket task link record."
