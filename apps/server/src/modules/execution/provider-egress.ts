@@ -6,12 +6,12 @@ import { isIP, type LookupFunction } from "node:net";
  *
  * A route's endpoint is typed by an administrator and called by the server, so a
  * value that names the server's own network is a request to read it (SSRF). The
- * rule is one predicate meant to be applied twice. The route command applies it
- * now, refusing an endpoint whose host is written as such an address (the first
- * line). The second line, refusing to connect to an address a name *resolves* to,
- * is not in this module yet: it belongs to the probe, which is what makes the
- * connection, and until it lands a name that resolves to a private address is not
- * stopped here.
+ * rule is one predicate, applied twice. The route command applies it to an
+ * endpoint whose host is written as such an address (the first line). The probe
+ * applies it again to every address a name *resolves* to, inside the connection's
+ * own `lookup` (`guardedLookup` below), so the address that was checked is the
+ * address that is dialled and a name cannot answer one thing to the check and
+ * another to the connection (DNS rebinding).
  *
  * Non-public means anything a public provider can never have: unspecified,
  * loopback, private, shared (carrier-grade NAT), link-local (which includes the
