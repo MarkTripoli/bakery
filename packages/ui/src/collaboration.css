@@ -2157,6 +2157,7 @@ button.ui-activity-line__row:hover {
 
 .ui-activity-line:has(.ui-session-path) .ui-activity-line__text {
   display: flex;
+  flex: 1 1 min-content;
   flex-wrap: wrap;
   gap: var(--space-1);
   min-inline-size: 0;
