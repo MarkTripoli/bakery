@@ -20,6 +20,7 @@ import {
   randomSecret,
   sha256Base64Url,
 } from "../../apps/server/src/modules/auth/domain/desktop-sign-in.ts";
+import { renderConfirmPage } from "../../apps/server/src/modules/auth/transport/http/desktop-sign-in-pages.ts";
 import {
   createOriginGuard,
   desktopSessionHeaders,
@@ -264,4 +265,35 @@ Deno.test("the origin guard lets a desktop bearer through and still refuses cook
     authorization: `Bearer bky_${randomSecret()}`,
   });
   assertEquals(accessToken.status, 403);
+});
+
+Deno.test("the confirmation page renders in every locale with escaped values", async () => {
+  for (const locale of ["en", "en-XA", "ar-XB"] as const) {
+    const response = renderConfirmPage(locale, {
+      name: "Ada <b>",
+      email: "ada@example.test",
+      computerName: 'Studio "1"',
+      createdAt: new Date("2026-11-19T12:34:00Z"),
+      requestId: "00000000-0000-4000-8000-000000000000",
+    });
+    assertEquals(response.status, 200, locale);
+    assertEquals(response.headers.get("cache-control"), "no-store");
+    const html = await response.text();
+    assert(html.includes(`lang="${locale}"`), locale);
+    assertEquals(html.includes('dir="rtl"'), locale === "ar-XB");
+    assert(html.includes("Ada &lt;b&gt;") && !html.includes("Ada <b>"));
+    assert(html.includes("Studio &quot;1&quot;"));
+    assert(html.includes('datetime="2026-11-19T12:34:00.000Z"'));
+    assert(html.includes('name="decision" value="continue"'));
+  }
+  const english = await renderConfirmPage("en", {
+    name: "Ada",
+    email: "ada@example.test",
+    computerName: "Studio",
+    createdAt: new Date("2026-11-19T12:34:00Z"),
+    requestId: "r",
+  }).text();
+  assert(english.includes("Sign in to the Bakery app?"));
+  assert(english.includes("Continue to the app"));
+  assert(english.includes("Not Ada? Use another account"));
 });

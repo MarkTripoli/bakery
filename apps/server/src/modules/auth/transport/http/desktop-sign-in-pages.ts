@@ -143,6 +143,69 @@ function signInPage(locale: SupportedLocale): Page {
   };
 }
 
+/** The confirmation page for one live request and the signed-in person. */
+export function renderConfirmPage(
+  locale: SupportedLocale,
+  input: {
+    name: string;
+    email: string;
+    computerName: string;
+    createdAt: Date;
+    requestId: string;
+  },
+): Response {
+  const translate = createTranslator({ locale, surface: "auth" });
+  const { name, email } = input;
+  const asked = formatDate(input.createdAt, locale, {
+    // Explicit fields: Intl refuses timeZoneName next to dateStyle/timeStyle.
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "UTC",
+    timeZoneName: "short",
+  });
+  const request = escapeHtml(input.requestId);
+  return render(locale, {
+    status: 200,
+    title: "auth.desktopSignIn.confirm.title",
+    body: "auth.desktopSignIn.confirm.body",
+    content: `<dl>
+<dt>${escapeHtml(translate("auth.desktopSignIn.confirm.signedInAs"))}</dt>
+<dd>${
+      escapeHtml(
+        translate("auth.desktopSignIn.confirm.signedInAsValue", {
+          name,
+          email,
+        }),
+      )
+    }</dd>
+<dt>${escapeHtml(translate("auth.desktopSignIn.confirm.computer"))}</dt>
+<dd>${escapeHtml(input.computerName)}</dd>
+<dt>${escapeHtml(translate("auth.desktopSignIn.confirm.asked"))}</dt>
+<dd><time datetime="${input.createdAt.toISOString()}">${
+      escapeHtml(asked)
+    }</time></dd>
+</dl>
+<p>${escapeHtml(translate("auth.desktopSignIn.confirm.access"))}</p>
+<form method="post" action="${DESKTOP_SIGN_IN_PAGE_PATH}">
+<input type="hidden" name="request" value="${request}">
+<button type="submit" name="decision" value="cancel">${
+      escapeHtml(translate("auth.desktopSignIn.confirm.cancel"))
+    }</button>
+<button type="submit" name="decision" value="continue" class="primary" autofocus>${
+      escapeHtml(translate("auth.desktopSignIn.confirm.continue"))
+    }</button>
+</form>
+<p><a href="${SIGN_OUT_PATH}">${
+      escapeHtml(
+        translate("auth.desktopSignIn.confirm.otherAccount", { name }),
+      )
+    }</a></p>`,
+  });
+}
+
 /**
  * The browser half of the desktop app's sign-in: the one question the
  * person answers (always shown, even on a repeat sign-in), then the done,
@@ -181,7 +244,6 @@ export function createDesktopSignInPages(options: {
   app.get(DESKTOP_SIGN_IN_PAGE_PATH, async (context) => {
     const principal = context.get("principal");
     const locale = requestLocale(context.req.raw, principal);
-    const translate = createTranslator({ locale, surface: "auth" });
     const view = await viewDesktopSignIn(
       options.database,
       context.req.query("request"),
@@ -192,51 +254,12 @@ export function createDesktopSignInPages(options: {
     if (!await assuredSession(context, options.store, options.secret)) {
       return render(locale, signInPage(locale));
     }
-    const name = principal!.displayName;
-    const email = principal!.email ?? "";
-    const asked = formatDate(view.createdAt!, locale, {
-      dateStyle: "medium",
-      timeStyle: "short",
-      timeZone: "UTC",
-      timeZoneName: "short",
-    });
-    const request = escapeHtml(context.req.query("request") ?? "");
-    return render(locale, {
-      status: 200,
-      title: "auth.desktopSignIn.confirm.title",
-      body: "auth.desktopSignIn.confirm.body",
-      content: `<dl>
-<dt>${escapeHtml(translate("auth.desktopSignIn.confirm.signedInAs"))}</dt>
-<dd>${
-        escapeHtml(
-          translate("auth.desktopSignIn.confirm.signedInAsValue", {
-            name,
-            email,
-          }),
-        )
-      }</dd>
-<dt>${escapeHtml(translate("auth.desktopSignIn.confirm.computer"))}</dt>
-<dd>${escapeHtml(view.computerName!)}</dd>
-<dt>${escapeHtml(translate("auth.desktopSignIn.confirm.asked"))}</dt>
-<dd><time datetime="${view.createdAt!.toISOString()}">${
-        escapeHtml(asked)
-      }</time></dd>
-</dl>
-<p>${escapeHtml(translate("auth.desktopSignIn.confirm.access"))}</p>
-<form method="post" action="${DESKTOP_SIGN_IN_PAGE_PATH}">
-<input type="hidden" name="request" value="${request}">
-<button type="submit" name="decision" value="cancel">${
-        escapeHtml(translate("auth.desktopSignIn.confirm.cancel"))
-      }</button>
-<button type="submit" name="decision" value="continue" class="primary" autofocus>${
-        escapeHtml(translate("auth.desktopSignIn.confirm.continue"))
-      }</button>
-</form>
-<p><a href="${SIGN_OUT_PATH}">${
-        escapeHtml(
-          translate("auth.desktopSignIn.confirm.otherAccount", { name }),
-        )
-      }</a></p>`,
+    return renderConfirmPage(locale, {
+      name: principal!.displayName,
+      email: principal!.email ?? "",
+      computerName: view.computerName!,
+      createdAt: view.createdAt!,
+      requestId: context.req.query("request") ?? "",
     });
   });
 

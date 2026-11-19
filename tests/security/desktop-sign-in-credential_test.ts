@@ -112,7 +112,11 @@ Deno.test("forged, malformed and expired desktop credentials are refused", async
 });
 
 Deno.test("live updates accept a desktop credential and close when it is revoked", async () => {
-  const f = await openSocketFixture();
+  // Re-authorization runs on the heartbeat and on each subscribed tick, as for
+  // a cookie session: a short heartbeat and a subscription make it prompt.
+  const f = await openSocketFixture({
+    eventsSocket: { limits: { heartbeatMs: 25 } },
+  });
   let client: WsClient | undefined;
   try {
     const issued = await signInDesktop(f, f.cookie);
@@ -125,6 +129,15 @@ Deno.test("live updates accept a desktop credential and close when it is revoked
     const hello = await client.next(2_500);
     assertEquals(typeof hello, "string");
     assertEquals(f.assertFrame(hello as string).type, "hello");
+    await client.send(JSON.stringify({
+      type: "subscribe",
+      requestId: crypto.randomUUID(),
+      scopes: [{ type: "task", id: f.taskId }],
+      after: null,
+    }));
+    const subscribed = await client.next(2_500);
+    assertEquals(typeof subscribed, "string");
+    assertEquals(f.assertFrame(subscribed as string).type, "cursor");
 
     const deleted = await f.pgDatabase.query(
       "delete from public.session where id = $1",
