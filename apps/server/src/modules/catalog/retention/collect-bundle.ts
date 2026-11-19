@@ -30,7 +30,7 @@ import { postgresErrorCode } from "../../../platform/postgres-errors.ts";
  */
 export async function collectPluginBundle(
   ownerDatabase: PgDatabase,
-  store: Pick<SkillObjectStore, "delete">,
+  store: Pick<SkillObjectStore, "delete" | "stat">,
   versionId: string,
   policy = "retention-v1",
 ): Promise<boolean> {
@@ -131,7 +131,14 @@ export async function collectPluginBundle(
       // A crash between them leaves an archive gone with no tombstone, and the
       // retry finishes the job because a delete of an absent key answers false
       // rather than throwing.
-      const removed = await store.delete(row.bundle_object_ref);
+      // Re-stat under the lock: between deciding and deleting, the object can be
+      // gone already (a previous attempt deleted it and failed to write the
+      // tombstone) or replaced. Deleting without looking would be a write against
+      // a key nobody re-checked.
+      const held = await store.stat(row.bundle_object_ref);
+      const removed = held === null
+        ? false
+        : await store.delete(row.bundle_object_ref);
       await transaction.query(
         `update bakery.plugin_versions
           set bundle_purged_at = now(), purge_policy = $2

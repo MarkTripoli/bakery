@@ -18,7 +18,7 @@ import { collectPluginBundle } from "./collect-bundle.ts";
  */
 export async function sweepCollectablePluginBundles(
   ownerDatabase: PgDatabase,
-  store: Pick<SkillObjectStore, "delete">,
+  store: Pick<SkillObjectStore, "delete" | "stat">,
   options: Readonly<{ limit?: number; policy?: string }> = {},
 ): Promise<{ scanned: number; collected: number; kept: number }> {
   const limit = options.limit ?? 500;

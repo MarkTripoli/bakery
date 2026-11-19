@@ -27,6 +27,9 @@ function trackingStore(missing = false) {
   const deleted: string[] = [];
   return {
     deleted,
+    stat(_objectKey: string) {
+      return Promise.resolve(missing ? null : { sizeBytes: 12 });
+    },
     delete(objectKey: string): Promise<boolean> {
       if (missing) return Promise.resolve(false);
       deleted.push(objectKey);
@@ -260,6 +263,7 @@ Deno.test("a store failure leaves no tombstone, so the bytes are never claimed g
   await withWorkerFixture(async (fixture) => {
     const seeded = await seedVersion(fixture, { listingStatus: "withdrawn" });
     const failing = {
+      stat: () => Promise.resolve({ sizeBytes: 12 }),
       delete(): Promise<boolean> {
         return Promise.reject(
           new SkillFileStoreError("SKILL_FILE_DEPENDENCY_UNAVAILABLE"),
@@ -517,6 +521,8 @@ Deno.test("two collectable versions sharing bytes still release them", async () 
     const held = new Set<string>();
     const deleted: string[] = [];
     const store = {
+      stat: (objectKey: string) =>
+        Promise.resolve(held.has(objectKey) ? { sizeBytes: 12 } : null),
       delete(objectKey: string): Promise<boolean> {
         if (!held.has(objectKey)) return Promise.resolve(false);
         held.delete(objectKey);
@@ -605,5 +611,42 @@ Deno.test("an upload completing for identical bytes and a sweep contend for one 
       ),
       digest,
     );
+  });
+});
+
+Deno.test("an object already gone is not deleted again, and still gets its tombstone", async () => {
+  await withWorkerFixture(async (fixture) => {
+    // The bytes can go between the decision and the delete: a previous attempt
+    // deleted them and failed to write the tombstone. Re-statting under the lock
+    // turns that into "nothing to delete", which is the truth, instead of a
+    // second delete against a key nobody re-checked.
+    const seeded = await seedVersion(fixture, { listingStatus: "withdrawn" });
+    let deleteCalls = 0;
+    const store = {
+      stat: () => Promise.resolve(null),
+      delete(_objectKey: string): Promise<boolean> {
+        deleteCalls += 1;
+        return Promise.resolve(false);
+      },
+    };
+    assertEquals(
+      await collectPluginBundle(fixture.pgDatabase, store, seeded.versionId),
+      true,
+      "the version is recorded as collected",
+    );
+    assertEquals(deleteCalls, 0, "an absent object is not deleted");
+    assert(
+      (await tombstone(fixture, seeded.versionId)).purged !== null,
+      "the tombstone is written even though nothing was deleted",
+    );
+
+    // And when the object is there, the delete happens.
+    const live = await seedVersion(fixture, { listingStatus: "withdrawn" });
+    const deleting = trackingStore();
+    assertEquals(
+      await collectPluginBundle(fixture.pgDatabase, deleting, live.versionId),
+      true,
+    );
+    assertEquals(deleting.deleted, [live.objectRef]);
   });
 });
