@@ -131,7 +131,20 @@ export async function shot(
   options: { windowOnly?: boolean; only?: "desktop" | "mobile" } = {},
 ) {
   if (!evidenceDirectory) return;
-  if (evidenceScheme) await page.emulateMedia({ colorScheme: evidenceScheme });
+  if (evidenceScheme) {
+    await page.emulateMedia({ colorScheme: evidenceScheme });
+    // The logo picks its art after a theme change (observer, render, image
+    // load); a shot taken before then shows the other theme's art.
+    await page.waitForFunction(
+      (expected) =>
+        Array.from(document.querySelectorAll("img[data-logo-variant]")).every(
+          (image) =>
+            image instanceof HTMLImageElement && image.complete &&
+            image.dataset.logoVariant?.endsWith(expected),
+        ),
+      evidenceScheme,
+    );
+  }
   const original = page.viewportSize();
   for (const { name: viewport, ...size } of EVIDENCE_VIEWPORTS) {
     if (options.only && options.only !== viewport) continue;
