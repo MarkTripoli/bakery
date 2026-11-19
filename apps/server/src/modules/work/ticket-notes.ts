@@ -19,6 +19,7 @@ import {
 import { readCompletedCommandReplay } from "../../platform/command-replay.ts";
 import type { PgTransactionClient } from "../../platform/database.ts";
 import { LINK_COLUMNS, type LinkRow, toLinkOutput } from "./ticket-query.ts";
+import { claimLinkNote, recordLinkNote } from "./ticket-store.ts";
 import { requireWorkTransaction } from "./work-transaction.ts";
 
 /**
@@ -212,14 +213,11 @@ async function claimNote(
   if (target.number === null) {
     throw unprocessable(["id"], "ticket_number_missing");
   }
-  const claimed = await transaction.query<{ version: number }>(
-    `update bakery.ticket_task_links
-        set sync_health = 'pending', updated_at = now(), version = version + 1
-      where organization_id = $1 and id = $2
-      returning version`,
-    [organizationId, linkId],
+  const claimedVersion = await claimLinkNote(
+    transaction,
+    organizationId,
+    linkId,
   );
-  const claimedVersion = claimed.rows[0].version;
   return {
     linkId,
     claimedVersion,
@@ -316,28 +314,24 @@ export async function recordTicketNoteSync(
   );
   const { claim, result } = outcome;
   const posted = result.kind === "posted";
-  const updated = await transaction.query<LinkRow>(
-    `update bakery.ticket_task_links
-        set sync_health = $4,
-            status_comment_external_id = case when $4 = 'healthy' then $5
-              else status_comment_external_id end,
-            last_problem_code = $6,
-            updated_at = now(), version = version + 1
-      where organization_id = $1 and id = $2 and version = $3
-        and sync_health = 'pending'
-      returning ${LINK_COLUMNS}`,
-    [
-      organizationId,
-      claim.linkId,
-      claim.claimedVersion,
-      posted ? "healthy" : "failed",
-      posted ? result.externalId : null,
-      posted
-        ? (result.recreated ? "note_recreated" : null)
-        : noteProblemCode(result.problemCode),
-    ],
+  const row = await recordLinkNote<LinkRow>(
+    transaction,
+    organizationId,
+    claim.linkId,
+    claim.claimedVersion,
+    posted
+      ? {
+        syncHealth: "healthy",
+        externalId: result.externalId,
+        problemCode: result.recreated ? "note_recreated" : null,
+      }
+      : {
+        syncHealth: "failed",
+        externalId: null,
+        problemCode: noteProblemCode(result.problemCode),
+      },
+    LINK_COLUMNS,
   );
-  const row = updated.rows[0];
   if (!row) throw stateConflict("note_sync_superseded");
   const scope = await transaction.query<
     {
