@@ -2491,6 +2491,12 @@ button.ui-activity-line__row:hover {
 .ui-document-editor .cm-line {
   padding: 0;
 }
+/* The text a chosen suggestion would change. */
+.ui-document-editor .ui-document-editor__suggested {
+  background: var(--color-status-warning-surface);
+  border-radius: var(--radius-control);
+  box-shadow: 0 0 0 1px var(--color-status-warning);
+}
 .ui-document-editor .cm-placeholder {
   color: var(--color-fg-muted);
 }

@@ -11,9 +11,15 @@ import { useBakeryApi } from "../api/context.tsx";
 import type { DraftResponse } from "../api/client.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
-import { loroExtensions, sizeLimit } from "../collaboration/editor-binding.ts";
+import {
+  loroExtensions,
+  showSuggestedRange,
+  sizeLimit,
+  suggestionTint,
+} from "../collaboration/editor-binding.ts";
 import { peopleOf } from "../collaboration/people.ts";
 import { usePublish } from "./ArtifactPublish.tsx";
+import { ArtifactSuggestions } from "./ArtifactSuggestions.tsx";
 import {
   CollaborationSession,
   DOCUMENT_LIMIT_BYTES,
@@ -214,6 +220,7 @@ function DraftEditor(
     () => [
       ...loroExtensions(session.document),
       sizeLimit(),
+      suggestionTint(),
       EditorView.updateListener.of((update) => {
         if (!update.docChanged) return;
         setTypedAt(Date.now());
@@ -419,6 +426,14 @@ function DraftEditor(
             : t("artifact.edit.refused.one")}
         </UI.InlineNotice>
       )}
+      <ArtifactSuggestions
+        document={session.document}
+        documentTick={snapshot.documentVersion + typedAt}
+        draftId={draftId}
+        onSelectRange={(range) => {
+          if (editorView.current) showSuggestedRange(editorView.current, range);
+        }}
+      />
       {bytesUsed >= DOCUMENT_LIMIT_BYTES && (
         <UI.InlineNotice tone="warning">
           {t("artifact.edit.limit")}
