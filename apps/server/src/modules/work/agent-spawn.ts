@@ -37,6 +37,7 @@ export const SpawnRefusal = Object.freeze(
   } as const,
 );
 export type SpawnRefusal = typeof SpawnRefusal[keyof typeof SpawnRefusal];
+type AgentPowerName = typeof AgentPower[keyof typeof AgentPower];
 
 export type SpawnFacts = Readonly<{
   /** Whether every workflow along the spawn chain holds the run_start power. */
@@ -79,10 +80,11 @@ export function decideSpawn(facts: SpawnFacts): SpawnRefusal | null {
  * run_start power. Authority is the intersection, so one workflow without the
  * grant takes the power from the whole chain below it.
  */
-async function spawnAuthority(
+export async function spawnAuthority(
   transaction: PgTransactionClient,
   organizationId: string,
   runId: string,
+  power: AgentPowerName = AgentPower.RunStart,
 ): Promise<{ holdsPower: boolean; depth: number }> {
   const chain = await transaction.query<{ workflowId: string }>(
     `with recursive chain as (
@@ -111,7 +113,7 @@ async function spawnAuthority(
     if (
       !(await agentHoldsPower(transaction, {
         organizationId,
-        power: AgentPower.RunStart,
+        power,
         workflowId,
         accessTokenId: null,
       }))

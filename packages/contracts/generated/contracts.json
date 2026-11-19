@@ -63357,9 +63357,10 @@
               "enum": [
                 "decide",
                 "run_control",
-                "run_start"
+                "run_start",
+                "steer"
               ],
-              "description": "The off-by-default power being granted: decide (approve, reject or request changes where a person would), run_control (pause, resume, cancel, interrupt or retry a run) or run_start (start a run, still subject to count, depth and budget checks)."
+              "description": "The off-by-default power being granted: decide (approve, reject or request changes where a person would), run_control (pause, resume, cancel, interrupt or retry a run) run_start (start a run, still subject to count, depth and budget checks) or steer (send a note or a steer to a run the agent spawned, never its own and never a reviewer's)."
             },
             "workflowId": {
               "description": "AgentPowerGrantCreate.workflowId may be null in this transport value.",
@@ -220837,9 +220838,10 @@
               "enum": [
                 "decide",
                 "run_control",
-                "run_start"
+                "run_start",
+                "steer"
               ],
-              "description": "The power granted: decide, run_control or run_start."
+              "description": "The power granted: decide, run_control, run_start or steer."
             },
             "workflowId": {
               "anyOf": [
@@ -222871,7 +222873,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:fde2bf41e3caf11df66620b7a2a88273a0a65d334f02a2ee432fde53c0d59580",
+  "compatibilityDigest": "sha256:9fd74be58697848a1a6596e8c084e91aeee1b0a9cedb97231f4ba65b0511f3d6",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -249604,9 +249606,10 @@
           "enum": [
             "decide",
             "run_control",
-            "run_start"
+            "run_start",
+            "steer"
           ],
-          "description": "The off-by-default power being granted: decide (approve, reject or request changes where a person would), run_control (pause, resume, cancel, interrupt or retry a run) or run_start (start a run, still subject to count, depth and budget checks)."
+          "description": "The off-by-default power being granted: decide (approve, reject or request changes where a person would), run_control (pause, resume, cancel, interrupt or retry a run) run_start (start a run, still subject to count, depth and budget checks) or steer (send a note or a steer to a run the agent spawned, never its own and never a reviewer's)."
         },
         "workflowId": {
           "description": "AgentPowerGrantCreate.workflowId may be null in this transport value.",
@@ -407444,9 +407447,10 @@
           "enum": [
             "decide",
             "run_control",
-            "run_start"
+            "run_start",
+            "steer"
           ],
-          "description": "The power granted: decide, run_control or run_start."
+          "description": "The power granted: decide, run_control, run_start or steer."
         },
         "workflowId": {
           "anyOf": [

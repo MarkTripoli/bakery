@@ -334,6 +334,7 @@ export function createApp(options: {
   const runControlRegistry = createRunControlRegistry({
     database: options.pgDatabase,
     secret: options.config.auth.secret,
+    agentSpawn: options.config.agentSpawn,
   });
   const approvalRegistry = createApprovalRegistry({
     database: options.pgDatabase,
@@ -623,6 +624,7 @@ export function createApp(options: {
       secret: options.config.auth.secret,
       skillFileStore,
       budget: options.config.budget,
+      agentSpawn: options.config.agentSpawn,
       inngest: options.config.inngest,
       secretsKey: options.config.secretsKey,
       secretsFetch: options.secretsFetch,
@@ -893,6 +895,7 @@ export function createApp(options: {
       publicBaseUrl: options.config.publicBaseUrl,
       secret: options.config.auth.secret,
       budget: options.config.budget,
+      agentSpawn: options.config.agentSpawn,
       inngest: options.config.inngest,
       secretsKey: options.config.secretsKey,
       secretsFetch: options.secretsFetch,

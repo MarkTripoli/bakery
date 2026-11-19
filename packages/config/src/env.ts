@@ -261,15 +261,19 @@ export type AgentSpawnConfig = {
   maxDepth: number;
   /** Most live (not finished) runs one run may have spawned at once. */
   maxChildren: number;
+  /** Most steers one run's agent may send to the runs it spawned, in total. */
+  maxSteers: number;
 };
 
 export const DEFAULT_AGENT_SPAWN: AgentSpawnConfig = Object.freeze({
   maxDepth: 3,
   maxChildren: 5,
+  maxSteers: 20,
 });
 
 const AGENT_SPAWN_MAX_DEPTH = "BAKERY_AGENT_SPAWN_MAX_DEPTH";
 const AGENT_SPAWN_MAX_CHILDREN = "BAKERY_AGENT_SPAWN_MAX_CHILDREN";
+const AGENT_SPAWN_MAX_STEERS = "BAKERY_AGENT_SPAWN_MAX_STEERS";
 
 /** Reads the spawn bounds, falling back to the defaults for what is unset. */
 export function readAgentSpawnConfig(
@@ -290,6 +294,7 @@ export function readAgentSpawnConfig(
       AGENT_SPAWN_MAX_CHILDREN,
       DEFAULT_AGENT_SPAWN.maxChildren,
     ),
+    maxSteers: read(AGENT_SPAWN_MAX_STEERS, DEFAULT_AGENT_SPAWN.maxSteers),
   };
 }
 
@@ -772,7 +777,11 @@ export function readRuntimeConfig(
   try {
     agentSpawn = readAgentSpawnConfig(env);
   } catch {
-    invalidConfig.push(AGENT_SPAWN_MAX_DEPTH, AGENT_SPAWN_MAX_CHILDREN);
+    invalidConfig.push(
+      AGENT_SPAWN_MAX_DEPTH,
+      AGENT_SPAWN_MAX_CHILDREN,
+      AGENT_SPAWN_MAX_STEERS,
+    );
   }
   let budget: BudgetRuntimeConfig | undefined;
   if (budgetConfigured) {

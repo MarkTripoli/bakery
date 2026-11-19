@@ -25,6 +25,8 @@ export const AgentPower = Object.freeze(
     RunControl: "run_control",
     /** Start a run. Count, depth and budget checks apply on top of the grant. */
     RunStart: "run_start",
+    /** Steer a run an agent spawned, through the same operations a person uses. */
+    Steer: "steer",
   } as const,
 );
 export type AgentPower = typeof AgentPower[keyof typeof AgentPower];

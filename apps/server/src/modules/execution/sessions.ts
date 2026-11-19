@@ -18,6 +18,9 @@ import {
   isStorableDecisionText,
 } from "@bakery/contracts/human-approval";
 import { appendDecision } from "../work/human-approval-store.ts";
+import { DEFAULT_AGENT_SPAWN } from "@bakery/config";
+import type { AgentSpawnConfig } from "@bakery/config";
+import { admitAgentSteer, steerRecordDetail } from "../work/agent-steer.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import {
   adapterSupportsSteering,
@@ -294,6 +297,7 @@ function excerptForLedger(body: string): string {
 export async function steerAgentSession(
   context: ActionContext,
   rawInput: unknown,
+  limits: AgentSpawnConfig = DEFAULT_AGENT_SPAWN,
 ) {
   const { transaction, organizationId, principalId } = requireWorkTransaction(
     context,
@@ -316,6 +320,25 @@ export async function steerAgentSession(
     organizationId,
     sessionId(context),
   );
+
+  // An agent steers only a session of a run it spawned, only with the steer
+  // grant, never a reviewer's, and within a bound; a person passes untouched.
+  // Before the first write, so a refusal leaves no trace.
+  const target = await transaction.query<{ run_id: string; step_key: string }>(
+    `select step.run_id, step.step_key
+       from bakery.run_steps as step
+      where step.organization_id = $1 and step.id = $2`,
+    [organizationId, session.run_step_id],
+  );
+  const admission = target.rows[0]
+    ? await admitAgentSteer(transaction, context, {
+      organizationId,
+      principalId,
+      targetRunId: target.rows[0].run_id,
+      targetStepKey: target.rows[0].step_key,
+      limits,
+    })
+    : null;
 
   // Conversation first, then command locks: the same order message admission uses.
   await transaction.query(
@@ -420,6 +443,7 @@ export async function steerAgentSession(
       mode,
       messageId: message.id,
       truncated: input.body.length > DECISION_NOTE_MAX_LENGTH,
+      ...steerRecordDetail(principalId, admission),
     },
   });
 

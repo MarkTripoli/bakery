@@ -19,7 +19,7 @@ const ok: SpawnFacts = {
   liveChildren: 0,
   requestedBudgetMicro: 1_000n,
   parentHeadroomMicro: 1_000n,
-  limits: { maxDepth: 3, maxChildren: 5 },
+  limits: { maxDepth: 3, maxChildren: 5, maxSteers: 20 },
 };
 
 Deno.test("a spawn within every bound proceeds", () => {
@@ -108,7 +108,7 @@ Deno.test("the spawn bounds read from configuration, with defaults", () => {
       BAKERY_AGENT_SPAWN_MAX_DEPTH: "2",
       BAKERY_AGENT_SPAWN_MAX_CHILDREN: "7",
     }),
-    { maxDepth: 2, maxChildren: 7 },
+    { maxDepth: 2, maxChildren: 7, maxSteers: 20 },
   );
   for (const bad of ["0", "-1", "1.5", "abc", "101"]) {
     assertThrows(
