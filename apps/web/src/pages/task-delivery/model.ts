@@ -178,6 +178,7 @@ export type AfterApprovalBadge =
   | "readyToMerge"
   | "mergeUnknown"
   | "waitingForMerge"
+  | "changedAfterApproval"
   | "merged"
   | "notMerged"
   | "approved";
@@ -720,6 +721,9 @@ function mergeBadge(
 ): AfterApproval {
   if (merge === null) return after;
   if (merge.state === "unknown") return { ...after, badge: "mergeUnknown" };
+  if (merge.state === "moved") {
+    return { ...after, badge: "changedAfterApproval" };
+  }
   if (merge.state === "ready" || merge.state === "noPermission") {
     return { ...after, badge: "readyToMerge" };
   }

@@ -1910,14 +1910,21 @@ test("a pull request that moved after the approval is not offered to merge, and 
   // The results, review and approval are marked as being for the older commit,
   // not shown as green for the commit the pull request no longer ends at.
   const section = page.getByTestId("delivery-section");
-  await expect(section).toContainText(
-    "The changes were updated after these results",
+  // One notice, not two: the warning card says it, the steps are marked.
+  await expect(section.getByTestId("delivery-out-of-date")).toHaveCount(0);
+  await expect(now).toContainText(
+    "The results below are for the older commit and no longer count.",
+  );
+  await expect(page.getByTestId("delivery-outcome-badge")).toContainText(
+    "Changed after approval",
   );
   await expect(section).toContainText("Older commit 91d0aa3");
-  // The approval was for that older commit too, and nothing was tried, so the
-  // Merge step is not marked as failed.
+  // The approval was for that older commit: it says so and promises nothing.
   await expect(page.getByTestId("delivery-approval-step")).toContainText(
-    "Older commit 91d0aa3",
+    "Approved for older commit 91d0aa3.",
+  );
+  await expect(page.getByTestId("delivery-approval-step")).not.toContainText(
+    "Bakery may merge these changes",
   );
   // Nothing is re-running: the page must not say the results are running again.
   await expect(section).toContainText("No results for commit 4be19c2.");
@@ -1975,34 +1982,55 @@ for (
   });
 }
 
-test("a merge whose answer never arrived says so, never that nothing changed, and reads back what was recorded", async ({ page }) => {
-  const scenario: Scenario = { ...CLEAN, pullRequests: [pullRequestRow(482)] };
-  const seen = await openMerge(page, scenario, {
-    merge: async (route) => {
-      // The server got it and recorded an attempt it could not settle, but the
-      // answer was lost on the way back.
-      scenario.mergeAttempts = [mergeAttemptRow("unknown")];
-      await route.fulfill({
-        status: 503,
-        contentType: "application/problem+json",
-        json: problemBody(503, "UNAVAILABLE"),
-      });
-    },
+for (
+  const [name, recorded, lands, noticeStays] of [
+    [
+      "an unsettled attempt",
+      "unknown",
+      "Bakery does not know whether this merged",
+      false,
+    ],
+    ["a refused attempt", "refused", "GitHub refused the merge", true],
+    ["no attempt at all", null, "Ready to merge", true],
+  ] as const
+) {
+  test(`a merge whose answer never arrived reads back ${name}, and never says nothing changed`, async ({ page }) => {
+    const scenario: Scenario = {
+      ...CLEAN,
+      pullRequests: [pullRequestRow(482)],
+    };
+    const seen = await openMerge(page, scenario, {
+      merge: async (route) => {
+        // The answer was lost on the way back; the server may have recorded
+        // an attempt.
+        if (recorded !== null) {
+          scenario.mergeAttempts = [mergeAttemptRow(recorded)];
+        }
+        await route.fulfill({
+          status: 503,
+          contentType: "application/problem+json",
+          json: problemBody(503, "UNAVAILABLE"),
+        });
+      },
+    });
+    const now = nowCard(page);
+    await button(now, "Merge").click();
+    await button(page.getByRole("alertdialog"), "Merge").click();
+    // What it recorded is what the card says now.
+    await expect(now).toContainText(lands);
+    const notice = page.getByTestId("delivery-merge-notice");
+    if (noticeStays) {
+      await expect(notice).toContainText(
+        "Bakery did not get an answer, so the merge may or may not have started.",
+      );
+      await expect(notice).not.toContainText("Nothing changed");
+    } else {
+      // The card already says exactly this, so the notice would repeat it.
+      await expect(notice).toHaveCount(0);
+    }
+    expect(seen.merges).toHaveLength(1);
   });
-  const now = nowCard(page);
-  await button(now, "Merge").click();
-  await button(page.getByRole("alertdialog"), "Merge").click();
-  await expect(page.getByTestId("delivery-merge-notice")).toContainText(
-    "Bakery did not get an answer, so the merge may or may not have started.",
-  );
-  await expect(page.getByTestId("delivery-merge-notice")).not.toContainText(
-    "Nothing changed",
-  );
-  // What it recorded is what the card says now: unknown, with Check again.
-  await expect(now).toContainText("Bakery does not know whether this merged");
-  await expect(button(now, "Check again")).toBeVisible();
-  expect(seen.merges).toHaveLength(1);
-});
+}
 
 test("offline, merging is disabled", async ({ page, context }) => {
   await openMerge(page, { ...CLEAN, pullRequests: [pullRequestRow(482)] });
@@ -2135,9 +2163,8 @@ test("still: merge, the answer never arrived", async ({ page }) => {
       await openMerge(fresh, scenario, {
         stub: stubStillsPage,
         merge: async (route) => {
-          // The server did record an attempt, but the answer was lost: the
-          // read that follows shows it, and the page moves to what it says.
-          scenario.mergeAttempts = [mergeAttemptRow("unknown")];
+          // The answer was lost and nothing was recorded: the read that
+          // follows shows the page as it was, with the notice saying why.
           await route.fulfill({
             status: 503,
             contentType: "application/problem+json",
@@ -2150,9 +2177,7 @@ test("still: merge, the answer never arrived", async ({ page }) => {
       await expect(fresh.getByTestId("delivery-merge-notice")).toContainText(
         "did not get an answer",
       );
-      await expect(nowCard(fresh)).toContainText(
-        "Bakery does not know whether this merged",
-      );
+      await expect(nowCard(fresh)).toContainText("Ready to merge");
       await fresh.setViewportSize({ width, height: TALL[size] });
       await stillOfSection(fresh, `merge-no-answer-${size}-${scheme}.png`);
       await fresh.close();

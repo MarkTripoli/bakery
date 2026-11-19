@@ -346,6 +346,7 @@ const AFTER_APPROVAL_TONE = {
   readyToMerge: "warning",
   mergeUnknown: "neutral",
   waitingForMerge: "information",
+  changedAfterApproval: "warning",
   merged: "success",
   notMerged: "warning",
   approved: "neutral",
@@ -755,7 +756,11 @@ function ReadyView(
     )
     : null;
   const confirmDisabled = deciding || offline || decisionPhase === "forbidden";
-  const mergeNotice = mergePhase in MERGE_NOTICE_COPY
+  // Once the re-read lands on Unknown the card says exactly that, so the
+  // notice would only repeat it; on Ready, Refused or Merged it still says
+  // why the page changed.
+  const mergeNotice = mergePhase in MERGE_NOTICE_COPY &&
+      !(mergePhase === "noAnswer" && merge?.state === "unknown")
     ? MERGE_NOTICE_COPY[mergePhase as keyof typeof MERGE_NOTICE_COPY]
     : null;
   const mergeNoticeProps = {
@@ -826,7 +831,7 @@ function ReadyView(
           {t(mergeNotice)}
         </UI.InlineNotice>
       )}
-      {model.outOfDate && (
+      {model.outOfDate && !model.pullRequestMoved && (
         <UI.InlineNotice
           data-testid="delivery-out-of-date"
           icon="refresh"
@@ -835,13 +840,7 @@ function ReadyView(
           <UI.Heading level="subsection">
             {t("tasks.delivery.outOfDate.title")}
           </UI.Heading>
-          <UI.Text>
-            {t(
-              model.pullRequestMoved
-                ? "tasks.delivery.outOfDate.pullRequestBody"
-                : "tasks.delivery.outOfDate.body",
-            )}
-          </UI.Text>
+          <UI.Text>{t("tasks.delivery.outOfDate.body")}</UI.Text>
         </UI.InlineNotice>
       )}
       <Steps model={model} />
@@ -1052,6 +1051,11 @@ function Steps({ model }: Readonly<{ model: DeliveryModel }>) {
         pullRequest.status === "merged"
     ? "unknown"
     : "upcoming";
+  // The approval was for the commit the pull request no longer ends at.
+  const approvalOlder =
+    model.pullRequestMoved && model.merge?.approvedSha != null
+      ? model.merge.approvedSha.slice(0, 7)
+      : null;
   const copyMergeCommit = async () => {
     if (mergeCommit === null) return;
     try {
@@ -1322,27 +1326,21 @@ function Steps({ model }: Readonly<{ model: DeliveryModel }>) {
         {model.approval !== null && (
           <UI.StepItem
             data-testid="delivery-approval-step"
-            status={APPROVAL_STEP[model.approval.state].status}
-            statusLabel={APPROVAL_STEP[model.approval.state].label === null
+            status={approvalOlder === null
+              ? APPROVAL_STEP[model.approval.state].status
+              : "running"}
+            statusLabel={approvalOlder !== null
+              ? label("running")
+              : APPROVAL_STEP[model.approval.state].label === null
               ? label(APPROVAL_STEP[model.approval.state].status)
               : t(APPROVAL_STEP[model.approval.state].label as MessageKey)}
-            summary={
-              <>
-                {t(
-                  `tasks.delivery.approval.step.${model.approval.state}` as MessageKey,
-                )}
-                {model.pullRequestMoved && model.merge?.approvedSha != null && (
-                  <>
-                    {" "}
-                    <UI.Badge>
-                      {t("tasks.delivery.olderCommit", {
-                        sha: model.merge.approvedSha.slice(0, 7),
-                      })}
-                    </UI.Badge>
-                  </>
-                )}
-              </>
-            }
+            summary={approvalOlder === null
+              ? t(
+                `tasks.delivery.approval.step.${model.approval.state}` as MessageKey,
+              )
+              : t("tasks.delivery.approval.step.approvedOlder", {
+                sha: approvalOlder,
+              })}
             title={
               <>
                 {t("tasks.delivery.approval.title")}

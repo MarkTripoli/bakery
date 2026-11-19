@@ -785,6 +785,7 @@ Deno.test("a pull request that moved after the approval is not offered to merge"
   assertEquals(model.headSha, OLD);
   assertEquals(model.outOfDate, true);
   assertEquals(model.pullRequestMoved, true);
+  assertEquals(model.afterApproval.badge, "changedAfterApproval");
   assertEquals(model.checks.rows.every((row) => row.olderSha !== null), true);
   assertEquals(model.review?.olderSha, NEW.slice(0, 7));
 });
