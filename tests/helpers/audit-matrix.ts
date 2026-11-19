@@ -972,6 +972,54 @@ export async function runAuditMatrix(
       }),
     },
     {
+      operation: "agentPowerGrants.create",
+      failure: async () => {
+        // A real workflow, so only authorization can refuse the developer.
+        const workflow = await adminCall("POST", "/v1/workflows", {
+          body: {
+            slug: `matrix-power-${suffix}`,
+            name: `Matrix power ${suffix}`,
+            description: "",
+          },
+        });
+        state.powerWorkflow = String((await json(workflow)).id);
+        return developerCall("POST", "/v1/agent-power-grants", {
+          body: { power: "decide", workflowId: state.powerWorkflow },
+        });
+      },
+      success: async () => {
+        const response = await adminCall("POST", "/v1/agent-power-grants", {
+          body: { power: "decide", workflowId: state.powerWorkflow },
+        });
+        const created = await json(response.clone());
+        state.powerGrant = String(created.id);
+        state.powerGrantVersion = String(created.version);
+        return {
+          response,
+          organizationId: f.organizationId,
+          resourceId: state.powerGrant,
+        };
+      },
+    },
+    {
+      operation: "agentPowerGrants.delete",
+      failure: () =>
+        developerCall(
+          "DELETE",
+          `/v1/agent-power-grants/${state.powerGrant}`,
+          { headers: { "If-Match": `"${state.powerGrantVersion}"` } },
+        ),
+      success: async () => ({
+        response: await adminCall(
+          "DELETE",
+          `/v1/agent-power-grants/${state.powerGrant}`,
+          { headers: { "If-Match": `"${state.powerGrantVersion}"` } },
+        ),
+        organizationId: f.organizationId,
+        resourceId: state.powerGrant,
+      }),
+    },
+    {
       operation: "applicationRepositoryRoles.set",
       failure: async () => {
         state.roleRepository = crypto.randomUUID();

@@ -141,7 +141,10 @@ import {
   createConversationRoutes,
 } from "./modules/conversation/index.ts";
 import { createCoordinationRoutes } from "./modules/work/coordination-routes.ts";
-import { createApprovalRoutes } from "./modules/conversation/approval-routes.ts";
+import {
+  createApprovalRegistry,
+  createApprovalRoutes,
+} from "./modules/conversation/approval-routes.ts";
 
 export function createApp(options: {
   /**
@@ -313,6 +316,12 @@ export function createApp(options: {
   );
   // Shared by the REST routers and the MCP catalog tools, so both transports
   // run the same registry instances.
+  // One approvals registry for the routes and for the session tools, so an
+  // agent's decision runs the same handler and guard a person's does.
+  const approvalRegistry = createApprovalRegistry({
+    database: options.pgDatabase,
+    cursorSecret: options.config.auth.secret,
+  });
   const conversationRegistry = createConversationRegistry({
     database: options.pgDatabase,
     cursorSecret: options.config.auth.secret,
@@ -612,6 +621,7 @@ export function createApp(options: {
           catalogRegistry,
           agentsRegistry,
           artifactActions.registry,
+          approvalRegistry,
         ],
         offered: sessionOperationScopes(),
       }),
@@ -658,6 +668,7 @@ export function createApp(options: {
       session: tokenSession,
       publicBaseUrl: options.config.publicBaseUrl,
       cursorSecret: options.config.auth.secret,
+      registry: approvalRegistry,
     }),
   );
   const projects = new Hono<{ Variables: AuthVariables }>();

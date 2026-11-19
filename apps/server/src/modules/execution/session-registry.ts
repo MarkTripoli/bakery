@@ -13,11 +13,14 @@
  * module exactly as they are.
  */
 
-import type {
-  ActionContext,
-  ActionDefinition,
-  ActionRegistry,
+import {
+  type ActionContext,
+  type ActionDefinition,
+  ActionKind,
+  type ActionRegistry,
 } from "@bakery/contracts/action-registry";
+import { createNormalizedCommandMetadata } from "@bakery/contracts/http";
+import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
 
 export type SessionToolSources = Readonly<{
   registries: readonly ActionRegistry[];
@@ -64,10 +67,37 @@ export function createSessionToolRegistry(
       const split = definition
         ? splitCallArguments(definition, input)
         : { params: {}, value: input };
-      return registry.execute(
-        name,
-        Object.assign({}, context, { params: split.params }) as ActionContext,
-        split.value,
+      const dispatched = Object.assign({}, context, {
+        params: split.params,
+      }) as ActionContext;
+      // A command needs an idempotency key and a session call carries no header,
+      // so one is derived from the attempt, the tool and the exact arguments: an
+      // identical retry replays the stored answer instead of repeating the act,
+      // and different arguments are a different act.
+      const commandMetadata = definition &&
+          definition.policy.type === ActionKind.Command
+        ? (async () =>
+          createNormalizedCommandMetadata(
+            definition,
+            new Request(context.request.url, {
+              method: "POST",
+              headers: {
+                "idempotency-key": `session:${await sha256Hex(
+                  canonicalJson({
+                    attemptId: context.agentSession?.attemptId ?? null,
+                    tool: name,
+                    params: split.params,
+                    value: split.value,
+                  }),
+                )}`,
+              },
+            }),
+            split.params,
+            split.value,
+          ))()
+        : undefined;
+      return Promise.resolve(commandMetadata).then((metadata) =>
+        registry.execute(name, dispatched, split.value, metadata)
       );
     },
   };
