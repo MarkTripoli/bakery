@@ -479,8 +479,11 @@ test.describe("security suite states are honest", () => {
   test("errors and failures use alert regions, confirmations use status regions: password-invalid", async ({ page }) => {
     test.setTimeout(MATRIX_CASE_TIMEOUT_MS);
     await open(page, "password", "invalid");
+    // The field says what is wrong; there is no second banner repeating it.
     await expect(
-      page.getByRole("alert").filter({ hasText: "We couldn’t complete that" }),
+      page.getByRole("alert").filter({
+        hasText: "We couldn’t verify your current password.",
+      }),
     ).toBeVisible();
   });
 
@@ -601,7 +604,7 @@ test.describe("security suite keyboard-only completion", () => {
       }),
     ).toBeVisible();
     await expect(
-      page.getByText("No passkeys added yet. Your existing sign-in methods"),
+      page.getByTestId("passkeys-none").getByText("No passkeys yet"),
     ).toBeVisible();
     await expect(remove).toHaveCount(0);
   });
@@ -747,7 +750,7 @@ test.describe("security suite locales", () => {
           locale === "ar-XB" ? "rtl" : "ltr",
         );
         await expect(page.locator("main button[type=submit]")).toBeVisible();
-        await expect(page.locator("main input")).toHaveCount(2);
+        await expect(page.locator("main input")).toHaveCount(3);
         await expectNoHorizontalOverflow(page);
         await expectNoAxeViolations(page, `password ${locale}`);
       });
@@ -775,8 +778,12 @@ test.describe("security suite locales", () => {
         test.setTimeout(MATRIX_CASE_TIMEOUT_MS);
         await page.setViewportSize(viewport);
         await open(page, "security-hub", "default", `?locale=${locale}`);
-        await expect(page.locator("main a[href^='/settings/']"))
-          .toHaveCount(5);
+        // Four rows are the control (password, passkeys, sessions, connected
+        // apps); two-factor, while off, has its own button.
+        await expect(
+          page.locator("main button.ui-description-item--selectable"),
+        )
+          .toHaveCount(4);
         await expectNoHorizontalOverflow(page);
       });
 
@@ -1949,11 +1956,16 @@ test.describe("connected clients and consent", () => {
     const row = page.getByTestId("clients-row");
     await expect(row).toHaveCount(1);
     await expect(row).toContainText("Local development client");
-    // The approved Paper caption: organization, then the scopes as one
-    // sentence (tests/rails/ui-paper-frames.node.mjs pins the same text).
+    // The caption names the organization, then each scope in plain words,
+    // never the raw permission name.
+    await expect(row).toContainText("Northstar");
     await expect(row).toContainText(
-      "Northstar · Read work and artifacts, start and steer tasks",
+      "Read tasks, plans and results you can access.",
     );
+    await expect(row).toContainText(
+      "Create work and send instructions under your permissions.",
+    );
+    await expect(row).not.toContainText("bakery:");
     await expect(
       page.getByRole("button", {
         name: "Revoke access for Local development client in Northstar",

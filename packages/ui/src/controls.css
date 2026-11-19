@@ -164,12 +164,22 @@ input:not([type="hidden"]) {
   column-gap: var(--space-6);
   grid-template-columns: var(--layout-field-label) minmax(0, 1fr);
 }
-.ui-field__label-row {
-  align-items: baseline;
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1) var(--space-4);
-  justify-content: space-between;
+/* A label-end action sits on the label's row, after the control in the DOM. */
+.ui-field--label-end {
+  column-gap: var(--space-4);
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+.ui-field--label-end > label {
+  grid-column: 1;
+  grid-row: 1;
+}
+.ui-field--label-end > .ui-field__label-end {
+  align-self: baseline;
+  grid-column: 2;
+  grid-row: 1;
+}
+.ui-field--label-end > :not(label):not(.ui-field__label-end) {
+  grid-column: 1 / -1;
 }
 .ui-field__heading {
   display: grid;
