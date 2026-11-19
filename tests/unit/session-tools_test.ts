@@ -110,7 +110,9 @@ Deno.test("calling a tool that was never offered is refused, naming the scope", 
   );
   assertEquals(code(error), "SESSION_TOOL_DENIED");
   // Naming the scope is what makes the refusal fixable rather than mysterious.
-  assertEquals((error as SessionToolError).scope, "work.write");
+  // Creating a task is the first half of a spawn (#413), so it needs the
+  // run_start power's scope, not a general write scope nobody is granted.
+  assertEquals((error as SessionToolError).scope, "runs.start");
 });
 
 Deno.test("a tool that does not exist is distinguished from one not held", () => {

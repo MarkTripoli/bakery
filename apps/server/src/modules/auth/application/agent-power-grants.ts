@@ -25,6 +25,13 @@ export const AgentPower = Object.freeze(
     RunControl: "run_control",
     /** Start a run. Count, depth and budget checks apply on top of the grant. */
     RunStart: "run_start",
+    /** Steer a run an agent spawned, through the same operations a person uses. */
+    Steer: "steer",
+    /**
+     * Also steer a reviewer's step. Off by default (O18): the review is then
+     * labelled steered and does not count as independent.
+     */
+    SteerReviewer: "steer_reviewer",
   } as const,
 );
 export type AgentPower = typeof AgentPower[keyof typeof AgentPower];
