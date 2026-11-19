@@ -48,7 +48,11 @@ export async function publishCheckpoint(
   deps: PublishDeps,
   previewed: Readonly<{ checkpointId: string; textDigest: string }>,
 ): Promise<PublishOutcome> {
-  let target = previewed;
+  // Only the contract's two fields go out; callers may hold more.
+  let target = {
+    checkpointId: previewed.checkpointId,
+    textDigest: previewed.textDigest,
+  };
   for (let attempt = 1; attempt <= MOVED_ON_ATTEMPTS; attempt += 1) {
     const result = await deps.publish(target);
     if (result.ok) return { kind: "published", publication: result.data };

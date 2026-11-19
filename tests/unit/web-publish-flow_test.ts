@@ -52,6 +52,20 @@ Deno.test("the previewed checkpoint is published and the version returned", asyn
   assertEquals(calls.read, 0);
 });
 
+Deno.test("only the checkpoint and its digest are sent, whatever the caller holds", async () => {
+  const { deps } = world([{ ok: true, data: publication }]);
+  const sent: unknown[] = [];
+  const spy: PublishDeps = {
+    ...deps,
+    publish: (input) => {
+      sent.push(input);
+      return deps.publish(input);
+    },
+  };
+  await publishCheckpoint(spy, { ...first, waiting: 2 } as typeof first);
+  assertEquals(sent, [first]);
+});
+
 Deno.test("a moved-on text is re-read and the new checkpoint published, without telling the person", async () => {
   const { deps, calls } = world(
     [problem(412), { ok: true, data: publication }],
