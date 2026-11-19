@@ -1,6 +1,7 @@
 import { assert, assertEquals } from "@std/assert";
 import { collectPluginBundle } from "../../apps/server/src/modules/catalog/retention/collect-bundle.ts";
 import { SkillFileStoreError } from "../../apps/server/src/modules/catalog/storage-port.ts";
+import { sweepCollectablePluginBundles } from "../../apps/server/src/modules/catalog/retention/sweep-bundles.ts";
 import { withWorkerFixture } from "../helpers/worker-execution/scenarios.ts";
 
 /**
@@ -270,5 +271,64 @@ Deno.test("a store failure leaves no tombstone, so the bytes are never claimed g
       null,
       "a version is never marked collected while its bytes may still exist",
     );
+  });
+});
+
+Deno.test("a sweep tick collects a withdrawn uninstalled bundle and leaves an installed one", async () => {
+  await withWorkerFixture(async (fixture) => {
+    const collectable = await seedVersion(fixture, {
+      listingStatus: "withdrawn",
+    });
+    await install(fixture, collectable, "uninstalled");
+    const pinned = await seedVersion(fixture, { listingStatus: "withdrawn" });
+    await install(fixture, pinned, "enabled");
+    const store = trackingStore();
+    const sweep = await sweepCollectablePluginBundles(
+      fixture.pgDatabase,
+      store,
+      { limit: 50 },
+    );
+    // Same sweep as artifact collection, on purpose: the collector existed and
+    // nothing called it, which is why this tick is part of the proof.
+    assertEquals(
+      sweep.scanned,
+      1,
+      "only the collectable version is a candidate",
+    );
+    assertEquals(sweep.collected, 1);
+    assertEquals(store.deleted, [collectable.objectRef]);
+    assert(
+      (await tombstone(fixture, collectable.versionId)).purged !== null,
+      "the withdrawn, uninstalled version is collected",
+    );
+    assertEquals(
+      (await tombstone(fixture, pinned.versionId)).purged,
+      null,
+      "the installed version keeps its archive",
+    );
+  });
+});
+
+Deno.test("a sweep tick keeps a candidate that becomes installed after the scan", async () => {
+  await withWorkerFixture(async (fixture) => {
+    const seeded = await seedVersion(fixture, { listingStatus: "withdrawn" });
+    // The scan reads candidates, then the collector decides again under the
+    // row lock. An install arriving between the two must win, so selection is
+    // never treated as the authority.
+    const candidates = await fixture.pgDatabase.query<{ id: string }>(
+      `select id from bakery.plugin_versions
+        where id = $1 and bundle_purged_at is null`,
+      [seeded.versionId],
+    );
+    assertEquals(candidates.rows.length, 1);
+    await install(fixture, seeded);
+    const store = trackingStore();
+    const sweep = await sweepCollectablePluginBundles(
+      fixture.pgDatabase,
+      store,
+    );
+    assertEquals(sweep.collected, 0);
+    assertEquals(store.deleted, []);
+    assertEquals((await tombstone(fixture, seeded.versionId)).purged, null);
   });
 });
