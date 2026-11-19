@@ -30,6 +30,8 @@ export type ExpandableTextProps =
     hideControlLabel?: string;
     /** The `Text` variant of the summary. */
     variant?: TextProps["variant"];
+    /** How many lines the text keeps while closed. Two by default. */
+    lines?: 2 | 3;
     /** Starts showing the whole text. Closed by default. */
     defaultExpanded?: boolean;
   };
@@ -49,6 +51,7 @@ export function ExpandableText(
     defaultExpanded = false,
     hideControlLabel,
     hideLabel,
+    lines = CLAMP_LINES,
     showControlLabel,
     showLabel,
     variant = "muted",
@@ -71,7 +74,7 @@ export function ExpandableText(
       const line = parseFloat(getComputedStyle(text).lineHeight);
       setCut(
         Number.isFinite(line)
-          ? text.scrollHeight > CLAMP_LINES * line + 1
+          ? text.scrollHeight > lines * line + 1
           : text.scrollHeight > text.clientHeight + 1,
       );
     };
@@ -80,7 +83,7 @@ export function ExpandableText(
     const observer = new ResizeObserver(measure);
     observer.observe(text);
     return () => observer.disconnect();
-  }, [children, expanded]);
+  }, [children, expanded, lines]);
 
   return (
     <div
@@ -94,7 +97,7 @@ export function ExpandableText(
     >
       <Text
         id={textId}
-        lines={expanded ? undefined : CLAMP_LINES}
+        lines={expanded ? undefined : lines}
         variant={variant}
       >
         {children}
