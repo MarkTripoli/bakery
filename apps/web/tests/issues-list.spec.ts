@@ -234,10 +234,18 @@ for (
           request: { disposition: "active" },
         }],
       });
+      const firstPage = page.waitForResponse((response) =>
+        new URL(response.url()).pathname === "/v1/external-tickets"
+      );
       await page.goto("/issues");
-      await page.getByRole("radio", { name: "In progress" }).click({
-        force: true,
-      });
+      await firstPage;
+      // A click before the page is ready does nothing, so the filter's being
+      // on is what is waited for, not the click.
+      const inProgress = page.getByRole("radio", { name: "In progress" });
+      await expect(async () => {
+        await inProgress.click({ force: true });
+        await expect(inProgress).toBeChecked({ timeout: 1_000 });
+      }).toPass({ timeout: 20_000 });
       await expect(row(page, 2001)).toContainText("In progress", {
         timeout: 20_000,
       });
