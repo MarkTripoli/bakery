@@ -606,3 +606,31 @@ Deno.test("AC: the sweep never releases a canceled job with a live attempt or a 
       assertEquals([after.reservation, after.intent], ["held", "held"]);
     }
   }));
+
+Deno.test("AC: canceling a retry-waiting job that had an attempt leaves its reservation held for reconciliation", () =>
+  withFixture(async (fixture) => {
+    const s = await queuedImplementStep(fixture, "cancel-attempted");
+    // One attempt already ended, so the job waits for a retry. That attempt may
+    // have spent against the reservation, so the cancel path must not release it
+    // as unspent: usage reconciliation (or the sweep, after expiry) settles it.
+    await addAttempt(fixture, s.implementJobId, "failed");
+
+    await withPgTransaction(
+      fixture.pgDatabase,
+      (transaction) =>
+        cancelQueuedJobsOfRun(transaction, {
+          organizationId: fixture.organizationId,
+          runId: s.run.id,
+          traceId: crypto.randomUUID().replaceAll("-", ""),
+        }),
+    );
+
+    const job = await fixture.pgDatabase.query<{ status: string }>(
+      `select status from bakery.jobs where id = $1`,
+      [s.implementJobId],
+    );
+    assertEquals(job.rows[0].status, "canceled");
+    const after = await held(fixture, s.run.id, s.implementJobId);
+    assertEquals([after.reservation, after.intent], ["held", "held"]);
+    assert(Number(after.reserved) > 0, "the money is still held");
+  }));
