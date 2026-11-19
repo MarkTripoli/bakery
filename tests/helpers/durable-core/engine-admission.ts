@@ -402,54 +402,6 @@ async function createWorkflow(
   return { workflowId, workflowVersionId };
 }
 
-async function ensureAgentSession(
-  stack: DurableCoreStack,
-  organizationId: string,
-  runId: string,
-  agentVersionId?: string,
-): Promise<void> {
-  const rows = await stack.psql<{
-    runStepId: string;
-    conversationId: string;
-    sessionId: string | null;
-  }>(
-    `select step.id as "runStepId",
-            task.conversation_id as "conversationId",
-            session.id as "sessionId"
-       from bakery.workflow_runs as run
-       join bakery.run_steps as step
-         on step.organization_id = run.organization_id
-        and step.run_id = run.id
-       join bakery.tasks as task
-         on task.organization_id = run.organization_id
-        and task.id = run.task_id
-       left join bakery.agent_sessions as session
-         on session.organization_id = step.organization_id
-        and session.run_step_id = step.id
-      where run.organization_id = $1 and run.id = $2
-      order by session.created_at
-      limit 1`,
-    [organizationId, runId],
-  );
-  const row = rows[0];
-  if (!row) throw new Error("DURABLE_CORE_ADMISSION_RUN_STEP_MISSING");
-  if (row.sessionId !== null) return;
-  const sessionId = crypto.randomUUID();
-  await stack.psql(
-    `insert into bakery.agent_sessions (
-       id, organization_id, run_step_id, conversation_id, agent_version_id,
-       harness, status
-     ) values ($1, $2, $3, $4, $5, 'codex', 'active')`,
-    [
-      sessionId,
-      organizationId,
-      row.runStepId,
-      row.conversationId,
-      agentVersionId ?? crypto.randomUUID(),
-    ],
-  );
-}
-
 type EngineInvocation = {
   readonly functionRunId: string;
   readonly functionEventId: string;
@@ -1704,12 +1656,7 @@ async function admitEngineOwnedActionRun(
   if (typeof runId !== "string" || !UUID.test(runId)) {
     throw new Error("DURABLE_CORE_ADMISSION_RUN_ID_MISSING");
   }
-  await ensureAgentSession(
-    stack,
-    clients.identity.organizationId,
-    runId,
-    agentVersionId,
-  );
+  // The engine creates the agent session when it admits the step.
   const admitted = await waitForEngineAdmission(
     stack,
     runId,
