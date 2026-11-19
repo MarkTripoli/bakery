@@ -4516,5 +4516,7 @@
   "settings.plugins.goBack.refused": "Could not go back to {version}. {current} is still running.",
   "settings.plugins.versions.update": "Review update",
   "settings.plugins.versions.updateNamed": "Update to {version}",
-  "settings.plugins.update.dismiss": "Dismiss"
+  "settings.plugins.update.dismiss": "Dismiss",
+  "settings.plugins.versions.goBackAllow": "Go back and allow",
+  "settings.plugins.page.about": "About this version"
 }

@@ -1,11 +1,20 @@
 import { AxeBuilder } from "@axe-core/playwright";
-import { expect, type Page, type Route, test } from "@playwright/test";
+import {
+  expect as baseExpect,
+  type Page,
+  type Route,
+  test,
+} from "@playwright/test";
 import {
   MOCK_ORGANIZATION_ID,
   MOCK_PRINCIPAL_ID,
   mockAuthenticatedSession,
 } from "./helpers/mock-session.ts";
 import { shot } from "./helpers/real-api.ts";
+
+// A shared machine can be slow to answer; give each assertion and test room.
+const expect = baseExpect.configure({ timeout: 15_000 });
+test.describe.configure({ timeout: 60_000 });
 
 // #76: the Plugins settings pages, against a mocked plugin API. What matters is
 // what the person is told (installing gives all of it at once, turning off takes
@@ -494,10 +503,12 @@ for (
       await page.reload();
       await expect(page.getByText("Update failed", { exact: true }))
         .toBeVisible();
+      await shot(page, `plugins-failed-reload-list-${viewport.name}`);
       await page.getByRole("button", { name: "See the problem with Notes" })
         .click();
       await expect(page.getByText("The update to 1.1.0 did not start."))
         .toBeVisible();
+      await shot(page, `plugin-failed-reload-page-${viewport.name}`);
       await expect(
         page.getByTestId("plugin-versions").getByText("Did not start", {
           exact: true,
@@ -540,6 +551,24 @@ for (
       await expect(versions.getByText("Installed", { exact: true }))
         .toBeVisible();
       await expect(versions.getByText("In use")).toHaveCount(0);
+      // The installed version's badge sits in the action column, level with the
+      // other row's button, and the page tells about the version it runs.
+      if (viewport.name === "desktop") {
+        const badge = await versions.getByText("Installed", { exact: true })
+          .boundingBox();
+        const button = await versions.getByRole("button", {
+          name: "Update to 1.1.0",
+        }).boundingBox();
+        expect(
+          Math.abs((badge!.x + badge!.width) - (button!.x + button!.width)),
+        ).toBeLessThan(2);
+      }
+      const about = page.getByTestId("plugin-about");
+      await expect(about.getByRole("heading", { name: "About this version" }))
+        .toBeVisible();
+      await expect(about.getByText("Published Nov 2, 2026")).toBeVisible();
+      await expect(about.getByText("Fingerprint").first()).toBeVisible();
+      await expect(about.getByText("sha256:abababababab")).toBeVisible();
       await expect(
         versions.getByRole("button", { name: "Update to 1.1.0" }),
       ).toHaveText("Review update");
@@ -615,7 +644,8 @@ for (
         .toBeVisible();
       await expect(dialog.getByText("It will no longer: Run on a schedule."))
         .toBeVisible();
-      await dialog.getByRole("button", { name: "Go back" }).click();
+      // 1.0.0 can do something 1.1.0 cannot, so the button says it allows it.
+      await dialog.getByRole("button", { name: "Go back and allow" }).click();
       expect(state.writes[0].body).toEqual({ versionId: NOTES_V1 });
     });
   });

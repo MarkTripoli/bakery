@@ -246,6 +246,8 @@ export function VersionChangeDialog(
       : translate("settings.plugins.update.confirm", {
         version: to.versionName,
       })
+    : difference.added.length > 0
+    ? translate("settings.plugins.versions.goBackAllow")
     : translate("settings.plugins.versions.goBack");
   return (
     <UI.Dialog

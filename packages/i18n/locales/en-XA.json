@@ -4516,5 +4516,7 @@
   "settings.plugins.versions.updateNamed": "⟦Ûþðàŧë ŧô {version} ŧëšŧ⟧",
   "settings.plugins.versions.current": "⟦Ïñšŧàļļëð ŧ⟧",
   "settings.plugins.versions.update": "⟦Ŕëṽïëŵ ûþðàŧë ŧë⟧",
-  "settings.plugins.update.dismiss": "⟦Ðïšɱïšš…⟧"
+  "settings.plugins.update.dismiss": "⟦Ðïšɱïšš…⟧",
+  "settings.plugins.versions.goBackAllow": "⟦Ĝô ƀàçķ àñð àļļôŵ ŧëš⟧",
+  "settings.plugins.page.about": "⟦Àƀôûŧ ŧĥïš ṽëŕšïôñ ŧëšŧ⟧"
 }

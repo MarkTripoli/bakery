@@ -4516,5 +4516,7 @@
   "settings.plugins.versions.updateNamed": "⟪Update to {version}⟫",
   "settings.plugins.versions.current": "⟪Installed⟫",
   "settings.plugins.versions.update": "⟪Review update⟫",
-  "settings.plugins.update.dismiss": "⟪Dismiss⟫"
+  "settings.plugins.update.dismiss": "⟪Dismiss⟫",
+  "settings.plugins.versions.goBackAllow": "⟪Go back and allow⟫",
+  "settings.plugins.page.about": "⟪About this version⟫"
 }

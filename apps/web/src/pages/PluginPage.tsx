@@ -376,6 +376,42 @@ export function PluginPage({ installId }: { readonly installId: string }) {
                   )}
               </UI.Stack>
 
+              {current === undefined
+                ? null
+                : (
+                  <UI.Stack gap="tight" data-testid="plugin-about">
+                    <UI.Heading level="section">
+                      {translate("settings.plugins.page.about")}
+                    </UI.Heading>
+                    {current.publishedAt === null ? null : (
+                      <UI.Text>
+                        {translate("settings.plugins.install.published", {
+                          when: date(current.publishedAt),
+                        })}
+                      </UI.Text>
+                    )}
+                    <UI.Stack gap="none">
+                      <UI.Inline gap="compact">
+                        <UI.Text variant="caption">
+                          {translate("settings.plugins.install.fingerprint")}
+                        </UI.Text>
+                        <UI.HelpTip
+                          label={translate(
+                            "settings.plugins.install.fingerprint",
+                          )}
+                        >
+                          {translate(
+                            "settings.plugins.install.fingerprintHelp",
+                          )}
+                        </UI.HelpTip>
+                      </UI.Inline>
+                      <UI.DataText>
+                        {current.bundleDigest.slice(0, 19)}
+                      </UI.DataText>
+                    </UI.Stack>
+                  </UI.Stack>
+                )}
+
               <UI.Stack gap="standard" data-testid="plugin-versions">
                 <UI.Heading level="section">
                   {translate("settings.plugins.versions.heading")}
@@ -489,13 +525,21 @@ export function PluginPage({ installId }: { readonly installId: string }) {
                             id: "status",
                             width: "20%",
                             header: translate("settings.plugins.column.status"),
-                            cell: (version) => status(version),
+                            cell: (version) =>
+                              version.id === row.versionId
+                                ? null
+                                : status(version),
                           },
                           {
                             id: "action",
                             align: "end",
                             header: translate("settings.plugins.column.action"),
-                            cell: (version) => action(version),
+                            // The installed version has no button, so its badge
+                            // sits where the other rows' buttons are.
+                            cell: (version) =>
+                              version.id === row.versionId
+                                ? status(version)
+                                : action(version),
                           },
                         ]}
                       />
