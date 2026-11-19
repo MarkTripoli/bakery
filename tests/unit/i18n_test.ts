@@ -179,6 +179,40 @@ Deno.test("pseudo generator fills only missing rows", () => {
   assertEquals(filled, { "settings.a": "kept as is", "settings.b": "⟪Beta⟫" });
 });
 
+Deno.test("a pseudo row made from an earlier English text fails as stale", () => {
+  const sources = (xa: string, xb: string) => ({
+    en: JSON.stringify({ "artifact.version.label": "Version {revision}" }),
+    "en-XA": JSON.stringify({ "artifact.version.label": xa }),
+    "ar-XB": JSON.stringify({ "artifact.version.label": xb }),
+  });
+  assertEquals(
+    validateCatalogSources(
+      sources(
+        pseudoAccented("Version {revision}"),
+        pseudoBidi("Version {revision}"),
+      ),
+    ),
+    [],
+  );
+  // The English said "Revision {revision}" when these rows were generated.
+  const errors = validateCatalogSources(
+    sources(
+      pseudoAccented("Revision {revision}"),
+      pseudoBidi("Revision {revision}"),
+    ),
+  );
+  assert(
+    errors.some((error) =>
+      error.startsWith("en-XA:") && error.includes("stale")
+    ),
+  );
+  assert(
+    errors.some((error) =>
+      error.startsWith("ar-XB:") && error.includes("stale")
+    ),
+  );
+});
+
 Deno.test("new namespaces must carry generated pseudo rows", () => {
   const sources = (xa: string, xb: string) => ({
     en: JSON.stringify({ "settings.title": "Appearance" }),

@@ -158,7 +158,7 @@ test("cross-version threads preserve original reply scope and show deleted comme
   const thread = page.locator(`#comment-${COMMENT_ID}`);
   await expect(thread.locator('[data-ui-component="artifactDiscussion"]'))
     .toHaveAttribute("data-state", "outdated");
-  await expect(thread.getByRole("link", { name: "Open original revision" }))
+  await expect(thread.getByRole("link", { name: "Open original version" }))
     .toHaveAttribute(
       "href",
       `${PATH}?version=${OLD_VERSION_ID}&comment=${COMMENT_ID}`,

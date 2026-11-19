@@ -1,6 +1,6 @@
 import IntlMessageFormat from "intl-messageformat";
 import { supportedLocales } from "../src/locale.ts";
-import { minimumPseudoLength } from "./pseudo.ts";
+import { minimumPseudoLength, unaccent } from "./pseudo.ts";
 
 const root = decodeURIComponent(new URL("..", import.meta.url).pathname);
 const namespacePrefixes = [
@@ -171,12 +171,22 @@ export function validateCatalogSources(
             errors.push(
               `${locale}: ${key} must be ⟦…⟧ and at least 35% longer than English`,
             );
+          } // A row made from an earlier English text no longer says what the
+          // English says: it must still begin with the current source.
+          else if (!unaccent(message.slice(1, -1)).startsWith(source)) {
+            errors.push(
+              `${locale}: ${key} is stale: it no longer starts with the English text (regenerate it with pnpm --dir packages/i18n pseudo after deleting the row)`,
+            );
           }
         } else if (
           locale === "ar-XB" &&
           (!message.startsWith("⟪") || !message.endsWith("⟫"))
         ) {
           errors.push(`${locale}: ${key} must be wrapped in ⟪…⟫`);
+        } else if (locale === "ar-XB" && message.slice(1, -1) !== source) {
+          errors.push(
+            `${locale}: ${key} is stale: it differs from the English text (regenerate it with pnpm --dir packages/i18n pseudo after deleting the row)`,
+          );
         }
       }
       const expected = argumentNames(String(english[key]));
