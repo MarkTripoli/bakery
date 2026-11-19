@@ -112,17 +112,42 @@ async function seedArtifact(fixture: WorkerFixture) {
   return { taskId, artifactId, versionId };
 }
 
-function publish(
+/**
+ * Publishes one document onto the artifact's current version.
+ *
+ * The parent is read from the artifact rather than assumed: a second
+ * publication in the same test would otherwise claim the revision the first
+ * one already took, and the unique index would refuse it for a reason that has
+ * nothing to do with what the test is about.
+ *
+ * `mediaType` is a parameter because a kind's rules judge the declared type:
+ * a helper that always said `text/plain` would make a markdown-only kind refuse
+ * the very document a test meant to be accepted.
+ */
+async function publish(
   fixture: WorkerFixture,
   seeded: { taskId: string; artifactId: string; versionId: string },
   content: Uint8Array,
-  blobStore?: OrganizationBlobStore,
+  options: {
+    readonly blobStore?: OrganizationBlobStore;
+    readonly mediaType?: string;
+  } = {},
 ) {
-  return withPgTransaction(
+  const current = await fixture.pgDatabase.query<{
+    revision: number;
+    version: number;
+    current_version_id: string;
+  }>(
+    `select revision, version, current_version_id from bakery.artifacts
+      where organization_id = $1 and id = $2`,
+    [fixture.organizationId, seeded.artifactId],
+  );
+  const parent = current.rows[0];
+  return await withPgTransaction(
     fixture.pgDatabase,
     async (transaction) =>
       await commitArtifactVersion(transaction, {
-        ...(blobStore ? { blobStore } : {}),
+        ...(options.blobStore ? { blobStore: options.blobStore } : {}),
         scope: {
           organizationId: fixture.organizationId,
           taskId: seeded.taskId,
@@ -132,12 +157,12 @@ function publish(
         },
         parent: {
           id: seeded.artifactId,
-          revision: 2,
-          version: 1,
-          currentVersionId: seeded.versionId,
+          revision: parent.revision,
+          version: parent.version,
+          currentVersionId: parent.current_version_id,
         },
         version: {
-          parentVersionId: `"${seeded.versionId}"`,
+          parentVersionId: `"${parent.current_version_id}"`,
           runStepId: null,
           authorId: fixture.principalId,
           subjectHeadSha: null,
@@ -146,7 +171,7 @@ function publish(
           metadata: {},
           content,
           sha256: await sha256Bytes(content),
-          mediaType: "text/plain",
+          mediaType: options.mediaType ?? "text/plain",
         },
         promotion: { kind: "human" },
       }),
@@ -160,7 +185,9 @@ Deno.test("a version written with a store names a blob and carries no bytes", as
     const content = new TextEncoder().encode("stored in the object store");
     const digest = await sha256Bytes(content);
 
-    const published = await publish(fixture, seeded, content, store);
+    const published = await publish(fixture, seeded, content, {
+      blobStore: store,
+    });
 
     const row = await fixture.pgDatabase.query<{
       content: Uint8Array | null;
@@ -260,7 +287,7 @@ Deno.test("a version never ends up with two homes for its bytes", async () => {
       fixture,
       seeded,
       content,
-      new ScopedOrganizationBlobStore(store),
+      { blobStore: new ScopedOrganizationBlobStore(store) },
     ) as { id: string };
 
     // The write path sets exactly one of the two columns. There is no CHECK
@@ -353,7 +380,7 @@ Deno.test("a blob-backed version serves its bytes through the content route", as
       fixture,
       seeded,
       content,
-      new ScopedOrganizationBlobStore(store),
+      { blobStore: new ScopedOrganizationBlobStore(store) },
     ) as { id: string };
 
     const response = await fixture.app.fetch(
@@ -384,7 +411,7 @@ Deno.test("a range over a blob-backed version is served under the ceiling", asyn
       fixture,
       seeded,
       content,
-      new ScopedOrganizationBlobStore(store),
+      { blobStore: new ScopedOrganizationBlobStore(store) },
     ) as { id: string };
 
     const response = await fixture.app.fetch(
@@ -418,7 +445,7 @@ Deno.test("a range over a blob-backed version above the ceiling is refused, not 
       fixture,
       seeded,
       content,
-      new ScopedOrganizationBlobStore(store),
+      { blobStore: new ScopedOrganizationBlobStore(store) },
     ) as { id: string };
 
     const response = await fixture.app.fetch(
@@ -450,7 +477,7 @@ Deno.test("a blob-backed version is collectable, and collection clears both home
       fixture,
       seeded,
       content,
-      new ScopedOrganizationBlobStore(store),
+      { blobStore: new ScopedOrganizationBlobStore(store) },
     ) as { id: string };
     // Terminal task plus a past expiry is what makes a version eligible.
     await fixture.pgDatabase.query(
@@ -497,7 +524,7 @@ Deno.test("a purged version reads as purged, not as a broken blob version", asyn
       fixture,
       seeded,
       content,
-      new ScopedOrganizationBlobStore(store),
+      { blobStore: new ScopedOrganizationBlobStore(store) },
     ) as { id: string };
     // The purged shape: no home for the bytes, and purged_at set. This is a
     // third legitimate state, not a malformed row - retention produces it.
@@ -537,7 +564,7 @@ Deno.test("a version with no home and no purge is refused by the read branch its
       fixture,
       seeded,
       content,
-      new ScopedOrganizationBlobStore(store),
+      { blobStore: new ScopedOrganizationBlobStore(store) },
     ) as { id: string };
     // Both homes null and purged_at null. Retention never produces this, so it
     // is synthetic - and it is exactly the state the read branch exists for. A
@@ -578,7 +605,7 @@ Deno.test("a comment anchored on a blob-backed version resolves its bytes throug
       fixture,
       seeded,
       content,
-      new ScopedOrganizationBlobStore(store),
+      { blobStore: new ScopedOrganizationBlobStore(store) },
     ) as { id: string };
 
     // Anchoring decodes the version's bytes to place the anchor. A blob-backed
@@ -634,7 +661,7 @@ Deno.test("a range of exactly the ceiling is served, one byte over is refused", 
       fixture,
       seeded,
       atCeiling,
-      new ScopedOrganizationBlobStore(store),
+      { blobStore: new ScopedOrganizationBlobStore(store) },
     ) as { id: string };
 
     const ok = await fixture.app.fetch(
@@ -722,10 +749,14 @@ Deno.test("a kind whose key matches the artifact refuses a document its rules re
     );
     assertEquals(versions.rows[0].count, "1");
 
+    // The accepted document declares the type the kind requires. Without that
+    // the helper's default `text/plain` would be refused too, and the first
+    // assertion above would pass for the wrong reason.
     const published = await publish(
       fixture,
       seeded,
       new TextEncoder().encode("# och aye"),
+      { mediaType: "text/markdown" },
     );
     assertEquals(typeof published.id, "string");
   });
@@ -771,7 +802,15 @@ Deno.test("the first publication pins the kind revision, and a newer one does no
 
 Deno.test("a blob-backed version is judged on the same bytes, not on a copy read back", async () => {
   await withWorkerFixture(async (fixture) => {
-    await seedKind(fixture, "plan", markdownOnly);
+    // The declared type is the one the kind requires, so the refusal below is
+    // about the document's content and not about a helper's default type.
+    await seedKind(fixture, "plan", {
+      ...markdownOnly,
+      rules: [
+        ...markdownOnly.rules,
+        { type: "nonEmpty", severity: "require", options: {} },
+      ],
+    });
     const seeded = await seedArtifact(fixture);
     const store = objectStore();
     await assertRejects(
@@ -779,8 +818,11 @@ Deno.test("a blob-backed version is judged on the same bytes, not on a copy read
         publish(
           fixture,
           seeded,
-          new TextEncoder().encode("# refused before it was ever stored"),
-          new ScopedOrganizationBlobStore(store),
+          new TextEncoder().encode(""),
+          {
+            blobStore: new ScopedOrganizationBlobStore(store),
+            mediaType: "text/markdown",
+          },
         ),
       StandardError,
     );
@@ -803,7 +845,7 @@ Deno.test("a blob no live version names is collected, and one a live version nam
       fixture,
       seeded,
       content,
-      new ScopedOrganizationBlobStore(skillStore),
+      { blobStore: new ScopedOrganizationBlobStore(skillStore) },
     );
     const blobId = (
       await fixture.pgDatabase.query<{ blob_id: string }>(
