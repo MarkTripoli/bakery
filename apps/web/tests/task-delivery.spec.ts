@@ -2119,51 +2119,50 @@ const STILL_SIZES = [["1440", 1440, 900], ["390", 390, 844]] as const;
 /** Tall enough that the whole section, steps and After approval, is in view. */
 const TALL = { "1440": 2400, "390": 3200 } as const;
 
+// One test per still: a fresh page and its own timeout and retry, so a slow or
+// crashed page costs one still and not the other seven of its state.
 for (const [name, scenario] of MERGE_STILLS) {
-  test(`still: merge, ${name}`, async ({ page }) => {
-    test.skip(STILLS === undefined, "BAKERY_STILLS_DIR is not set");
-    test.setTimeout(laneBudgetMs(120_000));
-    for (const scheme of ["light", "dark"] as const) {
-      for (const [size, width, height] of STILL_SIZES) {
-        const fresh = await page.context().newPage();
-        await fresh.emulateMedia({ colorScheme: scheme });
-        await fresh.setViewportSize({ width, height });
-        await openMerge(fresh, { ...CLEAN, ...scenario }, {
+  for (const scheme of ["light", "dark"] as const) {
+    for (const [size, width, height] of STILL_SIZES) {
+      test(`still: merge, ${name}, ${size} ${scheme}`, async ({ page }) => {
+        test.skip(STILLS === undefined, "BAKERY_STILLS_DIR is not set");
+        test.setTimeout(laneBudgetMs(90_000));
+        await page.emulateMedia({ colorScheme: scheme });
+        await page.setViewportSize({ width, height });
+        await openMerge(page, { ...CLEAN, ...scenario }, {
           stub: stubStillsPage,
         });
-        await fresh.setViewportSize({ width, height: TALL[size] });
-        await stillOfSection(fresh, `merge-${name}-${size}-${scheme}.png`);
-        await fresh.setViewportSize({ width, height });
+        await page.setViewportSize({ width, height: TALL[size] });
+        await stillOfSection(page, `merge-${name}-${size}-${scheme}.png`);
+        await page.setViewportSize({ width, height });
         if (name === "ready") {
           // The confirmation, with the focus ring on Cancel where it lands.
-          await button(nowCard(fresh), "Merge").click();
-          const dialog = fresh.getByRole("alertdialog");
+          await button(nowCard(page), "Merge").click();
+          const dialog = page.getByRole("alertdialog");
           await dialog.waitFor();
           await expect(button(dialog, "Cancel")).toBeFocused();
-          await fresh.screenshot({
+          await page.screenshot({
             path: `${STILLS}/merge-confirm-${size}-${scheme}.png`,
             animations: "disabled",
           });
         }
-        await fresh.close();
-      }
+      });
     }
-  });
+  }
 }
 
-test("still: merge, the answer never arrived", async ({ page }) => {
-  test.skip(STILLS === undefined, "BAKERY_STILLS_DIR is not set");
-  test.setTimeout(laneBudgetMs(120_000));
-  for (const scheme of ["light", "dark"] as const) {
-    for (const [size, width, height] of STILL_SIZES) {
-      const fresh = await page.context().newPage();
-      await fresh.emulateMedia({ colorScheme: scheme });
-      await fresh.setViewportSize({ width, height });
+for (const scheme of ["light", "dark"] as const) {
+  for (const [size, width, height] of STILL_SIZES) {
+    test(`still: merge, the answer never arrived, ${size} ${scheme}`, async ({ page }) => {
+      test.skip(STILLS === undefined, "BAKERY_STILLS_DIR is not set");
+      test.setTimeout(laneBudgetMs(90_000));
+      await page.emulateMedia({ colorScheme: scheme });
+      await page.setViewportSize({ width, height });
       const scenario: Scenario = {
         ...CLEAN,
         pullRequests: [pullRequestRow(482)],
       };
-      await openMerge(fresh, scenario, {
+      await openMerge(page, scenario, {
         stub: stubStillsPage,
         merge: async (route) => {
           // The answer was lost and nothing was recorded: the read that
@@ -2175,15 +2174,14 @@ test("still: merge, the answer never arrived", async ({ page }) => {
           });
         },
       });
-      await button(nowCard(fresh), "Merge").click();
-      await button(fresh.getByRole("alertdialog"), "Merge").click();
-      await expect(fresh.getByTestId("delivery-merge-notice")).toContainText(
+      await button(nowCard(page), "Merge").click();
+      await button(page.getByRole("alertdialog"), "Merge").click();
+      await expect(page.getByTestId("delivery-merge-notice")).toContainText(
         "did not get an answer",
       );
-      await expect(nowCard(fresh)).toContainText("Ready to merge");
-      await fresh.setViewportSize({ width, height: TALL[size] });
-      await stillOfSection(fresh, `merge-no-answer-${size}-${scheme}.png`);
-      await fresh.close();
-    }
+      await expect(nowCard(page)).toContainText("Ready to merge");
+      await page.setViewportSize({ width, height: TALL[size] });
+      await stillOfSection(page, `merge-no-answer-${size}-${scheme}.png`);
+    });
   }
-});
+}
