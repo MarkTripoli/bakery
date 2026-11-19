@@ -275,3 +275,58 @@ Deno.test("an admin makes, changes and deletes a group; a member only reads", as
     await fixture.close();
   }
 });
+
+Deno.test("two creates racing for one name both answer cleanly: one wins, one conflicts", async () => {
+  const fixture = await openSocketFixture();
+  try {
+    const attempt = () =>
+      api(fixture, fixture.cookie, "POST", "/v1/groups", {
+        name: "Design reviewers",
+        mentionName: "design-reviewers",
+      });
+    const statuses = (await Promise.all([attempt(), attempt(), attempt()]))
+      .map((response) => response.status)
+      .sort();
+    // Never a 500: the loser of the race gets the same conflict the pre-check
+    // gives.
+    assertEquals(statuses, [201, 409, 409]);
+  } finally {
+    await cleanupAuthFixture(fixture.pgDatabase, [fixture.email]);
+    await fixture.close();
+  }
+});
+
+Deno.test("a member whose membership went inactive is not listed or counted, and returns on reactivation", async () => {
+  const fixture = await openSocketFixture();
+  const sam = await addMember(fixture, "Sam");
+  try {
+    const made = await ok<Group>(
+      await api(fixture, fixture.cookie, "POST", "/v1/groups", {
+        name: "Reviewers",
+        mentionName: "reviewers",
+        memberIds: [sam.principalId],
+      }),
+      201,
+    );
+    assertEquals(made.memberCount, 1);
+    const setStatus = (status: string) =>
+      fixture.pgDatabase.query(
+        `update bakery.organization_memberships set status = $3
+          where organization_id = $1 and principal_id = $2`,
+        [fixture.organizationId, sam.principalId, status],
+      );
+    const read = async () =>
+      (await ok<{ groups: Group[] }>(
+        await api(fixture, fixture.cookie, "GET", "/v1/groups"),
+        200,
+      )).groups[0];
+    await setStatus("inactive");
+    assertEquals((await read()).memberCount, 0);
+    assertEquals((await read()).members, []);
+    await setStatus("active");
+    assertEquals((await read()).memberCount, 1);
+  } finally {
+    await cleanupAuthFixture(fixture.pgDatabase, [fixture.email, sam.email]);
+    await fixture.close();
+  }
+});

@@ -16,7 +16,9 @@ import { requireWorkTransaction } from "./work-transaction.ts";
  * groups (the registry's access policy); any member reads them.
  *
  * The shape of the handle and the length limits are owned here, not by CHECK
- * constraints. The handle is fixed at creation: the application role has no
+ * constraints. A person whose membership is no longer active stops being
+ * listed (and counted) without their row being removed, so reactivating them
+ * restores their place. The handle is fixed at creation: the application role has no
  * UPDATE on `mention_name` (migration 0243), so renaming it is impossible even
  * from a bug.
  */
@@ -84,6 +86,22 @@ function conflict(reason: string, existingResourceId?: string): never {
   });
 }
 
+/**
+ * A concurrent create or rename that passed the pre-check loses at the unique
+ * index. That is the same answer as the pre-check gives, not a server error.
+ */
+function conflictFromUniqueViolation(error: unknown): never {
+  const failure = error as { code?: string; constraint?: string };
+  if (failure.code === "23505") {
+    conflict(
+      failure.constraint?.includes("mention")
+        ? "group_mention_taken"
+        : "group_name_taken",
+    );
+  }
+  throw error;
+}
+
 function toGroup(row: GroupRow, members: readonly MemberRow[]) {
   const mine = members
     .filter((member) => member.group_id === row.id)
@@ -114,6 +132,10 @@ async function membersOf(
     `select member.group_id, member.principal_id, principal.display_name
        from bakery.organization_group_members as member
        join bakery.principals as principal on principal.id = member.principal_id
+       join bakery.organization_memberships as membership
+         on membership.organization_id = member.organization_id
+        and membership.principal_id = member.principal_id
+        and membership.status = 'active'
       where member.organization_id = $1 and member.group_id = any($2::uuid[])
       order by lower(principal.display_name), member.principal_id`,
     [organizationId, [...groupIds]],
@@ -345,7 +367,7 @@ export async function createGroup(context: ActionContext, input: unknown) {
      values ($1, $2, $3, $4, $5)
      returning ${GROUP_COLUMNS}`,
     [organizationId, name, mentionName, purpose, principalId],
-  )).rows[0];
+  ).catch(conflictFromUniqueViolation)).rows[0];
   if (!created) throw new Error("GROUP_INSERT_FAILED");
   for (const memberId of memberIds) {
     await transaction.query(
@@ -416,7 +438,7 @@ export async function updateGroup(context: ActionContext, input: unknown) {
       where organization_id = $1 and id = $2
       returning ${GROUP_COLUMNS}`,
     [organizationId, groupId, name, purpose],
-  )).rows[0];
+  ).catch(conflictFromUniqueViolation)).rows[0];
   if (!updated) throw new Error("GROUP_UPDATE_FAILED");
   if (memberIds !== undefined) {
     await transaction.query(

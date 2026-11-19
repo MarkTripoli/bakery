@@ -236,7 +236,6 @@ export type EmailSettingsWrite = Readonly<{
   fromName: string;
   /** Set when a new password was sealed in this save. */
   sealed: SealedPassword | null;
-  /** True when an existing password is dropped (username cleared, no secret). */
   principalId: string;
 }>;
 

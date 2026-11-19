@@ -47,7 +47,6 @@ import {
   recordEmailTest,
   revokeEmailSecret,
   sealEmailPassword,
-  type StoredEmailSettings,
   upsertEmailSettings,
   writeEmailSecretVersion,
 } from "./email-settings.ts";
@@ -262,6 +261,8 @@ type TestStage =
   }
   | {
     readonly connection: SmtpConnection;
+    readonly fromAddress: string;
+    readonly fromName: string;
     readonly address: string;
     readonly version: number;
   };
@@ -343,6 +344,11 @@ async function runTest(
           username: stored.username,
           password,
         },
+        // The sender comes from the same read as the connection and the version,
+        // so a save that lands while the test is in flight can never produce a
+        // message on mixed settings.
+        fromAddress: stored.fromAddress,
+        fromName: stored.fromName,
         address,
         version: stored.version,
       };
@@ -356,35 +362,20 @@ async function runTest(
     outcome = stage.outcome;
     address = stage.address;
   } else {
-    const settings = await authority.run(
-      action,
-      context,
-      parsed,
-      (authorized) => {
-        const { context: value } = installationActor(authorized);
-        return readEmailSettings(value.transaction);
+    outcome = await (dependencies.send ?? sendMail)(
+      stage.connection,
+      {
+        ...TEST_MESSAGE,
+        fromAddress: stage.fromAddress,
+        fromName: stage.fromName,
+        to: stage.address,
       },
-    ) as StoredEmailSettings | null;
-    if (settings === null) {
-      outcome = "not_configured";
-      address = null;
-    } else {
-      const result = await (dependencies.send ?? sendMail)(
-        stage.connection,
-        {
-          ...TEST_MESSAGE,
-          fromAddress: settings.fromAddress,
-          fromName: settings.fromName,
-          to: stage.address,
-        },
-        {
-          signal: context.signal,
-          allowPlainLoopback: dependencies.allowPlainLoopback,
-        },
-      );
-      outcome = result;
-      address = stage.address;
-    }
+      {
+        signal: context.signal,
+        allowPlainLoopback: dependencies.allowPlainLoopback,
+      },
+    );
+    address = stage.address;
   }
   const tested = { outcome, address, version: stage.version };
   return await authority.run(

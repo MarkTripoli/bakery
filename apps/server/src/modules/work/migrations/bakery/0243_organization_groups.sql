@@ -3,10 +3,12 @@
 -- answer.
 --
 -- A group is the audience of a request, never a grant of access: members keep
--- only the access they already have. Membership is a plain join, so removing a
--- person from the organization or deleting the group never leaves a dangling
--- audience, and a group with no members is valid (its requests go to the
--- workflow owner until someone is added).
+-- only the access they already have. Membership is a plain join. Deleting the
+-- group or the person removes their rows; a member whose organization
+-- membership merely becomes inactive keeps the row but is not listed or asked
+-- (the reads join active memberships), so reactivating restores their place. A
+-- group with no members is valid (its requests go to the workflow owner until
+-- someone is added).
 --
 -- The mention name is the group's stable handle. It is fixed when the group is
 -- created, because workflows and people name the group by it; only the display
