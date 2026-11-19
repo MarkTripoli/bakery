@@ -93,6 +93,13 @@ export async function recordProbeResult(
     /** The route's incident generation when the monitor admitted the probe. */
     generation: number;
     observedAt: Date;
+    /**
+     * When the route is next probed, or `null` to stop probing it. The caller owns
+     * the schedule (backoff, `Retry-After`, a steady interval) because it is what
+     * saw the response; this function only records it, on the route, its health row
+     * and its open incident, so the three never disagree.
+     */
+    nextProbeAt: Date | null;
     outcome: ProbeOutcome;
   },
 ): Promise<ProbeResult> {
@@ -163,8 +170,8 @@ async function openIncident(
     `insert into bakery.provider_incidents (
        id, organization_id, route_id, generation, status, severity, reason,
        first_failure_at, last_failure_at, last_probe_at, evidence_watermark,
-       opened_at
-     ) values ($1, $2, $3, $4, 'open', $5, $6, $7, $7, $7, $8, $7)`,
+       opened_at, next_probe_at
+     ) values ($1, $2, $3, $4, 'open', $5, $6, $7, $7, $7, $8, $7, $9)`,
     [
       incidentId,
       organizationId,
@@ -174,6 +181,7 @@ async function openIncident(
       outcome.reason,
       observedAt,
       outcome.evidenceWatermark,
+      probe.nextProbeAt,
     ],
   );
   await writeRoute(transaction, probe, {
@@ -209,7 +217,7 @@ async function extendIncident(
   await transaction.query(
     `update bakery.provider_incidents
         set severity = $3, reason = $4, last_failure_at = $5,
-            last_probe_at = $5, evidence_watermark = $6,
+            last_probe_at = $5, evidence_watermark = $6, next_probe_at = $7,
             updated_at = now(), version = version + 1
       where organization_id = $1 and id = $2`,
     [
@@ -219,6 +227,7 @@ async function extendIncident(
       outcome.reason,
       observedAt,
       outcome.evidenceWatermark,
+      probe.nextProbeAt,
     ],
   );
   await writeRoute(transaction, probe, {
@@ -254,10 +263,16 @@ async function recordReachable(
     // The incident stays open: the endpoint answered, nothing more.
     await transaction.query(
       `update bakery.provider_incidents
-          set last_probe_at = $3, evidence_watermark = $4,
+          set last_probe_at = $3, evidence_watermark = $4, next_probe_at = $5,
               updated_at = now(), version = version + 1
         where organization_id = $1 and id = $2`,
-      [organizationId, open.id, observedAt, probe.outcome.evidenceWatermark],
+      [
+        organizationId,
+        open.id,
+        observedAt,
+        probe.outcome.evidenceWatermark,
+        probe.nextProbeAt,
+      ],
     );
   }
   await writeRoute(transaction, probe, {
@@ -342,7 +357,7 @@ async function writeRoute(
   await transaction.query(
     `update bakery.provider_routes
         set health = $3, incident_id = $4, incident_generation = $5,
-            last_probe_at = $6,
+            last_probe_at = $6, next_probe_at = $9,
             inference_verified_at = case when $7::boolean then $8::timestamptz
                                          else inference_verified_at end,
             updated_at = now(), version = version + 1
@@ -356,6 +371,7 @@ async function writeRoute(
       probe.observedAt,
       next.inferenceVerifiedAt !== undefined,
       next.inferenceVerifiedAt ?? null,
+      probe.nextProbeAt,
     ],
   );
 }
@@ -380,8 +396,8 @@ async function upsertHealth(
        organization_id, route_id, health, reason, consecutive_failures,
        evidence_watermark, last_failure_at, last_success_at, last_probe_at,
        probe_lease_expires_at, incident_id, incident_generation,
-       inference_verified_at
-     ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, null, $10, $11, $12)
+       inference_verified_at, next_probe_at
+     ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, null, $10, $11, $12, $13)
      on conflict (organization_id, route_id) do update
        set health = excluded.health,
            reason = excluded.reason,
@@ -394,6 +410,7 @@ async function upsertHealth(
              excluded.last_success_at,
              bakery.provider_route_health.last_success_at),
            last_probe_at = excluded.last_probe_at,
+           next_probe_at = excluded.next_probe_at,
            probe_lease_expires_at = null,
            incident_id = excluded.incident_id,
            incident_generation = excluded.incident_generation,
@@ -414,6 +431,7 @@ async function upsertHealth(
       next.incidentId,
       next.incidentGeneration,
       next.inferenceVerifiedAt ?? null,
+      probe.nextProbeAt,
     ],
   );
 }

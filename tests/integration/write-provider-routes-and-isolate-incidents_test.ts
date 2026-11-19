@@ -75,6 +75,7 @@ async function probe(
       routeId,
       generation,
       observedAt: new Date(),
+      nextProbeAt: new Date(Date.now() + 30_000),
       outcome,
     });
     await client.query("commit");

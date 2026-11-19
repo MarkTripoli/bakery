@@ -22,6 +22,7 @@ const ORG = "11111111-1111-4111-8111-111111111111";
 const ROUTE = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const INCIDENT = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const NOW = new Date("2026-11-19T12:00:00.000Z");
+const NEXT = new Date("2026-11-19T12:00:30.000Z");
 
 type Statement = { sql: string; values: readonly unknown[] };
 
@@ -93,6 +94,7 @@ const probe = (
     routeId: ROUTE,
     generation,
     observedAt: NOW,
+    nextProbeAt: NEXT,
     outcome,
   });
 
@@ -291,5 +293,43 @@ Deno.test("every statement is scoped to the organization and the route is locked
   for (const { sql, values } of recorded) {
     assertEquals(values[0], ORG, sql);
     assert(/organization_id/.test(sql), sql);
+  }
+});
+
+Deno.test("the caller's next probe time is written to the route, its health row and the open incident", async () => {
+  const { transaction, recorded } = stand(openWorld());
+  await probe(transaction, 3, failure("w-new"));
+  const mine = writes(recorded);
+  const onRoute = mine.find(({ sql }) =>
+    /update bakery\.provider_routes/.test(sql)
+  )!;
+  const onHealth = mine.find(({ sql }) =>
+    /insert into bakery\.provider_route_health/.test(sql)
+  )!;
+  const onIncident = mine.find(({ sql }) =>
+    /update bakery\.provider_incidents/.test(sql)
+  )!;
+  assert(onRoute.values.includes(NEXT));
+  assert(onHealth.values.includes(NEXT));
+  assert(onIncident.values.includes(NEXT));
+});
+
+Deno.test("a null next probe time stops probing on all three", async () => {
+  const { transaction, recorded } = stand({ route: route() });
+  await recordProbeResult(transaction as never, {
+    organizationId: ORG,
+    routeId: ROUTE,
+    generation: 0,
+    observedAt: NOW,
+    nextProbeAt: null,
+    outcome: failure("w1"),
+  });
+  for (const { sql, values } of writes(recorded)) {
+    assert(
+      !values.some((value) =>
+        value instanceof Date && value.getTime() === NEXT.getTime()
+      ),
+      sql,
+    );
   }
 });
