@@ -222925,11 +222925,7 @@
       }
     }
   },
-<<<<<<< HEAD
-  "compatibilityDigest": "sha256:6bd955985505a23e0cebb785014b8012e6726c1b87cea126185d467864d0023e",
-=======
-  "compatibilityDigest": "sha256:54aac78a56958a2ac5ae11aa4442724fc13c50077be1f96b4db1fffd2e3da6dc",
->>>>>>> origin/main
+  "compatibilityDigest": "sha256:8ec479496263299f6892813a55b6cd2a9b648cc950d88dbceca89c924dae9a1f",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
