@@ -314,7 +314,6 @@ function InboxResults(
   const stateBlock = failed
     ? (
       <UI.ErrorState
-        variant={layout === "sheet" ? "page" : "region"}
         title={t("tasks.error.title")}
         description={t("tasks.error.description")}
         action={
