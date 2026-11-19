@@ -63,6 +63,8 @@ const OPERATION_SCOPES: Readonly<Record<string, OperationScope>> = Object
     // where a grant covers the run's workflow, and the action rechecks the grant
     // live on every call, so a revoked grant stops the next call.
     "approvals.decide": "approvals.decide",
+    // Controlling a run is off by default too (O52); same grant-then-scope rule.
+    "runs.control": "runs.control",
   });
 
 /**
@@ -74,7 +76,7 @@ export const POWER_SESSION_SCOPES: Readonly<
   Record<AgentPower, readonly OperationScope[]>
 > = Object.freeze({
   decide: Object.freeze(["approvals.decide"]),
-  run_control: Object.freeze([]),
+  run_control: Object.freeze(["runs.control"]),
   run_start: Object.freeze([]),
 });
 

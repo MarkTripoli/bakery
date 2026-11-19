@@ -31,7 +31,14 @@ import {
   type PgTransactionClient,
   withPgTransaction,
 } from "@bakery/persistence";
-import { appendDomainEvent } from "@bakery/persistence/event-audit";
+import {
+  appendAudit,
+  appendDomainEvent,
+} from "@bakery/persistence/event-audit";
+import {
+  AgentPower,
+  assertAgentMayExercise,
+} from "../auth/application/agent-power-grants.ts";
 import {
   PostgresAuthorityRunner,
   resolveOrganizationActor,
@@ -312,9 +319,19 @@ async function runControlAction(
   context: ActionContext,
   input: RunControlInput,
 ): Promise<RunOutput> {
-  const { transaction, organizationId } = requireWorkTransaction(context);
+  const { transaction, organizationId, principalId } = requireWorkTransaction(
+    context,
+  );
   const runId = context.params.id;
   if (!runId) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  // An agent controls a run only where a person granted it the power (O52). A
+  // person passes untouched. Checked before anything is read or written, so a
+  // refusal leaves no trace.
+  const exercised = await assertAgentMayExercise(transaction, context, {
+    organizationId,
+    principalId,
+    power: AgentPower.RunControl,
+  });
   const runResult = await transaction.query<RunControlRow>(
     `select ${RUN_COLUMNS},
             task.application_id,
@@ -449,6 +466,30 @@ async function runControlAction(
     [organizationId, runId],
   );
   const updated = updatedResult.rows[0] ?? run;
+  // An agent's control is recorded as the person's request, labelled as an
+  // agent's action with the attempt it came from and who it acted for (O50).
+  if (exercised.attribution.actorKind === "agent") {
+    await appendAudit(transaction, {
+      organizationId,
+      principalId,
+      operation: "runs.control.agent",
+      resourceType: "workflow_run",
+      resourceId: runId,
+      requestId: context.requestId,
+      traceId: context.traceId,
+      details: {
+        action: input.action,
+        actorKind: "agent",
+        onBehalfOf: principalId,
+        ...(exercised.origin === null ? {} : {
+          fromRunId: exercised.origin.runId,
+          ...(exercised.origin.agentSessionId === null
+            ? {}
+            : { sessionId: exercised.origin.agentSessionId }),
+        }),
+      },
+    });
+  }
   await appendDomainEvent(transaction, {
     organizationId,
     applicationId: updated.application_id,
@@ -471,9 +512,14 @@ async function runControlAction(
   );
 }
 
-export function createExecutionRunControlApp(
-  options: ExecutionRouteOptions,
-): Hono<{ Variables: AuthVariables }> {
+/**
+ * The run-control, session-read and transcript operations, built so the routes
+ * and the session tool gateway (#414) can run the same handlers under the same
+ * authority guard. The handlers hold no state, so each caller may build its own.
+ */
+export function createRunControlRegistry(
+  options: Pick<ExecutionRouteOptions, "database" | "secret">,
+): ActionRegistry {
   const registry = new ActionRegistry(
     new PostgresAuthorityRunner(options.database),
     createPostgresCommandRunner(),
@@ -579,6 +625,13 @@ export function createExecutionRunControlApp(
   assertRegisteredActions(registry);
   assertImplementedActionRegistry(registry, executionImplementedActions);
 
+  return registry;
+}
+
+export function createExecutionRunControlApp(
+  options: ExecutionRouteOptions,
+): Hono<{ Variables: AuthVariables }> {
+  const registry = createRunControlRegistry(options);
   const app = new Hono<{ Variables: AuthVariables }>();
   app.use("/v1/runs/*", options.browserSession);
   app.use("/v1/sessions/*", options.browserSession);

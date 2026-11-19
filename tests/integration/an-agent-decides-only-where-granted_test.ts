@@ -1,18 +1,10 @@
 import { assert, assertEquals } from "@std/assert";
+import { withWorkerFixture } from "../helpers/worker-execution/scenarios.ts";
 import {
-  registeredWorker,
-  workerRequest,
-} from "../helpers/worker-execution.ts";
-import { seedEligibleNonmodelJob } from "../helpers/worker-execution/nonmodel-job.ts";
-import {
-  claimAssignment,
-  withWorkerFixture,
-} from "../helpers/worker-execution/scenarios.ts";
-import {
-  SESSION_CALL_PATH,
-  SESSION_CREDENTIAL_HEADER,
-  SESSION_TOOLS_PATH,
-} from "../../apps/server/src/modules/execution/session-routes.ts";
+  type AgentFixture,
+  agentSession,
+  seedOtherRun,
+} from "../helpers/agent-session.ts";
 import { requestHumanApproval } from "../../apps/server/src/modules/work/human-approval-store.ts";
 import type { PgTransactionClient } from "../../apps/server/src/platform/database.ts";
 
@@ -22,21 +14,7 @@ import type { PgTransactionClient } from "../../apps/server/src/platform/databas
 // gateway, because each rule can hold below it and still be missing from the
 // path an agent actually takes.
 
-type Fixture = Parameters<Parameters<typeof withWorkerFixture>[0]>[0];
-
-async function grant(
-  fixture: Fixture,
-  workflowId: string,
-  power = "decide",
-): Promise<string> {
-  const row = await fixture.pgDatabase.query<{ id: string }>(
-    `insert into bakery.agent_power_grants
-       (organization_id, power, workflow_id, granted_by)
-     values ($1, $2, $3, $4) returning id`,
-    [fixture.organizationId, power, workflowId, fixture.principalId],
-  );
-  return row.rows[0].id;
-}
+type Fixture = AgentFixture;
 
 /** An open step approval in the given run, addressed to the person. */
 async function approvalIn(
@@ -66,57 +44,21 @@ async function approvalIn(
   return asked.approvalId;
 }
 
-/**
- * Claims the only job in the fixture, so the session runs under its workflow.
- * With `granted`, that workflow holds the decide power before the claim, which
- * is when the credential's scopes are minted.
- */
+/** The agent's decision tool, over the shared session helper. */
 async function sessionFor(fixture: Fixture, options: { granted: boolean }) {
-  const worker = await registeredWorker(fixture, { slots: 1 });
-  const own = await seedEligibleNonmodelJob(
-    fixture.pgDatabase,
-    fixture.organizationId,
-    fixture.principalId,
-  );
-  const grantId = options.granted ? await grant(fixture, own.workflowId) : null;
-  const assignment = await claimAssignment(fixture, worker) as unknown as {
-    attemptId: string;
-    sessionCredential: string;
-  };
-  const headers = {
-    [SESSION_CREDENTIAL_HEADER]: assignment.sessionCredential,
-  };
+  const session = await agentSession(fixture, {
+    granted: options.granted ? "decide" : null,
+  });
   const decide = (id: string) =>
-    workerRequest(
-      fixture,
-      worker.credential,
-      SESSION_CALL_PATH.replace(":id", assignment.attemptId),
-      {
-        tool: "approvals.decide",
-        arguments: { id, decision: "approve", expectedVersion: 1 },
-      },
-      { headers },
-    );
-  const tools = async () => {
-    const response = await workerRequest(
-      fixture,
-      worker.credential,
-      SESSION_TOOLS_PATH.replace(":id", assignment.attemptId),
-      undefined,
-      { method: "GET", headers },
-    );
-    const body = await response.json() as { tools: { name: string }[] };
-    return body.tools.map((tool) => tool.name);
-  };
-  return { own, grantId, decide, tools };
+    session.call("approvals.decide", {
+      id,
+      decision: "approve",
+      expectedVersion: 1,
+    });
+  return { ...session, decide };
 }
 
-const otherRun = () => (fixture: Fixture) =>
-  seedEligibleNonmodelJob(
-    fixture.pgDatabase,
-    fixture.organizationId,
-    fixture.principalId,
-  );
+const otherRun = () => seedOtherRun;
 
 Deno.test("an agent decides another run's approval where its workflow is granted", () =>
   withWorkerFixture(async (fixture) => {
