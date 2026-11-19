@@ -639,3 +639,29 @@ test(
     });
   },
 );
+
+test("a failed artifacts read is a compact error with a secondary Try again", async ({ page }) => {
+  await prepare(page);
+  await page.route("**/v1/artifacts?*", (route) =>
+    route.fulfill({
+      status: 500,
+      contentType: "application/problem+json",
+      json: {
+        type: "about:blank",
+        title: "INTERNAL",
+        status: 500,
+        code: "INTERNAL",
+        detail: "The server refused the request.",
+        requestId: "00000000-0000-4000-8000-000000000110",
+        traceId: "00000000-0000-4000-8000-000000000111",
+        retryable: true,
+      },
+    }));
+  await page.goto(`/tasks/${taskId}`);
+  const error = page.locator('[data-ui-component="errorState"]', {
+    hasText: "Artifacts could not be loaded",
+  });
+  await expect(error).toBeVisible({ timeout: 20_000 });
+  await expect(error.getByRole("button", { name: "Try again", exact: true }))
+    .toHaveClass(/secondary/);
+});

@@ -6700,10 +6700,10 @@
       "group": "Integrations intake",
       "method": "POST",
       "path": "/v1/webhooks/github",
-      "action": "intake.github",
+      "action": "intake.webhook",
       "access": "Verified GitHub App raw-body signature; installation/resource routes to existing organization connection",
       "permission": null,
-      "input": "GitHubWebhook",
+      "input": "IntegrationWebhook",
       "output": "WebhookReceipt",
       "event": "intake.received",
       "mcp": "",
@@ -7522,7 +7522,7 @@
       "group": "Integration setup",
       "method": "GET",
       "path": "/v1/integration-auth/github/callback",
-      "action": "integrationAuth.githubCallback",
+      "action": "integrationAuth.authorizationCallback",
       "access": "Bound browser auth attempt",
       "permission": null,
       "input": "OAuthCallback",
@@ -7548,10 +7548,10 @@
       "group": "Integration setup",
       "method": "GET",
       "path": "/v1/integration-auth/github/setup",
-      "action": "integrationAuth.githubSetup",
+      "action": "integrationAuth.setup",
       "access": "Bound browser auth attempt",
       "permission": null,
-      "input": "GitHubSetupCallback",
+      "input": "IntegrationSetupCallback",
       "output": "AuthRedirect",
       "event": "integration.auth_attempt_changed",
       "mcp": "",
@@ -7874,10 +7874,10 @@
       "group": "Installation administration",
       "method": "GET",
       "path": "/v1/integration-auth/github/manifest-callback",
-      "action": "integrationAuth.githubManifestCallback",
+      "action": "integrationAuth.manifestCallback",
       "access": "Installation administrator",
       "permission": "installationSetting:manage",
-      "input": "GitHubManifestCallback",
+      "input": "IntegrationManifestCallback",
       "output": "AuthRedirect",
       "event": "",
       "mcp": "",
@@ -10156,11 +10156,11 @@
     "integrationAppRegistrations.get",
     "integrationAppRegistrations.begin",
     "integrationAppRegistrations.put",
-    "integrationAuth.githubManifestCallback",
+    "integrationAuth.manifestCallback",
     "integrationAuthAttempts.create",
     "integrationAuthAttempts.get",
-    "integrationAuth.githubSetup",
-    "integrationAuth.githubCallback",
+    "integrationAuth.setup",
+    "integrationAuth.authorizationCallback",
     "integrationConnections.get",
     "integrationConnections.create",
     "integrationConnections.list",
@@ -10178,7 +10178,7 @@
     "integrationDiscoveries.create",
     "integrationInstallations.list",
     "integrationInstallations.get",
-    "intake.github",
+    "intake.webhook",
     "checks.list",
     "runReviews.list",
     "reviewFindings.list",
@@ -27135,7 +27135,7 @@
       },
       "/v1/webhooks/github": {
         "post": {
-          "operationId": "intake.github",
+          "operationId": "intake.webhook",
           "parameters": [],
           "responses": {
             "200": {
@@ -27166,7 +27166,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GitHubWebhook"
+                  "$ref": "#/components/schemas/IntegrationWebhook"
                 }
               }
             }
@@ -29104,7 +29104,7 @@
       },
       "/v1/integration-auth/github/callback": {
         "get": {
-          "operationId": "integrationAuth.githubCallback",
+          "operationId": "integrationAuth.authorizationCallback",
           "parameters": [
             {
               "name": "code",
@@ -29175,7 +29175,7 @@
       },
       "/v1/integration-auth/github/setup": {
         "get": {
-          "operationId": "integrationAuth.githubSetup",
+          "operationId": "integrationAuth.setup",
           "parameters": [
             {
               "name": "state",
@@ -29184,7 +29184,7 @@
               "schema": {
                 "type": "string",
                 "maxLength": 4096,
-                "description": "Single-use state token binding this setup redirect to the auth attempt that started it; claimed atomically before verification so it cannot be replayed. GitHubSetupCallback.state must contain at most 4096 characters."
+                "description": "Single-use state token binding this setup redirect to the auth attempt that started it; claimed atomically before verification so it cannot be replayed. IntegrationSetupCallback.state must contain at most 4096 characters."
               }
             },
             {
@@ -29192,7 +29192,7 @@
               "in": "query",
               "required": false,
               "schema": {
-                "description": "GitHub's candidate installation ID for this setup event. Treat as spoofable: the host must verify it against every page of installations accessible to the connecting user's token before it can identify a real installation. GitHubSetupCallback.installationId must contain at most 200 characters.",
+                "description": "GitHub's candidate installation ID for this setup event. Treat as spoofable: the host must verify it against every page of installations accessible to the connecting user's token before it can identify a real installation. IntegrationSetupCallback.installationId must contain at most 200 characters.",
                 "type": "string",
                 "maxLength": 200
               }
@@ -29839,7 +29839,7 @@
       },
       "/v1/integration-auth/github/manifest-callback": {
         "get": {
-          "operationId": "integrationAuth.githubManifestCallback",
+          "operationId": "integrationAuth.manifestCallback",
           "parameters": [
             {
               "name": "code",
@@ -29849,7 +29849,7 @@
                 "type": "string",
                 "minLength": 1,
                 "maxLength": 4096,
-                "description": "Temporary code GitHub appends to the manifest redirect; valid for one hour and convertible exactly once into the new App's credentials. Never logged or stored. GitHubManifestCallback.code must contain at least 1 characters. GitHubManifestCallback.code must contain at most 4096 characters."
+                "description": "Temporary code GitHub appends to the manifest redirect; valid for one hour and convertible exactly once into the new App's credentials. Never logged or stored. IntegrationManifestCallback.code must contain at least 1 characters. IntegrationManifestCallback.code must contain at most 4096 characters."
               }
             },
             {
@@ -29860,7 +29860,7 @@
                 "type": "string",
                 "minLength": 1,
                 "maxLength": 4096,
-                "description": "Single-use state issued by integrationAppRegistrations.begin to the same administrator session; claimed atomically by its hash before the code is converted. GitHubManifestCallback.state must contain at least 1 characters. GitHubManifestCallback.state must contain at most 4096 characters."
+                "description": "Single-use state issued by integrationAppRegistrations.begin to the same administrator session; claimed atomically by its hash before the code is converted. IntegrationManifestCallback.state must contain at least 1 characters. IntegrationManifestCallback.state must contain at most 4096 characters."
               }
             }
           ],
@@ -40367,22 +40367,22 @@
           "additionalProperties": false,
           "description": "Filters the external write effects (issue comments, webhook deliveries and other outbound provider actions) visible to the caller, typically to audit what a specific workflow run triggered."
         },
-        "GitHubWebhook": {
+        "IntegrationWebhook": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
           "properties": {
             "deliveryId": {
               "type": "string",
               "maxLength": 255,
-              "description": "GitHub's X-GitHub-Delivery ID for this webhook attempt, scoped to the configured GitHub App registration; combined with the raw-body digest it deduplicates redelivery, so an identical retry returns the original receipt instead of reprocessing. GitHubWebhook.deliveryId must contain at most 255 characters."
+              "description": "GitHub's X-GitHub-Delivery ID for this webhook attempt, scoped to the configured GitHub App registration; combined with the raw-body digest it deduplicates redelivery, so an identical retry returns the original receipt instead of reprocessing. IntegrationWebhook.deliveryId must contain at most 255 characters."
             },
             "eventType": {
               "type": "string",
               "maxLength": 100,
-              "description": "GitHub's webhook event name, for example issues.labeled; applying a label and editing a label's definition are different event shapes, and only accepted events reach Tickets admission. GitHubWebhook.eventType must contain at most 100 characters."
+              "description": "GitHub's webhook event name, for example issues.labeled; applying a label and editing a label's definition are different event shapes, and only accepted events reach Tickets admission. IntegrationWebhook.eventType must contain at most 100 characters."
             },
             "payload": {
-              "description": "Raw verified GitHub event body, capped at 256 KiB and streamed before JSON parsing; an oversized delivery is rejected rather than truncated. GitHubWebhook.payload must contain at most 262144 UTF-8 bytes.",
+              "description": "Raw verified GitHub event body, capped at 256 KiB and streamed before JSON parsing; an oversized delivery is rejected rather than truncated. IntegrationWebhook.payload must contain at most 262144 UTF-8 bytes.",
               "anyOf": [
                 {
                   "type": "string",
@@ -40403,7 +40403,7 @@
                 {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/GitHubWebhook____schema0"
+                    "$ref": "#/components/schemas/IntegrationWebhook____schema0"
                   },
                   "description": "JSON array value."
                 },
@@ -40414,7 +40414,7 @@
                     "description": "JSON object key."
                   },
                   "additionalProperties": {
-                    "$ref": "#/components/schemas/GitHubWebhook____schema0"
+                    "$ref": "#/components/schemas/IntegrationWebhook____schema0"
                   },
                   "description": "JSON object value."
                 }
@@ -40430,7 +40430,7 @@
           "additionalProperties": false,
           "description": "Verified GitHub App webhook delivery, routed by app plus installation/resource identity to an already-connected organization; the raw body is HMAC-verified against the configured app webhook secret and streamed under a 256 KiB limit before any parsing."
         },
-        "GitHubWebhook____schema0": {
+        "IntegrationWebhook____schema0": {
           "description": "JSON value node.",
           "anyOf": [
             {
@@ -40473,7 +40473,7 @@
                   {
                     "type": "array",
                     "items": {
-                      "$ref": "#/components/schemas/GitHubWebhook____schema0"
+                      "$ref": "#/components/schemas/IntegrationWebhook____schema0"
                     },
                     "description": "JSON array value."
                   },
@@ -40484,7 +40484,7 @@
                       "description": "JSON object key."
                     },
                     "additionalProperties": {
-                      "$ref": "#/components/schemas/GitHubWebhook____schema0"
+                      "$ref": "#/components/schemas/IntegrationWebhook____schema0"
                     },
                     "description": "JSON object value."
                   }
@@ -40520,7 +40520,7 @@
                   {
                     "type": "array",
                     "items": {
-                      "$ref": "#/components/schemas/GitHubWebhook____schema0"
+                      "$ref": "#/components/schemas/IntegrationWebhook____schema0"
                     },
                     "description": "JSON array value."
                   },
@@ -40531,7 +40531,7 @@
                       "description": "JSON object key."
                     },
                     "additionalProperties": {
-                      "$ref": "#/components/schemas/GitHubWebhook____schema0"
+                      "$ref": "#/components/schemas/IntegrationWebhook____schema0"
                     },
                     "description": "JSON object value."
                   }
@@ -42970,7 +42970,7 @@
                 "sync.snapshot",
                 "events.connect",
                 "collaboration.connect",
-                "intake.github",
+                "intake.webhook",
                 "intake.external",
                 "intake.slack.events",
                 "intake.slack.commands",
@@ -43004,8 +43004,8 @@
                 "organizationInvitations.cancel",
                 "integrationAuthAttempts.create",
                 "integrationAuthAttempts.get",
-                "integrationAuth.githubCallback",
-                "integrationAuth.githubSetup",
+                "integrationAuth.authorizationCallback",
+                "integrationAuth.setup",
                 "integrationAuth.slackIdentityCallback",
                 "integrationInstallations.list",
                 "integrationInstallations.get",
@@ -43018,7 +43018,7 @@
                 "blobUploads.start",
                 "blobUploads.part",
                 "blobUploads.complete",
-                "integrationAuth.githubManifestCallback",
+                "integrationAuth.manifestCallback",
                 "integrationResources.list",
                 "integrationDiscoveries.create",
                 "integrationResources.update",
@@ -57533,17 +57533,17 @@
           "additionalProperties": false,
           "description": "Fixed OAuth callback shared by GitHub authorization and Slack identity-link completion; the bound, single-use state is claimed atomically before any code exchange, so callback fields alone can never select an organization, connection or installation."
         },
-        "GitHubSetupCallback": {
+        "IntegrationSetupCallback": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
           "properties": {
             "state": {
               "type": "string",
               "maxLength": 4096,
-              "description": "Single-use state token binding this setup redirect to the auth attempt that started it; claimed atomically before verification so it cannot be replayed. GitHubSetupCallback.state must contain at most 4096 characters."
+              "description": "Single-use state token binding this setup redirect to the auth attempt that started it; claimed atomically before verification so it cannot be replayed. IntegrationSetupCallback.state must contain at most 4096 characters."
             },
             "installationId": {
-              "description": "GitHub's candidate installation ID for this setup event. Treat as spoofable: the host must verify it against every page of installations accessible to the connecting user's token before it can identify a real installation. GitHubSetupCallback.installationId must contain at most 200 characters.",
+              "description": "GitHub's candidate installation ID for this setup event. Treat as spoofable: the host must verify it against every page of installations accessible to the connecting user's token before it can identify a real installation. IntegrationSetupCallback.installationId must contain at most 200 characters.",
               "type": "string",
               "maxLength": 200
             },
@@ -60306,7 +60306,7 @@
           "additionalProperties": false,
           "description": "Starts GitHub App registration through GitHub's manifest flow for this Bakery installation. The App's URLs derive from the deployment's public base URL; credentials never travel through this request."
         },
-        "GitHubManifestCallback": {
+        "IntegrationManifestCallback": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
           "properties": {
@@ -60314,13 +60314,13 @@
               "type": "string",
               "minLength": 1,
               "maxLength": 4096,
-              "description": "Temporary code GitHub appends to the manifest redirect; valid for one hour and convertible exactly once into the new App's credentials. Never logged or stored. GitHubManifestCallback.code must contain at least 1 characters. GitHubManifestCallback.code must contain at most 4096 characters."
+              "description": "Temporary code GitHub appends to the manifest redirect; valid for one hour and convertible exactly once into the new App's credentials. Never logged or stored. IntegrationManifestCallback.code must contain at least 1 characters. IntegrationManifestCallback.code must contain at most 4096 characters."
             },
             "state": {
               "type": "string",
               "minLength": 1,
               "maxLength": 4096,
-              "description": "Single-use state issued by integrationAppRegistrations.begin to the same administrator session; claimed atomically by its hash before the code is converted. GitHubManifestCallback.state must contain at least 1 characters. GitHubManifestCallback.state must contain at most 4096 characters."
+              "description": "Single-use state issued by integrationAppRegistrations.begin to the same administrator session; claimed atomically by its hash before the code is converted. IntegrationManifestCallback.state must contain at least 1 characters. IntegrationManifestCallback.state must contain at most 4096 characters."
             }
           },
           "required": [
@@ -87245,7 +87245,7 @@
                 "sync.snapshot",
                 "events.connect",
                 "collaboration.connect",
-                "intake.github",
+                "intake.webhook",
                 "intake.external",
                 "intake.slack.events",
                 "intake.slack.commands",
@@ -87279,8 +87279,8 @@
                 "organizationInvitations.cancel",
                 "integrationAuthAttempts.create",
                 "integrationAuthAttempts.get",
-                "integrationAuth.githubCallback",
-                "integrationAuth.githubSetup",
+                "integrationAuth.authorizationCallback",
+                "integrationAuth.setup",
                 "integrationAuth.slackIdentityCallback",
                 "integrationInstallations.list",
                 "integrationInstallations.get",
@@ -87293,7 +87293,7 @@
                 "blobUploads.start",
                 "blobUploads.part",
                 "blobUploads.complete",
-                "integrationAuth.githubManifestCallback",
+                "integrationAuth.manifestCallback",
                 "integrationResources.list",
                 "integrationDiscoveries.create",
                 "integrationResources.update",
@@ -87753,7 +87753,7 @@
                 "sync.snapshot",
                 "events.connect",
                 "collaboration.connect",
-                "intake.github",
+                "intake.webhook",
                 "intake.external",
                 "intake.slack.events",
                 "intake.slack.commands",
@@ -87787,8 +87787,8 @@
                 "organizationInvitations.cancel",
                 "integrationAuthAttempts.create",
                 "integrationAuthAttempts.get",
-                "integrationAuth.githubCallback",
-                "integrationAuth.githubSetup",
+                "integrationAuth.authorizationCallback",
+                "integrationAuth.setup",
                 "integrationAuth.slackIdentityCallback",
                 "integrationInstallations.list",
                 "integrationInstallations.get",
@@ -87801,7 +87801,7 @@
                 "blobUploads.start",
                 "blobUploads.part",
                 "blobUploads.complete",
-                "integrationAuth.githubManifestCallback",
+                "integrationAuth.manifestCallback",
                 "integrationResources.list",
                 "integrationDiscoveries.create",
                 "integrationResources.update",
@@ -88261,7 +88261,7 @@
                 "sync.snapshot",
                 "events.connect",
                 "collaboration.connect",
-                "intake.github",
+                "intake.webhook",
                 "intake.external",
                 "intake.slack.events",
                 "intake.slack.commands",
@@ -88295,8 +88295,8 @@
                 "organizationInvitations.cancel",
                 "integrationAuthAttempts.create",
                 "integrationAuthAttempts.get",
-                "integrationAuth.githubCallback",
-                "integrationAuth.githubSetup",
+                "integrationAuth.authorizationCallback",
+                "integrationAuth.setup",
                 "integrationAuth.slackIdentityCallback",
                 "integrationInstallations.list",
                 "integrationInstallations.get",
@@ -88309,7 +88309,7 @@
                 "blobUploads.start",
                 "blobUploads.part",
                 "blobUploads.complete",
-                "integrationAuth.githubManifestCallback",
+                "integrationAuth.manifestCallback",
                 "integrationResources.list",
                 "integrationDiscoveries.create",
                 "integrationResources.update",
@@ -132818,7 +132818,7 @@
                       "sync.snapshot",
                       "events.connect",
                       "collaboration.connect",
-                      "intake.github",
+                      "intake.webhook",
                       "intake.external",
                       "intake.slack.events",
                       "intake.slack.commands",
@@ -132852,8 +132852,8 @@
                       "organizationInvitations.cancel",
                       "integrationAuthAttempts.create",
                       "integrationAuthAttempts.get",
-                      "integrationAuth.githubCallback",
-                      "integrationAuth.githubSetup",
+                      "integrationAuth.authorizationCallback",
+                      "integrationAuth.setup",
                       "integrationAuth.slackIdentityCallback",
                       "integrationInstallations.list",
                       "integrationInstallations.get",
@@ -132866,7 +132866,7 @@
                       "blobUploads.start",
                       "blobUploads.part",
                       "blobUploads.complete",
-                      "integrationAuth.githubManifestCallback",
+                      "integrationAuth.manifestCallback",
                       "integrationResources.list",
                       "integrationDiscoveries.create",
                       "integrationResources.update",
@@ -218891,7 +218891,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:9e76f26b29b20af175d66cddff73f9ed512687274e87166bf84851ddae0b35fd",
+  "compatibilityDigest": "sha256:4641100246aebbd960e4f3de08eeb15a3b802f37c91f27ec97a7230f062fbbc8",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -223763,22 +223763,22 @@
       "additionalProperties": false,
       "description": "Filters the external write effects (issue comments, webhook deliveries and other outbound provider actions) visible to the caller, typically to audit what a specific workflow run triggered."
     },
-    "GitHubWebhook": {
+    "IntegrationWebhook": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
       "properties": {
         "deliveryId": {
           "type": "string",
           "maxLength": 255,
-          "description": "GitHub's X-GitHub-Delivery ID for this webhook attempt, scoped to the configured GitHub App registration; combined with the raw-body digest it deduplicates redelivery, so an identical retry returns the original receipt instead of reprocessing. GitHubWebhook.deliveryId must contain at most 255 characters."
+          "description": "GitHub's X-GitHub-Delivery ID for this webhook attempt, scoped to the configured GitHub App registration; combined with the raw-body digest it deduplicates redelivery, so an identical retry returns the original receipt instead of reprocessing. IntegrationWebhook.deliveryId must contain at most 255 characters."
         },
         "eventType": {
           "type": "string",
           "maxLength": 100,
-          "description": "GitHub's webhook event name, for example issues.labeled; applying a label and editing a label's definition are different event shapes, and only accepted events reach Tickets admission. GitHubWebhook.eventType must contain at most 100 characters."
+          "description": "GitHub's webhook event name, for example issues.labeled; applying a label and editing a label's definition are different event shapes, and only accepted events reach Tickets admission. IntegrationWebhook.eventType must contain at most 100 characters."
         },
         "payload": {
-          "description": "Raw verified GitHub event body, capped at 256 KiB and streamed before JSON parsing; an oversized delivery is rejected rather than truncated. GitHubWebhook.payload must contain at most 262144 UTF-8 bytes.",
+          "description": "Raw verified GitHub event body, capped at 256 KiB and streamed before JSON parsing; an oversized delivery is rejected rather than truncated. IntegrationWebhook.payload must contain at most 262144 UTF-8 bytes.",
           "anyOf": [
             {
               "type": "string",
@@ -226384,7 +226384,7 @@
             "sync.snapshot",
             "events.connect",
             "collaboration.connect",
-            "intake.github",
+            "intake.webhook",
             "intake.external",
             "intake.slack.events",
             "intake.slack.commands",
@@ -226418,8 +226418,8 @@
             "organizationInvitations.cancel",
             "integrationAuthAttempts.create",
             "integrationAuthAttempts.get",
-            "integrationAuth.githubCallback",
-            "integrationAuth.githubSetup",
+            "integrationAuth.authorizationCallback",
+            "integrationAuth.setup",
             "integrationAuth.slackIdentityCallback",
             "integrationInstallations.list",
             "integrationInstallations.get",
@@ -226432,7 +226432,7 @@
             "blobUploads.start",
             "blobUploads.part",
             "blobUploads.complete",
-            "integrationAuth.githubManifestCallback",
+            "integrationAuth.manifestCallback",
             "integrationResources.list",
             "integrationDiscoveries.create",
             "integrationResources.update",
@@ -240999,17 +240999,17 @@
       "additionalProperties": false,
       "description": "Fixed OAuth callback shared by GitHub authorization and Slack identity-link completion; the bound, single-use state is claimed atomically before any code exchange, so callback fields alone can never select an organization, connection or installation."
     },
-    "GitHubSetupCallback": {
+    "IntegrationSetupCallback": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
       "properties": {
         "state": {
           "type": "string",
           "maxLength": 4096,
-          "description": "Single-use state token binding this setup redirect to the auth attempt that started it; claimed atomically before verification so it cannot be replayed. GitHubSetupCallback.state must contain at most 4096 characters."
+          "description": "Single-use state token binding this setup redirect to the auth attempt that started it; claimed atomically before verification so it cannot be replayed. IntegrationSetupCallback.state must contain at most 4096 characters."
         },
         "installationId": {
-          "description": "GitHub's candidate installation ID for this setup event. Treat as spoofable: the host must verify it against every page of installations accessible to the connecting user's token before it can identify a real installation. GitHubSetupCallback.installationId must contain at most 200 characters.",
+          "description": "GitHub's candidate installation ID for this setup event. Treat as spoofable: the host must verify it against every page of installations accessible to the connecting user's token before it can identify a real installation. IntegrationSetupCallback.installationId must contain at most 200 characters.",
           "type": "string",
           "maxLength": 200
         },
@@ -243776,7 +243776,7 @@
       "additionalProperties": false,
       "description": "Starts GitHub App registration through GitHub's manifest flow for this Bakery installation. The App's URLs derive from the deployment's public base URL; credentials never travel through this request."
     },
-    "GitHubManifestCallback": {
+    "IntegrationManifestCallback": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
       "properties": {
@@ -243784,13 +243784,13 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 4096,
-          "description": "Temporary code GitHub appends to the manifest redirect; valid for one hour and convertible exactly once into the new App's credentials. Never logged or stored. GitHubManifestCallback.code must contain at least 1 characters. GitHubManifestCallback.code must contain at most 4096 characters."
+          "description": "Temporary code GitHub appends to the manifest redirect; valid for one hour and convertible exactly once into the new App's credentials. Never logged or stored. IntegrationManifestCallback.code must contain at least 1 characters. IntegrationManifestCallback.code must contain at most 4096 characters."
         },
         "state": {
           "type": "string",
           "minLength": 1,
           "maxLength": 4096,
-          "description": "Single-use state issued by integrationAppRegistrations.begin to the same administrator session; claimed atomically by its hash before the code is converted. GitHubManifestCallback.state must contain at least 1 characters. GitHubManifestCallback.state must contain at most 4096 characters."
+          "description": "Single-use state issued by integrationAppRegistrations.begin to the same administrator session; claimed atomically by its hash before the code is converted. IntegrationManifestCallback.state must contain at least 1 characters. IntegrationManifestCallback.state must contain at most 4096 characters."
         }
       },
       "required": [
@@ -270811,7 +270811,7 @@
             "sync.snapshot",
             "events.connect",
             "collaboration.connect",
-            "intake.github",
+            "intake.webhook",
             "intake.external",
             "intake.slack.events",
             "intake.slack.commands",
@@ -270845,8 +270845,8 @@
             "organizationInvitations.cancel",
             "integrationAuthAttempts.create",
             "integrationAuthAttempts.get",
-            "integrationAuth.githubCallback",
-            "integrationAuth.githubSetup",
+            "integrationAuth.authorizationCallback",
+            "integrationAuth.setup",
             "integrationAuth.slackIdentityCallback",
             "integrationInstallations.list",
             "integrationInstallations.get",
@@ -270859,7 +270859,7 @@
             "blobUploads.start",
             "blobUploads.part",
             "blobUploads.complete",
-            "integrationAuth.githubManifestCallback",
+            "integrationAuth.manifestCallback",
             "integrationResources.list",
             "integrationDiscoveries.create",
             "integrationResources.update",
@@ -271319,7 +271319,7 @@
             "sync.snapshot",
             "events.connect",
             "collaboration.connect",
-            "intake.github",
+            "intake.webhook",
             "intake.external",
             "intake.slack.events",
             "intake.slack.commands",
@@ -271353,8 +271353,8 @@
             "organizationInvitations.cancel",
             "integrationAuthAttempts.create",
             "integrationAuthAttempts.get",
-            "integrationAuth.githubCallback",
-            "integrationAuth.githubSetup",
+            "integrationAuth.authorizationCallback",
+            "integrationAuth.setup",
             "integrationAuth.slackIdentityCallback",
             "integrationInstallations.list",
             "integrationInstallations.get",
@@ -271367,7 +271367,7 @@
             "blobUploads.start",
             "blobUploads.part",
             "blobUploads.complete",
-            "integrationAuth.githubManifestCallback",
+            "integrationAuth.manifestCallback",
             "integrationResources.list",
             "integrationDiscoveries.create",
             "integrationResources.update",
@@ -271827,7 +271827,7 @@
             "sync.snapshot",
             "events.connect",
             "collaboration.connect",
-            "intake.github",
+            "intake.webhook",
             "intake.external",
             "intake.slack.events",
             "intake.slack.commands",
@@ -271861,8 +271861,8 @@
             "organizationInvitations.cancel",
             "integrationAuthAttempts.create",
             "integrationAuthAttempts.get",
-            "integrationAuth.githubCallback",
-            "integrationAuth.githubSetup",
+            "integrationAuth.authorizationCallback",
+            "integrationAuth.setup",
             "integrationAuth.slackIdentityCallback",
             "integrationInstallations.list",
             "integrationInstallations.get",
@@ -271875,7 +271875,7 @@
             "blobUploads.start",
             "blobUploads.part",
             "blobUploads.complete",
-            "integrationAuth.githubManifestCallback",
+            "integrationAuth.manifestCallback",
             "integrationResources.list",
             "integrationDiscoveries.create",
             "integrationResources.update",
@@ -316532,7 +316532,7 @@
                   "sync.snapshot",
                   "events.connect",
                   "collaboration.connect",
-                  "intake.github",
+                  "intake.webhook",
                   "intake.external",
                   "intake.slack.events",
                   "intake.slack.commands",
@@ -316566,8 +316566,8 @@
                   "organizationInvitations.cancel",
                   "integrationAuthAttempts.create",
                   "integrationAuthAttempts.get",
-                  "integrationAuth.githubCallback",
-                  "integrationAuth.githubSetup",
+                  "integrationAuth.authorizationCallback",
+                  "integrationAuth.setup",
                   "integrationAuth.slackIdentityCallback",
                   "integrationInstallations.list",
                   "integrationInstallations.get",
@@ -316580,7 +316580,7 @@
                   "blobUploads.start",
                   "blobUploads.part",
                   "blobUploads.complete",
-                  "integrationAuth.githubManifestCallback",
+                  "integrationAuth.manifestCallback",
                   "integrationResources.list",
                   "integrationDiscoveries.create",
                   "integrationResources.update",
