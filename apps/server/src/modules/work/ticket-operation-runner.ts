@@ -133,6 +133,13 @@ type ReadPlan =
     origin: TicketRequestOrigin;
   };
 
+/**
+ * A provider login as the source's provider accepts it: letters, digits and
+ * single hyphens, never at either end. The schema bounds its length (1-39);
+ * anything else is refused before the provider is asked.
+ */
+const PROVIDER_LOGIN = /^[A-Za-z0-9](?:-?[A-Za-z0-9])*$/;
+
 function isEmptyObject(value: unknown): boolean {
   return value !== null && typeof value === "object" &&
     !Array.isArray(value) && Object.keys(value).length === 0;
@@ -157,8 +164,12 @@ async function probe(
   if (!id) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
   const fields = (input ?? {}) as Record<string, unknown>;
   if (actionName === "ticketSources.lookupPerson") {
+    const login = String(fields.login);
+    if (!PROVIDER_LOGIN.test(login)) {
+      throw unprocessable(["login"], "login_invalid");
+    }
     const { handle } = await readSourceHandle(transaction, organizationId, id);
-    return { kind: "person", handle, login: String(fields.login) };
+    return { kind: "person", handle, login };
   }
   if (actionName === "ticketSources.preview") {
     if (fields.filters !== undefined && !isEmptyObject(fields.filters)) {
