@@ -1069,11 +1069,9 @@ Deno.test("a personal skill is visible to its owner alone and never reaches an a
     const scope = await fixture.pgDatabase.query<{
       organizationId: string;
       principalId: string;
-      role: string;
     }>(
       `select membership.organization_id as "organizationId",
-              membership.principal_id as "principalId",
-              membership.role as role
+              membership.principal_id as "principalId"
          from bakery.organization_memberships as membership
          join bakery.principals as principal
            on principal.id = membership.principal_id
@@ -1082,7 +1080,7 @@ Deno.test("a personal skill is visible to its owner alone and never reaches an a
         where provider_user.email = $1`,
       [email],
     );
-    const { organizationId, principalId, role } = scope.rows[0];
+    const { organizationId, principalId } = scope.rows[0];
     const signIn = await fixture.auth.handler(authRequest(
       "/api/auth/sign-in/email",
       { email, password },
@@ -1090,7 +1088,7 @@ Deno.test("a personal skill is visible to its owner alone and never reaches an a
     assertEquals(signIn.status, 200);
     const ownerCookie = sessionCookie(signIn);
 
-    // A second member of the same organization, with the same role.
+    // A second member of the same organization: a Developer, not an Admin.
     const otherUserId = crypto.randomUUID();
     const otherPrincipalId = crypto.randomUUID();
     const otherToken = `personal-skill-${crypto.randomUUID()}`;
@@ -1111,8 +1109,8 @@ Deno.test("a personal skill is visible to its owner alone and never reaches an a
       `insert into bakery.organization_memberships (
          id, organization_id, principal_id, role, status, joined_at,
          created_at, updated_at, version
-       ) values ($1, $2, $3, $4, 'active', $5, $5, $5, 1)`,
-      [crypto.randomUUID(), organizationId, otherPrincipalId, role, now],
+       ) values ($1, $2, $3, 'developer', 'active', $4, $4, $4, 1)`,
+      [crypto.randomUUID(), organizationId, otherPrincipalId, now],
     );
     await fixture.pgDatabase.query(
       `insert into public.session (
@@ -1218,6 +1216,30 @@ Deno.test("a personal skill is visible to its owner alone and never reaches an a
       "other-private-notes",
     );
     assertEquals(otherPersonal.status, 201, await otherPersonal.text());
+    // A Developer may keep a personal skill but not add an organization one,
+    // and an Admin cannot act on somebody else's personal skill.
+    const developerOrganization = await create(
+      otherCookie,
+      { slug: "developer-shared", name: "Developer shared" },
+      "developer-organization-skill",
+    );
+    assertEquals(developerOrganization.status, 403);
+    const otherPersonalSkill = await otherPersonal.json() as Skill;
+    const adminPatch = await fixture.app.fetch(
+      new Request(`${authTestOrigin}/v1/skills/${otherPersonalSkill.id}`, {
+        method: "PATCH",
+        headers: {
+          cookie: ownerCookie,
+          "Bakery-Organization-Id": organizationId,
+          "content-type": "application/json",
+          "Idempotency-Key": "admin-rename-personal",
+          "If-Match": '"1"',
+          origin: authTestOrigin,
+        },
+        body: JSON.stringify({ name: "Renamed by an admin" }),
+      }),
+    );
+    assertEquals(adminPatch.status, 404);
     // A skill that comes with Bakery is never created through the API.
     const globalResponse = await create(
       ownerCookie,

@@ -1,13 +1,22 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "eb7d1ee5befefbc8fd94a97a66f18fb01d215b4f"
+    "a83b7ec57da9bf29078c23b24d3cdda776f255fe"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:1bb20d3e4b8b522b20bd353fb37d4c1b62b79f41d754036ea28804c650d7a9dc",
-  "reason": "#431 private skills re-bind by dev-workflows on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main eb7d1ee5befefbc8fd94a97a66f18fb01d215b4f: every Skill response gains two required fields, scope (global, organization or personal, shown as Shared by Bakery, Organization and Private) and ownerPrincipalId (the owner of a personal skill, null otherwise), and skills.create takes an optional scope. The breaking drift is the two newly required response fields; no request field, route or status code is removed. The approval it displaced at sha256:fde2bf41e3caf11df66620b7a2a88273a0a65d334f02a2ee432fde53c0d59580 is preserved unchanged first below.",
+  "targetCompatibilityDigest": "sha256:d036f4c98dd3c40711330c2b6030b01459d27b6c8368ff6dbe09a1d51e3eb267",
+  "reason": "#431 private skills re-bind by dev-workflows on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main a83b7ec57da9bf29078c23b24d3cdda776f255fe: every Skill response gains two required fields, scope (global, organization or personal, shown as Shared by Bakery, Organization and Private) and ownerPrincipalId, skills.create takes an optional scope, and the access of skills.create, skills.update and skillVersions.create becomes personal-for-the-owner and organization-for-Admin under the new skill:author permission. The breaking drift is the two newly required response fields; no request field, route or status code is removed. The approval it displaced at sha256:1bb20d3e4b8b522b20bd353fb37d4c1b62b79f41d754036ea28804c650d7a9dc is preserved unchanged first below.",
   "priorApprovals": [
+    {
+      "fromBaseRefs": [
+        "eb7d1ee5befefbc8fd94a97a66f18fb01d215b4f"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:1bb20d3e4b8b522b20bd353fb37d4c1b62b79f41d754036ea28804c650d7a9dc",
+      "reason": "#431 private skills re-bind by dev-workflows on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main eb7d1ee5befefbc8fd94a97a66f18fb01d215b4f: every Skill response gains two required fields, scope (global, organization or personal, shown as Shared by Bakery, Organization and Private) and ownerPrincipalId (the owner of a personal skill, null otherwise), and skills.create takes an optional scope. The breaking drift is the two newly required response fields; no request field, route or status code is removed. The approval it displaced at sha256:fde2bf41e3caf11df66620b7a2a88273a0a65d334f02a2ee432fde53c0d59580 is preserved unchanged first below."
+    },
     {
       "fromBaseRefs": [
         "3b8d4ef5651aeb7feb2a38518001271c1436646f"

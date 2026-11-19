@@ -16,6 +16,7 @@ import {
 import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import { attributeAction } from "../auth/application/action-attribution.ts";
+import { assertMayAuthorSkill } from "./skill-scope-guard.ts";
 import {
   type RunRow,
   runWorkspaceBaseShaColumn,
@@ -754,6 +755,10 @@ export function createCatalogHandlers(
           params: { reason: "personal_skill_requires_person" },
         });
       }
+      await assertMayAuthorSkill(transaction, organizationId, principalId, {
+        scope,
+        ownerPrincipalId: scope === "personal" ? principalId : null,
+      });
       const skillId = crypto.randomUUID();
       const sourceId = crypto.randomUUID();
       const locator =
@@ -814,6 +819,21 @@ export function createCatalogHandlers(
       if (expectedVersion === undefined) {
         throw new StandardError({ code: "PRECONDITION_REQUIRED" });
       }
+      // The caller must be able to see the skill at all, then to author it.
+      const current = await transaction.query<
+        Pick<SkillRow, "scope" | "owner_principal_id">
+      >(
+        `select scope, owner_principal_id from bakery.skills
+          where organization_id = $1 and id = $2
+            and ${SKILL_VISIBLE_TO("$3")}`,
+        [organizationId, skillId, principalId],
+      );
+      const target = current.rows[0];
+      if (!target) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+      await assertMayAuthorSkill(transaction, organizationId, principalId, {
+        scope: target.scope,
+        ownerPrincipalId: target.owner_principal_id,
+      });
       const result = await boundedMutation(() =>
         transaction.query<SkillRow>(
           `update bakery.skills

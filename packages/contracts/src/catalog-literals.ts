@@ -617,6 +617,7 @@ export type CatalogPermissionKey =
   | "secret:read"
   | "session:control"
   | "session:read"
+  | "skill:author"
   | "skill:manage"
   | "skill:read"
   | "skillFile:read"

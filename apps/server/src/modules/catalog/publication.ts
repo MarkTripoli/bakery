@@ -6,6 +6,7 @@ import { appendAudit, appendDomainEvent } from "@bakery/persistence";
 import type { PgTransactionClient } from "../../platform/database.ts";
 import { canonicalJson } from "../../platform/canonical-json.ts";
 import { deriveSkillPublicationIdentity } from "./identity.ts";
+import { assertMayAuthorSkill, type SkillScope } from "./skill-scope-guard.ts";
 import type { SkillFileStoreOperations } from "./storage.ts";
 import { SkillFileStoreError } from "./storage.ts";
 import {
@@ -187,8 +188,15 @@ async function querySkill(
   principalId: string,
   lockRows = false,
 ): Promise<SkillSnapshot> {
-  const result = await transaction.query<SkillSnapshot>(
+  const result = await transaction.query<
+    SkillSnapshot & {
+      scope: SkillScope;
+      ownerPrincipalId: string | null;
+    }
+  >(
     `select skill.source_id as "sourceId",
+            skill.scope as scope,
+            skill.owner_principal_id as "ownerPrincipalId",
             source.source_type as "sourceType",
             source.locator as "sourceLocator",
             source.license as "sourceLicense",
@@ -204,8 +212,18 @@ async function querySkill(
       ${lockRows ? "for update of skill, source" : ""}`,
     [organizationId, skillId, sourceType, principalId],
   );
-  const row = result.rows[0];
-  if (!row) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  const found = result.rows[0];
+  if (!found) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  const { scope, ownerPrincipalId, ...row } = found;
+  // Publishing a local skill's version is authoring it: the owner for a
+  // personal skill, an Admin for an organization one. A remote import runs under
+  // the authority the Admin who asked for it held at admission.
+  if (sourceType === "local_bundle") {
+    await assertMayAuthorSkill(transaction, organizationId, principalId, {
+      scope,
+      ownerPrincipalId,
+    });
+  }
   return Object.freeze(row);
 }
 
