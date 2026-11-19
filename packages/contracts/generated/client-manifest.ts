@@ -35308,6 +35308,16 @@ export const clientManifest = {
                 ],
                 "description": "MemoryEntry.currentRevisionId may be null in this transport value."
               },
+              "sourceState": {
+                "type": "string",
+                "enum": [
+                  "available",
+                  "deleted",
+                  "no_access",
+                  "unknown"
+                ],
+                "description": "Whether the artifact version cited by the current revision is available, deleted, not readable by this reader (no_access) or unknown, judged against the reader's live access at read time."
+              },
               "status": {
                 "type": "string",
                 "enum": [
@@ -35342,6 +35352,7 @@ export const clientManifest = {
               "topic",
               "tags",
               "currentRevisionId",
+              "sourceState",
               "status",
               "createdAt",
               "updatedAt",
@@ -35565,10 +35576,29 @@ export const clientManifest = {
                 ]
               },
               "sourceArtifactVersionId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Artifact version whose evidence justifies this revision. Invariant: sourceArtifactVersionId is null if and only if sourceState is no_access, so a reader who cannot read artifact versions is never shown the id and every other state names it."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MemoryRevision.sourceArtifactVersionId may be null in this transport value."
+              },
+              "sourceState": {
                 "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "Stable UUID linking this record to the related source artifact version entity."
+                "enum": [
+                  "available",
+                  "deleted",
+                  "no_access",
+                  "unknown"
+                ],
+                "description": "Whether the cited artifact version is available, deleted (its content was purged), not readable by this reader (no_access) or unknown, judged against the reader's live access at read time rather than at write time. sourceArtifactVersionId is null if and only if sourceState is no_access."
               },
               "supersedesId": {
                 "anyOf": [
@@ -35636,6 +35666,7 @@ export const clientManifest = {
               "revision",
               "body",
               "sourceArtifactVersionId",
+              "sourceState",
               "supersedesId",
               "confidence",
               "expiresAt",
@@ -35645,7 +35676,7 @@ export const clientManifest = {
               "version"
             ],
             "additionalProperties": false,
-            "description": "One versioned, confidence-scored statement belonging to a memory entry, created by memoryRevisions.create; confidence reflects model judgment rather than verified fact, and a revision can supersede an earlier one or carry its own expiry after which it stops being offered as active context."
+            "description": "One versioned, confidence-scored statement belonging to a memory entry, created by memoryRevisions.create; confidence reflects model judgment rather than verified fact, and a revision can supersede an earlier one or carry its own expiry after which it stops being offered as active context. sourceArtifactVersionId is null if and only if sourceState is no_access."
           },
           "description": "MemoryRevision items in this cursor page. Page<MemoryRevision>.items must contain at most 100 items."
         },
@@ -52124,6 +52155,16 @@ export const clientManifest = {
           ],
           "description": "MemoryEntry.currentRevisionId may be null in this transport value."
         },
+        "sourceState": {
+          "type": "string",
+          "enum": [
+            "available",
+            "deleted",
+            "no_access",
+            "unknown"
+          ],
+          "description": "Whether the artifact version cited by the current revision is available, deleted, not readable by this reader (no_access) or unknown, judged against the reader's live access at read time."
+        },
         "status": {
           "type": "string",
           "enum": [
@@ -52158,6 +52199,7 @@ export const clientManifest = {
         "topic",
         "tags",
         "currentRevisionId",
+        "sourceState",
         "status",
         "createdAt",
         "updatedAt",
@@ -52321,10 +52363,29 @@ export const clientManifest = {
           ]
         },
         "sourceArtifactVersionId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Artifact version whose evidence justifies this revision. Invariant: sourceArtifactVersionId is null if and only if sourceState is no_access, so a reader who cannot read artifact versions is never shown the id and every other state names it."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "MemoryRevision.sourceArtifactVersionId may be null in this transport value."
+        },
+        "sourceState": {
           "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "Stable UUID linking this record to the related source artifact version entity."
+          "enum": [
+            "available",
+            "deleted",
+            "no_access",
+            "unknown"
+          ],
+          "description": "Whether the cited artifact version is available, deleted (its content was purged), not readable by this reader (no_access) or unknown, judged against the reader's live access at read time rather than at write time. sourceArtifactVersionId is null if and only if sourceState is no_access."
         },
         "supersedesId": {
           "anyOf": [
@@ -52392,6 +52453,7 @@ export const clientManifest = {
         "revision",
         "body",
         "sourceArtifactVersionId",
+        "sourceState",
         "supersedesId",
         "confidence",
         "expiresAt",
@@ -52401,7 +52463,7 @@ export const clientManifest = {
         "version"
       ],
       "additionalProperties": false,
-      "description": "One versioned, confidence-scored statement belonging to a memory entry, created by memoryRevisions.create; confidence reflects model judgment rather than verified fact, and a revision can supersede an earlier one or carry its own expiry after which it stops being offered as active context."
+      "description": "One versioned, confidence-scored statement belonging to a memory entry, created by memoryRevisions.create; confidence reflects model judgment rather than verified fact, and a revision can supersede an earlier one or carry its own expiry after which it stops being offered as active context. sourceArtifactVersionId is null if and only if sourceState is no_access."
     },
     "WorkerHost": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
