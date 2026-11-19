@@ -190,6 +190,12 @@ test.describe("Editing a document in place", () => {
     await expect(page.getByRole("textbox", { name: "Document text" }))
       .toBeVisible();
     await expect(page.getByText("published version 3")).toHaveCount(0);
+    // The line under the title moves on to the version just published.
+    await expect(
+      page.getByText(
+        "Version 3 is published. Your team is editing the next one.",
+      ),
+    ).toBeVisible();
   });
 
   test("waiting agent suggestions are counted in the dialog and left out", async ({ page }) => {
@@ -283,6 +289,8 @@ test.describe("Editing a document in place", () => {
     await page.keyboard.type("!");
     const publish = page.getByTestId("artifact-publish");
     await expect(publish).toBeDisabled();
+    // The button keeps its own width; the hint under it does not stretch it.
+    expect((await publish.boundingBox())?.width ?? 0).toBeLessThan(160);
     await expect(page.getByText("Publish when your changes are saved."))
       .toBeVisible();
     await still(page, "publish-unsaved");

@@ -193,15 +193,17 @@ export function usePublish(
     )
     : (
       <UI.Stack gap="compact">
-        <UI.Button
-          aria-describedby={saved ? undefined : hintId}
-          data-testid="artifact-publish"
-          disabled={!saved || revoked || organizationId === null}
-          onClick={open}
-          variant="primary"
-        >
-          {t("artifact.edit.publish.action")}
-        </UI.Button>
+        <UI.Inline gap="compact">
+          <UI.Button
+            aria-describedby={saved ? undefined : hintId}
+            data-testid="artifact-publish"
+            disabled={!saved || revoked || organizationId === null}
+            onClick={open}
+            variant="primary"
+          >
+            {t("artifact.edit.publish.action")}
+          </UI.Button>
+        </UI.Inline>
         {!saved && (
           <UI.Text id={hintId} variant="hint">
             {t("artifact.edit.publish.needsSave")}

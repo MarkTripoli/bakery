@@ -277,6 +277,10 @@ function DraftEditor(
   const bytesUsed = useSizeNote(session, snapshot.documentVersion, typedAt);
   // Versions this person published themselves are not announced a second time.
   const [ownVersion, setOwnVersion] = useState<number | null>(null);
+  // The line and the next number follow a version this person just published,
+  // before the page's own list has been read again.
+  const latestVersion = Math.max(publishedVersion ?? 0, ownVersion ?? 0) ||
+    null;
   const editorBox = useRef<HTMLDivElement>(null);
   const publish = usePublish({
     artifactId,
@@ -285,7 +289,7 @@ function DraftEditor(
     focusEditor: () =>
       editorBox.current?.querySelector<HTMLElement>("[contenteditable]")
         ?.focus(),
-    nextVersion: (publishedVersion ?? 0) + 1,
+    nextVersion: (latestVersion ?? 0) + 1,
     onPublished: setOwnVersion,
     onViewVersion,
     revoked: ended,
@@ -329,9 +333,9 @@ function DraftEditor(
           {publish.control}
         </UI.Inline>
         <UI.Text variant="hint">
-          {publishedVersion === null
+          {latestVersion === null
             ? t("artifact.edit.draft.lineNone")
-            : t("artifact.edit.draft.line", { version: publishedVersion })}
+            : t("artifact.edit.draft.line", { version: latestVersion })}
         </UI.Text>
       </UI.Stack>
       <UI.PresenceRow
