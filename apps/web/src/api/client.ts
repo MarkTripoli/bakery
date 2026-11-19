@@ -275,6 +275,8 @@ export type ArtifactCommentListResponse =
   ClientOutputMap["Page<ArtifactComment>"];
 export type ArtifactUpdate = ClientInputMap["ArtifactUpdate"];
 export type ArtifactPinResponse = ClientOutputMap["ArtifactPinResult"];
+/** The active shared draft of an artifact (`POST /v1/artifacts/{id}/drafts`). */
+export type DraftResponse = ClientOutputMap["Draft"];
 export type ArtifactStorageResponse = ClientOutputMap["ArtifactStorage"];
 export type ArtifactPreviewGrantResponse =
   ClientOutputMap["ArtifactPreviewGrant"];
@@ -1533,6 +1535,14 @@ export type BakeryApiClient = {
   readonly updateArtifact: (
     options: UpdateArtifactOptions,
   ) => Promise<ApiResult<ArtifactPinResponse>>;
+  /** Opens (or returns) the artifact's shared draft; the same call from two people gives the same draft. */
+  readonly openArtifactDraft: (options: {
+    readonly organizationId: string;
+    readonly artifactId: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<DraftResponse>>;
+  /** The collaboration socket for one organization (`/v1/collaboration`). */
+  readonly collaborationSocketUrl: (organizationId: string) => string;
   readonly createMessage: (
     options: CreateMessageOptions,
   ) => Promise<ApiResult<MessageResponse>>;
@@ -3639,6 +3649,31 @@ export function createBakeryApiClient({
       } finally {
         organizationId = undefined;
       }
+    },
+
+    async openArtifactDraft(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["drafts.open"](
+          { id: options.artifactId },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    collaborationSocketUrl(org) {
+      const url = new URL(
+        `${baseUrl.replace(/\/$/, "")}/v1/collaboration`,
+        globalThis.location.origin,
+      );
+      url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+      url.searchParams.set("organizationId", org);
+      return url.href;
     },
 
     async createMessage(options) {
