@@ -115,16 +115,20 @@ async function counts(fixture: Fixture) {
 
 async function cleanup(fixture: Fixture) {
   const pg = fixture.ownerPg;
+  const providers = "('linear', 'github-test')";
   await pg.query(
-    "delete from bakery.integration_app_registrations where provider in ('linear', 'github-test')",
+    `delete from bakery.integration_app_registrations where provider in ${providers}`,
+  );
+  // A secret points at its active version and a version at its secret: break the
+  // first link before deleting either.
+  await pg.query(
+    `update bakery.secrets set active_version_id = null where provider in ${providers}`,
   );
   await pg.query(
     `delete from bakery.secret_versions where secret_id in
-       (select id from bakery.secrets where provider in ('linear', 'github-test'))`,
+       (select id from bakery.secrets where provider in ${providers})`,
   );
-  await pg.query(
-    "delete from bakery.secrets where provider in ('linear', 'github-test')",
-  );
+  await pg.query(`delete from bakery.secrets where provider in ${providers}`);
   await pg.query(
     "delete from bakery.audit_events where operation = 'integrationClientCredentials.put'",
   );
@@ -227,9 +231,12 @@ Deno.test("client credentials: a first save seals the secret, and nothing readab
     assertEquals(read.version, 1);
     assertEquals(JSON.stringify(read).includes(SECRET), false);
   } finally {
-    await cleanup(fixture);
-    await Deno.remove(secretsKey.file);
-    await fixture.close();
+    try {
+      await cleanup(fixture);
+    } finally {
+      await Deno.remove(secretsKey.file);
+      await fixture.close();
+    }
   }
 });
 
@@ -304,9 +311,12 @@ Deno.test("client credentials: a replacement is the next revision of the same se
       { registrations: 1, secrets: 1, versions: 2, audit: 2 },
     );
   } finally {
-    await cleanup(fixture);
-    await Deno.remove(secretsKey.file);
-    await fixture.close();
+    try {
+      await cleanup(fixture);
+    } finally {
+      await Deno.remove(secretsKey.file);
+      await fixture.close();
+    }
   }
 });
 
@@ -362,9 +372,12 @@ Deno.test("client credentials: a stale, missing or unexpected version changes no
     );
     assertEquals((await get(fixture)).clientId, "linear-client");
   } finally {
-    await cleanup(fixture);
-    await Deno.remove(secretsKey.file);
-    await fixture.close();
+    try {
+      await cleanup(fixture);
+    } finally {
+      await Deno.remove(secretsKey.file);
+      await fixture.close();
+    }
   }
 });
 
@@ -403,9 +416,12 @@ Deno.test("client credentials: two first saves cannot both win, and the loser le
       { registrations: 1, secrets: 1, versions: 1, audit: 1 },
     );
   } finally {
-    await cleanup(fixture);
-    await Deno.remove(secretsKey.file);
-    await fixture.close();
+    try {
+      await cleanup(fixture);
+    } finally {
+      await Deno.remove(secretsKey.file);
+      await fixture.close();
+    }
   }
 });
 
@@ -425,8 +441,11 @@ Deno.test("client credentials: without an installation key nothing is written", 
     assertEquals(error.code, "STATE_CONFLICT");
     assertEquals(await counts(fixture), before);
   } finally {
-    await cleanup(fixture);
-    await fixture.close();
+    try {
+      await cleanup(fixture);
+    } finally {
+      await fixture.close();
+    }
   }
 });
 
@@ -496,9 +515,12 @@ Deno.test("client credentials: a provider's row sits beside GitHub's in the shar
     )).rows.map((row) => row.provider);
     assertEquals(visibleToGitHubJoin, ["github-test"]);
   } finally {
-    await cleanup(fixture);
-    await Deno.remove(secretsKey.file);
-    await fixture.close();
+    try {
+      await cleanup(fixture);
+    } finally {
+      await Deno.remove(secretsKey.file);
+      await fixture.close();
+    }
   }
 });
 
