@@ -1,23 +1,29 @@
 import { expect, type Page, test } from "@playwright/test";
 import { mockAuthenticatedSession } from "./helpers/mock-session.ts";
+import {
+  NOTIFICATION_ID as N,
+  NOTIFICATION_REVISION as REVISION,
+  openNotification as open,
+  stubNotification,
+  type Target,
+} from "./helpers/notification-world.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
 import { still } from "./helpers/stills.ts";
 
 registerPageHealth(test);
 
 /**
- * Where a notification opens. A row links to /notifications?open={id}&r={rev};
- * that resolves the target now and replaces itself with the place, which the
- * page then brings into view (the part outlined once, a polite announcement,
- * the notification read) or, for a gone part, says so.
+ * Where a notification opens on the task page. A row links to
+ * /notifications?open={id}&r={rev}; that resolves the target now and replaces
+ * itself with the place, which the page then brings into view (the part
+ * outlined once, a polite announcement, the notification read) or, for a gone
+ * part, says so.
  */
-const N = "00000000-0000-4000-8000-0000000000a1";
 const taskId = "00000000-0000-4000-8000-000000000012";
 const runId = "00000000-0000-4000-8000-000000000020";
 const stepA = "00000000-0000-4000-8000-000000000021";
 const stepB = "00000000-0000-4000-8000-000000000031";
 const questionId = "00000000-0000-4000-8000-000000000601";
-const REVISION = 2;
 const stamp = "2026-01-01T00:00:00.000Z";
 
 const step = (id: string, stepKey: string, status: string) => ({
@@ -120,21 +126,60 @@ const question = {
   expiresAt: null,
 };
 
-type Target = {
-  status: "available" | "part_unavailable" | "unavailable";
-  targetKind: string;
-  path: string | null;
-  anchor: string | null;
+const approvalId = "00000000-0000-4000-8000-000000000501";
+const revision = {
+  id: "00000000-0000-4000-8000-000000000401",
+  taskId,
+  conversationId: task.conversationId,
+  revision: 1,
+  body: {
+    title: "Repository onboarding",
+    steps: [{ id: "s1", title: "Import the repository", detail: "Read it." }],
+    repositoryId: task.repositoryId,
+  },
+  digest: "1".repeat(64),
+  status: "proposed",
+  proposedByTurnId: null,
+  supersedesRevision: null,
+  createdAt: stamp,
+  updatedAt: stamp,
+  version: 1,
+};
+const approval = {
+  id: approvalId,
+  kind: "approval",
+  taskId,
+  conversationId: task.conversationId,
+  turnId: null,
+  runId: null,
+  prompt: "Approve plan revision 1",
+  status: "open",
+  subjectType: "plan_revision",
+  subjectId: revision.id,
+  subjectDigest: revision.digest,
+  scope: { stage: "plan" },
+  policyDigest: "c".repeat(64),
+  decision: null,
+  decisionComment: null,
+  decidedBy: null,
+  decidedAt: null,
+  consumedAt: null,
+  consumedByRunId: null,
+  revokedAt: null,
+  revokedBy: null,
+  expiresAt: null,
+  createdAt: stamp,
+  updatedAt: stamp,
+  version: 7,
 };
 
 /** The task page's reads and one notification whose target is `target`. */
 async function world(
   page: Page,
   target: Target,
-  options: { questions?: boolean } = {},
+  options: { questions?: boolean; plan?: boolean } = {},
 ) {
   await mockAuthenticatedSession(page);
-  const reads: unknown[] = [];
   await page.route(
     `**/v1/tasks/${taskId}`,
     (route) => route.fulfill({ json: task }),
@@ -165,6 +210,14 @@ async function world(
     route.fulfill({
       json: { items: options.questions ? [question] : [], nextCursor: null },
     }));
+  await page.route("**/v1/plan-revisions*", (route) =>
+    route.fulfill({
+      json: { items: options.plan ? [revision] : [], nextCursor: null },
+    }));
+  await page.route("**/v1/approvals*", (route) =>
+    route.fulfill({
+      json: { items: options.plan ? [approval] : [], nextCursor: null },
+    }));
   await page.route("**/v1/sync*", (route) =>
     route.fulfill({
       json: {
@@ -177,45 +230,13 @@ async function world(
         resetRequired: false,
       },
     }));
-  await page.route(
-    `**/v1/notifications/${N}/target`,
-    (route) => route.fulfill({ json: target }),
-  );
-  await page.route(`**/v1/notifications/${N}`, (route) => {
-    reads.push(route.request().postDataJSON());
-    return route.fulfill({
-      json: {
-        id: N,
-        organizationId: "00000000-0000-4000-8000-000000000003",
-        recipientId: "00000000-0000-4000-8000-000000000001",
-        kind: "step_failed",
-        targetKind: target.targetKind,
-        targetId: stepB,
-        targetAnchor: target.anchor,
-        conversationId: null,
-        runId,
-        taskId,
-        actor: null,
-        destination: { available: true, title: task.title },
-        read: true,
-        revision: REVISION + 1,
-        createdAt: stamp,
-      },
-    });
+  return stubNotification(page, target, {
+    taskId,
+    targetId: stepB,
+    title: task.title,
   });
-  await page.route(
-    "**/v1/notifications?*",
-    (route) => route.fulfill({ json: { items: [], nextCursor: null } }),
-  );
-  await page.route(
-    "**/v1/notifications/count*",
-    (route) => route.fulfill({ json: { unread: 0 } }),
-  );
-  return { reads };
 }
 
-const open = (page: Page) =>
-  page.goto(`/notifications?open=${N}&r=${REVISION}`);
 const announcer = (page: Page) =>
   page.getByRole("status").filter({ hasText: "Opened from a notification." });
 
@@ -280,11 +301,26 @@ test.describe("Opening a notification", () => {
       { questions: true },
     );
     await open(page);
-    await expect(page.locator(`[data-question-id="${questionId}"]`))
-      .toHaveAttribute(
-        "data-landed",
-        "true",
-      );
+    await expect(page.locator(`[data-question-id="${questionId}"]:visible`))
+      .toHaveAttribute("data-landed", "true");
+    await still(page, "landing-question");
+  });
+
+  test("an approval: the plan card is outlined", async ({ page }) => {
+    await world(
+      page,
+      {
+        status: "available",
+        targetKind: "approval",
+        path: `/tasks/${taskId}`,
+        anchor: `approval:${approvalId}`,
+      },
+      { plan: true },
+    );
+    await open(page);
+    await expect(page.locator(`[data-approval-id="${approvalId}"]:visible`))
+      .toHaveAttribute("data-landed", "true");
+    await still(page, "landing-approval");
   });
 
   test("a part that is gone: the page opens, says so, outlines nothing, and is read", async ({ page }) => {

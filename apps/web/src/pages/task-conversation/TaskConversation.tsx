@@ -475,6 +475,7 @@ export function TaskConversation(
     phase: planPhase,
     offline: !online,
     paused: liveTurn !== undefined,
+    approvalId: approval?.id,
     onDecide: (choice, comment) => void decide(choice, comment),
     onRetry: retryDecision,
     onRefresh: () => {
@@ -509,6 +510,7 @@ export function TaskConversation(
   const planCard = (
     <UI.PlanSummaryCard
       data-approval-id={approval?.id}
+      data-question-id={revision ? undefined : shownQuestions[0]?.id}
       title={revision
         ? t("tasks.conversation.plan.revision", {
           revision: String(revision.revision),
