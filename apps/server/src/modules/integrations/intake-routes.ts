@@ -22,7 +22,7 @@ import {
 import { deliveryFailure, readWebhookSecret } from "./intake-receipts.ts";
 import { sha256Hex } from "./intake-signature.ts";
 import { admitDelivery } from "./ingress-admission.ts";
-import { githubIngress } from "../catalog/integration-providers/github-ingress.ts";
+import type { WebhookIngress } from "@bakery/integration-sdk";
 
 export type IntakeRouteOptions = {
   /** Registry holding the `intake.github` action. */
@@ -36,6 +36,15 @@ export type IntakeRouteOptions = {
    * stays inside GitHub's ten-second delivery timeout.
    */
   deadlineMs?: number;
+  /**
+   * The provider's ingress port: what verifies a delivery and says what it
+   * asks for.
+   *
+   * Supplied rather than imported, so this receiver names no provider. Which
+   * provider owns the endpoint is a decision the caller makes, and a receiver
+   * that imported one would be a second place that knows which is being served.
+   */
+  ingress: WebhookIngress;
 };
 
 /** Default time budget for one delivery; GitHub abandons a delivery after ten seconds. */
@@ -159,7 +168,7 @@ async function handleDelivery(
     // is deduplicated by the same unique key.
     let admission;
     try {
-      admission = admitDelivery(githubIngress, {
+      admission = admitDelivery(options.ingress, {
         body: raw,
         headers: request.headers,
         secrets: [stored.secret],

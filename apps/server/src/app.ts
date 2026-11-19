@@ -9,6 +9,7 @@ import { createRepositoryRulesRoutes } from "./modules/repository-rules/index.ts
 import { createArtifactKindsRoutes } from "./modules/artifact-kinds/index.ts";
 import { createMemoryRoutes } from "./modules/knowledge/memory-routes.ts";
 import { createPluginPackageRoutes } from "./modules/catalog/plugin-routes.ts";
+import { githubIngress } from "./modules/catalog/integration-providers/github-ingress.ts";
 import { createDeliveryRoutes } from "./modules/delivery/index.ts";
 import {
   createFetchGitHubAppClient,
@@ -726,6 +727,9 @@ export function createApp(options: {
       githubAppClient,
       broker: installationTokenBroker,
       cursorSecret: options.config.auth.secret,
+      // The webhook path is GitHub's, so the composition root - the one place
+      // that already names the GitHub App client above - names its ingress too.
+      ingress: githubIngress,
       // The one activated registry this process owns, bound above and handed to
       // the invoke door. Every consumer now reads the same set of deployed
       // providers instead of re-deriving one.
