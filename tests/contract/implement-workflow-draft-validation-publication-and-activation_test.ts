@@ -285,6 +285,8 @@ Deno.test("ValidationReport parses with and without the optional analysis fields
 });
 
 const implementedWorkflowActions = [
+  "agentPowerGrants.create",
+  "agentPowerGrants.delete",
   "definitionPublishGrants.create",
   "definitionPublishGrants.delete",
   "workflowActivations.create",
