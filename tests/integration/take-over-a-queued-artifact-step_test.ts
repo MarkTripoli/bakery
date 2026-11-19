@@ -11,6 +11,7 @@ import {
   seedPresetRepository,
   startPresetRun,
 } from "../helpers/fixed-coding-preset.ts";
+import { admitRepositoryExecutionJob } from "../../packages/persistence/src/repository-admission.ts";
 import { withPgTransaction } from "../../packages/persistence/src/postgres.ts";
 import { reconcileBudgetLedger } from "../../apps/server/src/modules/work/budget-recovery.ts";
 import { cancelQueuedJobsOfRun } from "../../apps/server/src/modules/execution/coordination.ts";
@@ -259,9 +260,8 @@ Deno.test("AC: a step with a live attempt, another task's artifact or a non-arti
     await unchanged();
   }));
 
-// A job canceled before any worker took it gives back what was held for it,
-// on every path that cancels one. Each test starts from a real funded model
-// job (`implement`, admitted queued) and reads the money back.
+// #412 slice 3b: restart. The person gives a queued step one more attempt that
+// starts fresh, with a note, and the step keeps its frozen agent and budget.
 
 /** The run with `brief` completed by a person and `implement` admitted queued. */
 async function queuedImplementStep(fixture: Fixture, label: string) {
@@ -279,6 +279,126 @@ async function queuedImplementStep(fixture: Fixture, label: string) {
   assert(admitted.jobId, "the implement step is admitted with a job");
   return { ...s, implementKey: next, implementJobId: admitted.jobId };
 }
+
+const jobRow = async (fixture: Fixture, jobId: string) =>
+  (await fixture.pgDatabase.query<{
+    maxAttempts: number;
+    checkpoints: unknown;
+    stepNotes: string[] | null;
+    agentVersionId: string | null;
+    status: string;
+  }>(
+    `select max_attempts as "maxAttempts", current_checkpoints as checkpoints,
+            input->'stepNotes' as "stepNotes",
+            agent_version_id as "agentVersionId", status
+       from bakery.jobs where id = $1`,
+    [jobId],
+  )).rows[0];
+
+Deno.test("AC: a person restarts a queued step with a note: one more fresh attempt, same agent, note delivered", () =>
+  withFixture(async (fixture) => {
+    const s = await queuedImplementStep(fixture, "restart-ok");
+    const before = await jobRow(fixture, s.implementJobId);
+    // A checkpoint left by an earlier attempt must not carry into the restart.
+    await fixture.pgDatabase.query(
+      `update bakery.jobs set current_checkpoints = '[{"step":"old"}]'::jsonb
+        where id = $1`,
+      [s.implementJobId],
+    );
+
+    const response = await takeOver(fixture, s.run.id, s.implementKey.stepKey, {
+      mode: "restart",
+      note: "Start from the helper, not from scratch.",
+      reason: "The first attempt went the wrong way.",
+    });
+    assertEquals(response.status, 201, await response.clone().text());
+
+    const after = await jobRow(fixture, s.implementJobId);
+    assertEquals(after.maxAttempts, before.maxAttempts + 1);
+    assertEquals(after.checkpoints, []);
+    assertEquals(after.agentVersionId, before.agentVersionId);
+    assertEquals(after.status, "queued");
+    assertEquals(after.stepNotes, ["Start from the helper, not from scratch."]);
+
+    // The note is recorded and delivered to this job, so the integrity check
+    // that admission and claim run still accepts the job.
+    const delivered = await fixture.pgDatabase.query<{ body: string }>(
+      `select note.body from bakery.run_step_note_deliveries delivery
+         join bakery.run_step_notes note on note.id = delivery.note_id
+        where delivery.job_id = $1`,
+      [s.implementJobId],
+    );
+    assertEquals(delivered.rows.map((row) => row.body), [
+      "Start from the helper, not from scratch.",
+    ]);
+    await withPgTransaction(
+      fixture.pgDatabase,
+      (transaction) =>
+        admitRepositoryExecutionJob(
+          transaction,
+          fixture.organizationId,
+          s.implementJobId,
+          { enqueue: false },
+        ),
+    );
+
+    const ledger = await fixture.pgDatabase.query<
+      { mode: string; text: string; reason: string }
+    >(
+      `select detail->>'mode' as mode, text, reason
+         from bakery.decisions_ledger
+        where run_id = $1 and kind = 'takeover' and detail->>'mode' = 'restart'`,
+      [s.run.id],
+    );
+    assertEquals(ledger.rows.length, 1);
+    assertEquals(
+      ledger.rows[0].text,
+      "Start from the helper, not from scratch.",
+    );
+  }));
+
+Deno.test("AC: a restart whose budget reservation is no longer held, or whose step has a live attempt, is refused by name and changes nothing", () =>
+  withFixture(async (fixture) => {
+    const s = await queuedImplementStep(fixture, "restart-refuse");
+    const before = await jobRow(fixture, s.implementJobId);
+    const unchanged = async () =>
+      assertEquals(await jobRow(fixture, s.implementJobId), before);
+    const restart = () =>
+      takeOver(fixture, s.run.id, s.implementKey.stepKey, {
+        mode: "restart",
+        note: "Try again.",
+      });
+
+    // A job a worker holds is live.
+    await fixture.pgDatabase.query(
+      `update bakery.jobs set status = 'running' where id = $1`,
+      [s.implementJobId],
+    );
+    await refusedWith(await restart(), 409, "attempt_live");
+    await fixture.pgDatabase.query(
+      `update bakery.jobs set status = 'queued' where id = $1`,
+      [s.implementJobId],
+    );
+
+    // The funded step's reservation was released: no unfunded attempt.
+    await fixture.pgDatabase.query(
+      `update bakery.budget_reservations set status = 'released'
+        where id = (select installation_reservation_id from bakery.jobs
+                     where id = $1)`,
+      [s.implementJobId],
+    );
+    await refusedWith(await restart(), 409, "budget_not_reserved");
+    await unchanged();
+    const notes = await fixture.pgDatabase.query<{ n: string }>(
+      `select count(*)::text as n from bakery.run_step_notes where run_id = $1`,
+      [s.run.id],
+    );
+    assertEquals(notes.rows[0].n, "0");
+  }));
+
+// A job canceled before any worker took it gives back what was held for it,
+// on every path that cancels one. Each test starts from a real funded model
+// job (`implement`, admitted queued) and reads the money back.
 
 /** What is held for the job, and the run account's reserved total. */
 async function held(fixture: Fixture, runId: string, jobId: string) {
