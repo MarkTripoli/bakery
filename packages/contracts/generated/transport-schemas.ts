@@ -11892,6 +11892,21 @@ const transportSchemas = {
         "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind the cursor to this operation, current principal and organization, the path and the ordering; validate before the keyset query."
       ],
       "description": "Lists one folder of the read-only /library mirror of the catalog, computed from the catalog on every call. Needs library:read, and an agent session needs the library.read scope. Items are ordered oldest first, keyed by creation time and id; sections are a short fixed list."
+    },
+    "ReviewAccept": {
+      "fields": [
+        {
+          "name": "reason",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "description": "Why the owner overrules the reviewer and accepts the candidate anyway. It is recorded verbatim in the work item's decisions ledger and shown on the review, in the open; a blank reason is refused."
+        }
+      ],
+      "description": "Records an owner's accept-with-reason decision against one review that requested changes, overruling that reviewer (chapter 25 section 9, O18). An organization administrator may record it, and so may a member whose role holds the review:accept permission; an agent never may. The review stays what it was, immutable; the decision is a separate record shown on it. It does not restart a run that has already stopped: that needs a workflow that reads decisions."
     }
   },
   "projections": {
@@ -18683,7 +18698,10 @@ const transportSchemas = {
         "artifactVersionId",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "acceptedBy",
+        "acceptedAt",
+        "acceptReason"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -18704,7 +18722,10 @@ const transportSchemas = {
         "artifactVersionId": "uuid|null",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "acceptedBy": "uuid|null",
+        "acceptedAt": "timestamp|null",
+        "acceptReason": "string|null"
       },
       "fieldBounds": {
         "ordinal": {
@@ -18724,7 +18745,10 @@ const transportSchemas = {
       },
       "nullableFields": [
         "pullRequestId",
-        "artifactVersionId"
+        "artifactVersionId",
+        "acceptedBy",
+        "acceptedAt",
+        "acceptReason"
       ],
       "description": "One immutable independent automated review of one exact candidate of a run: the head and base commits and the effective policy digest it judged, the reviewer's fresh server-created agent session and worker principal, and the implementing session and principal it reviewed. A cycle is recorded only after the server verified the report against its own pins and the independence rules, so its approval is evidence for that exact candidate and is invalid once the head, base or policy digest changes. Only approved and changes_requested are written; running and failed are never stored because a review that did not complete leaves no cycle. Rows are never updated, so updatedAt equals createdAt and version is always 1.",
       "fieldDescriptions": {
@@ -18746,8 +18770,16 @@ const transportSchemas = {
         "artifactVersionId": "Stable UUID linking this record to the related artifact version entity; always null because a cycle keeps its findings in rows.",
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated; equals createdAt because rows are immutable.",
-        "version": "Always 1 because review cycle rows are immutable."
-      }
+        "version": "Always 1 because review cycle rows are immutable.",
+        "acceptedBy": "Principal who recorded an accept-with-reason decision overruling this review (an organization administrator, or a member whose role holds review:accept); null when none was recorded.",
+        "acceptedAt": "UTC timestamp of that decision; null when none was recorded.",
+        "acceptReason": "The reason the decider gave, verbatim; null when none was recorded."
+      },
+      "optionalFields": [
+        "acceptedBy",
+        "acceptedAt",
+        "acceptReason"
+      ]
     },
     "ReviewFinding": {
       "projection": "review_findings",
