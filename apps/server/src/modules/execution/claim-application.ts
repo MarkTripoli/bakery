@@ -315,6 +315,7 @@ export async function executeClaim(
           // The person the agent acts for is the run's requester, not the host
           // that picked the job up: O50 audits the principal, and a worker
           // identity would name the machine.
+          actsForPrincipalType: job.actsForPrincipalType ?? "worker",
           actsForPrincipalId: job.actsForPrincipalId ??
             identity.host.principalId,
           workerSessionId: identity.host.workerSessionId,

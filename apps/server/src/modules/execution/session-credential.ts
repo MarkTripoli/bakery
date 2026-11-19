@@ -32,6 +32,14 @@ export type SessionOperationClaim = Readonly<{
   attemptId: string;
   /** The principal the agent acts for; the audit's subject (O50). */
   actsForPrincipalId: string;
+  /**
+   * The kind of principal that id names.
+   *
+   * A session call runs the action's own authority guard as this person, and
+   * that guard needs a typed subject: a bare id cannot tell it whether it is
+   * looking at a human or a service.
+   */
+  actsForPrincipalType: string;
   /** The worker session and generation that claimed the attempt. */
   workerSessionId: string;
   workerSessionGeneration: bigint;
@@ -102,6 +110,7 @@ export function issueSessionOperationCredential(input: {
   organizationId: string;
   attemptId: string;
   actsForPrincipalId: string;
+  actsForPrincipalType: string;
   workerSessionId: string;
   workerSessionGeneration: bigint;
   fence: bigint;
@@ -130,6 +139,7 @@ export function issueSessionOperationCredential(input: {
       organizationId: input.organizationId,
       attemptId: input.attemptId,
       actsForPrincipalId: input.actsForPrincipalId,
+      actsForPrincipalType: input.actsForPrincipalType,
       workerSessionId: input.workerSessionId,
       workerSessionGeneration: input.workerSessionGeneration,
       fence: input.fence,

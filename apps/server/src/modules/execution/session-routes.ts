@@ -33,7 +33,10 @@ import {
   callSessionTool,
   listSessionToolsForCredential,
 } from "./session-gateway.ts";
-import { SessionOperationError } from "./session-credential.ts";
+import {
+  type SessionOperationClaim,
+  SessionOperationError,
+} from "./session-credential.ts";
 import { SessionToolError } from "./session-tools.ts";
 import { workerTransaction } from "./shared.ts";
 import type { ExecutionRouteOptions } from "./shared.ts";
@@ -74,9 +77,26 @@ export type SessionRouteOptions =
  * against the live lease, and handing the host's principal down would let an
  * operation act as the machine's owner rather than the person the run is for.
  */
-function dispatchedContext(
+/**
+ * The principal a dispatched action runs as.
+ *
+ * Exported so the "a session never exceeds the person" rule is testable without
+ * a database: the claim is the only input, and the answer must be the person
+ * the run is for rather than the worker host that picked the job up.
+ */
+export function sessionDispatchPrincipal(
+  claim: SessionOperationClaim,
+): Readonly<{ principalId: string; principalType: string }> {
+  return {
+    principalId: claim.actsForPrincipalId,
+    principalType: claim.actsForPrincipalType,
+  };
+}
+
+export function dispatchedContext(
   request: Request,
   attemptId: string,
+  claim: SessionOperationClaim,
 ): ActionContext {
   return {
     request,
@@ -84,6 +104,10 @@ function dispatchedContext(
     requestId: request.headers.get("x-request-id") ?? crypto.randomUUID(),
     traceId: request.headers.get("traceparent") ?? crypto.randomUUID(),
     signal: request.signal,
+    // The action's own authority guard runs as the person the run is for, so a
+    // session can never reach further than that person could. The credential's
+    // scopes narrowed the offer; this narrows the act.
+    principal: sessionDispatchPrincipal(claim),
   };
 }
 
@@ -134,10 +158,10 @@ export function createSessionRoutes(
           registry: options.registry,
           tool,
           arguments: body.arguments ?? {},
-          execute: (offered) =>
+          execute: (offered, claim) =>
             options.executable.execute(
               offered.name,
-              dispatchedContext(request, attemptId),
+              dispatchedContext(request, attemptId, claim),
               body.arguments ?? {},
             ),
         }),

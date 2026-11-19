@@ -98,6 +98,14 @@ export type ClaimableJob = {
    * coordinator turn or an onboarding job - and the caller decides then.
    */
   actsForPrincipalId: string | null;
+  /**
+   * The type of that principal, from `bakery.principals`.
+   *
+   * Carried because a session call runs the called action's own authority
+   * guard as the person the run is for, and that guard needs a typed subject -
+   * a principal id alone cannot tell it whether it is looking at a human.
+   */
+  actsForPrincipalType: string | null;
   currentFence: string | number;
 };
 
@@ -364,7 +372,19 @@ export function createClaimsRepository(
              where claim_step.organization_id = jobs.organization_id
                and claim_step.id = jobs.run_step_id
              limit 1
-          ) as acts_for_principal_id
+          ) as acts_for_principal_id,
+          (
+            select candidate_principal.principal_type
+              from bakery.run_steps claim_step
+              join bakery.workflow_runs candidate_run
+                on candidate_run.organization_id = claim_step.organization_id
+               and candidate_run.id = claim_step.run_id
+              join bakery.principals candidate_principal
+                on candidate_principal.id = candidate_run.requested_by
+             where claim_step.organization_id = jobs.organization_id
+               and claim_step.id = jobs.run_step_id
+             limit 1
+          ) as acts_for_principal_type
        from bakery.jobs as jobs
        where organization_id = $1 and status = 'queued'
          and available_at <= clock_timestamp()
@@ -466,6 +486,7 @@ export function createClaimsRepository(
           current_fence: string | number;
           agent_session_id: string | null;
           acts_for_principal_id: string | null;
+          acts_for_principal_type: string | null;
         }>("fetch forward 1 from claim_candidates");
         const row = jobs.rows[0];
         if (!row) {
@@ -600,6 +621,7 @@ export function createClaimsRepository(
           installationReservationId: row.installation_reservation_id,
           agentSessionId: row.agent_session_id,
           actsForPrincipalId: row.acts_for_principal_id,
+          actsForPrincipalType: row.acts_for_principal_type,
           currentFence: row.current_fence,
         };
       }

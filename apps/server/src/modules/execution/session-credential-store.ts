@@ -28,6 +28,7 @@ export type SessionCredentialRow = Readonly<{
   organizationId: string;
   attemptId: string;
   actsForPrincipalId: string;
+  actsForPrincipalType: string;
   workerSessionId: string;
   workerSessionGeneration: bigint;
   fence: bigint;
@@ -79,6 +80,7 @@ export async function issueStoredSessionCredential(
     organizationId: string;
     attemptId: string;
     actsForPrincipalId: string;
+    actsForPrincipalType: string;
     workerSessionId: string;
     workerSessionGeneration: bigint;
     fence: bigint;
@@ -127,9 +129,18 @@ export async function resolveSessionCredential(
   now: Date = new Date(),
 ): Promise<{ id: string; claim: SessionOperationClaim }> {
   const tokenHash = await sha256Hex(token);
-  const result = await tx.query<RawRow & { tokenHash: string }>(
-    `select ${COLUMNS}, token_hash as "tokenHash"
+  const result = await tx.query<
+    RawRow & { tokenHash: string; actsForPrincipalType?: string }
+  >(
+    // The principal's type is joined rather than stored: the credential row
+    // already names the person, `bakery.principals` already knows what kind of
+    // principal it is, and a copied column would be a second truth that a
+    // rename or a re-typed principal could silently desynchronise.
+    `select ${COLUMNS}, token_hash as "tokenHash",
+            credential_principal.principal_type as "actsForPrincipalType"
        from bakery.session_operation_credentials
+       join bakery.principals credential_principal
+         on credential_principal.id = acts_for_principal_id
       where token_hash = $1`,
     [tokenHash],
   );
@@ -147,6 +158,7 @@ export async function resolveSessionCredential(
       organizationId: stored.organizationId,
       attemptId: stored.attemptId,
       actsForPrincipalId: stored.actsForPrincipalId,
+      actsForPrincipalType: row.actsForPrincipalType ?? "worker",
       workerSessionId: stored.workerSessionId,
       workerSessionGeneration: stored.workerSessionGeneration,
       fence: stored.fence,

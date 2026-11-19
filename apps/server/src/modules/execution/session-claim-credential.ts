@@ -28,6 +28,14 @@ export type SessionClaimCredentialInput = Readonly<{
   organizationId: string;
   attemptId: string;
   actsForPrincipalId: string | null;
+  /**
+   * The kind of principal the run was requested by, from `bakery.principals`.
+   *
+   * Optional on this input only so a caller that has no principal row in hand
+   * is not forced to invent one; the claim path always supplies it, and the
+   * fallback is the narrowest type rather than the widest.
+   */
+  actsForPrincipalType?: string | null;
   workerSessionId: string;
   workerSessionGeneration: bigint;
   fence: bigint;
@@ -78,6 +86,10 @@ export function sessionCredentialForClaim(
   const issued = issueSessionOperationCredentialForClaim({
     ...input,
     actsForPrincipalId,
+    // A principal row always has a type (the column is not null), so the join
+    // failing while the id resolved means the person was deleted mid-claim.
+    // Treating that as a human would grant an authority the row cannot back.
+    actsForPrincipalType: input.actsForPrincipalType ?? "worker",
     scopes: input.scopes ?? readScopesForSession(),
   });
   return issued;
@@ -91,6 +103,7 @@ export function sessionCredentialForClaim(
 function issueSessionOperationCredentialForClaim(
   input: SessionClaimCredentialInput & {
     actsForPrincipalId: string;
+    actsForPrincipalType: string;
     scopes: readonly OperationScope[];
   },
 ): MintedSessionCredential {
@@ -98,6 +111,7 @@ function issueSessionOperationCredentialForClaim(
     organizationId: input.organizationId,
     attemptId: input.attemptId,
     actsForPrincipalId: input.actsForPrincipalId,
+    actsForPrincipalType: input.actsForPrincipalType,
     workerSessionId: input.workerSessionId,
     workerSessionGeneration: input.workerSessionGeneration,
     fence: input.fence,
@@ -133,6 +147,7 @@ export async function issueCredentialForAttempt(
     organizationId: input.organizationId,
     attemptId: input.attemptId,
     actsForPrincipalId: refusedPrincipal,
+    actsForPrincipalType: input.actsForPrincipalType ?? "worker",
     workerSessionId: input.workerSessionId,
     workerSessionGeneration: input.workerSessionGeneration,
     fence: input.fence,
