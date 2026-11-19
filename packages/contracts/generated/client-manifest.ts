@@ -1112,6 +1112,32 @@ export const clientManifest = {
       "implemented": true
     },
     {
+      "group": "Work",
+      "method": "POST",
+      "path": "/v1/runs/{id}/steps/{stepKey}/takeover",
+      "action": "runSteps.takeOver",
+      "access": "Developer",
+      "permission": "run:control",
+      "input": "RunStepTakeOver",
+      "output": "RunStep",
+      "event": "",
+      "mcp": "bakery_runSteps_takeOver",
+      "idempotency": "Idempotency-Key required; PATCH also If-Match",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
       "group": "Conversation",
       "method": "GET",
       "path": "/v1/conversations",
@@ -1858,6 +1884,59 @@ export const clientManifest = {
       "input": "IdPath",
       "output": "NoContent",
       "event": "definitionPublishGrant.deleted",
+      "mcp": "",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Definitions",
+      "method": "POST",
+      "path": "/v1/agent-power-grants",
+      "action": "agentPowerGrants.create",
+      "access": "Admin",
+      "permission": "accessBinding:manage",
+      "input": "AgentPowerGrantCreate",
+      "output": "AgentPowerGrant",
+      "event": "agentPowerGrant.created",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Definitions",
+      "method": "DELETE",
+      "path": "/v1/agent-power-grants/{id}",
+      "action": "agentPowerGrants.delete",
+      "access": "Admin",
+      "permission": "accessBinding:manage",
+      "input": "IdPath",
+      "output": "NoContent",
+      "event": "agentPowerGrant.deleted",
       "mcp": "",
       "idempotency": "Idempotency-Key + If-Match required",
       "errors": [
@@ -4776,6 +4855,28 @@ export const clientManifest = {
         "AUTH_FORBIDDEN",
         "SCOPE_REQUIRED",
         "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Providers",
+      "method": "GET",
+      "path": "/v1/runs/{id}/route-continuations",
+      "action": "routeContinuations.list",
+      "access": "Developer",
+      "permission": "providerRoute:read",
+      "input": "IdPath",
+      "output": "RouteContinuationOffers",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
         "MALFORMED_REQUEST"
       ],
       "organizationContext": "required_authenticated_context",
@@ -13066,6 +13167,7 @@ export const clientManifest = {
             "sessions.feed",
             "sessions.steer",
             "runSteps.note",
+            "runSteps.takeOver",
             "conversations.list",
             "conversations.get",
             "conversations.create",
@@ -13098,6 +13200,8 @@ export const clientManifest = {
             "workflowDefinitionProposalDecisions.create",
             "definitionPublishGrants.create",
             "definitionPublishGrants.delete",
+            "agentPowerGrants.create",
+            "agentPowerGrants.delete",
             "workflows.validate",
             "workflowActions.list",
             "workflowActions.get",
@@ -13229,6 +13333,7 @@ export const clientManifest = {
             "providerRoutes.update",
             "providerIncidents.list",
             "providerIncidents.get",
+            "routeContinuations.list",
             "workerProviderBindings.create",
             "workerProviderBindings.update",
             "workerProviderAuth.create",
@@ -22296,6 +22401,93 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Leaves a note for a workflow step that has not started yet, addressed by the run id and step key in the path. The agent that runs the step receives the note once, with its input; a step that has already started refuses the note with a state conflict, and a steer on its live session is the way to reach it."
+    },
+    "AgentPowerGrantCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "power": {
+          "type": "string",
+          "enum": [
+            "decide",
+            "run_control",
+            "run_start"
+          ],
+          "description": "The off-by-default power being granted: decide (approve, reject or request changes where a person would), run_control (pause, resume, cancel, interrupt or retry a run) or run_start (start a run, still subject to count, depth and budget checks)."
+        },
+        "workflowId": {
+          "description": "AgentPowerGrantCreate.workflowId may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Immutable id of a workflow that holds the power in two senses: an agent session running a step of it may use the power, and an agent may use the power on its runs. An agent acts on a target only when both its own workflow and the target's hold the grant, so one grant cannot reach every workflow. Null or absent covers every workflow and then requires accessTokenId, so no grant reaches every agent on every workflow."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "accessTokenId": {
+          "description": "AgentPowerGrantCreate.accessTokenId may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The one seat (access token) the grant is limited to. Null or absent lets any agent session of the named workflow use the power."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "power"
+      ],
+      "additionalProperties": false,
+      "description": "Grants agents an off-by-default power for one workflow or one seat (chapter 25 O52). Every use is labelled as an agent's action, and a grant never lets an agent act on its own output."
+    },
+    "RunStepTakeOver": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "complete"
+          ],
+          "description": "How the person takes the step over. `complete` makes the person the step's completer by naming an existing artifact version as its result; a restart with a fresh agent is a later mode."
+        },
+        "artifactId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Identifier of an existing artifact of this run's task that becomes the step's result. The artifact must exist in the organization and belong to the run's task."
+        },
+        "versionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Identifier of the immutable artifact version of that artifact that becomes the step's result. The server reads its content digest from its own record; the caller never supplies one."
+        },
+        "reason": {
+          "description": "Why the person took the step over, recorded verbatim in the work item's decisions ledger. RunStepTakeOver.reason must contain at most 2000 characters.",
+          "type": "string",
+          "maxLength": 2000
+        }
+      },
+      "required": [
+        "mode",
+        "artifactId",
+        "versionId"
+      ],
+      "additionalProperties": false,
+      "description": "Makes the caller the completer of a workflow step instead of its agent. Allowed only for a step of a compiled-plan run whose action produces an artifact, whose job is still queued with no live attempt, and only for a caller holding run control; a step with a live attempt is refused with STATE_CONFLICT `attempt_live` and must be stopped through run control first."
     },
     "PluginState": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -34578,6 +34770,7 @@ export const clientManifest = {
                   "sessions.feed",
                   "sessions.steer",
                   "runSteps.note",
+                  "runSteps.takeOver",
                   "conversations.list",
                   "conversations.get",
                   "conversations.create",
@@ -34610,6 +34803,8 @@ export const clientManifest = {
                   "workflowDefinitionProposalDecisions.create",
                   "definitionPublishGrants.create",
                   "definitionPublishGrants.delete",
+                  "agentPowerGrants.create",
+                  "agentPowerGrants.delete",
                   "workflows.validate",
                   "workflowActions.list",
                   "workflowActions.get",
@@ -34741,6 +34936,7 @@ export const clientManifest = {
                   "providerRoutes.update",
                   "providerIncidents.list",
                   "providerIncidents.get",
+                  "routeContinuations.list",
                   "workerProviderBindings.create",
                   "workerProviderBindings.update",
                   "workerProviderAuth.create",
@@ -40880,6 +41076,583 @@ export const clientManifest = {
                     },
                     "additionalProperties": {
                       "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
+    },
+    "RunStep": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID identifying the run step record."
+        },
+        "runId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID linking this record to the related run entity."
+        },
+        "stepKey": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Stable key identifying the workflow step within the run."
+        },
+        "iteration": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Execution iteration number for the step."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "running",
+            "waiting",
+            "completed",
+            "failed",
+            "skipped",
+            "canceled"
+          ],
+          "description": "Current lifecycle status of the record."
+        },
+        "input": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "Input payload supplied to the record."
+        },
+        "output": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "JSON string value."
+                },
+                {
+                  "type": "number",
+                  "description": "JSON number value."
+                },
+                {
+                  "type": "boolean",
+                  "description": "JSON boolean value."
+                },
+                {
+                  "type": "null",
+                  "description": "JSON null value."
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/__schema1"
+                  },
+                  "description": "JSON array value."
+                },
+                {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string",
+                    "description": "JSON object key."
+                  },
+                  "additionalProperties": {
+                    "$ref": "#/$defs/__schema1"
+                  },
+                  "description": "JSON object value."
+                }
+              ],
+              "description": "Output payload produced by the record."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "RunStep.output may be null in this transport value."
+        },
+        "error": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "JSON string value."
+                },
+                {
+                  "type": "number",
+                  "description": "JSON number value."
+                },
+                {
+                  "type": "boolean",
+                  "description": "JSON boolean value."
+                },
+                {
+                  "type": "null",
+                  "description": "JSON null value."
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/__schema2"
+                  },
+                  "description": "JSON array value."
+                },
+                {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string",
+                    "description": "JSON object key."
+                  },
+                  "additionalProperties": {
+                    "$ref": "#/$defs/__schema2"
+                  },
+                  "description": "JSON object value."
+                }
+              ],
+              "description": "Failure details associated with the record."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "RunStep.error may be null in this transport value."
+        },
+        "startedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp when processing started."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "RunStep.startedAt may be null in this transport value."
+        },
+        "finishedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp when processing finished."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "RunStep.finishedAt may be null in this transport value."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when the record was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when the record was last updated."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Optimistic-concurrency version used when updating the record."
+        }
+      },
+      "required": [
+        "id",
+        "runId",
+        "stepKey",
+        "iteration",
+        "status",
+        "input",
+        "output",
+        "error",
+        "startedAt",
+        "finishedAt",
+        "createdAt",
+        "updatedAt",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "One attempt at a named semantic node in a workflow run's DAG, keyed by (runId, stepKey, iteration) so an Inngest retry reuses the same logical node instead of creating a new one; output stores references or small typed summaries, never a duplicate artifact body.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        },
+        "__schema1": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema1"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        },
+        "__schema2": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema2"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema2"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema2"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema2"
                     },
                     "description": "JSON object value."
                   }
@@ -51608,6 +52381,7 @@ export const clientManifest = {
             "sessions.feed",
             "sessions.steer",
             "runSteps.note",
+            "runSteps.takeOver",
             "conversations.list",
             "conversations.get",
             "conversations.create",
@@ -51640,6 +52414,8 @@ export const clientManifest = {
             "workflowDefinitionProposalDecisions.create",
             "definitionPublishGrants.create",
             "definitionPublishGrants.delete",
+            "agentPowerGrants.create",
+            "agentPowerGrants.delete",
             "workflows.validate",
             "workflowActions.list",
             "workflowActions.get",
@@ -51771,6 +52547,7 @@ export const clientManifest = {
             "providerRoutes.update",
             "providerIncidents.list",
             "providerIncidents.get",
+            "routeContinuations.list",
             "workerProviderBindings.create",
             "workerProviderBindings.update",
             "workerProviderAuth.create",
@@ -77676,9 +78453,10 @@ export const clientManifest = {
                 "transport_failure",
                 "provider_error",
                 "timeout",
-                "reachable_inference_unverified"
+                "reachable_inference_unverified",
+                "redirected"
               ],
-              "description": "Typed reason for the current state, or null while the route is healthy: rate_limited (the provider asked us to slow down), credential_invalid (the credential is rejected), quota_exhausted (the account's allowance is spent), transport_failure (connection-level failure), provider_error (a classified provider 5xx), timeout (the deadline passed), or reachable_inference_unverified (the endpoint answers but no authorized request has proven inference)."
+              "description": "Typed reason for the current state, or null while the route is healthy: rate_limited (the provider asked us to slow down), credential_invalid (the credential is rejected), quota_exhausted (the account's allowance is spent), transport_failure (connection-level failure), provider_error (a classified provider 5xx), timeout (the deadline passed), reachable_inference_unverified (the endpoint answers but no authorized request has proven inference), or redirected (the endpoint answered with a redirect the probe does not follow, which proves nothing and keeps the route unverified until a probe proves it reachable again)."
             },
             {
               "type": "null",
@@ -77686,6 +78464,21 @@ export const clientManifest = {
             }
           ],
           "description": "RouteHealth.reason may be null in the safe projection."
+        },
+        "reasonSince": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp at which the current reason began, so a reason that holds (a redirect, a run of timeouts) reads as how long, not just that; null while there is no reason."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "RouteHealth.reasonSince may be null in the safe projection."
         },
         "consecutiveFailures": {
           "type": "integer",
@@ -77843,6 +78636,7 @@ export const clientManifest = {
         "routeId",
         "health",
         "reason",
+        "reasonSince",
         "consecutiveFailures",
         "consecutiveInferenceTrials",
         "evidenceWatermark",
@@ -78144,6 +78938,262 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "One note left for a workflow step that had not started, with who left it and when; the step's agent receives it once with its input."
+    },
+    "AgentPowerGrant": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID identifying the grant."
+        },
+        "power": {
+          "type": "string",
+          "enum": [
+            "decide",
+            "run_control",
+            "run_start"
+          ],
+          "description": "The power granted: decide, run_control or run_start."
+        },
+        "workflowId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Immutable id of the workflow that holds the power, as an agent's own workflow and as a target workflow; null covers every workflow for the named seat."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "AgentPowerGrant.workflowId may be null in this transport value."
+        },
+        "accessTokenId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Seat (access token) the grant is limited to; null for any agent session of the named workflow."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "AgentPowerGrant.accessTokenId may be null in this transport value."
+        },
+        "grantedBy": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Person who made the grant."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When the grant was made."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Optimistic-concurrency version a revoke must name in If-Match."
+        }
+      },
+      "required": [
+        "id",
+        "power",
+        "workflowId",
+        "accessTokenId",
+        "grantedBy",
+        "createdAt",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "One grant of an off-by-default agent power (O52): which power, which workflow and seat it covers, and the person who granted it. Revoking deletes it; the audit log keeps both."
+    },
+    "RouteContinuationOffers": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "runId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "UUID of the run these offers belong to."
+        },
+        "offers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "runStepId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the run step whose provider is down."
+              },
+              "stepKey": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The step's key within the workflow, for display."
+              },
+              "incidentId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the open incident the step is stalled behind."
+              },
+              "incidentGeneration": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "The incident's generation when this offer was made; a submission carrying a lower or different generation is stale."
+              },
+              "sourceRouteId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the route the step is currently pinned to, whose incident this is."
+              },
+              "runVersion": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "The run's version when this offer was made, so a submission can be refused if the run changed in between."
+              },
+              "estimatedIncrementalCost": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^(?:0|[1-9][0-9]*)$",
+                    "description": "Estimated extra spend of continuing on another route, as a decimal string in USD, or null while no estimate exists; the budget recheck that fills it is a later slice."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "RouteContinuationOffer.estimatedIncrementalCost may be null in this transport value."
+              },
+              "targets": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "routeId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "UUID of the candidate provider route."
+                    },
+                    "provider": {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "Provider key the candidate route sends to."
+                    },
+                    "model": {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "Model identifier the candidate route pins; a continuation runs the step on this model."
+                    },
+                    "harness": {
+                      "type": "string",
+                      "enum": [
+                        "pi",
+                        "claude_code",
+                        "codex",
+                        "mastra"
+                      ],
+                      "description": "Harness path the candidate route executes on: pi, claude_code, codex or mastra."
+                    },
+                    "billingRoute": {
+                      "type": "string",
+                      "enum": [
+                        "subscription",
+                        "api_metered",
+                        "local"
+                      ],
+                      "description": "Billing route the candidate route's spend follows: subscription, api_metered or local."
+                    },
+                    "health": {
+                      "type": "string",
+                      "enum": [
+                        "healthy",
+                        "degraded",
+                        "open",
+                        "unverified"
+                      ],
+                      "description": "The candidate route's current circuit state. Degraded (still serves some work) and unverified (no inference proof yet) routes stay eligible and are shown as such, so a person sees how much to trust a target before choosing it."
+                    },
+                    "eligible": {
+                      "type": "boolean",
+                      "description": "True when the step may continue on this route. A degraded or unverified route is eligible, shown with its health so the person choosing weighs it; only a route that is open, not active or on another harness is refused."
+                    },
+                    "ineligibleReason": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "different_harness",
+                            "route_not_active",
+                            "route_open"
+                          ],
+                          "description": "Why the route cannot take the step, or null when eligible: different_harness (a continuation keeps the step's harness), route_not_active (disabled or revoked), or route_open (the route has its own open incident)."
+                        },
+                        {
+                          "type": "null",
+                          "description": "Null indicates that the projected value is unavailable."
+                        }
+                      ],
+                      "description": "RouteContinuationTarget.ineligibleReason may be null in the safe projection."
+                    }
+                  },
+                  "required": [
+                    "routeId",
+                    "provider",
+                    "model",
+                    "harness",
+                    "billingRoute",
+                    "health",
+                    "eligible",
+                    "ineligibleReason"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Every other route of the organization, each marked eligible or not with the reason. Each array item follows this format."
+                },
+                "description": "Every other route of the organization, each marked eligible or not with the reason."
+              }
+            },
+            "required": [
+              "runStepId",
+              "stepKey",
+              "incidentId",
+              "incidentGeneration",
+              "sourceRouteId",
+              "runVersion",
+              "estimatedIncrementalCost",
+              "targets"
+            ],
+            "additionalProperties": false,
+            "description": "The open choices, empty when no step of the run is stalled behind an incident. Each array item follows this format."
+          },
+          "description": "The open choices, empty when no step of the run is stalled behind an incident."
+        }
+      },
+      "required": [
+        "runId",
+        "offers"
+      ],
+      "additionalProperties": false,
+      "description": "The route continuations a run is waiting on: one offer per step that is pinned to a route with an open incident and has not already been continued for that incident. Empty when nothing is stalled. It is a read of current state, never a decision: nothing is admitted, paused or charged by reading it."
     }
   }
 } as const;

@@ -46,6 +46,8 @@ export type SuggestionCardProps =
     origin: ReactNode;
     /** The sentence for `outdated` or `unknown`; not shown otherwise. */
     message?: ReactNode;
+    /** What went wrong deciding this card, said inside it ("could not be accepted"). */
+    error?: ReactNode;
     acceptLabel: string;
     rejectLabel: string;
     checkAgainLabel: string;
@@ -63,6 +65,7 @@ export function SuggestionCard(
   {
     acceptLabel,
     checkAgainLabel,
+    error,
     heading,
     message,
     onAccept,
@@ -105,13 +108,27 @@ export function SuggestionCard(
       data-variant={selected ? "selected" : "default"}
     >
       <h3 className="ui-suggestion-card__heading" id={headingId}>{heading}</h3>
-      <p className="ui-suggestion-card__summary" id={summaryId}>{summary}</p>
+      <div className="ui-suggestion-card__summary" id={summaryId}>
+        {summary}
+      </div>
       <p className="ui-suggestion-card__origin">{origin}</p>
       {state === "outdated" || state === "unknown"
         ? (
           <p className="ui-suggestion-card__message" role="status">
             <IconGlyph name="caution" size="small" />
             <span>{message}</span>
+          </p>
+        )
+        : null}
+      {error
+        ? (
+          <p
+            className="ui-suggestion-card__message"
+            data-tone="error"
+            role="alert"
+          >
+            <IconGlyph name="caution" size="small" />
+            <span>{error}</span>
           </p>
         )
         : null}
