@@ -11406,6 +11406,164 @@ const transportSchemas = {
       ],
       "description": "Makes the caller the completer of a workflow step, or restarts it. Allowed only for a step of a compiled-plan run whose job is still queued with no live attempt, and only for a caller holding run control; a step with a live attempt is refused with STATE_CONFLICT `attempt_live` and must be stopped through run control first. `complete` also needs the action to produce an artifact. A job with a budget reservation and a finished attempt is refused with `budget_unsettled` in either mode while the reservation is still held, because that attempt may already have spent against it. Once reconciliation settles it, `complete` goes through; `restart` does not: a restart reuses the held reservation, so a funded job that has had a finished attempt is never restartable (`budget_not_reserved` once the reservation is settled or released). `restart` of any funded job also needs its reservation held, and a funded job with no reservation is refused with `budget_not_reserved`. A job whose action has no budget can be completed or restarted after any number of attempts."
     },
+    "GroupCreate": {
+      "fields": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "description": "Display name of the group; unique in the organization, ignoring case."
+        },
+        {
+          "name": "mentionName",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 2,
+            "maxLength": 40
+          },
+          "description": "Handle people and workflows use to ask the group (lowercase letters, digits and single hyphens); fixed at creation and unique in the organization."
+        },
+        {
+          "name": "purpose",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 140
+          },
+          "description": "Optional one line saying what the group is for."
+        },
+        {
+          "name": "memberIds",
+          "type": "uuid[]",
+          "required": false,
+          "bounds": {
+            "maxItems": 200
+          },
+          "description": "Active organization members in the group; any one of them can answer a request to it. Empty or omitted makes a group with no members, which routes to the workflow owner until someone is added."
+        }
+      ],
+      "rules": [
+        "Organization Admin only. Every member must be an active human member of the organization; the mention name must not collide with a role handle or another group."
+      ],
+      "description": "Creates an organization group: a named set of members that a workflow or a person can ask by one name, where any one member can answer."
+    },
+    "GroupUpdate": {
+      "fields": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "description": "Replaces the group's display name; the mention name never changes."
+        },
+        {
+          "name": "purpose",
+          "type": "string|null",
+          "required": false,
+          "bounds": {
+            "maxLength": 140
+          },
+          "description": "Replaces the one-line purpose; null clears it."
+        },
+        {
+          "name": "memberIds",
+          "type": "uuid[]",
+          "required": false,
+          "bounds": {
+            "maxItems": 200
+          },
+          "description": "Replaces the whole member set with these active organization members."
+        }
+      ],
+      "rules": [
+        "Organization Admin only; requires If-Match. The mention name is fixed at creation and cannot be sent."
+      ],
+      "description": "Partial update to a group's name, purpose or members. The mention name is immutable."
+    },
+    "EmailSettingsPut": {
+      "fields": [
+        {
+          "name": "host",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 253
+          },
+          "description": "SMTP server name, such as smtp.example.com, without a scheme or port."
+        },
+        {
+          "name": "port",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1,
+            "max": 65535
+          },
+          "description": "SMTP server port; 587 is usual for STARTTLS and 465 for TLS."
+        },
+        {
+          "name": "security",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 3,
+            "maxLength": 8
+          },
+          "description": "Connection security: starttls (the default) or tls. Bakery never sends without encryption."
+        },
+        {
+          "name": "username",
+          "type": "string|null",
+          "required": false,
+          "bounds": {
+            "maxLength": 256
+          },
+          "description": "Account name for the SMTP server, or null for a server that needs none. Required when a password is supplied."
+        },
+        {
+          "name": "password",
+          "type": "secretString",
+          "required": false,
+          "bounds": {
+            "maxLength": 1024
+          },
+          "description": "SMTP password. Write-only: stored as an installation-owned AES-GCM ciphertext and never returned. Omit to keep the stored password; supply a new one to replace it."
+        },
+        {
+          "name": "fromAddress",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 3,
+            "maxLength": 254
+          },
+          "description": "Email address people see as the sender, such as bakery@example.com."
+        },
+        {
+          "name": "fromName",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "description": "Display name people see as the sender; defaults to Bakery in the settings page."
+        }
+      ],
+      "rules": [
+        "Installation administrator, session only. Requires If-Match once settings exist. Saving resets the last test, so the state is not_tested until a test email is sent."
+      ],
+      "description": "Saves how this installation sends email over SMTP. The password is write-only and is never returned."
+    },
     "MentionCandidateQuery": {
       "fields": [
         {
@@ -29163,6 +29321,177 @@ const transportSchemas = {
         "offers": "The open choices, empty when no step of the run is stalled behind an incident."
       }
     },
+    "GroupMember": {
+      "fields": [
+        "principalId",
+        "displayName"
+      ],
+      "fieldTypes": {
+        "principalId": "uuid",
+        "displayName": "string"
+      },
+      "nullableFields": [],
+      "description": "One member of a group: the person's identity and saved display name.",
+      "fieldDescriptions": {
+        "principalId": "Stable principal UUID of the member.",
+        "displayName": "The member's saved display name."
+      }
+    },
+    "Group": {
+      "projection": "organization_groups",
+      "fields": [
+        "id",
+        "name",
+        "mentionName",
+        "purpose",
+        "members",
+        "memberCount",
+        "createdAt",
+        "updatedAt",
+        "version"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "name": "string",
+        "mentionName": "string",
+        "purpose": "string|null",
+        "members": "GroupMember[]",
+        "memberCount": "integer",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp",
+        "version": "integer"
+      },
+      "nullableFields": [
+        "purpose"
+      ],
+      "description": "An organization group with its members; a group with no members is valid and routes to the workflow owner.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of the group.",
+        "name": "Display name, unique in the organization ignoring case.",
+        "mentionName": "Fixed handle used to ask the group; never changes after creation.",
+        "purpose": "Optional one line saying what the group is for.",
+        "members": "Current members, ordered by display name.",
+        "memberCount": "Number of current members.",
+        "createdAt": "UTC timestamp when the group was created.",
+        "updatedAt": "UTC timestamp when the group last changed.",
+        "version": "Optimistic-concurrency version for mutations of this group."
+      }
+    },
+    "GroupFromRole": {
+      "fields": [
+        "roleKey",
+        "name",
+        "mentionName",
+        "kind",
+        "memberCount"
+      ],
+      "fieldTypes": {
+        "roleKey": "string",
+        "name": "string",
+        "mentionName": "string",
+        "kind": "enum(system|custom)",
+        "memberCount": "integer"
+      },
+      "nullableFields": [],
+      "description": "A read-only group Bakery makes from a role that can decide; its members are the people holding the role at the moment it is asked.",
+      "fieldDescriptions": {
+        "roleKey": "The role's stable key (admin, developer or a custom role key).",
+        "name": "Plural display name such as Administrators, Developers or the custom role's name.",
+        "mentionName": "Handle derived from the role, such as admins, developers or the custom role key.",
+        "kind": "Whether the role is a system role or a custom organization role.",
+        "memberCount": "Number of members holding the role right now, read live."
+      }
+    },
+    "Groups": {
+      "fields": [
+        "groups",
+        "fromRoles"
+      ],
+      "fieldTypes": {
+        "groups": "Group[]",
+        "fromRoles": "GroupFromRole[]"
+      },
+      "nullableFields": [],
+      "description": "Everything an organization member can ask by one name: the organization's own groups and the read-only groups made from roles.",
+      "fieldDescriptions": {
+        "groups": "The organization's own groups, ordered by name.",
+        "fromRoles": "Read-only groups made from roles; they follow the Members page and cannot be edited here."
+      }
+    },
+    "EmailTestResult": {
+      "fields": [
+        "outcome",
+        "testedAt",
+        "address"
+      ],
+      "fieldTypes": {
+        "outcome": "enum(delivered|not_configured|unreachable|auth_refused|from_refused|tls_failed|timeout|server_error)",
+        "testedAt": "timestamp",
+        "address": "string|null"
+      },
+      "nullableFields": [
+        "address"
+      ],
+      "description": "Fixed result of a test email sent to the signed-in administrator's own address. The server's own reply, host and credentials are never returned.",
+      "fieldDescriptions": {
+        "outcome": "delivered when the server accepted the message; not_configured without saved settings; unreachable when the server could not be reached; auth_refused when it refused the username or password; from_refused when it refused the From address; tls_failed when the secure connection could not be set up; timeout when it did not answer in time; server_error for anything else.",
+        "testedAt": "UTC time the test finished.",
+        "address": "The administrator's address the test was sent to, or null when none was sent."
+      }
+    },
+    "EmailSettings": {
+      "projection": "installation_email_settings",
+      "fields": [
+        "state",
+        "host",
+        "port",
+        "security",
+        "username",
+        "passwordStored",
+        "passwordSavedAt",
+        "fromAddress",
+        "fromName",
+        "lastTest",
+        "version"
+      ],
+      "fieldTypes": {
+        "state": "enum(off|not_tested|working|not_working)",
+        "host": "string|null",
+        "port": "integer|null",
+        "security": "string|null",
+        "username": "string|null",
+        "passwordStored": "boolean",
+        "passwordSavedAt": "timestamp|null",
+        "fromAddress": "string|null",
+        "fromName": "string|null",
+        "lastTest": "EmailTestResult|null",
+        "version": "integer"
+      },
+      "nullableFields": [
+        "host",
+        "port",
+        "security",
+        "username",
+        "passwordSavedAt",
+        "fromAddress",
+        "fromName",
+        "lastTest"
+      ],
+      "description": "How this installation sends email, with the status of its last test. Carries no password, ciphertext or secret record id.",
+      "fieldDescriptions": {
+        "state": "off when nothing is set up; not_tested after a save; working when the last test was delivered; not_working when it failed.",
+        "host": "Saved SMTP server name, or null when off.",
+        "port": "Saved SMTP port, or null when off.",
+        "security": "Saved connection security (starttls or tls), or null when off.",
+        "username": "Saved SMTP account name, or null.",
+        "passwordStored": "Whether a password is stored; the value is never returned.",
+        "passwordSavedAt": "UTC time the stored password was last saved, or null.",
+        "fromAddress": "Saved sender address, or null when off.",
+        "fromName": "Saved sender display name, or null when off.",
+        "lastTest": "The last test email result since the settings were saved, or null if none was sent.",
+        "version": "Settings revision used as If-Match; 0 while off."
+      }
+    },
     "MentionCandidate": {
       "projection": "principals",
       "fields": [
@@ -30630,6 +30959,33 @@ const transportSchemas = {
       "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
     },
     "agentPowerGrant.deleted": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "organizationGroup.created": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "organizationGroup.updated": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "organizationGroup.deleted": {
       "schemaVersion": 1,
       "payloadFields": {
         "resourceId": "uuid",
