@@ -5,6 +5,10 @@ import {
   createAgentPowerGrant,
   deleteAgentPowerGrant,
 } from "../../apps/server/src/modules/workflows/agent-power-grants.ts";
+import {
+  AgentPower,
+  assertAgentMayExercise,
+} from "../../apps/server/src/modules/auth/application/agent-power-grants.ts";
 import { attributeAction } from "../../apps/server/src/modules/auth/application/action-attribution.ts";
 
 // O51: delegating authority is never an agent's act. An agent session acts with
@@ -82,4 +86,26 @@ Deno.test("an agent session cannot revoke a grant either", async () => {
     StandardError,
   );
   assertEquals(refused.code, "AUTH_FORBIDDEN");
+});
+
+Deno.test("a session whose attempt belongs to no run holds no power", async () => {
+  // A job with no run (a coordinator turn) has no workflow a grant could name,
+  // so the guard refuses instead of guessing. A stub transaction that finds no
+  // origin stands in for the attempt with no run.
+  const noOrigin = { query: () => Promise.resolve({ rows: [] }) };
+  const refused = await assertRejects(
+    () =>
+      assertAgentMayExercise(
+        noOrigin as never,
+        context({ agentSession: { attemptId: ATTEMPT } }),
+        {
+          organizationId: ORGANIZATION,
+          principalId: PERSON,
+          power: AgentPower.Decide,
+        },
+      ),
+    StandardError,
+  );
+  assertEquals(refused.code, "AUTH_FORBIDDEN");
+  assertEquals(refused.params?.reason, "agent_power_requires_grant");
 });

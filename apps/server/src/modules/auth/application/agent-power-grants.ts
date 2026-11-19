@@ -158,12 +158,11 @@ export async function assertAgentMayExercise(
       scope.organizationId,
       context.agentSession.attemptId,
     );
-  // A session call whose attempt belongs to no run has no workflow a grant could
-  // name, so it holds nothing. A token agent has no attempt and is matched by
-  // its seat alone.
-  if (context.agentSession !== undefined && origin === null) {
-    throw refusal();
-  }
+  // A session call whose attempt belongs to no run has no origin, so it reaches
+  // the lookup with no workflow and no seat, which no grant matches (a grant
+  // with neither covers nobody, see agentHoldsPower): it holds nothing. A token
+  // agent has no attempt and is matched by its seat alone. No separate refusal
+  // is needed; a test pins the result.
   if (
     await agentHoldsPower(transaction, {
       organizationId: scope.organizationId,
