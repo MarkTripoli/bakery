@@ -17,8 +17,8 @@ const STATES = [
   ["connected-clients", "clients-default", "connected-clients"],
   ["connected-clients-empty", "clients-empty", "security-empty"],
   ["profile", "profile-default", "profile-settings"],
-  ["access-levels", "access-default", "access-settings"],
-  ["access-levels-no-access", "access-no-access", "access-no-grant"],
+  ["access-levels", "your-access-default", "access-settings"],
+  ["access-levels-no-access", "your-access-no-access", "access-no-grant"],
 ] as const;
 
 for (const [name, specimen, marker] of STATES) {
