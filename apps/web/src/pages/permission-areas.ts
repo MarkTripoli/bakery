@@ -157,6 +157,7 @@ export const PERMISSION_VERBS = [
   "invoke",
   "reconcile",
   "respond",
+  "accept",
   "readSelf",
   "readPinned",
   "preview",

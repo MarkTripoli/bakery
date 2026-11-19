@@ -3,6 +3,8 @@ import {
   isTicketAutoResumableReason,
   isTicketExplicitResumeReason,
   isTicketNonSuspendingReason,
+  TICKET_AUTO_RESUMABLE_REASONS,
+  TICKET_EXPLICIT_RESUME_REASONS,
   type TicketReadinessReport,
   type TicketReasonCode,
   type TicketRequestDisposition,
@@ -257,4 +259,118 @@ export function decideRecheck(
     return { action: "advance" };
   }
   return NONE;
+}
+
+/**
+ * Every reason a disposition stores: the suspension reasons (auto-resumable
+ * and explicit-resume) and the run or task end a request finished with. The
+ * non-suspending reasons never reach a disposition. `ticketRequests.list`
+ * and `.get` (#69) answer this closed set as `dispositionReasonCode`.
+ */
+export const TICKET_DISPOSITION_REASON_CODES = Object.freeze(
+  [
+    ...TICKET_AUTO_RESUMABLE_REASONS,
+    ...TICKET_EXPLICIT_RESUME_REASONS,
+    "run_completed",
+    "run_failed",
+    "run_canceled",
+    "task_completed",
+    "task_failed",
+    "task_canceled",
+  ] as const satisfies readonly (TicketReasonCode | TicketTerminalReason)[],
+);
+export type TicketDispositionReasonCode =
+  typeof TICKET_DISPOSITION_REASON_CODES[number];
+
+/** The stored reason as a closed code; a value outside the set reads as none. */
+export function dispositionReasonCode(
+  stored: string | null,
+): TicketDispositionReasonCode | null {
+  return (TICKET_DISPOSITION_REASON_CODES as readonly string[]).includes(
+      stored ?? "",
+    )
+    ? stored as TicketDispositionReasonCode
+    : null;
+}
+
+/** Why a request's run was paused, in the words the ticket page uses. */
+export type TicketPausedReason =
+  | "edited_after_setup"
+  | "label_removed"
+  | "hold_label_added"
+  | "dependency_unreadable";
+
+const PAUSED_REASONS: Readonly<Partial<Record<string, TicketPausedReason>>> =
+  Object.freeze({
+    acceptance_changed: "edited_after_setup",
+    label_withdrawn: "label_removed",
+    label_missing: "label_removed",
+    held: "hold_label_added",
+    proof_unavailable: "dependency_unreadable",
+    inaccessible: "dependency_unreadable",
+    links_truncated: "dependency_unreadable",
+  });
+
+/**
+ * Why the run was paused. A pause is only ever requested of a suspended
+ * request (`decideRecheck`), so its cause is the suspension reason stored with
+ * it; null when no pause was requested, or when the reason is none of the four
+ * the page names (`dispositionReasonCode` still carries it).
+ */
+export function pausedReason(
+  pauseRequestedAt: unknown,
+  stored: string | null,
+): TicketPausedReason | null {
+  if (pauseRequestedAt === null || stored === null) return null;
+  return PAUSED_REASONS[stored] ?? null;
+}
+
+/** One progress value for display, from the disposition and the run. */
+export type TicketRequestProgress =
+  | "pending"
+  | "waiting"
+  | "admitted"
+  | "active"
+  | "suspended"
+  | "completed"
+  | "failed"
+  | "canceled"
+  | "rejected";
+
+/**
+ * The progress the ticket page shows. A terminal disposition, `pending` and
+ * `suspended` are shown as stored. Otherwise the run decides, because the
+ * recheck that moves the disposition runs on its own schedule: a finished run
+ * shows its end, a queued run `admitted`, a paused run `suspended`, a run
+ * waiting for input, capacity or a block `waiting`, and a running or stopping
+ * run `active`. With no run the disposition stands. Unknown run statuses
+ * leave the disposition as stored.
+ */
+export function ticketRequestProgress(
+  disposition: TicketRequestDisposition,
+  runStatus: string | null,
+): TicketRequestProgress {
+  if (
+    !isNonterminalTicketDisposition(disposition) ||
+    disposition === "suspended" || runStatus === null
+  ) return disposition;
+  switch (runStatus) {
+    case "completed":
+    case "failed":
+    case "canceled":
+      return runStatus;
+    case "queued":
+      return "admitted";
+    case "paused":
+      return "suspended";
+    case "waiting_input":
+    case "waiting_capacity":
+    case "blocked":
+      return "waiting";
+    case "running":
+    case "canceling":
+      return "active";
+    default:
+      return disposition;
+  }
 }

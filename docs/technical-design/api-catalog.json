@@ -8704,6 +8704,73 @@
     },
     {
       "group": "Tickets",
+      "method": "GET",
+      "path": "/v1/ticket-requests",
+      "action": "ticketRequests.list",
+      "access": "Developer",
+      "permission": "externalTicket:read",
+      "input": "TicketRequestQuery",
+      "output": "Page<TicketRequestView>",
+      "event": "",
+      "mcp": null,
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Tickets",
+      "method": "GET",
+      "path": "/v1/ticket-requests/{id}",
+      "action": "ticketRequests.get",
+      "access": "Developer",
+      "permission": "externalTicket:read",
+      "input": "IdPath",
+      "output": "TicketRequestView",
+      "event": "",
+      "mcp": null,
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Tickets",
+      "method": "GET",
+      "path": "/v1/ticket-sources/{id}/labels",
+      "action": "ticketSources.labels",
+      "access": "Developer",
+      "permission": "ticketSource:read",
+      "input": "TicketSourceLabelQuery",
+      "output": "Page<TicketSourceLabel>",
+      "event": "",
+      "mcp": null,
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED",
+        "DEPENDENCY_UNAVAILABLE"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Tickets",
       "method": "POST",
       "path": "/v1/ticket-task-links/{id}/note-syncs",
       "action": "ticketTaskLinks.resyncNote",
