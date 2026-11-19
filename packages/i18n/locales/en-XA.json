@@ -4284,7 +4284,6 @@
   "artifact.edit.action": "⟦Ëðïŧ⟧",
   "artifact.edit.stop": "⟦Šŧôþ ëðïŧïñĝ ŧë⟧",
   "artifact.edit.loading": "⟦Ôþëñïñĝ ŧĥë ðŕàƒŧ… ŧëšŧ⟧",
-  "artifact.edit.error.title": "⟦Ŧĥë ðôçûɱëñŧ çôûļð ñôŧ ƀë ôþëñëð. ŧëšŧ çôþÿ⟧",
   "artifact.edit.error.body": "⟦Çĥëçķ ÿôûŕ çôññëçŧïôñ, ŧĥëñ ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧ⟧",
   "artifact.edit.retry": "⟦Ŧŕÿ àĝàïñ ŧ⟧",
   "artifact.edit.forbidden": "⟦Ÿôû ðô ñôŧ ĥàṽë àççëšš ŧô ëðïŧ ŧĥïš ðôçûɱëñŧ. ŧëšŧ çôþÿ ŧëš⟧",
@@ -4320,5 +4319,6 @@
   "artifact.edit.discard.title": "⟦Ðïšçàŕð ŧĥïš ŧëẋŧ? ŧëšŧ⟧",
   "artifact.edit.discard.body": "⟦Ïŧ ŵàš ñëṽëŕ šàṽëð. ŧëšŧ⟧",
   "artifact.edit.discard.cancel": "⟦Çàñçëļ…⟧",
-  "artifact.edit.discard.confirm": "⟦Ðïšçàŕð…⟧"
+  "artifact.edit.discard.confirm": "⟦Ðïšçàŕð…⟧",
+  "artifact.edit.error.title": "⟦Ŧĥë ðôçûɱëñŧ çôûļð ñôŧ ƀë ôþëñëð ŧëšŧ çôþÿ⟧"
 }

@@ -1609,7 +1609,7 @@
   "artifact.edit.action": "Edit",
   "artifact.edit.stop": "Stop editing",
   "artifact.edit.loading": "Opening the draft…",
-  "artifact.edit.error.title": "The document could not be opened.",
+  "artifact.edit.error.title": "The document could not be opened",
   "artifact.edit.error.body": "Check your connection, then try again.",
   "artifact.edit.retry": "Try again",
   "artifact.edit.forbidden": "You do not have access to edit this document.",
