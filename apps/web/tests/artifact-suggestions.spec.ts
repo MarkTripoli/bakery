@@ -23,7 +23,7 @@ test.describe("Agent suggestions on a draft", () => {
           to: 11,
           replacement: "bold",
           agentName: null,
-          requestedByName: null,
+          requestedByName: "",
         },
       ],
     });

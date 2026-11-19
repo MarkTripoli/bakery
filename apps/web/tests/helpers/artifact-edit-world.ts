@@ -39,7 +39,7 @@ export type Behaviour = {
     readonly state?: "waiting" | "no_longer_fits" | "unknown";
     readonly refusalReason?: "text_changed" | "draft_moved_on";
     readonly agentName?: string | null;
-    readonly requestedByName?: string | null;
+    readonly requestedByName?: string;
     readonly createdAt?: string;
   }[];
   /** What deciding a suggestion does: succeeds, fails or is refused. Default succeeds. */
