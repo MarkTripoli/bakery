@@ -84,3 +84,17 @@ Deno.test("a revoked grant stops the next control", () =>
     assertEquals(response.status, 403, await response.text());
     assertEquals(await runStatus(fixture, target.runId) === "canceled", false);
   }));
+
+Deno.test("runs.retry is never offered or callable, even with run_control", () =>
+  withWorkerFixture(async (fixture) => {
+    const session = await agentSession(fixture, { granted: "run_control" });
+    assert(!(await session.tools()).includes("runs.retry"));
+    const target = await seedOtherRun(fixture);
+    const response = await session.call("runs.retry", { id: target.runId });
+    // Refused by the gateway: not a tool, however the session is granted.
+    assert(
+      response.status >= 400 && response.status < 500,
+      `runs.retry answered ${response.status}`,
+    );
+    await response.body?.cancel();
+  }));
