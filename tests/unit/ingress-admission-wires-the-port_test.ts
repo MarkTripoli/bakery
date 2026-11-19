@@ -298,3 +298,155 @@ Deno.test("the ceiling the seam enforces is the one the provider declared", () =
   const admitted = admitDelivery(githubIngress, atLimit);
   assertEquals(admitted.deliveryId, "delivery-1");
 });
+
+Deno.test("the secrets are released after verification, never before it", () => {
+  // QA's second mutant: calling `releaseSecrets` before `verify` still releases
+  // exactly once, so a counter cannot see the difference. What it changes is
+  // whether the secret is still readable when the signature is compared, so the
+  // observation has to happen inside `verify`.
+  const order: string[] = [];
+  const watching: WebhookIngress = {
+    ...githubIngress,
+    verify: (input) => {
+      // The secret must still be intact at this point; a wipe here would make
+      // every signature fail in production while still "releasing once".
+      order.push(`verify:secret=${input.secrets[0]?.byteLength ?? 0}`);
+      return githubIngress.verify(input);
+    },
+  };
+  admitDelivery(watching, {
+    ...signed(installation("created")),
+    releaseSecrets: () => order.push("release"),
+  });
+  assertEquals(
+    order,
+    ["verify:secret=16", "release"],
+    "verify first, then release",
+  );
+
+  // And a body the provider refuses is never verified, so release must still
+  // happen even though `verify` was skipped entirely.
+  order.length = 0;
+  const narrow: WebhookIngress = { ...watching, maxBodyBytes: 8 };
+  assertThrows(() =>
+    admitDelivery(narrow, {
+      ...signed(installation("created")),
+      releaseSecrets: () => order.push("release"),
+    })
+  );
+  assertEquals(order, ["release"], "released even though verify never ran");
+});
+
+Deno.test("the secrets are released exactly once on every exit", () => {
+  // QA found the release was only exercised through the route, so every unit
+  // test passed whether or not `admitDelivery` called it. These cases pin the
+  // call site instead: once, after verification, on every path.
+  const body = enc(JSON.stringify(installation("created")));
+  const good = signed(installation("created"));
+
+  const count = (fn: () => unknown): number => {
+    const released = 0;
+    try {
+      fn();
+    } catch {
+      // The outcome does not matter here; only whether release ran.
+    }
+    return released;
+  };
+
+  // A successful delivery.
+  let releases = 0;
+  admitDelivery(githubIngress, {
+    ...good,
+    releaseSecrets: () => {
+      releases += 1;
+    },
+  });
+  assertEquals(releases, 1, "released once on success");
+
+  // A bad signature: the failing path must release too.
+  releases = 0;
+  assertThrows(() =>
+    admitDelivery(githubIngress, {
+      body,
+      headers: new Headers({
+        "x-hub-signature-256": `sha256=${hex(hmacSha256(enc("wrong"), body))}`,
+        "x-github-event": "installation",
+        "x-github-delivery": "d",
+      }),
+      secrets: [SECRET],
+      now: NOW,
+      releaseSecrets: () => {
+        releases += 1;
+      },
+    })
+  );
+  assertEquals(releases, 1, "released once on a bad signature");
+
+  // A verify that throws rather than answering: still released.
+  releases = 0;
+  const throwing: WebhookIngress = {
+    ...githubIngress,
+    verify: () => {
+      throw new Error("provider blew up");
+    },
+  };
+  assertThrows(() =>
+    admitDelivery(throwing, {
+      ...good,
+      releaseSecrets: () => {
+        releases += 1;
+      },
+    })
+  );
+  assertEquals(releases, 1, "released once when verify throws");
+
+  // The case QA named as the LOW: a provider whose ceiling is smaller than the
+  // body, so the refusal happens before verification ever runs. A `finally`
+  // scoped only to `verify` would leak here.
+  releases = 0;
+  const narrow: WebhookIngress = { ...githubIngress, maxBodyBytes: 8 };
+  const tooLarge = assertThrows(
+    () =>
+      admitDelivery(narrow, {
+        ...good,
+        releaseSecrets: () => {
+          releases += 1;
+        },
+      }),
+    StandardError,
+  );
+  assertEquals(tooLarge.code, "BODY_TOO_LARGE");
+  assertEquals(releases, 1, "released once on an oversize refusal");
+
+  // And nothing is released when the caller has no secret to release.
+  assertEquals(count(() => admitDelivery(githubIngress, good)), 0);
+});
+
+Deno.test("an empty or whitespace delivery id is absent, not a key", () => {
+  // The `undefined` mutant died; the empty string is the other way a provider
+  // can fail to name a delivery, and it must be refused the same way.
+  for (const deliveryId of ["", "   "]) {
+    const permissive: WebhookIngress = {
+      ...githubIngress,
+      verify: () => ({ ok: true, delivery: {}, deliveryId }),
+      classify: () => ({
+        kind: "routed",
+        externalAuthorizationId: "42",
+        projection: {},
+        intents: [{ kind: "discovery" }],
+      }),
+    };
+    const error = assertThrows(
+      () =>
+        admitDelivery(permissive, {
+          body: enc("{}"),
+          headers: new Headers(),
+          secrets: [SECRET],
+          now: NOW,
+        }),
+      StandardError,
+    );
+    assertEquals(error.code, "MALFORMED_REQUEST", JSON.stringify(deliveryId));
+  }
+});

@@ -83,6 +83,33 @@ export function admitDelivery(
     releaseSecrets?: () => void;
   },
 ): AdmittedDelivery {
+  // One `finally` around everything, not just the verify call.
+  //
+  // The secrets must be released on every exit: a refusal that returns before
+  // a later `try` would leave them in memory. The size check is the case that
+  // makes this load-bearing - it runs before verification, so a `finally`
+  // scoped to `verify` alone would leak whenever a provider's ceiling is
+  // smaller than the body the host was willing to read.
+  try {
+    return admitWithin(input, ingress);
+  } finally {
+    input.releaseSecrets?.();
+  }
+}
+
+/**
+ * The admission steps themselves, run inside `admitDelivery`'s `finally` so no
+ * exit path can skip releasing the secrets.
+ */
+function admitWithin(
+  input: {
+    body: Uint8Array;
+    headers: Headers;
+    secrets: readonly Uint8Array[];
+    now: Date;
+  },
+  ingress: WebhookIngress,
+): AdmittedDelivery {
   // The declared ceiling is the provider's own bound, and the caller enforces
   // the smaller of it and the host's. Checking it here too means a caller that
   // forgets cannot turn a provider's promise into a memory problem.
@@ -90,14 +117,7 @@ export function admitDelivery(
     throw new StandardError({ code: "BODY_TOO_LARGE" });
   }
 
-  let verified: ReturnType<WebhookIngress["verify"]>;
-  try {
-    verified = ingress.verify(input);
-  } finally {
-    // Runs after the comparison has finished, on every path: a failed
-    // verification must not leave the candidate secret in memory either.
-    input.releaseSecrets?.();
-  }
+  const verified = ingress.verify(input);
   if (!verified.ok) {
     // One answer for every failure. A caller that could tell "wrong secret"
     // from "forged" could use a delivery endpoint to test candidate secrets.
@@ -128,7 +148,7 @@ export function admitDelivery(
   // refused here rather than deduplicated on a digest the caller has not been
   // told to compute.
   const deliveryId = verified.deliveryId;
-  if (deliveryId === undefined || deliveryId.length === 0) {
+  if (typeof deliveryId !== "string" || deliveryId.trim().length === 0) {
     throw new StandardError({ code: "MALFORMED_REQUEST" });
   }
 
