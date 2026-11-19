@@ -4402,6 +4402,7 @@
   "access.level.manage": "⟪You can change this.⟫",
   "access.level.scoped": "⟪Only in repositories you were given.⟫",
   "access.level.view": "⟪You can only view this.⟫",
+  "settings.roles.verb.accept": "⟪Overrule {things} that asked for changes⟫",
   "settings.sso.provider.delete.body": "⟪People at {domain} will no longer be able to sign in through this provider.⟫",
   "settings.sso.provider.delete.titleStopRequiring": "⟪Remove {name} and stop requiring SSO?⟫",
   "settings.sso.provider.delete.confirmStopRequiring": "⟪Remove and stop requiring SSO⟫",

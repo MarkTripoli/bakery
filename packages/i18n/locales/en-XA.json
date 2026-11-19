@@ -4402,6 +4402,7 @@
   "access.level.manage": "⟦Ÿôû çàñ çĥàñĝë ŧĥïš. ŧëšŧ⟧",
   "access.level.scoped": "⟦Ôñļÿ ïñ ŕëþôšïŧôŕïëš ÿôû ŵëŕë ĝïṽëñ. ŧëšŧ çôþÿŧ⟧",
   "access.level.view": "⟦Ÿôû çàñ ôñļÿ ṽïëŵ ŧĥïš. ŧëšŧ ç⟧",
+  "settings.roles.verb.accept": "⟦Ôṽëŕŕûļë {things} ŧĥàŧ àšķëð ƒôŕ çĥàñĝëš ŧëšŧ çôþÿ ŧ⟧",
   "settings.sso.provider.delete.body": "⟦Þëôþļë àŧ {domain} ŵïļļ ñô ļôñĝëŕ ƀë àƀļë ŧô šïĝñ ïñ ŧĥŕôûĝĥ ŧĥïš þŕôṽïðëŕ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
   "settings.sso.provider.delete.titleStopRequiring": "⟦Ŕëɱôṽë {name} àñð šŧôþ ŕëǫûïŕïñĝ ŠŠÔ? ŧëšŧ çôþÿŧ⟧",
   "settings.sso.provider.delete.confirmStopRequiring": "⟦Ŕëɱôṽë àñð šŧôþ ŕëǫûïŕïñĝ ŠŠÔ ŧëšŧ çôþ⟧",
