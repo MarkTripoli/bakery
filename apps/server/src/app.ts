@@ -108,6 +108,7 @@ import {
 } from "./modules/work/events-socket.ts";
 import {
   createNotificationRoutes,
+  createRunRequestRoutes,
   createTicketRoutes,
   createWorkTaskHandlers,
   registerNotificationProjection,
@@ -846,6 +847,13 @@ export function createApp(options: {
           },
         },
       }),
+    }),
+  );
+  app.route(
+    "/",
+    createRunRequestRoutes({
+      database: options.pgDatabase,
+      session: tokenSession,
     }),
   );
   app.route(

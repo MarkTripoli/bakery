@@ -3,6 +3,7 @@ export { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
 export { workBakeryMigrationSource } from "./migrations.ts";
 export { createTicketRoutes } from "./ticket-routes.ts";
 export { createNotificationRoutes } from "./notification-routes.ts";
+export { createRunRequestRoutes } from "./run-request-routes.ts";
 export { registerNotificationProjection } from "./notification-projection.ts";
 
 import { createTaskCommand, updateTaskCommand } from "./postgres.ts";

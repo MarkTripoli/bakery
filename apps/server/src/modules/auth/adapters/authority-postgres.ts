@@ -47,6 +47,10 @@ import {
   type BindingTarget,
 } from "../application/bindings.ts";
 import {
+  hasLiveRunGrant,
+  RUN_GRANT_ACTIONS,
+} from "../application/run-grants.ts";
+import {
   authorizeOrganizationAction,
   isOrganizationMember,
   permissionForAction,
@@ -346,6 +350,47 @@ function authorizeWithBindings(
   resolveTarget: (
     kind: NonNullable<(typeof BINDABLE_ACTIONS)[keyof typeof BINDABLE_ACTIONS]>,
   ) => Promise<BindingTarget | undefined>,
+  holdsRunGrant: (kind: "run" | "task") => Promise<boolean> = () =>
+    Promise.resolve(false),
+): Promise<OrganizationActor> {
+  return (async () => {
+    try {
+      return await authorizeThroughBindings(action, actor, resolveTarget);
+    } catch (denied) {
+      // Last: the right to see this one run, given by a request. Only the
+      // actions in RUN_GRANT_ACTIONS ask; any other action keeps the answer the
+      // role and the bindings gave.
+      const kind = RUN_GRANT_ACTIONS[action.name as CatalogActionName];
+      if (
+        kind !== undefined && actor.subject.principalType ===
+          PrincipalType.Human &&
+        await holdsRunGrant(kind)
+      ) {
+        const permission = permissionForAction(
+          action.name as CatalogActionName,
+        );
+        if (
+          actor.tokenScopes !== undefined &&
+          !scopeAllows(permission, actor.tokenScopes)
+        ) {
+          throw new StandardError({
+            code: "INSUFFICIENT_SCOPE",
+            params: { requiredScopes: minimalScopes(permission) },
+          });
+        }
+        return actor;
+      }
+      throw denied;
+    }
+  })();
+}
+
+function authorizeThroughBindings(
+  action: ActionDefinition,
+  actor: OrganizationActor,
+  resolveTarget: (
+    kind: NonNullable<(typeof BINDABLE_ACTIONS)[keyof typeof BINDABLE_ACTIONS]>,
+  ) => Promise<BindingTarget | undefined>,
 ): Promise<OrganizationActor> {
   return (async () => {
     try {
@@ -597,6 +642,14 @@ export class PostgresAuthorityRunner implements ActionAuthorityRunner {
                 id: context.params.id,
                 input,
               }),
+            (kind) =>
+              hasLiveRunGrant(
+                transaction,
+                organizationId,
+                claimedSubject.principalId,
+                kind,
+                context.params.id,
+              ),
           ).catch((denied) => authorizeOwnInboxWrite(action, actor, denied));
           subject = permitted.subject;
           authority = permitted;
