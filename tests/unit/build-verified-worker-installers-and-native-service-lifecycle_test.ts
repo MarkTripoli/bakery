@@ -1222,7 +1222,11 @@ Deno.test("a takeover that was itself abandoned does not wedge the root", async 
 
 Deno.test("partial downloads left by a dead run are swept before the next install", async () => {
   await withRoot(async (root) => {
-    await mkdir(join(root, "staging", "deadbeef"), { recursive: true });
+    // The installer refuses a group- or other-writable staging directory, so the
+    // test makes it 0755 itself instead of inheriting the process umask (a 002
+    // umask would give 0775 and the install would refuse before it swept).
+    await mkdir(join(root, "staging"), { mode: 0o755 });
+    await mkdir(join(root, "staging", "deadbeef"));
     await writeFile(
       join(root, "staging", "deadbeef", "bakery-worker"),
       "partial",

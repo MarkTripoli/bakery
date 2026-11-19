@@ -611,7 +611,9 @@ export function RepositoryRulesPage(
                           label={translate("repository.rules.help.fingerprint")}
                         >
                           {translate(
-                            "repository.rules.details.fingerprint.help",
+                            data?.hasFixedPolicy === false
+                              ? "repository.rules.details.fingerprint.helpNoChecks"
+                              : "repository.rules.details.fingerprint.help",
                           )}
                         </UI.HelpTip>
                       </>

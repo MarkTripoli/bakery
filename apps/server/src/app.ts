@@ -5,10 +5,12 @@ import {
 } from "./modules/catalog/storage-backend.ts";
 import { createSkillStorageRoutes } from "./modules/catalog/skill-storage-actions.ts";
 import { createAgentsRoutes } from "./modules/agents/index.ts";
+import { createProviderReadRoutes } from "./modules/execution/provider-read-routes.ts";
 import { createRepositoryRulesRoutes } from "./modules/repository-rules/index.ts";
 import { createArtifactKindsRoutes } from "./modules/artifact-kinds/index.ts";
 import { createMemoryRoutes } from "./modules/knowledge/memory-routes.ts";
 import { createPluginPackageRoutes } from "./modules/catalog/plugin-routes.ts";
+import { createPluginInstallRoutes } from "./modules/catalog/plugin-install-routes.ts";
 import { createDeliveryRoutes } from "./modules/delivery/index.ts";
 import {
   createFetchGitHubAppClient,
@@ -648,6 +650,15 @@ export function createApp(options: {
   );
   app.route(
     "/",
+    createProviderReadRoutes({
+      database: options.pgDatabase,
+      browserSession,
+      publicBaseUrl: options.config.publicBaseUrl,
+      cursorSecret: options.config.auth.secret,
+    }),
+  );
+  app.route(
+    "/",
     createRepositoryRulesRoutes({
       database: options.pgDatabase,
       browserSession,
@@ -670,6 +681,15 @@ export function createApp(options: {
       database: options.pgDatabase,
       browserSession,
       publicBaseUrl: options.config.publicBaseUrl,
+    }),
+  );
+  app.route(
+    "/",
+    createPluginInstallRoutes({
+      database: options.pgDatabase,
+      browserSession,
+      publicBaseUrl: options.config.publicBaseUrl,
+      cursorSecret: options.config.auth.secret,
     }),
   );
   app.route(

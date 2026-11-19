@@ -7,6 +7,11 @@ settings:
 overrides:
   '@better-auth/oauth-provider': 1.7.3
 
+patchedDependencies:
+  loro-codemirror@0.3.3:
+    hash: 53ab910290a766060b2cf71c6308b7d4821ada140ce15b81c20cb7644e5a7267
+    path: patches/loro-codemirror@0.3.3.patch
+
 importers:
 
   .:
@@ -256,6 +261,12 @@ importers:
       '@bakery/i18n':
         specifier: workspace:*
         version: link:../i18n
+      '@codemirror/state':
+        specifier: 6.7.6
+        version: 6.7.6
+      '@codemirror/view':
+        specifier: 6.43.15
+        version: 6.43.15
     devDependencies:
       '@axe-core/playwright':
         specifier: 4.13.0
@@ -278,6 +289,12 @@ importers:
       esbuild:
         specifier: 0.28.2
         version: 0.28.2
+      loro-codemirror:
+        specifier: 0.3.3
+        version: 0.3.3(patch_hash=53ab910290a766060b2cf71c6308b7d4821ada140ce15b81c20cb7644e5a7267)(@codemirror/state@6.7.6)(@codemirror/view@6.43.15)(loro-crdt@1.16.0)
+      loro-crdt:
+        specifier: 1.16.0
+        version: 1.16.0
       react:
         specifier: 19.3.0
         version: 19.3.0
@@ -663,6 +680,12 @@ packages:
   '@bufbuild/protobuf@2.15.0':
     resolution: {integrity: sha512-DAheWUkVr/SJTWCc+lg9dhY0eN4SaWlf4+bG1KzHeXbnqt0AfB/NX0Z+VunGlM1ki1B4zVvye27MpKh/svySUA==}
 
+  '@codemirror/state@6.7.6':
+    resolution: {integrity: sha512-kAz+AncRtKuIknedxT1bq4XwXv4UowhbkHU1myPrtVb/jZtImWuV5BXzv5vK6i3kYACsdiZiQKFQQ5Mq7elW8w==}
+
+  '@codemirror/view@6.43.15':
+    resolution: {integrity: sha512-HHsfpqFeHyXLs983pSRe38Xajs0vFWZQ2BuX0m7Ki8w3jZ5iD8cuR3lBz2/5/X53Dhf32SBHKh6rtSTB6tKeGw==}
+
   '@emnapi/core@1.11.0':
     resolution: {integrity: sha512-l9Oo58x0HOP5znGzVhYW9U3e5wVuA4LAZU2AGezTmkhO1CgQRFDhDg4nneHsu/t3WniXg9QrG2nIXL/ZS8ln8Q==}
 
@@ -903,6 +926,9 @@ packages:
 
   '@levischuck/tiny-cbor@0.2.11':
     resolution: {integrity: sha512-llBRm4dT4Z89aRsm6u2oEZ8tfwL/2l6BwpZ7JcyieouniDECM5AqNgr/y08zalEIvW3RSK4upYyybDcmjXqAow==}
+
+  '@marijn/find-cluster-break@1.0.4':
+    resolution: {integrity: sha512-Wy0V7+SGUjnF9/TkiM1hKVDPj7jKXduPNboMVtHTA8dySMURWqfg/JZ9E2Sq8JgSJmkl7k7Qe9FLeMSrSraWmQ==}
 
   '@modelcontextprotocol/core@2.0.0':
     resolution: {integrity: sha512-pJCEwGG7Lfr/+PQp9ZTwKXNeO5wzbfKL7H3MYpCorM4oFBoQrdjnBgEoqG+RjhsvS1FKrDbKux+M1HhlnGWqcA==}
@@ -2742,6 +2768,9 @@ packages:
   cookie-es@3.1.1:
     resolution: {integrity: sha512-UaXxwISYJPTr9hwQxMFYZ7kNhSXboMXP+Z3TRX6f1/NyaGPfuNUZOWP1pUEb75B2HjfklIYLVRfWiFZJyC6Npg==}
 
+  crelt@1.0.7:
+    resolution: {integrity: sha512-aK6BbWfhf4U/wCcLHKPJl/xa6VkVstRaPywWtMKGwuOLc/wZTyQYuoxgvZnNsBvv7Kg3YTBQYYBCggcviQczuA==}
+
   cross-fetch@4.1.0:
     resolution: {integrity: sha512-uKm5PU+MHTootlWEY+mZ4vvXoCn4fLQxT9dSc1sXVMSFkINTJVN8cAQROpwcKm8bJ/c7rgZVIBWzH5T78sNZZw==}
 
@@ -3178,6 +3207,13 @@ packages:
   long@5.3.2:
     resolution: {integrity: sha512-mNAgZ1GmyNhD7AuqnTG3/VQ26o760+ZYBPKjPvugO8+nLbYfX6TVpJPseBvopbdY+qpZ/lKUnmEc1LeZYS3QAA==}
 
+  loro-codemirror@0.3.3:
+    resolution: {integrity: sha512-C6qAUmDjMTyoXVeDxKWixvr/TSTo/jXFrvgGW+wn6RAHeIzNFovBDLQNi/Sary4Ahx8DaYADTCm9eCaRAjvWtw==}
+    peerDependencies:
+      '@codemirror/state': ^6.0.0
+      '@codemirror/view': ^6.7.0
+      loro-crdt: ^1.8.2
+
   loro-crdt@1.16.0:
     resolution: {integrity: sha512-nOnra3osAZnjbgEozZuED13cQBkpglXq3P2w58Hv5BU0iaJlilyuyumejfwTx2SU8A2iiNgxrxsqw5fOdiJWMw==}
 
@@ -3610,6 +3646,9 @@ packages:
   strnum@2.5.1:
     resolution: {integrity: sha512-UM4nTLWzQiDBseVxUGxN0wJzIk0UU89Qi7pKXz9qISo+lhviJikTuikBsK/oFRlpvYHvSdz0TVoLyQ+sEpYwxA==}
 
+  style-mod@4.1.5:
+    resolution: {integrity: sha512-WQ2llCZa9sZSkJA+aOwpg5DkfbAXFKGh//t3MRTBeruFiSBC+GXUmbBzrw3bXyboCWAbtCW9InDfBsXrRD/rAg==}
+
   supports-preserve-symlinks-flag@1.0.0:
     resolution: {integrity: sha512-ot0WnXS9fgdkgIcePe6RHNk1WA8+muPa6cSjeR3V8K27q9BB1rTE3R1p7Hv0z1ZyAc8s6Vvv8DIyWf681MAt0w==}
     engines: {node: '>= 0.4'}
@@ -3748,6 +3787,9 @@ packages:
         optional: true
       yaml:
         optional: true
+
+  w3c-keyname@2.2.8:
+    resolution: {integrity: sha512-dpojBhNsCNN7T82Tm7k26A6G9ML3NkhDsnw9n/eoxSRlVBB4CEtIQ/KTCLI2Fwf3ataSXRhYFkQi3SlnFwPvPQ==}
 
   web-streams-polyfill@3.3.3:
     resolution: {integrity: sha512-d2JWLCivmZYTSIoge9MsgFCZrt571BikcWGYkjC1khllbTeDlGqZ2D8vD8E/lJa8WGWbb7Plm8/XJYV7IJHZZw==}
@@ -4572,6 +4614,17 @@ snapshots:
 
   '@bufbuild/protobuf@2.15.0': {}
 
+  '@codemirror/state@6.7.6':
+    dependencies:
+      '@marijn/find-cluster-break': 1.0.4
+
+  '@codemirror/view@6.43.15':
+    dependencies:
+      '@codemirror/state': 6.7.6
+      crelt: 1.0.7
+      style-mod: 4.1.5
+      w3c-keyname: 2.2.8
+
   '@emnapi/core@1.11.0':
     dependencies:
       '@emnapi/wasi-threads': 1.2.2
@@ -4751,6 +4804,8 @@ snapshots:
   '@js-sdsl/ordered-map@4.4.2': {}
 
   '@levischuck/tiny-cbor@0.2.11': {}
+
+  '@marijn/find-cluster-break@1.0.4': {}
 
   '@modelcontextprotocol/core@2.0.0':
     dependencies:
@@ -6639,6 +6694,8 @@ snapshots:
 
   cookie-es@3.1.1: {}
 
+  crelt@1.0.7: {}
+
   cross-fetch@4.1.0:
     dependencies:
       node-fetch: 2.7.0
@@ -7027,6 +7084,12 @@ snapshots:
   lodash.camelcase@4.3.0: {}
 
   long@5.3.2: {}
+
+  loro-codemirror@0.3.3(patch_hash=53ab910290a766060b2cf71c6308b7d4821ada140ce15b81c20cb7644e5a7267)(@codemirror/state@6.7.6)(@codemirror/view@6.43.15)(loro-crdt@1.16.0):
+    dependencies:
+      '@codemirror/state': 6.7.6
+      '@codemirror/view': 6.43.15
+      loro-crdt: 1.16.0
 
   loro-crdt@1.16.0: {}
 
@@ -7491,6 +7554,8 @@ snapshots:
     dependencies:
       anynum: 1.0.1
 
+  style-mod@4.1.5: {}
+
   supports-preserve-symlinks-flag@1.0.0: {}
 
   systeminformation@5.33.13: {}
@@ -7603,6 +7668,8 @@ snapshots:
       fsevents: 2.3.3
       tsx: 4.23.15
       yaml: 2.9.1
+
+  w3c-keyname@2.2.8: {}
 
   web-streams-polyfill@3.3.3: {}
 
