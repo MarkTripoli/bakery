@@ -167,9 +167,15 @@ export async function createTicketSource(
   );
   const policy = storedPolicy(input.policy, null, new Date());
   const scope = await transaction.query<
-    { installationId: string; externalId: string; displayName: string }
+    {
+      installationId: string;
+      provider: string;
+      externalId: string;
+      displayName: string;
+    }
   >(
     `select connection.installation_id as "installationId",
+            connection.provider as "provider",
             resource.external_id as "externalId",
             resource.display_name as "displayName"
        from bakery.integration_connections as connection
@@ -239,16 +245,20 @@ export async function createTicketSource(
   const id = crypto.randomUUID();
   const inserted = await transaction.query(
     `insert into bakery.ticket_sources (
-       id, organization_id, integration_connection_id,
+       id, organization_id, provider, integration_connection_id,
        integration_resource_id, application_id, repository_id,
        external_container_id, enabled, policy
-     ) values ($1, $2, $3, $4, $5, $6, $7, true, $8::jsonb)
+     ) values ($1, $2, $3, $4, $5, $6, $7, $8, true, $9::jsonb)
      on conflict (organization_id, integration_connection_id,
                   external_container_id) do nothing
      returning id`,
     [
       id,
       organizationId,
+      // Named, never defaulted: the default was dropped so a source cannot be
+      // admitted without saying which provider it belongs to. The connection is
+      // the authority on that, so the source inherits it rather than assuming.
+      resource.provider,
       input.connectionId,
       input.resourceId,
       input.applicationId,

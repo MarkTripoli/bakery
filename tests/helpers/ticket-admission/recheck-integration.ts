@@ -5,6 +5,14 @@
  * immutable report and no lost evidence, and every applied decision writes its
  * audit row and domain event in the same transaction.
  */
+function containerOf(repository: string) {
+  return {
+    kind: "repository",
+    externalId: repository,
+    displayName: repository,
+  };
+}
+
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import { StandardError } from "../../../packages/contracts/src/http.ts";
 import { approvalPolicyDigest } from "../../../apps/server/src/modules/work/stage-policy.ts";
@@ -117,7 +125,7 @@ async function admitWebhook(
       blockedBy: [{
         id: blocker,
         number: 3,
-        repositoryFullName: fx.repositoryFullName,
+        container: containerOf(fx.repositoryFullName),
       }],
     });
     setProof(fx, blocker, "satisfied");

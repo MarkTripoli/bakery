@@ -89,10 +89,10 @@ async function withTicketRows(
     try {
       await owner.query(
         `insert into bakery.ticket_sources
-           (id, organization_id, integration_connection_id,
+           (id, organization_id, provider, integration_connection_id,
             integration_resource_id, application_id, repository_id,
             external_container_id, enabled, policy)
-         values ($1, $2, $3, $4, $5, $6, $7, true, $8::jsonb)`,
+         values ($1, $2, 'github', $3, $4, $5, $6, $7, true, $8::jsonb)`,
         [
           sourceId,
           organizationId,

@@ -4,6 +4,14 @@
  * backs the connection rows. Each case names the acceptance criterion or the
  * guard it proves.
  */
+function containerOf(repository: string) {
+  return {
+    kind: "repository",
+    externalId: repository,
+    displayName: repository,
+  };
+}
+
 import { assert, assertEquals, assertFalse, assertRejects } from "@std/assert";
 import { StandardError } from "../../../packages/contracts/src/http.ts";
 import type { TicketReadinessReport } from "../../../packages/contracts/src/ticket-admission.ts";
@@ -174,7 +182,7 @@ Deno.test("issue 82 admission: no provider read happens while an admission trans
     const blocker = {
       id: "5101",
       number: 3,
-      repositoryFullName: fx.repositoryFullName,
+      container: containerOf(fx.repositoryFullName),
     };
     let number = 130;
     for (const origin of ["webhook", "poll", "manual"] as const) {
@@ -822,7 +830,7 @@ Deno.test("issue 82 admission: readiness inputs flow through — hold, closed, b
     const blocker = {
       id: "5001",
       number: 1,
-      repositoryFullName: fx.repositoryFullName,
+      container: containerOf(fx.repositoryFullName),
     };
     fx.reader.setIssue({ number: 64, labels: [EXECUTE_LABEL] });
     fx.reader.setLinks(64, { blockedBy: [blocker] });

@@ -151,8 +151,21 @@ const refOf = (
 ): IssueRef => ({
   id: String(issue.id),
   number: issue.number,
-  repositoryFullName,
+  container: {
+    kind: "repository",
+    externalId: repositoryFullName,
+    displayName: repositoryFullName,
+  },
 });
+
+/** A container for a GitHub repository, the shape the contract stores. */
+function containerOf(repository: string) {
+  return {
+    kind: "repository",
+    externalId: repository,
+    displayName: repository,
+  };
+}
 
 /** A GitHub client whose issue reads report `patch` over the real answer. */
 function withDetail(
@@ -222,7 +235,7 @@ Deno.test("issue 82 reader: readIssue returns the bounded snapshot and calls the
       state: "open" as const,
       stateReason: null,
       locked: false,
-      repositoryFullName: s.fullName,
+      container: containerOf(s.fullName),
     };
     assertEquals(await s.reader.readIssue(s.handle, 1, signal()), {
       kind: "present",
@@ -542,13 +555,13 @@ Deno.test("issue 82 reader: readLinks returns the parent with its id, the blocke
       parent: {
         id: String(parent.id),
         number: 2,
-        repositoryFullName: s.fullName,
+        container: containerOf(s.fullName),
       },
       subIssuesTotal: 0,
       blockedBy: blockers.map((blocker) => ({
         id: String(blocker.id),
         number: blocker.number,
-        repositoryFullName: blocker.repositoryFullName,
+        container: containerOf(blocker.repositoryFullName),
       })),
       blockingTotal: 4,
       truncated: false,
@@ -1210,7 +1223,11 @@ Deno.test("issue 82 reader: a blocker in another repository is inaccessible with
     assertEquals(
       await s.reader.readPredecessorProof(
         s.handle,
-        { id: "123", number: 5, repositoryFullName: "elsewhere/other-repo" },
+        {
+          id: "123",
+          number: 5,
+          container: containerOf("elsewhere/other-repo"),
+        },
         signal(),
       ),
       { kind: "inaccessible" },
@@ -1248,7 +1265,7 @@ Deno.test("issue 82 reader: a blocker in another repository is inaccessible with
     assertEquals(
       await s.reader.readPredecessorProof(
         s.handle,
-        { id: "999", number: 55, repositoryFullName: s.fullName },
+        { id: "999", number: 55, container: containerOf(s.fullName) },
         signal(),
       ),
       { kind: "inaccessible" },
@@ -1289,11 +1306,13 @@ Deno.test("issue 82 reader: readActorRole returns the numeric user id and permis
       kind: "present",
       userId: "4242",
       permission: "write",
+      rank: 2,
     });
     assertEquals(await s.reader.readActorRole(s.handle, "reader", signal()), {
       kind: "present",
       userId: "7",
       permission: "none",
+      rank: 0,
     });
     assertEquals(await s.reader.readActorRole(s.handle, "nobody", signal()), {
       kind: "absent",
@@ -1404,7 +1423,7 @@ const READ_CASES: ReadCase[] = [
     call: (s) =>
       s.reader.readPredecessorProof(
         s.handle,
-        { id: "1", number: 2, repositoryFullName: s.fullName },
+        { id: "1", number: 2, container: containerOf(s.fullName) },
         signal(),
       ),
   },
@@ -1562,7 +1581,7 @@ Deno.test("issue 82 reader: every read uses one token narrowed to the repository
     await s.reader.listIssues(s.handle, { page: 1, since: null }, signal());
     await s.reader.readPredecessorProof(
       s.handle,
-      { id: "9", number: 9, repositoryFullName: "elsewhere/other-repo" },
+      { id: "9", number: 9, container: containerOf("elsewhere/other-repo") },
       signal(),
     );
     assertEquals(s.f.github.tokenRequests.length, 1, "one cached token");
