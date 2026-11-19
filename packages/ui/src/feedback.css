@@ -690,6 +690,9 @@
   display: grid;
   gap: var(--space-4);
   justify-items: center;
+  /* Centred in the content area, not in a narrow column against its left
+     edge: the block is the page's whole message. */
+  margin-inline: auto;
   max-inline-size: var(--layout-content);
   padding: var(--space-6);
   text-align: center;

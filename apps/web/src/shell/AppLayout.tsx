@@ -534,7 +534,16 @@ function ShellFrame() {
   // navigation marks Work exactly as on the Work route itself.
   const navigationPath = fixture ? workHref : pathname;
   const selectedId = activeId ?? undefined;
-  const pageTitle = usePageTitle(pathname);
+  // A path no route claims must not borrow a section's name: the crumb and the
+  // phone title read "Page not found", which is what the page itself says.
+  const notFound = useRouterState({
+    select: (state) =>
+      state.matches.some((match) => match.status === "notFound"),
+  });
+  const sectionTitle = usePageTitle(pathname);
+  const pageTitle = notFound
+    ? translate("shell.states.notFoundTitle")
+    : sectionTitle;
   // The New task panel sits under Work, so the trail says so.
   const creatingTask = pathname === "/tasks/new" || pathname === "/tasks/new/";
   const onNavigate = (
@@ -871,8 +880,14 @@ export function RouteError(_props: ErrorComponentProps) {
 
 export function RouteNotFound() {
   const { translate } = useI18n();
+  const navigate = useNavigate();
   return (
     <UI.SceneState
+      action={
+        <UI.Button onClick={() => void navigate({ to: WORK_HOME })}>
+          {translate("shell.states.notFoundAction")}
+        </UI.Button>
+      }
       description={translate("shell.states.notFoundDescription")}
       inset="page"
       scene="not-found"

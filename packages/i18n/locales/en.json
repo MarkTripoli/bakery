@@ -201,6 +201,7 @@
   "shell.leave.stay": "Stay",
   "shell.leave.confirm": "Leave",
   "shell.states.notFoundDescription": "The requested Bakery page does not exist.",
+  "shell.states.notFoundAction": "Go to Work",
   "shell.states.notFoundTitle": "Page not found",
   "shell.states.offlineDescription": "Bakery will retry when the connection returns.",
   "shell.states.offlineTitle": "You are offline",

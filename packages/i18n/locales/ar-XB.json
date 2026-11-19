@@ -4404,5 +4404,6 @@
   "auth.settings.clients.emptyDescription": "⟪Apps you allow to act for you, such as the Bakery CLI, show up here. You connect one from the app itself.⟫",
   "access.level.manage": "⟪You can change this.⟫",
   "access.level.scoped": "⟪Only in repositories you were given.⟫",
-  "access.level.view": "⟪You can only view this.⟫"
+  "access.level.view": "⟪You can only view this.⟫",
+  "shell.states.notFoundAction": "⟪Go to Work⟫"
 }
