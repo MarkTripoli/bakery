@@ -2010,10 +2010,21 @@ a.bakery-application-rail__link:hover {
   inline-size: var(--space-4);
   min-inline-size: 0;
 }
+/* The level is a sentence ("You can change this."): it sits on its own line under
+   the row's description, in the normal text colour, so it reads as the answer. */
+.ui-settings-content[data-variant="access"] .ui-capability-list__item {
+  flex-wrap: wrap;
+  row-gap: var(--space-1);
+}
+.ui-settings-content[data-variant="access"] .ui-capability-list__body,
 .ui-settings-content[data-variant="access"] .ui-capability-list__value {
-  inline-size: calc(var(--space-16) + var(--space-6));
+  flex: 1 0 100%;
+}
+.ui-settings-content[data-variant="access"] .ui-capability-list__value {
+  color: var(--color-fg);
+  inline-size: auto;
   max-inline-size: none;
-  text-align: end;
+  text-align: start;
 }
 @media (max-width: 743px) {
   .ui-settings-content[data-variant="access"] > .ui-access-card {

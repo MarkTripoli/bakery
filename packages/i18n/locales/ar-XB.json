@@ -4394,9 +4394,6 @@
   "settings.security.clientsDescription": "⟪Apps you allowed to act for you, such as the Bakery CLI.⟫",
   "profile.nameHint": "⟪Shown next to your work and comments.⟫",
   "profile.photoHint": "⟪Paste a link to an image. Uploading is not available yet. Clear it to remove your photo.⟫",
-  "access.level.manage": "⟪You can change this⟫",
-  "access.level.scoped": "⟪Only in repositories you were given⟫",
-  "access.level.view": "⟪You can only view this⟫",
   "access.external.heading": "⟪What you can do in connected tools⟫",
   "auth.settings.clients.revoke.warning": "⟪The client will no longer be able to read your work or start tasks. You can connect it again later. Other sessions and integrations stay connected.⟫",
   "auth.consent.scope.read.title": "⟪Read your work and documents⟫",
@@ -4404,5 +4401,8 @@
   "auth.consent.scope.operate.title": "⟪Start and direct tasks⟫",
   "auth.settings.security.twoFactorDescriptionOff": "⟪Add a six-digit authenticator code.⟫",
   "auth.settings.clients.emptyTitle": "⟪No connected apps yet⟫",
-  "auth.settings.clients.emptyDescription": "⟪Apps you allow to act for you, such as the Bakery CLI, show up here. You connect one from the app itself.⟫"
+  "auth.settings.clients.emptyDescription": "⟪Apps you allow to act for you, such as the Bakery CLI, show up here. You connect one from the app itself.⟫",
+  "access.level.manage": "⟪You can change this.⟫",
+  "access.level.scoped": "⟪Only in repositories you were given.⟫",
+  "access.level.view": "⟪You can only view this.⟫"
 }
