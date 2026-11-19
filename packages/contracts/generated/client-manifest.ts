@@ -78113,11 +78113,11 @@ export const clientManifest = {
                         "open",
                         "unverified"
                       ],
-                      "description": "The candidate route's current circuit state, so a choice is not offered onto a route that is itself down without saying so."
+                      "description": "The candidate route's current circuit state. Degraded (still serves some work) and unverified (no inference proof yet) routes stay eligible and are shown as such, so a person sees how much to trust a target before choosing it."
                     },
                     "eligible": {
                       "type": "boolean",
-                      "description": "True when the step may continue on this route."
+                      "description": "True when the step may continue on this route. A degraded or unverified route is eligible, shown with its health so the person choosing weighs it; only a route that is open, not active or on another harness is refused."
                     },
                     "ineligibleReason": {
                       "anyOf": [

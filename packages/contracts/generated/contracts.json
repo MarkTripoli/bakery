@@ -219353,11 +219353,11 @@
                 "open",
                 "unverified"
               ],
-              "description": "The candidate route's current circuit state, so a choice is not offered onto a route that is itself down without saying so."
+              "description": "The candidate route's current circuit state. Degraded (still serves some work) and unverified (no inference proof yet) routes stay eligible and are shown as such, so a person sees how much to trust a target before choosing it."
             },
             "eligible": {
               "type": "boolean",
-              "description": "True when the step may continue on this route."
+              "description": "True when the step may continue on this route. A degraded or unverified route is eligible, shown with its health so the person choosing weighs it; only a route that is open, not active or on another harness is refused."
             },
             "ineligibleReason": {
               "anyOf": [
@@ -219492,11 +219492,11 @@
                       "open",
                       "unverified"
                     ],
-                    "description": "The candidate route's current circuit state, so a choice is not offered onto a route that is itself down without saying so."
+                    "description": "The candidate route's current circuit state. Degraded (still serves some work) and unverified (no inference proof yet) routes stay eligible and are shown as such, so a person sees how much to trust a target before choosing it."
                   },
                   "eligible": {
                     "type": "boolean",
-                    "description": "True when the step may continue on this route."
+                    "description": "True when the step may continue on this route. A degraded or unverified route is eligible, shown with its health so the person choosing weighs it; only a route that is open, not active or on another harness is refused."
                   },
                   "ineligibleReason": {
                     "anyOf": [
@@ -219658,11 +219658,11 @@
                             "open",
                             "unverified"
                           ],
-                          "description": "The candidate route's current circuit state, so a choice is not offered onto a route that is itself down without saying so."
+                          "description": "The candidate route's current circuit state. Degraded (still serves some work) and unverified (no inference proof yet) routes stay eligible and are shown as such, so a person sees how much to trust a target before choosing it."
                         },
                         "eligible": {
                           "type": "boolean",
-                          "description": "True when the step may continue on this route."
+                          "description": "True when the step may continue on this route. A degraded or unverified route is eligible, shown with its health so the person choosing weighs it; only a route that is open, not active or on another harness is refused."
                         },
                         "ineligibleReason": {
                           "anyOf": [
@@ -221275,7 +221275,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:0ba5e91def67e0a7503c6129856522c688afc59a92d76c2e4b9e8cad6b47a9b3",
+  "compatibilityDigest": "sha256:664deaa0b7b2a1279f765c8bcc30c7db3fc5be99a13d416d53c9ecbc3b6babb2",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -405027,11 +405027,11 @@
             "open",
             "unverified"
           ],
-          "description": "The candidate route's current circuit state, so a choice is not offered onto a route that is itself down without saying so."
+          "description": "The candidate route's current circuit state. Degraded (still serves some work) and unverified (no inference proof yet) routes stay eligible and are shown as such, so a person sees how much to trust a target before choosing it."
         },
         "eligible": {
           "type": "boolean",
-          "description": "True when the step may continue on this route."
+          "description": "True when the step may continue on this route. A degraded or unverified route is eligible, shown with its health so the person choosing weighs it; only a route that is open, not active or on another harness is refused."
         },
         "ineligibleReason": {
           "anyOf": [
@@ -405166,11 +405166,11 @@
                   "open",
                   "unverified"
                 ],
-                "description": "The candidate route's current circuit state, so a choice is not offered onto a route that is itself down without saying so."
+                "description": "The candidate route's current circuit state. Degraded (still serves some work) and unverified (no inference proof yet) routes stay eligible and are shown as such, so a person sees how much to trust a target before choosing it."
               },
               "eligible": {
                 "type": "boolean",
-                "description": "True when the step may continue on this route."
+                "description": "True when the step may continue on this route. A degraded or unverified route is eligible, shown with its health so the person choosing weighs it; only a route that is open, not active or on another harness is refused."
               },
               "ineligibleReason": {
                 "anyOf": [
@@ -405332,11 +405332,11 @@
                         "open",
                         "unverified"
                       ],
-                      "description": "The candidate route's current circuit state, so a choice is not offered onto a route that is itself down without saying so."
+                      "description": "The candidate route's current circuit state. Degraded (still serves some work) and unverified (no inference proof yet) routes stay eligible and are shown as such, so a person sees how much to trust a target before choosing it."
                     },
                     "eligible": {
                       "type": "boolean",
-                      "description": "True when the step may continue on this route."
+                      "description": "True when the step may continue on this route. A degraded or unverified route is eligible, shown with its health so the person choosing weighs it; only a route that is open, not active or on another harness is refused."
                     },
                     "ineligibleReason": {
                       "anyOf": [
