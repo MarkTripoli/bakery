@@ -1,6 +1,7 @@
 import type {
   TicketIssueRef,
   TicketSnapshotInput,
+  TicketStatusRef,
 } from "@bakery/contracts/ticket-admission";
 import type { PgTransactionClient } from "../../platform/database.ts";
 
@@ -142,6 +143,12 @@ export type TicketIssueListPage =
   }
   | TicketReadFailure;
 
+/** The statuses an item sits in, or the reason they could not be read. */
+export type TicketStatusRead =
+  | { kind: "present"; statuses: TicketStatusRef[] }
+  | { kind: "unsupported" }
+  | TicketReadFailure;
+
 export interface TicketSourceReader {
   readIssue(
     handle: TicketSourceHandle,
@@ -169,6 +176,19 @@ export interface TicketSourceReader {
     login: string,
     signal: AbortSignal,
   ): Promise<TicketActorRole>;
+  /**
+   * The statuses the item currently sits in, in the provider's own terms.
+   *
+   * A provider that only labels answers `unsupported` rather than an empty
+   * list: an empty list would read as "a provider with statuses, none of them
+   * configured", which is a different thing and would let a misconfigured
+   * source look like a ticket that simply is not ready.
+   */
+  readStatuses(
+    handle: TicketSourceHandle,
+    number: number,
+    signal: AbortSignal,
+  ): Promise<TicketStatusRead>;
   listIssues(
     handle: TicketSourceHandle,
     request: { page: number; since: string | null },

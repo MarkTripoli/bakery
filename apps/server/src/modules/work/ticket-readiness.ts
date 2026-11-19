@@ -34,6 +34,7 @@ import type {
   TicketLabelProvenance,
   TicketLinksRead,
   TicketReadFailure,
+  TicketStatusRead,
 } from "./ticket-source-reader.ts";
 
 /**
@@ -113,6 +114,13 @@ export type ReadinessInput = {
   issue: TicketIssueRead;
   /** Answer of the links read; null when it was not made (treated as unavailable). */
   links: TicketLinksRead | null;
+  /**
+   * Answer of the status read; null when it was not made, which only matters
+   * when the policy names statuses. A provider that reports no statuses answers
+   * `unsupported`, and a policy that names statuses against it is a
+   * configuration error rather than a ticket that waits forever.
+   */
+  statuses: TicketStatusRead | null;
   /** One proof per native blocker. A blocker without an entry has no proof. */
   proofs: readonly BlockerProofEntry[];
   authority: ReadinessAuthorityFacts;
@@ -462,6 +470,36 @@ function acceptancePresent(context: Context): Outcome | null {
   });
 }
 
+/**
+ * A source may require that the ticket sits in one of the statuses it names.
+ *
+ * Both halves of the rule are matched by provider id, never by display name, so
+ * renaming a column or translating a board does not change what admits work.
+ * With no statuses configured the label alone decides and this check reports
+ * nothing at all, which keeps every existing source valid.
+ */
+function statusReady(context: Context): Outcome | null {
+  const required = context.input.policy.readiness.statuses;
+  if (required === undefined || required.length === 0) return null;
+  const answer = context.input.statuses;
+  if (answer === null) return waiting("provider_unavailable");
+  if (answer.kind === "unsupported") {
+    // Asking a label-only provider for a status is a misconfiguration, and a
+    // ticket that waited for one would wait forever without saying why.
+    return waiting("status_missing");
+  }
+  if (answer.kind !== "present") return providerUnavailable(answer);
+  const held = new Set(answer.statuses.map((status) => status.id));
+  if (required.some((id) => held.has(id))) {
+    return passed(
+      ...answer.statuses
+        .filter((status) => required.includes(status.id))
+        .map((status) => evidenceRef(`status:${status.id}`)),
+    );
+  }
+  return waiting("status_missing");
+}
+
 const BLOCKER_REASON_PRIORITY = [
   "predecessor_open",
   "closed_unmerged",
@@ -647,6 +685,7 @@ function evaluateChecks(context: Context): TicketReadinessCheck[] {
     ["intent_authorized", intentAuthorized(context)],
     ["epic_excluded", epicExcluded(context)],
     ["acceptance_present", acceptancePresent(context)],
+    ["status_ready", statusReady(context)],
     ["dependencies_satisfied", dependenciesSatisfied(context)],
     ["no_active_admission", noActiveAdmission(input)],
     ["repository_ready", repositoryReady(input)],

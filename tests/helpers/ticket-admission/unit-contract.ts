@@ -187,6 +187,7 @@ Deno.test("issue 82 contract: the vocabulary lists hold exactly the documented m
     "intent_authorized",
     "epic_excluded",
     "acceptance_present",
+    "status_ready",
     "dependencies_satisfied",
     "no_active_admission",
     "repository_ready",
@@ -223,7 +224,7 @@ Deno.test("issue 82 contract: the body, title, label and list caps are the docum
   assertEquals(TICKET_SNAPSHOT_MAX_LABELS, 50);
   assertEquals(TICKET_SNAPSHOT_MAX_BLOCKERS, 50);
   assertEquals(TICKET_CHECK_MAX_EVIDENCE, 5);
-  assertEquals(TICKET_REPORT_MAX_CHECKS, 12);
+  assertEquals(TICKET_REPORT_MAX_CHECKS, 13);
 });
 
 type TransportField = { name: string; enum?: string[] };
@@ -725,6 +726,7 @@ Deno.test("issue 82 contract: the reader port types accept every documented answ
   const reader: TicketSourceReader = {
     readIssue: () => Promise.resolve({ kind: "gone" }),
     readLinks: () => Promise.resolve(unavailable),
+    readStatuses: () => Promise.resolve({ kind: "unsupported" }),
     readPredecessorProof: () =>
       Promise.resolve({ kind: "proof_unavailable", detail: "events" }),
     readLabelProvenance: () => Promise.resolve({ kind: "absent" }),

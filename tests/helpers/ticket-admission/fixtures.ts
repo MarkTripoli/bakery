@@ -372,6 +372,31 @@ export function createMemoryTicketReader(): MemoryTicketReader {
           { kind: "absent" as const },
       );
     },
+    async readStatuses(_handle, number) {
+      const failure = await enter("readStatuses", null);
+      if (failure) return Promise.resolve(failure);
+      // A double stands in for the provider, so it answers the way GitHub does:
+      // the issue's own state, with the close reason when there is one.
+      const seed = issues.get(number);
+      if (seed === undefined) {
+        return Promise.resolve({ kind: "unsupported" as const });
+      }
+      if ("kind" in seed) {
+        return Promise.resolve({ kind: "unsupported" as const });
+      }
+      const reason = seed.stateReason ?? null;
+      return Promise.resolve({
+        kind: "present" as const,
+        statuses: [{
+          id: seed.state === "closed" && reason
+            ? `closed:${reason}`
+            : seed.state,
+          name: seed.state === "closed" && reason
+            ? `closed (${reason})`
+            : seed.state,
+        }],
+      });
+    },
     async readActorRole(_handle, login) {
       const failure = await enter("readActorRole", null);
       if (failure) return Promise.resolve(failure);

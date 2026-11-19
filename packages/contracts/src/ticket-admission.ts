@@ -104,6 +104,7 @@ export const TICKET_CHECK_IDS = Object.freeze(
     "intent_authorized",
     "epic_excluded",
     "acceptance_present",
+    "status_ready",
     "dependencies_satisfied",
     "no_active_admission",
     "repository_ready",
@@ -152,6 +153,7 @@ export const TICKET_AUTO_RESUMABLE_REASONS = Object.freeze(
   [
     "held",
     "label_missing",
+    "status_missing",
     "label_withdrawn",
     "predecessor_open",
     "closed_unmerged",
@@ -287,6 +289,9 @@ export const TICKET_CHECK_REASONS: Readonly<
       "provider_unavailable",
     ] as const,
   ),
+  status_ready: Object.freeze(
+    ["status_missing", "provider_unavailable"] as const,
+  ),
   no_active_admission: Object.freeze(["active_request"] as const),
   repository_ready: Object.freeze(
     ["repository_archived", "no_active_profile"] as const,
@@ -377,6 +382,39 @@ const providerOpaqueId = z.string().min(1).max(200).describe(
 );
 
 /**
+ * A status a provider reports for one item.
+ *
+ * `id` is the provider's own identifier and is never parsed or compared to a
+ * display name: a source policy names ids, so renaming a column or translating
+ * a board does not silently change what admits work. `name` is for people.
+ */
+export const TicketStatusRefSchema = z.object({
+  id: providerOpaqueId.describe(
+    "Provider identifier of the status, opaque and stable across renames.",
+  ),
+  name: z.string().min(1).max(200).describe(
+    "Human-readable status name, shown to people and never matched against.",
+  ),
+}).strict().describe(
+  "One status a ticket currently sits in, in the provider's own terms.",
+);
+export type TicketStatusRef = z.output<typeof TicketStatusRefSchema>;
+
+/**
+ * What a provider can do with a source, so a policy cannot ask for something
+ * the provider never reports.
+ *
+ * A tracker like Jira has statuses to move through and GitHub has an issue
+ * state; a provider that only labels declares `label` alone, and configuring a
+ * status policy against it is a configuration error rather than a ticket that
+ * waits forever.
+ */
+export const TicketSourceTriggerSchema = z.enum(["label", "status"]).describe(
+  "A kind of signal a provider can act on: a label it can apply, or a status it can move into.",
+);
+export type TicketSourceTrigger = z.output<typeof TicketSourceTriggerSchema>;
+
+/**
  * Where a ticket lives, in provider terms.
  *
  * A GitHub repository, a Linear team and a Jira project are the same thing to
@@ -443,6 +481,9 @@ const policyApprovalShape = {
 const policyReadinessShape = {
   requireAcceptanceCriteria: z.boolean().describe(
     "Whether the ticket must carry an Acceptance criteria heading with at least one list item before it is ready.",
+  ),
+  statuses: z.array(providerOpaqueId).min(1).max(10).optional().describe(
+    "Provider status ids, opaque and stable, any one of which makes the ticket ready alongside its label. Absent means the label alone decides, so a source that never names a status keeps working.",
   ),
 };
 

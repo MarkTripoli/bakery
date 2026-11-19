@@ -39,6 +39,7 @@ import type {
   TicketLabelProvenance,
   TicketLinksRead,
   TicketReadFailure,
+  TicketStatusRead,
 } from "../../../apps/server/src/modules/work/ticket-source-reader.ts";
 
 /**
@@ -201,6 +202,7 @@ function readyInput(overrides: Partial<ReadinessInput> = {}): ReadinessInput {
     preset: PRESET,
     issue: presentIssue(),
     links: presentLinks(),
+    statuses: null,
     proofs: [],
     authority: { principalActive: true, provenance: null, actorRole: null },
     activeRequest: null,
@@ -251,8 +253,10 @@ Deno.test("issue 82 unit readiness: a clean manual request is ready with every c
   assertEquals(report.verdict, "ready");
   assertEquals(
     report.checks.map((check) => check.id),
-    TICKET_CHECK_IDS.filter((id) => id !== "requirements_unchanged"),
-    "all checks, in contract order; the pin check appears only with a pin",
+    TICKET_CHECK_IDS.filter((id) =>
+      id !== "requirements_unchanged" && id !== "status_ready"
+    ),
+    "all checks, in contract order; the pin check appears only with a pin, and the status check only when a policy names a status",
   );
   assert(report.checks.every((check) => check.status === "pass"));
   assert(report.checks.every((check) => check.reason === "ok"));
@@ -277,7 +281,12 @@ Deno.test("issue 82 unit readiness: a matching pin adds a passing requirements_u
   );
   const report = await evaluate(readyInput({ pinnedRequirementsDigest: live }));
   assertEquals(report.verdict, "ready");
-  assertEquals(report.checks.length, TICKET_CHECK_IDS.length);
+  assertEquals(
+    report.checks.length,
+    // The pin check is now present; the status check still is not, because no
+    // policy in this fixture names a status.
+    TICKET_CHECK_IDS.length - 1,
+  );
   assertEquals(outcome(report, "requirements_unchanged"), ["pass", "ok"]);
   assertEquals(report.requirementsDigest, live);
 });
@@ -2218,6 +2227,7 @@ function randomInput(random: () => number): ReadinessInput {
     preset: PRESET,
     issue,
     links,
+    statuses: null,
     proofs,
     authority: { principalActive: !flip(0.05), provenance, actorRole },
     activeRequest: flip(0.25)
@@ -2361,4 +2371,108 @@ Deno.test("issue 82 unit readiness: GitHub's ladder conforms to the contract's a
       `${permission} may act exactly when it meets the act threshold`,
     );
   }
+});
+
+// ------------------------------------------------- readiness by label AND status
+
+function statusPolicy(statuses: string[]): TicketSourcePolicy {
+  return {
+    ...defaultTicketSourcePolicy(),
+    readiness: { ...defaultTicketSourcePolicy().readiness, statuses },
+  };
+}
+
+function statusesHeld(
+  ...held: [id: string, name: string][]
+): TicketStatusRead {
+  return {
+    kind: "present",
+    statuses: held.map(([id, name]) => ({ id, name })),
+  };
+}
+
+Deno.test("issue 82 unit readiness: a ticket holding a configured status is ready alongside its label", async () => {
+  const report = await evaluate(readyInput({
+    policy: statusPolicy(["open"]),
+    statuses: statusesHeld(["open", "Todo"]),
+  }));
+  assertEquals(report.verdict, "ready");
+  assertEquals(outcome(report, "status_ready"), ["pass", "ok"]);
+  assertEquals(
+    report.checks.find((check) => check.id === "status_ready")?.evidence.map(
+      (item) => item.ref,
+    ),
+    ["status:open"],
+  );
+});
+
+Deno.test("issue 82 unit readiness: a labelled ticket in the wrong status waits for the status", async () => {
+  const report = await evaluate(readyInput({
+    policy: statusPolicy(["in-progress"]),
+    statuses: statusesHeld(["open", "Todo"]),
+  }));
+  assertEquals(report.verdict, "waiting");
+  assertEquals(outcome(report, "status_ready"), ["wait", "status_missing"]);
+  // The label check still passes: the ticket was labelled, it is the status
+  // that has not arrived, and the report has to say which.
+  assertEquals(outcome(report, "intent_authorized"), ["pass", "ok"]);
+});
+
+Deno.test("issue 82 unit readiness: statuses match by id, so renaming a column changes nothing", async () => {
+  const renamed = await evaluate(readyInput({
+    policy: statusPolicy(["open"]),
+    statuses: statusesHeld(["open", "Ready for work"]),
+  }));
+  const original = await evaluate(readyInput({
+    policy: statusPolicy(["open"]),
+    statuses: statusesHeld(["open", "Todo"]),
+  }));
+  assertEquals(renamed.verdict, "ready");
+  assertEquals(
+    renamed.checks.map((check) => [check.id, check.status, check.reason]),
+    original.checks.map((check) => [check.id, check.status, check.reason]),
+    "a display name never decides readiness",
+  );
+});
+
+Deno.test("issue 82 unit readiness: a policy may name any of several statuses", async () => {
+  const report = await evaluate(readyInput({
+    policy: statusPolicy(["ready", "in-progress"]),
+    statuses: statusesHeld(["in-progress", "Doing"]),
+  }));
+  assertEquals(report.verdict, "ready");
+  assertEquals(outcome(report, "status_ready"), ["pass", "ok"]);
+});
+
+Deno.test("issue 82 unit readiness: asking a label-only provider for a status says so instead of waiting forever", async () => {
+  const report = await evaluate(readyInput({
+    policy: statusPolicy(["open"]),
+    statuses: { kind: "unsupported" },
+  }));
+  assertEquals(report.verdict, "waiting");
+  assertEquals(outcome(report, "status_ready"), ["wait", "status_missing"]);
+});
+
+Deno.test("issue 82 unit readiness: a provider that could not answer is unavailable, not missing", async () => {
+  const report = await evaluate(readyInput({
+    policy: statusPolicy(["open"]),
+    statuses: {
+      kind: "unavailable",
+      reason: "rate_limited",
+      retryAfterSeconds: 30,
+    },
+  }));
+  assertEquals(report.verdict, "waiting");
+  assertEquals(outcome(report, "status_ready"), [
+    "wait",
+    "provider_unavailable",
+  ]);
+});
+
+Deno.test("issue 82 unit readiness: a source that names no status keeps deciding on its label alone", async () => {
+  const report = await evaluate(
+    readyInput({ statuses: statusesHeld(["open", "Todo"]) }),
+  );
+  assertEquals(report.verdict, "ready");
+  assertEquals(outcome(report, "status_ready"), undefined);
 });
