@@ -6595,6 +6595,63 @@ export const clientManifest = {
     {
       "group": "Installation administration",
       "method": "GET",
+      "path": "/v1/integration-client-credentials/{provider}",
+      "action": "integrationClientCredentials.get",
+      "access": "Installation administrator",
+      "permission": "installationSetting:read",
+      "input": "IntegrationProviderPath",
+      "output": "IntegrationClientCredentials",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "INTERNAL",
+        "RESOURCE_NOT_FOUND"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
+      "method": "PUT",
+      "path": "/v1/integration-client-credentials/{provider}",
+      "action": "integrationClientCredentials.put",
+      "access": "Installation administrator",
+      "permission": "installationSetting:manage",
+      "input": "IntegrationClientCredentialsPut",
+      "output": "IntegrationClientCredentials",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required; If-Match with the current version once credentials are registered",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
+        "PRECONDITION_REQUIRED",
+        "PRECONDITION_FAILED",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "DEPENDENCY_UNAVAILABLE",
+        "INTERNAL",
+        "RESOURCE_NOT_FOUND"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
+      "method": "GET",
       "path": "/v1/installation/skill-storage",
       "action": "skillStorageSettings.get",
       "access": "Installation administrator",
@@ -13493,6 +13550,8 @@ export const clientManifest = {
             "integrationAppRegistrations.get",
             "integrationAppRegistrations.begin",
             "integrationAppRegistrations.put",
+            "integrationClientCredentials.get",
+            "integrationClientCredentials.put",
             "skillStorageSettings.get",
             "skillStorageSettings.put",
             "skillStorageSettings.verify",
@@ -22896,6 +22955,45 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Makes the caller the completer of a workflow step instead of its agent. Allowed only for a step of a compiled-plan run whose action produces an artifact, whose job is still queued with no live attempt, and only for a caller holding run control; a step with a live attempt is refused with STATE_CONFLICT `attempt_live` and must be stopped through run control first."
+    },
+    "IntegrationProviderPath": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "provider": {
+          "type": "string",
+          "maxLength": 64,
+          "description": "Provider slug the installation setting belongs to, as the provider registry names it (for example linear). Only a provider whose manifest asks for client credentials is served. IntegrationProviderPath.provider must contain at most 64 characters."
+        }
+      },
+      "required": [
+        "provider"
+      ],
+      "additionalProperties": false,
+      "description": "Names the integration provider a client-credentials setting is read for."
+    },
+    "IntegrationClientCredentialsPut": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "clientId": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "The OAuth application's client ID, as the provider shows it. It is not a secret and is shown back to installation administrators. IntegrationClientCredentialsPut.clientId must contain at most 200 characters."
+        },
+        "clientSecret": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536,
+          "description": "The OAuth application's client secret. Write-only: it is sealed under the installation key and never returned; saving always replaces the stored secret with this one."
+        }
+      },
+      "required": [
+        "clientId",
+        "clientSecret"
+      ],
+      "additionalProperties": false,
+      "description": "Registers or replaces the OAuth client credentials an installation uses to connect organizations to one integration provider. Both fields are required every time: a replacement states the whole pair, so the stored client ID and secret can never disagree."
     },
     "PluginState": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -35453,6 +35551,8 @@ export const clientManifest = {
                   "integrationAppRegistrations.get",
                   "integrationAppRegistrations.begin",
                   "integrationAppRegistrations.put",
+                  "integrationClientCredentials.get",
+                  "integrationClientCredentials.put",
                   "skillStorageSettings.get",
                   "skillStorageSettings.put",
                   "skillStorageSettings.verify",
@@ -53066,6 +53166,8 @@ export const clientManifest = {
             "integrationAppRegistrations.get",
             "integrationAppRegistrations.begin",
             "integrationAppRegistrations.put",
+            "integrationClientCredentials.get",
+            "integrationClientCredentials.put",
             "skillStorageSettings.get",
             "skillStorageSettings.put",
             "skillStorageSettings.verify",
@@ -79941,6 +80043,71 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "The route continuations a run is waiting on: one offer per step that is pinned to a route with an open incident and has not already been continued for that incident. Empty when nothing is stalled. It is a read of current state, never a decision: nothing is admitted, paused or charged by reading it."
+    },
+    "IntegrationClientCredentials": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "provider": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Provider slug these credentials belong to."
+        },
+        "configured": {
+          "type": "boolean",
+          "description": "True once a client ID and secret have been saved for this provider."
+        },
+        "clientId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The registered client ID, or null while nothing is registered."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "IntegrationClientCredentials.clientId may be null in the safe projection."
+        },
+        "clientSecretSavedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp at which the current client secret was saved, or null while nothing is registered. A secret is never shown, so this is how an administrator tells it was replaced."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "IntegrationClientCredentials.clientSecretSavedAt may be null in the safe projection."
+        },
+        "callbackUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "The URL to enter in the provider's OAuth application as its callback, derived from this installation's public address."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Registration version: 0 while nothing is registered, then the optimistic-concurrency value to send as If-Match when replacing the credentials."
+        }
+      },
+      "required": [
+        "provider",
+        "configured",
+        "clientId",
+        "clientSecretSavedAt",
+        "callbackUrl",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "Whether an integration provider's OAuth client credentials are registered on this installation, which client ID, when the secret was last saved, and the callback URL to give the provider. The secret itself is never part of it. Version is 0 until credentials are saved and is the If-Match value for the next save."
     }
   }
 } as const;

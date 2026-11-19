@@ -4,6 +4,7 @@ import {
   type probeSkillStorage,
 } from "./modules/catalog/storage-backend.ts";
 import { createSkillStorageRoutes } from "./modules/catalog/skill-storage-actions.ts";
+import { createClientCredentialsRoutes } from "./modules/integrations/client-credentials.ts";
 import { createAgentsRoutes } from "./modules/agents/index.ts";
 import { createProviderReadRoutes } from "./modules/execution/provider-read-routes.ts";
 import { createRouteContinuationRoutes } from "./modules/execution/route-continuations.ts";
@@ -924,6 +925,15 @@ export function createApp(options: {
       browserSession,
       publicBaseUrl: options.config.publicBaseUrl,
       dependencies: { ...skillStorage, probe: options.skillStorageProbe },
+    }),
+  );
+  app.route(
+    "/",
+    createClientCredentialsRoutes({
+      database: options.pgDatabase,
+      browserSession,
+      publicBaseUrl: options.config.publicBaseUrl,
+      secretsKey: options.config.secretsKey,
     }),
   );
   app.route(

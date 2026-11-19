@@ -757,6 +757,7 @@ export function createNormalizedCommandMetadata(
   const conditionalPutActions: ReadonlySet<ActionDefinition["name"]> = new Set(
     [
       "integrationAppRegistrations.put",
+      "integrationClientCredentials.put",
       "scopeProfiles.put",
       "skillStorageSettings.put",
     ],
