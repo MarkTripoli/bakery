@@ -7752,7 +7752,7 @@
           "name": "versionId",
           "type": "uuid",
           "required": true,
-          "description": "Immutable package version this install pins; installing this version grants no capabilities by itself until any needed permission_grants are separately approved."
+          "description": "Immutable package version this install pins; installing it grants the install every capability that version's manifest requests, all at once."
         },
         {
           "name": "scope",
@@ -7772,9 +7772,9 @@
         }
       ],
       "rules": [
-        "Personal scope requires the current principal owner; organization scope forbids an owner. Installation grants no capabilities."
+        "Personal scope requires the current principal owner; organization scope forbids an owner. Installation grants the install every capability the version's manifest requests, all at once. Turning the install off or removing it revokes them all in the same step, turning it back on restores exactly the manifest's set, and moving to another version re-reads that version's manifest."
       ],
-      "description": "Installs one immutable, published plugin version into the organization (Admin-only, shared) or for one principal personally (Developer, private); installing pins the version but grants no capabilities on its own."
+      "description": "Installs one immutable, published plugin version into the organization (Admin-only, shared) or for one principal personally (Developer, private); installing pins the version and gives the install every capability that version's manifest requests, all at once, with no way to give some and not others."
     },
     "PluginInstallUpdate": {
       "fields": [

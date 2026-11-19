@@ -171,3 +171,41 @@ export function availablePlugins(
   }
   return rows.sort((a, b) => a.name.localeCompare(b.name));
 }
+
+/** What moving from one version to another adds and takes away. */
+export function capabilityDifference(
+  from: readonly PluginCapability[],
+  to: readonly PluginCapability[],
+): { added: PluginCapability[]; removed: PluginCapability[] } {
+  return {
+    added: to.filter((capability) => !from.includes(capability)),
+    removed: from.filter((capability) => !to.includes(capability)),
+  };
+}
+
+export type PluginActor = Readonly<{
+  role: "admin" | "developer" | "viewer" | "guest" | null;
+  principalId: string | null;
+}>;
+
+/**
+ * Whether this person may change an install: an organization install by an
+ * administrator, a private one by the person it belongs to. The server decides
+ * in the end; this only keeps the page from offering what it will refuse.
+ */
+export function mayChangeInstall(
+  install: Pick<InstalledPlugin, "scope" | "ownerPrincipalId">,
+  actor: PluginActor,
+): boolean {
+  return install.scope === "organization"
+    ? actor.role === "admin"
+    : actor.principalId !== null &&
+      install.ownerPrincipalId === actor.principalId;
+}
+
+/** Whether this person may install for the given scope. */
+export function mayInstall(scope: PluginScope, actor: PluginActor): boolean {
+  return scope === "organization"
+    ? actor.role === "admin"
+    : actor.role === "admin" || actor.role === "developer";
+}

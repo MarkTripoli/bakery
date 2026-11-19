@@ -187,3 +187,41 @@ Deno.test("what a version can do is its manifest's list, in the page's order", (
     "anything outside the fixed list is ignored",
   );
 });
+
+Deno.test("what a move between versions adds and takes away", async () => {
+  const { capabilityDifference } = await import(
+    "../../apps/web/src/app/plugins.ts"
+  );
+  assertEquals(
+    capabilityDifference(["state.read", "ui.page"], [
+      "ui.page",
+      "jobs.schedule",
+    ]),
+    { added: ["jobs.schedule"], removed: ["state.read"] },
+  );
+  assertEquals(capabilityDifference(["ui.page"], ["ui.page"]), {
+    added: [],
+    removed: [],
+  });
+});
+
+Deno.test("who may change an install and who may install", async () => {
+  const { mayChangeInstall, mayInstall } = await import(
+    "../../apps/web/src/app/plugins.ts"
+  );
+  const me = id(50);
+  const admin = { role: "admin" as const, principalId: id(60) };
+  const dev = { role: "developer" as const, principalId: me };
+  const viewer = { role: "viewer" as const, principalId: id(61) };
+  const orgInstall = { scope: "organization" as const, ownerPrincipalId: null };
+  const mine = { scope: "personal" as const, ownerPrincipalId: me };
+  assertEquals(mayChangeInstall(orgInstall, admin), true);
+  assertEquals(mayChangeInstall(orgInstall, dev), false);
+  assertEquals(mayChangeInstall(mine, dev), true);
+  // An administrator does not change someone else's private install.
+  assertEquals(mayChangeInstall(mine, admin), false);
+  assertEquals(mayInstall("organization", admin), true);
+  assertEquals(mayInstall("organization", dev), false);
+  assertEquals(mayInstall("personal", dev), true);
+  assertEquals(mayInstall("personal", viewer), false);
+});

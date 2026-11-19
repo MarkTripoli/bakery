@@ -1,0 +1,474 @@
+import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
+import { useState } from "react";
+import * as UI from "@bakery/ui";
+import { useBakeryApi } from "../api/context.tsx";
+import {
+  effectiveAccessQueryOptions,
+  organizationQueryOptions,
+  pluginInstallsQueryOptions,
+  pluginPackagesQueryOptions,
+  pluginVersionsQueryOptions,
+} from "../api/query.ts";
+import {
+  capabilitiesOf,
+  installedPlugins,
+  mayChangeInstall,
+  type PluginActor,
+  type PluginVersion,
+  publishedVersions,
+} from "../app/plugins.ts";
+import { useProtectedScope } from "../app/query-scope-context.tsx";
+import { useRestoreOrganizationScope } from "../app/restore-organization.ts";
+import { useSession } from "../app/session-context.tsx";
+import { useI18n } from "../i18n/I18nProvider.tsx";
+import { SETTINGS_HOME } from "../shell/breadcrumb-paths.ts";
+import { ShellActiveNavigation, ShellSlot } from "../shell/shell-slots.tsx";
+import {
+  CapabilityList,
+  RemoveDialog,
+  TurnOffDialog,
+  VersionChangeDialog,
+} from "./plugins/PluginDialogs.tsx";
+import {
+  type ChangeFailure,
+  changeFailureOf,
+  usePluginChanges,
+} from "./plugins/use-plugin-changes.ts";
+
+const PLUGINS_PATH = "/settings/organization/plugins";
+
+type Dialog =
+  | { readonly kind: "off" }
+  | { readonly kind: "remove" }
+  | {
+    readonly kind: "version";
+    readonly version: PluginVersion;
+    readonly direction: "update" | "goBack";
+  }
+  | null;
+
+/**
+ * One plugin of the organization (design-ux, #76 rev 3). What it can do is a
+ * read-only list taken from the version it runs: installing gave it all of it,
+ * turning it off takes it away, turning it on gives it back. Updating or going
+ * back shows what changes first. Removing cannot be undone.
+ */
+export function PluginPage({ installId }: { readonly installId: string }) {
+  const api = useBakeryApi();
+  const scope = useProtectedScope();
+  const navigate = useNavigate();
+  const session = useSession();
+  const { locale, timeZone, translate } = useI18n();
+  useRestoreOrganizationScope();
+  const access = useQuery(effectiveAccessQueryOptions(api, scope));
+  const organization = useQuery(organizationQueryOptions(api, scope));
+  const packages = useQuery(pluginPackagesQueryOptions(api, scope));
+  const installs = useQuery(pluginInstallsQueryOptions(api, scope));
+  const install = installs.data?.items.find((item) => item.id === installId);
+  const versionRead = useQuery({
+    ...pluginVersionsQueryOptions(api, scope, install?.pluginPackageId ?? ""),
+    enabled: install !== undefined && Boolean(scope.organizationId),
+  });
+  const versions = versionRead.data?.items ?? [];
+  const changes = usePluginChanges();
+  const [dialog, setDialog] = useState<Dialog>(null);
+  const [failure, setFailure] = useState<ChangeFailure | null>(null);
+  const [notice, setNotice] = useState<"on" | null>(null);
+  /** Versions this page tried to move to and that did not start. */
+  const [didNotStart, setDidNotStart] = useState<ReadonlySet<string>>(
+    new Set(),
+  );
+
+  const actor: PluginActor = {
+    role: access.data?.role ?? null,
+    principalId: session.identity?.principalId ?? null,
+  };
+  const row = install === undefined || packages.data === undefined
+    ? undefined
+    : installedPlugins(
+      [install],
+      packages.data.items,
+      new Map([[install.pluginPackageId, versions]]),
+    )[0];
+  const current = versions.find((item) => item.id === install?.pluginVersionId);
+  const capabilities = current === undefined ? [] : capabilitiesOf(current);
+  const mayChange = row === undefined ? false : mayChangeInstall(row, actor);
+  const date = (value: string) =>
+    new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeZone }).format(
+      new Date(value),
+    );
+
+  const loading = installs.isPending || packages.isPending ||
+    (install !== undefined && versionRead.isPending);
+  const notFound = !loading && row === undefined;
+  const name = row?.name ?? "";
+
+  const close = () => {
+    setDialog(null);
+    setFailure(null);
+  };
+  const change = async (
+    work: () => Promise<unknown>,
+    done: () => void,
+  ) => {
+    setFailure(null);
+    try {
+      await work();
+      done();
+    } catch (error) {
+      setFailure(changeFailureOf(error));
+      throw error;
+    }
+  };
+  const setStatus = (status: "enabled" | "disabled" | "uninstalled") =>
+    changes.update.mutateAsync({
+      id: installId,
+      version: row!.installVersion,
+      change: { status },
+    });
+
+  const turnOn = () =>
+    void change(() => setStatus("enabled"), () => setNotice("on")).catch(
+      () => undefined,
+    );
+  const turnOff = () =>
+    void change(() => setStatus("disabled"), () => {
+      setNotice(null);
+      close();
+    }).catch(() => undefined);
+  const remove = () =>
+    void change(() => setStatus("uninstalled"), () => {
+      close();
+      void navigate({ to: PLUGINS_PATH });
+    }).catch(() => undefined);
+  const moveTo = (version: PluginVersion) =>
+    void change(
+      () =>
+        changes.update.mutateAsync({
+          id: installId,
+          version: row!.installVersion,
+          change: { versionId: version.id },
+        }),
+      () => {
+        setDidNotStart((previous) => {
+          const next = new Set(previous);
+          next.delete(version.id);
+          return next;
+        });
+        close();
+      },
+    ).catch((error) => {
+      if (changeFailureOf(error) === "failed") {
+        setDidNotStart((previous) => new Set(previous).add(version.id));
+      }
+    });
+
+  const published = publishedVersions(versions);
+  const newest = published[0];
+  const who = row?.scope === "organization"
+    ? translate("settings.plugins.remove.whoOrganization", {
+      organization: organization.data?.name ?? "",
+    })
+    : translate("settings.plugins.remove.whoYou");
+  const failedNext = row?.update === undefined || row?.update === null
+    ? null
+    : didNotStart.has(row.update.versionId)
+    ? row.update.versionName
+    : null;
+
+  return (
+    <>
+      <ShellActiveNavigation id="settings" />
+      <ShellSlot name="breadcrumbs">
+        <UI.Breadcrumbs
+          aria-label={translate("shell.navigation.breadcrumb")}
+          items={[
+            {
+              href: SETTINGS_HOME,
+              label: translate("shell.states.settingsTitle"),
+            },
+            {
+              href: PLUGINS_PATH,
+              label: translate("shell.navigation.plugins"),
+            },
+            { label: name || translate("shell.navigation.plugins") },
+          ]}
+        />
+      </ShellSlot>
+      <UI.SettingsContent data-testid="plugin">
+        {loading ? <UI.Skeleton shape="row" /> : notFound
+          ? (
+            <UI.ErrorState
+              title={translate("settings.plugins.page.notFound")}
+              action={
+                <UI.Button
+                  variant="secondary"
+                  onClick={() => void navigate({ to: PLUGINS_PATH })}
+                >
+                  {translate("settings.plugins.page.back")}
+                </UI.Button>
+              }
+            />
+          )
+          : row === undefined
+          ? null
+          : (
+            <>
+              <UI.Stack gap="tight">
+                <UI.Inline variant="between">
+                  <UI.Heading level="page">{row.name}</UI.Heading>
+                  <UI.Badge
+                    tone={row.state === "on"
+                      ? "success"
+                      : row.state === "notWorking"
+                      ? "danger"
+                      : "neutral"}
+                  >
+                    {translate(
+                      `settings.plugins.state.${
+                        row.state === "ready" ? "off" : row.state
+                      }`,
+                    )}
+                  </UI.Badge>
+                </UI.Inline>
+                <UI.Text variant="muted">
+                  {translate("settings.plugins.line.version", {
+                    version: row.versionName,
+                  })}
+                  {" · "}
+                  {row.scope === "organization"
+                    ? translate("settings.plugins.scope.organization")
+                    : translate("settings.plugins.scope.personal")}
+                </UI.Text>
+              </UI.Stack>
+
+              {failedNext !== null
+                ? (
+                  <UI.InlineNotice tone="error" role="alert">
+                    <UI.Text>
+                      {translate("settings.plugins.update.failed.title", {
+                        next: failedNext,
+                      })}
+                    </UI.Text>
+                    <UI.Text>
+                      {translate("settings.plugins.update.failed.body", {
+                        version: row.versionName,
+                        next: failedNext,
+                      })}
+                    </UI.Text>
+                  </UI.InlineNotice>
+                )
+                : null}
+              {notice === "on"
+                ? (
+                  <UI.InlineNotice tone="success" role="status">
+                    {translate("settings.plugins.turnOn.done", { name })}
+                  </UI.InlineNotice>
+                )
+                : null}
+              {failure !== null && dialog === null
+                ? (
+                  <UI.InlineNotice tone="error" role="alert">
+                    {failure === "conflict"
+                      ? translate("settings.plugins.conflict")
+                      : failure === "offline"
+                      ? translate("settings.plugins.offline")
+                      : translate("settings.plugins.changeFailed", {
+                        what: translate("settings.plugins.action.turnOn"),
+                      })}
+                  </UI.InlineNotice>
+                )
+                : null}
+
+              {mayChange
+                ? (
+                  <UI.Inline gap="compact">
+                    {row.state === "on"
+                      ? (
+                        <UI.Button
+                          variant="secondary"
+                          onClick={() => {
+                            setFailure(null);
+                            setDialog({ kind: "off" });
+                          }}
+                        >
+                          {translate("settings.plugins.turnOff.action")}
+                        </UI.Button>
+                      )
+                      : row.state === "notWorking"
+                      ? null
+                      : (
+                        <UI.Button
+                          variant="primary"
+                          disabled={changes.pending}
+                          onClick={turnOn}
+                        >
+                          {translate("settings.plugins.action.turnOn")}
+                        </UI.Button>
+                      )}
+                    <UI.Button
+                      variant="secondary"
+                      onClick={() => {
+                        setFailure(null);
+                        setDialog({ kind: "remove" });
+                      }}
+                    >
+                      {translate("settings.plugins.remove.action")}
+                    </UI.Button>
+                  </UI.Inline>
+                )
+                : null}
+
+              <UI.Stack gap="standard" data-testid="plugin-can-do">
+                <UI.Inline gap="compact">
+                  <UI.Heading level="section">
+                    {translate("settings.plugins.page.whatItCanDo")}
+                  </UI.Heading>
+                  <UI.HelpTip
+                    label={translate("settings.plugins.page.whatItCanDo")}
+                  >
+                    {translate("settings.plugins.page.whatItCanDoHelp")}
+                  </UI.HelpTip>
+                </UI.Inline>
+                {capabilities.length === 0
+                  ? (
+                    <UI.Text>
+                      {translate("settings.plugins.page.noneAsked")}
+                    </UI.Text>
+                  )
+                  : (
+                    <>
+                      <CapabilityList
+                        capabilities={capabilities}
+                        label={translate("settings.plugins.page.whatItCanDo")}
+                      />
+                      <UI.Text variant="hint">
+                        {row.state === "on"
+                          ? translate("settings.plugins.page.whenOn")
+                          : translate("settings.plugins.page.whenOff")}
+                      </UI.Text>
+                    </>
+                  )}
+              </UI.Stack>
+
+              <UI.Stack gap="standard" data-testid="plugin-versions">
+                <UI.Heading level="section">
+                  {translate("settings.plugins.versions.heading")}
+                </UI.Heading>
+                <UI.Stack
+                  gap="none"
+                  role="list"
+                  aria-label={translate("settings.plugins.versions.heading")}
+                >
+                  {published.map((version) => {
+                    const isCurrent = version.id === row.versionId;
+                    const newer = current?.publishedAt != null &&
+                      version.publishedAt! > current.publishedAt;
+                    return (
+                      <div
+                        key={version.id}
+                        role="listitem"
+                        data-plugin-version={version.id}
+                      >
+                        <UI.StackedRow
+                          title={version.versionName}
+                          status={isCurrent
+                            ? (
+                              <UI.Badge tone="information">
+                                {translate("settings.plugins.versions.current")}
+                              </UI.Badge>
+                            )
+                            : didNotStart.has(version.id)
+                            ? (
+                              <UI.Badge tone="danger">
+                                {translate(
+                                  "settings.plugins.versions.didNotStart",
+                                )}
+                              </UI.Badge>
+                            )
+                            : undefined}
+                        >
+                          <UI.Text variant="caption">
+                            {translate("settings.plugins.update.published", {
+                              when: date(version.publishedAt!),
+                            })}
+                          </UI.Text>
+                          {isCurrent || !mayChange ? null : (
+                            <UI.Button
+                              variant={newer && version.id === newest?.id
+                                ? "primary"
+                                : "secondary"}
+                              aria-label={newer
+                                ? translate(
+                                  "settings.plugins.versions.updateNamed",
+                                  {
+                                    version: version.versionName,
+                                  },
+                                )
+                                : translate(
+                                  "settings.plugins.versions.goBackNamed",
+                                  {
+                                    version: version.versionName,
+                                  },
+                                )}
+                              onClick={() => {
+                                setFailure(null);
+                                setDialog({
+                                  kind: "version",
+                                  version,
+                                  direction: newer ? "update" : "goBack",
+                                });
+                              }}
+                            >
+                              {newer
+                                ? translate("settings.plugins.versions.update")
+                                : translate("settings.plugins.versions.goBack")}
+                            </UI.Button>
+                          )}
+                        </UI.StackedRow>
+                      </div>
+                    );
+                  })}
+                </UI.Stack>
+              </UI.Stack>
+            </>
+          )}
+      </UI.SettingsContent>
+      {row === undefined || dialog?.kind !== "off" ? null : (
+        <TurnOffDialog
+          name={row.name}
+          count={capabilities.length}
+          pending={changes.update.isPending}
+          failure={failure}
+          onCancel={close}
+          onConfirm={turnOff}
+        />
+      )}
+      {row === undefined || dialog?.kind !== "remove" ? null : (
+        <RemoveDialog
+          name={row.name}
+          who={who}
+          pending={changes.update.isPending}
+          failure={failure}
+          onCancel={close}
+          onConfirm={remove}
+        />
+      )}
+      {row === undefined || dialog?.kind !== "version"
+        ? null
+        : (
+          <VersionChangeDialog
+            kind={dialog.direction}
+            name={row.name}
+            from={current}
+            to={dialog.version}
+            pending={changes.update.isPending}
+            failure={failure}
+            onCancel={close}
+            onConfirm={() => moveTo(dialog.version)}
+          />
+        )}
+    </>
+  );
+}
