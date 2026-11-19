@@ -28418,6 +28418,94 @@
         "body": "The note text, at most 4000 characters.",
         "createdAt": "When the note was recorded."
       }
+    },
+    "RouteContinuationTarget": {
+      "fields": [
+        "routeId",
+        "provider",
+        "model",
+        "harness",
+        "billingRoute",
+        "health",
+        "eligible",
+        "ineligibleReason"
+      ],
+      "nullableFields": [
+        "ineligibleReason"
+      ],
+      "fieldTypes": {
+        "routeId": "uuid",
+        "provider": "string",
+        "model": "string",
+        "harness": "enum(pi|claude_code|codex|mastra)",
+        "billingRoute": "enum(subscription|api_metered|local)",
+        "health": "enum(healthy|degraded|open|unverified)",
+        "eligible": "boolean",
+        "ineligibleReason": "enum(different_harness|route_not_active|route_open)"
+      },
+      "description": "One route a stalled step could continue on, with whether it may and, when it may not, the one reason. Every other route of the organization is listed, eligible or not, so a person choosing can see why a route is not offered instead of wondering where it went.",
+      "fieldDescriptions": {
+        "routeId": "UUID of the candidate provider route.",
+        "provider": "Provider key the candidate route sends to.",
+        "model": "Model identifier the candidate route pins; a continuation runs the step on this model.",
+        "harness": "Harness path the candidate route executes on: pi, claude_code, codex or mastra.",
+        "billingRoute": "Billing route the candidate route's spend follows: subscription, api_metered or local.",
+        "health": "The candidate route's current circuit state. Degraded (still serves some work) and unverified (no inference proof yet) routes stay eligible and are shown as such, so a person sees how much to trust a target before choosing it.",
+        "eligible": "True when the step may continue on this route. A degraded or unverified route is eligible, shown with its health so the person choosing weighs it; only a route that is open, not active or on another harness is refused.",
+        "ineligibleReason": "Why the route cannot take the step, or null when eligible: different_harness (a continuation keeps the step's harness), route_not_active (disabled or revoked), or route_open (the route has its own open incident)."
+      }
+    },
+    "RouteContinuationOffer": {
+      "fields": [
+        "runStepId",
+        "stepKey",
+        "incidentId",
+        "incidentGeneration",
+        "sourceRouteId",
+        "runVersion",
+        "estimatedIncrementalCost",
+        "targets"
+      ],
+      "nullableFields": [
+        "estimatedIncrementalCost"
+      ],
+      "fieldTypes": {
+        "runStepId": "uuid",
+        "stepKey": "string",
+        "incidentId": "uuid",
+        "incidentGeneration": "integer",
+        "sourceRouteId": "uuid",
+        "runVersion": "integer",
+        "estimatedIncrementalCost": "decimalString|null",
+        "targets": "RouteContinuationTarget[]"
+      },
+      "description": "One choice a run is waiting on: a step pinned to a route that has an open incident, and the routes it could continue on. The incident generation and the run version are what a later submission names, so a choice made against an incident that has since recovered, or a run that has since changed, is recognised as stale and commits nothing.",
+      "fieldDescriptions": {
+        "runStepId": "UUID of the run step whose provider is down.",
+        "stepKey": "The step's key within the workflow, for display.",
+        "incidentId": "UUID of the open incident the step is stalled behind.",
+        "incidentGeneration": "The incident's generation when this offer was made; a submission carrying a lower or different generation is stale.",
+        "sourceRouteId": "UUID of the route the step is currently pinned to, whose incident this is.",
+        "runVersion": "The run's version when this offer was made, so a submission can be refused if the run changed in between.",
+        "estimatedIncrementalCost": "Estimated extra spend of continuing on another route, as a decimal string in USD, or null while no estimate exists; the budget recheck that fills it is a later slice.",
+        "targets": "Every other route of the organization, each marked eligible or not with the reason."
+      }
+    },
+    "RouteContinuationOffers": {
+      "fields": [
+        "runId",
+        "offers"
+      ],
+      "nullableFields": [],
+      "fieldTypes": {
+        "runId": "uuid",
+        "offers": "RouteContinuationOffer[]"
+      },
+      "description": "The route continuations a run is waiting on: one offer per step that is pinned to a route with an open incident and has not already been continued for that incident. Empty when nothing is stalled. It is a read of current state, never a decision: nothing is admitted, paused or charged by reading it.",
+      "fieldDescriptions": {
+        "runId": "UUID of the run these offers belong to.",
+        "offers": "The open choices, empty when no step of the run is stalled behind an incident."
+      }
     }
   },
   "pageEnvelope": {
