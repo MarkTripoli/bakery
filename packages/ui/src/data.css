@@ -364,6 +364,11 @@
 .ui-data-table thead tr:has(.ui-help-tip) th {
   vertical-align: middle;
 }
+/* A help button stays beside its header text; a long header wraps its words,
+   not the button. */
+.ui-data-table thead .ui-inline:has(.ui-help-tip) {
+  flex-wrap: nowrap;
+}
 .ui-code-block {
   background: var(--color-syntax-surface);
   border-radius: var(--radius-control);

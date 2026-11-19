@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { withStepNotes } from "./step-notes-prompt.ts";
 import { enforceWorkerFixedPolicy, type WorkerExecutor } from "./executor.ts";
 import type { ExecutionOutcome } from "./executor.ts";
 import type { NativeOutputSink } from "./native-output.ts";
@@ -276,9 +277,12 @@ async function executeCodexHarness(
     : undefined;
   const prompt = repair !== undefined
     ? buildRepairPrompt(repair)
-    : instructions === undefined
-    ? basePrompt
-    : `${basePrompt}\n\nTask instructions:\n${instructions}`;
+    : withStepNotes(
+      instructions === undefined
+        ? basePrompt
+        : `${basePrompt}\n\nTask instructions:\n${instructions}`,
+      input,
+    );
   const commitMessage = repair !== undefined
     ? repairCommitMessage(repair.revision)
     : `bakery: plan artifact ${planArtifact}`;
