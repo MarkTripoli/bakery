@@ -53,9 +53,11 @@ export function ConnectedClientsScreen(
         : null}
       {async === "empty"
         ? (
-          <UI.InlineNotice data-testid="security-empty" tone="neutral">
-            {translate("auth.settings.clients.emptyNotice")}
-          </UI.InlineNotice>
+          <UI.EmptyState
+            data-testid="security-empty"
+            description={translate("auth.settings.clients.emptyDescription")}
+            title={translate("auth.settings.clients.emptyTitle")}
+          />
         )
         : null}
       <SecurityAsyncBoundary

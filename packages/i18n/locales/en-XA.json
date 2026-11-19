@@ -306,7 +306,6 @@
   "auth.settings.security.identityConfirmed": "⟦Your identity was confirmed. — ŧëšŧ çôþÿ⟧",
   "auth.settings.security.manage": "⟦Manage — ŧëšŧ çôþÿ⟧",
   "auth.settings.security.twoFactorTitle": "⟦Two-factor authentication — ŧëšŧ çôþÿ⟧",
-  "auth.settings.security.twoFactorDescriptionOff": "⟦Off · Add a six-digit authenticator code. — ŧëšŧ çôþÿ⟧",
   "auth.settings.security.twoFactorDescriptionOn": "⟦Authenticator on · {count, plural, one {# backup code} other {# backup codes}} remaining. — ŧëšŧ çôþÿ⟧",
   "auth.settings.security.setUp": "⟦Set up — ŧëšŧ çôþÿ⟧",
   "auth.settings.twoFactor.description": "⟦Add an extra check when you sign in to Bakery. — ŧëšŧ çôþÿ⟧",
@@ -1113,8 +1112,6 @@
   "auth.settings.clients.description": "⟦Ŕëṽïëŵ àþþš ÿôû’ṽë àûŧĥôŕïžëð ŧô àççëšš Ɓàķëŕÿ. ŧëšŧ çôþÿ ŧëšŧ⟧",
   "auth.settings.clients.revoke": "⟦Ŕëṽôķë àççëšš ŧë⟧",
   "auth.settings.clients.revokeNamed": "⟦Ŕëṽôķë àççëšš ƒôŕ {client} ïñ {organization} ŧëšŧ çôþÿ ŧëš⟧",
-  "auth.settings.clients.emptyTitle": "⟦Ñô çôññëçŧëð çļïëñŧš ŧëšŧ⟧",
-  "auth.settings.clients.emptyDescription": "⟦Àþþš ÿôû àûŧĥôŕïžë ŧô ûšë Ɓàķëŕÿ àþþëàŕ ĥëŕë. Ÿôû çàñ ŕëṽôķë ŧĥëɱ àŧ àñÿ ŧïɱë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "auth.settings.clients.revoke.title": "⟦Ŕëṽôķë çļïëñŧ àççëšš? ŧëšŧŧ⟧",
   "auth.settings.clients.revoke.description": "⟦{client} ŵïļļ ļôšë ïŧš çûŕŕëñŧ àççëšš ŧô {organization}. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "auth.settings.clients.revoke.cancel": "⟦Çàñçëļ…⟧",
@@ -1148,7 +1145,6 @@
   "auth.settings.clients.revoke.failed": "⟦Ŧĥë ĝŕàñŧ çôûļð ñôŧ ƀë ŕëṽôķëð. Ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧë⟧",
   "settings.password.successNotice": "⟦Ÿôûŕ çûŕŕëñŧ šëššïôñ šŧàÿš šïĝñëð ïñ. Ôŧĥëŕ šëššïôñš ŵëŕë šïĝñëð ôûŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
   "auth.settings.clients.revokedNotice": "⟦Ŧĥë çļïëñŧ’š àççëšš ŵàš ŕëṽôķëð. ŧëšŧ çôþÿ⟧",
-  "auth.settings.clients.emptyNotice": "⟦Ñô çļïëñŧš àŕë çôññëçŧëð. Çôññëçŧ à çļïëñŧ ƒŕôɱ ïŧš ôŵñ šëŧûþ ƒļôŵ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
   "tasks.run.heading": "⟦Çûŕŕëñŧ ŕûñ ŧ⟧",
   "tasks.run.updates": "⟦Ŕûñ ûþðàŧëš ŧ⟧",
   "tasks.run.stepUpdate": "⟦Ļàŧëšŧ šŧëþ ûþðàŧë ŧëšŧ⟧",
@@ -4405,5 +4401,8 @@
   "auth.settings.clients.revoke.warning": "⟦Ŧĥë çļïëñŧ ŵïļļ ñô ļôñĝëŕ ƀë àƀļë ŧô ŕëàð ÿôûŕ ŵôŕķ ôŕ šŧàŕŧ ŧàšķš. Ÿôû çàñ çôññëçŧ ïŧ àĝàïñ ļàŧëŕ. Ôŧĥëŕ šëššïôñš àñð ïñŧëĝŕàŧïôñš šŧàÿ çôññëçŧëð. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
   "auth.consent.scope.read.title": "⟦Ŕëàð ÿôûŕ ŵôŕķ àñð ðôçûɱëñŧš ŧëšŧ çô⟧",
   "auth.consent.scope.read.description": "⟦Ŕëàð ŧàšķš, þļàñš àñð ŕëšûļŧš ÿôû çàñ àççëšš. ŧëšŧ çôþÿ ŧëš⟧",
-  "auth.consent.scope.operate.title": "⟦Šŧàŕŧ àñð ðïŕëçŧ ŧàšķš ŧëšŧŧ⟧"
+  "auth.consent.scope.operate.title": "⟦Šŧàŕŧ àñð ðïŕëçŧ ŧàšķš ŧëšŧŧ⟧",
+  "auth.settings.security.twoFactorDescriptionOff": "⟦Àðð à šïẋ-ðïĝïŧ àûŧĥëñŧïçàŧôŕ çôðë. ŧëšŧ çôþÿŧ⟧",
+  "auth.settings.clients.emptyTitle": "⟦Ñô çôññëçŧëð àþþš ÿëŧ ŧëšŧŧ⟧",
+  "auth.settings.clients.emptyDescription": "⟦Àþþš ÿôû àļļôŵ ŧô àçŧ ƒôŕ ÿôû, šûçĥ àš ŧĥë Ɓàķëŕÿ ÇĻÏ, šĥôŵ ûþ ĥëŕë. Ÿôû çôññëçŧ ôñë ƒŕôɱ ŧĥë àþþ ïŧšëļƒ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧"
 }

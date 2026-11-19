@@ -1074,7 +1074,7 @@ test.describe("auth journey", () => {
       page.getByRole("heading", { name: "Account and security", level: 1 }),
     ).toBeVisible();
     await expectNoAxeViolations(page);
-    await expect(page.getByText("Off · Add a six-digit authenticator code."))
+    await expect(page.getByText("Add a six-digit authenticator code."))
       .toBeVisible();
     await page.getByRole("link", {
       name: "Set up two-factor authentication",
@@ -1380,7 +1380,7 @@ test.describe("auth journey", () => {
     await page.getByRole("button", { name: "Back to security", exact: true })
       .click();
     await expect(page).toHaveURL("/settings/security");
-    await expect(page.getByText("Off · Add a six-digit authenticator code."))
+    await expect(page.getByText("Add a six-digit authenticator code."))
       .toBeVisible();
 
     // Sign out, sign in -> straight to / without a challenge.

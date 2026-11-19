@@ -308,7 +308,6 @@
   "auth.settings.security.identityConfirmed": "⟪Your identity was confirmed.⟫",
   "auth.settings.security.manage": "⟪Manage⟫",
   "auth.settings.security.twoFactorTitle": "⟪Two-factor authentication⟫",
-  "auth.settings.security.twoFactorDescriptionOff": "⟪Off · Add a six-digit authenticator code.⟫",
   "auth.settings.security.twoFactorDescriptionOn": "⟪Authenticator on · {count, plural, one {# backup code} other {# backup codes}} remaining.⟫",
   "auth.settings.security.setUp": "⟪Set up⟫",
   "auth.settings.twoFactor.description": "⟪Add an extra check when you sign in to Bakery.⟫",
@@ -1115,8 +1114,6 @@
   "auth.settings.clients.description": "⟪Review apps you’ve authorized to access Bakery.⟫",
   "auth.settings.clients.revoke": "⟪Revoke access⟫",
   "auth.settings.clients.revokeNamed": "⟪Revoke access for {client} in {organization}⟫",
-  "auth.settings.clients.emptyTitle": "⟪No connected clients⟫",
-  "auth.settings.clients.emptyDescription": "⟪Apps you authorize to use Bakery appear here. You can revoke them at any time.⟫",
   "auth.settings.clients.revoke.title": "⟪Revoke client access?⟫",
   "auth.settings.clients.revoke.description": "⟪{client} will lose its current access to {organization}.⟫",
   "auth.settings.clients.revoke.cancel": "⟪Cancel⟫",
@@ -1150,7 +1147,6 @@
   "auth.settings.clients.revoke.failed": "⟪The grant could not be revoked. Try again.⟫",
   "settings.password.successNotice": "⟪Your current session stays signed in. Other sessions were signed out.⟫",
   "auth.settings.clients.revokedNotice": "⟪The client’s access was revoked.⟫",
-  "auth.settings.clients.emptyNotice": "⟪No clients are connected. Connect a client from its own setup flow.⟫",
   "tasks.run.heading": "⟪Current run⟫",
   "tasks.run.updates": "⟪Run updates⟫",
   "tasks.run.stepUpdate": "⟪Latest step update⟫",
@@ -4405,5 +4401,8 @@
   "auth.settings.clients.revoke.warning": "⟪The client will no longer be able to read your work or start tasks. You can connect it again later. Other sessions and integrations stay connected.⟫",
   "auth.consent.scope.read.title": "⟪Read your work and documents⟫",
   "auth.consent.scope.read.description": "⟪Read tasks, plans and results you can access.⟫",
-  "auth.consent.scope.operate.title": "⟪Start and direct tasks⟫"
+  "auth.consent.scope.operate.title": "⟪Start and direct tasks⟫",
+  "auth.settings.security.twoFactorDescriptionOff": "⟪Add a six-digit authenticator code.⟫",
+  "auth.settings.clients.emptyTitle": "⟪No connected apps yet⟫",
+  "auth.settings.clients.emptyDescription": "⟪Apps you allow to act for you, such as the Bakery CLI, show up here. You connect one from the app itself.⟫"
 }

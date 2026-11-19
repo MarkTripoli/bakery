@@ -77,25 +77,26 @@ test("sign-in says that accounts start from an invitation, and how to get one", 
     .toBeVisible();
 });
 
-test("each failed sign-in says one plain thing under the form", async ({ page }) => {
-  for (
-    const [state, message] of [
-      ["invalid", "That email and password do not match. Try again."],
-      ["rate-limited", "Too many tries. Try again in 3 minutes."],
-      [
-        "blocked",
-        "This account is locked for now. Try again later, or ask an administrator of your organization.",
-      ],
-      ["offline", "You are offline. Reconnect, then sign in."],
-      ["unavailable", "Bakery could not be reached. Try again."],
-    ] as const
-  ) {
+// One test per state: a slow first load fails one named case, not a loop of five.
+for (
+  const [state, message] of [
+    ["invalid", "That email and password do not match. Try again."],
+    ["rate-limited", "Too many tries. Try again in 3 minutes."],
+    [
+      "blocked",
+      "This account is locked for now. Try again later, or ask an administrator of your organization.",
+    ],
+    ["offline", "You are offline. Reconnect, then sign in."],
+    ["unavailable", "Bakery could not be reached. Try again."],
+  ] as const
+) {
+  test(`a failed sign-in (${state}) says one plain thing under the form`, async ({ page }) => {
     await page.goto(`/__fixtures__/auth/login-${state}`);
     await expect(page.getByTestId("sign-in-failure")).toHaveText(message);
     // The form stays; there is no separate pause screen.
     await expect(page.getByLabel("Email")).toBeVisible();
-  }
-});
+  });
+}
 
 test("the theme switch sits at the top end of the form panel, away from the form", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });

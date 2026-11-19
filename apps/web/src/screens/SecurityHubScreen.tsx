@@ -152,6 +152,7 @@ export function SecurityHubScreen(
                 )}
                 icon={<UI.IconGlyph name="shield" size="large" />}
                 title={translate("auth.settings.security.twoFactorTitle")}
+                titleStyle="item"
               />
             )}
           <SecurityRow
