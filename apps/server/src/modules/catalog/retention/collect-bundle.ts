@@ -116,9 +116,13 @@ export async function collectPluginBundle(
         [row.organization_id, row.bundle_object_ref, versionId],
       );
       if (shared.rows.length > 0) return null;
-      // Artifact and upload bytes live at the same organization-and-digest key,
-      // and nothing collects their blobs, so an object the blob registry knows
-      // is never a plugin bundle's to delete.
+      // Artifact and upload bytes share this organization-and-digest identity,
+      // so an object the blob registry knows is never a plugin bundle's to
+      // delete. Kept conservative on purpose: this guard is on a delete path,
+      // and being wrong in the other direction destroys bytes a live version
+      // needs. It is no longer an unbounded pin - `collectBlob` reclaims a blob
+      // row once no live artifact version names it, so the row this guard
+      // consults disappears on its own and the bundle becomes collectable.
       const registry = await transaction.query(
         `select 1 from bakery.blobs
         where organization_id = $1 and sha256 = $2

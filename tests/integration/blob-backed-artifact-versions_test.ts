@@ -1,4 +1,4 @@
-import { assertEquals, assertRejects } from "@std/assert";
+import { assertEquals, assertNotEquals, assertRejects } from "@std/assert";
 import { withWorkerFixture } from "../helpers/worker-execution/scenarios.ts";
 import type { WorkerFixture } from "../helpers/worker-execution.ts";
 import { withPgTransaction } from "../../apps/server/src/platform/database.ts";
@@ -7,6 +7,8 @@ import { sha256Bytes } from "../../apps/server/src/modules/knowledge/bytes.ts";
 import { StandardError } from "../../packages/contracts/src/http.ts";
 import { ScopedOrganizationBlobStore } from "../../apps/server/src/modules/catalog/blob-store.ts";
 import { collectArtifactVersion } from "../../apps/server/src/modules/knowledge/retention/collector.ts";
+import { collectBlob } from "../../apps/server/src/modules/knowledge/collect-blob.ts";
+import { hasLiveBlobReference } from "../../apps/server/src/modules/knowledge/blob-references.ts";
 import type { OrganizationBlobStore } from "../../apps/server/src/modules/catalog/storage-port.ts";
 import type { SkillObjectStore } from "../../apps/server/src/modules/catalog/storage-port.ts";
 
@@ -650,4 +652,244 @@ Deno.test("a range of exactly the ceiling is served, one byte over is refused", 
     assertEquals(ok.status, 206);
     assertEquals(new Uint8Array(await ok.arrayBuffer()).byteLength, 1);
   }, { skillFileStore: store });
+});
+
+// ---------------------------------------------------------------------------
+// The publication door, and collection of the blobs it validates.
+//
+// Everything below shares the fixture above for one reason: the door and the
+// collector are two answers to the same question - "which bytes is this
+// artifact's document, and may they go" - and a test that seeded them
+// differently could pass while the real pair disagreed.
+// ---------------------------------------------------------------------------
+
+/** Publishes a kind version for `key` and returns its id. */
+async function seedKind(
+  fixture: WorkerFixture,
+  key: string,
+  definition: Record<string, unknown>,
+): Promise<string> {
+  const kind = await fixture.pgDatabase.query<{ id: string }>(
+    `insert into bakery.artifact_kinds (organization_id, key, created_by)
+     values ($1, $2, $3) returning id`,
+    [fixture.organizationId, key, fixture.principalId],
+  );
+  const version = await fixture.pgDatabase.query<{ id: string }>(
+    `insert into bakery.artifact_kind_versions
+       (organization_id, kind_id, revision, definition, digest, created_by)
+     values ($1, $2, 1, $3, $4, $5) returning id`,
+    [
+      fixture.organizationId,
+      kind.rows[0].id,
+      JSON.stringify(definition),
+      "digest-1",
+      fixture.principalId,
+    ],
+  );
+  return version.rows[0].id;
+}
+
+/** An artifact seeded by `seedArtifact` is type `plan`; a kind keyed `plan` governs it. */
+const markdownOnly = {
+  key: "plan",
+  name: "Plan",
+  description: "What a piece of work will do.",
+  text: true,
+  facts: [],
+  rules: [{
+    type: "mediaType",
+    severity: "require",
+    options: { mediaTypes: ["text/markdown"] },
+  }],
+};
+
+Deno.test("a kind whose key matches the artifact refuses a document its rules reject", async () => {
+  await withWorkerFixture(async (fixture) => {
+    await seedKind(fixture, "plan", markdownOnly);
+    const seeded = await seedArtifact(fixture);
+
+    await assertRejects(
+      () =>
+        publish(fixture, seeded, new TextEncoder().encode("# not markdown")),
+      StandardError,
+    );
+    // Nothing was written: a refused publication must not leave a version that
+    // a `require` rule rejected, not even one the caller cannot see.
+    const versions = await fixture.pgDatabase.query<{ count: string }>(
+      `select count(*)::text as count from bakery.artifact_versions
+        where organization_id = $1 and artifact_id = $2`,
+      [fixture.organizationId, seeded.artifactId],
+    );
+    assertEquals(versions.rows[0].count, "1");
+
+    const published = await publish(
+      fixture,
+      seeded,
+      new TextEncoder().encode("# och aye"),
+    );
+    assertEquals(typeof published.id, "string");
+  });
+});
+
+Deno.test("the first publication pins the kind revision, and a newer one does not judge old documents", async () => {
+  await withWorkerFixture(async (fixture) => {
+    const firstVersion = await seedKind(fixture, "plan", {
+      ...markdownOnly,
+      rules: [],
+    });
+    const seeded = await seedArtifact(fixture);
+    const first = await publish(
+      fixture,
+      seeded,
+      new TextEncoder().encode("plain text, first binding"),
+    );
+    const bound = await fixture.pgDatabase.query<{ kind_version_id: string }>(
+      `select kind_version_id from bakery.artifacts
+        where organization_id = $1 and id = $2`,
+      [fixture.organizationId, seeded.artifactId],
+    );
+    assertEquals(bound.rows[0].kind_version_id, firstVersion);
+
+    // A stricter revision appears. The artifact is already bound, so its next
+    // document is judged by the revision it was first published under - a kind
+    // author cannot retroactively change what an existing document must be.
+    await fixture.pgDatabase.query(
+      `insert into bakery.artifact_kind_versions
+         (organization_id, kind_id, revision, definition, digest, created_by)
+       select organization_id, kind_id, 2, $3, 'digest-2', created_by
+         from bakery.artifact_kind_versions where id = $1 and organization_id = $2`,
+      [firstVersion, fixture.organizationId, JSON.stringify(markdownOnly)],
+    );
+    const second = await publish(
+      fixture,
+      seeded,
+      new TextEncoder().encode("still not markdown, still allowed"),
+    );
+    assertNotEquals(second.id, first.id);
+  });
+});
+
+Deno.test("a blob-backed version is judged on the same bytes, not on a copy read back", async () => {
+  await withWorkerFixture(async (fixture) => {
+    await seedKind(fixture, "plan", markdownOnly);
+    const seeded = await seedArtifact(fixture);
+    const store = objectStore();
+    await assertRejects(
+      () =>
+        publish(
+          fixture,
+          seeded,
+          new TextEncoder().encode("# refused before it was ever stored"),
+          new ScopedOrganizationBlobStore(store),
+        ),
+      StandardError,
+    );
+    // The refusal comes before the put: no bytes were written for a document
+    // the kind refuses, so the store cannot fill with rejected content.
+    assertEquals(store.objects.size, 0);
+  });
+});
+
+Deno.test("a blob no live version names is collected, and one a live version names is kept", async () => {
+  await withWorkerFixture(async (fixture) => {
+    const seeded = await seedArtifact(fixture);
+    const skillStore = objectStore();
+    const objects = skillStore.objects;
+
+    const content = new TextEncoder().encode(
+      "collectable once nothing names it",
+    );
+    const published = await publish(
+      fixture,
+      seeded,
+      content,
+      new ScopedOrganizationBlobStore(skillStore),
+    );
+    const blobId = (
+      await fixture.pgDatabase.query<{ blob_id: string }>(
+        `select blob_id from bakery.artifact_versions
+          where organization_id = $1 and id = $2`,
+        [fixture.organizationId, published.id],
+      )
+    ).rows[0].blob_id;
+
+    // A live version names it, so collection must not touch it.
+    assertEquals(
+      await collectBlob(fixture.pgDatabase, skillStore, {
+        organizationId: fixture.organizationId,
+        blobId,
+      }),
+      false,
+    );
+    assertEquals(objects.size, 1);
+
+    // Purging the version clears the pointer, which is what makes the blob
+    // collectable: counting the purged row would pin these bytes forever.
+    await fixture.pgDatabase.query(
+      `update bakery.artifact_versions
+          set content = null, blob_id = null, purged_at = now()
+        where organization_id = $1 and id = $2`,
+      [fixture.organizationId, published.id],
+    );
+    assertEquals(
+      await collectBlob(fixture.pgDatabase, skillStore, {
+        organizationId: fixture.organizationId,
+        blobId,
+      }),
+      true,
+    );
+    assertEquals(objects.size, 0);
+    const remaining = await fixture.pgDatabase.query<{ count: string }>(
+      `select count(*)::text as count from bakery.blobs
+        where organization_id = $1 and id = $2`,
+      [fixture.organizationId, blobId],
+    );
+    assertEquals(remaining.rows[0].count, "0");
+  });
+});
+
+Deno.test("the reference lookup answers by digest, which is all a bundle collector knows", async () => {
+  await withWorkerFixture(async (fixture) => {
+    const seeded = await seedArtifact(fixture);
+    const content = new TextEncoder().encode("shared digest question");
+    const digest = await sha256Bytes(content);
+    const published = await publish(fixture, seeded, content);
+
+    const byDigest = await withPgTransaction(
+      fixture.pgDatabase,
+      async (transaction) =>
+        await hasLiveBlobReference(transaction, {
+          organizationId: fixture.organizationId,
+          sha256: digest,
+        }),
+    );
+    assertEquals(byDigest, true);
+
+    // A digest nobody published never answers true, and its absence is not an
+    // error: the collector asks this for every candidate.
+    const absent = await withPgTransaction(
+      fixture.pgDatabase,
+      async (transaction) =>
+        await hasLiveBlobReference(transaction, {
+          organizationId: fixture.organizationId,
+          sha256: await sha256Bytes(new TextEncoder().encode("never stored")),
+        }),
+    );
+    assertEquals(absent, false);
+
+    // A question with neither id nor digest cannot be answered, and answering
+    // `false` would let a collector delete bytes nothing had checked.
+    await assertRejects(
+      () =>
+        withPgTransaction(
+          fixture.pgDatabase,
+          async (transaction) =>
+            await hasLiveBlobReference(transaction, {
+              organizationId: fixture.organizationId,
+            }),
+        ),
+      TypeError,
+    );
+    assertNotEquals(published.id, "");
+  });
 });
