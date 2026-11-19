@@ -3095,7 +3095,7 @@ export const clientManifest = {
         "INVALID_CURSOR",
         "MALFORMED_REQUEST"
       ],
-      "organizationContext": "none",
+      "organizationContext": "required_authenticated_context",
       "implemented": true
     },
     {
@@ -3115,7 +3115,7 @@ export const clientManifest = {
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND"
       ],
-      "organizationContext": "none",
+      "organizationContext": "required_authenticated_context",
       "implemented": true
     },
     {
@@ -3139,7 +3139,7 @@ export const clientManifest = {
         "PRECONDITION_FAILED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH"
       ],
-      "organizationContext": "none",
+      "organizationContext": "required_authenticated_context",
       "implemented": true
     },
     {
@@ -3163,7 +3163,7 @@ export const clientManifest = {
         "PRECONDITION_FAILED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH"
       ],
-      "organizationContext": "none",
+      "organizationContext": "required_authenticated_context",
       "implemented": true
     },
     {
@@ -3185,7 +3185,7 @@ export const clientManifest = {
         "INVALID_CURSOR",
         "MALFORMED_REQUEST"
       ],
-      "organizationContext": "none",
+      "organizationContext": "required_authenticated_context",
       "implemented": true
     },
     {
@@ -3205,7 +3205,7 @@ export const clientManifest = {
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND"
       ],
-      "organizationContext": "none",
+      "organizationContext": "required_authenticated_context",
       "implemented": true
     },
     {
@@ -3229,7 +3229,7 @@ export const clientManifest = {
         "PRECONDITION_FAILED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH"
       ],
-      "organizationContext": "none",
+      "organizationContext": "required_authenticated_context",
       "implemented": true
     },
     {
@@ -3253,7 +3253,7 @@ export const clientManifest = {
         "PRECONDITION_FAILED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH"
       ],
-      "organizationContext": "none",
+      "organizationContext": "required_authenticated_context",
       "implemented": true
     },
     {
@@ -3277,7 +3277,7 @@ export const clientManifest = {
         "PRECONDITION_FAILED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH"
       ],
-      "organizationContext": "none",
+      "organizationContext": "required_authenticated_context",
       "implemented": true
     },
     {
@@ -3297,7 +3297,7 @@ export const clientManifest = {
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND"
       ],
-      "organizationContext": "none",
+      "organizationContext": "required_authenticated_context",
       "implemented": true
     },
     {
@@ -3317,7 +3317,7 @@ export const clientManifest = {
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND"
       ],
-      "organizationContext": "none",
+      "organizationContext": "required_authenticated_context",
       "implemented": true
     },
     {
@@ -3342,7 +3342,7 @@ export const clientManifest = {
         "PRECONDITION_FAILED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH"
       ],
-      "organizationContext": "none",
+      "organizationContext": "required_authenticated_context",
       "implemented": true
     },
     {
@@ -3362,7 +3362,7 @@ export const clientManifest = {
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND"
       ],
-      "organizationContext": "none",
+      "organizationContext": "required_authenticated_context",
       "implemented": true
     },
     {
@@ -3385,7 +3385,7 @@ export const clientManifest = {
         "STATE_CONFLICT",
         "IDEMPOTENCY_PAYLOAD_MISMATCH"
       ],
-      "organizationContext": "none",
+      "organizationContext": "required_authenticated_context",
       "implemented": true
     },
     {
@@ -3408,7 +3408,7 @@ export const clientManifest = {
         "STATE_CONFLICT",
         "IDEMPOTENCY_PAYLOAD_MISMATCH"
       ],
-      "organizationContext": "none",
+      "organizationContext": "required_authenticated_context",
       "implemented": true
     },
     {
