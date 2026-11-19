@@ -30,7 +30,7 @@ const RUN_COLUMNS =
   "created_at, updated_at, version, " +
   runWorkspaceBaseShaColumn("workflow_runs");
 
-const RUN_STEP_COLUMNS =
+export const RUN_STEP_COLUMNS =
   "id, run_id, step_key, position, iteration, status, input, output, error, " +
   "started_at, finished_at, created_at, updated_at, version";
 
@@ -72,7 +72,7 @@ function isRunStepStatus(value: string): value is RunStepOutput["status"] {
   return Object.hasOwn(runStepStatuses, value);
 }
 
-type RunStepRow = {
+export type RunStepRow = {
   id: string;
   run_id: string;
   step_key: string;
@@ -132,7 +132,7 @@ function cloneJson(value: unknown, code: string): JsonValue {
   }
 }
 
-function toRunStep(row: RunStepRow): RunStepOutput {
+export function toRunStep(row: RunStepRow): RunStepOutput {
   if (
     !Number.isInteger(row.position) ||
     !Number.isInteger(row.iteration) ||

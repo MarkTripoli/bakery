@@ -1,21 +1,29 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "1ff39fed67f2fa59261bbd393aa8e4acbcbde8e2"
+    "efe96b9febc6742f2cfef679c68a16969286d9ef"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:09fb5659fea0411a78a5da6dd4acb84c0504b8d101a6563a3655c4053c56b0de",
-  "reason": "#69 ticket preview, ticket link reads and status note re-bind by dev-server on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main 1ff39fed67f2fa59261bbd393aa8e4acbcbde8e2: ticketSources.preview now answers a TicketPreviewResult (counts would start / plan only / held / blocked and one entry per issue with its verdict and reasons) instead of a TicketOperationReceipt, and TicketPreviewCreate gains an optional draft policy and a defined filters object; the preview stores nothing. ticketTaskLinks.list (GET /v1/ticket-task-links, by ticket or by task), ticketTaskLinks.resyncNote (POST /v1/ticket-task-links/{id}/note-syncs, which posts Bakery's status note through the provider's comment action, rewrites it in place by its stored id afterwards and re-creates it when deleted on the provider) and the externalTicketId filter of pullRequests.list are additive; TicketTaskLink descriptions now say what the note fields hold. The breaking drift is the one preview response reference; the approval it displaced at sha256:b0f68836f1e6252ec3d0c1914d16e96d35da033d0a564548be95ffc8f52d10e1 is preserved unchanged first below.",
+  "targetCompatibilityDigest": "sha256:10e2ba86598eddca5c2f824fecad9212e5fd1f898af8775be8f9a53812f06a3a",
+  "reason": "#69 ticket preview, ticket link reads and status note re-bind by dev-server on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main efe96b9febc6742f2cfef679c68a16969286d9ef: ticketSources.preview now answers a TicketPreviewResult (counts would start / plan only / held / blocked and one entry per issue with its verdict and reasons) instead of a TicketOperationReceipt, and TicketPreviewCreate gains an optional draft policy and a defined filters object; the preview stores nothing. ticketTaskLinks.list (GET /v1/ticket-task-links, by ticket or by task), ticketTaskLinks.resyncNote (POST /v1/ticket-task-links/{id}/note-syncs, which posts Bakery's status note through the provider's comment action, rewrites it in place by its stored id afterwards and re-creates it when deleted on the provider) and the externalTicketId filter of pullRequests.list are additive; TicketTaskLink descriptions now say what the note fields hold. The breaking drift is the one preview response reference; the approval it displaced at sha256:c22cd3f2f4e54fa2a414d3d24c1f9872c04df3eaead7354f46ea1cfaea241c5d is preserved unchanged first below.",
   "priorApprovals": [
+    {
+      "fromBaseRefs": [
+        "1ff39fed67f2fa59261bbd393aa8e4acbcbde8e2"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:c22cd3f2f4e54fa2a414d3d24c1f9872c04df3eaead7354f46ea1cfaea241c5d",
+      "reason": "#26 probe slice re-bind by dev-agx4 on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main 1ff39fed67f2fa59261bbd393aa8e4acbcbde8e2: RouteHealth gains a required reasonSince (timestamp|null, when the current reason began) and its reason enum gains 'redirected' (the probe saw a redirect it does not follow, which proves nothing and keeps the route unverified). The drift is that one field becoming required on an output no client writes; the approval it displaced at sha256:b0f68836f1e6252ec3d0c1914d16e96d35da033d0a564548be95ffc8f52d10e1 is preserved unchanged first below."
+    },
     {
       "fromBaseRefs": [
         "3fccfd921d1b63fdc6f32f6b3bf47302e55d07d9"
       ],
-      "status": "approved",
+      "status": "displaced",
       "allowBreaking": true,
-      "targetCompatibilityDigest": "sha256:b0f68836f1e6252ec3d0c1914d16e96d35da033d0a564548be95ffc8f52d10e1",
-      "reason": "#72 reader-relative memory source state re-bind by dev-server on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main 3fccfd921d1b63fdc6f32f6b3bf47302e55d07d9: MemoryEntry and MemoryRevision gain a required sourceState (available|deleted|no_access|unknown) judged against the reader at read time, and MemoryRevision.sourceArtifactVersionId becomes uuid|null because it is withheld exactly when the reader cannot read artifact versions (no_access), matching the artifact reads, which answer a denied read as not found. The descriptions state the invariant that sourceArtifactVersionId is null if and only if sourceState is no_access. The event catalog gains memory.source_changed, a content-free invalidation emitted when a cited artifact version's content is purged. The drift is that one field becoming nullable; the approval it displaced at sha256:fc5c7bededbed24e8541ca3168cde358c616922447161ade6ee7cec2f39ee429 is preserved unchanged first below."
+      "targetCompatibilityDigest": "sha256:b0f68836f1e6252ec3d0c1914d16e96d35da033d0a564548be95ffc8f52d10e1"
     },
     {
       "fromBaseRefs": [
