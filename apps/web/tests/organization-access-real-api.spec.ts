@@ -184,17 +184,9 @@ async function expectPerceivable(locator: Locator): Promise<void> {
   });
 }
 
-async function returnToSignInFormIfThrottled(page: Page): Promise<void> {
-  if (await page.getByTestId("sign-in-throttled").isVisible()) {
-    await page.getByRole("button", { name: "Return to sign in", exact: true })
-      .click();
-  }
-}
-
 async function signIn(page: Page): Promise<void> {
   await page.goto("/sign-in");
   await submitUntilAccepted(page, "/api/auth/sign-in/email", async () => {
-    await returnToSignInFormIfThrottled(page);
     await page.getByLabel("Email").fill(ADMIN_EMAIL);
     await page.getByLabel("Password", { exact: true }).fill(ADMIN_PASSWORD);
     await page.getByRole("button", { name: "Sign in", exact: true }).click();

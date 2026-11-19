@@ -52,10 +52,6 @@ const tasksPath = fileURLToPath(
 async function signIn(page: Page): Promise<void> {
   await page.goto("/sign-in");
   await submitUntilAccepted(page, "/api/auth/sign-in/email", async () => {
-    if (await page.getByTestId("sign-in-throttled").isVisible()) {
-      await page.getByRole("button", { name: "Return to sign in", exact: true })
-        .click();
-    }
     await page.getByLabel("Email").fill(ADMIN_EMAIL);
     await page.getByLabel("Password", { exact: true }).fill(ADMIN_PASSWORD);
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
@@ -289,8 +285,15 @@ test.describe("account security journey", () => {
     await signIn(page);
     await page.goto("/settings/security");
     await expect(page.locator("main h1")).toHaveText("Account and security");
-    for (const name of ["Change", "Manage"]) {
-      await expect(page.getByRole("link", { name }).first()).toBeVisible();
+    for (
+      const name of [
+        "Change password",
+        "Manage passkeys",
+        "Manage active sessions",
+        "Manage connected clients",
+      ]
+    ) {
+      await expect(page.getByRole("button", { name })).toBeVisible();
     }
     await expect(page.getByText("Connected clients").first()).toBeVisible();
     await expect(page.getByText("Passkeys").first()).toBeVisible();
@@ -311,7 +314,8 @@ test.describe("account security journey", () => {
     await expect(page.locator("main h1")).toHaveText("Change password");
 
     await page.getByLabel("Current password").fill("not-the-password-0");
-    await page.getByLabel("New password").fill(replacement);
+    await page.getByLabel("New password", { exact: true }).fill(replacement);
+    await page.getByLabel("Confirm new password").fill(replacement);
     await page.getByRole("button", { name: "Save password" }).click();
     await expect(
       page.getByText("We couldn’t verify your current password."),
@@ -324,7 +328,8 @@ test.describe("account security journey", () => {
       .toBeVisible();
     await page.goto("/settings/security/password");
     await page.getByLabel("Current password").fill(replacement);
-    await page.getByLabel("New password").fill(ADMIN_PASSWORD);
+    await page.getByLabel("New password", { exact: true }).fill(ADMIN_PASSWORD);
+    await page.getByLabel("Confirm new password").fill(ADMIN_PASSWORD);
     await page.getByRole("button", { name: "Save password" }).click();
     await expect(page.getByRole("heading", { name: "Password changed" }))
       .toBeVisible();

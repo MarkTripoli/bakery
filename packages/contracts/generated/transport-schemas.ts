@@ -11679,6 +11679,154 @@ const transportSchemas = {
         }
       ],
       "description": "Unauthenticated redemption of a password reset link: sets the new password, consumes the link and signs the person out of every browser session. An unknown, used, expired or revoked link gets one identical refusal."
+    },
+    "FileSearchQuery": {
+      "fields": [
+        {
+          "name": "query",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "description": "Text to find, matched case-insensitively as a substring of a file's name or of a library item's name; wildcard characters in it are matched literally."
+        },
+        {
+          "name": "path",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "description": "Absolute storage path of a folder; only files under it are searched. A path that is not a folder in this organization returns no hits rather than an error, so it reveals nothing about other trees."
+        },
+        {
+          "name": "kind",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "description": "Restricts hits to one kind: an artifact's type for a file, or `skill`, `agent`, `workflow`, `kind` or `package` for a library item."
+        },
+        {
+          "name": "mediaType",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "description": "Restricts hits to files whose current version has exactly this media type. Library items have none, so this filter excludes them."
+        },
+        {
+          "name": "mediaGroup",
+          "type": "enum",
+          "required": false,
+          "enum": [
+            "text",
+            "image",
+            "video",
+            "audio",
+            "data",
+            "archive",
+            "other"
+          ],
+          "description": "Restricts hits to files whose current version falls in this plain group: text (other text/*), image, video, audio, data (JSON, CSV, YAML, XML, NDJSON), archive (zip, gzip, tar) or other. Library items have no media type, so this filter excludes them."
+        },
+        {
+          "name": "producerId",
+          "type": "uuid",
+          "required": false,
+          "description": "Restricts hits to files whose current version was authored by this principal. Library items have no producer, so this filter excludes them."
+        },
+        {
+          "name": "factKey",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "description": "With `factValue`, restricts hits to files whose current version metadata holds this key with exactly this string value. Until kind validators publish typed facts, a version's metadata is where its facts live. Library items have none, so this filter excludes them."
+        },
+        {
+          "name": "factValue",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 500
+          },
+          "description": "The string value `factKey` must hold; required when `factKey` is given and refused without it."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from a prior files.search page; bound to this operation, the caller, the organization and the same filters, so it is rejected if any of them change."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum number of hits returned per page; defaults to 25 and cannot exceed 100."
+        }
+      ],
+      "pagination": "pagination",
+      "rules": [
+        "At least one of query, path, kind, mediaType, mediaGroup, producerId or factKey is required. Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind the cursor to this operation, current principal and organization, the filters and the ordering; validate before the keyset query."
+      ],
+      "description": "Searches the organization's file tree and its read-only library mirror by name, path, kind, media type, producer and a metadata fact, newest first. Only files and library items the caller may read are returned, and nothing of another organization is ever counted or listed."
+    },
+    "LibraryFolderQuery": {
+      "fields": [
+        {
+          "name": "path",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "description": "Absolute path of a library folder: /library lists the sections that hold a published item, /library/<section> lists that section's published items. Defaults to /library. Any other path is not found."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from a prior files.library page; bound to this operation, the caller, the organization and the same path, so it is rejected if any of them change."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum number of entries returned per page; defaults to 25 and cannot exceed 100."
+        }
+      ],
+      "pagination": "pagination",
+      "rules": [
+        "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind the cursor to this operation, current principal and organization, the path and the ordering; validate before the keyset query."
+      ],
+      "description": "Lists one folder of the read-only /library mirror of the catalog, computed from the catalog on every call. Needs library:read, and an agent session needs the library.read scope. Items are ordered oldest first, keyed by creation time and id; sections are a short fixed list."
     }
   },
   "projections": {
@@ -29583,6 +29731,116 @@ const transportSchemas = {
         "url": "Absolute web URL of the reset page with the one-time token; hand it to the person over a trusted channel.",
         "expiresAt": "UTC timestamp one hour after issue, after which the link no longer works."
       }
+    },
+    "FileSearchHit": {
+      "fields": [
+        "source",
+        "entryId",
+        "path",
+        "name",
+        "kind",
+        "mediaType",
+        "mediaGroup",
+        "sizeBytes",
+        "versionId",
+        "producerId",
+        "producerKind",
+        "producerName",
+        "producerTaskId",
+        "producerTaskTitle",
+        "nameMatchStart",
+        "nameMatchLength",
+        "createdAt"
+      ],
+      "fieldTypes": {
+        "source": "enum(files|library)",
+        "entryId": "uuid|null",
+        "path": "string",
+        "name": "string",
+        "kind": "string",
+        "mediaType": "string|null",
+        "mediaGroup": "enum(text|image|video|audio|data|archive|other)|null",
+        "sizeBytes": "integer|null",
+        "versionId": "uuid|null",
+        "producerId": "uuid|null",
+        "producerKind": "enum(person|step)|null",
+        "producerName": "string|null",
+        "producerTaskId": "uuid|null",
+        "producerTaskTitle": "string|null",
+        "nameMatchStart": "integer|null",
+        "nameMatchLength": "integer|null",
+        "createdAt": "timestamp"
+      },
+      "nullableFields": [
+        "entryId",
+        "mediaType",
+        "mediaGroup",
+        "sizeBytes",
+        "versionId",
+        "producerId",
+        "producerKind",
+        "producerName",
+        "producerTaskId",
+        "producerTaskTitle",
+        "nameMatchStart",
+        "nameMatchLength"
+      ],
+      "description": "One file or library item matched by files.search, with its absolute path, so a caller can open it by path or by the ids shown.",
+      "fieldDescriptions": {
+        "source": "Where the hit lives: the organization's file tree, or the read-only library mirror.",
+        "entryId": "Stable UUID of the file's tree entry; null for a library item, which is shown by path.",
+        "path": "Absolute path of the hit in the tree, for example /projects/<project>/artifacts/<work item>/plan.md or /library/skills/<slug>.",
+        "name": "Name of the file or library item.",
+        "kind": "The artifact type of a file, or the library kind of a library item.",
+        "mediaType": "Media type of the file's current version; null for a library item or a file with no current version.",
+        "mediaGroup": "Plain group of the file's media type (text, image, video, audio, data, archive or other); null for a library item or a file with no current version.",
+        "sizeBytes": "Size in bytes of the file's current version; null for a library item or a file with no current version.",
+        "versionId": "Stable UUID of the file's current version, the one a run would pin; null for a library item or a file with no current version.",
+        "producerId": "Stable UUID of the principal that authored the file's current version; null for a library item.",
+        "producerKind": "Whether the file's current version was made by a person or by a step of a run; null for a library item.",
+        "producerName": "The person's display name, or the step's key for a step; null for a library item.",
+        "producerTaskId": "For a step, the work item (task) its run belongs to; null otherwise.",
+        "producerTaskTitle": "For a step, the title of that work item; null otherwise.",
+        "nameMatchStart": "Zero-based position in the name where the query first matches, case-insensitively, so a page can mark the match; null when the search had no text or the position is not exact.",
+        "nameMatchLength": "Length of the matched text in the name; null with nameMatchStart.",
+        "createdAt": "UTC timestamp when the entry or library item was created."
+      }
+    },
+    "LibraryEntry": {
+      "fields": [
+        "type",
+        "path",
+        "name",
+        "kind",
+        "createdAt"
+      ],
+      "fieldTypes": {
+        "type": "enum(folder|item)",
+        "path": "string",
+        "name": "string",
+        "kind": "string|null",
+        "createdAt": "timestamp|null"
+      },
+      "nullableFields": [
+        "kind",
+        "createdAt"
+      ],
+      "description": "One entry of a /library folder: a section folder, or a published catalog item with its absolute path.",
+      "fieldDescriptions": {
+        "type": "folder for a section, item for a published catalog item.",
+        "path": "Absolute path: /library/<section> or /library/<section>/<slug>.",
+        "name": "Display name of the section or item.",
+        "kind": "Catalog kind of an item (skill, agent, workflow, kind, package); null for a folder.",
+        "createdAt": "UTC time the catalog item was created; null for a folder."
+      }
+    },
+    "Page<FileSearchHit>": {
+      "pageOf": "FileSearchHit",
+      "description": "Cursor page of file search hits, newest first, returned by GET /v1/files/search. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, totalPages or offsets."
+    },
+    "Page<LibraryEntry>": {
+      "pageOf": "LibraryEntry",
+      "description": "Cursor page of /library entries, returned by GET /v1/files/library. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, totalPages or offsets."
     }
   },
   "pageEnvelope": {

@@ -15,6 +15,7 @@ import {
 } from "../app/security-failures.ts";
 import {
   ChangePasswordScreen,
+  PASSWORD_CONFIRM_INPUT_ID,
   PASSWORD_CURRENT_INPUT_ID,
   PASSWORD_NEW_INPUT_ID,
 } from "../screens/ChangePasswordScreen.tsx";
@@ -32,9 +33,20 @@ export function ChangePasswordPage() {
   const [state, setState] = useState<"form" | "success">("form");
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [confirmMismatch, setConfirmMismatch] = useState(false);
   const [failure, setFailure] = useState<SecurityFailure | null>(null);
 
   const submit = useCallback(async () => {
+    if (newPassword !== confirmPassword) {
+      setConfirmMismatch(true);
+      focusFirstInvalidField([{
+        id: PASSWORD_CONFIRM_INPUT_ID,
+        invalid: true,
+      }]);
+      return;
+    }
+    setConfirmMismatch(false);
     try {
       await api.auth.changePassword({
         currentPassword,
@@ -43,6 +55,7 @@ export function ChangePasswordPage() {
       });
       setCurrentPassword("");
       setNewPassword("");
+      setConfirmPassword("");
       setFailure(null);
       setState("success");
     } catch (error) {
@@ -64,7 +77,7 @@ export function ChangePasswordPage() {
         { id: PASSWORD_NEW_INPUT_ID, invalid: next.kind === "weakPassword" },
       ]);
     }
-  }, [api, currentPassword, newPassword, router]);
+  }, [api, confirmPassword, currentPassword, newPassword, router]);
 
   const [pending, runSubmit] = useSingleFlightSubmit(submit);
 
@@ -73,9 +86,15 @@ export function ChangePasswordPage() {
       async={failure?.kind === "offline"
         ? "offline"
         : asyncKindForConnectivity(connectivity)}
+      confirmMismatch={confirmMismatch}
+      confirmPassword={confirmPassword}
       currentPassword={currentPassword}
       failure={failure}
       newPassword={newPassword}
+      onConfirmChange={(value) => {
+        setConfirmPassword(value);
+        setConfirmMismatch(false);
+      }}
       onCurrentChange={setCurrentPassword}
       onNewChange={setNewPassword}
       onRefresh={() => setFailure(null)}
