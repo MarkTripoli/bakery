@@ -110,6 +110,7 @@ import {
   type EventsSocketLimits,
   type EventsSocketRegistry,
 } from "./modules/work/events-socket.ts";
+import { createBatchRoutes } from "./modules/work/batch-routes.ts";
 import {
   createGroupRoutes,
   createNotificationRoutes,
@@ -817,6 +818,15 @@ export function createApp(options: {
       publicBaseUrl: options.config.publicBaseUrl,
       cursorSecret: options.config.auth.secret,
       merge: { github: githubAppClient, broker: installationTokenBroker },
+    }),
+  );
+  app.route(
+    "/",
+    createBatchRoutes({
+      database: options.pgDatabase,
+      session: tokenSession,
+      publicBaseUrl: options.config.publicBaseUrl,
+      cursorSecret: options.config.auth.secret,
     }),
   );
   app.route(

@@ -481,6 +481,26 @@ export const workflowImplementedActions = Object.freeze(
   Object.values(WorkflowImplementedAction),
 );
 
+/**
+ * Batches (#58): a bounded run of issues in one repository. A supervisor's record
+ * over ordinary ticket requests; it starts nothing the existing admission would not.
+ */
+export const BatchImplementedAction = Object.freeze(
+  {
+    BatchesList: "batches.list",
+    BatchesGet: "batches.get",
+    BatchesCreate: "batches.create",
+    BatchesPause: "batches.pause",
+    BatchesResume: "batches.resume",
+    BatchesStop: "batches.stop",
+    BatchesStartNext: "batches.startNext",
+    BatchesFinish: "batches.finish",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const batchImplementedActions = Object.freeze(
+  Object.values(BatchImplementedAction),
+);
+
 /** Registered workflow action discovery served by the handwritten Hono routes. */
 export const WorkflowActionDiscoveryImplementedAction = Object.freeze(
   {
@@ -702,6 +722,7 @@ export const implementedActions = Object.freeze(
     ...pluginPackageImplementedActions,
     ...pluginInstallImplementedActions,
     ...skillStorageImplementedActions,
+    ...batchImplementedActions,
     ...blobUploadImplementedActions,
     ...memoryImplementedActions,
   ] as const,

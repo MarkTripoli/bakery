@@ -11842,6 +11842,99 @@ const transportSchemas = {
         }
       ],
       "description": "Records an owner's accept-with-reason decision against one review that requested changes, overruling that reviewer (chapter 25 section 9, O18). An organization administrator may record it, and so may a member whose role holds the review:accept permission; an agent never may. The review stays what it was, immutable; the decision is a separate record shown on it. It does not restart a run that has already stopped: that needs a workflow that reads decisions."
+    },
+    "BatchCreate": {
+      "fields": [
+        {
+          "name": "repositoryId",
+          "type": "uuid",
+          "required": true,
+          "description": "The repository the batch works through. It must be taking issues (an enabled ticket source), and no other batch may be live in it."
+        },
+        {
+          "name": "maxIssues",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1,
+            "max": 20
+          },
+          "description": "Stop after this many issues have been merged. Required: a batch without all three limits is refused."
+        },
+        {
+          "name": "maxHours",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1,
+            "max": 24
+          },
+          "description": "Stop starting new issues after this many hours from the start. Checked before each new issue starts, so the issue then running finishes."
+        },
+        {
+          "name": "maxSpendUsd",
+          "type": "decimal",
+          "required": true,
+          "bounds": {
+            "min": 0,
+            "max": 4000
+          },
+          "description": "Stop starting new issues once this much has been spent across the batch's issues. Checked before each new issue starts, so one running issue can go over it."
+        },
+        {
+          "name": "continueMode",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "carry_on",
+            "ask_first"
+          ],
+          "description": "What happens after each issue is merged: carry_on starts the next by itself; ask_first waits for a person. No default: this is the choice that makes a batch unattended."
+        }
+      ],
+      "rules": [
+        "all of maxIssues, maxHours, maxSpendUsd and continueMode are required",
+        "one live batch per repository"
+      ],
+      "description": "Starts a bounded run of issues in one repository. It stops at whichever of the three limits it reaches first, and never skips a plan or merge approval the repository requires."
+    },
+    "BatchStop": {
+      "fields": [
+        {
+          "name": "cancelCurrent",
+          "type": "boolean",
+          "required": true,
+          "description": "False lets the issue being worked on finish before the batch stops; true cancels its run too."
+        }
+      ],
+      "description": "Stops a batch. Nothing new starts either way; whether the current issue finishes or is cancelled is the caller's choice."
+    },
+    "BatchQuery": {
+      "fields": [
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "description": "Opaque cursor from the previous page."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100
+          },
+          "description": "Page size."
+        },
+        {
+          "name": "repositoryId",
+          "type": "uuid",
+          "required": false,
+          "description": "Only the batches of this repository."
+        }
+      ],
+      "description": "Lists batches newest first, optionally for one repository."
     }
   },
   "projections": {
@@ -29873,6 +29966,139 @@ const transportSchemas = {
     "Page<LibraryEntry>": {
       "pageOf": "LibraryEntry",
       "description": "Cursor page of /library entries, returned by GET /v1/files/library. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, totalPages or offsets."
+    },
+    "BatchIssue": {
+      "fields": [
+        "id",
+        "position",
+        "externalTicketId",
+        "state",
+        "reason",
+        "ticketRequestId",
+        "costUsd",
+        "startedAt",
+        "mergedAt"
+      ],
+      "nullableFields": [
+        "reason",
+        "ticketRequestId",
+        "costUsd",
+        "startedAt",
+        "mergedAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "position": "integer",
+        "externalTicketId": "uuid",
+        "state": "enum(started|merged|failed|cancelled|passed_over)",
+        "reason": "string",
+        "ticketRequestId": "uuid",
+        "costUsd": "decimal",
+        "startedAt": "timestamp",
+        "mergedAt": "timestamp"
+      },
+      "description": "One issue a batch considered: started and being worked on, merged, failed, cancelled, or passed over with the reason it could not start.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of this batch entry.",
+        "position": "The order the batch considered it in, from 1.",
+        "externalTicketId": "The ticket (issue) this entry is for.",
+        "state": "started while it is being worked on; merged, failed or cancelled when it ended; passed_over when it could not start.",
+        "reason": "For a passed-over issue, the readiness reason code; otherwise null.",
+        "ticketRequestId": "The ordinary ticket request the batch made to start it, or null when it was passed over.",
+        "costUsd": "What the issue cost, recorded when it ended; null while it runs or when passed over.",
+        "startedAt": "UTC timestamp when it was started, or null.",
+        "mergedAt": "UTC timestamp when it merged, or null."
+      }
+    },
+    "Batch": {
+      "fields": [
+        "id",
+        "repositoryId",
+        "startedBy",
+        "maxIssues",
+        "maxHours",
+        "maxSpendUsd",
+        "continueMode",
+        "state",
+        "pauseReason",
+        "pausedBy",
+        "pausedAt",
+        "finishReason",
+        "finishedAt",
+        "stoppedBy",
+        "stopCancelledCurrent",
+        "startedAt",
+        "issuesDone",
+        "elapsedSeconds",
+        "spentUsd",
+        "issues",
+        "createdAt",
+        "updatedAt",
+        "version"
+      ],
+      "nullableFields": [
+        "pauseReason",
+        "pausedBy",
+        "pausedAt",
+        "finishReason",
+        "finishedAt",
+        "stoppedBy"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "repositoryId": "uuid",
+        "startedBy": "uuid",
+        "maxIssues": "integer",
+        "maxHours": "integer",
+        "maxSpendUsd": "decimal",
+        "continueMode": "enum(carry_on|ask_first)",
+        "state": "enum(running|waiting|paused|stopping|finishing|finished|stopped)",
+        "pauseReason": "string",
+        "pausedBy": "uuid",
+        "pausedAt": "timestamp",
+        "finishReason": "string",
+        "finishedAt": "timestamp",
+        "stoppedBy": "uuid",
+        "stopCancelledCurrent": "boolean",
+        "startedAt": "timestamp",
+        "issuesDone": "integer",
+        "elapsedSeconds": "integer",
+        "spentUsd": "decimal",
+        "issues": "BatchIssue[]",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp",
+        "version": "integer"
+      },
+      "description": "A bounded run of issues in one repository: its three limits, the carry-on choice, its state and the reason it paused or ended, what is used of each limit, and the issues it considered. It is a supervisor's record: each issue is an ordinary ticket request and task. Spend is summed after the fact and the limit is checked before each new issue starts.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of the batch.",
+        "repositoryId": "The repository it works in.",
+        "startedBy": "The person who started it; their authority is re-checked before every issue.",
+        "maxIssues": "Limit: issues to merge.",
+        "maxHours": "Limit: hours before nothing new starts.",
+        "maxSpendUsd": "Limit: dollars before nothing new starts.",
+        "continueMode": "carry_on or ask_first.",
+        "state": "running, waiting (for a person), paused, stopping or finishing (the current issue ends, nothing new starts), finished or stopped.",
+        "pauseReason": "Why it is paused: paused_by_person or the named finding of the supervisor; null otherwise.",
+        "pausedBy": "Who paused it, when a person did.",
+        "pausedAt": "When it was paused.",
+        "finishReason": "Why it ended: a limit, nothing left to start, a failure, a change on GitHub or lost authority; null while live.",
+        "finishedAt": "When it ended.",
+        "stoppedBy": "Who stopped it, when a person did.",
+        "stopCancelledCurrent": "True when the stop also cancelled the issue being worked on.",
+        "startedAt": "When the limit clock started.",
+        "issuesDone": "Issues merged so far, against maxIssues.",
+        "elapsedSeconds": "Seconds since startedAt (to finishedAt once ended), against maxHours.",
+        "spentUsd": "Spend so far across the batch's issues, against maxSpendUsd.",
+        "issues": "The issues it considered, in order.",
+        "createdAt": "UTC timestamp when the batch was created.",
+        "updatedAt": "UTC timestamp of the last change.",
+        "version": "Optimistic-concurrency version."
+      }
+    },
+    "Page<Batch>": {
+      "pageOf": "Batch",
+      "description": "Cursor page of batches, newest first, returned by `GET /v1/batches`. `nextCursor: null` marks the last page; there are no page numbers or offsets."
     }
   },
   "pageEnvelope": {
