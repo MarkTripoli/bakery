@@ -12,6 +12,7 @@ import {
   slugForGateId,
 } from "../../apps/server/src/modules/integrations/registry.ts";
 import {
+  deployedIntegrationEntries,
   deployedIntegrations,
   deployedIntegrationsDefects,
 } from "../../apps/server/src/modules/catalog/integration-gate-registry.ts";
@@ -30,7 +31,7 @@ import { computeManifestDigest } from "../../apps/server/src/modules/catalog/int
  * Four bases, because the map can be wrong in four independent ways:
  *
  * 1. the registry is internally consistent;
- * 2. every registered identity has a definition;
+ * 2. every registered identity has a definition or a provider package;
  * 3. every definition has a registered identity;
  * 4. all three ids for one provider resolve to each other.
  */
@@ -40,16 +41,25 @@ Deno.test("basis 1: the shipped registry is internally consistent", () => {
   assertEquals(deployedIntegrationsDefects(), []);
 });
 
-Deno.test("basis 2: every registered identity has an integration definition", () => {
-  // An identity with no definition is routed to and then found missing, which reads
-  // to a caller as a provider that does not exist.
-  const definedIds = new Set(
-    deployedIntegrations.map((definition) => definition.manifest.id),
+Deno.test("basis 2: every registered identity has a definition or a provider package", () => {
+  // An identity with neither is routed to and then found missing, which reads to a
+  // caller as a provider that does not exist.
+  //
+  // The two tiers are both deployed now: a legacy definition carries actions, and a
+  // provider package carries a manifest and its ports. The rail asks the question
+  // that still matters - is this identity served by *something* - rather than the
+  // one that used to be equivalent to it.
+  const served = new Set(
+    deployedIntegrationEntries.map((entry) =>
+      entry.kind === "definition"
+        ? entry.definition.manifest.id
+        : entry.provider.integrationId
+    ),
   );
   for (const gateId of deployedGateIds()) {
     assert(
-      definedIds.has(gateId),
-      `the registry deploys ${gateId} but no integration definition matches it`,
+      served.has(gateId),
+      `the registry deploys ${gateId} but neither a definition nor a provider package matches it`,
     );
   }
 });
@@ -71,11 +81,18 @@ Deno.test("basis 3: every deployed definition has a registry identity", () => {
     [],
     "a definition with no registry identity must be reported, not filtered away",
   );
-  // And for the shipped build, the derived list and the registry agree exactly.
-  assertEquals(
-    deployedIntegrations.map((definition) => definition.manifest.id),
-    [...deployedGateIds()],
-  );
+  // And for the shipped build, every deployed entry names a registered gate id.
+  // The legacy list alone no longer equals the registry: a provider package deploys
+  // a manifest and no definition, which is the point of the second tier.
+  for (const entry of deployedIntegrationEntries) {
+    const gateId = entry.kind === "definition"
+      ? entry.definition.manifest.id
+      : entry.provider.integrationId;
+    assert(
+      deployedGateIds().includes(gateId),
+      `${gateId} is deployed but the registry does not list it`,
+    );
+  }
 });
 
 Deno.test("basis 4: all three ids for one provider resolve to each other", () => {
@@ -172,11 +189,17 @@ Deno.test("a malformed slug or UUID is a defect", () => {
 });
 
 Deno.test("the deployed list is ordered by the registry, not by the literal", () => {
+  // Both tiers, in registry order: the deployed set has one ordering rule and it is
+  // the one the registry states, not the order either list happens to be written in.
   assertEquals(
-    deployedIntegrations.map((definition) => definition.manifest.id),
+    deployedIntegrationEntries.map((entry) =>
+      entry.kind === "definition"
+        ? entry.definition.manifest.id
+        : entry.provider.integrationId
+    ),
     [...deployedGateIds()],
   );
-  assertEquals(deployedProviderSlugs(), ["github"]);
+  assertEquals(deployedProviderSlugs(), ["github", "linear"]);
 });
 
 Deno.test("a deployed manifest refuses mutation all the way down", () => {
