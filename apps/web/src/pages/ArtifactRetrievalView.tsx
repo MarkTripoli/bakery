@@ -37,6 +37,8 @@ export type ArtifactRetrievalViewProps = {
     readonly testId?: string;
   };
   readonly pinControl: ReactNode;
+  /** Opens the shared draft for editing, where the person may edit. */
+  readonly editControl?: ReactNode;
   /** Isolated-preview handoff; absent where no preview can be offered. */
   readonly previewHandoff?: ReactNode;
   readonly notices?: readonly UI.ArtifactLayoutNotice[];
@@ -107,6 +109,7 @@ export function ArtifactRetrievalView(props: ArtifactRetrievalViewProps) {
                 </UI.Button>
               )
               : null}
+            {props.editControl}
             {props.pinControl}
             {props.previewHandoff}
           </>

@@ -28,6 +28,7 @@ import {
   lockSource,
   lockTicket,
   readTicketRef,
+  requestTargets,
   type TicketRequest,
   type TicketSource,
 } from "./ticket-store.ts";
@@ -101,7 +102,7 @@ async function recordFact(
   facts: {
     organizationId: string;
     principalId: string;
-    applicationId: string;
+    applicationId: string | null;
     repositoryId: string | null;
     task?: { id: string; conversation_id: string };
     operation: string;
@@ -383,6 +384,11 @@ async function requestOutput(
     readinessReportId: request.readinessReportId,
     pinnedPreset: request.pinnedPreset,
     pauseRequestedAt: request.pauseRequestedAt?.toISOString() ?? null,
+    targets: await requestTargets(
+      transaction,
+      request.organizationId,
+      request.id,
+    ),
     createdAt: times.rows[0].created_at.toISOString(),
     updatedAt: times.rows[0].updated_at.toISOString(),
     version: request.version,

@@ -57,7 +57,18 @@ type GitHubDelivery = {
   event: string;
   action: string | null;
   deliveryId: string;
-  payload: Record<string, unknown>;
+  /**
+   * The event body, or null when the bytes are not something this provider can
+   * read.
+   *
+   * A null payload is not a refusal. GitHub sends two encodings (JSON, and the
+   * legacy form-encoded `payload` field) and events this provider does not
+   * mirror at all, whose bodies it has no business parsing. Whether an
+   * unreadable body is an error depends on the event, and only the host knows
+   * which events it consumes, so `classify` answers `ignored` and the host's own
+   * projection step decides.
+   */
+  payload: Record<string, unknown> | null;
 };
 
 const header = (headers: Headers, name: string): string | null => {
@@ -78,18 +89,47 @@ function readDelivery(
   const event = header(headers, "x-github-event");
   const deliveryId = header(headers, "x-github-delivery");
   if (event === null || deliveryId === null) return null;
+  const payload = readPayload(body, headers);
+  if (payload === null) {
+    return { event, action: null, deliveryId, payload: null };
+  }
+  const action = typeof payload.action === "string" ? payload.action : null;
+  return { event, action, deliveryId, payload };
+}
+
+/** The event body as an object, or null when it is not one we can read. */
+function readPayload(
+  body: Uint8Array,
+  headers: Headers,
+): Record<string, unknown> | null {
+  let text: string;
+  try {
+    text = new TextDecoder("utf-8", { fatal: true }).decode(body);
+  } catch {
+    return null;
+  }
+  // GitHub sends a webhook as JSON, or - for an App configured before 2018 and
+  // never migrated - as a form whose single field carries the same JSON. Both
+  // are the provider's wire format, so reading them belongs here and not in the
+  // host, which only ever sees the payload.
+  const mediaType = (headers.get("content-type") ?? "").split(";", 1)[0]!
+    .trim().toLowerCase();
+  if (mediaType === "application/x-www-form-urlencoded") {
+    const fields = new URLSearchParams(text);
+    const only = [...fields.keys()];
+    if (only.length !== 1 || only[0] !== "payload") return null;
+    text = fields.get("payload") ?? "";
+  }
   let parsed: unknown;
   try {
-    parsed = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(body));
+    parsed = JSON.parse(text);
   } catch {
     return null;
   }
   if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
     return null;
   }
-  const payload = parsed as Record<string, unknown>;
-  const action = typeof payload.action === "string" ? payload.action : null;
-  return { event, action, deliveryId, payload };
+  return parsed as Record<string, unknown>;
 }
 
 /**
@@ -309,7 +349,9 @@ function anySecretSigns(
   return signed;
 }
 
-function isGitHubDelivery(value: unknown): value is GitHubDelivery {
+function isGitHubDelivery(
+  value: unknown,
+): value is GitHubDelivery & { payload: Record<string, unknown> } {
   if (value === null || typeof value !== "object") return false;
   const candidate = value as Record<string, unknown>;
   return typeof candidate.event === "string" &&
@@ -370,7 +412,10 @@ function subjectOf(
  * created long ago - and accept a replay because it was changed a minute ago.
  * The delivery id is the real guard; see `DELIVERY_REPLAY_WINDOW_MS`.
  */
-function deliveryTimestamp(payload: Record<string, unknown>): number | null {
+function deliveryTimestamp(
+  payload: Record<string, unknown> | null,
+): number | null {
+  if (payload === null) return null;
   const raw = payload.delivery_timestamp ?? payload.timestamp;
   if (typeof raw !== "string") return null;
   const parsed = Date.parse(raw);

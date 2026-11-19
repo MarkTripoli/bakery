@@ -40,7 +40,7 @@ export type RefusedPiece = Readonly<{
   /** When it was typed, epoch milliseconds. */
   typedAt: number;
   /** Why it is here; never shown to the person as a word. */
-  cause: "rejected" | "stale" | "epoch" | "revoked";
+  cause: "rejected" | "stale" | "epoch" | "revoked" | "closed";
 }>;
 
 /** What the page tells the person above the editor. */
@@ -199,6 +199,10 @@ export class CollaborationSession {
 
   /** Leaves the room and stops every timer. */
   destroy(): void {
+    if (this.#destroyed) return;
+    // Leaving with text the server has not acknowledged: keep it on this
+    // device, so the next visit offers it back instead of losing it.
+    this.#moveAllPendingToRefused("closed");
     this.#destroyed = true;
     this.#clearTimers();
     const socket = this.#socket;
