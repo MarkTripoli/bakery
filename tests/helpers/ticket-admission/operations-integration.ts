@@ -322,12 +322,16 @@ Deno.test("issue 69 preview: the saved policy and a draft are judged with counts
       [saved.sourceId, saved.policyRevision, saved.draft, saved.skipped],
       [sourceId, 1, false, 0],
     );
-    assertEquals(saved.issues.map((issue) => [issue.number, issue.outcome]), [
-      [1, "would_start"],
-      [2, "held"],
-      [3, "blocked"],
-      [4, "blocked"],
-    ]);
+    assertEquals(
+      saved.issues.map((issue) => [issue.number, issue.outcome]),
+      [
+        [1, "would_start"],
+        [2, "held"],
+        [3, "blocked"],
+        [4, "blocked"],
+      ],
+      JSON.stringify(saved.issues),
+    );
     assertEquals(saved.counts, {
       wouldStart: 1,
       planOnly: 0,
@@ -467,7 +471,7 @@ Deno.test("issue 69 preview: the saved policy and a draft are judged with counts
     });
     assertEquals(developer.status, 403);
     assertEquals(fx.reader.calls.length, reads);
-  });
+  }, { budget: true });
 });
 
 Deno.test("issue 69 preview: an issue a poll already recorded keeps its stored report and row", async () => {
@@ -628,7 +632,28 @@ Deno.test("issue 69 reads: links list from either side, keyset paged, and PRs fi
       applicationId: foreignApplication,
       adminId: fx.adminId,
     });
-    assertEquals((await list(`taskId=${foreignTask}`)).status, 404);
+    try {
+      assertEquals((await list(`taskId=${foreignTask}`)).status, 404);
+    } finally {
+      // The foreign rows name the fixture's admin; the fixture's teardown
+      // removes that principal, so they go first.
+      await fx.owner.query(
+        `delete from bakery.tasks where organization_id = $1`,
+        [foreignOrganization],
+      );
+      await fx.owner.query(
+        `delete from bakery.conversations where organization_id = $1`,
+        [foreignOrganization],
+      );
+      await fx.owner.query(
+        `delete from bakery.applications where organization_id = $1`,
+        [foreignOrganization],
+      );
+      await fx.owner.query(
+        `delete from bakery.organizations where id = $1`,
+        [foreignOrganization],
+      );
+    }
     assertEquals(
       (await list(`externalTicketId=${crypto.randomUUID()}`)).status,
       404,
