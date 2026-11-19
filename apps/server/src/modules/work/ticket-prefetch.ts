@@ -12,6 +12,7 @@ import type {
   TicketLinksRead,
   TicketSourceHandle,
   TicketSourceReader,
+  TicketStatusRead,
 } from "./ticket-source-reader.ts";
 
 /**
@@ -48,6 +49,11 @@ export type TicketPrefetch = {
   links: TicketLinksRead | null;
   /** One proof per native blocker the links name. */
   proofs: BlockerProofEntry[];
+  /**
+   * Statuses the item sits in; null when the policy names none, because a source
+   * that decides on its label alone never pays for the read.
+   */
+  statuses: TicketStatusRead | null;
   /** Who applied the request label; null when not read (manual origin, no label, hold). */
   provenance: TicketLabelProvenance | null;
   /** Repository role of the labelling actor; null when not read. */
@@ -123,12 +129,20 @@ export async function prefetchTicketReads(
       issue,
       links: null,
       proofs: [],
+      statuses: null,
       provenance: null,
       actorRole: null,
       provenanceLabel: null,
     };
   }
-  const links = await reader.readLinks(handle, request.number, signal);
+  const wantsStatus = (request.policy.readiness.statuses?.length ?? 0) > 0;
+  const [links, statuses] = await Promise.all([
+    reader.readLinks(handle, request.number, signal),
+    wantsStatus
+      // The snapshot is already in hand, so this costs no second read.
+      ? reader.readStatuses(handle, request.number, signal, issue.snapshot)
+      : Promise.resolve(null),
+  ]);
   const blockers: IssueRef[] = links.kind === "present" ? links.blockedBy : [];
   const proofs = await mapPool(
     blockers,
@@ -159,5 +173,13 @@ export async function prefetchTicketReads(
       }
     }
   }
-  return { issue, links, proofs, provenance, actorRole, provenanceLabel };
+  return {
+    issue,
+    links,
+    proofs,
+    statuses,
+    provenance,
+    actorRole,
+    provenanceLabel,
+  };
 }
