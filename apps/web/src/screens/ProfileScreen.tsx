@@ -155,38 +155,12 @@ export function ProfileScreen(
               : null}
             <UI.Field
               error={errors.name}
+              hint={translate("profile.nameHint")}
               htmlFor={PROFILE_FIELD_IDS.name}
               label={translate("profile.displayName")}
               layout="inline"
             >
               {field("name", { autoComplete: "name", required: true })}
-            </UI.Field>
-            <UI.Field
-              htmlFor={PROFILE_FIELD_IDS.firstName}
-              label={translate("profile.nameDetails")}
-              layout="inline"
-              note={translate("profile.optional")}
-            >
-              <UI.Inline
-                aria-label={translate("profile.nameDetails")}
-                role="group"
-                variant="split"
-              >
-                <UI.Field
-                  error={errors.firstName}
-                  htmlFor={PROFILE_FIELD_IDS.firstName}
-                  label={translate("profile.firstName")}
-                >
-                  {field("firstName", { autoComplete: "given-name" })}
-                </UI.Field>
-                <UI.Field
-                  error={errors.lastName}
-                  htmlFor={PROFILE_FIELD_IDS.lastName}
-                  label={translate("profile.lastName")}
-                >
-                  {field("lastName", { autoComplete: "family-name" })}
-                </UI.Field>
-              </UI.Inline>
             </UI.Field>
             <UI.Field
               error={errors.title}

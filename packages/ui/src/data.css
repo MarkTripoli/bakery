@@ -533,6 +533,11 @@
   .ui-description-item[data-action-placement="below"] .ui-description-item__action {
     flex: 1 0 100%;
   }
+  /* The text takes the room beside the icon (a zero basis), so only the
+     action wraps to its own line, never the icon from its name. */
+  .ui-description-item[data-action-placement="below"] .ui-description-item__body {
+    flex: 1 1 0;
+  }
   .ui-description-item[data-action-placement="below"] .ui-description-item__action .ui-inline {
     flex-wrap: wrap;
     justify-content: flex-start;
@@ -584,6 +589,13 @@
 }
 .ui-description-item--selectable .ui-description-item__title {
   font: var(--type-item-title); /* auth.css:8 .item.selectable strong */
+}
+/* A row with its own action beside selectable rows: the same title weight and tight body. */
+.ui-description-item[data-title-style="item"] .ui-description-item__body {
+  gap: var(--space-0);
+}
+.ui-description-item[data-title-style="item"] .ui-description-item__title {
+  font: var(--type-item-title);
 }
 .ui-description-item--selectable .ui-description-item__action {
   display: flex;

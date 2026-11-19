@@ -43,6 +43,17 @@ export async function still(
   }
   for (const scheme of ["light", "dark"] as const) {
     await page.emulateMedia({ colorScheme: scheme });
+    // The logo picks its art after a theme change (observer, render, image
+    // load); a shot taken before then shows the other theme's art.
+    await page.waitForFunction(
+      (expected) =>
+        Array.from(document.querySelectorAll("img[data-logo-variant]")).every(
+          (image) =>
+            image instanceof HTMLImageElement && image.complete &&
+            image.dataset.logoVariant?.endsWith(expected),
+        ),
+      scheme,
+    );
     const path = `${directory}/${name}-${
       phone ? "phone" : "desktop"
     }-${scheme}.png`;
