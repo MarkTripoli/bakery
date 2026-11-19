@@ -73,7 +73,8 @@ h1{font-size:1.5rem;line-height:1.3;margin:0 0 12px}
 p{margin:0 0 12px}
 dl{display:grid;grid-template-columns:max-content 1fr;gap:4px 16px;margin:16px 0}
 dt{font-weight:600}dd{margin:0;overflow-wrap:anywhere;color:var(--fg-muted)}
-form{display:flex;gap:12px;flex-wrap:wrap;margin:24px 0 16px}
+form{display:flex;flex-direction:row-reverse;justify-content:flex-end;gap:12px;margin:24px 0 16px}
+@media (max-width:480px){form{flex-direction:column}form button{width:100%;justify-content:center}}
 a{color:var(--focus)}
 button,.button{min-height:44px;padding:0 20px;font:inherit;font-weight:500;border-radius:4px;border:1px solid var(--control-border);background:var(--surface);color:var(--fg);text-decoration:none;display:inline-flex;align-items:center;cursor:pointer}
 .primary{background:var(--primary);border-color:var(--primary);color:var(--primary-fg)}
@@ -260,11 +261,11 @@ export function renderConfirmPage(
 <p>${escapeHtml(translate("auth.desktopSignIn.confirm.access"))}</p>
 <form method="post" action="${DESKTOP_SIGN_IN_PAGE_PATH}">
 <input type="hidden" name="request" value="${request}">
-<button type="submit" name="decision" value="cancel">${
-      escapeHtml(translate("auth.desktopSignIn.confirm.cancel"))
-    }</button>
 <button type="submit" name="decision" value="continue" class="primary" autofocus>${
       escapeHtml(translate("auth.desktopSignIn.confirm.continue"))
+    }</button>
+<button type="submit" name="decision" value="cancel">${
+      escapeHtml(translate("auth.desktopSignIn.confirm.cancel"))
     }</button>
 </form>
 <p><a href="${SIGN_OUT_PATH}">${
