@@ -8,6 +8,8 @@ import {
   openWorkerFixture,
   registeredWorker,
   type WorkerFixture,
+  workerFixtureCapabilities,
+  workerRequest,
 } from "../helpers/worker-execution.ts";
 import {
   admitFundedModelRun,
@@ -16,6 +18,7 @@ import {
 } from "../helpers/funded-model-job.ts";
 import type { AdmittedJob } from "../helpers/funded-model-job.ts";
 import { claimAssignment } from "../helpers/worker-execution/scenarios.ts";
+import { hasHeldJobBudgetReservation } from "../../packages/persistence/src/budget-admission.ts";
 
 /**
  * #26 slice 6b/6c against a real database: admitting a route continuation.
@@ -480,6 +483,46 @@ Deno.test("admit: a live attempt is fenced, and the next claim runs on the new p
     assertEquals(job.status, "queued");
     assertEquals(job.fence, fenceBefore + 1);
 
+    // The claim funds a job through `hasHeldJobBudgetReservation`; ask it first, so
+    // a mismatch between the re-priced rows is named instead of surfacing as an
+    // empty claim.
+    const funded = await withPgTransaction(
+      database(seeded.fixture),
+      (transaction) =>
+        hasHeldJobBudgetReservation(
+          transaction,
+          seeded.fixture.organizationId,
+          seeded.job.jobId,
+        ),
+    );
+    if (!funded) {
+      const rows = await pg.query(
+        `select j.billing, j.agent_config->'billing' as config_billing,
+                i.provider as i_provider, i.billing_account_id as i_account,
+                i.model as i_model, i.billing_route as i_route,
+                i.pricing_metadata_snapshot as i_snapshot, i.reserved_usd as i_usd,
+                c.provider as c_provider, c.billing_account_id as c_account,
+                c.model as c_model, c.billing_type as c_type,
+                c.pricing_metadata_snapshot as c_snapshot,
+                c.max_usd_reservation as c_usd, c.max_tokens as c_tokens,
+                p.provider as p_provider, p.billing_account_id as p_account,
+                p.model as p_model, p.billing_type as p_type,
+                p.pricing_metadata_snapshot as p_snapshot
+           from bakery.jobs j
+           join bakery.budget_action_intents i
+             on i.installation_reservation_id = j.installation_reservation_id
+           join bakery.provider_call_intents c on c.id = i.provider_call_intent_id
+           left join bakery.provider_pricing_snapshots p on p.id = c.pricing_snapshot_id
+          where j.id = $1`,
+        [seeded.job.jobId],
+      );
+      throw new Error(
+        `the re-priced job is not funded as the claim sees it: ${
+          JSON.stringify(rows.rows[0])
+        }`,
+      );
+    }
+
     // A fresh claim is accepted (the budget check the claim path makes passes on
     // the re-priced intent) and carries the NEW pin.
     const second = await claimAssignment(seeded.fixture, worker);
@@ -801,14 +844,21 @@ Deno.test("admit: spend in flight is refused, because it stays reserved and reco
             where run_step_id = $1`,
           [seeded.job.runStepId],
         );
+        // Seeded for real: a failed insert here would leave no live effect and the
+        // admission would rightly go ahead, so this must not be swallowed.
         await database(seeded.fixture).query(
           `insert into bakery.external_effects (
-             id, organization_id, run_step_id, operation, target, idempotency_key,
-             request_digest, status
-           ) values (gen_random_uuid(), $1, $2, 'op', 'target', 'key-1', 'digest',
-                     'submitted')`,
-          [seeded.fixture.organizationId, seeded.job.runStepId],
-        ).catch(() => undefined);
+             id, organization_id, run_step_id, operation, target,
+             requesting_principal_id, actor_ref, idempotency_key, request_digest,
+             adapter_version, status
+           ) values (gen_random_uuid(), $1, $2, 'op', 'target', $3, 'actor',
+                     'key-1', 'digest', 'v1', 'submitted')`,
+          [
+            seeded.fixture.organizationId,
+            seeded.job.runStepId,
+            seeded.fixture.principalId,
+          ],
+        );
       },
     ],
     [
@@ -952,5 +1002,73 @@ Deno.test("admit: the application role has exactly the grants the admission need
     assertEquals(await table("delete"), false);
   } finally {
     await done(seeded);
+  }
+});
+
+/** What a claim answers: 200 with an assignment, 204 when nothing is claimable. */
+async function claimStatus(
+  seeded: Seeded,
+  worker: Awaited<ReturnType<typeof registeredWorker>>,
+) {
+  const claimKey = crypto.randomUUID();
+  const response = await workerRequest(
+    seeded.fixture,
+    worker.credential,
+    "/v1/worker/claims",
+    {
+      claimKey,
+      workerHostId: worker.registration.workerHostId,
+      capabilities: workerFixtureCapabilities,
+    },
+    { idempotencyKey: claimKey },
+  );
+  await response.body?.cancel();
+  return response.status;
+}
+
+Deno.test("admit: only a recorded continuation can make a job's pin differ from the frozen one", async () => {
+  // A job re-pinned by hand, with no continuation behind it: the claim refuses it
+  // exactly as it refused any job whose configuration left the frozen one.
+  {
+    const seeded = await seed();
+    try {
+      const worker = await registeredWorker(seeded.fixture, { slots: 4 });
+      const pg = database(seeded.fixture);
+      await pg.query(
+        `update bakery.jobs
+            set agent_config = jsonb_set(agent_config, '{billing,model}', '"tampered"'),
+                billing = jsonb_set(billing, '{model}', '"tampered"')
+          where id = $1`,
+        [seeded.job.jobId],
+      );
+      assertEquals(await claimStatus(seeded, worker), 204);
+    } finally {
+      await done(seeded);
+    }
+  }
+  // After a real continuation, anything beyond the pin is still a mismatch.
+  {
+    const seeded = await seed();
+    try {
+      const worker = await registeredWorker(seeded.fixture, { slots: 4 });
+      await admit(seeded);
+      const pg = database(seeded.fixture);
+      await pg.query(
+        `update bakery.jobs
+            set agent_config = jsonb_set(agent_config, '{unfrozen}', 'true')
+          where id = $1`,
+        [seeded.job.jobId],
+      );
+      assertEquals(await claimStatus(seeded, worker), 204);
+      // And with the extra field gone, the same job claims: the refusal was the
+      // field, not the continuation.
+      await pg.query(
+        `update bakery.jobs set agent_config = agent_config - 'unfrozen' where id = $1`,
+        [seeded.job.jobId],
+      );
+      assertEquals(await claimStatus(seeded, worker), 200);
+    } finally {
+      await done(seeded);
+    }
   }
 });
