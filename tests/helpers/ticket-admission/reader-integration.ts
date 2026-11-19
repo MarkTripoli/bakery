@@ -326,6 +326,41 @@ Deno.test("issue 82 reader: readStatuses names GitHub's own state vocabulary, no
   });
 });
 
+Deno.test("issue 82 reader: a status read given the snapshot costs no second provider call", async () => {
+  await withSource(async (s) => {
+    // Admission reads the issue first and then asks for its statuses. Handing
+    // that snapshot back means one provider call for both answers; asking again
+    // would spend a second call to learn what the first already returned.
+    seedIssues(s, {
+      number: 30,
+      state: "closed",
+      stateReason: "completed",
+      updatedAt: at(0),
+    });
+    const read = await s.reader.readIssue(s.handle, 30, signal());
+    assert(read.kind === "present");
+
+    const before = s.f.github.calls.length;
+    const fromSnapshot = await s.reader.readStatuses(
+      s.handle,
+      30,
+      signal(),
+      read.snapshot,
+    );
+    assertEquals(
+      s.f.github.calls.length,
+      before,
+      "the snapshot answers the status read with no request",
+    );
+
+    // The answer is the same one a fresh read would give.
+    assertEquals(
+      fromSnapshot,
+      await s.reader.readStatuses(s.handle, 30, signal()),
+    );
+  });
+});
+
 Deno.test("issue 82 reader: an oversized body is reported and kept as no text", async () => {
   await withSource(async (s) => {
     seedIssues(s, { number: 1 });

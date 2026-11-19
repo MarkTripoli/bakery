@@ -139,7 +139,8 @@ export async function prefetchTicketReads(
   const [links, statuses] = await Promise.all([
     reader.readLinks(handle, request.number, signal),
     wantsStatus
-      ? reader.readStatuses(handle, request.number, signal)
+      // The snapshot is already in hand, so this costs no second read.
+      ? reader.readStatuses(handle, request.number, signal, issue.snapshot)
       : Promise.resolve(null),
   ]);
   const blockers: IssueRef[] = links.kind === "present" ? links.blockedBy : [];

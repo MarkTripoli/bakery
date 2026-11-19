@@ -2475,12 +2475,19 @@ Deno.test("issue 82 unit readiness: a policy may name any of several statuses", 
 });
 
 Deno.test("issue 82 unit readiness: asking a label-only provider for a status says so instead of waiting forever", async () => {
+  // "This ticket is not in the status you named" and "this provider has no
+  // statuses at all" are different problems with different fixes, so they carry
+  // different reasons: a label-only provider is a misconfigured source, not an
+  // unready ticket.
   const report = await evaluate(readyInput({
     policy: statusPolicy(["open"]),
     statuses: { kind: "unsupported" },
   }));
   assertEquals(report.verdict, "waiting");
-  assertEquals(outcome(report, "status_ready"), ["wait", "status_missing"]);
+  assertEquals(outcome(report, "status_ready"), [
+    "wait",
+    "status_unsupported",
+  ]);
 });
 
 Deno.test("issue 82 unit readiness: a provider that could not answer is unavailable, not missing", async () => {

@@ -492,8 +492,10 @@ function statusReady(context: Context): Outcome | null {
   if (answer === null) return waiting("provider_unavailable");
   if (answer.kind === "unsupported") {
     // Asking a label-only provider for a status is a misconfiguration, and a
-    // ticket that waited for one would wait forever without saying why.
-    return waiting("status_missing");
+    // ticket that waited for one would wait forever. It gets its own reason so
+    // the report says the provider has no statuses at all, which is a different
+    // fix from "this ticket is not in the status you named".
+    return waiting("status_unsupported");
   }
   if (answer.kind !== "present") return providerUnavailable(answer);
   const held = new Set(answer.statuses.map((status) => status.id));

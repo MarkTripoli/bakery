@@ -176,10 +176,18 @@ export interface TicketSourceReader {
    * configured", which is a different thing and would let a misconfigured
    * source look like a ticket that simply is not ready.
    */
+  /**
+   * `issue` is the snapshot the caller has already read, when it has one: a
+   * status comes from that snapshot's state and reason, so asking the provider
+   * again would spend a second call to learn what is already known. It is
+   * optional because a caller that has only a number still gets a correct
+   * answer, at the cost of the read.
+   */
   readStatuses(
     handle: TicketSourceHandle,
     number: number,
     signal: AbortSignal,
+    issue?: TicketSnapshotInput,
   ): Promise<TicketStatusRead>;
   listIssues(
     handle: TicketSourceHandle,
