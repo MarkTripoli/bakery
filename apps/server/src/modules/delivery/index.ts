@@ -1,8 +1,3 @@
-export {
-  type AppendedIteration,
-  appendIteration,
-  appendStopGate,
-} from "./append-iteration.ts";
 export { createDeliveryActionRegistry } from "./actions.ts";
 export {
   assertDeliveryCandidateMergeable,
@@ -53,14 +48,6 @@ export {
 } from "./finalize-review.ts";
 export { createDeliveryHandlers } from "./handlers.ts";
 export {
-  assertIndependentReviewer,
-  type IndependenceInput,
-  REVIEW_INDEPENDENCE_VIOLATIONS,
-  REVIEW_NOT_INDEPENDENT_REASON,
-  type ReviewerSession,
-  type ReviewIndependenceViolation,
-} from "./independence.ts";
-export {
   assessFreshness,
   BOUND_PARTS,
   type BoundPart,
@@ -92,22 +79,7 @@ export {
   metadataSubjects,
   recordMetadataCheckRuns,
 } from "./metadata-checks.ts";
-export { type ReviewLoopSteps, reviewLoopSteps } from "./loop-steps.ts";
 export { deliveryBakeryMigrationSource } from "./migrations.ts";
-export {
-  decideDelivery,
-  DECISION_REVIEW_STATUSES,
-  type DecisionBudget,
-  type DecisionCheckFact,
-  type DecisionFailedCheck,
-  type DecisionFinding,
-  type DecisionLimits,
-  type DecisionReview,
-  type DecisionReviewStatus,
-  type DeliveryDecisionInput,
-  type DeliveryDecisionResult,
-  type PriorDecision,
-} from "./repair-loop.ts";
 export {
   parseReviewReport,
   REVIEW_REPORT_INVALID_REASON,
@@ -149,5 +121,4 @@ export {
   mergeRequirements,
   type RequirementEvaluation,
   type RequirementReason,
-  type RequirementStatus,
 } from "./verdict.ts";
