@@ -28,6 +28,14 @@ export type ResolvedTarget =
     anchor: string | null;
   }
   | {
+    // The task or document still opens but the inner part (step, card,
+    // message, comment) is gone: open the page with no anchor and say so.
+    status: "part_unavailable";
+    targetKind: NotificationTargetKind;
+    path: string;
+    anchor: null;
+  }
+  | {
     status: "unavailable";
     targetKind: NotificationTargetKind;
     path: null;
@@ -110,9 +118,48 @@ export async function resolveNotificationTarget(
   if (task.rows.length === 0) return UNAVAILABLE(targetKind);
 
   // Confirm the target row still exists inside this task, so a deleted step,
-  // question or version reports unavailable rather than a dead anchor.
+  // question or version reports a missing part rather than a dead anchor.
   const exists = await targetExists(transaction, scope.organizationId, row);
-  if (!exists) return UNAVAILABLE(targetKind);
+  if (!exists) {
+    return {
+      status: "part_unavailable",
+      targetKind,
+      path: taskPath(row.taskId),
+      anchor: null,
+    };
+  }
+
+  // Versions and comments live on the document page; everything else on the
+  // task page. The anchor grammar is `kind:id`, with the version's number for
+  // a version (`version:3`), so a reload or shared link lands in the same place.
+  if (targetKind === "document_version" || targetKind === "comment") {
+    const located = await transaction.query<
+      { artifactId: string; revision: number }
+    >(
+      targetKind === "document_version"
+        ? `select artifact_id as "artifactId", revision
+             from bakery.artifact_versions
+            where organization_id = $1::uuid and id = $2::uuid`
+        : `select version.artifact_id as "artifactId", version.revision
+             from bakery.artifact_comments as comment
+             join bakery.artifact_versions as version
+               on version.organization_id = comment.organization_id
+              and version.id = comment.artifact_version_id
+            where comment.organization_id = $1::uuid and comment.id = $2::uuid`,
+      [scope.organizationId, row.targetId],
+    );
+    const found = located.rows[0];
+    if (found !== undefined) {
+      return {
+        status: "available",
+        targetKind,
+        path: `${taskPath(row.taskId)}/artifacts/${found.artifactId}`,
+        anchor: targetKind === "document_version"
+          ? `version:${found.revision}`
+          : `comment:${row.targetId}`,
+      };
+    }
+  }
 
   return {
     status: "available",
@@ -212,7 +259,7 @@ export async function resolveDestinationSummary(
   row: NotificationRow,
 ): Promise<{ title: string | null; available: boolean }> {
   const target = await resolveNotificationTarget(transaction, scope, row);
-  if (target.status !== "available") {
+  if (target.status === "unavailable") {
     return { title: null, available: false };
   }
   const title = await destinationTitle(transaction, scope.organizationId, row);
