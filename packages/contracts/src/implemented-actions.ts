@@ -438,6 +438,8 @@ export const WorkflowImplementedAction = Object.freeze(
       "workflowDefinitionProposalDecisions.create",
     DefinitionPublishGrantsCreate: "definitionPublishGrants.create",
     DefinitionPublishGrantsDelete: "definitionPublishGrants.delete",
+    AgentPowerGrantsCreate: "agentPowerGrants.create",
+    AgentPowerGrantsDelete: "agentPowerGrants.delete",
   } as const satisfies Record<string, CatalogActionName>,
 );
 export const workflowImplementedActions = Object.freeze(

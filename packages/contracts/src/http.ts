@@ -327,6 +327,9 @@ export const DRAFT_EDIT_REFUSAL_REASONS = Object.freeze(
       // Coordinator proposals and save as workflow are a person's acts (#420).
       "definition_proposal_decision_requires_person",
       "workflow_listing_requires_person",
+      // An agent acting without a grant, or on its own work or lineage (#414).
+      "agent_power_requires_grant",
+      "agent_target_own_work",
     ]),
   } as const,
 );

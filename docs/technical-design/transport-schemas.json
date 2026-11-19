@@ -11156,6 +11156,34 @@
       ],
       "description": "Leaves a note for a workflow step that has not started yet, addressed by the run id and step key in the path. The agent that runs the step receives the note once, with its input; a step that has already started refuses the note with a state conflict, and a steer on its live session is the way to reach it."
     },
+    "AgentPowerGrantCreate": {
+      "fields": [
+        {
+          "name": "power",
+          "type": "enum(decide|run_control|run_start)",
+          "required": true,
+          "description": "The off-by-default power being granted: decide (approve, reject or request changes where a person would), run_control (pause, resume, cancel, interrupt or retry a run) or run_start (start a run, still subject to count, depth and budget checks)."
+        },
+        {
+          "name": "workflowId",
+          "type": "uuid|null",
+          "required": false,
+          "description": "Immutable id of a workflow that holds the power in two senses: an agent session running a step of it may use the power, and an agent may use the power on its runs. An agent acts on a target only when both its own workflow and the target's hold the grant, so one grant cannot reach every workflow. Null or absent covers every workflow and then requires accessTokenId, so no grant reaches every agent on every workflow."
+        },
+        {
+          "name": "accessTokenId",
+          "type": "uuid|null",
+          "required": false,
+          "description": "The one seat (access token) the grant is limited to. Null or absent lets any agent session of the named workflow use the power."
+        }
+      ],
+      "rules": [
+        "A person with a browser session only; an agent is refused (O51: delegating authority is never an agent's act).",
+        "An unknown or foreign workflow and an unknown, revoked or foreign token both answer RESOURCE_NOT_FOUND.",
+        "A second grant for the same power, workflow and seat is STATE_CONFLICT with reason agent_power_grant_exists."
+      ],
+      "description": "Grants agents an off-by-default power for one workflow or one seat (chapter 25 O52). Every use is labelled as an agent's action, and a grant never lets an agent act on its own output."
+    },
     "RunStepTakeOver": {
       "fields": [
         {
@@ -28454,6 +28482,40 @@
         "createdAt": "When the note was recorded."
       }
     },
+    "AgentPowerGrant": {
+      "fields": [
+        "id",
+        "power",
+        "workflowId",
+        "accessTokenId",
+        "grantedBy",
+        "createdAt",
+        "version"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "power": "enum(decide|run_control|run_start)",
+        "workflowId": "uuid|null",
+        "accessTokenId": "uuid|null",
+        "grantedBy": "uuid",
+        "createdAt": "timestamp",
+        "version": "integer"
+      },
+      "nullableFields": [
+        "workflowId",
+        "accessTokenId"
+      ],
+      "description": "One grant of an off-by-default agent power (O52): which power, which workflow and seat it covers, and the person who granted it. Revoking deletes it; the audit log keeps both.",
+      "fieldDescriptions": {
+        "id": "Stable UUID identifying the grant.",
+        "power": "The power granted: decide, run_control or run_start.",
+        "workflowId": "Immutable id of the workflow that holds the power, as an agent's own workflow and as a target workflow; null covers every workflow for the named seat.",
+        "accessTokenId": "Seat (access token) the grant is limited to; null for any agent session of the named workflow.",
+        "grantedBy": "Person who made the grant.",
+        "createdAt": "When the grant was made.",
+        "version": "Optimistic-concurrency version a revoke must name in If-Match."
+      }
+    },
     "RouteContinuationTarget": {
       "fields": [
         "routeId",
@@ -29877,6 +29939,24 @@
       "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
     },
     "providerRoutes.updated": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "agentPowerGrant.created": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "agentPowerGrant.deleted": {
       "schemaVersion": 1,
       "payloadFields": {
         "resourceId": "uuid",
