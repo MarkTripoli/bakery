@@ -389,11 +389,16 @@ async function frozenJob(
     skill_refs: [],
   };
   const transaction = {
-    query: (sql: string) =>
-      Promise.resolve({
+    query: (sql: string) => {
+      // The job carries no step notes, so no note was delivered to it.
+      if (sql.includes("from bakery.run_step_note_deliveries")) {
+        return Promise.resolve({ rows: [], rowCount: 0 });
+      }
+      return Promise.resolve({
         rows: sql.includes("from bakery.jobs job") ? [row] : [profile],
         rowCount: 1,
-      }),
+      });
+    },
   } as unknown as PgTransactionClient;
   return { row, transaction, callerInput, context };
 }
