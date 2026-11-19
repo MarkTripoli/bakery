@@ -303,6 +303,27 @@ test.describe("organization repository rules", () => {
     const enforcement = page.getByRole("button", {
       name: "About enforcement",
     });
+    // Each help button sits beside its header text, on the same line.
+    for (
+      const [column, help] of [
+        ["Enforcement", enforcement],
+        [
+          "Repositories can change it",
+          page.getByRole("button", {
+            name: "About what repositories can change",
+          }),
+        ],
+      ] as const
+    ) {
+      const text = await page.getByRole("columnheader", { name: column })
+        .locator("span").first().boundingBox();
+      const button = await help.boundingBox();
+      expect(text && button).toBeTruthy();
+      const apart = Math.abs(
+        (button!.y + button!.height / 2) - (text!.y + text!.height / 2),
+      );
+      expect(apart).toBeLessThan(text!.height);
+    }
     await enforcement.click();
     await expect(
       page.getByText("Require blocks delivery until the check passes."),

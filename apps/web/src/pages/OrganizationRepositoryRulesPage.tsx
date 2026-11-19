@@ -489,9 +489,11 @@ export function OrganizationRepositoryRulesPage() {
                               id: "enforcement",
                               header: (
                                 <UI.Inline gap="compact">
-                                  {translate(
-                                    "settings.repositoryRules.column.enforcement",
-                                  )}
+                                  <span>
+                                    {translate(
+                                      "settings.repositoryRules.column.enforcement",
+                                    )}
+                                  </span>
                                   <UI.HelpTip
                                     closeLabel={translate(
                                       "repository.rules.help.close",
@@ -519,9 +521,11 @@ export function OrganizationRepositoryRulesPage() {
                               id: "access",
                               header: (
                                 <UI.Inline gap="compact">
-                                  {translate(
-                                    "settings.repositoryRules.column.access",
-                                  )}
+                                  <span>
+                                    {translate(
+                                      "settings.repositoryRules.column.access",
+                                    )}
+                                  </span>
                                   <UI.HelpTip
                                     closeLabel={translate(
                                       "repository.rules.help.close",
