@@ -2,7 +2,6 @@ import { assertEquals } from "@std/assert";
 import type { ApiResult } from "../../apps/web/src/api/client.ts";
 import {
   lookForPublication,
-  MOVED_ON_ATTEMPTS,
   publishCheckpoint,
   type PublishDeps,
 } from "../../apps/web/src/collaboration/publish-flow.ts";
@@ -66,27 +65,49 @@ Deno.test("only the checkpoint and its digest are sent, whatever the caller hold
   assertEquals(sent, [first]);
 });
 
-Deno.test("a moved-on text is re-read and the new checkpoint published, without telling the person", async () => {
+Deno.test("a moved checkpoint with the same text is published once more, silently", async () => {
+  const same = {
+    ok: true,
+    data: { checkpointId: "b", textDigest: first.textDigest },
+  } as never;
   const { deps, calls } = world(
     [problem(412), { ok: true, data: publication }],
-    [draft("b")],
+    [same],
   );
   assertEquals((await publishCheckpoint(deps, first)).kind, "published");
   assertEquals(calls.publish, ["a", "b"]);
   assertEquals(calls.read, 1);
 });
 
-Deno.test("a text that keeps moving is tried three times, then reported, with nothing published", async () => {
+Deno.test("a text that changed is not published: the person is told and the next press takes it", async () => {
   const { deps, calls } = world(
-    [problem(412), problem(412), problem(412), { ok: true, data: publication }],
-    [draft("b"), draft("c")],
+    [problem(412), { ok: true, data: publication }],
+    [draft("b")],
   );
-  assertEquals(await publishCheckpoint(deps, first), { kind: "kept-changing" });
-  assertEquals(calls.publish, ["a", "b", "c"]);
-  assertEquals(calls.publish.length, MOVED_ON_ATTEMPTS);
-  // One re-read between tries, none after the last: a read there could fail
-  // and turn "kept changing" into "unknown".
-  assertEquals(calls.read, MOVED_ON_ATTEMPTS - 1);
+  assertEquals(await publishCheckpoint(deps, first), { kind: "moved" });
+  assertEquals(calls.publish, ["a"]);
+  assertEquals(calls.read, 1);
+});
+
+Deno.test("a checkpoint that keeps moving under the same text stops after one more try", async () => {
+  const same = (id: string) =>
+    ({
+      ok: true,
+      data: { checkpointId: id, textDigest: first.textDigest },
+    }) as never;
+  const { deps, calls } = world(
+    [problem(412), problem(412), { ok: true, data: publication }],
+    [same("b"), same("c")],
+  );
+  assertEquals(await publishCheckpoint(deps, first), { kind: "moved" });
+  assertEquals(calls.publish, ["a", "b"]);
+  assertEquals(calls.read, 1);
+});
+
+Deno.test("a failed re-read after a refusal means nothing was published", async () => {
+  const { deps, calls } = world([problem(412)], [network]);
+  assertEquals(await publishCheckpoint(deps, first), { kind: "moved" });
+  assertEquals(calls.publish, ["a"]);
 });
 
 Deno.test("a lost answer is never published a second time: it is unknown, with its checkpoint", async () => {
@@ -113,15 +134,6 @@ Deno.test("no right to publish, or a gone draft, is forbidden; another refusal i
     kind: "refused",
     checkpointId: "a",
   });
-});
-
-Deno.test("a failed re-read is unknown, not a second publish", async () => {
-  const { deps, calls } = world([problem(412)], [network]);
-  assertEquals(await publishCheckpoint(deps, first), {
-    kind: "unknown",
-    checkpointId: "a",
-  });
-  assertEquals(calls.publish, ["a"]);
 });
 
 Deno.test("looking for a lost publication never publishes: found, absent or unknown", async () => {

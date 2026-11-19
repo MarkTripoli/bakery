@@ -1651,7 +1651,7 @@
   "artifact.edit.publish.waiting": "{count} agent suggestions are not accepted. They are left out of version {version} and stay in the draft.",
   "artifact.edit.publish.waitingOne": "1 agent suggestion is not accepted. It is left out of version {version} and stays in the draft.",
   "artifact.edit.publish.kept": "Version {version} and its comments are kept and cannot change.",
-  "artifact.edit.publish.keptChanging": "People are still typing, so the text kept changing. Nothing was published. Publish again to take it as it is now.",
+  "artifact.edit.publish.moved": "The document changed while this was open. Nothing was published. Check the text, then publish again.",
   "artifact.edit.publish.cancel": "Cancel",
   "artifact.edit.publish.confirm": "Publish version {version}",
   "artifact.edit.publish.publishing": "Publishing…",

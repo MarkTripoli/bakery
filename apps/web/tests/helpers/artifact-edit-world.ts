@@ -18,6 +18,7 @@ import {
 export const DRAFT = "11111111-1111-4111-8111-111111111111";
 const ROOM = { kind: "draft", id: DRAFT };
 const CHECKPOINT = "88888888-8888-4888-8888-888888888888";
+const CHECKPOINT_AFTER = "99999999-9999-4999-8999-999999999999";
 const NIL = "00000000-0000-0000-0000-000000000000";
 
 export type Behaviour = {
@@ -36,6 +37,8 @@ export type Behaviour = {
    * forbidden is a 403. The last answer repeats.
    */
   readonly publish?: readonly ("ok" | "moved" | "lost" | "forbidden")[];
+  /** After a refused publish the text differs (otherwise only the checkpoint moves). */
+  readonly textMoves?: boolean;
   /** What looking the checkpoint up finds after a lost answer. Default absent. */
   readonly lookup?: "found" | "absent";
   /** Holds the draft read open until released, to show the reading state. */
@@ -90,6 +93,7 @@ export async function openEditor(
         }))
         : route.fallback(),
   );
+  const publishes: unknown[] = [];
   const draftBody = {
     id: DRAFT,
     artifactId: ARTIFACT_ID,
@@ -104,7 +108,20 @@ export async function openEditor(
   };
   await page.route(`**/v1/drafts/${DRAFT}`, async (route) => {
     await behaviour.holdRead;
-    await route.fulfill(json(draftBody));
+    // After a refused publish the server is on a newer checkpoint, with the
+    // text changed only when the test says so.
+    const moved = publishes.length > 0;
+    await route.fulfill(json(
+      moved
+        ? {
+          ...draftBody,
+          checkpointId: CHECKPOINT_AFTER,
+          textDigest: behaviour.textMoves
+            ? createHash("sha256").update(`${text}!`).digest("hex")
+            : draftBody.textDigest,
+        }
+        : draftBody,
+    ));
   });
   await page.route(
     `**/v1/drafts/${DRAFT}/suggestions*`,
@@ -140,7 +157,6 @@ export async function openEditor(
         nextCursor: null,
       })),
   );
-  const publishes: unknown[] = [];
   const answers = behaviour.publish ?? ["ok"];
   await page.route(`**/v1/drafts/${DRAFT}/publications`, (route) => {
     publishes.push(route.request().postDataJSON());

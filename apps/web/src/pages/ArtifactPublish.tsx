@@ -24,7 +24,7 @@ type Dialog =
   | Readonly<{ step: "closed" }>
   | Readonly<{ step: "reading" }>
   | Readonly<{ step: "read-failed" }>
-  | Readonly<{ step: "ready"; previewed: Previewed; keptChanging: boolean }>
+  | Readonly<{ step: "ready"; previewed: Previewed; moved: boolean }>
   | Readonly<{ step: "publishing"; previewed: Previewed }>;
 
 type Result =
@@ -117,7 +117,7 @@ export function usePublish(
     void read().then((previewed) =>
       setDialog(
         previewed
-          ? { step: "ready", previewed, keptChanging: false }
+          ? { step: "ready", previewed, moved: false }
           : { step: "read-failed" },
       )
     );
@@ -133,20 +133,21 @@ export function usePublish(
 
   const confirm = async () => {
     if (deps === null || dialog.step !== "ready") return;
-    let previewed = dialog.previewed;
-    if (dialog.keptChanging) {
-      // Publish again takes the text as it is now.
-      const fresh = await read();
-      if (fresh === null) return setDialog({ step: "read-failed" });
-      previewed = fresh;
-    }
+    const previewed = dialog.previewed;
     setDialog({ step: "publishing", previewed });
     const outcome = await publishCheckpoint(deps, previewed);
     switch (outcome.kind) {
       case "published":
         return finish(outcome.publication);
-      case "kept-changing":
-        return setDialog({ step: "ready", previewed, keptChanging: true });
+      case "moved": {
+        // Nothing was published: show the text as it is now, to be pressed again.
+        const fresh = await read();
+        return setDialog(
+          fresh
+            ? { step: "ready", previewed: fresh, moved: true }
+            : { step: "read-failed" },
+        );
+      }
       case "forbidden":
         setDialog({ step: "closed" });
         return setResult({ kind: "forbidden" });
@@ -352,9 +353,9 @@ export function usePublish(
                   })}
                 </UI.Text>
               )}
-              {dialog.step === "ready" && dialog.keptChanging && (
+              {dialog.step === "ready" && dialog.moved && (
                 <UI.InlineNotice tone="warning">
-                  {t("artifact.edit.publish.keptChanging")}
+                  {t("artifact.edit.publish.moved")}
                 </UI.InlineNotice>
               )}
             </>

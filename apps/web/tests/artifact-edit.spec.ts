@@ -213,7 +213,7 @@ test.describe("Editing a document in place", () => {
       .toBeEnabled();
   });
 
-  test("a text that moved on is re-read and published without telling anyone", async ({ page }) => {
+  test("a checkpoint that moved under the same text is published once more, silently", async ({ page }) => {
     const { publishes } = await openEditor(page, "Hello", {
       publish: ["moved", "ok"],
     });
@@ -223,23 +223,27 @@ test.describe("Editing a document in place", () => {
     expect(publishes).toHaveLength(2);
   });
 
-  test("a text that keeps moving is tried three times, then reported with nothing published", async ({ page }) => {
+  test("a text that changed is not published: the dialog says so and the next press takes it", async ({ page }) => {
     const { publishes } = await openEditor(page, "Hello", {
-      publish: ["moved"],
+      publish: ["moved", "ok"],
+      textMoves: true,
     });
     await page.getByTestId("artifact-publish").click();
     const dialog = page.getByRole("alertdialog");
     await dialog.getByRole("button", { name: "Publish version 3" }).click();
     await expect(
       dialog.getByText(
-        "People are still typing, so the text kept changing. Nothing was published. Publish again to take it as it is now.",
+        "The document changed while this was open. Nothing was published. Check the text, then publish again.",
       ),
     ).toBeVisible();
-    await still(page, "publish-dialog-kept-changing", dialog);
-    expect(publishes).toHaveLength(3);
-    await expect(dialog.getByRole("button", { name: "Publish version 3" }))
-      .toBeEnabled();
+    await still(page, "publish-dialog-moved", dialog);
+    expect(publishes).toHaveLength(1);
     await expect(page.getByText("Version 3 published.")).toHaveCount(0);
+    // Publish enabled for the text as it is now: the next press publishes it.
+    await dialog.getByRole("button", { name: "Publish version 3" }).click();
+    await expect(page.getByText("Version 3 published.")).toBeVisible();
+    expect(publishes).toHaveLength(2);
+    expect(publishes[1]).not.toEqual(publishes[0]);
   });
 
   test("a lost answer is checked, never published a second time", async ({ page }) => {

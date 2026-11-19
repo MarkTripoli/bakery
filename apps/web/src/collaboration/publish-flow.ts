@@ -22,8 +22,8 @@ export type PublishDeps = Readonly<{
 /** What the person is told. */
 export type PublishOutcome =
   | Readonly<{ kind: "published"; publication: DraftPublicationResponse }>
-  /** The text kept changing under every attempt; nothing was published. */
-  | Readonly<{ kind: "kept-changing" }>
+  /** The text moved on since the preview; nothing was published. */
+  | Readonly<{ kind: "moved" }>
   /** This person may not publish, or the draft is gone. */
   | Readonly<{ kind: "forbidden" }>
   /** The answer did not arrive: it may or may not have been published. */
@@ -31,18 +31,16 @@ export type PublishOutcome =
   /** The server refused for a reason that publishing again will not fix. */
   | Readonly<{ kind: "refused"; checkpointId: string }>;
 
-/** The text moving on between the read and the press is retried this many times. */
-export const MOVED_ON_ATTEMPTS = 3;
-
 const status = (failure: ApiFailure): number | null =>
   failure.kind === "problem" ? failure.problem.status : null;
 
 /**
- * Publishes the checkpoint the person previewed. If the server says the text
- * moved on (precondition failed) the draft is read again and the new
- * checkpoint is published, up to three times in all: in a document people are
- * typing in, refusing on every keystroke would make publishing impossible.
- * A lost answer is never retried here: the caller looks the checkpoint up.
+ * Publishes the checkpoint the person previewed. If the server says it moved
+ * on (precondition failed) the draft is read again: when the text is still the
+ * text they saw (same digest) the new checkpoint is published, once, because
+ * the promise holds; when the text changed, nothing is published and the
+ * person is told, so the next press publishes what they have just seen. A lost
+ * answer is never retried here: the caller looks the checkpoint up.
  */
 export async function publishCheckpoint(
   deps: PublishDeps,
@@ -53,16 +51,16 @@ export async function publishCheckpoint(
     checkpointId: previewed.checkpointId,
     textDigest: previewed.textDigest,
   };
-  for (let attempt = 1; attempt <= MOVED_ON_ATTEMPTS; attempt += 1) {
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
     const result = await deps.publish(target);
     if (result.ok) return { kind: "published", publication: result.data };
     const code = status(result.error);
     if (code === 403 || code === 404) return { kind: "forbidden" };
     if (code === 412) {
-      if (attempt === MOVED_ON_ATTEMPTS) return { kind: "kept-changing" };
+      if (attempt === 2) return { kind: "moved" };
       const reread = await deps.readDraft();
-      if (!reread.ok) {
-        return { kind: "unknown", checkpointId: target.checkpointId };
+      if (!reread.ok || reread.data.textDigest !== previewed.textDigest) {
+        return { kind: "moved" };
       }
       target = {
         checkpointId: reread.data.checkpointId,
@@ -76,7 +74,7 @@ export async function publishCheckpoint(
     // A network failure, a 5xx or an unreadable answer: it may have happened.
     return { kind: "unknown", checkpointId: target.checkpointId };
   }
-  return { kind: "kept-changing" };
+  return { kind: "moved" };
 }
 
 /**

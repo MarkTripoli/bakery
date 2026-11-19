@@ -4323,7 +4323,6 @@
   "artifact.edit.publish.waiting": "⟦{count} àĝëñŧ šûĝĝëšŧïôñš àŕë ñôŧ àççëþŧëð. Ŧĥëÿ àŕë ļëƒŧ ôûŧ ôƒ ṽëŕšïôñ {version} àñð šŧàÿ ïñ ŧĥë ðŕàƒŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
   "artifact.edit.publish.waitingOne": "⟦1 àĝëñŧ šûĝĝëšŧïôñ ïš ñôŧ àççëþŧëð. Ïŧ ïš ļëƒŧ ôûŧ ôƒ ṽëŕšïôñ {version} àñð šŧàÿš ïñ ŧĥë ðŕàƒŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
   "artifact.edit.publish.kept": "⟦Ṽëŕšïôñ {version} àñð ïŧš çôɱɱëñŧš àŕë ķëþŧ àñð çàññôŧ çĥàñĝë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
-  "artifact.edit.publish.keptChanging": "⟦Þëôþļë àŕë šŧïļļ ŧÿþïñĝ, šô ŧĥë ŧëẋŧ ķëþŧ çĥàñĝïñĝ. Ñôŧĥïñĝ ŵàš þûƀļïšĥëð. Þûƀļïšĥ àĝàïñ ŧô ŧàķë ïŧ àš ïŧ ïš ñôŵ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "artifact.edit.publish.cancel": "⟦Çàñçëļ…⟧",
   "artifact.edit.publish.confirm": "⟦Þûƀļïšĥ ṽëŕšïôñ {version} ŧëšŧ ç⟧",
   "artifact.edit.publish.publishing": "⟦Þûƀļïšĥïñĝ… ŧ⟧",
@@ -4346,5 +4345,6 @@
   "artifact.live.staleDescription": "⟦Ÿôû àŕë ŕëàðïñĝ ṽëŕšïôñ {revision}. Ÿôûŕ šëļëçŧïôñ àñð çôɱɱëñŧ ðŕàƒŧ ŕëɱàïñ ôñ ŧĥïš ṽëŕšïôñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
   "artifact.live.staleOpen": "⟦Ôþëñ ṽëŕšïôñ {revision} ŧëšŧ ç⟧",
   "artifact.version.label": "⟦Ṽëŕšïôñ {revision} ŧëšŧ⟧",
-  "artifact.handoff.revisionLink": "⟦Ļïñķ ŧô ṽëŕšïôñ {revision} ŧëšŧ çô⟧"
+  "artifact.handoff.revisionLink": "⟦Ļïñķ ŧô ṽëŕšïôñ {revision} ŧëšŧ çô⟧",
+  "artifact.edit.publish.moved": "⟦Ŧĥë ðôçûɱëñŧ çĥàñĝëð ŵĥïļë ŧĥïš ŵàš ôþëñ. Ñôŧĥïñĝ ŵàš þûƀļïšĥëð. Çĥëçķ ŧĥë ŧëẋŧ, ŧĥëñ þûƀļïšĥ àĝàïñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧"
 }

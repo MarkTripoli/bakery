@@ -281,14 +281,13 @@ function DraftEditor(
   // before the page's own list has been read again.
   const latestVersion = Math.max(publishedVersion ?? 0, ownVersion ?? 0) ||
     null;
-  const editorBox = useRef<HTMLDivElement>(null);
+  // The editor's own view, for returning focus to the text after publishing.
+  const editorView = useRef<EditorView | null>(null);
   const publish = usePublish({
     artifactId,
     canPublish,
     draftId,
-    focusEditor: () =>
-      editorBox.current?.querySelector<HTMLElement>("[contenteditable]")
-        ?.focus(),
+    focusEditor: () => editorView.current?.focus(),
     nextVersion: (latestVersion ?? 0) + 1,
     onPublished: setOwnVersion,
     onViewVersion,
@@ -425,16 +424,17 @@ function DraftEditor(
           {t("artifact.edit.limit")}
         </UI.InlineNotice>
       )}
-      <div ref={editorBox}>
-        <UI.DocumentEditor
-          aria-label={t("artifact.edit.label")}
-          data-testid="artifact-editor"
-          extensions={extensions}
-          key={snapshot.documentVersion}
-          placeholder={t("artifact.edit.placeholder")}
-          readOnly={snapshot.readOnly}
-        />
-      </div>
+      <UI.DocumentEditor
+        aria-label={t("artifact.edit.label")}
+        data-testid="artifact-editor"
+        extensions={extensions}
+        key={snapshot.documentVersion}
+        placeholder={t("artifact.edit.placeholder")}
+        readOnly={snapshot.readOnly}
+        onViewChange={(view) => {
+          editorView.current = view;
+        }}
+      />
       {snapshot.banner?.kind === "revoked" && pieces.length > 0 && (
         <Pieces
           clock={clock}
