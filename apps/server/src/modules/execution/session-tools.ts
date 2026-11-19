@@ -90,6 +90,8 @@ export const POWER_SESSION_SCOPES: Readonly<
   run_control: Object.freeze(["runs.control"]),
   run_start: Object.freeze(["runs.start"]),
   steer: Object.freeze(["runs.steer"]),
+  // Reviewer steering rides on the steer scope; it only widens the target.
+  steer_reviewer: Object.freeze([]),
 });
 
 export type SessionTool = Readonly<{

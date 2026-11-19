@@ -4,8 +4,11 @@ import type { JobSeed } from "../helpers/worker-execution.ts";
 import {
   type AgentFixture,
   agentSession,
+  grantPower,
   seedOtherRun,
 } from "../helpers/agent-session.ts";
+import { reviewerWasSteered } from "../../apps/server/src/modules/delivery/reviewer-steers.ts";
+import type { PgTransactionClient } from "../../apps/server/src/platform/database.ts";
 
 // #413 steer half: an agent steers only a run it spawned, only with the steer
 // power, never its own run and never a reviewer's step, within a bound, through
@@ -53,7 +56,7 @@ async function refusedWith(response: Response) {
 
 const ledgerRows = async (fixture: AgentFixture, runId: string) =>
   (await fixture.pgDatabase.query<{
-    detail: Record<string, string>;
+    detail: Record<string, string | boolean>;
     decided_by: string;
   }>(
     `select detail, decided_by from bakery.decisions_ledger
@@ -197,4 +200,53 @@ Deno.test("sessions.steer is guarded the same way: own session refused, spawned 
     const spawned = await refusedWith(await steer(target.target.sessionId));
     assertEquals(spawned.status, 409);
     assertEquals(spawned.reason, "no_active_attempt");
+  }));
+
+const markReviewer = (fixture: AgentFixture, target: JobSeed) =>
+  fixture.pgDatabase.query(
+    `update bakery.jobs set action = 'review.independent'
+      where organization_id = $1 and run_step_id = $2`,
+    [fixture.organizationId, target.runStepId],
+  );
+
+const wasSteered = (fixture: AgentFixture, target: JobSeed) =>
+  reviewerWasSteered(fixture.pgDatabase as unknown as PgTransactionClient, {
+    organizationId: fixture.organizationId,
+    runId: target.runId,
+    reviewStepId: target.runStepId,
+    reviewerSessionId: target.sessionId,
+  });
+
+Deno.test("with the steer_reviewer power an agent steers a reviewer, and the review is labelled steered", () =>
+  withWorkerFixture(async (fixture) => {
+    const session = await agentSession(fixture, { granted: "steer" });
+    const target = await spawnedTarget(fixture, session);
+    await markReviewer(fixture, target.target);
+    // The control first: a reviewer nobody steered is not steered.
+    assertEquals(await wasSteered(fixture, target.target), false);
+    // Off by default: the steer grant alone does not reach a reviewer.
+    assertEquals((await note(session, target)).status, 403);
+    assertEquals(await wasSteered(fixture, target.target), false);
+
+    await grantPower(fixture, session.own.workflowId, "steer_reviewer");
+    const response = await note(session, target);
+    assertEquals(response.status, 200, await response.text());
+    const ledger = await ledgerRows(fixture, target.target.runId);
+    assertEquals(ledger.length, 1);
+    assertEquals(ledger[0].detail.actorKind, "agent");
+    // The label, on the steer itself, and the consumer that reads it.
+    assertEquals(ledger[0].detail.steersReviewer, true);
+    assertEquals(await wasSteered(fixture, target.target), true);
+  }));
+
+Deno.test("a steer of a step that is not a reviewer's carries no reviewer label", () =>
+  withWorkerFixture(async (fixture) => {
+    const session = await agentSession(fixture, { granted: "steer" });
+    const target = await spawnedTarget(fixture, session);
+    const response = await note(session, target);
+    assertEquals(response.status, 200, await response.text());
+    const ledger = await ledgerRows(fixture, target.target.runId);
+    // No reviewer label: the finalize gate only asks about the review step, and
+    // an ordinary step's steer carries nothing that marks a review steered.
+    assertEquals("steersReviewer" in ledger[0].detail, false);
   }));

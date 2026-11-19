@@ -15,6 +15,7 @@ const ok: SteerFacts = {
   targetIsOwnRun: false,
   targetIsDescendant: true,
   targetIsReviewer: false,
+  holdsReviewerPower: false,
   steersSent: 0,
   limits: { maxDepth: 3, maxChildren: 5, maxSteers: 20 },
 };
@@ -57,10 +58,28 @@ Deno.test("a run outside the agent's tree answers like one that does not exist",
   );
 });
 
-Deno.test("a reviewer is never steered by an agent", () => {
+Deno.test("a reviewer is steered by an agent only with the steer_reviewer power", () => {
   assertEquals(
     decideSteer({ ...ok, targetIsReviewer: true }),
     SteerRefusal.ReviewerUnavailable,
+  );
+  assertEquals(
+    decideSteer({
+      ...ok,
+      targetIsReviewer: true,
+      holdsReviewerPower: true,
+    }),
+    null,
+  );
+  // The reviewer power opens the reviewer, nothing else: the rest still applies.
+  assertEquals(
+    decideSteer({
+      ...ok,
+      targetIsReviewer: true,
+      holdsReviewerPower: true,
+      steersSent: 20,
+    }),
+    SteerRefusal.CountExceeded,
   );
 });
 
@@ -72,7 +91,7 @@ Deno.test("count: the last steer is accepted, the next is refused", () => {
   );
 });
 
-Deno.test("a reviewer is refused before count is consulted", () => {
+Deno.test("a reviewer without the power is refused before count is consulted", () => {
   assertEquals(
     decideSteer({ ...ok, targetIsReviewer: true, steersSent: 99 }),
     SteerRefusal.ReviewerUnavailable,
@@ -95,4 +114,18 @@ Deno.test("a steer's record has one shape; an agent's only adds who it acted for
     steerRecordDetail("p1", { fromRunId: "r1", sessionId: null }).sessionId,
     undefined,
   );
+});
+
+Deno.test("a steer that reaches a reviewer is labelled, whoever sent it", () => {
+  assertEquals(steerRecordDetail("p1", null, true), {
+    actorKind: "person",
+    steersReviewer: true,
+  });
+  assertEquals(
+    steerRecordDetail("p1", { fromRunId: "r1", sessionId: null }, true)
+      .steersReviewer,
+    true,
+  );
+  // No label when it did not: the key is absent, not false.
+  assertEquals("steersReviewer" in steerRecordDetail("p1", null), false);
 });

@@ -20,7 +20,11 @@ import {
 import { appendDecision } from "../work/human-approval-store.ts";
 import { DEFAULT_AGENT_SPAWN } from "@bakery/config";
 import type { AgentSpawnConfig } from "@bakery/config";
-import { admitAgentSteer, steerRecordDetail } from "../work/agent-steer.ts";
+import {
+  admitAgentSteer,
+  steerRecordDetail,
+  stepIsReviewer,
+} from "../work/agent-steer.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import {
   adapterSupportsSteering,
@@ -339,6 +343,14 @@ export async function steerAgentSession(
       limits,
     })
     : null;
+  const steersReviewer = target.rows[0]
+    ? await stepIsReviewer(
+      transaction,
+      organizationId,
+      target.rows[0].run_id,
+      target.rows[0].step_key,
+    )
+    : false;
 
   // Conversation first, then command locks: the same order message admission uses.
   await transaction.query(
@@ -443,7 +455,7 @@ export async function steerAgentSession(
       mode,
       messageId: message.id,
       truncated: input.body.length > DECISION_NOTE_MAX_LENGTH,
-      ...steerRecordDetail(principalId, admission),
+      ...steerRecordDetail(principalId, admission, steersReviewer),
     },
   });
 

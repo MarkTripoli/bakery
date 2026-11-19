@@ -15,7 +15,11 @@ import {
 import { appendDecision } from "../work/human-approval-store.ts";
 import { DEFAULT_AGENT_SPAWN } from "@bakery/config";
 import type { AgentSpawnConfig } from "@bakery/config";
-import { admitAgentSteer, steerRecordDetail } from "../work/agent-steer.ts";
+import {
+  admitAgentSteer,
+  steerRecordDetail,
+  stepIsReviewer,
+} from "../work/agent-steer.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 
 /**
@@ -117,6 +121,12 @@ export async function createRunStepNote(
     targetStepKey: stepKey,
     limits,
   });
+  const steersReviewer = await stepIsReviewer(
+    transaction,
+    organizationId,
+    runId,
+    stepKey,
+  );
 
   const step = await transaction.query<{ id: string; status: string }>(
     `select id, status from bakery.run_steps
@@ -182,7 +192,7 @@ export async function createRunStepNote(
       mode: "note",
       noteId: note.id,
       stepKey,
-      ...steerRecordDetail(principalId, admission),
+      ...steerRecordDetail(principalId, admission, steersReviewer),
     },
   });
   await appendAudit(transaction, {
@@ -196,7 +206,7 @@ export async function createRunStepNote(
     details: {
       noteId: note.id,
       stepKey,
-      ...steerRecordDetail(principalId, admission),
+      ...steerRecordDetail(principalId, admission, steersReviewer),
     },
   });
   return toNote(note);

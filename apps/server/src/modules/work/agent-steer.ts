@@ -45,6 +45,8 @@ export type SteerFacts = Readonly<{
   targetIsDescendant: boolean;
   /** The target step or session belongs to a reviewer. */
   targetIsReviewer: boolean;
+  /** The agent's workflow also holds the steer_reviewer power. */
+  holdsReviewerPower: boolean;
   /** Steers the agent's run has already sent. */
   steersSent: number;
   limits: AgentSpawnConfig;
@@ -61,10 +63,12 @@ export function decideSteer(
   if (!facts.holdsPower) return SteerRefusal.RequiresGrant;
   if (facts.targetIsOwnRun) return SteerRefusal.OwnRun;
   if (!facts.targetIsDescendant) return "not_found";
-  // Messaging a reviewer is off by default (O18) and stays off for agents until
-  // a steered review stops counting as independent: a label nothing reads would
-  // let an agent defeat the independent-review control by messaging first.
-  if (facts.targetIsReviewer) return SteerRefusal.ReviewerUnavailable;
+  // Messaging a reviewer is off by default (O18). It is granted separately, and
+  // because a steered review is refused as not independent when it finalizes, an
+  // agent cannot defeat the independent-review control by messaging first.
+  if (facts.targetIsReviewer && !facts.holdsReviewerPower) {
+    return SteerRefusal.ReviewerUnavailable;
+  }
   if (facts.steersSent >= facts.limits.maxSteers) {
     return SteerRefusal.CountExceeded;
   }
@@ -79,6 +83,27 @@ export type SteerAdmission = Readonly<{
 
 /** The review step's job action; a step running it is a reviewer's. */
 const REVIEW_ACTION = "review.independent";
+
+/** Whether a step of a run is a reviewer's: its job runs the review action. */
+export async function stepIsReviewer(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  runId: string,
+  stepKey: string,
+): Promise<boolean> {
+  const found = await transaction.query(
+    `select 1
+       from bakery.run_steps as step
+       join bakery.jobs as job
+         on job.organization_id = step.organization_id
+        and job.run_step_id = step.id
+      where step.organization_id = $1 and step.run_id = $2
+        and step.step_key = $3 and job.action = $4
+      limit 1`,
+    [organizationId, runId, stepKey, REVIEW_ACTION],
+  );
+  return found.rows.length > 0;
+}
 
 /**
  * Admits an agent's steer of one run, or refuses it by name and writes nothing.
@@ -138,25 +163,20 @@ export async function admitAgentSteer(
     [input.organizationId, input.targetRunId, origin.runId],
   );
 
-  const reviewer = input.targetStepKey === null
-    ? { rows: [] }
-    : await transaction
-      .query(
-        `select 1
-         from bakery.run_steps as step
-         join bakery.jobs as job
-           on job.organization_id = step.organization_id
-          and job.run_step_id = step.id
-        where step.organization_id = $1 and step.run_id = $2
-          and step.step_key = $3 and job.action = $4
-        limit 1`,
-        [
-          input.organizationId,
-          input.targetRunId,
-          input.targetStepKey,
-          REVIEW_ACTION,
-        ],
-      );
+  const targetIsReviewer = input.targetStepKey !== null &&
+    await stepIsReviewer(
+      transaction,
+      input.organizationId,
+      input.targetRunId,
+      input.targetStepKey,
+    );
+  const holdsReviewerPower = targetIsReviewer &&
+    (await spawnAuthority(
+      transaction,
+      input.organizationId,
+      origin.runId,
+      AgentPower.SteerReviewer,
+    )).holdsPower;
 
   const sent = await transaction.query<{ n: string }>(
     `select count(*)::text as n from bakery.decisions_ledger
@@ -169,7 +189,8 @@ export async function admitAgentSteer(
     holdsPower,
     targetIsOwnRun: input.targetRunId === origin.runId,
     targetIsDescendant: below.rows.length > 0,
-    targetIsReviewer: reviewer.rows.length > 0,
+    targetIsReviewer,
+    holdsReviewerPower,
     steersSent: Number(sent.rows[0]?.n ?? 0),
     limits: input.limits,
   });
@@ -188,13 +209,20 @@ export async function admitAgentSteer(
 export function steerRecordDetail(
   principalId: string,
   admission: SteerAdmission | null,
-): Record<string, string> {
-  if (admission === null) return { actorKind: "person" };
+  steersReviewer = false,
+): Record<string, string | boolean> {
+  // The reviewer label is on every steer that reaches a reviewer, a person's or
+  // an agent's: it is what marks the review steered.
+  const label: Record<string, boolean> = steersReviewer
+    ? { steersReviewer: true }
+    : {};
+  if (admission === null) return { actorKind: "person", ...label };
   return {
     actorKind: "agent",
     onBehalfOf: principalId,
     fromRunId: admission.fromRunId,
     ...(admission.sessionId === null ? {} : { sessionId: admission.sessionId }),
+    ...label,
   };
 }
 

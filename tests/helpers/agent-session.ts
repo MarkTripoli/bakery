@@ -20,7 +20,12 @@ export type AgentFixture = Parameters<
 >[0];
 
 /** The powers a person can grant an agent (#414, O52). */
-export type Power = "decide" | "run_control" | "run_start" | "steer";
+export type Power =
+  | "decide"
+  | "run_control"
+  | "run_start"
+  | "steer"
+  | "steer_reviewer";
 
 /** Grants one power to a workflow, as a person, straight into the table. */
 export async function grantPower(

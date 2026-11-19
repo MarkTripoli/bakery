@@ -24,6 +24,7 @@ export const REVIEW_INDEPENDENCE_VIOLATIONS = Object.freeze(
     "session_has_parent",
     "session_resumed",
     "job_checkpoints",
+    "review_steered",
   ] as const,
 );
 export type ReviewIndependenceViolation =
@@ -57,6 +58,12 @@ export type IndependenceInput = {
   readonly reviewStepId: string;
   /** Checkpoints recorded for the review job; a fresh review has none. */
   readonly jobCheckpoints: number;
+  /**
+   * Whether anyone, a person or an agent, steered the reviewer's step or
+   * session (chapter 25 section 9, O18). A steered review is labelled and does
+   * not count where an independent review is required, so it is refused here.
+   */
+  readonly steered: boolean;
 };
 
 function refuse(subReason: ReviewIndependenceViolation): never {
@@ -87,7 +94,8 @@ function sameId(a: string, b: string): boolean {
  * 4. it belongs to the review step (`session_not_review_step`);
  * 5. it has no parent (`session_has_parent`);
  * 6. it was not resumed (`session_resumed`);
- * 7. the job has no checkpoints (`job_checkpoints`).
+ * 7. the job has no checkpoints (`job_checkpoints`);
+ * 8. the reviewer was never steered (`review_steered`).
  *
  * Anything the input cannot prove fails closed: a value that is not what the
  * type promises is a violation, never a pass.
@@ -120,4 +128,6 @@ export function assertIndependentReviewer(input: IndependenceInput): void {
   if (reviewer.parentSessionId !== null) refuse("session_has_parent");
   if (reviewer.resumeRef !== null) refuse("session_resumed");
   if (input.jobCheckpoints !== 0) refuse("job_checkpoints");
+  // Fails closed like the rest: anything but exactly `false` is a steered review.
+  if (input.steered !== false) refuse("review_steered");
 }
