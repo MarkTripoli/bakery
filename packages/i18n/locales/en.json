@@ -2053,6 +2053,7 @@
   "settings.roles.verb.readSelf": "See your own {things}",
   "settings.roles.verb.readPinned": "See pinned {things}",
   "settings.roles.verb.preview": "Preview {things}",
+  "settings.roles.thing.group": "groups",
   "settings.roles.verb.share": "Give and remove other people's access to {things}",
   "settings.roles.thing.task": "tasks",
   "settings.roles.thing.taskDependency": "task dependencies",
