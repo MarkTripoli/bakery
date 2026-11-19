@@ -19,10 +19,11 @@ const person = (
   displayName: string,
   cursor: Participant["state"]["cursor"],
   receivedAt = "2026-01-01T00:00:00.000Z",
+  principalType: Participant["principalType"] = "human",
 ): Participant => ({
   participantKey: principalId + receivedAt,
   principalId,
-  principalType: "human",
+  principalType,
   displayName,
   state: { activity: "active", typing: false, cursor },
   receivedAt,
@@ -31,7 +32,6 @@ const person = (
 Deno.test("a name's first word is the label", () => {
   assertEquals(firstName("Ana Reyes"), "Ana");
   assertEquals(firstName("  Ana   Reyes "), "Ana");
-  assertEquals(firstName("Coding agent"), "Coding");
   assertEquals(firstName("Ana"), "Ana");
 });
 
@@ -83,4 +83,22 @@ Deno.test("a cursor that cannot be read is left out", () => {
     person("ana", "Ana Reyes", { anchor: "bad", head: "bad" }),
   ], null);
   assertEquals(carets, []);
+});
+
+Deno.test("a person is labelled by first name, an agent by its whole name", () => {
+  const doc = world();
+  const at = (p: number) => ({
+    anchor: encodeCursorAt(doc, p)!,
+    head: encodeCursorAt(doc, p)!,
+  });
+  const carets = remoteCarets(doc, [
+    person("ana", "Ana Reyes", at(2)),
+    person("agent", "Coding agent", at(8), undefined, "service"),
+    person("worker", "Build worker", at(12), undefined, "worker"),
+  ], null);
+  assertEquals(carets.map((c) => c.name), [
+    "Ana",
+    "Coding agent",
+    "Build worker",
+  ]);
 });

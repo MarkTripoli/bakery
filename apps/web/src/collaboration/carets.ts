@@ -67,7 +67,11 @@ export function remoteCarets(
     if (anchor === null || head === null) continue;
     carets.push({
       principalId: participant.principalId,
-      name: firstName(participant.displayName),
+      // A person is known by their first name; an agent or worker has no first
+      // name, so its whole name is the label ("Coding agent", not "Coding").
+      name: participant.principalType === "human"
+        ? firstName(participant.displayName)
+        : participant.displayName,
       anchor,
       head,
     });
