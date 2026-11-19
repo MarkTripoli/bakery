@@ -3505,7 +3505,6 @@
   "issues.settings.conflict.body": "⟦Šôɱëôñë ëļšë çĥàñĝëð ŧĥëšë šëŧŧïñĝš. Ŕëļôàð ŧô šëë ŧĥëïŕš; ÿôûŕ çĥàñĝëš àŕë ķëþŧ ĥëŕë ûñŧïļ ÿôû ðô. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
   "issues.settings.conflict.reload": "⟦Ŕëļôàð…⟧",
   "issues.settings.description": "⟦Ĥôŵ Ɓàķëŕÿ ŧàķëš ïššûëš ƒŕôɱ ëàçĥ ŕëþôšïŧôŕÿ. ŧëšŧ çôþÿ ŧëš⟧",
-  "issues.settings.draft.detail": "⟦Àþþļïëš ŧô ŵôŕķ šŧàŕŧëð ƒŕôɱ ñôŵ ôñ. Ŵôŕķ àļŕëàðÿ ŕûññïñĝ ķëëþš ŧĥë šëŧŧïñĝš ïŧ šŧàŕŧëð ŵïŧĥ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
   "issues.settings.draft.discard": "⟦Ðïšçàŕð…⟧",
   "issues.settings.draft.save": "⟦Šàṽë⟧",
   "issues.settings.draft.summary": "⟦Ûñšàṽëð çĥàñĝëš ŧëš⟧",
@@ -3565,8 +3564,6 @@
   "issues.settings.taking.off": "⟦Ɓàķëŕÿ ïĝñôŕëš ïššûëš ïñ ŧĥïš ŕëþôšïŧôŕÿ. Ŵôŕķ àļŕëàðÿ ŕûññïñĝ çôñŧïñûëš. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
   "issues.settings.taking.on": "⟦Ɓàķëŕÿ ŧàķëš ïššûëš ƒŕôɱ ŧĥïš ŕëþôšïŧôŕÿ. ŧëšŧ çôþÿ ŧë⟧",
   "issues.settings.title": "⟦Ïššûë šëŧŧïñĝš ŧë⟧",
-  "issues.settings.workflow.hint": "⟦Çĥôôšïñĝ à ðïƒƒëŕëñŧ ŵôŕķƒļôŵ þëŕ ļàƀëļ ôŕ ŕëþôšïŧôŕÿ ïš ñôŧ àṽàïļàƀļë ÿëŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
-  "issues.settings.workflow.standard": "⟦Ûšëš ŧĥë šŧàñðàŕð çôðïñĝ ŵôŕķƒļôŵ. ŧëšŧ çôþÿ⟧",
   "issues.settings.workflow.title": "⟦Ŵôŕķƒļôŵ…⟧",
   "issues.settings.leave.body": "⟦{count, plural, one {You have # unsaved change.} other {You have # unsaved changes.}} Ŧĥëÿ àŕë ñôŧ šàṽëð àñÿŵĥëŕë, šô ļëàṽïñĝ ðïšçàŕðš ŧĥëɱ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ ç⟧",
   "issues.settings.leave.confirm": "⟦Ļëàṽë àñð ðïšçàŕð ŧëš⟧",
@@ -4487,5 +4484,7 @@
   "issues.work.banner.labelRemoved": "⟦Þàûšëð: ŧĥë \"{label}\" ļàƀëļ ŵàš ŕëɱôṽëð. Ŵôŕķ çôñŧïñûëš ŵĥëñ ïŧ ïš ƀàçķ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
   "issues.work.banner.labelRemovedPlain": "⟦Þàûšëð: ŧĥë ļàƀëļ ŧĥàŧ šŧàŕŧëð ŧĥïš ŵôŕķ ŵàš ŕëɱôṽëð. Ŵôŕķ çôñŧïñûëš ŵĥëñ ïŧ ïš ƀàçķ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "issues.work.banner.onHold": "⟦Þàûšëð: ôñ ĥôļð. ŧëš⟧",
-  "issues.work.banner.dependencyUnreadable": "⟦Þàûšëð: Ɓàķëŕÿ çàññôŧ ŕëàð àñ ïššûë ŧĥïš ôñë ðëþëñðš ôñ. ŧëšŧ çôþÿ ŧëšŧ çô⟧"
+  "issues.work.banner.dependencyUnreadable": "⟦Þàûšëð: Ɓàķëŕÿ çàññôŧ ŕëàð àñ ïššûë ŧĥïš ôñë ðëþëñðš ôñ. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
+  "issues.settings.draft.detail": "⟦Àþþļïëš ŧô ïššûëš šŧàŕŧëð ƒŕôɱ ñôŵ ôñ. Ŵôŕķ àļŕëàðÿ šŧàŕŧëð ķëëþš ŧĥë šëŧŧïñĝš àñð ŕôûŧïñĝ ïŧ šŧàŕŧëð ŵïŧĥ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧",
+  "issues.settings.workflow.standard": "⟦Ëṽëŕÿ ŕëþôšïŧôŕÿ ŕûñš ŧĥë šŧàñðàŕð çôðïñĝ ŵôŕķƒļôŵ. ŧëšŧ çôþÿ ŧëšŧŧ⟧"
 }

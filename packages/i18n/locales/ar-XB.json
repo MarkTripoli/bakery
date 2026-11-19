@@ -3502,7 +3502,6 @@
   "issues.settings.conflict.body": "⟪Someone else changed these settings. Reload to see theirs; your changes are kept here until you do.⟫",
   "issues.settings.conflict.reload": "⟪Reload⟫",
   "issues.settings.description": "⟪How Bakery takes issues from each repository.⟫",
-  "issues.settings.draft.detail": "⟪Applies to work started from now on. Work already running keeps the settings it started with.⟫",
   "issues.settings.draft.discard": "⟪Discard⟫",
   "issues.settings.draft.save": "⟪Save⟫",
   "issues.settings.draft.summary": "⟪Unsaved changes⟫",
@@ -3562,8 +3561,6 @@
   "issues.settings.taking.off": "⟪Bakery ignores issues in this repository. Work already running continues.⟫",
   "issues.settings.taking.on": "⟪Bakery takes issues from this repository.⟫",
   "issues.settings.title": "⟪Issue settings⟫",
-  "issues.settings.workflow.hint": "⟪Choosing a different workflow per label or repository is not available yet.⟫",
-  "issues.settings.workflow.standard": "⟪Uses the standard coding workflow.⟫",
   "issues.settings.workflow.title": "⟪Workflow⟫",
   "issues.settings.leave.body": "⟪{count, plural, one {You have # unsaved change.} other {You have # unsaved changes.}} They are not saved anywhere, so leaving discards them.⟫",
   "issues.settings.leave.confirm": "⟪Leave and discard⟫",
@@ -4487,5 +4484,7 @@
   "issues.work.banner.labelRemoved": "⟪Paused: the \"{label}\" label was removed. Work continues when it is back.⟫",
   "issues.work.banner.labelRemovedPlain": "⟪Paused: the label that started this work was removed. Work continues when it is back.⟫",
   "issues.work.banner.onHold": "⟪Paused: on hold.⟫",
-  "issues.work.banner.dependencyUnreadable": "⟪Paused: Bakery cannot read an issue this one depends on.⟫"
+  "issues.work.banner.dependencyUnreadable": "⟪Paused: Bakery cannot read an issue this one depends on.⟫",
+  "issues.settings.draft.detail": "⟪Applies to issues started from now on. Work already started keeps the settings and routing it started with.⟫",
+  "issues.settings.workflow.standard": "⟪Every repository runs the standard coding workflow.⟫"
 }
