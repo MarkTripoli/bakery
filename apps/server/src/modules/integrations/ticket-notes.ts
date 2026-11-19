@@ -49,7 +49,9 @@ export function createGateTicketNoteWriter(deps: {
         ref: NoteActionRef,
         args: Record<string, unknown>,
         key: string,
-      ): Promise<{ remoteId: string } | { problemCode: string }> => {
+      ): Promise<
+        { remoteId: string } | { missing: true } | { problemCode: string }
+      > => {
         try {
           const result = await invokeIntegration({
             database: deps.database,
@@ -80,10 +82,13 @@ export function createGateTicketNoteWriter(deps: {
           if (result.route !== "ledger") {
             return { problemCode: "note_action_not_a_write" };
           }
-          const remoteId = result.run.outcome === "confirmed"
-            ? (result.run.effect.safeResult as { remoteId?: unknown } | null)
-              ?.remoteId
-            : undefined;
+          const safe = result.run.outcome === "confirmed"
+            ? result.run.effect.safeResult as
+              | { remoteId?: unknown; missing?: unknown }
+              | null
+            : null;
+          if (safe?.missing === true) return { missing: true };
+          const remoteId = safe?.remoteId;
           return typeof remoteId === "string"
             ? { remoteId }
             : { problemCode: noteProblemCode(`note_${result.run.outcome}`) };
@@ -104,12 +109,19 @@ export function createGateTicketNoteWriter(deps: {
           issueNumber: request.issueNumber,
           body: request.body,
         }, `${request.idempotencyKey}:create`);
-        return "remoteId" in posted
-          ? { kind: "posted", externalId: posted.remoteId, recreated }
-          : { kind: "failed", problemCode: posted.problemCode };
+        if ("remoteId" in posted) {
+          return { kind: "posted", externalId: posted.remoteId, recreated };
+        }
+        return {
+          kind: "failed",
+          problemCode: "problemCode" in posted
+            ? posted.problemCode
+            : "note_post_failed",
+        };
       };
       if (request.existingExternalId === null) return await create(false);
       const updated = await send(refs.update, {
+        issueNumber: request.issueNumber,
         commentId: request.existingExternalId,
         body: request.body,
       }, `${request.idempotencyKey}:update`);
@@ -120,14 +132,11 @@ export function createGateTicketNoteWriter(deps: {
           recreated: false,
         };
       }
-      // The broker reports every terminal provider refusal (a 404 for a
-      // deleted comment among them) as one fixed failure, so the note is
-      // posted again: if that succeeds the old one was gone, and the new id
-      // replaces it. If it fails too, that failure is the answer.
-      if (updated.problemCode !== "note_failed") {
-        return { kind: "failed", problemCode: updated.problemCode };
-      }
-      return await create(true);
+      // Post again only when the provider action confirmed the comment is
+      // gone. Any other refusal (a 403 or a 422) keeps the stored id, so a
+      // resync never leaves a second public comment.
+      if ("missing" in updated) return await create(true);
+      return { kind: "failed", problemCode: updated.problemCode };
     },
   };
 }

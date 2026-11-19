@@ -133,11 +133,50 @@ const createComment = defineAction({
   },
 });
 
+/** True only when every page of the issue's comments was read and none has the id. */
+async function commentAbsent(
+  ctx: {
+    provider: {
+      request(ref: typeof LIST_REF, input: unknown): Promise<unknown>;
+    };
+  },
+  issue: number,
+  id: string,
+): Promise<boolean> {
+  for (let page = 1; page <= MAX_PAGES; page++) {
+    const items = commentPage.parse(
+      await ctx.provider.request(LIST_REF, {
+        issue_number: issue,
+        per_page: PAGE_SIZE,
+        page,
+      }),
+    );
+    if (items.some((item) => String(item.id) === id)) return false;
+    if (items.length < PAGE_SIZE) return true;
+  }
+  // Truncated: absence is not proven.
+  return false;
+}
+
+const updateReceipt = z.union([
+  commentReceipt,
+  z.strictObject({
+    missing: z.literal(true).describe(
+      "The rewrite was refused and a full read of the issue's comments shows the comment no longer exists.",
+    ),
+  }).describe("Receipt for a note comment confirmed deleted on the provider."),
+]).describe(
+  "Comment rewrite receipt: the confirmed comment id, or a confirmed absence.",
+);
+
 const commentId = z.string().regex(/^[1-9][0-9]{0,19}$/).describe(
   "GitHub comment id as a decimal string, as an earlier create receipt returned it.",
 );
 
 const updateInput = z.strictObject({
+  issueNumber: issueNumber(
+    "Issue the comment belongs to, read to confirm the comment is gone when the rewrite is refused.",
+  ),
   commentId,
   body: z.string().min(1).max(16_000).refine(
     (body) => !/<!--\s*bakery-effect:/i.test(body),
@@ -153,18 +192,29 @@ const updateComment = defineAction({
   id: UPDATE_REF.id,
   version: UPDATE_REF.version,
   input: updateInput,
-  output: commentReceipt,
+  output: updateReceipt,
   // A PATCH with the same body leaves the same comment: replaying it is safe.
   effect: "native-idempotent",
   resourceKind: "github.repository",
-  requests: [UPDATE_REF],
+  requests: [UPDATE_REF, LIST_REF],
   providerPermissions: { issues: "write" },
   resourceProjection: [],
   async execute(ctx, input) {
-    const raw = await ctx.provider.request(UPDATE_REF, {
-      comment_id: input.commentId,
-      body: input.body,
-    });
+    let raw: unknown;
+    try {
+      raw = await ctx.provider.request(UPDATE_REF, {
+        comment_id: input.commentId,
+        body: input.body,
+      });
+    } catch (error) {
+      // The broker hides the status of a refusal, so a 404 and a 403 look
+      // alike. Only a full read of the issue's comments that lacks the id
+      // proves the comment is gone; anything else keeps the refusal.
+      if (await commentAbsent(ctx, input.issueNumber, input.commentId)) {
+        return { missing: true as const };
+      }
+      throw error;
+    }
     const comment = providerComment.parse(raw);
     return { remoteId: String(comment.id) };
   },

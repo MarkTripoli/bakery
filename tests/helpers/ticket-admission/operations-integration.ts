@@ -793,7 +793,7 @@ Deno.test("issue 69 note: a resync posts Bakery's note, rewrites it in place, re
       ["healthy", "1001", null, 7],
     );
     assertEquals(fx.notes.posts.at(-1)?.existingExternalId, "1001");
-    assert(fx.notes.comments.get("1001")!.includes("Task: renamed task"));
+    assert(fx.notes.comments.get("1001")!.includes("Task: `renamed task`"));
     assertEquals(fx.notes.comments.size, 1);
 
     // A note deleted on the provider is posted again under a new id, and the

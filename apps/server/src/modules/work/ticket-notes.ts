@@ -112,11 +112,16 @@ export function noteProblemCode(value: string): string {
 export function ticketNoteBody(
   task: { title: string; status: string },
 ): string {
-  const title = task.title.replace(/\s+/g, " ").trim().slice(0, 200);
+  // The title is shown as inline code, so an @mention does not notify, a
+  // #ref does not link and HTML (an effect marker among it) is not parsed.
+  // Backticks would close the span, and the comment action refuses the
+  // marker opener anywhere, so both are neutralised first.
+  const title = task.title.replace(/\s+/g, " ").trim().slice(0, 200)
+    .replaceAll("`", "'").replaceAll("<!--", "<!- -");
   return [
     "Bakery is working on this issue.",
     "",
-    `Task: ${title}`,
+    `Task: \`${title}\``,
     `Status: ${task.status}`,
   ].join("\n");
 }
