@@ -17,6 +17,35 @@ import type { PgTransactionClient } from "../../platform/database.ts";
 export type IssueRef = TicketIssueRef;
 
 /**
+ * Which ticket a read is about, in the engine's words rather than one provider's.
+ *
+ * The ordinal - GitHub's issue number - used to be the subject of every read,
+ * which made the port itself GitHub-shaped: a tracker that addresses tickets as
+ * `ENG-42` could not be read through it at all. The two halves are separate on
+ * purpose:
+ *
+ * - `externalKey` is what a person quotes and what a link contains, so every
+ *   entry point has it;
+ * - `externalId` is the provider's immutable id, which survives a rename and is
+ *   what the engine dedupes on. It is null when the caller genuinely does not
+ *   know it yet - the poll returns ordinals and update markers, not ids - and a
+ *   reader that can check it must: a key that now resolves to a different id
+ *   means the ticket was not the one asked for.
+ */
+export type TicketRef = {
+  externalId: string | null;
+  externalKey: string;
+};
+
+/** Build a reference from the key a person quotes, and the id when it is known. */
+export function ticketRef(
+  externalKey: string | number,
+  externalId: string | null = null,
+): TicketRef {
+  return { externalId, externalKey: String(externalKey) };
+}
+
+/**
  * Why a provider read gave no answer. Never treated as a pass. The reason is
  * internal to this port and reaches a report only as the evidence
  * `provider:<reason>` of a `provider_unavailable` check.
@@ -153,12 +182,12 @@ export type TicketStatusRead =
 export interface TicketSourceReader {
   readIssue(
     handle: TicketSourceHandle,
-    number: number,
+    ref: TicketRef,
     signal: AbortSignal,
   ): Promise<TicketIssueRead>;
   readLinks(
     handle: TicketSourceHandle,
-    number: number,
+    ref: TicketRef,
     signal: AbortSignal,
   ): Promise<TicketLinksRead>;
   readPredecessorProof(
@@ -168,7 +197,7 @@ export interface TicketSourceReader {
   ): Promise<PredecessorProof | TicketReadFailure>;
   readLabelProvenance(
     handle: TicketSourceHandle,
-    number: number,
+    ref: TicketRef,
     label: string,
     signal: AbortSignal,
   ): Promise<TicketLabelProvenance>;
@@ -194,7 +223,7 @@ export interface TicketSourceReader {
    */
   readStatuses(
     handle: TicketSourceHandle,
-    number: number,
+    ref: TicketRef,
     signal: AbortSignal,
     issue?: TicketSnapshotInput,
   ): Promise<TicketStatusRead>;
