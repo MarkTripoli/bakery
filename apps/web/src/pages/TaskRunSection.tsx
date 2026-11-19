@@ -23,6 +23,11 @@ import { TaskRunRevision } from "./TaskRunRevision.tsx";
 import { TaskRunOutput } from "./TaskRunOutput.tsx";
 import { TaskRunControls } from "./TaskRunControls.tsx";
 import { FingerprintRow } from "./FingerprintRow.tsx";
+import {
+  RunRulesChangedNotice,
+  RunRulesDetails,
+  useRunRules,
+} from "./RunRules.tsx";
 import { runTimelineEvents } from "./task-timeline.ts";
 import { TaskRunSectionView } from "./task-run-section-view.tsx";
 import { LINK_SLOT, withLink } from "./with-link.tsx";
@@ -289,6 +294,22 @@ export function TaskRunSection(
     ? usageRecord.value
     : null;
   const failure = run.error ?? steps.error;
+  const rules = useRunRules({
+    taskId,
+    runId,
+    enabled: validRun && run.data !== undefined,
+  });
+  const stepNames = new Map(
+    (steps.data?.items ?? []).map((step) => [step.id, step.stepKey] as const),
+  );
+  const showRulesDetails = () => {
+    const details = document.getElementById("run-details");
+    if (details instanceof HTMLDetailsElement) details.open = true;
+    requestAnimationFrame(() =>
+      document.querySelector<HTMLElement>('[data-testid="run-rules-heading"]')
+        ?.focus()
+    );
+  };
   const forbidden = failure?.kind === "problem" &&
     failure.problem.status === 403;
   return (
@@ -334,16 +355,31 @@ export function TaskRunSection(
           </UI.VisuallyHidden>
           {validRun && run.data
             ? (
-              <UI.Disclosure summary={t("tasks.run.details")}>
-                <FingerprintRow
-                  copyFailedText={t("tasks.run.idCopyFailed")}
-                  display={run.data.id.slice(0, 8)}
-                  fingerprint={run.data.id}
-                  label={t("tasks.run.id")}
-                  noHelp
-                  testId="run-id-row"
+              <>
+                <RunRulesChangedNotice
+                  model={rules}
+                  onShowDetails={showRulesDetails}
                 />
-              </UI.Disclosure>
+                <UI.Disclosure
+                  id="run-details"
+                  summary={t("tasks.run.details")}
+                >
+                  <FingerprintRow
+                    copyFailedText={t("tasks.run.idCopyFailed")}
+                    display={run.data.id.slice(0, 8)}
+                    fingerprint={run.data.id}
+                    label={t("tasks.run.id")}
+                    noHelp
+                    testId="run-id-row"
+                  />
+                  <RunRulesDetails
+                    finished={run.data.finishedAt !== null}
+                    model={rules}
+                    settingsVersion={run.data.repositoryProfileRevision}
+                    stepNames={stepNames}
+                  />
+                </UI.Disclosure>
+              </>
             )
             : null}
         </>

@@ -297,7 +297,9 @@ function safeUnavailableReason(value: unknown): string | undefined {
  * The only reasons a refused draft edit may name (#71): a 412
  * PRECONDITION_FAILED says the anchored text changed or the draft moved on; a
  * 403 AUTH_FORBIDDEN says an agent must suggest instead of editing a shared
- * draft, or that suggestion decisions belong to people. An exact allowlist.
+ * draft, or that suggestion decisions belong to people. Non-draft refusals
+ * that tell a person why an act was refused share it (#420, #649). An exact
+ * allowlist.
  */
 export const DRAFT_EDIT_REFUSAL_REASONS = Object.freeze(
   {
@@ -314,6 +316,10 @@ export const DRAFT_EDIT_REFUSAL_REASONS = Object.freeze(
       "target_ambiguous",
       // A send-to-agent thread whose root changed since it was read (#28).
       "thread_version_changed",
+      // A ticket operation whose source policy revision, or whose requirements
+      // digest, moved past what the caller last saw (#649).
+      "source_policy_changed",
+      "requirements_changed",
     ]),
     AUTH_FORBIDDEN: new Set([
       "agent_edit_requires_suggestion",

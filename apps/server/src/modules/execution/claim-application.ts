@@ -11,6 +11,12 @@ import { workerActionOutputCarriesSession } from "@bakery/contracts/contracts";
 import { DEFAULT_LEASE_SECONDS } from "@bakery/persistence";
 import { canonicalExecutionInputDigest } from "@bakery/persistence/repository-admission";
 import type { SealedCredentialOperation } from "@bakery/contracts/secret-identity";
+import {
+  childTraceContext,
+  formatTraceparent,
+  newTraceContext,
+  parseTraceparent,
+} from "@bakery/config/telemetry-trace";
 import type {
   ClaimableJob,
   ClaimIdentity,
@@ -78,9 +84,37 @@ function requestMetadata(headers: Headers): RequestMetadata {
 }
 
 /**
- * Builds the envelope a worker receives. Exported so a test can assert what
- * actually reaches the wire: a field declared in the contract but never filled
- * in here is the "built and never called" defect with extra steps.
+ * The W3C context a worker's envelope should carry: the trace of the request
+ * that caused this work.
+ *
+ * The claim request itself comes from the worker and carries no context of its
+ * own, so reading the inbound headers would give every assignment a fresh root
+ * trace and the originating request would vanish at the process boundary. The
+ * durable source is the job's run: the `run.requested` event recorded the
+ * caller's span context (0151). Continuation is a child of that span, so the
+ * worker's span is a distinguishable leg of the same trace.
+ *
+ * Precedence: the run's originating context, then an explicit inbound
+ * `traceparent` (a worker that wants to parent its own claim), then a fresh
+ * root. A malformed candidate never refuses work - it is replaced - because
+ * failing a claim over a tracing header is a worse outcome than a broken trace.
+ */
+export function assignmentTraceparent(
+  headers: Headers,
+  original?: string | null,
+): string {
+  const parent = parseTraceparent(original ?? "") ??
+    parseTraceparent(headers.get("traceparent") ?? "");
+  return formatTraceparent(
+    parent === undefined ? newTraceContext() : childTraceContext(parent),
+  );
+}
+
+/**
+ * Builds the envelope a worker receives. Exported so a test can assert the
+ * context actually reaches the wire, rather than only that a helper computes
+ * one: QA found that deleting the field here passed every test. The same holds
+ * for the session credential added alongside it - the envelope carries both.
  */
 export function assignmentFromJob(
   job: ClaimableJob,
@@ -95,6 +129,7 @@ export function assignmentFromJob(
   serverTime: Date | string,
   sealedCredentialOperation: SealedCredentialOperation | null,
   sessionCredential: MintedSessionCredential | null,
+  traceparent: string,
 ): Assignment {
   const assignment = {
     jobId: job.id,
@@ -120,6 +155,7 @@ export function assignmentFromJob(
     leaseDurationSeconds,
     serverTime: iso(serverTime),
     sealedCredentialOperation,
+    traceparent,
     // Handed back once, here, and never stored in the clear. Omitted rather
     // than null when there is none: the contract types this field as a string,
     // so a null is a shape the schema rejects - and a claim that fails to parse
@@ -384,6 +420,7 @@ export async function executeClaim(
         lease.serverTime,
         sealedCredentialOperation,
         sessionCredential,
+        assignmentTraceparent(options.headers, job.originalTraceparent),
       );
       await persistence.recordAssignment({
         organizationId: identity.host.organizationId,
