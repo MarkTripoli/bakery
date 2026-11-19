@@ -91,6 +91,10 @@ export const viewerPermissionExclusions = Object.freeze(
     "jobAttempt:read": "Job attempts expose worker execution data.",
     "outputStream:read": "Output streams expose live execution data.",
     "pluginState:read": "Plugin state may contain arbitrary owner-scoped data.",
+    "providerIncident:read":
+      "Provider incidents expose operational failure detail across the organization.",
+    "providerRoute:read":
+      "Provider routes expose which integrations are paused and why, an operational view.",
     "secret:read": "Secret reads expose credential metadata.",
     "session:read":
       "Agent sessions expose execution-resumption and harness metadata.",
