@@ -10975,6 +10975,118 @@ const transportSchemas = {
       ],
       "description": "Replaces the label routing rules of one ticket source as a whole, under compare-and-swap on the source version."
     },
+    "ProviderRouteCreate": {
+      "fields": [
+        {
+          "name": "provider",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 64
+          },
+          "description": "Provider key this route sends to, lowercase and stable (for example the name an operator matches against a status page); it is not a display label."
+        },
+        {
+          "name": "endpoint",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 2048
+          },
+          "description": "Provider endpoint host and path the route calls. It must be an https URL with no credentials, query or fragment, on a fully-qualified public name (at least one dot) or a public address, and not on port 0; a loopback, private, link-local or internal host is refused as unprocessable, because the server calls it."
+        },
+        {
+          "name": "region",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 64
+          },
+          "description": "Provider region the endpoint serves; omit for a provider with no regional endpoints."
+        },
+        {
+          "name": "model",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 200
+          },
+          "description": "Model identifier pinned for work admitted on this route."
+        },
+        {
+          "name": "harness",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "pi",
+            "claude_code",
+            "codex",
+            "mastra"
+          ],
+          "description": "Harness path that executes work on this route: pi, claude_code, codex or mastra."
+        },
+        {
+          "name": "billingRoute",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "subscription",
+            "api_metered",
+            "local"
+          ],
+          "description": "Billing route the route's spend follows: subscription, api_metered or local."
+        },
+        {
+          "name": "providerAccountId",
+          "type": "uuid",
+          "required": false,
+          "description": "Provider account of this organization whose identity and quota observation the route uses; omit for a route with no verified account, which then reports usage as unknown rather than zero."
+        },
+        {
+          "name": "workerBindingId",
+          "type": "uuid",
+          "required": false,
+          "description": "Machine provider binding of this organization that places the route; omit for a route served without a machine binding."
+        },
+        {
+          "name": "credentialLocation",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "harness_host",
+            "bakery_secret"
+          ],
+          "description": "Where the credential is kept: harness_host (the machine holds it) or bakery_secret (Bakery holds a secret reference). The credential value is never part of a route."
+        }
+      ],
+      "description": "Registers one organization-scoped provider route: the endpoint, region, model, harness and credential binding that outbound work is admitted against. A new route starts active and unverified with no incident; identity fields cannot change afterwards, so a different endpoint or model is a new route. Account and binding ids must belong to the same organization."
+    },
+    "ProviderRouteUpdate": {
+      "fields": [
+        {
+          "name": "status",
+          "type": "enum",
+          "required": false,
+          "enum": [
+            "active",
+            "disabled",
+            "revoked"
+          ],
+          "description": "Moves the route between active and disabled, or revokes it. A disabled route stays readable but is not probed or admitted for new work; revoked is permanent and cannot be undone."
+        },
+        {
+          "name": "region",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "bounds": {
+            "maxLength": 64
+          },
+          "description": "Replaces the route's region; set to null to clear it. Omit to leave the current region unchanged."
+        }
+      ],
+      "description": "Compare-and-swap partial update to a provider route's lifecycle status or region; unset fields are left unchanged and an update that changes nothing is refused. The route's identity (provider, endpoint, model, harness, billing route, credential location, account and binding) is immutable."
+    },
     "LibrarySearchQuery": {
       "fields": [
         {
@@ -28077,6 +28189,7 @@ const transportSchemas = {
         "routeId",
         "health",
         "reason",
+        "reasonSince",
         "consecutiveFailures",
         "consecutiveInferenceTrials",
         "evidenceWatermark",
@@ -28100,12 +28213,13 @@ const transportSchemas = {
         "nextProbeAt",
         "probeLeaseExpiresAt",
         "incidentId",
-        "inferenceVerifiedAt"
+        "inferenceVerifiedAt",
+        "reasonSince"
       ],
       "fieldTypes": {
         "routeId": "uuid",
         "health": "enum(healthy|degraded|open|unverified)",
-        "reason": "enum(rate_limited|credential_invalid|quota_exhausted|transport_failure|provider_error|timeout|reachable_inference_unverified)",
+        "reason": "enum(rate_limited|credential_invalid|quota_exhausted|transport_failure|provider_error|timeout|reachable_inference_unverified|redirected)",
         "consecutiveFailures": "integer",
         "consecutiveInferenceTrials": "integer",
         "evidenceWatermark": "string",
@@ -28118,13 +28232,14 @@ const transportSchemas = {
         "incidentId": "uuid",
         "incidentGeneration": "integer",
         "inferenceVerifiedAt": "timestamp",
-        "updatedAt": "timestamp"
+        "updatedAt": "timestamp",
+        "reasonSince": "timestamp"
       },
       "description": "The monitoring view of one provider route: circuit state, the typed reason for it, the bounded evidence watermark, the probe schedule and the current incident generation. It exists so a caller can answer why a route is paused and when it will be probed without reading free-form provider output. A status-page corroboration and a successful health read are reachability evidence only; neither proves the inference path, which is why inferenceVerifiedAt is separate and only an already-authorized trial sets it.",
       "fieldDescriptions": {
         "routeId": "UUID of the provider route this health view describes.",
         "health": "Circuit state: healthy (closed), degraded (failing below the open threshold), open (paused and probing), or unverified (reachable, inference not yet proven).",
-        "reason": "Typed reason for the current state, or null while the route is healthy: rate_limited (the provider asked us to slow down), credential_invalid (the credential is rejected), quota_exhausted (the account's allowance is spent), transport_failure (connection-level failure), provider_error (a classified provider 5xx), timeout (the deadline passed), or reachable_inference_unverified (the endpoint answers but no authorized request has proven inference).",
+        "reason": "Typed reason for the current state, or null while the route is healthy: rate_limited (the provider asked us to slow down), credential_invalid (the credential is rejected), quota_exhausted (the account's allowance is spent), transport_failure (connection-level failure), provider_error (a classified provider 5xx), timeout (the deadline passed), reachable_inference_unverified (the endpoint answers but no authorized request has proven inference), or redirected (the endpoint answered with a redirect the probe does not follow, which proves nothing and keeps the route unverified until a probe proves it reachable again).",
         "consecutiveFailures": "Failures since the last success, reset to zero by a saved probe success; this is what crosses the open threshold.",
         "consecutiveInferenceTrials": "Consecutive successful authorized inference trials since the route opened; two are required before the circuit closes and waiting work is released.",
         "evidenceWatermark": "Opaque bounded reference to the evidence that produced this state, so duplicate observations can be deduplicated; it never carries a credential, prompt or raw provider error.",
@@ -28137,7 +28252,8 @@ const transportSchemas = {
         "incidentId": "Current incident for this route; null while no incident is open.",
         "incidentGeneration": "Monotonic incident generation for this route. A probe result saved against an older generation is stale and must not change this view.",
         "inferenceVerifiedAt": "UTC timestamp when an already-authorized request last proved the inference path; null while inference is unproven.",
-        "updatedAt": "UTC timestamp of the last health change."
+        "updatedAt": "UTC timestamp of the last health change.",
+        "reasonSince": "UTC timestamp at which the current reason began, so a reason that holds (a redirect, a run of timeouts) reads as how long, not just that; null while there is no reason."
       }
     },
     "TicketRoutingRule": {
@@ -28303,6 +28419,94 @@ const transportSchemas = {
         "authorId": "Stable UUID of the principal who left the note.",
         "body": "The note text, at most 4000 characters.",
         "createdAt": "When the note was recorded."
+      }
+    },
+    "RouteContinuationTarget": {
+      "fields": [
+        "routeId",
+        "provider",
+        "model",
+        "harness",
+        "billingRoute",
+        "health",
+        "eligible",
+        "ineligibleReason"
+      ],
+      "nullableFields": [
+        "ineligibleReason"
+      ],
+      "fieldTypes": {
+        "routeId": "uuid",
+        "provider": "string",
+        "model": "string",
+        "harness": "enum(pi|claude_code|codex|mastra)",
+        "billingRoute": "enum(subscription|api_metered|local)",
+        "health": "enum(healthy|degraded|open|unverified)",
+        "eligible": "boolean",
+        "ineligibleReason": "enum(different_harness|route_not_active|route_open)"
+      },
+      "description": "One route a stalled step could continue on, with whether it may and, when it may not, the one reason. Every other route of the organization is listed, eligible or not, so a person choosing can see why a route is not offered instead of wondering where it went.",
+      "fieldDescriptions": {
+        "routeId": "UUID of the candidate provider route.",
+        "provider": "Provider key the candidate route sends to.",
+        "model": "Model identifier the candidate route pins; a continuation runs the step on this model.",
+        "harness": "Harness path the candidate route executes on: pi, claude_code, codex or mastra.",
+        "billingRoute": "Billing route the candidate route's spend follows: subscription, api_metered or local.",
+        "health": "The candidate route's current circuit state. Degraded (still serves some work) and unverified (no inference proof yet) routes stay eligible and are shown as such, so a person sees how much to trust a target before choosing it.",
+        "eligible": "True when the step may continue on this route. A degraded or unverified route is eligible, shown with its health so the person choosing weighs it; only a route that is open, not active or on another harness is refused.",
+        "ineligibleReason": "Why the route cannot take the step, or null when eligible: different_harness (a continuation keeps the step's harness), route_not_active (disabled or revoked), or route_open (the route has its own open incident)."
+      }
+    },
+    "RouteContinuationOffer": {
+      "fields": [
+        "runStepId",
+        "stepKey",
+        "incidentId",
+        "incidentGeneration",
+        "sourceRouteId",
+        "runVersion",
+        "estimatedIncrementalCost",
+        "targets"
+      ],
+      "nullableFields": [
+        "estimatedIncrementalCost"
+      ],
+      "fieldTypes": {
+        "runStepId": "uuid",
+        "stepKey": "string",
+        "incidentId": "uuid",
+        "incidentGeneration": "integer",
+        "sourceRouteId": "uuid",
+        "runVersion": "integer",
+        "estimatedIncrementalCost": "decimalString|null",
+        "targets": "RouteContinuationTarget[]"
+      },
+      "description": "One choice a run is waiting on: a step pinned to a route that has an open incident, and the routes it could continue on. The incident generation and the run version are what a later submission names, so a choice made against an incident that has since recovered, or a run that has since changed, is recognised as stale and commits nothing.",
+      "fieldDescriptions": {
+        "runStepId": "UUID of the run step whose provider is down.",
+        "stepKey": "The step's key within the workflow, for display.",
+        "incidentId": "UUID of the open incident the step is stalled behind.",
+        "incidentGeneration": "The incident's generation when this offer was made; a submission carrying a lower or different generation is stale.",
+        "sourceRouteId": "UUID of the route the step is currently pinned to, whose incident this is.",
+        "runVersion": "The run's version when this offer was made, so a submission can be refused if the run changed in between.",
+        "estimatedIncrementalCost": "Estimated extra spend of continuing on another route, as a decimal string in USD, or null while no estimate exists; the budget recheck that fills it is a later slice.",
+        "targets": "Every other route of the organization, each marked eligible or not with the reason."
+      }
+    },
+    "RouteContinuationOffers": {
+      "fields": [
+        "runId",
+        "offers"
+      ],
+      "nullableFields": [],
+      "fieldTypes": {
+        "runId": "uuid",
+        "offers": "RouteContinuationOffer[]"
+      },
+      "description": "The route continuations a run is waiting on: one offer per step that is pinned to a route with an open incident and has not already been continued for that incident. Empty when nothing is stalled. It is a read of current state, never a decision: nothing is admitted, paused or charged by reading it.",
+      "fieldDescriptions": {
+        "runId": "UUID of the run these offers belong to.",
+        "offers": "The open choices, empty when no step of the run is stalled behind an incident."
       }
     }
   },
@@ -29622,6 +29826,24 @@ const transportSchemas = {
       "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
     },
     "definitionPublishGrant.deleted": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "providerRoutes.created": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "providerRoutes.updated": {
       "schemaVersion": 1,
       "payloadFields": {
         "resourceId": "uuid",

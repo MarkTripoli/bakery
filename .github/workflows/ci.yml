@@ -1345,7 +1345,11 @@ jobs:
     name: ui / storybook browser
     if: ${{ needs.changes.result == 'success' && (needs.changes.outputs.route == 'full' || (needs.changes.outputs.route == 'affected' && contains(fromJSON(needs.changes.outputs.lanes), 'ui_storybook_browser'))) }}
     needs: [changes]
-    runs-on: [self-hosted, linux, bakery-heavy]
+    # Browser lanes run on the hetzner half of the heavy pool. The agx64 runners
+    # share their host with the agent seats, and when that host swaps every test
+    # in flight misses its budget at once ("specimen never mounted", "browser has
+    # been closed": run 44475126928). Pinned by tests/rails/runner-label-policy.node.mjs.
+    runs-on: [self-hosted, linux, hetzner, bakery-heavy]
     steps:
       - name: Select per-runner handoff directories
         shell: bash
@@ -1419,7 +1423,7 @@ jobs:
     name: full / web shell browser
     needs: [changes, format, typecheck, contract, unit]
     if: ${{ needs.changes.result == 'success' && (needs.changes.outputs.route == 'full' || (needs.changes.outputs.route == 'affected' && contains(fromJSON(needs.changes.outputs.lanes), 'ui_web_browser'))) && needs.format.result == 'success' && needs.typecheck.result == 'success' && needs.contract.result == 'success' && needs.unit.result == 'success' }}
-    runs-on: [self-hosted, linux, bakery-heavy]
+    runs-on: [self-hosted, linux, hetzner, bakery-heavy]
     env:
       BAKERY_ENV: test
       BAKERY_SERVER_HOST: 127.0.0.1
@@ -1579,7 +1583,7 @@ jobs:
     name: full / web shell browser b
     needs: [changes, format, typecheck, contract, unit]
     if: ${{ needs.changes.result == 'success' && (needs.changes.outputs.route == 'full' || (needs.changes.outputs.route == 'affected' && contains(fromJSON(needs.changes.outputs.lanes), 'ui_web_browser_b'))) && needs.format.result == 'success' && needs.typecheck.result == 'success' && needs.contract.result == 'success' && needs.unit.result == 'success' }}
-    runs-on: [self-hosted, linux, bakery-heavy]
+    runs-on: [self-hosted, linux, hetzner, bakery-heavy]
     env:
       BAKERY_ENV: test
       BAKERY_SERVER_HOST: 127.0.0.1
@@ -1739,7 +1743,7 @@ jobs:
     name: full / web shell browser c
     needs: [changes, format, typecheck, contract, unit]
     if: ${{ needs.changes.result == 'success' && (needs.changes.outputs.route == 'full' || (needs.changes.outputs.route == 'affected' && contains(fromJSON(needs.changes.outputs.lanes), 'ui_web_browser_c'))) && needs.format.result == 'success' && needs.typecheck.result == 'success' && needs.contract.result == 'success' && needs.unit.result == 'success' }}
-    runs-on: [self-hosted, linux, bakery-heavy]
+    runs-on: [self-hosted, linux, hetzner, bakery-heavy]
     env:
       BAKERY_ENV: test
       BAKERY_SERVER_HOST: 127.0.0.1
@@ -1899,7 +1903,7 @@ jobs:
     name: full / web shell browser d
     needs: [changes, format, typecheck, contract, unit]
     if: ${{ needs.changes.result == 'success' && (needs.changes.outputs.route == 'full' || (needs.changes.outputs.route == 'affected' && contains(fromJSON(needs.changes.outputs.lanes), 'ui_web_browser_d'))) && needs.format.result == 'success' && needs.typecheck.result == 'success' && needs.contract.result == 'success' && needs.unit.result == 'success' }}
-    runs-on: [self-hosted, linux, bakery-heavy]
+    runs-on: [self-hosted, linux, hetzner, bakery-heavy]
     env:
       BAKERY_ENV: test
       BAKERY_SERVER_HOST: 127.0.0.1

@@ -4928,6 +4928,60 @@
     },
     {
       "group": "Providers",
+      "method": "POST",
+      "path": "/v1/provider-routes",
+      "action": "providerRoutes.create",
+      "access": "Admin",
+      "permission": "providerRoute:manage",
+      "organizationContext": "required_authenticated_context",
+      "input": "ProviderRouteCreate",
+      "output": "ProviderRoute",
+      "event": "providerRoutes.created",
+      "mcp": null,
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ]
+    },
+    {
+      "group": "Providers",
+      "method": "PATCH",
+      "path": "/v1/provider-routes/{id}",
+      "action": "providerRoutes.update",
+      "access": "Admin",
+      "permission": "providerRoute:manage",
+      "organizationContext": "required_authenticated_context",
+      "input": "ProviderRouteUpdate",
+      "output": "ProviderRoute",
+      "event": "providerRoutes.updated",
+      "mcp": null,
+      "idempotency": "Idempotency-Key required; PATCH also If-Match",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ]
+    },
+    {
+      "group": "Providers",
       "method": "GET",
       "path": "/v1/provider-incidents",
       "action": "providerIncidents.list",
@@ -4964,6 +5018,27 @@
         "AUTH_FORBIDDEN",
         "SCOPE_REQUIRED",
         "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Providers",
+      "method": "GET",
+      "path": "/v1/runs/{id}/route-continuations",
+      "action": "routeContinuations.list",
+      "access": "Developer",
+      "permission": "providerRoute:read",
+      "input": "IdPath",
+      "output": "RouteContinuationOffers",
+      "event": "",
+      "mcp": null,
+      "idempotency": "Read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
         "MALFORMED_REQUEST"
       ],
       "organizationContext": "required_authenticated_context"

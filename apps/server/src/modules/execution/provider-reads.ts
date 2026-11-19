@@ -32,12 +32,13 @@ import { requireWorkTransaction } from "../work/work-transaction.ts";
 const ROUTES_ORDERING = "createdAt:desc,id:desc";
 const INCIDENTS_ORDERING = "openedAt:desc,id:desc";
 
-const ROUTE_COLUMNS = `id, provider, endpoint, region, model, harness,
+export const ROUTE_COLUMNS = `id, provider, endpoint, region, model, harness,
   billing_route, provider_account_id, worker_binding_id, credential_location,
   status, health, incident_id, incident_generation, last_probe_at,
   next_probe_at, inference_verified_at, created_at, updated_at, version`;
 
-const HEALTH_COLUMNS = `route_id, health, reason, consecutive_failures,
+const HEALTH_COLUMNS =
+  `route_id, health, reason, reason_since, consecutive_failures,
   consecutive_inference_trials, evidence_watermark, last_failure_at,
   last_success_at, last_probe_at, next_probe_at, probe_lease_expires_at,
   corroboration, incident_id, incident_generation, inference_verified_at,
@@ -49,7 +50,7 @@ const INCIDENT_COLUMNS = `id, route_id, generation, status, severity, reason,
   switched_task_count, still_blocked_task_count, opened_at, closed_at,
   updated_at, version`;
 
-type ProviderRouteRow = {
+export type ProviderRouteRow = {
   id: string;
   provider: string;
   endpoint: string;
@@ -76,6 +77,7 @@ type RouteHealthRow = {
   route_id: string;
   health: string;
   reason: string | null;
+  reason_since: Date | string | null;
   consecutive_failures: number;
   consecutive_inference_trials: number;
   evidence_watermark: string | null;
@@ -172,7 +174,9 @@ export function toRouteHealth(row: RouteHealthRow) {
       | "provider_error"
       | "timeout"
       | "reachable_inference_unverified"
+      | "redirected"
       | null,
+    reasonSince: toIsoOrNull(row.reason_since),
     consecutiveFailures: row.consecutive_failures,
     consecutiveInferenceTrials: row.consecutive_inference_trials,
     evidenceWatermark: row.evidence_watermark,
@@ -424,6 +428,7 @@ export function createProviderReadHandlers(secret: string) {
         | "open"
         | "unverified",
       reason: null,
+      reasonSince: null,
       consecutiveFailures: 0,
       consecutiveInferenceTrials: 0,
       evidenceWatermark: null,
