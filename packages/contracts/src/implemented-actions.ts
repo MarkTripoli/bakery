@@ -265,6 +265,24 @@ export const providerReadsImplementedActions = Object.freeze(
   Object.values(ProviderReadsImplementedAction),
 );
 
+/**
+ * The provider route writes (#26 slice 2, writes).
+ *
+ * Kept apart from the reads because they are commands: Admin access, an
+ * idempotency key, and an `If-Match` version on the update. An incident is not
+ * here on purpose. Nothing a caller says opens or closes one; the host does,
+ * after judging a probe result, so there is no operation to name.
+ */
+export const ProviderWritesImplementedAction = Object.freeze(
+  {
+    ProviderRoutesCreate: "providerRoutes.create",
+    ProviderRoutesUpdate: "providerRoutes.update",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const providerWritesImplementedActions = Object.freeze(
+  Object.values(ProviderWritesImplementedAction),
+);
+
 export const RepositoryRulesImplementedAction = Object.freeze(
   {
     RepositoryRulesGet: "repositoryRules.get",
@@ -607,6 +625,7 @@ export const implementedActions = Object.freeze(
     ...projectsImplementedActions,
     ...agentImplementedActions,
     ...providerReadsImplementedActions,
+    ...providerWritesImplementedActions,
     ...repositoryRulesImplementedActions,
     ...artifactKindImplementedActions,
     ...integrationsImplementedActions,
