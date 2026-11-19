@@ -2024,9 +2024,21 @@ for (
     const notice = page.getByTestId("delivery-merge-notice");
     if (noticeStays) {
       await expect(notice).toContainText(
-        "Bakery did not get an answer, so the merge may or may not have started.",
+        recorded === null
+          ? "Bakery did not get an answer and has no record of a merge attempt. Open the pull request on GitHub to see whether it merged before you merge again."
+          : "Bakery did not get an answer, so the merge may or may not have started.",
       );
       await expect(notice).not.toContainText("Nothing changed");
+      if (recorded === null) {
+        // Above the card, where it is read first.
+        const above = await notice.evaluate((element, card) =>
+          Boolean(
+            element.compareDocumentPosition(
+              document.querySelector(`[data-testid="${card}"]`)!,
+            ) & Node.DOCUMENT_POSITION_FOLLOWING,
+          ), "delivery-now");
+        expect(above).toBe(true);
+      }
     } else {
       // The card already says exactly this, so the notice would repeat it.
       await expect(notice).toHaveCount(0);
@@ -2177,7 +2189,7 @@ for (const scheme of ["light", "dark"] as const) {
       await button(nowCard(page), "Merge").click();
       await button(page.getByRole("alertdialog"), "Merge").click();
       await expect(page.getByTestId("delivery-merge-notice")).toContainText(
-        "did not get an answer",
+        "has no record of a merge attempt",
       );
       await expect(nowCard(page)).toContainText("Ready to merge");
       await page.setViewportSize({ width, height: TALL[size] });

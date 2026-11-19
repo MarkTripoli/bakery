@@ -771,6 +771,26 @@ function ReadyView(
       ? ("error" as const)
       : ("neutral" as const),
   };
+  // A lost answer that left no record at all: the card is back to Ready, so the
+  // notice goes above it, where it is read first, and says there is no attempt
+  // to look for. Elsewhere it keeps its place under the card.
+  const noRecord = mergePhase === "noAnswer" &&
+    (merge?.state === "ready" || merge?.state === "noPermission");
+  const mergeNoticeElement = mergeNotice !== null && !mergeOpen
+    ? (
+      <UI.InlineNotice
+        data-testid="delivery-merge-notice"
+        id={MERGE_NOTICE_ID}
+        role="status"
+        tabIndex={-1}
+        {...mergeNoticeProps}
+      >
+        {t(
+          noRecord ? "tasks.delivery.merge.notice.noRecord" : mergeNotice,
+        )}
+      </UI.InlineNotice>
+    )
+    : null;
   const nowContent = (
     <>
       <UI.Heading id={NOW_TITLE_ID} level="subsection" tabIndex={-1}>
@@ -788,6 +808,7 @@ function ReadyView(
   );
   return (
     <>
+      {noRecord && mergeNoticeElement}
       <UI.AlertBanner
         action={action}
         data-testid="delivery-now"
@@ -820,17 +841,7 @@ function ReadyView(
           {t(refusal)}
         </UI.InlineNotice>
       )}
-      {mergeNotice !== null && !mergeOpen && (
-        <UI.InlineNotice
-          data-testid="delivery-merge-notice"
-          id={MERGE_NOTICE_ID}
-          role="status"
-          tabIndex={-1}
-          {...mergeNoticeProps}
-        >
-          {t(mergeNotice)}
-        </UI.InlineNotice>
-      )}
+      {!noRecord && mergeNoticeElement}
       {model.outOfDate && !model.pullRequestMoved && (
         <UI.InlineNotice
           data-testid="delivery-out-of-date"

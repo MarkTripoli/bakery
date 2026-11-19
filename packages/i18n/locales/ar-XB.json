@@ -4439,5 +4439,6 @@
   "tasks.delivery.merge.notice.forbidden": "⟪Someone who can merge in this repository can do it here.⟫",
   "tasks.delivery.merge.notice.noAnswer": "⟪Bakery did not get an answer, so the merge may or may not have started. What it recorded is shown here.⟫",
   "tasks.delivery.approval.step.approvedOlder": "⟪Approved for older commit {sha}.⟫",
-  "tasks.delivery.afterApproval.badge.changedAfterApproval": "⟪Changed after approval⟫"
+  "tasks.delivery.afterApproval.badge.changedAfterApproval": "⟪Changed after approval⟫",
+  "tasks.delivery.merge.notice.noRecord": "⟪Bakery did not get an answer and has no record of a merge attempt. Open the pull request on GitHub to see whether it merged before you merge again.⟫"
 }
