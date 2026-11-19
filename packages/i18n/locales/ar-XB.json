@@ -4311,7 +4311,6 @@
   "settings.repositoryRules.access.locked": "⟪No, locked⟫",
   "settings.repositoryRules.access.override": "⟪Yes⟫",
   "settings.repositoryRules.access.lockedShort": "⟪Locked⟫",
-  "settings.repositoryRules.access.overrideShort": "⟪Repositories can change it⟫",
   "settings.repositoryRules.guide": "⟪Edit a rule, review what will change, then publish. Nothing applies until you publish.⟫",
   "settings.repositoryRules.help.access": "⟪Locked rules apply to every repository as set here. Other rules are a default that a repository can replace with its own setting.⟫",
   "settings.repositoryRules.help.accessLabel": "⟪About what repositories can change⟫",
@@ -4331,5 +4330,6 @@
   "settings.repositoryRules.stale.useTheirs": "⟪Use version {revision}⟫",
   "settings.repositoryRules.stale.useTheirs.named": "⟪Use version {revision} for {rule}⟫",
   "settings.repositoryRules.history.loadMoreError": "⟪Older versions could not be loaded.⟫",
-  "settings.repositoryRules.history.loading": "⟪Loading versions…⟫"
+  "settings.repositoryRules.history.loading": "⟪Loading versions…⟫",
+  "settings.repositoryRules.access.overrideShort": "⟪Not locked⟫"
 }

@@ -167,7 +167,7 @@ test.describe("organization repository rules", () => {
       "type(scope): summary · 72-character subject",
     );
     await expect(row("Merge descriptions")).toContainText(
-      /Yes|Repositories can change it/,
+      /Yes|Not locked/,
     );
     await expect(row("Merge descriptions")).toContainText(
       "Summary, Changes, Validation · Markdown template",
@@ -658,8 +658,8 @@ test.describe("organization repository rules", () => {
     for (
       const [rule, label] of [
         ["Semantic commits", "Require · Locked"],
-        ["Merge descriptions", "Require · Repositories can change it"],
-        ["Magic strings", "Off · Repositories can change it"],
+        ["Merge descriptions", "Require · Not locked"],
+        ["Magic strings", "Off · Not locked"],
       ]
     ) {
       const row = ruleRow(page, rule);

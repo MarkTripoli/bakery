@@ -432,23 +432,26 @@ export function OrganizationRepositoryRulesPage() {
                                   { rule: translate(RULE_NAME[row.ruleKey]) },
                                 )}
                                 detail={
-                                  <>
-                                    {translate(
-                                      "settings.repositoryRules.enforcementAccess",
-                                      {
-                                        enforcement: translate(
-                                          enforcementOf(row),
-                                        ),
-                                        access: translate(
-                                          row.locked
-                                            ? "settings.repositoryRules.access.lockedShort"
-                                            : "settings.repositoryRules.access.overrideShort",
-                                        ),
-                                      },
-                                    )}
-                                    <br />
-                                    {summarize(row, translate)}
-                                  </>
+                                  <UI.Stack gap="tight">
+                                    <UI.Text variant="caption">
+                                      {translate(
+                                        "settings.repositoryRules.enforcementAccess",
+                                        {
+                                          enforcement: translate(
+                                            enforcementOf(row),
+                                          ),
+                                          access: translate(
+                                            row.locked
+                                              ? "settings.repositoryRules.access.lockedShort"
+                                              : "settings.repositoryRules.access.overrideShort",
+                                          ),
+                                        },
+                                      )}
+                                    </UI.Text>
+                                    <UI.Text variant="caption">
+                                      {summarize(row, translate)}
+                                    </UI.Text>
+                                  </UI.Stack>
                                 }
                                 onSelect={() =>
                                   openEditor(row.ruleKey)}
@@ -513,11 +516,9 @@ export function OrganizationRepositoryRulesPage() {
                               id: "enforcement",
                               header: (
                                 <UI.Inline gap="compact">
-                                  <span>
-                                    {translate(
-                                      "settings.repositoryRules.column.enforcement",
-                                    )}
-                                  </span>
+                                  {translate(
+                                    "settings.repositoryRules.column.enforcement",
+                                  )}
                                   <UI.HelpTip
                                     closeLabel={translate(
                                       "repository.rules.help.close",
@@ -545,11 +546,9 @@ export function OrganizationRepositoryRulesPage() {
                               id: "access",
                               header: (
                                 <UI.Inline gap="compact">
-                                  <span>
-                                    {translate(
-                                      "settings.repositoryRules.column.access",
-                                    )}
-                                  </span>
+                                  {translate(
+                                    "settings.repositoryRules.column.access",
+                                  )}
                                   <UI.HelpTip
                                     closeLabel={translate(
                                       "repository.rules.help.close",

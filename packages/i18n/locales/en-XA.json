@@ -4311,7 +4311,6 @@
   "settings.repositoryRules.access.locked": "⟦Ñô, ļôçķëð ŧ⟧",
   "settings.repositoryRules.access.override": "⟦Ÿëš⟧",
   "settings.repositoryRules.access.lockedShort": "⟦Ļôçķëð…⟧",
-  "settings.repositoryRules.access.overrideShort": "⟦Ŕëþôšïŧôŕïëš çàñ çĥàñĝë ïŧ ŧëšŧ çô⟧",
   "settings.repositoryRules.guide": "⟦Ëðïŧ à ŕûļë, ŕëṽïëŵ ŵĥàŧ ŵïļļ çĥàñĝë, ŧĥëñ þûƀļïšĥ. Ñôŧĥïñĝ àþþļïëš ûñŧïļ ÿôû þûƀļïšĥ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
   "settings.repositoryRules.help.access": "⟦Ļôçķëð ŕûļëš àþþļÿ ŧô ëṽëŕÿ ŕëþôšïŧôŕÿ àš šëŧ ĥëŕë. Ôŧĥëŕ ŕûļëš àŕë à ðëƒàûļŧ ŧĥàŧ à ŕëþôšïŧôŕÿ çàñ ŕëþļàçë ŵïŧĥ ïŧš ôŵñ šëŧŧïñĝ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
   "settings.repositoryRules.help.accessLabel": "⟦Àƀôûŧ ŵĥàŧ ŕëþôšïŧôŕïëš çàñ çĥàñĝë ŧëšŧ çôþÿ⟧",
@@ -4331,5 +4330,6 @@
   "settings.repositoryRules.stale.useTheirs": "⟦Ûšë ṽëŕšïôñ {revision} ŧëšŧŧ⟧",
   "settings.repositoryRules.stale.useTheirs.named": "⟦Ûšë ṽëŕšïôñ {revision} ƒôŕ {rule} ŧëšŧ çôþÿ⟧",
   "settings.repositoryRules.history.loadMoreError": "⟦Ôļðëŕ ṽëŕšïôñš çôûļð ñôŧ ƀë ļôàðëð. ŧëšŧ çôþÿŧ⟧",
-  "settings.repositoryRules.history.loading": "⟦Ļôàðïñĝ ṽëŕšïôñš… ŧëš⟧"
+  "settings.repositoryRules.history.loading": "⟦Ļôàðïñĝ ṽëŕšïôñš… ŧëš⟧",
+  "settings.repositoryRules.access.overrideShort": "⟦Ñôŧ ļôçķëð ŧ⟧"
 }
