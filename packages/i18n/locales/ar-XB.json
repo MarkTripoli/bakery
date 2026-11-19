@@ -4405,6 +4405,7 @@
   "access.level.manage": "⟪You can change this.⟫",
   "access.level.scoped": "⟪Only in repositories you were given.⟫",
   "access.level.view": "⟪You can only view this.⟫",
+  "settings.roles.verb.accept": "⟪Overrule {things} that asked for changes⟫",
   "shell.navigation.plugins": "⟪Plugins⟫",
   "settings.plugins.title": "⟪Plugins⟫",
   "settings.plugins.description": "⟪Private add-ons built for {organization}. They add pages and actions made for your team.⟫",

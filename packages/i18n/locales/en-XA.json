@@ -4405,6 +4405,7 @@
   "access.level.manage": "⟦Ÿôû çàñ çĥàñĝë ŧĥïš. ŧëšŧ⟧",
   "access.level.scoped": "⟦Ôñļÿ ïñ ŕëþôšïŧôŕïëš ÿôû ŵëŕë ĝïṽëñ. ŧëšŧ çôþÿŧ⟧",
   "access.level.view": "⟦Ÿôû çàñ ôñļÿ ṽïëŵ ŧĥïš. ŧëšŧ ç⟧",
+  "settings.roles.verb.accept": "⟦Ôṽëŕŕûļë {things} ŧĥàŧ àšķëð ƒôŕ çĥàñĝëš ŧëšŧ çôþÿ ŧ⟧",
   "shell.navigation.plugins": "⟦Þļûĝïñš…⟧",
   "settings.plugins.title": "⟦Þļûĝïñš…⟧",
   "settings.plugins.description": "⟦Þŕïṽàŧë àðð-ôñš ƀûïļŧ ƒôŕ {organization}. Ŧĥëÿ àðð þàĝëš àñð àçŧïôñš ɱàðë ƒôŕ ÿôûŕ ŧëàɱ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
