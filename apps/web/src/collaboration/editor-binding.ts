@@ -5,7 +5,12 @@ import {
   StateField,
   Transaction,
 } from "@codemirror/state";
-import { Decoration, type DecorationSet, EditorView } from "@codemirror/view";
+import {
+  Decoration,
+  type DecorationSet,
+  EditorView,
+  WidgetType,
+} from "@codemirror/view";
 import { LoroSyncPlugin, LoroUndoPlugin } from "loro-codemirror";
 import type { LoroDoc as LoroDocument } from "loro-crdt";
 import { UndoManager } from "loro-crdt/base64";
@@ -94,5 +99,84 @@ export function showSuggestedRange(
         ? [EditorView.scrollIntoView(range.from, { y: "center" })]
         : []),
     ],
+  });
+}
+
+/** One other person's caret as the editor draws it. */
+export type CaretView = Readonly<{
+  name: string;
+  /** Which of the six presence colours (1 to 6). */
+  colour: number;
+  anchor: number;
+  head: number;
+}>;
+
+/** Sets every other person's caret at once; an empty list clears them. */
+export const setRemoteCarets = StateEffect.define<readonly CaretView[]>();
+
+class CaretWidget extends WidgetType {
+  constructor(readonly name: string, readonly colour: number) {
+    super();
+  }
+  override eq(other: CaretWidget): boolean {
+    return other.name === this.name && other.colour === this.colour;
+  }
+  override toDOM(): HTMLElement {
+    const caret = document.createElement("span");
+    caret.className = "ui-document-editor__caret";
+    caret.setAttribute("data-presence-color", String(this.colour));
+    caret.setAttribute("aria-hidden", "true");
+    const label = document.createElement("span");
+    label.className = "ui-document-editor__caret-label";
+    label.textContent = this.name;
+    caret.append(label);
+    return caret;
+  }
+  override ignoreEvent(): boolean {
+    return true;
+  }
+}
+
+/**
+ * Other people's carets: a coloured caret with their first name where they are,
+ * and a coloured underline under what they have selected. Drive it with
+ * `setRemoteCarets`.
+ */
+export function remoteCaretLayer(): Extension {
+  return StateField.define<DecorationSet>({
+    create: () => Decoration.none,
+    update(carets, transaction) {
+      let next = carets.map(transaction.changes);
+      for (const effect of transaction.effects) {
+        if (!effect.is(setRemoteCarets)) continue;
+        const length = transaction.state.doc.length;
+        const clamp = (position: number) =>
+          Math.max(0, Math.min(position, length));
+        next = Decoration.set(
+          effect.value.flatMap((caret) => {
+            const from = clamp(Math.min(caret.anchor, caret.head));
+            const to = clamp(Math.max(caret.anchor, caret.head));
+            const head = clamp(caret.head);
+            return [
+              ...(from < to
+                ? [
+                  Decoration.mark({
+                    class: "ui-document-editor__peer-selection",
+                    attributes: { "data-presence-color": String(caret.colour) },
+                  }).range(from, to),
+                ]
+                : []),
+              Decoration.widget({
+                widget: new CaretWidget(caret.name, caret.colour),
+                side: 1,
+              }).range(head),
+            ];
+          }),
+          true,
+        );
+      }
+      return next;
+    },
+    provide: (field) => EditorView.decorations.from(field),
   });
 }

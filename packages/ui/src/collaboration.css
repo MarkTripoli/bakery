@@ -2501,6 +2501,82 @@ button.ui-activity-line__row:hover {
   outline: var(--focus-width) solid var(--color-status-warning);
   outline-offset: var(--space-0);
 }
+/* Other people's carets and selections, each in their own presence colour. */
+.ui-document-editor .ui-document-editor__caret {
+  border-inline-start: var(--focus-width) solid var(--color-fg);
+  margin-inline-start: calc(-1 * var(--focus-width));
+  pointer-events: none;
+  position: relative;
+}
+.ui-document-editor .ui-document-editor__caret-label {
+  background: var(--color-fg);
+  border-radius: var(--radius-control);
+  color: var(--color-canvas);
+  font: var(--type-caption);
+  inset-block-end: 100%;
+  inset-inline-start: calc(-1 * var(--focus-width));
+  padding-inline: var(--space-1);
+  position: absolute;
+  white-space: nowrap;
+}
+.ui-document-editor .ui-document-editor__peer-selection {
+  background: var(--color-surface-subtle);
+  border-block-end: var(--focus-width) solid var(--color-fg);
+}
+.ui-document-editor .ui-document-editor__caret[data-presence-color="1"] {
+  border-inline-start-color: var(--color-presence-1);
+}
+.ui-document-editor .ui-document-editor__caret[data-presence-color="1"] .ui-document-editor__caret-label {
+  background: var(--color-presence-1);
+}
+.ui-document-editor .ui-document-editor__peer-selection[data-presence-color="1"] {
+  border-block-end-color: var(--color-presence-1);
+}
+.ui-document-editor .ui-document-editor__caret[data-presence-color="2"] {
+  border-inline-start-color: var(--color-presence-2);
+}
+.ui-document-editor .ui-document-editor__caret[data-presence-color="2"] .ui-document-editor__caret-label {
+  background: var(--color-presence-2);
+}
+.ui-document-editor .ui-document-editor__peer-selection[data-presence-color="2"] {
+  border-block-end-color: var(--color-presence-2);
+}
+.ui-document-editor .ui-document-editor__caret[data-presence-color="3"] {
+  border-inline-start-color: var(--color-presence-3);
+}
+.ui-document-editor .ui-document-editor__caret[data-presence-color="3"] .ui-document-editor__caret-label {
+  background: var(--color-presence-3);
+}
+.ui-document-editor .ui-document-editor__peer-selection[data-presence-color="3"] {
+  border-block-end-color: var(--color-presence-3);
+}
+.ui-document-editor .ui-document-editor__caret[data-presence-color="4"] {
+  border-inline-start-color: var(--color-presence-4);
+}
+.ui-document-editor .ui-document-editor__caret[data-presence-color="4"] .ui-document-editor__caret-label {
+  background: var(--color-presence-4);
+}
+.ui-document-editor .ui-document-editor__peer-selection[data-presence-color="4"] {
+  border-block-end-color: var(--color-presence-4);
+}
+.ui-document-editor .ui-document-editor__caret[data-presence-color="5"] {
+  border-inline-start-color: var(--color-presence-5);
+}
+.ui-document-editor .ui-document-editor__caret[data-presence-color="5"] .ui-document-editor__caret-label {
+  background: var(--color-presence-5);
+}
+.ui-document-editor .ui-document-editor__peer-selection[data-presence-color="5"] {
+  border-block-end-color: var(--color-presence-5);
+}
+.ui-document-editor .ui-document-editor__caret[data-presence-color="6"] {
+  border-inline-start-color: var(--color-presence-6);
+}
+.ui-document-editor .ui-document-editor__caret[data-presence-color="6"] .ui-document-editor__caret-label {
+  background: var(--color-presence-6);
+}
+.ui-document-editor .ui-document-editor__peer-selection[data-presence-color="6"] {
+  border-block-end-color: var(--color-presence-6);
+}
 .ui-document-editor .cm-placeholder {
   color: var(--color-fg-muted);
 }
