@@ -141,7 +141,21 @@ export type WebhookIngress = {
     secrets: readonly Uint8Array[];
     now: Date;
   }):
-    | { ok: true; delivery: unknown }
+    | {
+      ok: true;
+      delivery: unknown;
+      /**
+       * The provider's own id for this delivery, when it sends one. It is the
+       * key the host's receipt deduplicates on, so a redelivered id is
+       * acknowledged rather than applied twice.
+       *
+       * It is not a freshness signal: a provider can replay an old delivery
+       * under its original id, which is exactly the case the receipt refuses.
+       * A provider that sends no id omits this, and the host falls back to the
+       * body digest.
+       */
+      deliveryId?: string;
+    }
     | { ok: false; reason: "signature" | "stale" | "malformed" };
   classify(delivery: unknown):
     | { kind: "ignored" }
