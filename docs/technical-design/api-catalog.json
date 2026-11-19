@@ -5684,6 +5684,28 @@
     {
       "group": "Artifacts",
       "method": "GET",
+      "path": "/v1/files/search",
+      "action": "files.search",
+      "access": "Developer",
+      "permission": "artifact:read",
+      "input": "FileSearchQuery",
+      "output": "Page<FileSearchHit>",
+      "event": "",
+      "mcp": "bakery_files_search",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Artifacts",
+      "method": "GET",
       "path": "/v1/artifacts/{id}",
       "action": "artifacts.get",
       "access": "Developer",

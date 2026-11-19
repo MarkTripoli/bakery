@@ -34,6 +34,8 @@ import {
   blobUploadImplementedActions,
 } from "@bakery/contracts/implemented-actions";
 import type { AuthorizedActionContext } from "../auth/application/authority.ts";
+import { authorize as authorizePermission } from "../auth/application/authorize.ts";
+import { createFileSearchHandler } from "./file-search.ts";
 import { authorize } from "../auth/application/authorize.ts";
 import { PostgresAuthorityRunner } from "../auth/adapters/authority-postgres.ts";
 import { type AuthVariables, createActionContext } from "../auth/middleware.ts";
@@ -208,6 +210,24 @@ export function createArtifactActions(
     options.secret,
     options.blobStore,
   );
+  // Library items need `library:read` on top of the route's file permission, so
+  // searching files never reveals the library to someone who may not read it.
+  const searchFiles = createFileSearchHandler(options.secret, (context) => {
+    const actor = (context as Partial<AuthorizedActionContext>).authority;
+    if (actor === undefined) return false;
+    try {
+      authorizePermission(
+        actor as Parameters<typeof authorizePermission>[0],
+        "library:read",
+        {
+          action: ArtifactImplementedAction.FilesSearch,
+        },
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  });
   const blobUploads = createBlobUploadHandlers(options.blobStore);
   const trustedRepositoryResolver = createTrustedRepositoryResolver();
   const postgresAuthority = new PostgresAuthorityRunner(options.database);
@@ -333,6 +353,18 @@ export function createArtifactActions(
       handler: async (context, input) =>
         contractSchemas["Page<Artifact>"].parse(
           await handlers.listArtifacts(context, input),
+        ),
+    })
+    .register({
+      name: ArtifactImplementedAction.FilesSearch,
+      method: HttpMethod.Get,
+      path: "/v1/files/search",
+      input: contractSchemas.FileSearchQuery,
+      output: contractSchemas["Page<FileSearchHit>"],
+      policy: readPolicy,
+      handler: async (context, input) =>
+        contractSchemas["Page<FileSearchHit>"].parse(
+          await searchFiles(context, input),
         ),
     })
     .register({
@@ -508,6 +540,7 @@ export function createArtifactResourceRoutes(
   app.use("/v1/artifact-comments/*", session);
   app.use("/v1/artifact-storage", session);
   app.use("/v1/artifacts", session);
+  app.use("/v1/files/search", session);
   app.use("/v1/artifacts/*", session);
   app.use("/v1/artifact-versions", session);
   app.use("/v1/artifact-preview-availability", session);

@@ -1,0 +1,532 @@
+import { assert, assertEquals, assertRejects } from "@std/assert";
+import type { ActionContext } from "../../packages/contracts/src/action-registry.ts";
+import { openAuthFixture } from "../helpers/auth.ts";
+import { cleanupSeededOrganizations } from "../helpers/coordinator-turns.ts";
+import {
+  type Fixture,
+  request,
+  type Seed,
+  seedOrganization,
+  seedTask,
+} from "../helpers/durable-questions.ts";
+import { withPgTransaction } from "../../packages/persistence/src/postgres.ts";
+import {
+  createFileSearchHandler,
+  listLibraryFolder,
+  nameMatch,
+} from "../../apps/server/src/modules/knowledge/file-search.ts";
+import {
+  projectArtifactEntry,
+  type StorageQuery,
+} from "../../apps/server/src/modules/knowledge/storage-tree.ts";
+
+// #453 (slice F10): permission-aware search over the file tree and the
+// read-only library mirror.
+
+const SECRET = "file-search-test-cursor-secret-0123456789";
+
+async function withFixture(
+  work: (fixture: Fixture) => Promise<void>,
+): Promise<void> {
+  const fixture = await openAuthFixture();
+  try {
+    await work(fixture);
+  } finally {
+    try {
+      await cleanupSeededOrganizations(fixture);
+    } finally {
+      await fixture.close();
+    }
+  }
+}
+
+const db = (fixture: Fixture): StorageQuery => ({
+  query: async <Row>(sql: string, params: unknown[] = []) => ({
+    rows: (await fixture.pgDatabase.query(sql, params))
+      .rows as unknown as Row[],
+  }),
+});
+
+const hex = () =>
+  (crypto.randomUUID() + crypto.randomUUID()).replaceAll("-", "").slice(0, 64);
+
+type Made = { artifactId: string; versionId: string };
+
+/** A projected file: an artifact with one current version and a tree entry. */
+async function file(
+  fixture: Fixture,
+  seed: Seed,
+  taskId: string,
+  options: {
+    name: string;
+    kind?: string;
+    mediaType?: string;
+    metadata?: Record<string, string>;
+    authorId?: string;
+  },
+): Promise<Made> {
+  const artifact = await fixture.pgDatabase.query<{ id: string }>(
+    `insert into bakery.artifacts (organization_id, task_id, artifact_type, name)
+     values ($1, $2, $3, $4) returning id`,
+    [seed.organizationId, taskId, options.kind ?? "plan", options.name],
+  );
+  const version = await fixture.pgDatabase.query<{ id: string }>(
+    `insert into bakery.artifact_versions (
+       organization_id, artifact_id, task_id, author_id, revision, content,
+       sha256, size_bytes, media_type, metadata
+     ) values ($1, $2, $3, $4, 1, $5, $6, 3, $7, $8::jsonb) returning id`,
+    [
+      seed.organizationId,
+      artifact.rows[0].id,
+      taskId,
+      options.authorId ?? seed.principalId,
+      new Uint8Array([1, 2, 3]),
+      hex(),
+      options.mediaType ?? "text/markdown",
+      JSON.stringify(options.metadata ?? {}),
+    ],
+  );
+  await fixture.pgDatabase.query(
+    `update bakery.artifacts set current_version_id = $3
+      where organization_id = $1 and id = $2`,
+    [seed.organizationId, artifact.rows[0].id, version.rows[0].id],
+  );
+  await projectArtifactEntry(db(fixture), {
+    organizationId: seed.organizationId,
+    artifactId: artifact.rows[0].id,
+  });
+  return { artifactId: artifact.rows[0].id, versionId: version.rows[0].id };
+}
+
+type Scopes = readonly string[] | undefined;
+
+/** Runs the real search against the real database as a given caller. */
+async function search(
+  fixture: Fixture,
+  seed: Seed,
+  input: Record<string, unknown>,
+  options: { library?: boolean; scopes?: Scopes } = {},
+) {
+  const handler = createFileSearchHandler(
+    SECRET,
+    () => options.library ?? true,
+  );
+  return await withPgTransaction(fixture.pgDatabase, (transaction) =>
+    handler(
+      {
+        authority: {
+          organizationId: seed.organizationId,
+          subject: { principalId: seed.principalId },
+        },
+        transaction,
+        ...(options.scopes === undefined
+          ? {}
+          : { sessionScopes: options.scopes }),
+      } as unknown as ActionContext,
+      input as never,
+    ));
+}
+
+async function libraryItems(fixture: Fixture, seed: Seed, tag: string) {
+  const org = seed.organizationId;
+  const q = (sql: string, params: unknown[]) =>
+    fixture.pgDatabase.query(sql, params);
+  await q(
+    `insert into bakery.skills (id, organization_id, slug, name, enabled)
+     values ($1, $2, $3, $4, true), ($5, $2, $6, $7, false)`,
+    [
+      crypto.randomUUID(),
+      org,
+      `${tag}-skill`,
+      `${tag} Skill`,
+      crypto.randomUUID(),
+      `${tag}-off`,
+      `${tag} Disabled Skill`,
+    ],
+  );
+  await q(
+    `insert into bakery.agent_definitions (id, organization_id, slug, name, enabled)
+     values ($1, $2, $3, $4, true)`,
+    [crypto.randomUUID(), org, `${tag}-agent`, `${tag} Agent`],
+  );
+  const flow = crypto.randomUUID();
+  const version = crypto.randomUUID();
+  await q(
+    `insert into bakery.workflow_definitions (id, organization_id, slug, name, enabled)
+     values ($1, $2, $3, $4, true), ($5, $2, $6, $7, true)`,
+    [
+      flow,
+      org,
+      `${tag}-flow`,
+      `${tag} Workflow`,
+      crypto.randomUUID(),
+      `${tag}-draft`,
+      `${tag} Draft Workflow`,
+    ],
+  );
+  await q(
+    `insert into bakery.workflow_versions (
+       id, organization_id, workflow_id, revision, source_yaml, normalized_spec,
+       digest, status, created_by, version
+     ) values ($1, $2, $3, 1, '', '{}'::jsonb, $4, 'published', $5, 1)`,
+    [version, org, flow, hex(), seed.principalId],
+  );
+  await q(
+    `update bakery.workflow_definitions set active_version_id = $3
+      where organization_id = $1 and id = $2`,
+    [org, flow, version],
+  );
+}
+
+Deno.test("AC: search finds files by name, with the matched range and the full path", () =>
+  withFixture(async (fixture) => {
+    const seed = await seedOrganization(fixture, "search-name");
+    const taskId = await seedTask(fixture, seed);
+    await file(fixture, seed, taskId, { name: "Release Plan.md" });
+    await file(fixture, seed, taskId, { name: "notes.txt", kind: "note" });
+
+    const page = await search(fixture, seed, { query: "PLAN" });
+    assertEquals(page.items.length, 1);
+    const hit = page.items[0];
+    assertEquals(hit.source, "files");
+    assertEquals(hit.name, "Release Plan.md");
+    assertEquals([hit.nameMatchStart, hit.nameMatchLength], [8, 4]);
+    assert(hit.path.startsWith("/projects/"), hit.path);
+    assert(hit.path.endsWith("/Release Plan.md"), hit.path);
+    assertEquals(hit.kind, "plan");
+    assertEquals(hit.mediaType, "text/markdown");
+    assertEquals(hit.mediaGroup, "text");
+    assertEquals(hit.producerKind, "person");
+    assertEquals(hit.producerId, seed.principalId);
+    assert(hit.versionId !== null && hit.entryId !== null);
+
+    // A wildcard typed by the caller is matched literally.
+    assertEquals((await search(fixture, seed, { query: "%" })).items.length, 0);
+    assertEquals(nameMatch("Ünï Plan", "plan"), { start: 4, length: 4 });
+  }));
+
+Deno.test("AC: search filters by kind, media type and group, producer and a metadata fact", () =>
+  withFixture(async (fixture) => {
+    const seed = await seedOrganization(fixture, "search-filters");
+    const taskId = await seedTask(fixture, seed);
+    await file(fixture, seed, taskId, {
+      name: "a.md",
+      kind: "plan",
+      metadata: { risk: "high" },
+    });
+    await file(fixture, seed, taskId, {
+      name: "b.json",
+      kind: "report",
+      mediaType: "application/json",
+      metadata: { risk: "low" },
+    });
+    await file(fixture, seed, taskId, {
+      name: "c.png",
+      kind: "image",
+      mediaType: "image/png",
+    });
+    const names = async (input: Record<string, unknown>) =>
+      (await search(fixture, seed, input)).items.map((hit) => hit.name).sort();
+
+    assertEquals(await names({ kind: "plan" }), ["a.md"]);
+    assertEquals(await names({ mediaType: "application/json" }), ["b.json"]);
+    assertEquals(await names({ mediaGroup: "data" }), ["b.json"]);
+    assertEquals(await names({ mediaGroup: "image" }), ["c.png"]);
+    assertEquals(await names({ mediaGroup: "text" }), ["a.md"]);
+    assertEquals(await names({ producerId: seed.principalId }), [
+      "a.md",
+      "b.json",
+      "c.png",
+    ]);
+    assertEquals(await names({ producerId: crypto.randomUUID() }), []);
+    assertEquals(await names({ factKey: "risk", factValue: "high" }), ["a.md"]);
+    assertEquals(await names({ factKey: "risk", factValue: "none" }), []);
+    // Filters combine.
+    assertEquals(
+      await names({ kind: "report", factKey: "risk", factValue: "low" }),
+      ["b.json"],
+    );
+    assertEquals(await names({ kind: "plan", mediaGroup: "data" }), []);
+  }));
+
+Deno.test("AC: a path limits the search to a folder, and a path that is not one finds nothing", () =>
+  withFixture(async (fixture) => {
+    const seed = await seedOrganization(fixture, "search-path");
+    const taskA = await seedTask(fixture, seed);
+    const taskB = await seedTask(fixture, seed);
+    const a = await file(fixture, seed, taskA, { name: "in-a.md" });
+    await file(fixture, seed, taskB, { name: "in-b.md" });
+    void a;
+    const folderOf = async (task: string) =>
+      (await fixture.pgDatabase.query<{ path: string }>(
+        `select '/projects/' || application.slug || '/artifacts/' || folder.name as path
+           from bakery.storage_entries folder
+           join bakery.tasks t on folder.system_key = 'task:' || t.id::text
+           join bakery.applications application on application.id = t.application_id
+          where folder.organization_id = $1 and t.id = $2`,
+        [seed.organizationId, task],
+      )).rows[0].path;
+    const pathA = await folderOf(taskA);
+    const pathB = await folderOf(taskB);
+
+    const inA = await search(fixture, seed, { path: pathA });
+    assertEquals(inA.items.map((hit) => hit.name), ["in-a.md"]);
+    assertEquals(
+      (await search(fixture, seed, { path: pathB })).items.map((hit) =>
+        hit.name
+      ),
+      ["in-b.md"],
+    );
+    // A file path, a missing path and a bad path.
+    assertEquals(
+      (await search(fixture, seed, { path: `${pathA}/in-a.md` })).items,
+      [],
+    );
+    assertEquals(
+      (await search(fixture, seed, { path: "/nowhere/at/all" })).items,
+      [],
+    );
+    await assertRejects(() =>
+      search(fixture, seed, { path: "/projects/../x" })
+    );
+  }));
+
+Deno.test("AC: the library mirror lists published items at /library/<section>/<slug>, read only", () =>
+  withFixture(async (fixture) => {
+    const seed = await seedOrganization(fixture, "search-library");
+    await libraryItems(fixture, seed, "mir");
+
+    const all = await search(fixture, seed, { query: "mir" });
+    const paths = all.items.map((hit) => hit.path).sort();
+    assertEquals(paths, [
+      "/library/agents/mir-agent",
+      "/library/skills/mir-skill",
+      "/library/workflows/mir-flow",
+    ]);
+    // A disabled skill and a workflow with no version in use are not published.
+    assert(all.items.every((hit) => hit.source === "library"));
+    assert(
+      all.items.every((hit) => hit.entryId === null && hit.versionId === null),
+    );
+    assertEquals(
+      all.items.map((hit) => hit.kind).sort(),
+      ["agent", "skill", "workflow"],
+    );
+
+    // A section path and a kind each narrow it; a files-only filter excludes it.
+    assertEquals(
+      (await search(fixture, seed, { path: "/library/workflows" })).items.map((
+        hit,
+      ) => hit.path),
+      ["/library/workflows/mir-flow"],
+    );
+    assertEquals(
+      (await search(fixture, seed, { query: "mir", kind: "agent" })).items.map((
+        hit,
+      ) => hit.name),
+      ["mir Agent"],
+    );
+    assertEquals(
+      (await search(fixture, seed, { query: "mir", mediaGroup: "text" })).items,
+      [],
+    );
+  }));
+
+Deno.test("AC: reading files never reveals the library, and session scopes only narrow", () =>
+  withFixture(async (fixture) => {
+    const seed = await seedOrganization(fixture, "search-permission");
+    const taskId = await seedTask(fixture, seed);
+    await libraryItems(fixture, seed, "perm");
+    await file(fixture, seed, taskId, { name: "perm-notes.md" });
+
+    // The caller may read files but not the library.
+    const noLibrary = await search(fixture, seed, { query: "perm" }, {
+      library: false,
+    });
+    assertEquals(noLibrary.items.map((hit) => hit.source), ["files"]);
+
+    // An agent session holds scopes; each surface needs its own.
+    const filesOnly = await search(fixture, seed, { query: "perm" }, {
+      scopes: ["artifacts.read"],
+    });
+    assertEquals(filesOnly.items.map((hit) => hit.source), ["files"]);
+    const libraryOnly = await search(fixture, seed, { query: "perm" }, {
+      scopes: ["library.read"],
+    });
+    assert(
+      libraryOnly.items.length > 0 &&
+        libraryOnly.items.every((hit) => hit.source === "library"),
+    );
+    assertEquals(
+      (await search(fixture, seed, { query: "perm" }, { scopes: [] })).items,
+      [],
+    );
+  }));
+
+Deno.test("AC: a search never counts or lists another organization's files or library", () =>
+  withFixture(async (fixture) => {
+    const mine = await seedOrganization(fixture, "search-mine");
+    const theirs = await seedOrganization(fixture, "search-theirs");
+    const theirTask = await seedTask(fixture, theirs);
+    await file(fixture, theirs, theirTask, { name: "shared-name.md" });
+    await libraryItems(fixture, theirs, "shared");
+
+    assertEquals((await search(fixture, mine, { query: "shared" })).items, []);
+    assertEquals((await search(fixture, mine, { kind: "plan" })).items, []);
+    // Their own search sees them, so the empty answer above is isolation.
+    assert(
+      (await search(fixture, theirs, { query: "shared" })).items.length >= 2,
+    );
+  }));
+
+Deno.test("AC: pages are keyset-ordered across files and library, and a cursor is bound to its filters", () =>
+  withFixture(async (fixture) => {
+    const seed = await seedOrganization(fixture, "search-pages");
+    const taskId = await seedTask(fixture, seed);
+    for (const name of ["pg-1.md", "pg-2.md", "pg-3.md"]) {
+      await file(fixture, seed, taskId, { name });
+    }
+    await libraryItems(fixture, seed, "pg");
+
+    const seen: string[] = [];
+    let cursor: string | undefined;
+    for (let page = 0; page < 10; page++) {
+      const result = await search(fixture, seed, {
+        query: "pg",
+        limit: 2,
+        ...(cursor ? { cursor } : {}),
+      });
+      assert(result.items.length <= 2);
+      seen.push(...result.items.map((hit) => hit.path));
+      if (result.nextCursor === null) break;
+      cursor = result.nextCursor;
+    }
+    assertEquals(new Set(seen).size, seen.length, "no hit is repeated");
+    assertEquals(seen.length, 6);
+
+    const first = await search(fixture, seed, { query: "pg", limit: 2 });
+    assert(first.nextCursor);
+    // The same cursor against a different search is refused.
+    await assertRejects(() =>
+      search(fixture, seed, {
+        query: "other",
+        limit: 2,
+        cursor: first.nextCursor,
+      })
+    );
+  }));
+
+Deno.test("AC: a search needs a filter, and a fact needs both a key and a value", () =>
+  withFixture(async (fixture) => {
+    const seed = await seedOrganization(fixture, "search-input");
+    await assertRejects(() => search(fixture, seed, {}));
+    await assertRejects(() => search(fixture, seed, { factKey: "risk" }));
+    await assertRejects(() => search(fixture, seed, { factValue: "high" }));
+  }));
+
+Deno.test("AC: the /library folder lists only sections that have a published item, and its items by name", () =>
+  withFixture(async (fixture) => {
+    const seed = await seedOrganization(fixture, "library-list");
+    const empty = await withPgTransaction(
+      fixture.pgDatabase,
+      (transaction) =>
+        listLibraryFolder(transaction, { organizationId: seed.organizationId }),
+    );
+    // A new organization may already hold built-in library items, so every
+    // count below is relative to this baseline.
+    const count = async (section: string) =>
+      (await withPgTransaction(
+        fixture.pgDatabase,
+        (transaction) =>
+          listLibraryFolder(transaction, {
+            organizationId: seed.organizationId,
+            section,
+          }),
+      ))?.length ?? 0;
+    const before = {
+      skills: await count("skills"),
+      agents: await count("agents"),
+      workflows: await count("workflows"),
+      kinds: await count("kinds"),
+    };
+    assert(empty !== undefined);
+
+    await libraryItems(fixture, seed, "lst");
+    const list = (section?: string) =>
+      withPgTransaction(
+        fixture.pgDatabase,
+        (transaction) =>
+          listLibraryFolder(transaction, {
+            organizationId: seed.organizationId,
+            ...(section === undefined ? {} : { section }),
+          }),
+      );
+
+    const sections = await list();
+    const names = sections?.map((child) => child.name) ?? [];
+    for (const name of ["skills", "agents", "workflows"]) {
+      assert(names.includes(name), `${name} has a published item`);
+    }
+    assert(sections?.every((child) => child.type === "folder"));
+
+    // Each section gains exactly the published items this test seeded: a skill
+    // and a workflow with a version in use; the disabled skill and the draft
+    // workflow are not shown.
+    const workflows = await list("workflows");
+    assertEquals(workflows?.length, before.workflows + 1);
+    assert(
+      workflows?.some((child) => child.path === "/library/workflows/lst-flow"),
+    );
+    assert(!workflows?.some((child) => child.path.endsWith("lst-draft")));
+    assertEquals((await list("skills"))?.length, before.skills + 1);
+    assert(
+      !(await list("skills"))?.some((child) => child.name.includes("Disabled")),
+    );
+    assertEquals((await list("agents"))?.length, before.agents + 1);
+    // A section the mirror does not have, and one that is empty for this org.
+    assertEquals(await list("nonsense"), undefined);
+    assertEquals((await list("kinds"))?.length, before.kinds);
+
+    // Another organization lists none of it.
+    const other = await seedOrganization(fixture, "library-list-other");
+    const theirs = await withPgTransaction(
+      fixture.pgDatabase,
+      (transaction) =>
+        listLibraryFolder(transaction, {
+          organizationId: other.organizationId,
+          section: "workflows",
+        }),
+    );
+    assert(
+      !theirs?.some((child) => child.path === "/library/workflows/lst-flow"),
+      "another organization lists none of it",
+    );
+  }));
+
+Deno.test("AC: GET /v1/files/search serves the contract, library included, and refuses a search with no filter", () =>
+  withFixture(async (fixture) => {
+    const seed = await seedOrganization(fixture, "search-route");
+    await fixture.pgDatabase.query(
+      `insert into bakery.agent_definitions (id, organization_id, slug, name, enabled)
+       values ($1, $2, 'route-agent', 'Route Agent', true)`,
+      [crypto.randomUUID(), seed.organizationId],
+    );
+    const response = await request(
+      fixture,
+      seed,
+      "/v1/files/search?query=route",
+    );
+    assertEquals(response.status, 200, await response.clone().text());
+    const page = await response.json() as {
+      items: { source: string; path: string; name: string }[];
+      nextCursor: string | null;
+    };
+    assertEquals(page.items.map((hit) => [hit.source, hit.path]), [
+      ["library", "/library/agents/route-agent"],
+    ]);
+    assertEquals(page.nextCursor, null);
+
+    const none = await request(fixture, seed, "/v1/files/search");
+    assertEquals(none.status, 422, await none.clone().text());
+    assert((await none.text()).includes("file_search_needs_a_filter"));
+  }));

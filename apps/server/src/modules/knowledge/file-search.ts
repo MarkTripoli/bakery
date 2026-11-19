@@ -1,0 +1,479 @@
+import type { z } from "zod";
+import type { ActionContext } from "@bakery/contracts/action-registry";
+import { contractSchemas } from "@bakery/contracts/contracts";
+import { unprocessable } from "@bakery/contracts/http";
+import type { PgTransactionClient } from "@bakery/persistence";
+import { requireWorkTransaction } from "../work/work-transaction.ts";
+import { decodeCursor, encodeCursor } from "../../platform/cursor.ts";
+import type { CursorBinding } from "../../platform/cursor.ts";
+import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
+import {
+  parseStoragePath,
+  resolveStoragePath,
+  StorageNameError,
+  storageQueryOf,
+} from "./storage-tree.ts";
+
+/**
+ * File search and the read-only library mirror (chapter 25 section 17, #453).
+ *
+ * `files.search` looks across two things with one keyset page: the organization's
+ * file tree (entries that point at artifacts) and the library mirror. The mirror
+ * is computed on read from the catalog tables and never stored, so it is always
+ * current, has no write path and cannot drift: `/library/<section>/<slug>`.
+ *
+ * What a caller may see is bounded three ways, all applied here:
+ * - the organization, in every query;
+ * - the route's own permission (reading files), plus `library:read` for library
+ *   items, so reading files never reveals the library;
+ * - an agent session's scopes: `artifacts.read` for files, `library.read` for
+ *   library items, which can only narrow.
+ * Nothing is counted or listed that the caller cannot open, so a result never
+ * reveals that a hidden item exists.
+ */
+
+type FileSearchInput = z.output<typeof contractSchemas.FileSearchQuery>;
+
+const PAGE_ORDERING = "createdAt:desc,id:desc";
+
+/** A friendly group for a media type, as SQL over a column. */
+const MEDIA_GROUP_SQL = `case
+  when v.media_type is null then null
+  when v.media_type in ('application/json', 'text/csv', 'application/x-ndjson',
+    'application/yaml', 'application/x-yaml', 'text/yaml', 'application/xml',
+    'text/xml') then 'data'
+  when v.media_type in ('application/zip', 'application/gzip',
+    'application/x-gzip', 'application/x-tar') then 'archive'
+  when v.media_type like 'image/%' then 'image'
+  when v.media_type like 'video/%' then 'video'
+  when v.media_type like 'audio/%' then 'audio'
+  when v.media_type like 'text/%' then 'text'
+  else 'other' end`;
+
+type HitRow = {
+  source: "files" | "library";
+  entry_id: string | null;
+  sort_id: string;
+  name: string;
+  kind: string;
+  media_type: string | null;
+  size_bytes: number | null;
+  version_id: string | null;
+  producer_id: string | null;
+  media_group: string | null;
+  producer_kind: "person" | "step" | null;
+  producer_name: string | null;
+  producer_task_id: string | null;
+  producer_task_title: string | null;
+  library_path: string | null;
+  created_at: Date | string;
+  cursor_created_at: string;
+};
+
+function toIso(value: Date | string): string {
+  return value instanceof Date
+    ? value.toISOString()
+    : new Date(value).toISOString();
+}
+
+/** Where the first case-insensitive match of `query` sits in `name`, if exact. */
+export function nameMatch(
+  name: string,
+  query: string | undefined,
+): { start: number; length: number } | null {
+  if (!query) return null;
+  const folded = name.toLowerCase();
+  const needle = query.normalize("NFC").toLowerCase();
+  // Lowercasing can change a string's length (an eastern European dotted I, for
+  // one); then positions in the folded text are not positions in the name.
+  if (folded.length !== name.length) return null;
+  const start = folded.indexOf(needle);
+  return start < 0 ? null : { start, length: needle.length };
+}
+
+/**
+ * The catalog tables the mirror shows, one per section, in listing order. A row
+ * appears only when it is published: enabled, and for a workflow with a version
+ * in use, and for a package listed. The section's folder name is `section`; the
+ * item's file name is its `slug`.
+ */
+export const LIBRARY_SOURCES = Object.freeze(
+  [
+    {
+      kind: "skill",
+      section: "skills",
+      table: "bakery.skills",
+      name: "name",
+      slug: "slug",
+      where: "and x.enabled",
+    },
+    {
+      kind: "agent",
+      section: "agents",
+      table: "bakery.agent_definitions",
+      name: "name",
+      slug: "slug",
+      where: "and x.enabled",
+    },
+    {
+      kind: "workflow",
+      section: "workflows",
+      table: "bakery.workflow_definitions",
+      name: "name",
+      slug: "slug",
+      where: "and x.enabled and x.active_version_id is not null",
+    },
+    {
+      kind: "kind",
+      section: "kinds",
+      table: "bakery.artifact_kinds",
+      name: "key",
+      slug: "key",
+      where: "",
+    },
+    {
+      kind: "package",
+      section: "packages",
+      table: "bakery.plugin_packages",
+      name: "display_name",
+      slug: "name",
+      where: "and x.listing_status = 'listed'",
+    },
+  ] as const,
+);
+
+export const LIBRARY_SECTIONS = Object.freeze(
+  LIBRARY_SOURCES.map((source) => source.section),
+);
+
+export type LibraryChild = Readonly<{
+  type: "folder" | "item";
+  name: string;
+  path: string;
+  kind: string | null;
+  createdAt: string | null;
+}>;
+
+/**
+ * Lists the read-only `/library` mirror: with no section, the sections that
+ * have at least one published item (never an empty placeholder); with a section,
+ * its items by name. Computed from the catalog on every call, so it is always
+ * current and has no write path. Returns undefined for a section the mirror does
+ * not have. The caller has already shown the principal may read the library.
+ */
+export async function listLibraryFolder(
+  transaction: PgTransactionClient,
+  input: { organizationId: string; section?: string },
+): Promise<LibraryChild[] | undefined> {
+  if (input.section === undefined) {
+    const children: LibraryChild[] = [];
+    for (const source of LIBRARY_SOURCES) {
+      const found = await transaction.query<{ present: boolean }>(
+        `select exists (select 1 from ${source.table} x
+                         where x.organization_id = $1 ${source.where}) as present`,
+        [input.organizationId],
+      );
+      if (found.rows[0]?.present) {
+        children.push({
+          type: "folder",
+          name: source.section,
+          path: `/library/${source.section}`,
+          kind: null,
+          createdAt: null,
+        });
+      }
+    }
+    return children;
+  }
+  const source = LIBRARY_SOURCES.find((item) => item.section === input.section);
+  if (!source) return undefined;
+  const items = await transaction.query<
+    { name: string; slug: string; created_at: Date | string }
+  >(
+    `select x.${source.name} as name, x.${source.slug} as slug, x.created_at
+       from ${source.table} x
+      where x.organization_id = $1 ${source.where}
+      order by lower(x.${source.name}), x.id
+      limit 1000`,
+    [input.organizationId],
+  );
+  return items.rows.map((row) => ({
+    type: "item" as const,
+    name: row.name,
+    path: `/library/${source.section}/${row.slug}`,
+    kind: source.kind,
+    createdAt: toIso(row.created_at),
+  }));
+}
+
+export function createFileSearchHandler(
+  secret: string,
+  authorizeLibraryRead: (context: ActionContext) => boolean,
+) {
+  return async function searchFiles(
+    context: ActionContext,
+    input: FileSearchInput,
+  ) {
+    const { transaction, organizationId, principalId } = requireWorkTransaction(
+      context,
+    );
+    const hasFilter = input.query !== undefined || input.path !== undefined ||
+      input.kind !== undefined || input.mediaType !== undefined ||
+      input.mediaGroup !== undefined || input.producerId !== undefined ||
+      input.factKey !== undefined;
+    if (!hasFilter) {
+      throw unprocessable(["query"], "file_search_needs_a_filter");
+    }
+    if ((input.factKey === undefined) !== (input.factValue === undefined)) {
+      throw unprocessable(["factKey"], "file_search_fact_incomplete");
+    }
+
+    const scopes = context.sessionScopes;
+    const includeFiles = scopes === undefined ||
+      scopes.includes("artifacts.read");
+    // The route proves the caller may read files; the library needs its own
+    // permission, and an agent session its own scope.
+    const includeLibrary = (scopes === undefined ||
+      scopes.includes("library.read")) && authorizeLibraryRead(context);
+
+    // Files-only filters exclude library items, which have none of them.
+    const filesOnlyFilter = input.mediaType !== undefined ||
+      input.mediaGroup !== undefined || input.producerId !== undefined ||
+      input.factKey !== undefined;
+
+    // A path names a folder in the tree, or a place in the library mirror.
+    let folderId: string | null = null;
+    let libraryPrefix: string | null = null;
+    let wantFiles = includeFiles;
+    let wantLibrary = includeLibrary && !filesOnlyFilter;
+    if (input.path !== undefined) {
+      let segments;
+      try {
+        segments = parseStoragePath(input.path);
+      } catch (error) {
+        if (error instanceof StorageNameError) {
+          throw unprocessable(["path"], "file_search_path_invalid");
+        }
+        throw error;
+      }
+      if (segments[0]?.nameKey === "library") {
+        wantFiles = false;
+        const section = segments[1]?.nameKey;
+        libraryPrefix = section === undefined
+          ? "/library/"
+          : `/library/${section}/`;
+        if (segments.length > 2) wantLibrary = false;
+      } else {
+        wantLibrary = false;
+        if (segments.length > 0) {
+          const folder = await resolveStoragePath(storageQueryOf(transaction), {
+            organizationId,
+            path: input.path,
+          });
+          // Not a folder, or not there: nothing, the same as an empty folder.
+          if (!folder || folder.kind !== "folder") wantFiles = false;
+          else folderId = folder.id;
+        }
+      }
+    }
+
+    const binding: CursorBinding = {
+      action: "files.search",
+      principalId,
+      organizationId,
+      ordering: PAGE_ORDERING,
+      filters: await sha256Hex(canonicalJson({
+        query: input.query ?? null,
+        path: input.path ?? null,
+        kind: input.kind ?? null,
+        mediaType: input.mediaType ?? null,
+        mediaGroup: input.mediaGroup ?? null,
+        producerId: input.producerId ?? null,
+        factKey: input.factKey ?? null,
+        factValue: input.factValue ?? null,
+        files: wantFiles,
+        library: wantLibrary,
+      })),
+      schemaVersion: 1,
+    };
+    const position = await decodeCursor(secret, input.cursor, binding);
+    const limit = input.limit ?? 25;
+    if (!wantFiles && !wantLibrary) return { items: [], nextCursor: null };
+
+    const params: unknown[] = [];
+    const p = (value: unknown) => {
+      params.push(value);
+      return `$${params.length}`;
+    };
+    const org = p(organizationId);
+    const needle = input.query === undefined
+      ? null
+      : input.query.normalize("NFC").toLowerCase();
+    const needleParam = p(needle);
+    const kindParam = p(input.kind ?? null);
+
+    const branches: string[] = [];
+    if (wantFiles) {
+      const folder = p(folderId);
+      branches.push(`
+        select 'files'::text as source, entry.id as entry_id, entry.id as sort_id,
+               entry.name, a.artifact_type as kind, v.media_type,
+               v.size_bytes::integer as size_bytes, v.id as version_id,
+               v.author_id as producer_id, ${MEDIA_GROUP_SQL} as media_group,
+               case when v.id is null then null
+                    when v.run_step_id is not null then 'step'
+                    else 'person' end as producer_kind,
+               case when v.id is null then null
+                    when v.run_step_id is not null then step.step_key
+                    else person.display_name end as producer_name,
+               case when v.run_step_id is not null then task.id end
+                 as producer_task_id,
+               case when v.run_step_id is not null then task.title end
+                 as producer_task_title,
+               null::text as library_path, entry.created_at
+          from bakery.storage_entries entry
+          join bakery.artifacts a
+            on a.organization_id = entry.organization_id
+           and a.id = entry.artifact_id
+          left join bakery.artifact_versions v
+            on v.organization_id = a.organization_id
+           and v.id = a.current_version_id
+          left join bakery.principals person on person.id = v.author_id
+          left join bakery.run_steps step
+            on step.organization_id = v.organization_id
+           and step.id = v.run_step_id
+          left join bakery.workflow_runs run
+            on run.organization_id = step.organization_id
+           and run.id = step.run_id
+          left join bakery.tasks task
+            on task.organization_id = run.organization_id
+           and task.id = run.task_id
+         where entry.organization_id = ${org} and entry.kind = 'file'
+           and (${folder}::uuid is null or entry.id in (select id from scope))
+           and (${needleParam}::text is null
+                or strpos(entry.name_key, ${needleParam}) > 0)
+           and (${kindParam}::text is null or a.artifact_type = ${kindParam})
+           and (${p(input.mediaType ?? null)}::text is null
+                or v.media_type = ${p(input.mediaType ?? null)})
+           and (${p(input.producerId ?? null)}::uuid is null
+                or v.author_id = ${p(input.producerId ?? null)})
+           and (${p(input.factKey ?? null)}::text is null
+                or v.metadata ->> ${p(input.factKey ?? null)}
+                   = ${p(input.factValue ?? null)})`);
+    }
+    if (wantLibrary) {
+      for (const source of LIBRARY_SOURCES) {
+        branches.push(
+          `select 'library'::text as source, null::uuid as entry_id, x.id as sort_id,
+                  x.${source.name} as name, '${source.kind}'::text as kind,
+                  null::text as media_type, null::integer as size_bytes,
+                  null::uuid as version_id, null::uuid as producer_id,
+                  null::text as media_group, null::text as producer_kind,
+                  null::text as producer_name, null::uuid as producer_task_id,
+                  null::text as producer_task_title,
+                  '/library/${source.section}/' || x.${source.slug} as library_path,
+                  x.created_at
+             from ${source.table} x
+            where x.organization_id = ${org} ${source.where}
+              and (${needleParam}::text is null
+                   or strpos(lower(x.${source.name}), ${needleParam}) > 0)
+              and (${kindParam}::text is null or ${kindParam} = '${source.kind}')`,
+        );
+      }
+    }
+    const prefixParam = p(libraryPrefix);
+    const groupParam = p(input.mediaGroup ?? null);
+    const sql = `
+      with recursive scope(id) as (
+        select entry.id from bakery.storage_entries entry
+         where entry.organization_id = ${org} and entry.id = ${
+      p(folderId)
+    }::uuid
+        union all
+        select child.id from bakery.storage_entries child
+          join scope on child.parent_id = scope.id
+         where child.organization_id = ${org}
+      )
+      select *, to_char(created_at at time zone 'UTC',
+               'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as cursor_created_at
+        from (${branches.join("\n union all\n")}) hits
+       where (${prefixParam}::text is null
+              or (library_path is not null and starts_with(library_path, ${prefixParam})))
+         and (${groupParam}::text is null or media_group = ${groupParam})
+         and (${p(position?.createdAt ?? null)}::timestamptz is null
+              or (created_at, sort_id) < (${
+      p(position?.createdAt ?? null)
+    }::timestamptz,
+                                          ${p(position?.id ?? null)}::uuid))
+       order by created_at desc, sort_id desc
+       limit ${p(limit + 1)}`;
+    const result = await transaction.query<HitRow>(sql, params);
+    const visible = result.rows.slice(0, limit);
+
+    // Paths of the tree hits, in one query: each entry's ancestors, joined.
+    const treeIds = visible.filter((row) => row.source === "files").map((row) =>
+      row.sort_id
+    );
+    const paths = new Map<string, string>();
+    if (treeIds.length > 0) {
+      const found = await transaction.query<{ leaf: string; path: string }>(
+        `with recursive up as (
+           select e.id as leaf, e.id, e.parent_id, e.name, 0 as depth
+             from bakery.storage_entries e
+            where e.organization_id = $1 and e.id = any($2::uuid[])
+           union all
+           select up.leaf, e.id, e.parent_id, e.name, up.depth + 1
+             from bakery.storage_entries e
+             join up on e.id = up.parent_id
+            where e.organization_id = $1
+         )
+         select leaf, '/' || string_agg(name, '/' order by depth desc) as path
+           from up group by leaf`,
+        [organizationId, treeIds],
+      );
+      for (const row of found.rows) paths.set(row.leaf, row.path);
+    }
+
+    const last = visible.at(-1);
+    return {
+      items: visible.map((row) => {
+        const match = nameMatch(row.name, input.query);
+        return {
+          source: row.source,
+          entryId: row.entry_id,
+          path: row.source === "files"
+            ? paths.get(row.sort_id) ?? `/${row.name}`
+            : row.library_path!,
+          name: row.name,
+          kind: row.kind,
+          mediaType: row.media_type,
+          mediaGroup: row.media_group as
+            | "text"
+            | "image"
+            | "video"
+            | "audio"
+            | "data"
+            | "archive"
+            | "other"
+            | null,
+          sizeBytes: row.size_bytes,
+          versionId: row.version_id,
+          producerId: row.producer_id,
+          producerKind: row.producer_kind,
+          producerName: row.producer_name,
+          producerTaskId: row.producer_task_id,
+          producerTaskTitle: row.producer_task_title,
+          nameMatchStart: match?.start ?? null,
+          nameMatchLength: match?.length ?? null,
+          createdAt: toIso(row.created_at),
+        };
+      }),
+      nextCursor: result.rows.length > limit && last
+        ? await encodeCursor(secret, binding, {
+          createdAt: last.cursor_created_at,
+          id: last.sort_id,
+        })
+        : null,
+    };
+  };
+}
