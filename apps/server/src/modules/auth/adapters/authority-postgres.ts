@@ -451,6 +451,42 @@ const OWN_INBOX_WRITE_ACTIONS: ReadonlySet<string> = new Set([
   "notifications.undoMarkAllRead",
 ]);
 
+/**
+ * The asked person's own view of the requests addressed to them (issue #456).
+ * A person asked may hold nothing but the right to see one run, including a bare
+ * Guest, so a role-based permission would refuse exactly the people the view is
+ * for. The handler scopes to recipient = the authenticated principal and never
+ * accepts a recipient from the request, so this is a principal-equals-recipient
+ * rule, not a role grant: it reaches no other action and nobody else's requests.
+ */
+const OWN_REQUEST_READ_ACTIONS: ReadonlySet<string> = new Set([
+  "runRequests.mine",
+]);
+
+export function authorizeOwnRequestRead(
+  action: ActionDefinition,
+  actor: OrganizationActor,
+  denied: unknown,
+): OrganizationActor {
+  if (
+    !isPermissionMiss(denied) ||
+    !OWN_REQUEST_READ_ACTIONS.has(action.name) ||
+    actor.subject.principalType !== PrincipalType.Human ||
+    actor.role === undefined
+  ) throw denied;
+  const permission = permissionForAction(action.name as CatalogActionName);
+  if (
+    actor.tokenScopes !== undefined &&
+    !scopeAllows(permission, actor.tokenScopes)
+  ) {
+    throw new StandardError({
+      code: "INSUFFICIENT_SCOPE",
+      params: { requiredScopes: minimalScopes(permission) },
+    });
+  }
+  return actor;
+}
+
 function isPermissionMiss(error: unknown): boolean {
   return error instanceof StandardError &&
     (error.code === "AUTH_FORBIDDEN" || error.code === "RESOURCE_NOT_FOUND");
@@ -650,7 +686,9 @@ export class PostgresAuthorityRunner implements ActionAuthorityRunner {
                 kind,
                 context.params.id,
               ),
-          ).catch((denied) => authorizeOwnInboxWrite(action, actor, denied));
+          )
+            .catch((denied) => authorizeOwnInboxWrite(action, actor, denied))
+            .catch((denied) => authorizeOwnRequestRead(action, actor, denied));
           subject = permitted.subject;
           authority = permitted;
         } else {
