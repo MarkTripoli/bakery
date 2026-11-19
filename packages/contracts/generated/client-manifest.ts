@@ -8783,6 +8783,216 @@ export const clientManifest = {
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true
+    },
+    {
+      "group": "Organizations",
+      "method": "GET",
+      "path": "/v1/groups",
+      "action": "groups.list",
+      "access": "Current member",
+      "permission": "group:read",
+      "input": "Empty",
+      "output": "Groups",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Organizations",
+      "method": "POST",
+      "path": "/v1/groups",
+      "action": "groups.create",
+      "access": "Admin",
+      "permission": "group:manage",
+      "input": "GroupCreate",
+      "output": "Group",
+      "event": "organizationGroup.created",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Organizations",
+      "method": "PATCH",
+      "path": "/v1/groups/{id}",
+      "action": "groups.update",
+      "access": "Admin",
+      "permission": "group:manage",
+      "input": "GroupUpdate",
+      "output": "Group",
+      "event": "organizationGroup.updated",
+      "mcp": "",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Organizations",
+      "method": "DELETE",
+      "path": "/v1/groups/{id}",
+      "action": "groups.delete",
+      "access": "Admin",
+      "permission": "group:manage",
+      "input": "IdPath",
+      "output": "NoContent",
+      "event": "organizationGroup.deleted",
+      "mcp": "",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
+      "method": "GET",
+      "path": "/v1/installation/email",
+      "action": "emailSettings.get",
+      "access": "Installation administrator",
+      "permission": "installationSetting:read",
+      "input": "Empty",
+      "output": "EmailSettings",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
+      "method": "PUT",
+      "path": "/v1/installation/email",
+      "action": "emailSettings.put",
+      "access": "Installation administrator",
+      "permission": "installationSetting:manage",
+      "input": "EmailSettingsPut",
+      "output": "EmailSettings",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required; If-Match with the current version once settings exist",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
+        "PRECONDITION_REQUIRED",
+        "PRECONDITION_FAILED",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
+      "method": "POST",
+      "path": "/v1/installation/email/test",
+      "action": "emailSettings.test",
+      "access": "Installation administrator",
+      "permission": "installationSetting:manage",
+      "input": "Empty",
+      "output": "EmailTestResult",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
+      "method": "DELETE",
+      "path": "/v1/installation/email",
+      "action": "emailSettings.delete",
+      "access": "Installation administrator",
+      "permission": "installationSetting:manage",
+      "input": "Empty",
+      "output": "NoContent",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "PRECONDITION_REQUIRED",
+        "PRECONDITION_FAILED",
+        "RESOURCE_NOT_FOUND",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
     }
   ],
   "schemas": {
@@ -13930,7 +14140,15 @@ export const clientManifest = {
             "runRequests.create",
             "runRequests.list",
             "runRequests.mine",
-            "runRequests.withdraw"
+            "runRequests.withdraw",
+            "groups.list",
+            "groups.create",
+            "groups.update",
+            "groups.delete",
+            "emailSettings.get",
+            "emailSettings.put",
+            "emailSettings.test",
+            "emailSettings.delete"
           ],
           "description": "Exact registered Bakery action name to grant within the selected organization; wildcard and prefix matching are forbidden."
         },
@@ -23305,6 +23523,150 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Makes the caller the completer of a workflow step, or restarts it. Allowed only for a step of a compiled-plan run whose job is still queued with no live attempt, and only for a caller holding run control; a step with a live attempt is refused with STATE_CONFLICT `attempt_live` and must be stopped through run control first. `complete` also needs the action to produce an artifact. A job with a budget reservation and a finished attempt is refused with `budget_unsettled` in either mode while the reservation is still held, because that attempt may already have spent against it. Once reconciliation settles it, `complete` goes through; `restart` does not: a restart reuses the held reservation, so a funded job that has had a finished attempt is never restartable (`budget_not_reserved` once the reservation is settled or released). `restart` of any funded job also needs its reservation held, and a funded job with no reservation is refused with `budget_not_reserved`. A job whose action has no budget can be completed or restarted after any number of attempts."
+    },
+    "GroupCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "description": "Display name of the group; unique in the organization, ignoring case. GroupCreate.name must contain at least 1 characters. GroupCreate.name must contain at most 80 characters."
+        },
+        "mentionName": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 40,
+          "description": "Handle people and workflows use to ask the group (lowercase letters, digits and single hyphens); fixed at creation and unique in the organization. GroupCreate.mentionName must contain at least 2 characters. GroupCreate.mentionName must contain at most 40 characters."
+        },
+        "purpose": {
+          "description": "Optional one line saying what the group is for. GroupCreate.purpose must contain at most 140 characters.",
+          "type": "string",
+          "maxLength": 140
+        },
+        "memberIds": {
+          "description": "Active organization members in the group; any one of them can answer a request to it. Empty or omitted makes a group with no members, which routes to the workflow owner until someone is added. GroupCreate.memberIds must contain at most 200 items.",
+          "maxItems": 200,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "Active organization members in the group; any one of them can answer a request to it. Empty or omitted makes a group with no members, which routes to the workflow owner until someone is added. Each array item follows this format."
+          }
+        }
+      },
+      "required": [
+        "name",
+        "mentionName"
+      ],
+      "additionalProperties": false,
+      "description": "Creates an organization group: a named set of members that a workflow or a person can ask by one name, where any one member can answer."
+    },
+    "GroupUpdate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "Replaces the group's display name; the mention name never changes. GroupUpdate.name must contain at least 1 characters. GroupUpdate.name must contain at most 80 characters.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "purpose": {
+          "description": "GroupUpdate.purpose may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 140,
+              "description": "Replaces the one-line purpose; null clears it. GroupUpdate.purpose must contain at most 140 characters."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "memberIds": {
+          "description": "Replaces the whole member set with these active organization members. GroupUpdate.memberIds must contain at most 200 items.",
+          "maxItems": 200,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "Replaces the whole member set with these active organization members. Each array item follows this format."
+          }
+        }
+      },
+      "additionalProperties": false,
+      "description": "Partial update to a group's name, purpose or members. The mention name is immutable."
+    },
+    "EmailSettingsPut": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "host": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 253,
+          "description": "SMTP server name, such as smtp.example.com, without a scheme or port. EmailSettingsPut.host must contain at least 1 characters. EmailSettingsPut.host must contain at most 253 characters."
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535,
+          "description": "SMTP server port; 587 is usual for STARTTLS and 465 for TLS. EmailSettingsPut.port must be at least 1. EmailSettingsPut.port must be at most 65535."
+        },
+        "security": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 8,
+          "description": "Connection security: starttls (the default) or tls. Bakery never sends without encryption. EmailSettingsPut.security must contain at least 3 characters. EmailSettingsPut.security must contain at most 8 characters."
+        },
+        "username": {
+          "description": "EmailSettingsPut.username may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 256,
+              "description": "Account name for the SMTP server, or null for a server that needs none. Required when a password is supplied. EmailSettingsPut.username must contain at most 256 characters."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "password": {
+          "description": "SMTP password. Write-only: stored as an installation-owned AES-GCM ciphertext and never returned. Omit to keep the stored password; supply a new one to replace it. EmailSettingsPut.password must contain at most 1024 characters.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        },
+        "fromAddress": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 254,
+          "description": "Email address people see as the sender, such as bakery@example.com. EmailSettingsPut.fromAddress must contain at least 3 characters. EmailSettingsPut.fromAddress must contain at most 254 characters."
+        },
+        "fromName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "description": "Display name people see as the sender; defaults to Bakery in the settings page. EmailSettingsPut.fromName must contain at least 1 characters. EmailSettingsPut.fromName must contain at most 120 characters."
+        }
+      },
+      "required": [
+        "host",
+        "port",
+        "security",
+        "fromAddress",
+        "fromName"
+      ],
+      "additionalProperties": false,
+      "description": "Saves how this installation sends email over SMTP. The password is write-only and is never returned."
     },
     "MentionCandidateQuery": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -36124,7 +36486,15 @@ export const clientManifest = {
                   "runRequests.create",
                   "runRequests.list",
                   "runRequests.mine",
-                  "runRequests.withdraw"
+                  "runRequests.withdraw",
+                  "groups.list",
+                  "groups.create",
+                  "groups.update",
+                  "groups.delete",
+                  "emailSettings.get",
+                  "emailSettings.put",
+                  "emailSettings.test",
+                  "emailSettings.delete"
                 ],
                 "description": "Exact Bakery action name granted to the principal; wildcard and prefix meanings are forbidden."
               },
@@ -53750,7 +54120,15 @@ export const clientManifest = {
             "runRequests.create",
             "runRequests.list",
             "runRequests.mine",
-            "runRequests.withdraw"
+            "runRequests.withdraw",
+            "groups.list",
+            "groups.create",
+            "groups.update",
+            "groups.delete",
+            "emailSettings.get",
+            "emailSettings.put",
+            "emailSettings.test",
+            "emailSettings.delete"
           ],
           "description": "Exact Bakery action name granted to the principal; wildcard and prefix meanings are forbidden."
         },
@@ -61663,7 +62041,9 @@ export const clientManifest = {
               "pullRequest:merge",
               "mergeAttempt:write",
               "runRequest:write",
-              "runRequest:read"
+              "runRequest:read",
+              "group:read",
+              "group:manage"
             ],
             "description": "Bounded set of exact Bakery permission keys currently effective in this organization; entries never imply wildcard or prefix matching. Each array item follows this format."
           },
@@ -81325,6 +81705,509 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "The route continuations a run is waiting on: one offer per step that is pinned to a route with an open incident and has not already been continued for that incident. Empty when nothing is stalled. It is a read of current state, never a decision: nothing is admitted, paused or charged by reading it."
+    },
+    "Group": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID of the group."
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Display name, unique in the organization ignoring case."
+        },
+        "mentionName": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Fixed handle used to ask the group; never changes after creation."
+        },
+        "purpose": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Optional one line saying what the group is for."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "Group.purpose may be null in this transport value."
+        },
+        "members": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "principalId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable principal UUID of the member."
+              },
+              "displayName": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The member's saved display name."
+              }
+            },
+            "required": [
+              "principalId",
+              "displayName"
+            ],
+            "additionalProperties": false,
+            "description": "Current members, ordered by display name. Each array item follows this format."
+          },
+          "description": "Current members, ordered by display name."
+        },
+        "memberCount": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Number of current members."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when the group was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when the group last changed."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Optimistic-concurrency version for mutations of this group."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "mentionName",
+        "purpose",
+        "members",
+        "memberCount",
+        "createdAt",
+        "updatedAt",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "An organization group with its members; a group with no members is valid and routes to the workflow owner."
+    },
+    "Groups": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "groups": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID of the group."
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Display name, unique in the organization ignoring case."
+              },
+              "mentionName": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Fixed handle used to ask the group; never changes after creation."
+              },
+              "purpose": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Optional one line saying what the group is for."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "Group.purpose may be null in this transport value."
+              },
+              "members": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "principalId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "Stable principal UUID of the member."
+                    },
+                    "displayName": {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "The member's saved display name."
+                    }
+                  },
+                  "required": [
+                    "principalId",
+                    "displayName"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Current members, ordered by display name. Each array item follows this format."
+                },
+                "description": "Current members, ordered by display name."
+              },
+              "memberCount": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Number of current members."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the group was created."
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the group last changed."
+              },
+              "version": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Optimistic-concurrency version for mutations of this group."
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "mentionName",
+              "purpose",
+              "members",
+              "memberCount",
+              "createdAt",
+              "updatedAt",
+              "version"
+            ],
+            "additionalProperties": false,
+            "description": "The organization's own groups, ordered by name. Each array item follows this format."
+          },
+          "description": "The organization's own groups, ordered by name."
+        },
+        "fromRoles": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "roleKey": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The role's stable key (admin, developer or a custom role key)."
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Plural display name such as Administrators, Developers or the custom role's name."
+              },
+              "mentionName": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Handle derived from the role, such as admins, developers or the custom role key."
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "system",
+                  "custom"
+                ],
+                "description": "Whether the role is a system role or a custom organization role."
+              },
+              "memberCount": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Number of members holding the role right now, read live."
+              }
+            },
+            "required": [
+              "roleKey",
+              "name",
+              "mentionName",
+              "kind",
+              "memberCount"
+            ],
+            "additionalProperties": false,
+            "description": "Read-only groups made from roles; they follow the Members page and cannot be edited here. Each array item follows this format."
+          },
+          "description": "Read-only groups made from roles; they follow the Members page and cannot be edited here."
+        }
+      },
+      "required": [
+        "groups",
+        "fromRoles"
+      ],
+      "additionalProperties": false,
+      "description": "Everything an organization member can ask by one name: the organization's own groups and the read-only groups made from roles."
+    },
+    "EmailTestResult": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "delivered",
+            "not_configured",
+            "unreachable",
+            "auth_refused",
+            "from_refused",
+            "tls_failed",
+            "timeout",
+            "server_error"
+          ],
+          "description": "delivered when the server accepted the message; not_configured without saved settings; unreachable when the server could not be reached; auth_refused when it refused the username or password; from_refused when it refused the From address; tls_failed when the secure connection could not be set up; timeout when it did not answer in time; server_error for anything else."
+        },
+        "testedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC time the test finished."
+        },
+        "address": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The administrator's address the test was sent to, or null when none was sent."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "EmailTestResult.address may be null in this transport value."
+        }
+      },
+      "required": [
+        "outcome",
+        "testedAt",
+        "address"
+      ],
+      "additionalProperties": false,
+      "description": "Fixed result of a test email sent to the signed-in administrator's own address. The server's own reply, host and credentials are never returned."
+    },
+    "EmailSettings": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": [
+            "off",
+            "not_tested",
+            "working",
+            "not_working"
+          ],
+          "description": "off when nothing is set up; not_tested after a save; working when the last test was delivered; not_working when it failed."
+        },
+        "host": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Saved SMTP server name, or null when off."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "EmailSettings.host may be null in this transport value."
+        },
+        "port": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Saved SMTP port, or null when off."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "EmailSettings.port may be null in this transport value."
+        },
+        "security": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Saved connection security (starttls or tls), or null when off."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "EmailSettings.security may be null in this transport value."
+        },
+        "username": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Saved SMTP account name, or null."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "EmailSettings.username may be null in this transport value."
+        },
+        "passwordStored": {
+          "type": "boolean",
+          "description": "Whether a password is stored; the value is never returned."
+        },
+        "passwordSavedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC time the stored password was last saved, or null."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "EmailSettings.passwordSavedAt may be null in this transport value."
+        },
+        "fromAddress": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Saved sender address, or null when off."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "EmailSettings.fromAddress may be null in this transport value."
+        },
+        "fromName": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Saved sender display name, or null when off."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "EmailSettings.fromName may be null in this transport value."
+        },
+        "lastTest": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "outcome": {
+                  "type": "string",
+                  "enum": [
+                    "delivered",
+                    "not_configured",
+                    "unreachable",
+                    "auth_refused",
+                    "from_refused",
+                    "tls_failed",
+                    "timeout",
+                    "server_error"
+                  ],
+                  "description": "delivered when the server accepted the message; not_configured without saved settings; unreachable when the server could not be reached; auth_refused when it refused the username or password; from_refused when it refused the From address; tls_failed when the secure connection could not be set up; timeout when it did not answer in time; server_error for anything else."
+                },
+                "testedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "description": "UTC time the test finished."
+                },
+                "address": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "The administrator's address the test was sent to, or null when none was sent."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "EmailTestResult.address may be null in this transport value."
+                }
+              },
+              "required": [
+                "outcome",
+                "testedAt",
+                "address"
+              ],
+              "additionalProperties": false,
+              "description": "The last test email result since the settings were saved, or null if none was sent."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "EmailSettings.lastTest may be null in this transport value."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Settings revision used as If-Match; 0 while off."
+        }
+      },
+      "required": [
+        "state",
+        "host",
+        "port",
+        "security",
+        "username",
+        "passwordStored",
+        "passwordSavedAt",
+        "fromAddress",
+        "fromName",
+        "lastTest",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "How this installation sends email, with the status of its last test. Carries no password, ciphertext or secret record id."
     },
     "Page<MentionCandidate>": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
