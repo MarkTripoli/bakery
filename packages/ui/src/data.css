@@ -1681,6 +1681,12 @@
 }
 /* A clamped text keeps its first lines and ends in an ellipsis; the whole text
    is the element's title. */
+.ui-text[data-lines="3"] {
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  display: -webkit-box;
+  overflow: hidden;
+}
 .ui-text[data-lines="2"],
 .ui-list-row__detail[data-lines="2"] {
   -webkit-box-orient: vertical;
