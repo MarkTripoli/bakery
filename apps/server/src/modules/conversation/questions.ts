@@ -16,6 +16,10 @@ import {
   encodeCursor,
 } from "../../platform/cursor.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
+import {
+  AgentPower,
+  assertAgentMayExercise,
+} from "../auth/application/agent-power-grants.ts";
 import type { CoordinatorEffect } from "./coordinator.ts";
 import {
   hasQueuedTurnCapacity,
@@ -886,4 +890,149 @@ async function expireConversationQuestions(
     });
   }
   return expired.rows.length;
+}
+
+/**
+ * The active members who hold a role: the built-in `admin` or `developer`, or a
+ * custom role by its key. Resolved when the question is asked, as step approvals
+ * resolve theirs, so the audience is the people the role names at that moment.
+ */
+async function membersOfRole(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  roleKey: string,
+): Promise<string[]> {
+  const found = await transaction.query<{ id: string }>(
+    `select distinct membership.principal_id as id
+       from bakery.organization_memberships as membership
+       left join bakery.organization_roles as custom
+         on custom.organization_id = membership.organization_id
+        and custom.id = membership.custom_role_id
+      where membership.organization_id = $1
+        and membership.status = 'active'
+        and (membership.role = $2 or custom.key = $2)`,
+    [organizationId, roleKey],
+  );
+  return found.rows.map((row) => row.id);
+}
+
+/**
+ * An agent's step puts a free-text question to one named role (chapter 25
+ * section 18.2, issue #414). Only an agent session may ask, on its own run, and
+ * only a role its workflow was granted: the grant names the role, so a step
+ * cannot widen who it can reach. The question is recorded as an agent's action
+ * and opens exactly like any other, for the role's members to answer.
+ */
+export async function askQuestion(
+  context: ActionContext,
+  rawInput: unknown,
+) {
+  const { transaction, organizationId, principalId } = requireWorkTransaction(
+    context,
+  );
+  const input = rawInput as z.output<typeof contractSchemas.QuestionAsk>;
+  if (context.agentSession === undefined) {
+    throw new StandardError({
+      code: "AUTH_FORBIDDEN",
+      params: { reason: "question_ask_requires_agent_session" },
+    });
+  }
+  const exercised = await assertAgentMayExercise(transaction, context, {
+    organizationId,
+    principalId,
+    power: AgentPower.Ask,
+    roleKey: input.roleKey,
+  });
+  if (exercised.origin === null) {
+    throw new StandardError({ code: "AUTH_FORBIDDEN" });
+  }
+  const run = await transaction.query<{
+    task_id: string;
+    conversation_id: string;
+    application_id: string;
+    repository_id: string | null;
+  }>(
+    `select task.id as task_id, task.conversation_id, task.application_id,
+            task.repository_id
+       from bakery.workflow_runs as run
+       join bakery.tasks as task
+         on task.organization_id = run.organization_id and task.id = run.task_id
+      where run.organization_id = $1 and run.id = $2`,
+    [organizationId, exercised.origin.runId],
+  );
+  const scope = run.rows[0];
+  if (!scope) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  const members = await membersOfRole(
+    transaction,
+    organizationId,
+    input.roleKey,
+  );
+  if (members.length === 0) {
+    throw new StandardError({
+      code: "UNPROCESSABLE",
+      params: {
+        issues: [{
+          path: ["roleKey"],
+          code: "no_one_holds_role",
+          message: "no active member holds this role",
+        }],
+      },
+    });
+  }
+  const inserted = await transaction.query<{ id: string }>(
+    `insert into bakery.questions (
+       organization_id, kind, conversation_id, task_id, run_id, generation,
+       prompt, allow_free_text, audience, expires_at
+     ) values ($1, 'question', $2, $3, $4, 1, $5, true, $6::jsonb,
+       now() + ($7 || ' seconds')::interval)
+     returning id`,
+    [
+      organizationId,
+      scope.conversation_id,
+      scope.task_id,
+      exercised.origin.runId,
+      input.prompt,
+      JSON.stringify({ type: "principals", principalIds: members }),
+      String(input.expiresInSeconds ?? DEFAULT_QUESTION_TTL_SECONDS),
+    ],
+  );
+  const id = inserted.rows[0]?.id;
+  if (!id) throw new Error("QUESTION_INSERT_FAILED");
+  await appendDomainEvent(transaction, {
+    organizationId,
+    applicationId: scope.application_id,
+    repositoryId: scope.repository_id,
+    taskId: scope.task_id,
+    conversationId: scope.conversation_id,
+    eventType: "question.opened",
+    aggregateId: id,
+    aggregateVersion: 1,
+    payload: { questionId: id, conversationId: scope.conversation_id },
+    traceId: context.traceId,
+  });
+  await appendAudit(transaction, {
+    organizationId,
+    principalId,
+    operation: "questions.ask",
+    resourceType: "question",
+    resourceId: id,
+    requestId: context.requestId,
+    traceId: context.traceId,
+    details: {
+      actorKind: "agent",
+      onBehalfOf: principalId,
+      roleKey: input.roleKey,
+      fromRunId: exercised.origin.runId,
+      ...(exercised.origin.agentSessionId === null
+        ? {}
+        : { sessionId: exercised.origin.agentSessionId }),
+    },
+  });
+  const row = (await transaction.query<QuestionRow>(
+    `select ${COLUMNS} from bakery.questions q
+      where q.organization_id = $1 and q.id = $2`,
+    [organizationId, id],
+  )).rows[0];
+  if (!row) throw new Error("QUESTION_READBACK_FAILED");
+  return toQuestion(row);
 }

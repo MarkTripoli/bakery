@@ -11171,9 +11171,9 @@ const transportSchemas = {
       "fields": [
         {
           "name": "power",
-          "type": "enum(decide|run_control|run_start)",
+          "type": "enum(decide|run_control|run_start|ask)",
           "required": true,
-          "description": "The off-by-default power being granted: decide (approve, reject or request changes where a person would), run_control (pause, resume, cancel, interrupt or retry a run) or run_start (start a run, still subject to count, depth and budget checks)."
+          "description": "The off-by-default power being granted: decide (approve, reject or request changes where a person would), run_control (pause, resume, cancel or interrupt a run), run_start (start a run, still subject to count, depth and budget checks) or ask (put a question to the one role named in roleKey)."
         },
         {
           "name": "workflowId",
@@ -11186,12 +11186,22 @@ const transportSchemas = {
           "type": "uuid|null",
           "required": false,
           "description": "The one seat (access token) the grant is limited to. Null or absent lets any agent session of the named workflow use the power."
+        },
+        {
+          "name": "roleKey",
+          "type": "string|null",
+          "required": false,
+          "bounds": {
+            "maxLength": 100
+          },
+          "description": "For the ask power only: the role the agent may put a question to, a built-in role (admin or developer) or a custom role key. Required for ask and refused for every other power. The question reaches the active members who hold that role when it is asked."
         }
       ],
       "rules": [
         "A person with a browser session only; an agent is refused (O51: delegating authority is never an agent's act).",
         "An unknown or foreign workflow and an unknown, revoked or foreign token both answer RESOURCE_NOT_FOUND.",
-        "A second grant for the same power, workflow and seat is STATE_CONFLICT with reason agent_power_grant_exists."
+        "A second grant for the same power, workflow and seat is STATE_CONFLICT with reason agent_power_grant_exists.",
+        "roleKey is required for ask and must name a built-in or custom role of the organization; any other power refuses it."
       ],
       "description": "Grants agents an off-by-default power for one workflow or one seat (chapter 25 O52). Every use is labelled as an agent's action, and a grant never lets an agent act on its own output."
     },
@@ -11229,6 +11239,45 @@ const transportSchemas = {
         }
       ],
       "description": "Makes the caller the completer of a workflow step instead of its agent. Allowed only for a step of a compiled-plan run whose action produces an artifact, whose job is still queued with no live attempt, and only for a caller holding run control; a step with a live attempt is refused with STATE_CONFLICT `attempt_live` and must be stopped through run control first."
+    },
+    "QuestionAsk": {
+      "fields": [
+        {
+          "name": "prompt",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 4000
+          },
+          "description": "The question put to the named role, in plain words; answered as free text."
+        },
+        {
+          "name": "roleKey",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "description": "The role the question is addressed to, a built-in role (admin or developer) or a custom role key. The agent's workflow must have been granted the ask power for exactly this role, and the question reaches the role's active members when it is asked."
+        },
+        {
+          "name": "expiresInSeconds",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 60,
+            "max": 604800
+          },
+          "description": "How long the question stays open before it expires; defaults to seven days."
+        }
+      ],
+      "rules": [
+        "Only an agent session may ask, on its own run, and only a role its workflow was granted; it is refused otherwise.",
+        "A role nobody holds answers UNPROCESSABLE with reason no_one_holds_role rather than opening a question nobody can answer."
+      ],
+      "description": "Puts a free-text question from a running step to one named role (chapter 25 section 18.2). Off by default and granted per workflow and role; recorded as an agent's action."
     }
   },
   "projections": {
@@ -28499,32 +28548,36 @@ const transportSchemas = {
         "power",
         "workflowId",
         "accessTokenId",
+        "roleKey",
         "grantedBy",
         "createdAt",
         "version"
       ],
       "fieldTypes": {
         "id": "uuid",
-        "power": "enum(decide|run_control|run_start)",
+        "power": "enum(decide|run_control|run_start|ask)",
         "workflowId": "uuid|null",
         "accessTokenId": "uuid|null",
         "grantedBy": "uuid",
         "createdAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "roleKey": "string|null"
       },
       "nullableFields": [
         "workflowId",
-        "accessTokenId"
+        "accessTokenId",
+        "roleKey"
       ],
       "description": "One grant of an off-by-default agent power (O52): which power, which workflow and seat it covers, and the person who granted it. Revoking deletes it; the audit log keeps both.",
       "fieldDescriptions": {
         "id": "Stable UUID identifying the grant.",
-        "power": "The power granted: decide, run_control or run_start.",
+        "power": "The power granted: decide, run_control, run_start or ask.",
         "workflowId": "Immutable id of the workflow that holds the power, as an agent's own workflow and as a target workflow; null covers every workflow for the named seat.",
         "accessTokenId": "Seat (access token) the grant is limited to; null for any agent session of the named workflow.",
         "grantedBy": "Person who made the grant.",
         "createdAt": "When the grant was made.",
-        "version": "Optimistic-concurrency version a revoke must name in If-Match."
+        "version": "Optimistic-concurrency version a revoke must name in If-Match.",
+        "roleKey": "For the ask power, the role the agent may put a question to; null for every other power."
       }
     },
     "RouteContinuationTarget": {

@@ -69,6 +69,8 @@ const OPERATION_SCOPES: Readonly<Record<string, OperationScope>> = Object
     // operations' guard, and leaves artifacts out for a session without
     // `artifacts.read` (the dispatched context carries the session's scopes).
     "library.search": "library.read",
+    // Asking a role a question is off by default and granted per role.
+    "questions.ask": "questions.ask",
   });
 
 /**
@@ -82,6 +84,7 @@ export const POWER_SESSION_SCOPES: Readonly<
   decide: Object.freeze(["approvals.decide"]),
   run_control: Object.freeze(["runs.control"]),
   run_start: Object.freeze([]),
+  ask: Object.freeze(["questions.ask"]),
 });
 
 export type SessionTool = Readonly<{

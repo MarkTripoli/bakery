@@ -22,13 +22,14 @@ type GrantRow = {
   power: string;
   workflow_id: string | null;
   access_token_id: string | null;
+  role_key: string | null;
   granted_by: string;
   created_at: Date | string;
   version: number;
 };
 
 const GRANT_COLUMNS =
-  "id, power, workflow_id, access_token_id, granted_by, created_at, version";
+  "id, power, workflow_id, access_token_id, role_key, granted_by, created_at, version";
 
 function toGrant(row: GrantRow) {
   return {
@@ -36,6 +37,7 @@ function toGrant(row: GrantRow) {
     power: row.power as AgentPower,
     workflowId: row.workflow_id,
     accessTokenId: row.access_token_id,
+    roleKey: row.role_key,
     grantedBy: row.granted_by,
     createdAt:
       (row.created_at instanceof Date
@@ -60,6 +62,25 @@ function unprocessable(path: string[], code: string, message: string): never {
   });
 }
 
+/**
+ * The roles an agent may be allowed to ask: the two built-in roles and any
+ * custom role of the organization. An unknown role answers the same not found as
+ * an unknown workflow, so the refusal does not say which input was wrong.
+ */
+async function roleExists(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  roleKey: string,
+): Promise<boolean> {
+  if (roleKey === "admin" || roleKey === "developer") return true;
+  const found = await transaction.query(
+    `select 1 from bakery.organization_roles
+      where organization_id = $1 and key = $2`,
+    [organizationId, roleKey],
+  );
+  return found.rows.length === 1;
+}
+
 export async function createAgentPowerGrant(
   context: ActionContext,
   input: unknown,
@@ -72,17 +93,27 @@ export async function createAgentPowerGrant(
     power: string;
     workflowId?: string | null;
     accessTokenId?: string | null;
+    roleKey?: string | null;
   };
   if (!isAgentPower(value.power)) {
     unprocessable(
       ["power"],
       "agent_power_unknown",
-      "power must be decide, run_control or run_start",
+      "power must be decide, run_control, run_start or ask",
     );
   }
   const power = value.power;
   const workflowId = value.workflowId ?? null;
   const tokenId = value.accessTokenId ?? null;
+  const roleKey = value.roleKey ?? null;
+  // The role belongs to the ask power alone: it is what makes an ask grant a
+  // grant to put a question to one named role, and no other power has a role.
+  if (power === "ask" && roleKey === null) {
+    unprocessable(["roleKey"], "role_key_required", "ask names a role");
+  }
+  if (power !== "ask" && roleKey !== null) {
+    unprocessable(["roleKey"], "role_key_ask_only", "only ask names a role");
+  }
   if (workflowId === null && tokenId === null) {
     unprocessable(
       ["accessTokenId"],
@@ -112,12 +143,19 @@ export async function createAgentPowerGrant(
       throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
     }
   }
+  if (
+    roleKey !== null &&
+    !(await roleExists(transaction, organizationId, roleKey))
+  ) {
+    throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  }
   const existing = await transaction.query<{ id: string }>(
     `select id from bakery.agent_power_grants
       where organization_id = $1 and power = $2
         and workflow_id is not distinct from $3::uuid
-        and access_token_id is not distinct from $4::uuid`,
-    [organizationId, power, workflowId, tokenId],
+        and access_token_id is not distinct from $4::uuid
+        and role_key is not distinct from $5::text`,
+    [organizationId, power, workflowId, tokenId, roleKey],
   );
   if (existing.rows[0]) {
     throw new StandardError({
@@ -130,10 +168,10 @@ export async function createAgentPowerGrant(
   }
   const row = (await transaction.query<GrantRow>(
     `insert into bakery.agent_power_grants (
-       organization_id, power, workflow_id, access_token_id, granted_by
-     ) values ($1, $2, $3, $4, $5)
+       organization_id, power, workflow_id, access_token_id, role_key, granted_by
+     ) values ($1, $2, $3, $4, $5, $6)
      returning ${GRANT_COLUMNS}`,
-    [organizationId, power, workflowId, tokenId, principalId],
+    [organizationId, power, workflowId, tokenId, roleKey, principalId],
   )).rows[0];
   if (!row) throw new Error("AGENT_POWER_GRANT_INSERT_FAILED");
   await appendGrantFacts(transaction, context, {
@@ -210,6 +248,7 @@ async function appendGrantFacts(
       power: facts.row.power,
       workflowId: facts.row.workflow_id,
       accessTokenId: facts.row.access_token_id,
+      roleKey: facts.row.role_key,
     },
   });
   await appendDomainEvent(transaction, {

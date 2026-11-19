@@ -167,6 +167,7 @@ export const ConversationImplementedAction = Object.freeze(
     ConversationTurnsCancel: "conversationTurns.cancel",
     QuestionsList: "questions.list",
     QuestionsGet: "questions.get",
+    QuestionsAsk: "questions.ask",
     QuestionsAnswer: "questions.answer",
   } as const satisfies Record<string, CatalogActionName>,
 );

@@ -25,6 +25,8 @@ export const AgentPower = Object.freeze(
     RunControl: "run_control",
     /** Start a run. Count, depth and budget checks apply on top of the grant. */
     RunStart: "run_start",
+    /** Put a question to one named role. The grant names the role. */
+    Ask: "ask",
   } as const,
 );
 export type AgentPower = typeof AgentPower[keyof typeof AgentPower];
@@ -121,6 +123,8 @@ export async function agentHoldsPower(
     power: AgentPower;
     workflowId: string | null;
     accessTokenId: string | null;
+    /** For the ask power: the role being asked. Other powers pass null. */
+    roleKey?: string | null;
   }>,
 ): Promise<boolean> {
   const found = await transaction.query(
@@ -129,8 +133,15 @@ export async function agentHoldsPower(
         and (workflow_id = $3::uuid
              or (workflow_id is null and access_token_id is not null))
         and (access_token_id is null or access_token_id = $4::uuid)
+        and role_key is not distinct from $5::text
       limit 1`,
-    [scope.organizationId, scope.power, scope.workflowId, scope.accessTokenId],
+    [
+      scope.organizationId,
+      scope.power,
+      scope.workflowId,
+      scope.accessTokenId,
+      scope.roleKey ?? null,
+    ],
   );
   return found.rows.length === 1;
 }
@@ -160,6 +171,8 @@ export async function assertAgentMayExercise(
     organizationId: string;
     principalId: string;
     power: AgentPower;
+    /** For the ask power: the role being asked, which the grant must name. */
+    roleKey?: string | null;
   }>,
 ): Promise<ExercisedPower> {
   const attribution = attributeAction(context, scope.principalId);
@@ -184,6 +197,7 @@ export async function assertAgentMayExercise(
       power: scope.power,
       workflowId: origin?.workflowId ?? null,
       accessTokenId: attribution.accessTokenId,
+      roleKey: scope.roleKey ?? null,
     })
   ) return { attribution, origin };
   throw refusal();

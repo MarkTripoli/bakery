@@ -74,6 +74,12 @@ export type ConversationActionHandlers = {
   ) =>
     | z.output<typeof contractSchemas.Question>
     | Promise<z.output<typeof contractSchemas.Question>>;
+  questionsAsk: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.QuestionAsk>,
+  ) =>
+    | z.output<typeof contractSchemas.Question>
+    | Promise<z.output<typeof contractSchemas.Question>>;
   messagesList: (
     context: ActionContext,
     input: z.output<typeof contractSchemas.MessageQuery>,
@@ -227,6 +233,16 @@ export function createConversationActionRegistry(
     output: contractSchemas.Question,
     policy: queryPolicy,
     handler: handlers.questionsGet,
+  });
+  registry.register({
+    name: ConversationImplementedAction.QuestionsAsk,
+    method: HttpMethod.Post,
+    path: "/v1/questions",
+    input: contractSchemas.QuestionAsk,
+    output: contractSchemas.Question,
+    policy: { ...queryPolicy, type: ActionKind.Command },
+    successStatus: 201,
+    handler: handlers.questionsAsk,
   });
   registry.register({
     name: ConversationImplementedAction.QuestionsAnswer,

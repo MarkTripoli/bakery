@@ -1331,6 +1331,30 @@ export const clientManifest = {
       "implemented": true
     },
     {
+      "group": "Conversations",
+      "method": "POST",
+      "path": "/v1/questions",
+      "action": "questions.ask",
+      "access": "Developer",
+      "permission": "question:write",
+      "input": "QuestionAsk",
+      "output": "Question",
+      "event": "question.opened",
+      "mcp": "bakery_questions_ask",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
       "group": "Conversation",
       "method": "PUT",
       "path": "/v1/questions/{id}/answer",
@@ -13176,6 +13200,7 @@ export const clientManifest = {
             "messages.create",
             "questions.list",
             "questions.get",
+            "questions.ask",
             "questions.answer",
             "planRevisions.list",
             "planRevisions.get",
@@ -22562,9 +22587,10 @@ export const clientManifest = {
           "enum": [
             "decide",
             "run_control",
-            "run_start"
+            "run_start",
+            "ask"
           ],
-          "description": "The off-by-default power being granted: decide (approve, reject or request changes where a person would), run_control (pause, resume, cancel, interrupt or retry a run) or run_start (start a run, still subject to count, depth and budget checks)."
+          "description": "The off-by-default power being granted: decide (approve, reject or request changes where a person would), run_control (pause, resume, cancel or interrupt a run), run_start (start a run, still subject to count, depth and budget checks) or ask (put a question to the one role named in roleKey)."
         },
         "workflowId": {
           "description": "AgentPowerGrantCreate.workflowId may be null in this transport value.",
@@ -22589,6 +22615,20 @@ export const clientManifest = {
               "format": "uuid",
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
               "description": "The one seat (access token) the grant is limited to. Null or absent lets any agent session of the named workflow use the power."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "roleKey": {
+          "description": "AgentPowerGrantCreate.roleKey may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 100,
+              "description": "For the ask power only: the role the agent may put a question to, a built-in role (admin or developer) or a custom role key. Required for ask and refused for every other power. The question reaches the active members who hold that role when it is asked. AgentPowerGrantCreate.roleKey must contain at most 100 characters."
             },
             {
               "type": "null",
@@ -22639,6 +22679,36 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Makes the caller the completer of a workflow step instead of its agent. Allowed only for a step of a compiled-plan run whose action produces an artifact, whose job is still queued with no live attempt, and only for a caller holding run control; a step with a live attempt is refused with STATE_CONFLICT `attempt_live` and must be stopped through run control first."
+    },
+    "QuestionAsk": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "prompt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000,
+          "description": "The question put to the named role, in plain words; answered as free text. QuestionAsk.prompt must contain at least 1 characters. QuestionAsk.prompt must contain at most 4000 characters."
+        },
+        "roleKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "description": "The role the question is addressed to, a built-in role (admin or developer) or a custom role key. The agent's workflow must have been granted the ask power for exactly this role, and the question reaches the role's active members when it is asked. QuestionAsk.roleKey must contain at least 1 characters. QuestionAsk.roleKey must contain at most 100 characters."
+        },
+        "expiresInSeconds": {
+          "description": "How long the question stays open before it expires; defaults to seven days. QuestionAsk.expiresInSeconds must be at least 60. QuestionAsk.expiresInSeconds must be at most 604800.",
+          "type": "integer",
+          "minimum": 60,
+          "maximum": 604800
+        }
+      },
+      "required": [
+        "prompt",
+        "roleKey"
+      ],
+      "additionalProperties": false,
+      "description": "Puts a free-text question from a running step to one named role (chapter 25 section 18.2). Off by default and granted per workflow and role; recorded as an agent's action."
     },
     "PluginState": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -34930,6 +35000,7 @@ export const clientManifest = {
                   "messages.create",
                   "questions.list",
                   "questions.get",
+                  "questions.ask",
                   "questions.answer",
                   "planRevisions.list",
                   "planRevisions.get",
@@ -52541,6 +52612,7 @@ export const clientManifest = {
             "messages.create",
             "questions.list",
             "questions.get",
+            "questions.ask",
             "questions.answer",
             "planRevisions.list",
             "planRevisions.get",
@@ -79105,9 +79177,10 @@ export const clientManifest = {
           "enum": [
             "decide",
             "run_control",
-            "run_start"
+            "run_start",
+            "ask"
           ],
-          "description": "The power granted: decide, run_control or run_start."
+          "description": "The power granted: decide, run_control, run_start or ask."
         },
         "workflowId": {
           "anyOf": [
@@ -79139,6 +79212,20 @@ export const clientManifest = {
           ],
           "description": "AgentPowerGrant.accessTokenId may be null in this transport value."
         },
+        "roleKey": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "For the ask power, the role the agent may put a question to; null for every other power."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "AgentPowerGrant.roleKey may be null in this transport value."
+        },
         "grantedBy": {
           "type": "string",
           "format": "uuid",
@@ -79163,6 +79250,7 @@ export const clientManifest = {
         "power",
         "workflowId",
         "accessTokenId",
+        "roleKey",
         "grantedBy",
         "createdAt",
         "version"

@@ -1337,6 +1337,29 @@
       ]
     },
     {
+      "group": "Conversations",
+      "method": "POST",
+      "path": "/v1/questions",
+      "action": "questions.ask",
+      "access": "Developer",
+      "permission": "question:write",
+      "organizationContext": "required_authenticated_context",
+      "input": "QuestionAsk",
+      "output": "Question",
+      "event": "question.opened",
+      "mcp": "bakery_questions_ask",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ]
+    },
+    {
       "group": "Conversation",
       "method": "PUT",
       "path": "/v1/questions/{id}/answer",

@@ -19,6 +19,7 @@ import {
 import { createConversationQueryHandlers } from "./queries.ts";
 import {
   answerQuestion,
+  askQuestion,
   createQuestionsListHandler,
   getQuestion,
 } from "./questions.ts";
@@ -71,6 +72,7 @@ export function createConversationRegistry(options: {
       questionsList: createQuestionsListHandler(options.cursorSecret),
       questionsGet: getQuestion,
       questionsAnswer: answerQuestion,
+      questionsAsk: askQuestion,
       turnsGet: getConversationTurn,
       turnsCancel: cancelConversationTurn,
     },

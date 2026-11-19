@@ -630,6 +630,7 @@ export function createApp(options: {
           artifactActions.registry,
           approvalRegistry,
           runControlRegistry,
+          conversationRegistry,
         ],
         offered: sessionOperationScopes(),
       }),
