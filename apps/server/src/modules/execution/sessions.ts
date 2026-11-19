@@ -272,6 +272,20 @@ function toMessage(row: MessageRow) {
 }
 
 /**
+ * The first DECISION_NOTE_MAX_LENGTH code units of a steer, never ending on a
+ * high surrogate: slicing through an emoji would leave a lone surrogate, which
+ * PostgreSQL jsonb rejects.
+ */
+function excerptForLedger(body: string): string {
+  if (body.length <= DECISION_NOTE_MAX_LENGTH) return body;
+  const last = body.charCodeAt(DECISION_NOTE_MAX_LENGTH - 1);
+  const end = last >= 0xd800 && last <= 0xdbff
+    ? DECISION_NOTE_MAX_LENGTH - 1
+    : DECISION_NOTE_MAX_LENGTH;
+  return body.slice(0, end);
+}
+
+/**
  * Steers or follows up a worker session. The message is recorded once per
  * `clientMessageId` and bound to one worker command, so a duplicate request
  * never produces a second prompt. A mode the worker session did not advertise
@@ -401,7 +415,7 @@ export async function steerAgentSession(
     decidedBy: principalId,
     // The full text lives on the message; the ledger keeps a bounded excerpt
     // (its note limit) and the id to find the rest.
-    text: input.body.slice(0, DECISION_NOTE_MAX_LENGTH),
+    text: excerptForLedger(input.body),
     detail: {
       mode,
       messageId: message.id,

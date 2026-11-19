@@ -172,3 +172,22 @@ Deno.test("AC: a steer with a lone surrogate is a 400 and writes nothing", () =>
       0,
     );
   }));
+
+Deno.test("AC: an emoji straddling the excerpt limit is not split into a lone surrogate", () =>
+  withFixture(async (fixture) => {
+    const seed = await seedOrganization(fixture, "steer-ledger-emoji");
+    const session = await seedSession(fixture, seed, ["steer"]);
+
+    // The emoji's high surrogate is code unit 4000 (index 3999), its low
+    // surrogate falls outside the excerpt.
+    const response = await steer(fixture, seed, session.agentSessionId, {
+      body: "x".repeat(3999) + "\u{1F600}" + "tail",
+      mode: "steer",
+    });
+    assertEquals(response.status, 201);
+
+    const entries = await steerEntries(fixture, session.agentSessionId);
+    assertEquals(entries.length, 1);
+    assertEquals(entries[0].text, "x".repeat(3999));
+    assertEquals(entries[0].truncated, "true");
+  }));
