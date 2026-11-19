@@ -1726,11 +1726,14 @@ async function openMerge(
   answers: {
     merge?: (route: Route) => Promise<void> | void;
     reconcile?: (route: Route) => Promise<void> | void;
+    /** Registered after the run mocks, so these answers win. */
+    stub?: (page: Page) => Promise<void>;
   } = {},
 ): Promise<Merged> {
   const seen: Merged = { merges: [], reconciles: 0 };
   await mockRun(page);
   await mockDelivery(page, scenario);
+  await answers.stub?.(page);
   await mockApprovals(page, [approvedRow()]);
   await page.route("**/v1/pull-requests/*/merge", async (route) => {
     seen.merges.push(route.request().postDataJSON() as Record<string, unknown>);
@@ -1911,6 +1914,9 @@ test("a pull request that moved after the approval is not offered to merge, and 
     "The changes were updated after these results",
   );
   await expect(section).toContainText("Older commit 91d0aa3");
+  // Nothing is re-running: the page must not say the results are running again.
+  await expect(section).toContainText("No results for commit 4be19c2.");
+  await expect(section).not.toContainText("Running again");
 });
 
 for (
@@ -2074,6 +2080,8 @@ async function stillOfSection(page: Page, file: string) {
 }
 
 const STILL_SIZES = [["1440", 1440, 900], ["390", 390, 844]] as const;
+/** Tall enough that the whole section, steps and After approval, is in view. */
+const TALL = { "1440": 2400, "390": 3200 } as const;
 
 for (const [name, scenario] of MERGE_STILLS) {
   test(`still: merge, ${name}`, async ({ page }) => {
@@ -2084,9 +2092,12 @@ for (const [name, scenario] of MERGE_STILLS) {
         const fresh = await page.context().newPage();
         await fresh.emulateMedia({ colorScheme: scheme });
         await fresh.setViewportSize({ width, height });
-        await stubStillsPage(fresh);
-        await openMerge(fresh, { ...CLEAN, ...scenario });
+        await openMerge(fresh, { ...CLEAN, ...scenario }, {
+          stub: stubStillsPage,
+        });
+        await fresh.setViewportSize({ width, height: TALL[size] });
         await stillOfSection(fresh, `merge-${name}-${size}-${scheme}.png`);
+        await fresh.setViewportSize({ width, height });
         if (name === "ready") {
           // The confirmation, with the focus ring on Cancel where it lands.
           await button(nowCard(fresh), "Merge").click();
@@ -2112,12 +2123,12 @@ test("still: merge, the answer never arrived", async ({ page }) => {
       const fresh = await page.context().newPage();
       await fresh.emulateMedia({ colorScheme: scheme });
       await fresh.setViewportSize({ width, height });
-      await stubStillsPage(fresh);
       const scenario: Scenario = {
         ...CLEAN,
         pullRequests: [pullRequestRow(482)],
       };
       await openMerge(fresh, scenario, {
+        stub: stubStillsPage,
         merge: async (route) => {
           // The server did record an attempt, but the answer was lost: the
           // read that follows shows it, and the page moves to what it says.
@@ -2137,6 +2148,7 @@ test("still: merge, the answer never arrived", async ({ page }) => {
       await expect(nowCard(fresh)).toContainText(
         "Bakery does not know whether this merged",
       );
+      await fresh.setViewportSize({ width, height: TALL[size] });
       await stillOfSection(fresh, `merge-no-answer-${size}-${scheme}.png`);
       await fresh.close();
     }

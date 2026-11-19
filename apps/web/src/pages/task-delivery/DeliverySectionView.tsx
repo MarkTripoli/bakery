@@ -1180,7 +1180,12 @@ function Steps({ model }: Readonly<{ model: DeliveryModel }>) {
           summary={checks.rows.length === 0
             ? t("tasks.delivery.checks.none")
             : olderRows.length > 0 && headShort !== null
-            ? t("tasks.delivery.checks.runningAgain", { sha: headShort })
+            ? t(
+              model.pullRequestMoved
+                ? "tasks.delivery.checks.noneForCommit"
+                : "tasks.delivery.checks.runningAgain",
+              { sha: headShort },
+            )
             : failedAny
             ? t("tasks.delivery.checks.failedOf", {
               failed: checks.failed,

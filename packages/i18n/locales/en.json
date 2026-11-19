@@ -3306,6 +3306,7 @@
   "tasks.delivery.help.fixing.text": "When a check or the review fails, Bakery asks the agent to fix it, up to {max, plural, one {# time} other {# times}}.",
   "tasks.delivery.review.changesBlockingOnly": "Changes requested · {blocking} blocking",
   "tasks.delivery.fixing.stopped": "Stopped after {attempt, plural, one {# try} other {# tries}}.{count, plural, =0 {} one { # blocking finding remains.} other { # blocking findings remain.}}",
+  "tasks.delivery.checks.noneForCommit": "No results for commit {sha}.",
   "tasks.delivery.checks.runningAgain": "Running again for commit {sha}.",
   "tasks.delivery.olderResult.passed": "Passed on older commit {sha}",
   "tasks.delivery.olderResult.failed": "Failed on older commit {sha}",
