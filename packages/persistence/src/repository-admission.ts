@@ -1054,12 +1054,21 @@ export async function assertSecretIdentityRepositoryAdmission(
   if (eligible.rows.length !== 1) secretIdentityAdmissionRequired();
 }
 
-function identityRefFromEffectiveInput(input: unknown): string | null {
+/**
+ * The identity reference a job's stored input carries, or null when the
+ * workflow-owned part of the input is not exactly one reference. The keys the
+ * server adds at admission (the frozen repository profile and the step notes)
+ * are not workflow-owned and never make the strict parse fail.
+ */
+export function identityRefFromEffectiveInput(input: unknown): string | null {
   if (input === null || typeof input !== "object" || Array.isArray(input)) {
     return null;
   }
-  const { repositoryProfile: _repositoryProfile, ...workflowInput } =
-    input as Record<string, unknown>;
+  const workflowInput = Object.fromEntries(
+    Object.entries(input as Record<string, unknown>).filter(([key]) =>
+      !ADMISSION_ADDED_ROOT_KEYS.includes(key)
+    ),
+  );
   const parsed = SecretIdentityReadInputSchema.safeParse(workflowInput);
   return parsed.success ? parsed.data.identityRef : null;
 }
