@@ -75,7 +75,8 @@ async function route(fx: Fixture, id: string) {
 
 async function health(fx: Fixture, id: string) {
   const result = await fx.ownerPg.query(
-    `select consecutive_failures, probe_lease_expires_at, reason, next_probe_at
+    `select consecutive_failures, probe_lease_expires_at, reason, reason_since,
+            next_probe_at
        from bakery.provider_route_health where route_id = $1`,
     [id],
   );
@@ -83,6 +84,7 @@ async function health(fx: Fixture, id: string) {
     consecutive_failures: number;
     probe_lease_expires_at: Date | null;
     reason: string | null;
+    reason_since: Date | null;
     next_probe_at: Date | null;
   } | undefined;
 }
@@ -258,24 +260,22 @@ Deno.test("probe: reachable proves nothing about inference and clears the failur
   }
 });
 
-Deno.test("probe: a redirect proves nothing: no reachable credit, no failure, schedule only", async () => {
+Deno.test("probe: a redirect reads unverified with its reason and since-time, counts no failure, and a reachable probe clears it", async () => {
   const fx = await openCoordinationFixture();
   try {
     const id = await seedRoute(fx);
-    // A failure first, so there is a count and a reason a redirect must not touch.
+    // A failure first, so there is a count a redirect must neither clear nor grow.
     await runDueProbes(fx.appPg, { transport: answer({ kind: "timeout" }) });
-    const before = (await health(fx, id))!;
-    assertEquals(before.consecutive_failures, 1);
-    assertEquals(before.reason, "timeout");
+    assertEquals((await health(fx, id))!.consecutive_failures, 1);
     await makeDue(fx, id);
     await runDueProbes(fx.appPg, {
       transport: answer({ kind: "response", status: 302, retryAfter: null }),
       random: () => 0.5,
     });
     const after = (await health(fx, id))!;
-    // Neither cleared (reachable would) nor increased (a failure would).
     assertEquals(after.consecutive_failures, 1);
-    assertEquals(after.reason, "timeout");
+    assertEquals(after.reason, "redirected");
+    assert(after.reason_since !== null);
     assertEquals(after.probe_lease_expires_at, null);
     const state = await route(fx, id);
     assertEquals(state.health, "unverified");
@@ -288,6 +288,59 @@ Deno.test("probe: a redirect proves nothing: no reachable credit, no failure, sc
       [id],
     );
     assertEquals(success.rows[0].last_success_at, null);
+
+    // The reason holds: a second redirect keeps the time it began.
+    const began = after.reason_since;
+    await makeDue(fx, id);
+    await runDueProbes(fx.appPg, {
+      transport: answer({ kind: "response", status: 301, retryAfter: null }),
+    });
+    assertEquals(
+      (await health(fx, id))!.reason_since?.getTime(),
+      began?.getTime(),
+    );
+
+    // A probe that proves reachability clears the reason and the clock.
+    await makeDue(fx, id);
+    await runDueProbes(fx.appPg, {
+      transport: answer({ kind: "response", status: 404, retryAfter: null }),
+    });
+    const cleared = (await health(fx, id))!;
+    assertEquals(cleared.reason, null);
+    assertEquals(cleared.reason_since, null);
+    assertEquals(cleared.consecutive_failures, 0);
+  } finally {
+    await fx.close();
+  }
+});
+
+Deno.test("probe: a redirect stops a healthy route looking healthy until it is reachable again", async () => {
+  const fx = await openCoordinationFixture();
+  try {
+    const id = await seedRoute(fx);
+    // A route that proved inference earlier and has no incident.
+    await fx.ownerPg.query(
+      `update bakery.provider_routes
+          set health = 'healthy', inference_verified_at = now() where id = $1`,
+      [id],
+    );
+    await runDueProbes(fx.appPg, {
+      transport: answer({ kind: "response", status: 307, retryAfter: null }),
+    });
+    const redirected = await route(fx, id);
+    assertEquals(redirected.health, "unverified");
+    // Inference proof is history, not state: a redirect does not erase it.
+    assert(redirected.inference_verified_at !== null);
+    assertEquals(redirected.incident_id, null);
+    assertEquals((await health(fx, id))!.reason, "redirected");
+
+    // Reachable again: it returns to what it was, because it had proven inference.
+    await makeDue(fx, id);
+    await runDueProbes(fx.appPg, {
+      transport: answer({ kind: "response", status: 200, retryAfter: null }),
+    });
+    assertEquals((await route(fx, id)).health, "healthy");
+    assertEquals((await health(fx, id))!.reason, null);
   } finally {
     await fx.close();
   }

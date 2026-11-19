@@ -32,6 +32,7 @@ type World = {
     health: string;
     incident_id: string | null;
     incident_generation: number;
+    inference_verified_at: Date | null;
   } | null;
   health?: { evidence_watermark: string | null; consecutive_failures: number };
   incident?: { id: string; generation: number; severity: string };
@@ -71,6 +72,7 @@ const route = (overrides: Partial<NonNullable<World["route"]>> = {}) => ({
   health: "unverified",
   incident_id: null,
   incident_generation: 0,
+  inference_verified_at: null as Date | null,
   ...overrides,
 });
 
@@ -453,21 +455,30 @@ Deno.test("with incidents off, reachable and a proven inference behave as before
 
 // -- redirected: proves nothing ------------------------------------------------
 
-Deno.test("a redirect records the probe and changes nothing else", async () => {
-  for (
-    const mode of ["on", "off"] as const
-  ) {
-    const { transaction, recorded } = stand(openWorld());
-    const result = await recordProbeResult(transaction as never, {
-      organizationId: ORG,
-      routeId: ROUTE,
-      generation: 3,
-      observedAt: NOW,
-      nextProbeAt: NEXT,
-      incidents: mode,
-      outcome: { kind: "redirected", evidenceWatermark: "w-redirect" },
+const PROVEN = new Date("2026-11-18T00:00:00.000Z");
+
+const redirect = (
+  transaction: ReturnType<typeof stand>["transaction"],
+  generation: number,
+  mode: "on" | "off" = "off",
+) =>
+  recordProbeResult(transaction as never, {
+    organizationId: ORG,
+    routeId: ROUTE,
+    generation,
+    observedAt: NOW,
+    nextProbeAt: NEXT,
+    incidents: mode,
+    outcome: { kind: "redirected", evidenceWatermark: "w-redirect" },
+  });
+
+Deno.test("a redirect makes a healthy route read unverified, and touches nothing else about it", async () => {
+  for (const mode of ["on", "off"] as const) {
+    const { transaction, recorded } = stand({
+      route: route({ health: "healthy", inference_verified_at: PROVEN }),
     });
-    assertEquals(result.kind, mode === "on" ? "updated" : "updated");
+    const result = await redirect(transaction, 0, mode);
+    assertEquals(result.kind, "updated");
     // No incident is read for update, inserted or changed.
     assert(
       !recorded.some(({ sql }) => /bakery\.provider_incidents/.test(sql)),
@@ -476,26 +487,112 @@ Deno.test("a redirect records the probe and changes nothing else", async () => {
     const routeUpdate = writes(recorded).find(({ sql }) =>
       /update bakery\.provider_routes/.test(sql)
     )!;
-    // Only the probe times move: no health, incident or inference columns.
-    assert(
-      !/health|incident|inference_verified/.test(
-        routeUpdate.sql.split("where")[0]!,
-      ),
-    );
+    // The route reads unverified; the incident, generation and inference proof
+    // are not in the statement at all.
+    assertEquals(routeUpdate.values[2], "unverified");
+    const set = routeUpdate.sql.split("where")[0]!;
+    assert(!/incident|inference_verified/.test(set), set);
     assert(routeUpdate.values.includes(NEXT));
     const healthWrite = writes(recorded).find(({ sql }) =>
       /insert into bakery\.provider_route_health/.test(sql)
     )!;
-    // The conflict branch leaves the failure count, reason and success time alone.
+    // The reason is a redirect, with the time it began; the failure count, the
+    // success time and the failure time are not touched on conflict.
+    assert(/'redirected'/.test(healthWrite.sql));
+    assert(/reason_since/.test(healthWrite.sql));
     const onConflict = healthWrite.sql.split("on conflict")[1]!;
     assert(
-      !/consecutive_failures|reason|last_success_at|last_failure_at/.test(
-        onConflict,
-      ),
+      !/consecutive_failures|last_success_at|last_failure_at/.test(onConflict),
     );
     assert(!/inference_verified_at/.test(onConflict));
     assert(healthWrite.values.includes(NEXT));
+    assert(healthWrite.values.includes(NOW));
   }
+});
+
+Deno.test("a redirect on a route with an open incident does not soften it", async () => {
+  const { transaction, recorded } = stand(openWorld());
+  await redirect(transaction, 3);
+  const routeUpdate = writes(recorded).find(({ sql }) =>
+    /update bakery\.provider_routes/.test(sql)
+  )!;
+  // The incident is the stronger statement: health stays open.
+  assertEquals(routeUpdate.values[2], "open");
+  assert(
+    !recorded.some(({ sql }) => /bakery\.provider_incidents/.test(sql)),
+  );
+});
+
+Deno.test("reachable after a redirect returns a route that had proven inference to healthy", async () => {
+  const proven = stand({
+    route: route({ health: "unverified", inference_verified_at: PROVEN }),
+    health: { evidence_watermark: "w-redirect", consecutive_failures: 0 },
+  });
+  await probeOff(proven.transaction, 0, {
+    kind: "reachable",
+    evidenceWatermark: "w-reach",
+  });
+  const routeUpdate = writes(proven.recorded).find(({ sql }) =>
+    /update bakery\.provider_routes/.test(sql)
+  )!;
+  assertEquals(routeUpdate.values[2], "healthy");
+  const healthWrite = writes(proven.recorded).find(({ sql }) =>
+    /insert into bakery\.provider_route_health/.test(sql)
+  )!;
+  // The reason clears, and so does its since-time.
+  assertEquals(healthWrite.values[2], "healthy");
+  assertEquals(healthWrite.values[3], null);
+  assert(/when excluded\.reason is null then null/.test(healthWrite.sql));
+});
+
+Deno.test("reachable never makes a route healthy that has not proven inference", async () => {
+  const never = stand({
+    route: route({ health: "unverified", inference_verified_at: null }),
+  });
+  await probeOff(never.transaction, 0, {
+    kind: "reachable",
+    evidenceWatermark: "w-reach",
+  });
+  const routeUpdate = writes(never.recorded).find(({ sql }) =>
+    /update bakery\.provider_routes/.test(sql)
+  )!;
+  assertEquals(routeUpdate.values[2], "unverified");
+  // And a route with an open incident stays as it is, proven or not.
+  const open = stand({
+    ...openWorld(),
+    route: route({
+      health: "open",
+      incident_id: INCIDENT,
+      incident_generation: 3,
+      inference_verified_at: PROVEN,
+    }),
+  });
+  await probe(open.transaction, 3, {
+    kind: "reachable",
+    evidenceWatermark: "w-reach",
+  });
+  const openUpdate = writes(open.recorded).find(({ sql }) =>
+    /update bakery\.provider_routes/.test(sql)
+  )!;
+  assertEquals(openUpdate.values[2], "open");
+});
+
+Deno.test("the since-time moves only when the reason changes", () => {
+  // The SQL carries the rule, so it is pinned by the statement itself: a new
+  // reason restarts the clock, the same reason keeps it, and no reason clears it.
+  const { transaction, recorded } = stand({ route: route() });
+  return probeOff(transaction, 0, failure("w1")).then(() => {
+    const healthWrite = writes(recorded).find(({ sql }) =>
+      /insert into bakery\.provider_route_health/.test(sql)
+    )!;
+    const onConflict = healthWrite.sql.split("on conflict")[1]!;
+    assert(/when excluded\.reason is null then null/.test(onConflict));
+    assert(
+      /reason is distinct from excluded\.reason[\s\S]*then excluded\.last_probe_at/
+        .test(onConflict),
+    );
+    assert(/else bakery\.provider_route_health\.reason_since/.test(onConflict));
+  });
 });
 
 Deno.test("a redirect still obeys the fence and the duplicate rule", async () => {

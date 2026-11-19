@@ -63,9 +63,10 @@ export type ProbeOutcome =
   | { kind: "reachable"; evidenceWatermark: string }
   /**
    * The endpoint answered with a redirect, which the probe does not follow. It
-   * proves nothing: not reachable (the real endpoint was never asked), not a
-   * failure (the host did answer), and not a reason to touch the route's state.
-   * Only the probe time and schedule are recorded.
+   * proves nothing: not reachable (the real endpoint was never asked) and not a
+   * failure (the host did answer). The route reads `unverified` with the reason
+   * `redirected` until a probe proves it reachable again; no failure is counted
+   * and no incident is touched.
    */
   | { kind: "redirected"; evidenceWatermark: string }
   | { kind: "inference_proven"; evidenceWatermark: string };
@@ -83,6 +84,7 @@ type RouteState = {
   health: string;
   incident_id: string | null;
   incident_generation: number;
+  inference_verified_at: Date | string | null;
 };
 
 type HealthState = {
@@ -123,7 +125,8 @@ export async function recordProbeResult(
 ): Promise<ProbeResult> {
   const { organizationId, routeId, outcome } = probe;
   const route = (await transaction.query<RouteState>(
-    `select status, health, incident_id, incident_generation
+    `select status, health, incident_id, incident_generation,
+            inference_verified_at
        from bakery.provider_routes
       where organization_id = $1 and id = $2
         for update`,
@@ -315,33 +318,49 @@ async function extendIncident(
 }
 
 /**
- * A redirect, recorded as a probe that happened and nothing more.
+ * A redirect: it proves nothing, and a route must not keep looking healthy on it.
  *
- * The route's circuit state, incident, inference proof, failure count, reason and
- * last-success time are all left as they were. Counting it as a failure would
- * blame the provider for a host that answered; counting it as reachable would let
- * a redirecting host pass as healthy. Only when the route was last probed and
- * when it is next probed move, and the lease is released.
+ * The route's health reads `unverified`, with `redirected` as the reason and the
+ * time that reason began, until a probe proves the endpoint reachable again. It is
+ * neither counted as a failure (the host did answer) nor credited as reachable
+ * (the real endpoint was never asked), so the failure count, the last-success
+ * time, the incident and the inference proof are left exactly as they were. A
+ * route with an open incident keeps that state: the incident is the stronger
+ * statement and a redirect does not soften it.
  */
 async function recordRedirected(
   transaction: PgTransactionClient,
   probe: Parameters<typeof recordProbeResult>[1],
   route: RouteState,
 ): Promise<ProbeResult> {
+  const health = route.incident_id === null ? "unverified" : route.health;
   await transaction.query(
     `update bakery.provider_routes
-        set last_probe_at = $3, next_probe_at = $4,
+        set health = $3, last_probe_at = $4, next_probe_at = $5,
             updated_at = now(), version = version + 1
       where organization_id = $1 and id = $2`,
-    [probe.organizationId, probe.routeId, probe.observedAt, probe.nextProbeAt],
+    [
+      probe.organizationId,
+      probe.routeId,
+      health,
+      probe.observedAt,
+      probe.nextProbeAt,
+    ],
   );
   await transaction.query(
     `insert into bakery.provider_route_health (
-       organization_id, route_id, health, evidence_watermark, last_probe_at,
-       next_probe_at, probe_lease_expires_at, incident_id, incident_generation
-     ) values ($1, $2, $3, $4, $5, $6, null, $7, $8)
+       organization_id, route_id, health, reason, reason_since,
+       evidence_watermark, last_probe_at, next_probe_at, probe_lease_expires_at,
+       incident_id, incident_generation
+     ) values ($1, $2, $3, 'redirected', $5, $4, $5, $6, null, $7, $8)
      on conflict (organization_id, route_id) do update
-       set evidence_watermark = excluded.evidence_watermark,
+       set health = excluded.health,
+           reason_since = case
+             when bakery.provider_route_health.reason is distinct from 'redirected'
+               then excluded.last_probe_at
+             else bakery.provider_route_health.reason_since end,
+           reason = 'redirected',
+           evidence_watermark = excluded.evidence_watermark,
            last_probe_at = excluded.last_probe_at,
            next_probe_at = excluded.next_probe_at,
            probe_lease_expires_at = null,
@@ -349,7 +368,7 @@ async function recordRedirected(
     [
       probe.organizationId,
       probe.routeId,
-      route.health,
+      health,
       probe.outcome.evidenceWatermark,
       probe.observedAt,
       probe.nextProbeAt,
@@ -387,14 +406,22 @@ async function recordReachable(
       ],
     );
   }
+  // A redirect left the route `unverified` (see `recordRedirected`). A route that
+  // had proven inference before, and has no incident, returns to what it was once
+  // the endpoint answers for itself again; one that never proved inference stays
+  // unverified, because reachable proves nothing about that.
+  const health = open === undefined && route.health === "unverified" &&
+      route.inference_verified_at !== null
+    ? "healthy"
+    : route.health;
   await writeRoute(transaction, probe, {
-    health: route.health,
+    health,
     incidentId: open?.id ?? null,
     incidentGeneration: route.incident_generation,
     inferenceVerifiedAt: undefined,
   });
   await upsertHealth(transaction, probe, {
-    health: route.health,
+    health,
     reason: open === undefined ? null : "reachable_inference_unverified",
     consecutiveFailures: 0,
     incidentId: open?.id ?? null,
@@ -508,10 +535,16 @@ async function upsertHealth(
        organization_id, route_id, health, reason, consecutive_failures,
        evidence_watermark, last_failure_at, last_success_at, last_probe_at,
        probe_lease_expires_at, incident_id, incident_generation,
-       inference_verified_at, next_probe_at
-     ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, null, $10, $11, $12, $13)
+       inference_verified_at, next_probe_at, reason_since
+     ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, null, $10, $11, $12, $13,
+       case when $4::text is null then null else $9::timestamptz end)
      on conflict (organization_id, route_id) do update
        set health = excluded.health,
+           reason_since = case
+             when excluded.reason is null then null
+             when bakery.provider_route_health.reason is distinct from excluded.reason
+               then excluded.last_probe_at
+             else bakery.provider_route_health.reason_since end,
            reason = excluded.reason,
            consecutive_failures = excluded.consecutive_failures,
            evidence_watermark = excluded.evidence_watermark,
