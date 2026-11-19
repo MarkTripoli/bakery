@@ -2,6 +2,9 @@ import { z } from "zod";
 import { defineAction, defineIntegration } from "@bakery/integration-sdk";
 
 const COMMENT_REF = { id: "github.issue.comment.create", version: 1 } as const;
+
+/** The action that writes Bakery's status note on an issue (#69): the comment action. */
+export const TICKET_NOTE_ACTION = COMMENT_REF;
 const LIST_REF = { id: "github.issue.comments.list", version: 1 } as const;
 const MAX_PAGES = 20;
 const PAGE_SIZE = 100;

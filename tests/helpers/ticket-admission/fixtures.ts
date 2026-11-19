@@ -46,6 +46,11 @@ import {
 } from "../../../apps/server/src/modules/work/ticket-admission.ts";
 import type { TicketPrefetch } from "../../../apps/server/src/modules/work/ticket-prefetch.ts";
 import type {
+  TicketNoteRequest,
+  TicketNoteResult,
+  TicketNoteWriter,
+} from "../../../apps/server/src/modules/work/ticket-notes.ts";
+import type {
   IssueRef,
   PredecessorProof,
   TicketActorRole,
@@ -544,13 +549,40 @@ export type PolicyOverrides = {
  * `budget` gives the app the server budget policy (so a ready issue can be
  * admitted over HTTP); `liveFactIndex` leaves the app its stored-fact index.
  */
+/** An in-memory status-note writer: records every post, answers scripted results. */
+export type MemoryNoteWriter = TicketNoteWriter & {
+  posts: TicketNoteRequest[];
+  /** Answers of the next posts, oldest first; an empty queue posts comment ids 1001, 1002, ... */
+  next: TicketNoteResult[];
+  /** Awaited inside a post, before it answers; lets a test hold a write in flight. */
+  hold: Promise<void> | null;
+};
+
+export function createMemoryNoteWriter(): MemoryNoteWriter {
+  let counter = 1000;
+  const writer: MemoryNoteWriter = {
+    posts: [],
+    next: [],
+    hold: null,
+    async post(request) {
+      writer.posts.push(request);
+      if (writer.hold !== null) await writer.hold;
+      return writer.next.shift() ??
+        { kind: "posted", externalId: String(++counter) };
+    },
+  };
+  return writer;
+}
+
 export async function openTicketFixture(
   options: { label?: string; budget?: boolean; liveFactIndex?: boolean } = {},
 ) {
   const reader = createMemoryTicketReader();
   const facts = createMemoryFactIndex();
+  const notes = createMemoryNoteWriter();
   const f: GitHubAppFixture = await openGitHubAppFixture({
     ticketReader: reader,
+    ticketNoteWriter: notes,
     ticketFactIndex: options.liveFactIndex ? undefined : facts,
     env: options.budget ? presetBudgetEnv : undefined,
   });
@@ -613,6 +645,7 @@ export async function openTicketFixture(
       f,
       reader,
       facts,
+      notes,
       organizationId: f.organizationId,
       adminId: f.adminId,
       developerId: f.developerId,

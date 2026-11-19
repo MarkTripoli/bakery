@@ -4,6 +4,7 @@ import type { PgDatabase } from "../../platform/database.ts";
 import { type AuthVariables, createActionContext } from "../auth/middleware.ts";
 import { createTicketActionRegistry } from "./ticket-actions.ts";
 import type { TicketOperationDependencies } from "./ticket-operation-runner.ts";
+import type { TicketNoteWriter } from "./ticket-notes.ts";
 
 /** Longest a ticket request may run: a preview reads up to 25 issues. */
 export const TICKET_DEADLINE_MS = 30_000;
@@ -19,6 +20,8 @@ export function createTicketRoutes(
     session: MiddlewareHandler<{ Variables: AuthVariables }>;
     publicBaseUrl: string;
     cursorSecret: string;
+    /** Writes Bakery's status note on a ticket; see `ticket-notes.ts`. */
+    noteWriter?: TicketNoteWriter;
   },
 ) {
   const app = new Hono<{ Variables: AuthVariables }>();

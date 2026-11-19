@@ -8853,6 +8853,33 @@
     {
       "group": "Tickets",
       "method": "POST",
+      "path": "/v1/ticket-task-links/{id}/note-syncs",
+      "action": "ticketTaskLinks.resyncNote",
+      "access": "Developer",
+      "permission": "ticketTaskLink:write",
+      "input": "TicketTaskLinkNoteSync",
+      "output": "TicketTaskLink",
+      "event": "ticket.link_changed",
+      "mcp": "bakery_ticketTaskLinks_resyncNote",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Tickets",
+      "method": "POST",
       "path": "/v1/external-tickets/{id}/requests",
       "action": "ticketRequests.create",
       "access": "Developer+admission authority",
@@ -10341,6 +10368,7 @@
     "ticketReadiness.create",
     "ticketTaskLinks.create",
     "ticketTaskLinks.list",
+    "ticketTaskLinks.resyncNote",
     "ticketRequests.create",
     "notifications.list",
     "notifications.count",
@@ -32933,6 +32961,70 @@
           }
         }
       },
+      "/v1/ticket-task-links/{id}/note-syncs": {
+        "post": {
+          "operationId": "ticketTaskLinks.resyncNote",
+          "parameters": [
+            {
+              "name": "id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/TicketTaskLink"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request."
+            },
+            "401": {
+              "description": "Authentication required."
+            },
+            "403": {
+              "description": "Forbidden."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          },
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TicketTaskLinkNoteSync"
+                }
+              }
+            }
+          }
+        }
+      },
       "/v1/external-tickets/{id}/requests": {
         "post": {
           "operationId": "ticketRequests.create",
@@ -43658,6 +43750,7 @@
                 "ticketReadiness.create",
                 "ticketTaskLinks.create",
                 "ticketTaskLinks.list",
+                "ticketTaskLinks.resyncNote",
                 "ticketRequests.create",
                 "externalTickets.create",
                 "pluginPackages.list",
@@ -56843,6 +56936,13 @@
           },
           "additionalProperties": false,
           "description": "Query for the links between external tickets and Bakery tasks, from either side, with each link's role and the sync health of Bakery's status note on the ticket."
+        },
+        "TicketTaskLinkNoteSync": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false,
+          "description": "Asks Bakery to post its status note on the ticket of one primary link again, after the last write failed or when none was posted yet. The note is written by the source provider's registered comment action as the caller, through the integration gate and the effect ledger, so the caller needs that action's grant on the repository; a write the gate or the provider refuses is recorded on the link as failed with its problem code, not answered as an error."
         },
         "TicketReadinessCreate": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -88301,6 +88401,7 @@
                 "ticketReadiness.create",
                 "ticketTaskLinks.create",
                 "ticketTaskLinks.list",
+                "ticketTaskLinks.resyncNote",
                 "ticketRequests.create",
                 "externalTickets.create",
                 "pluginPackages.list",
@@ -88814,6 +88915,7 @@
                 "ticketReadiness.create",
                 "ticketTaskLinks.create",
                 "ticketTaskLinks.list",
+                "ticketTaskLinks.resyncNote",
                 "ticketRequests.create",
                 "externalTickets.create",
                 "pluginPackages.list",
@@ -89327,6 +89429,7 @@
                 "ticketReadiness.create",
                 "ticketTaskLinks.create",
                 "ticketTaskLinks.list",
+                "ticketTaskLinks.resyncNote",
                 "ticketRequests.create",
                 "externalTickets.create",
                 "pluginPackages.list",
@@ -112432,14 +112535,14 @@
                 "primary",
                 "reference"
               ],
-              "description": "Access role assigned to this ticket task link record."
+              "description": "primary for the link an admission created (the task was started from the ticket; at most one per task), reference for a link a person added (the task mentions the ticket)."
             },
             "statusCommentExternalId": {
               "anyOf": [
                 {
                   "type": "string",
                   "maxLength": 65536,
-                  "description": "UUID identifying the related status comment external resource. May be null when unavailable."
+                  "description": "The provider's id of Bakery's status note on the ticket, as the comment action confirmed it; null until a note is posted."
                 },
                 {
                   "type": "null",
@@ -112454,7 +112557,7 @@
                   "type": "integer",
                   "minimum": -9007199254740991,
                   "maximum": 9007199254740991,
-                  "description": "Last synced run revision value recorded for this ticket task link record. May be null when unavailable."
+                  "description": "Run revision the status note last described; null until a note records one."
                 },
                 {
                   "type": "null",
@@ -112471,14 +112574,14 @@
                 "pending",
                 "failed"
               ],
-              "description": "Current lifecycle state of this ticket task link record."
+              "description": "State of Bakery's status note on the ticket: unknown before any write, pending while a write is in flight, healthy once the provider confirmed the note, failed when the last write was refused (lastProblemCode says why)."
             },
             "lastProblemCode": {
               "anyOf": [
                 {
                   "type": "string",
                   "maxLength": 65536,
-                  "description": "Bounded string|null value identifying or describing this ticket task link record. May be null when unavailable."
+                  "description": "Fixed lowercase code of the last failed note write (for example auth_forbidden when the caller holds no grant for the provider's comment action); null after a confirmed note and before any failure."
                 },
                 {
                   "type": "null",
@@ -112557,14 +112660,14 @@
                 "primary",
                 "reference"
               ],
-              "description": "Access role assigned to this ticket task link record."
+              "description": "primary for the link an admission created (the task was started from the ticket; at most one per task), reference for a link a person added (the task mentions the ticket)."
             },
             "statusCommentExternalId": {
               "anyOf": [
                 {
                   "type": "string",
                   "maxLength": 65536,
-                  "description": "UUID identifying the related status comment external resource. May be null when unavailable."
+                  "description": "The provider's id of Bakery's status note on the ticket, as the comment action confirmed it; null until a note is posted."
                 },
                 {
                   "type": "null",
@@ -112579,7 +112682,7 @@
                   "type": "integer",
                   "minimum": -9007199254740991,
                   "maximum": 9007199254740991,
-                  "description": "Last synced run revision value recorded for this ticket task link record. May be null when unavailable."
+                  "description": "Run revision the status note last described; null until a note records one."
                 },
                 {
                   "type": "null",
@@ -112596,14 +112699,14 @@
                 "pending",
                 "failed"
               ],
-              "description": "Current lifecycle state of this ticket task link record."
+              "description": "State of Bakery's status note on the ticket: unknown before any write, pending while a write is in flight, healthy once the provider confirmed the note, failed when the last write was refused (lastProblemCode says why)."
             },
             "lastProblemCode": {
               "anyOf": [
                 {
                   "type": "string",
                   "maxLength": 65536,
-                  "description": "Bounded string|null value identifying or describing this ticket task link record. May be null when unavailable."
+                  "description": "Fixed lowercase code of the last failed note write (for example auth_forbidden when the caller holds no grant for the provider's comment action); null after a confirmed note and before any failure."
                 },
                 {
                   "type": "null",
@@ -112771,7 +112874,7 @@
             "version"
           ],
           "additionalProperties": false,
-          "description": "An explicit, same-organization link between one external ticket and one Bakery task, carrying its role (primary or reference) and per-link sync health. Returned by ticketTaskLinks.create; a ticket/task pair is unique, at most one link per task is primary, and linking alone starts no work and widens no audience."
+          "description": "An explicit, same-organization link between one external ticket and one Bakery task, carrying its role (primary or reference) and the state of Bakery's status note on the ticket. Returned by ticketTaskLinks.create, ticketTaskLinks.list and ticketTaskLinks.resyncNote; a ticket/task pair is unique, at most one link per task is primary, and linking alone starts no work and widens no audience."
         },
         "ticket_requests": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -134157,6 +134260,7 @@
                       "ticketReadiness.create",
                       "ticketTaskLinks.create",
                       "ticketTaskLinks.list",
+                      "ticketTaskLinks.resyncNote",
                       "ticketRequests.create",
                       "externalTickets.create",
                       "pluginPackages.list",
@@ -201513,7 +201617,7 @@
                   "version"
                 ],
                 "additionalProperties": false,
-                "description": "An explicit, same-organization link between one external ticket and one Bakery task, carrying its role (primary or reference) and per-link sync health. Returned by ticketTaskLinks.create; a ticket/task pair is unique, at most one link per task is primary, and linking alone starts no work and widens no audience."
+                "description": "An explicit, same-organization link between one external ticket and one Bakery task, carrying its role (primary or reference) and the state of Bakery's status note on the ticket. Returned by ticketTaskLinks.create, ticketTaskLinks.list and ticketTaskLinks.resyncNote; a ticket/task pair is unique, at most one link per task is primary, and linking alone starts no work and widens no audience."
               },
               "description": "TicketTaskLink items in this cursor page. Page<TicketTaskLink>.items must contain at most 100 items."
             },
@@ -221367,7 +221471,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:35289c7b7121b46622c0a6a312265ec2ac855f7d8f0eedef881f5df75bcc994e",
+  "compatibilityDigest": "sha256:d82f0d7ef9344aa507745ac8aae22c94fbf84d23da4eb4c75ca09b539fbc168b",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -228947,6 +229051,7 @@
             "ticketReadiness.create",
             "ticketTaskLinks.create",
             "ticketTaskLinks.list",
+            "ticketTaskLinks.resyncNote",
             "ticketRequests.create",
             "externalTickets.create",
             "pluginPackages.list",
@@ -242176,6 +242281,13 @@
       },
       "additionalProperties": false,
       "description": "Query for the links between external tickets and Bakery tasks, from either side, with each link's role and the sync health of Bakery's status note on the ticket."
+    },
+    "TicketTaskLinkNoteSync": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false,
+      "description": "Asks Bakery to post its status note on the ticket of one primary link again, after the last write failed or when none was posted yet. The note is written by the source provider's registered comment action as the caller, through the integration gate and the effect ledger, so the caller needs that action's grant on the repository; a write the gate or the provider refuses is recorded on the link as failed with its problem code, not answered as an error."
     },
     "TicketReadinessCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -273742,6 +273854,7 @@
             "ticketReadiness.create",
             "ticketTaskLinks.create",
             "ticketTaskLinks.list",
+            "ticketTaskLinks.resyncNote",
             "ticketRequests.create",
             "externalTickets.create",
             "pluginPackages.list",
@@ -274255,6 +274368,7 @@
             "ticketReadiness.create",
             "ticketTaskLinks.create",
             "ticketTaskLinks.list",
+            "ticketTaskLinks.resyncNote",
             "ticketRequests.create",
             "externalTickets.create",
             "pluginPackages.list",
@@ -274768,6 +274882,7 @@
             "ticketReadiness.create",
             "ticketTaskLinks.create",
             "ticketTaskLinks.list",
+            "ticketTaskLinks.resyncNote",
             "ticketRequests.create",
             "externalTickets.create",
             "pluginPackages.list",
@@ -297963,14 +298078,14 @@
             "primary",
             "reference"
           ],
-          "description": "Access role assigned to this ticket task link record."
+          "description": "primary for the link an admission created (the task was started from the ticket; at most one per task), reference for a link a person added (the task mentions the ticket)."
         },
         "statusCommentExternalId": {
           "anyOf": [
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "UUID identifying the related status comment external resource. May be null when unavailable."
+              "description": "The provider's id of Bakery's status note on the ticket, as the comment action confirmed it; null until a note is posted."
             },
             {
               "type": "null",
@@ -297985,7 +298100,7 @@
               "type": "integer",
               "minimum": -9007199254740991,
               "maximum": 9007199254740991,
-              "description": "Last synced run revision value recorded for this ticket task link record. May be null when unavailable."
+              "description": "Run revision the status note last described; null until a note records one."
             },
             {
               "type": "null",
@@ -298002,14 +298117,14 @@
             "pending",
             "failed"
           ],
-          "description": "Current lifecycle state of this ticket task link record."
+          "description": "State of Bakery's status note on the ticket: unknown before any write, pending while a write is in flight, healthy once the provider confirmed the note, failed when the last write was refused (lastProblemCode says why)."
         },
         "lastProblemCode": {
           "anyOf": [
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Bounded string|null value identifying or describing this ticket task link record. May be null when unavailable."
+              "description": "Fixed lowercase code of the last failed note write (for example auth_forbidden when the caller holds no grant for the provider's comment action); null after a confirmed note and before any failure."
             },
             {
               "type": "null",
@@ -298088,14 +298203,14 @@
             "primary",
             "reference"
           ],
-          "description": "Access role assigned to this ticket task link record."
+          "description": "primary for the link an admission created (the task was started from the ticket; at most one per task), reference for a link a person added (the task mentions the ticket)."
         },
         "statusCommentExternalId": {
           "anyOf": [
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "UUID identifying the related status comment external resource. May be null when unavailable."
+              "description": "The provider's id of Bakery's status note on the ticket, as the comment action confirmed it; null until a note is posted."
             },
             {
               "type": "null",
@@ -298110,7 +298225,7 @@
               "type": "integer",
               "minimum": -9007199254740991,
               "maximum": 9007199254740991,
-              "description": "Last synced run revision value recorded for this ticket task link record. May be null when unavailable."
+              "description": "Run revision the status note last described; null until a note records one."
             },
             {
               "type": "null",
@@ -298127,14 +298242,14 @@
             "pending",
             "failed"
           ],
-          "description": "Current lifecycle state of this ticket task link record."
+          "description": "State of Bakery's status note on the ticket: unknown before any write, pending while a write is in flight, healthy once the provider confirmed the note, failed when the last write was refused (lastProblemCode says why)."
         },
         "lastProblemCode": {
           "anyOf": [
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Bounded string|null value identifying or describing this ticket task link record. May be null when unavailable."
+              "description": "Fixed lowercase code of the last failed note write (for example auth_forbidden when the caller holds no grant for the provider's comment action); null after a confirmed note and before any failure."
             },
             {
               "type": "null",
@@ -298302,7 +298417,7 @@
         "version"
       ],
       "additionalProperties": false,
-      "description": "An explicit, same-organization link between one external ticket and one Bakery task, carrying its role (primary or reference) and per-link sync health. Returned by ticketTaskLinks.create; a ticket/task pair is unique, at most one link per task is primary, and linking alone starts no work and widens no audience."
+      "description": "An explicit, same-organization link between one external ticket and one Bakery task, carrying its role (primary or reference) and the state of Bakery's status note on the ticket. Returned by ticketTaskLinks.create, ticketTaskLinks.list and ticketTaskLinks.resyncNote; a ticket/task pair is unique, at most one link per task is primary, and linking alone starts no work and widens no audience."
     },
     "ticket_requests": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -319746,6 +319861,7 @@
                   "ticketReadiness.create",
                   "ticketTaskLinks.create",
                   "ticketTaskLinks.list",
+                  "ticketTaskLinks.resyncNote",
                   "ticketRequests.create",
                   "externalTickets.create",
                   "pluginPackages.list",
@@ -387190,7 +387306,7 @@
               "version"
             ],
             "additionalProperties": false,
-            "description": "An explicit, same-organization link between one external ticket and one Bakery task, carrying its role (primary or reference) and per-link sync health. Returned by ticketTaskLinks.create; a ticket/task pair is unique, at most one link per task is primary, and linking alone starts no work and widens no audience."
+            "description": "An explicit, same-organization link between one external ticket and one Bakery task, carrying its role (primary or reference) and the state of Bakery's status note on the ticket. Returned by ticketTaskLinks.create, ticketTaskLinks.list and ticketTaskLinks.resyncNote; a ticket/task pair is unique, at most one link per task is primary, and linking alone starts no work and widens no audience."
           },
           "description": "TicketTaskLink items in this cursor page. Page<TicketTaskLink>.items must contain at most 100 items."
         },

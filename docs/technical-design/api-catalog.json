@@ -8483,6 +8483,32 @@
     {
       "group": "Tickets",
       "method": "POST",
+      "path": "/v1/ticket-task-links/{id}/note-syncs",
+      "action": "ticketTaskLinks.resyncNote",
+      "access": "Developer",
+      "permission": "ticketTaskLink:write",
+      "input": "TicketTaskLinkNoteSync",
+      "output": "TicketTaskLink",
+      "event": "ticket.link_changed",
+      "mcp": "bakery_ticketTaskLinks_resyncNote",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Tickets",
+      "method": "POST",
       "path": "/v1/external-tickets/{id}/requests",
       "action": "ticketRequests.create",
       "access": "Developer+admission authority",

@@ -19,6 +19,7 @@ import {
   withTicketFixture,
 } from "./fixtures.ts";
 import { assertNoDeadlock, holdRow, raceInOrder } from "../lock-race.ts";
+import { addMember } from "../durable-questions.ts";
 import {
   factsOf,
   idleInTransaction,
@@ -666,6 +667,226 @@ Deno.test("issue 69 reads: links list from either side, keyset paged, and PRs fi
     );
     assertEquals((await pulls(second.id)).items, []);
     assertEquals((await pulls(crypto.randomUUID())).items, []);
+  });
+});
+
+/** Inserts a primary link for a fresh task of the source, as an admission would; returns its id. */
+async function insertPrimaryLink(fx: TicketFixture, ticketId: string) {
+  const taskId = await fx.createPlainTask();
+  const id = crypto.randomUUID();
+  await fx.owner.query(
+    `insert into bakery.ticket_task_links (
+       id, organization_id, external_ticket_id, task_id, role
+     ) values ($1, $2, $3, $4, 'primary')`,
+    [id, fx.organizationId, ticketId, taskId],
+  );
+  return { id, taskId };
+}
+
+type NoteLink = LinkView & { version: number };
+
+Deno.test("issue 69 note: a resync posts Bakery's note, records a failure as failed, and retries", async () => {
+  await withTicketFixture(async (fx) => {
+    const sourceId = await fx.insertSource();
+    seedIssues(fx, 1);
+    await previewAll(fx, sourceId);
+    const ticket = await ticketOf(fx, sourceId, 1);
+    const { id, taskId } = await insertPrimaryLink(fx, ticket.id);
+    const path = `/v1/ticket-task-links/${id}/note-syncs`;
+
+    // The writer refuses: the link records failed with the code, version moves twice.
+    fx.notes.next.push({ kind: "failed", problemCode: "auth_forbidden" });
+    const failed = await read<NoteLink>(
+      await post(fx, path, {}, { ifMatch: 1 }),
+      201,
+    );
+    assertEquals(
+      [
+        failed.syncHealth,
+        failed.lastProblemCode,
+        failed.statusCommentExternalId,
+        failed.version,
+      ],
+      ["failed", "auth_forbidden", null, 3],
+    );
+    assertEquals(fx.notes.posts.length, 1);
+    const asked = fx.notes.posts[0];
+    assertEquals(
+      [asked.provider, asked.connectionId, asked.resourceId, asked.issueNumber],
+      ["github", fx.connectionId, fx.resource.id, 1],
+    );
+    assertEquals(asked.actorPrincipalId, fx.adminId);
+    assert(asked.body.startsWith("Bakery is working on this issue."));
+
+    // A stale If-Match is refused before any write; none at all is required.
+    assertEquals((await post(fx, path, {}, { ifMatch: 1 })).status, 412);
+    assertEquals((await post(fx, path, {})).status, 428);
+    assertEquals(fx.notes.posts.length, 1);
+
+    // The retry posts: healthy with the provider's comment id.
+    const key = crypto.randomUUID();
+    const healthy = await read<NoteLink>(
+      await post(fx, path, {}, { ifMatch: 3, key }),
+      201,
+    );
+    assertEquals(
+      [
+        healthy.syncHealth,
+        healthy.lastProblemCode,
+        healthy.statusCommentExternalId,
+        healthy.version,
+      ],
+      ["healthy", null, "1001", 5],
+    );
+    assertEquals(fx.notes.posts.length, 2);
+    // The same key answers from the stored response without writing again.
+    assertEquals(
+      await read(await post(fx, path, {}, { ifMatch: 3, key }), 201),
+      healthy,
+    );
+    assertEquals(fx.notes.posts.length, 2);
+    // A note that is up to date is not written again.
+    const current = await post(fx, path, {}, { ifMatch: 5 });
+    assertEquals(current.status, 409);
+    assertEquals((await current.json() as Problem).reason, "note_up_to_date");
+    assertEquals(fx.notes.posts.length, 2);
+
+    // The link list shows the note's state.
+    const listed = await read<Page<LinkView>>(
+      await ticketCall(fx, "GET", `/v1/ticket-task-links?taskId=${taskId}`),
+      200,
+    );
+    assertEquals(listed.items.map((link) => link.syncHealth), ["healthy"]);
+    assertEquals(await factsOf(fx, "ticket_task_link", id), {
+      audit: ["ticketTaskLinks.resyncNote", "ticketTaskLinks.resyncNote"],
+      events: ["ticket.link_changed", "ticket.link_changed"],
+      outbox: 0,
+    });
+
+    // A reference link carries no note.
+    const reference = await read<NoteLink>(
+      await post(fx, `${TICKETS}/${ticket.id}/links`, {
+        taskId: await fx.createPlainTask(),
+        role: "reference",
+      }),
+      201,
+    );
+    const refused = await post(
+      fx,
+      `/v1/ticket-task-links/${reference.id}/note-syncs`,
+      {},
+      { ifMatch: reference.version },
+    );
+    assertEquals(refused.status, 422);
+    assertEquals(
+      (await refused.json() as Problem).issues?.[0].code,
+      "note_requires_primary_link",
+    );
+    // Another organization's link (here: none by that id) is 404.
+    assertEquals(
+      (await post(
+        fx,
+        `/v1/ticket-task-links/${crypto.randomUUID()}/note-syncs`,
+        {},
+        { ifMatch: 1 },
+      )).status,
+      404,
+    );
+    assertEquals(fx.notes.posts.length, 2);
+  });
+});
+
+Deno.test("issue 69 note: a resync is refused while a write of the same link is in flight", async () => {
+  await withTicketFixture(async (fx) => {
+    const sourceId = await fx.insertSource();
+    seedIssues(fx, 1);
+    await previewAll(fx, sourceId);
+    const ticket = await ticketOf(fx, sourceId, 1);
+    const { id } = await insertPrimaryLink(fx, ticket.id);
+    const path = `/v1/ticket-task-links/${id}/note-syncs`;
+    let release!: () => void;
+    fx.notes.hold = new Promise((resolve) => (release = resolve));
+    const first = post(fx, path, {}, { ifMatch: 1 });
+    // Wait until the claim committed and the write started.
+    for (let tries = 0; fx.notes.posts.length === 0 && tries < 200; tries++) {
+      await sleep(25);
+    }
+    assertEquals(fx.notes.posts.length, 1);
+    const claimed = await fx.owner.query<
+      { sync_health: string; version: number }
+    >(
+      `select sync_health, version from bakery.ticket_task_links where id = $1`,
+      [id],
+    );
+    assertEquals(claimed.rows[0], { sync_health: "pending", version: 2 });
+    // The second ask, at the claimed version, is refused and writes nothing.
+    const second = await post(fx, path, {}, { ifMatch: 2 });
+    assertEquals(second.status, 409);
+    assertEquals(
+      (await second.json() as Problem).reason,
+      "note_sync_in_flight",
+    );
+    assertEquals(fx.notes.posts.length, 1);
+    release();
+    const done = await read<NoteLink>(await first, 201);
+    assertEquals([done.syncHealth, done.version], ["healthy", 3]);
+    // A claim older than the in-flight window no longer holds the link.
+    await fx.owner.query(
+      `update bakery.ticket_task_links
+          set sync_health = 'pending', updated_at = now() - interval '1 hour',
+              version = version + 1
+        where id = $1`,
+      [id],
+    );
+    fx.notes.hold = null;
+    const revived = await read<NoteLink>(
+      await post(fx, path, {}, { ifMatch: 4 }),
+      201,
+    );
+    assertEquals(revived.syncHealth, "healthy");
+  });
+});
+
+Deno.test("issue 69 note: only a Developer may resync; a viewer is refused before any write", async () => {
+  await withTicketFixture(async (fx) => {
+    const sourceId = await fx.insertSource();
+    seedIssues(fx, 1);
+    await previewAll(fx, sourceId);
+    const ticket = await ticketOf(fx, sourceId, 1);
+    const { id } = await insertPrimaryLink(fx, ticket.id);
+    const path = `/v1/ticket-task-links/${id}/note-syncs`;
+    const viewer = await addMember(
+      fx.f,
+      {
+        organizationId: fx.organizationId,
+        principalId: fx.adminId,
+        cookie: fx.f.adminCookie,
+        applicationId: fx.applicationId,
+        repositoryId: fx.repositoryId,
+        conversationId: "",
+        agentVersionId: "",
+      },
+      "note-viewer",
+      "viewer",
+    );
+    const asViewer = await post(fx, path, {}, {
+      ifMatch: 1,
+      cookie: viewer.cookie,
+    });
+    assertEquals(asViewer.status, 403);
+    assertEquals(fx.notes.posts.length, 0);
+    const untouched = await fx.owner.query<{ sync_health: string }>(
+      `select sync_health from bakery.ticket_task_links where id = $1`,
+      [id],
+    );
+    assertEquals(untouched.rows[0].sync_health, "unknown");
+    // The developer may, and the write runs as them.
+    const asDeveloper = await read<NoteLink>(
+      await post(fx, path, {}, { ifMatch: 1, cookie: fx.f.developerCookie }),
+      201,
+    );
+    assertEquals(asDeveloper.syncHealth, "healthy");
+    assertEquals(fx.notes.posts[0].actorPrincipalId, fx.developerId);
   });
 });
 

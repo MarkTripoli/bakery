@@ -7167,6 +7167,33 @@ export const clientManifest = {
     {
       "group": "Tickets",
       "method": "POST",
+      "path": "/v1/ticket-task-links/{id}/note-syncs",
+      "action": "ticketTaskLinks.resyncNote",
+      "access": "Developer",
+      "permission": "ticketTaskLink:write",
+      "input": "TicketTaskLinkNoteSync",
+      "output": "TicketTaskLink",
+      "event": "ticket.link_changed",
+      "mcp": "bakery_ticketTaskLinks_resyncNote",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Tickets",
+      "method": "POST",
       "path": "/v1/external-tickets/{id}/requests",
       "action": "ticketRequests.create",
       "access": "Developer+admission authority",
@@ -13346,6 +13373,7 @@ export const clientManifest = {
             "ticketReadiness.create",
             "ticketTaskLinks.create",
             "ticketTaskLinks.list",
+            "ticketTaskLinks.resyncNote",
             "ticketRequests.create",
             "externalTickets.create",
             "pluginPackages.list",
@@ -18808,6 +18836,13 @@ export const clientManifest = {
       },
       "additionalProperties": false,
       "description": "Query for the links between external tickets and Bakery tasks, from either side, with each link's role and the sync health of Bakery's status note on the ticket."
+    },
+    "TicketTaskLinkNoteSync": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false,
+      "description": "Asks Bakery to post its status note on the ticket of one primary link again, after the last write failed or when none was posted yet. The note is written by the source provider's registered comment action as the caller, through the integration gate and the effect ledger, so the caller needs that action's grant on the repository; a write the gate or the provider refuses is recorded on the link as failed with its problem code, not answered as an error."
     },
     "TicketReadinessCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -34948,6 +34983,7 @@ export const clientManifest = {
                   "ticketReadiness.create",
                   "ticketTaskLinks.create",
                   "ticketTaskLinks.list",
+                  "ticketTaskLinks.resyncNote",
                   "ticketRequests.create",
                   "externalTickets.create",
                   "pluginPackages.list",
@@ -51977,6 +52013,7 @@ export const clientManifest = {
             "ticketReadiness.create",
             "ticketTaskLinks.create",
             "ticketTaskLinks.list",
+            "ticketTaskLinks.resyncNote",
             "ticketRequests.create",
             "externalTickets.create",
             "pluginPackages.list",
@@ -64291,7 +64328,7 @@ export const clientManifest = {
         "version"
       ],
       "additionalProperties": false,
-      "description": "An explicit, same-organization link between one external ticket and one Bakery task, carrying its role (primary or reference) and per-link sync health. Returned by ticketTaskLinks.create; a ticket/task pair is unique, at most one link per task is primary, and linking alone starts no work and widens no audience."
+      "description": "An explicit, same-organization link between one external ticket and one Bakery task, carrying its role (primary or reference) and the state of Bakery's status note on the ticket. Returned by ticketTaskLinks.create, ticketTaskLinks.list and ticketTaskLinks.resyncNote; a ticket/task pair is unique, at most one link per task is primary, and linking alone starts no work and widens no audience."
     },
     "Page<TicketTaskLink>": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -64422,7 +64459,7 @@ export const clientManifest = {
               "version"
             ],
             "additionalProperties": false,
-            "description": "An explicit, same-organization link between one external ticket and one Bakery task, carrying its role (primary or reference) and per-link sync health. Returned by ticketTaskLinks.create; a ticket/task pair is unique, at most one link per task is primary, and linking alone starts no work and widens no audience."
+            "description": "An explicit, same-organization link between one external ticket and one Bakery task, carrying its role (primary or reference) and the state of Bakery's status note on the ticket. Returned by ticketTaskLinks.create, ticketTaskLinks.list and ticketTaskLinks.resyncNote; a ticket/task pair is unique, at most one link per task is primary, and linking alone starts no work and widens no audience."
           },
           "description": "TicketTaskLink items in this cursor page. Page<TicketTaskLink>.items must contain at most 100 items."
         },

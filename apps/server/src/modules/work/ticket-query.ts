@@ -377,7 +377,8 @@ export async function getExternalTicket(
   return (await projectTickets(transaction, organizationId, result.rows))[0];
 }
 
-type LinkRow = {
+/** One `ticket_task_links` row as `LINK_COLUMNS` reads it. */
+export type LinkRow = {
   id: string;
   external_ticket_id: string;
   task_id: string;
