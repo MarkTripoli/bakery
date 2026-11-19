@@ -4,6 +4,7 @@ import type {
   TicketActorRole,
   TicketIssueListPage,
   TicketIssueRead,
+  TicketLabelPage,
   TicketLabelProvenance,
   TicketLinksRead,
   TicketReadFailure,
@@ -124,6 +125,16 @@ export function selectTicketSourceReader(
       return reader === null
         ? Promise.resolve(noReader)
         : reader.listIssues(handle, request, signal);
+    },
+    readLabels(
+      handle: TicketSourceHandle,
+      request: { page: number },
+      signal: AbortSignal,
+    ): Promise<TicketLabelPage> {
+      const reader = readerFor(handle);
+      return reader === null
+        ? Promise.resolve(noReader)
+        : reader.readLabels(handle, request, signal);
     },
   };
 }

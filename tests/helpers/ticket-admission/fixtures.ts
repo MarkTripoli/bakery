@@ -57,6 +57,7 @@ import type {
   TicketActorRole,
   TicketFactIndex,
   TicketIssueRead,
+  TicketLabel,
   TicketLabelProvenance,
   TicketLinksRead,
   TicketReadFailure,
@@ -229,6 +230,11 @@ export type MemoryTicketReader = TicketSourceReader & {
   ): void;
   /** Makes the next call of a method answer with a failure. */
   failNext(method: keyof TicketSourceReader, failure?: TicketReadFailure): void;
+  /** The provider's labels, served in pages of `pageSize`; `unsupported` for a tracker without labels. */
+  setLabels(
+    labels: TicketLabel[] | { kind: "unsupported" },
+    pageSize?: number,
+  ): void;
   callsOf(method: keyof TicketSourceReader): ReaderCall[];
   clearCalls(): void;
 };
@@ -268,6 +274,8 @@ export function createMemoryTicketReader(): MemoryTicketReader {
   const proofs = new Map<string, PredecessorProof | TicketReadFailure>();
   const provenance = new Map<string, TicketLabelProvenance>();
   const roles = new Map<string, TicketActorRole>();
+  let labels: TicketLabel[] | { kind: "unsupported" } = [];
+  let labelPageSize = 50;
   const failures = new Map<string, TicketReadFailure[]>();
   let tick = 0;
 
@@ -353,6 +361,21 @@ export function createMemoryTicketReader(): MemoryTicketReader {
           ? { ...answer, rank: GITHUB_ROLE_RANK[answer.permission] }
           : answer as TicketActorRole,
       );
+    },
+    setLabels(next, pageSize = 50) {
+      labels = next;
+      labelPageSize = pageSize;
+    },
+    async readLabels(_handle, request) {
+      const failure = await enter("readLabels", request.page);
+      if (failure) return failure;
+      if (!Array.isArray(labels)) return labels;
+      const start = (request.page - 1) * labelPageSize;
+      return {
+        kind: "present" as const,
+        labels: labels.slice(start, start + labelPageSize),
+        hasNext: start + labelPageSize < labels.length,
+      };
     },
     failNext(method, failure = UNAVAILABLE) {
       failures.set(method, [...(failures.get(method) ?? []), failure]);

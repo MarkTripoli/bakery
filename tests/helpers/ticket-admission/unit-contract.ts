@@ -774,6 +774,7 @@ Deno.test("issue 82 contract: the reader port types accept every documented answ
     readActorRole: () => Promise.resolve({ kind: "absent" }),
     listIssues: () =>
       Promise.resolve({ kind: "present", numbers: [], hasNext: false }),
+    readLabels: () => Promise.resolve({ kind: "unsupported" }),
   };
   const signal = new AbortController().signal;
   const issue = await reader.readIssue(handle, ticketRef(1), signal);
