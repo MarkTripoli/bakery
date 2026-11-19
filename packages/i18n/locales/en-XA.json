@@ -4344,5 +4344,11 @@
   "auth.forgotPassword.title": "⟦Ƒôŕĝôŧ ÿôûŕ þàššŵôŕð? ŧëšŧŧ⟧",
   "auth.forgotPassword.description": "⟦Ɓàķëŕÿ çàññôŧ šëñð à þàššŵôŕð ŕëšëŧ ƒŕôɱ ŧĥïš þàĝë ÿëŧ. Àšķ ŧĥë þëŕšôñ ŵĥô ŕûñš ÿôûŕ Ɓàķëŕÿ šëŕṽëŕ ŧô ŕëšëŧ ïŧ ƒôŕ ÿôû. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
   "auth.forgotPassword.signedInElsewhere": "⟦Ïƒ ÿôû àŕë šŧïļļ šïĝñëð ïñ ôñ àñôŧĥëŕ ðëṽïçë, çĥàñĝë ïŧ ŧĥëŕë: Šëŧŧïñĝš, Àççôûñŧ & šëçûŕïŧÿ, Þàššŵôŕð. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
-  "auth.forgotPassword.back": "⟦Ɓàçķ ŧô šïĝñ ïñ ŧëš⟧"
+  "auth.forgotPassword.back": "⟦Ɓàçķ ŧô šïĝñ ïñ ŧëš⟧",
+  "auth.settings.security.turnOn": "⟦Ŧûŕñ ôñ…⟧",
+  "auth.settings.security.twoFactorOff": "⟦Ôƒƒ⟧",
+  "settings.password.rule": "⟦Ûšë {minLength} ŧô {maxLength} çĥàŕàçŧëŕš. ŧëšŧ çôþÿ ŧë⟧",
+  "settings.password.confirmLabel": "⟦Çôñƒïŕɱ ñëŵ þàššŵôŕð ŧëšŧ⟧",
+  "settings.password.confirmPlaceholder": "⟦Ŧÿþë ŧĥë ñëŵ þàššŵôŕð àĝàïñ ŧëšŧ çô⟧",
+  "settings.password.confirmMismatch": "⟦Ŧĥë ŧŵô þàššŵôŕðš ðô ñôŧ ɱàŧçĥ. ŧëšŧ çôþ⟧"
 }

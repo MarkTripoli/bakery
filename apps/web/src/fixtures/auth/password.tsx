@@ -58,9 +58,12 @@ function PasswordHost({ spec }: { readonly spec: PasswordSpecimen }) {
   return (
     <ChangePasswordScreen
       async={async}
+      confirmMismatch={false}
+      confirmPassword={next}
       currentPassword={current}
       failure={failure}
       newPassword={next}
+      onConfirmChange={() => {}}
       onCurrentChange={setCurrent}
       onNewChange={setNext}
       onRefresh={settle}

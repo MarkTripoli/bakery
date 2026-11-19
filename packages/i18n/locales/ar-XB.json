@@ -4344,5 +4344,11 @@
   "auth.forgotPassword.title": "⟪Forgot your password?⟫",
   "auth.forgotPassword.description": "⟪Bakery cannot send a password reset from this page yet. Ask the person who runs your Bakery server to reset it for you.⟫",
   "auth.forgotPassword.signedInElsewhere": "⟪If you are still signed in on another device, change it there: Settings, Account & security, Password.⟫",
-  "auth.forgotPassword.back": "⟪Back to sign in⟫"
+  "auth.forgotPassword.back": "⟪Back to sign in⟫",
+  "auth.settings.security.turnOn": "⟪Turn on⟫",
+  "auth.settings.security.twoFactorOff": "⟪Off⟫",
+  "settings.password.rule": "⟪Use {minLength} to {maxLength} characters.⟫",
+  "settings.password.confirmLabel": "⟪Confirm new password⟫",
+  "settings.password.confirmPlaceholder": "⟪Type the new password again⟫",
+  "settings.password.confirmMismatch": "⟪The two passwords do not match.⟫"
 }

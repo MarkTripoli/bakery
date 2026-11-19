@@ -11,7 +11,6 @@ import { accessSpecimens } from "./auth/access.tsx";
 import { appearanceSpecimens } from "./auth/appearance.tsx";
 import { profileSpecimens } from "./auth/profile.tsx";
 import { organizationsSpecimens } from "./auth/organizations.tsx";
-import { securitySpecimens } from "./auth/security.tsx";
 import { sessionsSpecimens } from "./auth/sessions.tsx";
 import { revokeSpecimens } from "./auth/revoke.tsx";
 import { clientsSpecimens } from "./auth/clients.tsx";
@@ -64,7 +63,6 @@ const registry: Specimens = {
   ...prefixed("appearance", appearanceSpecimens),
   ...prefixed("your-access", accessSpecimens),
   ...prefixed("section-index", sectionIndexSpecimens),
-  ...prefixed("security", securitySpecimens),
   ...prefixed("sessions", sessionsSpecimens),
   ...prefixed("revoke", revokeSpecimens),
   ...prefixed("revoke-client", revokeClientSpecimens),
