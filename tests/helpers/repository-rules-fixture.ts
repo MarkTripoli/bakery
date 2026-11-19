@@ -4,10 +4,11 @@ import {
 } from "../../packages/config/src/env.ts";
 import {
   closeDatabase,
+  closePgDatabase,
   openDatabase,
-  type openPgDatabase,
+  openPgDatabase,
 } from "../../apps/server/src/platform/database.ts";
-import { resetTestDatabase } from "../../apps/server/src/platform/migrate.ts";
+import { resetToMigratedBaseline } from "./migrated-database.ts";
 import {
   canonicalJson,
   sha256Hex,
@@ -152,12 +153,14 @@ export async function profileFactCounts(
 
 async function reset(): Promise<void> {
   const database = openDatabase(databaseConfig.databaseUrl);
+  const pgDatabase = openPgDatabase(databaseConfig.databaseUrl);
   try {
-    await resetTestDatabase(database, {
+    await resetToMigratedBaseline(database, pgDatabase, {
       targetUrl: databaseConfig.databaseUrl,
       ...readTestDatabaseResetOptions(),
     });
   } finally {
+    await closePgDatabase(pgDatabase);
     await closeDatabase(database);
   }
 }
