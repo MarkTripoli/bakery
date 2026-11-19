@@ -514,7 +514,23 @@ type ProjectedRow = Row & {
   size_bytes: string | null;
   media_type: string | null;
   revision: number | null;
+  trashed_by_id: string | null;
+  trashed_by_name: string | null;
 };
+
+/** Path of a folder, for where a trashed entry came from. */
+async function folderPath(
+  tx: PgTransactionClient,
+  organizationId: string,
+  id: string,
+): Promise<string> {
+  const found = await tx.query<{ path: string }>(
+    UP_FROM +
+      " select '/' || string_agg(name, '/' order by depth desc) as path from up",
+    [organizationId, id],
+  );
+  return found.rows[0].path;
+}
 
 /** An entry as the API returns it. */
 async function project(
@@ -525,11 +541,13 @@ async function project(
   const found = await tx.query<ProjectedRow>(
     UP_FROM + " select " + ENTRY_COLUMNS + "," +
       " (select '/' || string_agg(name, '/' order by depth desc) from up)" +
-      " as path, v.sha256, v.size_bytes::text, v.media_type, v.revision" +
+      " as path, v.sha256, v.size_bytes::text, v.media_type, v.revision," +
+      " entry.trashed_by_id, who.display_name as trashed_by_name" +
       " from bakery.storage_entries entry" +
       " left join bakery.storage_file_versions v" +
       " on v.organization_id = entry.organization_id" +
       " and v.id = entry.current_version_id" +
+      " left join bakery.principals who on who.id = entry.trashed_by_id" +
       " where entry.organization_id = $1 and entry.id = $2",
     [organizationId, id],
   );
@@ -549,6 +567,12 @@ async function project(
     mediaType: row.media_type,
     trashedAt: row.trashed_at?.toISOString() ?? null,
     restoreParentId: row.trash_parent_id,
+    originalName: row.trash_name,
+    originalFolderPath: row.trash_parent_id === null
+      ? null
+      : await folderPath(tx, organizationId, row.trash_parent_id),
+    trashedById: row.trashed_by_id,
+    trashedByName: row.trashed_by_name,
     version: Number(row.version),
     updatedAt: row.updated_at.toISOString(),
   };

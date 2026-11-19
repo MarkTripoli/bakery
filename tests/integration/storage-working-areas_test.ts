@@ -277,6 +277,14 @@ Deno.test("record areas refuse rm, mv and writes; rm in a working area trashes a
     );
     assert(typeof trashed.trashedAt === "string");
     assertEquals(trashed.path, "/trash/draft.md");
+    assertEquals(
+      [trashed.originalName, trashed.originalFolderPath, trashed.trashedById],
+      ["draft.md", "/shared", fixture.principalId],
+    );
+    assert(
+      typeof trashed.trashedByName === "string" &&
+        trashed.trashedByName.length > 0,
+    );
     const listed = await ok(await call(fixture, "GET", "/v1/storage/trash"));
     assertEquals((listed.items as Json[]).map((item) => item.id), [file.id]);
     const restored = await ok(
@@ -289,8 +297,9 @@ Deno.test("record areas refuse rm, mv and writes; rm in a working area trashes a
         },
       ),
     );
-    assertEquals([restored.path, restored.trashedAt], [
+    assertEquals([restored.path, restored.trashedAt, restored.trashedById], [
       "/shared/draft.md",
+      null,
       null,
     ]);
     assertEquals(

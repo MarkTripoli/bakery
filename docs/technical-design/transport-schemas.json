@@ -29035,6 +29035,10 @@
         "mediaType",
         "trashedAt",
         "restoreParentId",
+        "originalName",
+        "originalFolderPath",
+        "trashedById",
+        "trashedByName",
         "version",
         "updatedAt"
       ],
@@ -29053,6 +29057,10 @@
         "mediaType": "string|null",
         "trashedAt": "timestamp|null",
         "restoreParentId": "uuid|null",
+        "originalName": "string|null",
+        "originalFolderPath": "string|null",
+        "trashedById": "uuid|null",
+        "trashedByName": "string|null",
         "version": "integer",
         "updatedAt": "timestamp"
       },
@@ -29065,7 +29073,11 @@
         "sizeBytes",
         "mediaType",
         "trashedAt",
-        "restoreParentId"
+        "restoreParentId",
+        "originalName",
+        "originalFolderPath",
+        "trashedById",
+        "trashedByName"
       ],
       "description": "A folder or file in the organization's storage tree as the caller may see it: where it is, what policy it follows and, for a working-area file, its current version's digest and size.",
       "fieldDescriptions": {
@@ -29083,6 +29095,10 @@
         "mediaType": "Media type of the current working-area version.",
         "trashedAt": "When the entry was deleted to trash; null while it is live.",
         "restoreParentId": "Folder a restore puts a trashed entry back into; null while it is live.",
+        "originalName": "Name the entry had before it was deleted, which a restore gives it back; null while it is live.",
+        "originalFolderPath": "Path of the folder the entry was deleted from, for showing where it came from; null while it is live.",
+        "trashedById": "Person or agent that deleted the entry to trash; null while it is live.",
+        "trashedByName": "Display name of whoever deleted the entry, as shown in the trash list; null while it is live.",
         "version": "Optimistic concurrency version; send it as If-Match to replace, move, delete or restore this entry.",
         "updatedAt": "When the entry or its current version last changed."
       }
