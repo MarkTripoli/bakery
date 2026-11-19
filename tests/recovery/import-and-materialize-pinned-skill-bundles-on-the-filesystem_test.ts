@@ -198,6 +198,7 @@ Deno.test("restart reuses exact identity after readback before finalization", as
   const crashingStore = {
     recover: realStore.recover.bind(realStore),
     putIfAbsent: realStore.putIfAbsent.bind(realStore),
+    stat: realStore.stat.bind(realStore),
     async read(key: string, digest: string, size: number) {
       const bytes = await realStore.read(key, digest, size);
       if (interrupt) {
@@ -296,6 +297,10 @@ Deno.test("lost response restarts into committed replay with no object reads", a
       },
       putIfAbsent() {
         objectCalls.push("put");
+        return Promise.reject(new Error("COMMITTED_REPLAY_TOUCHED_STORAGE"));
+      },
+      stat() {
+        objectCalls.push("stat");
         return Promise.reject(new Error("COMMITTED_REPLAY_TOUCHED_STORAGE"));
       },
       read() {
