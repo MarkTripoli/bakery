@@ -8,6 +8,7 @@ import {
 } from "../workflow-adapter/bakery-postgres-store.ts";
 import { readPlanHost } from "../delivery/plan-host.ts";
 import { createBakeryBudgetRecovery } from "../work/budget-recovery.ts";
+import { createMergeQueueWorkflow } from "../delivery/merge-queue.ts";
 import { createDependencyReleaseWorkflow } from "../work/dependency-release-workflow.ts";
 import {
   createSkillImportRecovery,
@@ -208,6 +209,12 @@ export function createDefaultInngestFunctions(options: {
           client: options.client,
           database: options.database,
           ...options.integrations,
+        }),
+        createMergeQueueWorkflow({
+          client: options.client,
+          database: options.database,
+          github: options.integrations.github,
+          broker: options.integrations.broker,
         }),
         ...createTicketAutomation({
           client: options.client,
