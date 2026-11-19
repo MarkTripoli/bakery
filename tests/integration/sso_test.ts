@@ -658,11 +658,18 @@ Deno.test("removal: the last verified provider is refused while SSO is required,
     assertEquals(both.status, 200, await both.clone().text());
     assertEquals(await state(), { enforce: false, providers: [] });
     const rows = await auditRows(f, "auth.sso", f.organizationId);
-    assertEquals(rows.slice(auditBefore).map((row) => row.operation), [
-      "auth.sso.provider.delete",
-      "auth.sso.enforcement.update",
-    ]);
-    assertEquals(rows.at(-1)?.details, { enforce: false });
+    // Both rows come from one transaction, so they share a timestamp and carry
+    // random ids: their order is not defined, only that exactly these two exist.
+    const written = rows.slice(auditBefore);
+    assertEquals(
+      written.map((row) => row.operation).sort(),
+      ["auth.sso.enforcement.update", "auth.sso.provider.delete"],
+    );
+    assertEquals(
+      written.find((row) => row.operation === "auth.sso.enforcement.update")
+        ?.details,
+      { enforce: false },
+    );
     assertEquals(
       (await passwordSignIn(f, f.developerEmail, f.password)).status,
       200,
