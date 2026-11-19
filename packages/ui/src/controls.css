@@ -181,6 +181,12 @@ input:not([type="hidden"]) {
 .ui-field--label-end > :not(label):not(.ui-field__label-end) {
   grid-column: 1 / -1;
 }
+/* On a touch screen (the responsive target token) the action is a full-size target. */
+.ui-field__label-end .ui-link {
+  align-items: center;
+  display: inline-flex;
+  min-block-size: var(--target-min);
+}
 .ui-field__heading {
   display: grid;
   gap: var(--space-0-5);

@@ -1,6 +1,7 @@
 import type {
   TicketIssueRef,
   TicketSnapshotInput,
+  TicketStatusRef,
 } from "@bakery/contracts/ticket-admission";
 import type { PgTransactionClient } from "../../platform/database.ts";
 
@@ -134,6 +135,12 @@ export type TicketIssueListPage =
   }
   | TicketReadFailure;
 
+/** The statuses an item sits in, or the reason they could not be read. */
+export type TicketStatusRead =
+  | { kind: "present"; statuses: TicketStatusRef[] }
+  | { kind: "unsupported" }
+  | TicketReadFailure;
+
 export interface TicketSourceReader {
   readIssue(
     handle: TicketSourceHandle,
@@ -161,6 +168,27 @@ export interface TicketSourceReader {
     login: string,
     signal: AbortSignal,
   ): Promise<TicketActorRole>;
+  /**
+   * The statuses the item currently sits in, in the provider's own terms.
+   *
+   * A provider that only labels answers `unsupported` rather than an empty
+   * list: an empty list would read as "a provider with statuses, none of them
+   * configured", which is a different thing and would let a misconfigured
+   * source look like a ticket that simply is not ready.
+   */
+  /**
+   * `issue` is the snapshot the caller has already read, when it has one: a
+   * status comes from that snapshot's state and reason, so asking the provider
+   * again would spend a second call to learn what is already known. It is
+   * optional because a caller that has only a number still gets a correct
+   * answer, at the cost of the read.
+   */
+  readStatuses(
+    handle: TicketSourceHandle,
+    number: number,
+    signal: AbortSignal,
+    issue?: TicketSnapshotInput,
+  ): Promise<TicketStatusRead>;
   listIssues(
     handle: TicketSourceHandle,
     request: { page: number; since: string | null },

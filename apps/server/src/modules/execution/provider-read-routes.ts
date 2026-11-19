@@ -4,6 +4,7 @@ import type { PgDatabase } from "../../platform/database.ts";
 import { type AuthVariables, createActionContext } from "../auth/middleware.ts";
 import { createProviderReadActionRegistry } from "./provider-read-actions.ts";
 import { createProviderReadHandlers } from "./provider-reads.ts";
+import { createProviderRoute, updateProviderRoute } from "./provider-writes.ts";
 
 /**
  * The provider route and incident reads (#26 slice 2).
@@ -30,6 +31,7 @@ export function createProviderReadRoutes(options: {
       registry: createProviderReadActionRegistry(
         options.database,
         createProviderReadHandlers(options.cursorSecret),
+        { createRoute: createProviderRoute, updateRoute: updateProviderRoute },
       ),
       publicBaseUrl: options.publicBaseUrl,
       createContext: createActionContext,
