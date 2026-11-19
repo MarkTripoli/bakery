@@ -1061,6 +1061,8 @@ export function ArtifactRetrievalPage(
             <ArtifactEditor
               artifactId={artifactId}
               key={`edit:${scope.sessionGeneration}:${artifactId}`}
+              onViewVersion={() => setEditing(false)}
+              taskId={taskId}
               publishedVersion={versionPages.items.find((candidate) =>
                 candidate.id === view.artifact.currentVersionId
               )?.revision ?? null}

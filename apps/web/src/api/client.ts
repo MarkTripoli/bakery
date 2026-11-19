@@ -277,6 +277,12 @@ export type ArtifactUpdate = ClientInputMap["ArtifactUpdate"];
 export type ArtifactPinResponse = ClientOutputMap["ArtifactPinResult"];
 /** The active shared draft of an artifact (`POST /v1/artifacts/{id}/drafts`). */
 export type DraftResponse = ClientOutputMap["Draft"];
+/** One publication of a draft checkpoint as a new immutable version. */
+export type DraftPublicationResponse = ClientOutputMap["DraftPublication"];
+export type DraftPublicationCreate = ClientInputMap["DraftPublicationCreate"];
+/** A page of the agent suggestions made on a draft. */
+export type DraftSuggestionPageResponse =
+  ClientOutputMap["Page<DraftSuggestion>"];
 export type ArtifactStorageResponse = ClientOutputMap["ArtifactStorage"];
 export type ArtifactPreviewGrantResponse =
   ClientOutputMap["ArtifactPreviewGrant"];
@@ -1541,6 +1547,37 @@ export type BakeryApiClient = {
     readonly artifactId: string;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<DraftResponse>>;
+  /** Reads a draft as it stands: its current checkpoint, text digest and whether this person may publish. */
+  readonly getDraft: (options: {
+    readonly organizationId: string;
+    readonly draftId: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<DraftResponse>>;
+  /**
+   * Publishes one draft checkpoint as the next version. Natural idempotency:
+   * the same checkpoint gives the same version, never a second one.
+   */
+  readonly publishDraft: (options: {
+    readonly organizationId: string;
+    readonly draftId: string;
+    readonly input: DraftPublicationCreate;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<DraftPublicationResponse>>;
+  /** The publication of one checkpoint, if it happened (404 when it did not). */
+  readonly getDraftPublication: (options: {
+    readonly organizationId: string;
+    readonly draftId: string;
+    readonly checkpointId: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<DraftPublicationResponse>>;
+  /** One page of a draft's suggestions, optionally only those in one state. */
+  readonly listDraftSuggestions: (options: {
+    readonly organizationId: string;
+    readonly draftId: string;
+    readonly state?: "waiting" | "accepted" | "rejected" | "no_longer_fits";
+    readonly limit?: number;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<DraftSuggestionPageResponse>>;
   /** The collaboration socket for one organization (`/v1/collaboration`). */
   readonly collaborationSocketUrl: (organizationId: string) => string;
   readonly createMessage: (
@@ -3656,6 +3693,70 @@ export function createBakeryApiClient({
       try {
         const data = await client.actions["drafts.open"](
           { id: options.artifactId },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async getDraft(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["drafts.get"](
+          { id: options.draftId },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async publishDraft(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["draftPublications.create"](
+          { id: options.draftId, ...options.input },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async getDraftPublication(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["draftPublications.get"](
+          { id: options.draftId, checkpointId: options.checkpointId },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listDraftSuggestions(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["draftSuggestions.list"](
+          {
+            id: options.draftId,
+            ...(options.state ? { state: options.state } : {}),
+            ...(options.limit ? { limit: options.limit } : {}),
+          },
           { signal: options.signal },
         );
         return { ok: true, data };
