@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
 import type { PgTransactionClient } from "@bakery/persistence";
 import { StandardError } from "@bakery/contracts/http";
+import { blobKeyLock } from "../../platform/blob-key-lock.ts";
+import { blobObjectKey } from "../catalog/storage-port.ts";
 
 /** Largest file a single blob may be, per chapter 25 §17.5. */
 export const MAX_BLOB_BYTES = 5 * 1024 * 1024 * 1024;
@@ -490,6 +492,19 @@ export async function recordBlob(
   readonly createdAt: Date;
 }> {
   assertDeclared(input.sha256, input.sizeBytes);
+  // Recorded under the same lock the plugin bundle collector takes, so a
+  // completion cannot register a claim on an object while the collector is
+  // deleting it. The key is spelled the way the object key is, tenant and
+  // object ref, which is also what the version writer locks.
+  await tx.query(
+    `select pg_advisory_xact_lock(hashtextextended($1, 0))`,
+    [
+      blobKeyLock(
+        input.organizationId,
+        blobObjectKey(input.organizationId, input.sha256),
+      ),
+    ],
+  );
   const inserted = await tx.query<{ id: string; createdAt: Date }>(
     `insert into bakery.blobs
        (organization_id, sha256, size_bytes, media_type, created_by_id)

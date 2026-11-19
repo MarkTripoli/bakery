@@ -1,8 +1,13 @@
 import { assert, assertEquals } from "@std/assert";
 import { collectPluginBundle } from "../../apps/server/src/modules/catalog/retention/collect-bundle.ts";
+import { blobObjectKey } from "../../apps/server/src/modules/catalog/storage-port.ts";
+import { blobKeyLock } from "../../apps/server/src/platform/blob-key-lock.ts";
+import { recordBlob } from "../../apps/server/src/modules/knowledge/blobs.ts";
 import { SkillFileStoreError } from "../../apps/server/src/modules/catalog/storage-port.ts";
 import { sweepCollectablePluginBundles } from "../../apps/server/src/modules/catalog/retention/sweep-bundles.ts";
 import { withWorkerFixture } from "../helpers/worker-execution/scenarios.ts";
+import { withPgTransaction } from "../../apps/server/src/platform/database.ts";
+import { postgresErrorCode } from "../../apps/server/src/platform/postgres-errors.ts";
 
 /**
  * Bundle retention for private plugin versions (#15, B14.01, AC3).
@@ -401,8 +406,8 @@ Deno.test("a bundle another live version still points at is kept, because two pa
     assertEquals(
       found.rows.filter((row) => row.bundle_purged_at === null).map((row) =>
         row.id
-      ),
-      [withdrawn.versionId, live.versionId],
+      ).sort(),
+      [withdrawn.versionId, live.versionId].sort(),
       "neither version is marked collected",
     );
   });
@@ -539,5 +544,66 @@ Deno.test("two collectable versions sharing bytes still release them", async () 
       "the second version still finishes, against bytes that are already gone",
     );
     assertEquals(deleted, [first.objectRef], "the object is deleted once");
+  });
+});
+
+Deno.test("an upload completing for identical bytes and a sweep contend for one lock", async () => {
+  await withWorkerFixture(async (fixture) => {
+    // The behavioural half of the lock: a completion for the same bytes and a
+    // sweep of a withdrawn plugin share one advisory key, so one of them waits.
+    // Without a shared key both would proceed and the sweep could delete bytes
+    // an upload had just claimed.
+    const seeded = await seedVersion(fixture, { listingStatus: "withdrawn" });
+    const digest = "e".repeat(64);
+    await fixture.pgDatabase.query(
+      `update bakery.plugin_versions set bundle_digest = $2
+        where organization_id = $1 and id = $3`,
+      [fixture.organizationId, digest, seeded.versionId],
+    );
+    const objectKey = blobObjectKey(fixture.organizationId, digest);
+
+    // Hold the key, then try to record a blob for the same bytes with a short
+    // lock timeout: it must refuse rather than queue forever.
+    const blocked = await withPgTransaction(
+      fixture.pgDatabase,
+      async (holder) => {
+        await holder.query(
+          `select pg_advisory_xact_lock(hashtextextended($1, 0))`,
+          [blobKeyLock(fixture.organizationId, objectKey)],
+        );
+        return await withPgTransaction(fixture.pgDatabase, async (other) => {
+          await other.query(`set local lock_timeout = '250ms'`);
+          try {
+            await recordBlob(other, {
+              organizationId: fixture.organizationId,
+              principalId: fixture.principalId,
+              sha256: digest,
+              sizeBytes: 12,
+              mediaType: "text/plain",
+            });
+            return "recorded";
+          } catch (error) {
+            return postgresErrorCode(error);
+          }
+        });
+      },
+    );
+    assertEquals(blocked, "55P03", "the completion waits for the same key");
+
+    // With the key free, the same completion succeeds.
+    assertEquals(
+      await withPgTransaction(
+        fixture.pgDatabase,
+        async (transaction) =>
+          (await recordBlob(transaction, {
+            organizationId: fixture.organizationId,
+            principalId: fixture.principalId,
+            sha256: digest,
+            sizeBytes: 12,
+            mediaType: "text/plain",
+          })).sha256,
+      ),
+      digest,
+    );
   });
 });

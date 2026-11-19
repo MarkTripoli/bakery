@@ -3,6 +3,7 @@ import { appendAudit } from "@bakery/persistence/event-audit";
 import { StandardError } from "@bakery/contracts/http";
 import { type SkillObjectStore } from "../storage-port.ts";
 import { hasProtectedPluginBundleReference } from "./bundle-references.ts";
+import { blobKeyLock } from "../../../platform/blob-key-lock.ts";
 import { postgresErrorCode } from "../../../platform/postgres-errors.ts";
 
 /**
@@ -74,7 +75,7 @@ export async function collectPluginBundle(
       // that change and not by this one.
       await transaction.query(
         `select pg_advisory_xact_lock(hashtextextended($1, 0))`,
-        [`${row.organization_id}:${row.bundle_object_ref}`],
+        [blobKeyLock(row.organization_id, row.bundle_object_ref)],
       );
 
       const withdrawn = row.listing_status === "withdrawn";

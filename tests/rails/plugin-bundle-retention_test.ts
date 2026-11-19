@@ -139,45 +139,60 @@ Deno.test("the rail states which relation it inspects", async () => {
   );
 });
 
-Deno.test("the collector and the version writer lock the same blob key", async () => {
-  // A static pin, not a timing test: it proves both sides name the same key,
-  // which is the part an edit can break silently. That they hold it across the
-  // delete and the insert respectively is visible in each function's order.
+Deno.test("every writer and deleter of an object locks the same key", async () => {
+  // A static pin, not a timing test: it proves all three sides name one key
+  // through one function, which is the part an edit can break silently. That
+  // each holds it across its own write or delete is visible in each function.
   const reader = (path: string) =>
     Deno.readTextFile(new URL(`../../${path}`, import.meta.url));
-  const collector = await reader(
+  const lock = await reader("apps/server/src/platform/blob-key-lock.ts");
+  assert(
+    lock.includes("return `${organizationId}:${objectRef}`;"),
+    "the key is the tenant and the object ref, so two tenants never collide",
+  );
+
+  for (
+    const [label, path] of [
+      [
+        "the collector",
+        "apps/server/src/modules/catalog/retention/collect-bundle.ts",
+      ],
+      [
+        "the version writer",
+        "apps/server/src/modules/catalog/plugin-postgres.ts",
+      ],
+      ["the blob recorder", "apps/server/src/modules/knowledge/blobs.ts"],
+    ] as const
+  ) {
+    const source = await reader(path);
+    const at = source.indexOf("pg_advisory_xact_lock");
+    assert(at > 0, `${label} takes the object lock`);
+    assert(
+      source.slice(at, at + 200).includes("blobKeyLock("),
+      `${label} names the key the one way`,
+    );
+  }
+
+  // Each side takes the lock before the thing it protects.
+  const collect = await reader(
     "apps/server/src/modules/catalog/retention/collect-bundle.ts",
+  );
+  assert(
+    collect.indexOf("pg_advisory_xact_lock") < collect.indexOf("store.delete("),
+    "the collector holds the lock while it deletes bytes",
   );
   const writer = await reader(
     "apps/server/src/modules/catalog/plugin-postgres.ts",
   );
-
-  const lockOf = (source: string, label: string) => {
-    const at = source.indexOf("pg_advisory_xact_lock");
-    assert(at > 0, `${label} takes the blob key lock`);
-    // The key is the tenant and the object ref, so two tenants never collide.
-    const around = source.slice(at, at + 220);
-    assert(
-      around.includes("${row.organization_id}:${row.bundle_object_ref}") ||
-        around.includes("${organizationId}:${input.bundleObjectRef}"),
-      `${label} locks tenant and object ref: ${around.slice(0, 120)}`,
-    );
-  };
-  lockOf(collector, "the collector");
-  lockOf(writer, "the version writer");
-
-  // The collector deletes and tombstones after taking the lock, not before.
-  const collectLock = collector.indexOf("pg_advisory_xact_lock");
-  const collectDelete = collector.indexOf("store.delete(");
   assert(
-    collectLock > 0 && collectDelete > collectLock,
-    "the collector holds the lock while it deletes bytes",
-  );
-  // The writer takes the lock before it inserts the version row.
-  const writeLock = writer.indexOf("pg_advisory_xact_lock");
-  const writeInsert = writer.indexOf("insert into bakery.plugin_versions");
-  assert(
-    writeLock > 0 && writeInsert > writeLock,
+    writer.indexOf("pg_advisory_xact_lock") <
+      writer.indexOf("insert into bakery.plugin_versions"),
     "the version writer holds the lock while it inserts",
+  );
+  const recorder = await reader("apps/server/src/modules/knowledge/blobs.ts");
+  assert(
+    recorder.indexOf("pg_advisory_xact_lock") <
+      recorder.indexOf("insert into bakery.blobs"),
+    "the blob recorder holds the lock while it records the claim",
   );
 });

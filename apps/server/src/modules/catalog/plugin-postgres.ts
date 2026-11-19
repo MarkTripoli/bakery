@@ -1,6 +1,7 @@
 import type { z } from "zod";
 import type { ActionContext } from "@bakery/contracts/action-registry";
 import { contractSchemas } from "@bakery/contracts/contracts";
+import { blobKeyLock } from "../../platform/blob-key-lock.ts";
 import { StandardError } from "@bakery/contracts/http";
 import {
   parseSdkRange,
@@ -402,7 +403,7 @@ export async function createPluginVersion(
   // an object is unshared and the object being deleted.
   await transaction.query(
     `select pg_advisory_xact_lock(hashtextextended($1, 0))`,
-    [`${organizationId}:${input.bundleObjectRef}`],
+    [blobKeyLock(organizationId, input.bundleObjectRef)],
   );
 
   try {
