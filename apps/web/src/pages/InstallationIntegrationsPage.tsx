@@ -30,7 +30,9 @@ import {
   type ExistingAppValues,
   parseAppId,
 } from "../screens/ExistingGitHubAppForm.tsx";
+import { InstallationProviderCredentials } from "./InstallationProviderCredentials.tsx";
 import { InstallationSkillStorage } from "./InstallationSkillStorage.tsx";
+import { WEB_PROVIDERS } from "../integrations/registry.ts";
 import { ShellActiveNavigation } from "../shell/shell-slots.tsx";
 import { InstallationBreadcrumbs } from "../shell/SettingsShellSlots.tsx";
 
@@ -293,6 +295,15 @@ export function InstallationIntegrationsPage(
           onDismissOutcome={dismissOutcome}
           onReload={() => void registration.refetch()}
           outcome={outcome}
+          providerCredentials={WEB_PROVIDERS.filter((module) =>
+            module.manifest.appRegistration?.kind === "client-credentials"
+          ).map((module) => (
+            <InstallationProviderCredentials
+              guideUrl={module.registrationGuideUrl}
+              key={module.manifest.slug}
+              provider={module.manifest.slug}
+            />
+          ))}
           storage={<InstallationSkillStorage />}
           view={view}
           existingApp={{

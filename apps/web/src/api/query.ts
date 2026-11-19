@@ -36,7 +36,9 @@ import type {
   InstallationSettings,
   InstallationStatus,
   IntegrationAppRegistration,
+  IntegrationClientCredentials,
   IntegrationConnection,
+  IntegrationProviderSetupList,
   IntegrationResource,
   MessageListResponse,
   NotificationCountResponse,
@@ -1500,6 +1502,37 @@ export function integrationAppRegistrationQueryOptions(
     ),
     queryFn: async ({ signal }) =>
       unwrap(await client.integrationAppRegistrations.get(signal)),
+    retry: retryNetworkOnce,
+  });
+}
+
+export function integrationClientCredentialsQueryOptions(
+  client: Pick<BakeryApiClient, "integrationClientCredentials">,
+  scope: ApiScope,
+  provider: string,
+) {
+  return queryOptions<IntegrationClientCredentials, ApiFailure>({
+    queryKey: protectedQueryKey(
+      scope,
+      "integrationClientCredentials.get",
+      { provider },
+    ),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.integrationClientCredentials.get({ provider, signal }),
+      ),
+    retry: retryNetworkOnce,
+  });
+}
+
+export function integrationProviderSetupQueryOptions(
+  client: Pick<BakeryApiClient, "integrationProviderSetup">,
+  scope: ApiScope,
+) {
+  return queryOptions<IntegrationProviderSetupList, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "integrationProviderSetup.list", {}),
+    queryFn: async ({ signal }) =>
+      unwrap(await client.integrationProviderSetup.list(signal)),
     retry: retryNetworkOnce,
   });
 }
