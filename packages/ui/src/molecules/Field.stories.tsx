@@ -57,7 +57,7 @@ export const Contract: StoryObj = {
         <Field
           htmlFor={`${id}-label-end`}
           label="Password"
-          labelEnd={<Link href="#">Forgot password?</Link>}
+          labelEnd={<Link href="#" variant="sentence">Forgot password?</Link>}
         >
           <input id={`${id}-label-end`} type="password" defaultValue="secret" />
         </Field>

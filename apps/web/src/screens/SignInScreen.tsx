@@ -242,6 +242,7 @@ export function SignInScreen(
                 data-testid="sign-in-forgot-password"
                 href={forgotPasswordHref}
                 onClick={onForgotPassword}
+                variant="sentence"
               >
                 {translate("auth.signIn.forgotPassword")}
               </UI.Link>
