@@ -3717,6 +3717,52 @@
     },
     {
       "group": "Installation administration",
+      "method": "POST",
+      "path": "/v1/installation/password-resets",
+      "action": "passwordResetLinks.create",
+      "access": "Installation administrator",
+      "permission": "installationAdministrator:manage",
+      "input": "PasswordResetLinkCreate",
+      "output": "PasswordResetLinkIssued",
+      "event": "",
+      "mcp": null,
+      "idempotency": "none; the link is returned once and never replayed",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope"
+    },
+    {
+      "group": "Access",
+      "method": "POST",
+      "path": "/v1/password-resets/redemptions",
+      "action": "passwordResets.redeem",
+      "access": "Public",
+      "permission": null,
+      "input": "PasswordResetRedemption",
+      "output": "NoContent",
+      "event": "",
+      "mcp": null,
+      "idempotency": "none; a link redeems at most once",
+      "errors": [
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "VALIDATION_FAILED",
+        "RATE_LIMITED",
+        "MALFORMED_REQUEST",
+        "INTERNAL"
+      ]
+    },
+    {
+      "group": "Installation administration",
       "method": "GET",
       "path": "/v1/installation/audit-events",
       "action": "installationAuditEvents.list",

@@ -820,7 +820,12 @@ function emitSuccess(
 
 export type ActionContextSeed = Pick<
   ActionContext,
-  "principal" | "locale" | "sessionId" | "accessToken" | "transport"
+  | "principal"
+  | "locale"
+  | "sessionId"
+  | "accessToken"
+  | "transport"
+  | "clientAddress"
 >;
 function requestContext(
   context: Context,

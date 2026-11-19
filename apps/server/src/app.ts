@@ -148,6 +148,12 @@ import {
   createApprovalRoutes,
 } from "./modules/conversation/approval-routes.ts";
 
+/** The auth provider's password hashing, read from its initialized context; undefined for a provider that exposes none. */
+function providerPasswordHasher(auth: AuthHttpProvider) {
+  const context = auth.$context;
+  return context ? async () => (await context).password : undefined;
+}
+
 export function createApp(options: {
   /**
    * Told of lease renewals, completions and usage settlements after they have
@@ -407,6 +413,7 @@ export function createApp(options: {
     installationSettings,
     availableLocales: availableLocalesFor(options.config.environment),
     publicBaseUrl: options.config.publicBaseUrl,
+    passwordHasher: providerPasswordHasher(auth),
   });
   app.route(
     "/",

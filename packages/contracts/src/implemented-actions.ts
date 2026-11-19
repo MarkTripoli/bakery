@@ -41,6 +41,8 @@ export const AuthImplementedAction = Object.freeze(
     InstallationAdministratorsList: "installationAdministrators.list",
     InstallationAdministratorsCreate: "installationAdministrators.create",
     InstallationAdministratorsRevoke: "installationAdministrators.revoke",
+    PasswordResetLinksCreate: "passwordResetLinks.create",
+    PasswordResetsRedeem: "passwordResets.redeem",
     AuditEventsList: "auditEvents.list",
     AuditEventsExport: "auditEvents.export",
     AuditEventsStream: "auditEvents.stream",
