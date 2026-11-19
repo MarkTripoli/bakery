@@ -11157,6 +11157,47 @@ const transportSchemas = {
         }
       ],
       "description": "Leaves a note for a workflow step that has not started yet, addressed by the run id and step key in the path. The agent that runs the step receives the note once, with its input; a step that has already started refuses the note with a state conflict, and a steer on its live session is the way to reach it."
+    },
+    "RouteContinuationAdmit": {
+      "fields": [
+        {
+          "name": "runStepId",
+          "type": "uuid",
+          "required": true,
+          "description": "UUID of the stalled run step to continue, as named by the offer."
+        },
+        {
+          "name": "incidentId",
+          "type": "uuid",
+          "required": true,
+          "description": "UUID of the incident the offer was made for. If that incident has recovered, been superseded or is not the route's current one, the submission is stale and commits nothing."
+        },
+        {
+          "name": "incidentGeneration",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1
+          },
+          "description": "The incident generation the offer named. A different generation means the line moved on and the submission is stale."
+        },
+        {
+          "name": "targetRouteId",
+          "type": "uuid",
+          "required": true,
+          "description": "UUID of the route to continue on, one the offer marked eligible."
+        },
+        {
+          "name": "runVersion",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1
+          },
+          "description": "The run version the offer named. If the run changed since, the submission is refused as a failed precondition and nothing is committed."
+        }
+      ],
+      "description": "A person's choice to continue one stalled step on another route, submitted against the exact offer they saw: the step, the incident and its generation, the run version and the chosen route. Exactly one submission wins however many race; a stale one commits nothing and reports why."
     }
   },
   "projections": {
@@ -28508,6 +28549,71 @@ const transportSchemas = {
         "runId": "UUID of the run these offers belong to.",
         "offers": "The open choices, empty when no step of the run is stalled behind an incident."
       }
+    },
+    "RouteContinuationPin": {
+      "fields": [
+        "provider",
+        "model",
+        "billingRoute",
+        "billingAccountId"
+      ],
+      "nullableFields": [],
+      "fieldTypes": {
+        "provider": "string",
+        "model": "string",
+        "billingRoute": "enum(api|subscription)",
+        "billingAccountId": "string"
+      },
+      "description": "What a step runs on: the provider, model, billing route and billing account of its pin. A continuation records the pin the step had and the pin it now has.",
+      "fieldDescriptions": {
+        "provider": "Provider key the step sends to.",
+        "model": "Model identifier the step runs.",
+        "billingRoute": "Billing route the step's spend follows: api or subscription.",
+        "billingAccountId": "Provider billing account the step's spend is attributed to."
+      }
+    },
+    "RouteContinuation": {
+      "fields": [
+        "id",
+        "runId",
+        "runStepId",
+        "jobId",
+        "incidentId",
+        "incidentGeneration",
+        "sourceRouteId",
+        "targetRouteId",
+        "previousPin",
+        "newPin",
+        "admittedAt"
+      ],
+      "nullableFields": [],
+      "fieldTypes": {
+        "id": "uuid",
+        "runId": "uuid",
+        "runStepId": "uuid",
+        "jobId": "uuid",
+        "incidentId": "uuid",
+        "incidentGeneration": "integer",
+        "sourceRouteId": "uuid",
+        "targetRouteId": "uuid",
+        "previousPin": "RouteContinuationPin",
+        "newPin": "RouteContinuationPin",
+        "admittedAt": "timestamp"
+      },
+      "description": "The record that a stalled step was continued on another route. The old attempt is fenced, the job is queued again on the new pin, and the step's one budget reservation is re-priced in place, so no second reservation exists and none is left held. Both the pin the step had and the pin it now has are kept.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of this continuation.",
+        "runId": "UUID of the run the step belongs to.",
+        "runStepId": "UUID of the step that was continued.",
+        "jobId": "UUID of the step's job that was moved (the earliest, when a step has several live jobs; all were moved).",
+        "incidentId": "UUID of the incident the choice was made against.",
+        "incidentGeneration": "Generation of that incident when the choice was admitted.",
+        "sourceRouteId": "UUID of the route the step was pinned to.",
+        "targetRouteId": "UUID of the route it now runs on.",
+        "previousPin": "The provider, model, billing route and billing account the step had before.",
+        "newPin": "The provider, model, billing route and billing account the step has now.",
+        "admittedAt": "UTC timestamp at which the continuation was admitted."
+      }
     }
   },
   "pageEnvelope": {
@@ -29844,6 +29950,15 @@ const transportSchemas = {
       "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
     },
     "providerRoutes.updated": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "routeContinuations.admitted": {
       "schemaVersion": 1,
       "payloadFields": {
         "resourceId": "uuid",
