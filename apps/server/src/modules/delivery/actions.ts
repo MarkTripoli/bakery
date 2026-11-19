@@ -35,6 +35,10 @@ export type DeliveryActionHandlers = {
     context: ActionContext,
     input: CursorQuery,
   ) => Promise<z.output<typeof contractSchemas["Page<CheckRun>"]>>;
+  runReviewsAccept: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.ReviewAccept>,
+  ) => Promise<z.output<typeof contractSchemas.ReviewCycle>>;
   runReviewsList: (
     context: ActionContext,
     input: CursorQuery,
@@ -108,6 +112,15 @@ export function createDeliveryActionRegistry(
     policy: queryPolicy,
     transactionIsolation: TransactionIsolation.RepeatableRead,
     handler: handlers.runReviewsList,
+  });
+  registry.register({
+    name: DeliveryImplementedAction.RunReviewsAccept,
+    method: HttpMethod.Post,
+    path: "/v1/runs/:id/reviews/:reviewId/accept",
+    input: contractSchemas.ReviewAccept,
+    output: contractSchemas.ReviewCycle,
+    policy: { ...commandPolicy, access: ActionAccess.Admin },
+    handler: handlers.runReviewsAccept,
   });
   registry.register({
     name: DeliveryImplementedAction.ReviewFindingsList,

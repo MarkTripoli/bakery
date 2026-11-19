@@ -2072,6 +2072,7 @@
   "settings.roles.verb.invoke": "Use {things}",
   "settings.roles.verb.reconcile": "Re-check {things}",
   "settings.roles.verb.respond": "Accept or decline {things}",
+  "settings.roles.verb.accept": "Overrule {things} that asked for changes",
   "settings.roles.verb.readSelf": "See your own {things}",
   "settings.roles.verb.readPinned": "See pinned {things}",
   "settings.roles.verb.preview": "Preview {things}",
