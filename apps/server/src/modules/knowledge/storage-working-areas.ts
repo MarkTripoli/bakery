@@ -515,6 +515,7 @@ type ProjectedRow = Row & {
   revision: number | null;
   trashed_by_id: string | null;
   trashed_by_name: string | null;
+  deletion_requested_at: Date | null;
 };
 
 /** Path of a folder, for where a trashed entry came from. */
@@ -541,8 +542,12 @@ async function project(
     UP_FROM + " select " + ENTRY_COLUMNS + "," +
       " (select '/' || string_agg(name, '/' order by depth desc) from up)" +
       " as path, v.sha256, v.size_bytes::text, v.media_type, v.revision," +
-      " entry.trashed_by_id, who.display_name as trashed_by_name" +
+      " entry.trashed_by_id, who.display_name as trashed_by_name," +
+      " request.requested_at as deletion_requested_at" +
       " from bakery.storage_entries entry" +
+      " left join bakery.storage_purge_requests request" +
+      " on request.organization_id = entry.organization_id" +
+      " and request.entry_id = entry.id and request.completed_at is null" +
       " left join bakery.storage_file_versions v" +
       " on v.organization_id = entry.organization_id" +
       " and v.id = entry.current_version_id" +
@@ -572,6 +577,7 @@ async function project(
       : await folderPath(tx, organizationId, row.trash_parent_id),
     trashedById: row.trashed_by_id,
     trashedByName: row.trashed_by_name,
+    deletionRequestedAt: row.deletion_requested_at?.toISOString() ?? null,
     version: Number(row.version),
     updatedAt: row.updated_at.toISOString(),
   };
@@ -1305,6 +1311,7 @@ export async function purgeStorageEntry(context: ActionContext) {
   return {
     id: entry.id,
     status: "removed" as const,
+    alreadyRequested: false,
     entriesRemoved: removed.entries,
     bytesRemoved: removed.bytes,
   };
@@ -1321,13 +1328,14 @@ async function queueRecordPurge(
   },
 ) {
   const { organizationId, principalId, entry } = input;
-  await tx.query(
+  const inserted = await tx.query(
     "insert into bakery.storage_purge_requests" +
       " (organization_id, entry_id, artifact_id, requested_by_id)" +
       " values ($1, $2, $3, $4)" +
       " on conflict (organization_id, entry_id) do nothing",
     [organizationId, entry.id, entry.artifact_id, principalId],
   );
+  const alreadyRequested = (inserted.rowCount ?? 0) === 0;
   const request = await tx.query<{ id: string }>(
     "select id from bakery.storage_purge_requests" +
       " where organization_id = $1 and entry_id = $2",
@@ -1342,6 +1350,7 @@ async function queueRecordPurge(
       kind: entry.kind,
       policy: entry.policy,
       requested: true,
+      alreadyRequested,
       purgeRequestId: request.rows[0].id,
       artifactId: entry.artifact_id,
     },
@@ -1349,6 +1358,7 @@ async function queueRecordPurge(
   return {
     id: entry.id,
     status: "queued" as const,
+    alreadyRequested,
     entriesRemoved: 0,
     bytesRemoved: 0,
   };

@@ -83084,6 +83084,21 @@ export const clientManifest = {
           ],
           "description": "StorageEntry.trashedByName may be null in this transport value."
         },
+        "deletionRequestedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When an Admin asked to delete this record-area file forever; set while that request waits for the owner maintenance task, so the page can show it as being deleted. Null when no deletion is pending."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "StorageEntry.deletionRequestedAt may be null in this transport value."
+        },
         "version": {
           "type": "integer",
           "minimum": -9007199254740991,
@@ -83116,6 +83131,7 @@ export const clientManifest = {
         "originalFolderPath",
         "trashedById",
         "trashedByName",
+        "deletionRequestedAt",
         "version",
         "updatedAt"
       ],
@@ -83358,6 +83374,21 @@ export const clientManifest = {
                 ],
                 "description": "StorageEntry.trashedByName may be null in this transport value."
               },
+              "deletionRequestedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "When an Admin asked to delete this record-area file forever; set while that request waits for the owner maintenance task, so the page can show it as being deleted. Null when no deletion is pending."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "StorageEntry.deletionRequestedAt may be null in this transport value."
+              },
               "version": {
                 "type": "integer",
                 "minimum": -9007199254740991,
@@ -83390,6 +83421,7 @@ export const clientManifest = {
               "originalFolderPath",
               "trashedById",
               "trashedByName",
+              "deletionRequestedAt",
               "version",
               "updatedAt"
             ],
@@ -83556,6 +83588,10 @@ export const clientManifest = {
           ],
           "description": "removed when the entry and everything under it were deleted in this request; queued when a record-area file's purge was recorded for the owner-privileged job, which clears every version's bytes and leaves the entry as a tombstone. Purging the same file again before the job runs returns queued for the same request."
         },
+        "alreadyRequested": {
+          "type": "boolean",
+          "description": "True when the record-area file already had a pending purge request, so this call queued nothing new; false when this call made the request or removed the entry."
+        },
         "entriesRemoved": {
           "type": "integer",
           "minimum": -9007199254740991,
@@ -83572,6 +83608,7 @@ export const clientManifest = {
       "required": [
         "id",
         "status",
+        "alreadyRequested",
         "entriesRemoved",
         "bytesRemoved"
       ],

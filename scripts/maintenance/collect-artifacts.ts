@@ -8,26 +8,10 @@ import { closePgDatabase, openPgDatabase } from "@bakery/persistence";
 import { collectArtifactVersion } from "../../apps/server/src/modules/knowledge/retention/collector.ts";
 import { createSkillObjectStore } from "../../apps/server/src/modules/catalog/storage-backend.ts";
 import { sweepCollectablePluginBundles } from "../../apps/server/src/modules/catalog/retention/sweep-bundles.ts";
-import { completeStoragePurgeRequests } from "../../apps/server/src/modules/knowledge/storage-record-purge.ts";
 
 if (import.meta.main) {
   const config = readArtifactStorageConfig();
-  if (Deno.args[0] === "storage-purges") {
-    // Queued Admin purges of record-area files. A purge answers a leaked
-    // secret or a legal demand, so it runs whether or not retention
-    // collection is enabled. It connects as the owner (DATABASE_URL).
-    const database = openPgDatabase(
-      readDatabaseConfig(Deno.env.toObject(), "owner").url,
-      1,
-    );
-    try {
-      console.log(
-        JSON.stringify(await completeStoragePurgeRequests(database)),
-      );
-    } finally {
-      await closePgDatabase(database);
-    }
-  } else if (!config.collectionEnabled) {
+  if (!config.collectionEnabled) {
     console.log("Artifact collection disabled.");
   } else {
     // Two subjects, one sweep: an artifact version by id, or every plugin

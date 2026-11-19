@@ -29779,6 +29779,7 @@ const transportSchemas = {
         "originalFolderPath",
         "trashedById",
         "trashedByName",
+        "deletionRequestedAt",
         "version",
         "updatedAt"
       ],
@@ -29801,6 +29802,7 @@ const transportSchemas = {
         "originalFolderPath": "string|null",
         "trashedById": "uuid|null",
         "trashedByName": "string|null",
+        "deletionRequestedAt": "timestamp|null",
         "version": "integer",
         "updatedAt": "timestamp"
       },
@@ -29817,7 +29819,8 @@ const transportSchemas = {
         "originalName",
         "originalFolderPath",
         "trashedById",
-        "trashedByName"
+        "trashedByName",
+        "deletionRequestedAt"
       ],
       "description": "A folder or file in the organization's storage tree as the caller may see it: where it is, what policy it follows and, for a working-area file, its current version's digest and size.",
       "fieldDescriptions": {
@@ -29839,6 +29842,7 @@ const transportSchemas = {
         "originalFolderPath": "Path of the folder the entry was deleted from, for showing where it came from; null while it is live.",
         "trashedById": "Person or agent that deleted the entry to trash; null while it is live.",
         "trashedByName": "Display name of whoever deleted the entry, as shown in the trash list; null while it is live.",
+        "deletionRequestedAt": "When an Admin asked to delete this record-area file forever; set while that request waits for the owner maintenance task, so the page can show it as being deleted. Null when no deletion is pending.",
         "version": "Optimistic concurrency version; send it as If-Match to replace, move, delete or restore this entry.",
         "updatedAt": "When the entry or its current version last changed."
       }
@@ -29894,12 +29898,14 @@ const transportSchemas = {
       "fields": [
         "id",
         "status",
+        "alreadyRequested",
         "entriesRemoved",
         "bytesRemoved"
       ],
       "fieldTypes": {
         "id": "uuid",
         "status": "enum(removed|queued)",
+        "alreadyRequested": "boolean",
         "entriesRemoved": "integer",
         "bytesRemoved": "integer"
       },
@@ -29908,6 +29914,7 @@ const transportSchemas = {
       "fieldDescriptions": {
         "id": "The purged entry.",
         "status": "removed when the entry and everything under it were deleted in this request; queued when a record-area file's purge was recorded for the owner-privileged job, which clears every version's bytes and leaves the entry as a tombstone. Purging the same file again before the job runs returns queued for the same request.",
+        "alreadyRequested": "True when the record-area file already had a pending purge request, so this call queued nothing new; false when this call made the request or removed the entry.",
         "entriesRemoved": "Entries deleted with their versions: the entry and everything under it. Zero when the purge is queued.",
         "bytesRemoved": "Bytes of working-area versions deleted. Zero when the purge is queued."
       }

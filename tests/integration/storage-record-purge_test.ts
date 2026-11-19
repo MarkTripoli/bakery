@@ -13,10 +13,11 @@ import {
   createWorkerScope,
   seedEligibleJob,
 } from "../helpers/worker-execution.ts";
-import {
-  ADMIN_PURGE_POLICY,
-  completeStoragePurgeRequests,
-} from "../../apps/server/src/modules/knowledge/storage-record-purge.ts";
+import { readTestDatabaseConfig } from "@bakery/config";
+import { ADMIN_PURGE_POLICY } from "../../apps/server/src/modules/knowledge/storage-record-purge.ts";
+import { runStoragePurgesTask } from "../../apps/server/src/platform/storage-purges-task.ts";
+
+const urls = () => readTestDatabaseConfig();
 
 type Fixture = Parameters<Parameters<typeof withWorkerFixture>[0]>[0];
 type Json = Record<string, unknown>;
@@ -115,15 +116,17 @@ Deno.test("a record-area file purge is queued, then the owner job clears every v
       "record_area",
     ]);
 
-    // Queued twice: one request, nothing cleared yet.
-    for (let attempt = 0; attempt < 2; attempt++) {
+    // Queued twice: one request, nothing cleared yet; the second call says
+    // it was already requested.
+    for (const already of [false, true]) {
       const [code, body] = await status(await purge(fixture, record.file));
-      assertEquals([code, body.status, body.entriesRemoved], [
-        200,
-        "queued",
-        0,
-      ]);
+      assertEquals(
+        [code, body.status, body.alreadyRequested, body.entriesRemoved],
+        [200, "queued", already, 0],
+      );
     }
+    // deletionRequestedAt reads this pending request (project() in
+    // storage-working-areas.ts); no route projects a record file today.
     const requests = await fixture.pgDatabase.query<{ id: string }>(
       "select id from bakery.storage_purge_requests where organization_id = $1 and entry_id = $2",
       [fixture.organizationId, record.file],
@@ -143,13 +146,11 @@ Deno.test("a record-area file purge is queued, then the owner job clears every v
       true,
     ]);
 
-    // The runtime role cannot complete it: the job fails closed.
-    await assertRejects(() =>
-      completeStoragePurgeRequests(fixture.runtimePgDatabase)
-    );
+    // The runtime role cannot complete it: the task fails closed.
+    await assertRejects(() => runStoragePurgesTask(urls().appDatabaseUrl));
 
     // The owner job overrides the pin and clears both versions.
-    const done = await completeStoragePurgeRequests(fixture.pgDatabase);
+    const done = await runStoragePurgesTask(urls().databaseUrl);
     assert(done.completed >= 1);
     const versions = await fixture.pgDatabase.query<{
       content: Uint8Array | null;
@@ -191,7 +192,7 @@ Deno.test("a record-area file purge is queued, then the owner job clears every v
     // Purged: a later purge finds nothing, and a rerun completes nothing more.
     assertEquals((await status(await purge(fixture, record.file)))[0], 404);
     assertEquals(
-      (await completeStoragePurgeRequests(fixture.pgDatabase)).versionsPurged,
+      (await runStoragePurgesTask(urls().databaseUrl)).versionsPurged,
       0,
     );
   }));

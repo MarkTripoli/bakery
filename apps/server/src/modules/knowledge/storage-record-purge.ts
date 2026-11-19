@@ -1,4 +1,3 @@
-import type { Inngest } from "inngest";
 import {
   type PgDatabase,
   type PgTransactionClient,
@@ -22,12 +21,11 @@ import { appendMemorySourceChanged } from "./memory-source-state.ts";
  *
  * Each request is completed in its own transaction, locked with skip locked,
  * so two runs never purge the same request and a failure keeps every purge
- * before it. Without an owner connection the job fails closed: it does nothing
- * and logs, and never falls back to the runtime role.
+ * before it. It runs as the bakery-server task "storage-purges"
+ * (apps/server/src/platform/storage-purges-task.ts), which connects with
+ * DATABASE_URL as the owner; a connection as any other role is refused before
+ * anything is read, so it never falls back to the runtime role.
  */
-
-const STORAGE_RECORD_PURGE_FUNCTION_ID =
-  "bakery-knowledge-storage-record-purge";
 
 /** The purge_policy a purged version carries. */
 export const ADMIN_PURGE_POLICY = "admin-purge";
@@ -160,47 +158,4 @@ export async function completeStoragePurgeRequests(
     result.versionsPurged += versions;
   }
   return result;
-}
-
-/** What a run does when it has an owner connection, or why it did nothing. */
-export async function runStorageRecordPurge(
-  ownerDatabase: PgDatabase | undefined,
-  log: (message: string) => void = console.warn,
-): Promise<StorageRecordPurgeResult & { skipped?: "owner_database_missing" }> {
-  if (!ownerDatabase) {
-    log(
-      "storage record purge skipped: no owner database connection is" +
-        " configured; pending requests wait for" +
-        " scripts/maintenance/collect-artifacts.ts storage-purges",
-    );
-    return {
-      completed: 0,
-      versionsPurged: 0,
-      skipped: "owner_database_missing",
-    };
-  }
-  return await completeStoragePurgeRequests(ownerDatabase);
-}
-
-/**
- * Every ten minutes, completes queued record-area purges. It takes an owner
- * connection only when one is given; the server's Inngest handler holds the
- * runtime role alone, so there it logs and does nothing (fail closed).
- */
-export function createStorageRecordPurgeCollector(
-  options: { ownerDatabase?: PgDatabase; client: Inngest },
-) {
-  return options.client.createFunction(
-    {
-      id: STORAGE_RECORD_PURGE_FUNCTION_ID,
-      retries: 3,
-      concurrency: [{ limit: 1 }],
-      triggers: [{ cron: "*/10 * * * *" }],
-    },
-    async ({ step }) =>
-      await step.run(
-        "complete-storage-purges",
-        () => runStorageRecordPurge(options.ownerDatabase),
-      ),
-  );
 }
