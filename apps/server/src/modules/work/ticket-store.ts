@@ -120,7 +120,7 @@ export type TicketSource = {
   organizationId: string;
   connectionId: string;
   resourceId: string;
-  applicationId: string;
+  applicationId: string | null;
   repositoryId: string | null;
   externalContainerId: string;
   enabled: boolean;
@@ -137,7 +137,7 @@ type TicketSourceRow = {
   organization_id: string;
   integration_connection_id: string;
   integration_resource_id: string;
-  application_id: string;
+  application_id: string | null;
   repository_id: string | null;
   external_container_id: string;
   enabled: boolean;
@@ -1246,7 +1246,7 @@ export async function taskHasUnconsumedApproval(
 /** The task a request owns, locked `for update`. */
 export type LockedTask = {
   id: string;
-  applicationId: string;
+  applicationId: string | null;
   repositoryId: string | null;
   conversationId: string;
   version: number;
@@ -1268,7 +1268,7 @@ export async function lockTaskForUpdate(
 ): Promise<LockedTask> {
   const result = await transaction.query<{
     id: string;
-    application_id: string;
+    application_id: string | null;
     repository_id: string | null;
     conversation_id: string;
     version: number;

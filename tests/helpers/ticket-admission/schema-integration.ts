@@ -1,4 +1,4 @@
-import { assert, assertEquals } from "@std/assert";
+import { assert, assertEquals, assertRejects } from "@std/assert";
 import { defaultTicketSourcePolicy } from "../../../packages/contracts/src/ticket-admission.ts";
 import {
   type PgDatabase,
@@ -357,6 +357,39 @@ Deno.test("issue 82 schema: migration 0145 creates the five tables with named co
       ),
       "receipt retention nulls only the route pointer",
     );
+  });
+});
+
+Deno.test("issue 82 schema: a redelivery with no registration is still a duplicate", async () => {
+  await withFixture(async (f) => {
+    // 0201 makes registration_id nullable, and a plain unique treats every null
+    // as distinct -- so without NULLS NOT DISTINCT a provider that verifies a
+    // webhook with a shared secret would land the same redelivery twice and its
+    // receipt would prove nothing. The control insert keeps the constraint from
+    // passing by refusing every row.
+    const receipt = (delivery: string) =>
+      f.pgDatabase.query(
+        `insert into bakery.inbound_events
+           (id, provider, registration_id, external_delivery_id, payload_digest,
+            event_kind, status, expires_at)
+         values (gen_random_uuid(), 'provider_neutral', null, $1, 'digest',
+                 'issues', 'accepted', now() + interval '1 day')`,
+        [delivery],
+      );
+    await receipt("delivery-null-1");
+    const refused = await assertRejects(() => receipt("delivery-null-1"));
+    assert(
+      String((refused as { cause?: unknown }).cause ?? refused).includes(
+        "23505",
+      ),
+      "the second null-registration receipt is a duplicate",
+    );
+    await receipt("delivery-null-2");
+    const rows = await f.pgDatabase.query<{ count: string }>(
+      `select count(*) as count from bakery.inbound_events
+        where registration_id is null and external_delivery_id like 'delivery-null-%'`,
+    );
+    assertEquals(rows.rows[0].count, "2", "distinct deliveries still land");
   });
 });
 

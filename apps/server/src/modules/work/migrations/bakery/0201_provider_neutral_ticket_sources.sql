@@ -22,5 +22,16 @@ alter table bakery.ticket_sources
   alter column provider drop default,
   add column provider_metadata jsonb;
 
+-- The receipt key has to keep refusing a redelivery now that the registration
+-- may be null, and a plain unique treats every null as distinct: two
+-- redeliveries of the same null-registration webhook would both land, and the
+-- receipt would prove nothing for exactly the rows this change introduces.
+-- NULLS NOT DISTINCT is PostgreSQL 15+; every target here is 16.
+--
+-- Dropped and added in one statement so no concurrent insert sees a table
+-- without the key, and so a failure leaves the old constraint in place.
 alter table bakery.inbound_events
-  alter column registration_id drop not null;
+  alter column registration_id drop not null,
+  drop constraint inbound_events_delivery_unique,
+  add constraint inbound_events_delivery_unique
+    unique nulls not distinct (registration_id, external_delivery_id);
