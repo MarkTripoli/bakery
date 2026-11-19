@@ -179,6 +179,24 @@ Deno.test("a replayed claim revokes the old credential and mints a fresh one", (
     );
     assertEquals(fresh.status, 200, await fresh.text());
 
+    // The fresh token can act, and the first cannot, through the call route.
+    const freshCall = await callTool(
+      fixture,
+      worker,
+      assignment.attemptId,
+      second,
+      "agents.list",
+    );
+    assertEquals(freshCall.status, 200, await freshCall.text());
+    const oldCall = await callTool(
+      fixture,
+      worker,
+      assignment.attemptId,
+      first,
+      "agents.list",
+    );
+    assertEquals(oldCall.status, 401, await oldCall.text());
+
     // Digest only: neither token is stored.
     const stored = await fixture.pgDatabase.query<{ n: string }>(
       `select count(*)::text as n from bakery.session_operation_credentials
