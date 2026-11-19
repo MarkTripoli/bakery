@@ -1127,6 +1127,123 @@ export async function insertRequest(
   }
 }
 
+/** One scoped child of a request as stored. */
+export type TicketRequestTarget = {
+  repositoryId: string;
+  role: string;
+  routingRuleId: string | null;
+  routingRuleVersion: number | null;
+  sourcePolicyRevision: number;
+  pinnedPreset: TicketPresetPin;
+  coordinationPlanId: string | null;
+  childTaskId: string | null;
+};
+
+/**
+ * Inserts the scoped children of a request just admitted, one per routed
+ * repository. They are insert-only: a later rule or policy edit, a re-pin or
+ * an upgrade never writes them again, so an admitted request is never
+ * retargeted. The unique (request, repository) key is the floor under the
+ * resolver's deduplication.
+ */
+export async function insertRequestTargets(
+  transaction: PgTransactionClient,
+  facts: {
+    organizationId: string;
+    requestId: string;
+    sourcePolicyRevision: number;
+    pinnedPreset: TicketPresetPin;
+    targets: readonly {
+      repositoryId: string;
+      role: string;
+      ruleId: string | null;
+      ruleVersion: number | null;
+      coordinationPlanId: string | null;
+      childTaskId: string | null;
+    }[];
+  },
+): Promise<void> {
+  for (const target of facts.targets) {
+    await transaction.query(
+      `insert into bakery.ticket_request_targets (
+         id, organization_id, ticket_request_id, repository_id, role,
+         routing_rule_id, routing_rule_version, source_policy_revision,
+         pinned_preset, coordination_plan_id, child_task_id
+       ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11)`,
+      [
+        crypto.randomUUID(),
+        facts.organizationId,
+        facts.requestId,
+        target.repositoryId,
+        target.role,
+        target.ruleId,
+        target.ruleVersion,
+        facts.sourcePolicyRevision,
+        JSON.stringify(facts.pinnedPreset),
+        target.coordinationPlanId,
+        target.childTaskId,
+      ],
+    );
+  }
+}
+
+/**
+ * Status of the ticket-origin coordination plan a request's targets run in,
+ * or null when the request runs on its own task.
+ */
+export async function requestPlanStatus(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  requestId: string,
+): Promise<string | null> {
+  const result = await transaction.query<{ status: string }>(
+    `select plan.status from bakery.ticket_request_targets as target
+       join bakery.coordination_plans as plan
+         on plan.organization_id = target.organization_id
+        and plan.id = target.coordination_plan_id
+      where target.organization_id = $1 and target.ticket_request_id = $2
+      limit 1`,
+    [organizationId, requestId],
+  );
+  return result.rows[0]?.status ?? null;
+}
+
+/** The scoped children of one request, ordered by role then repository. */
+export async function requestTargets(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  requestId: string,
+): Promise<TicketRequestTarget[]> {
+  const result = await transaction.query<{
+    repository_id: string;
+    role: string;
+    routing_rule_id: string | null;
+    routing_rule_version: number | null;
+    source_policy_revision: number;
+    pinned_preset: unknown;
+    coordination_plan_id: string | null;
+    child_task_id: string | null;
+  }>(
+    `select repository_id, role, routing_rule_id, routing_rule_version,
+            source_policy_revision, pinned_preset, coordination_plan_id,
+            child_task_id
+       from bakery.ticket_request_targets
+      where organization_id = $1 and ticket_request_id = $2
+      order by role, repository_id`,
+    [organizationId, requestId],
+  );
+  return result.rows.map((row) => ({
+    repositoryId: row.repository_id,
+    role: row.role,
+    routingRuleId: row.routing_rule_id,
+    routingRuleVersion: row.routing_rule_version,
+    sourcePolicyRevision: row.source_policy_revision,
+    pinnedPreset: TicketPresetPinSchema.parse(row.pinned_preset),
+    coordinationPlanId: row.coordination_plan_id,
+    childTaskId: row.child_task_id,
+  }));
+}
+
 /** The request columns a lifecycle step may change. */
 export type TicketRequestPatch = {
   intent?: TicketRequestIntent;

@@ -412,6 +412,7 @@ export function createTicketSourceReader(
           body: detail.body,
           bodyTooLarge: detail.bodyTooLarge,
           labels: detail.labels,
+          ...(detail.labelIds === null ? {} : { labelIds: detail.labelIds }),
           state: detail.state,
           stateReason: detail.stateReason === null ||
               detail.stateReason.length === 0
