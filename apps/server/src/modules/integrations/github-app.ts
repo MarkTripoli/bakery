@@ -1194,6 +1194,28 @@ const GitHubCommitPullRequestPageSchema = z.array(
   "One page of GET /repos/{owner}/{repo}/commits/{sha}/pulls.",
 );
 
+/** One label of GET /repos/{owner}/{repo}/labels; every other field is dropped. */
+const GitHubRepositoryLabelSchema = z.object({
+  id: PositiveIdSchema.describe(
+    "Numeric GitHub id of the label; stable across renames.",
+  ),
+  name: z.string().min(1).max(GITHUB_MAX_LABEL_LENGTH * 2).describe(
+    "Name of the label as GitHub reports it.",
+  ),
+  color: z.string().regex(/^[0-9a-fA-F]{6}$/).nullable().optional().describe(
+    "Colour of the label as six hex digits without a leading #.",
+  ),
+}).transform((wire) => ({
+  id: String(wire.id),
+  name: wire.name,
+  color: wire.color?.toLowerCase() ?? null,
+})).describe(
+  "Selected fields of one repository label, reduced to its id as a string, its name and its lowercase colour.",
+);
+
+const GitHubRepositoryLabelPageSchema = z.array(GitHubRepositoryLabelSchema)
+  .max(100).describe("One page of GET /repos/{owner}/{repo}/labels.");
+
 const GitHubCollaboratorPermissionSchema = z.object({
   permission: z.enum(["admin", "write", "read", "none"]).describe(
     "The user's calculated permission on the repository; organization and repository grants are not told apart.",
@@ -1558,6 +1580,22 @@ export type GitHubAppClient = {
     request: { token: string; fullName: string; login: string },
     signal: AbortSignal,
   ): Promise<GitHubCollaboratorPermission | GitHubReadAbsent>;
+  /**
+   * One page of the repository's labels (`GET /repos/{owner}/{repo}/labels`),
+   * `GITHUB_READ_PAGE_SIZE` per page, with the label's numeric id as a string,
+   * its name and colour. A 404, 410 or redirect is `gone` or `moved`.
+   */
+  listRepositoryLabels(
+    request: { token: string; fullName: string; page: number },
+    signal: AbortSignal,
+  ): Promise<
+    | {
+      kind: "present";
+      items: { id: string; name: string; color: string | null }[];
+      hasNext: boolean;
+    }
+    | GitHubReadAbsent
+  >;
 };
 
 /**
@@ -2370,6 +2408,33 @@ export function createFetchGitHubAppClient(
       return status === 200
         ? parsed(GitHubCollaboratorPermissionSchema, body)
         : absent(status);
+    },
+    async listRepositoryLabels(request, signal) {
+      const authorization = bearer(request.token);
+      const path = repositoryPath(request.fullName);
+      const page = positiveInteger(request.page);
+      const url = new URL(`${GITHUB_API_ORIGIN}${path}/labels`);
+      url.searchParams.set("per_page", String(GITHUB_READ_PAGE_SIZE));
+      url.searchParams.set("page", String(page));
+      const { body, status, link } = await readJson(
+        transport,
+        url.href,
+        {
+          method: "GET",
+          expectedStatus: 200,
+          absentStatuses: ABSENT_STATUSES,
+          classify: "token",
+          authorization,
+          maxBytes: MAX_READ_PAGE_BYTES,
+        },
+        signal,
+      );
+      if (status !== 200) return absent(status);
+      return {
+        kind: "present" as const,
+        items: parsed(GitHubRepositoryLabelPageSchema, body),
+        hasNext: hasNextPage(link),
+      };
     },
   };
 }
