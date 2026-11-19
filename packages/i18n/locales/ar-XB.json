@@ -4401,5 +4401,5 @@
   "integrations.linear.permission.other": "⟪Linear granted {scope} access, which Bakery does not use.⟫",
   "integrations.linear.resource.project": "⟪A Linear project⟫",
   "integrations.linear.resource.team": "⟪A Linear team⟫",
-  "settings.roles.verb.share": "⟪Give other people access to {things}⟫"
+  "settings.roles.verb.share": "⟪Give and remove other people's access to {things}⟫"
 }
