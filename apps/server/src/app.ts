@@ -4,6 +4,10 @@ import {
   type probeSkillStorage,
 } from "./modules/catalog/storage-backend.ts";
 import { createSkillStorageRoutes } from "./modules/catalog/skill-storage-actions.ts";
+import {
+  createEmailSettingsRoutes,
+  type EmailSettingsDependencies,
+} from "./modules/work/email-actions.ts";
 import { createAgentsRoutes } from "./modules/agents/index.ts";
 import { createProviderReadRoutes } from "./modules/execution/provider-read-routes.ts";
 import { createRouteContinuationRoutes } from "./modules/execution/route-continuations.ts";
@@ -108,6 +112,7 @@ import {
 } from "./modules/work/events-socket.ts";
 import { createMcpManagementRoutes } from "./modules/mcp/routes.ts";
 import {
+  createGroupRoutes,
   createNotificationRoutes,
   createTicketRoutes,
   createWorkTaskHandlers,
@@ -199,6 +204,8 @@ export function createApp(options: {
   skillFileStore?: SkillFileStoreOperations;
   /** Verification probe override; tests inject one so none reaches a provider. */
   skillStorageProbe?: typeof probeSkillStorage;
+  /** Replaces the SMTP exchange of the installation email test (tests only). */
+  emailSend?: EmailSettingsDependencies["send"];
   skillSourceAdapter?: SkillSourceAdapter;
   skillSourceLocatorNormalizer?: typeof normalizeSkillSourceLocator;
   skillImportProcessHooks?: SkillImportProcessHooks;
@@ -864,6 +871,10 @@ export function createApp(options: {
   );
   app.route(
     "/",
+    createGroupRoutes({ database: options.pgDatabase, session: tokenSession }),
+  );
+  app.route(
+    "/",
     createNotificationRoutes({
       database: options.pgDatabase,
       session: tokenSession,
@@ -951,6 +962,20 @@ export function createApp(options: {
       browserSession,
       publicBaseUrl: options.config.publicBaseUrl,
       dependencies: { ...skillStorage, probe: options.skillStorageProbe },
+    }),
+  );
+  app.route(
+    "/",
+    createEmailSettingsRoutes({
+      database: options.pgDatabase,
+      browserSession,
+      publicBaseUrl: options.config.publicBaseUrl,
+      dependencies: {
+        secretsKey: options.config.secretsKey,
+        send: options.emailSend,
+        // Only a test environment may reach a loopback fixture over plain SMTP.
+        allowPlainLoopback: options.config.environment === "test",
+      },
     }),
   );
   app.route(

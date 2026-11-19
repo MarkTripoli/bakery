@@ -1,12 +1,12 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "5b8d39e853b302f1424cf36da10a1e8ca0d71c4d"
+    "9da88825036edcc588db4c2ac892297a8638b8cb"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:117a62b8ecd823ce6bf71be50c97ab0d21c628ab0fc888f5d4a63f380b5eed46",
-  "reason": "#434 MCP connections re-bind by dev-agx4 on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main 5b8d39e853b302f1424cf36da10a1e8ca0d71c4d: McpConnectionCreate and McpConnectionUpdate drop the secretId reference input and gain a write-only secret (a caller can no longer point a connection at an arbitrary secret id; the credential is sealed server-side), McpConnectionCreate gains an optional scope (organization|personal), and McpConnection gains ownerPrincipalId. mcpConnections create, update and discover change from Admin to Developer-for-personal/Admin-for-organization access. No client writes these shapes: no handler existed before this change. mcpConnections.discover returns the McpCapabilitySnapshot it pinned instead of a Run (a remote server is asked inline; a Run belongs to local servers launched on a worker, a later slice) and carries no domain event. The approval it displaced is preserved unchanged first below.",
+  "targetCompatibilityDigest": "sha256:76104ff7846977316bada9ee9bd2bc915e64b8a11f49a610884817ce6244b28a",
+  "reason": "#434 MCP connections re-bind by dev-agx4 on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main 9da88825036edcc588db4c2ac892297a8638b8cb: McpConnectionCreate and McpConnectionUpdate drop the secretId reference input and gain a write-only secret (a caller can no longer point a connection at an arbitrary secret id; the credential is sealed server-side), McpConnectionCreate gains an optional scope (organization|personal), and McpConnection gains ownerPrincipalId. mcpConnections create, update and discover change from Admin to Developer-for-personal/Admin-for-organization access. No client writes these shapes: no handler existed before this change. mcpConnections.discover returns the McpCapabilitySnapshot it pinned instead of a Run (a remote server is asked inline; a Run belongs to local servers launched on a worker, a later slice) and carries no domain event. The approval it displaced is preserved unchanged first below.",
   "priorApprovals": [
     {
       "fromBaseRefs": [

@@ -170,6 +170,9 @@ export const ConversationImplementedAction = Object.freeze(
     QuestionsList: "questions.list",
     QuestionsGet: "questions.get",
     QuestionsAnswer: "questions.answer",
+    ConversationsMentionCandidates: "conversations.mentionCandidates",
+    ConversationAccessList: "conversationAccess.list",
+    ConversationAccessRevoke: "conversationAccess.revoke",
   } as const satisfies Record<string, CatalogActionName>,
 );
 
@@ -425,6 +428,30 @@ export const notificationImplementedActions = Object.freeze(
   Object.values(NotificationImplementedAction),
 );
 
+export const GroupImplementedAction = Object.freeze(
+  {
+    GroupsList: "groups.list",
+    GroupsCreate: "groups.create",
+    GroupsUpdate: "groups.update",
+    GroupsDelete: "groups.delete",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const groupImplementedActions = Object.freeze(
+  Object.values(GroupImplementedAction),
+);
+
+export const EmailSettingsImplementedAction = Object.freeze(
+  {
+    EmailSettingsGet: "emailSettings.get",
+    EmailSettingsPut: "emailSettings.put",
+    EmailSettingsTest: "emailSettings.test",
+    EmailSettingsDelete: "emailSettings.delete",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const emailSettingsImplementedActions = Object.freeze(
+  Object.values(EmailSettingsImplementedAction),
+);
+
 export const WorkflowImplementedAction = Object.freeze(
   {
     WorkflowsList: "workflows.list",
@@ -526,7 +553,10 @@ export const ArtifactImplementedAction = Object.freeze(
     ArtifactCommentsUpdate: "artifactComments.update",
     ArtifactCommentsList: "artifactComments.list",
     ArtifactCommentsListAcrossVersions: "artifactComments.listAcrossVersions",
+    ArtifactCommentsMentionCandidates: "artifactComments.mentionCandidates",
     ArtifactsList: "artifacts.list",
+    FilesSearch: "files.search",
+    FilesLibrary: "files.library",
     ArtifactsGet: "artifacts.get",
     ArtifactsUpdate: "artifacts.update",
     ArtifactStorageGet: "artifactStorage.get",
@@ -699,6 +729,8 @@ export const implementedActions = Object.freeze(
     ...deliveryImplementedActions,
     ...ticketImplementedActions,
     ...notificationImplementedActions,
+    ...groupImplementedActions,
+    ...emailSettingsImplementedActions,
     ...workflowImplementedActions,
     ...workflowActionDiscoveryImplementedActions,
     ...automationImplementedActions,

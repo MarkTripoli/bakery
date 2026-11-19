@@ -123,6 +123,7 @@ export const RESOURCE_AREAS = {
   organizationInvitation: "access",
   organizationMembership: "access",
   organizationRole: "access",
+  group: "access",
   principal: "access",
   accessBinding: "access",
   accessToken: "access",
@@ -160,6 +161,7 @@ export const PERMISSION_VERBS = [
   "readSelf",
   "readPinned",
   "preview",
+  "share",
 ] as const;
 export type PermissionVerb = (typeof PERMISSION_VERBS)[number];
 

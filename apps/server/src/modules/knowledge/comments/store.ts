@@ -7,6 +7,10 @@ import { requireWorkTransaction } from "../../work/work-transaction.ts";
 import type { OrganizationBlobStore } from "../../catalog/storage-port.ts";
 import { validateAnchor } from "./anchors.ts";
 import {
+  commitCommentMentions,
+  resolveMentions,
+} from "../../conversation/mentions.ts";
+import {
   type CommentRow,
   type CommentVersion,
   loadComment,
@@ -31,10 +35,10 @@ async function recordChange(
     readonly rootVersion: number;
     readonly created: boolean;
   },
-) {
+): Promise<string> {
   const work = requireWorkTransaction(context);
   const { row, rootVersion, created } = change;
-  await appendDomainEvent(work.transaction, {
+  const eventId = await appendDomainEvent(work.transaction, {
     organizationId: work.organizationId,
     applicationId: version.application_id,
     repositoryId: version.repository_id,
@@ -70,6 +74,7 @@ async function recordChange(
       rootVersion,
     },
   });
+  return eventId;
 }
 
 export async function createComment(
@@ -104,6 +109,12 @@ export async function createComment(
       [work.organizationId, root.id],
     );
   } else if (input.anchor) validateAnchor(input.anchor, version);
+  // A comment notifies only people who can already read its thread; it never
+  // widens access, and one refused mention writes nothing.
+  const mentions = await resolveMentions(context, work.transaction, {
+    kind: "comment_thread",
+    conversationId: version.conversation_id,
+  }, input.mentions);
   const inserted = await work.transaction.query<{ id: string }>(
     `insert into bakery.artifact_comments
     (organization_id,artifact_version_id,parent_comment_id,author_id,body,anchor,status)
@@ -121,7 +132,19 @@ export async function createComment(
   const id = inserted.rows[0]?.id;
   if (!id) throw new StandardError({ code: "INTERNAL" });
   const row = await loadComment(work, id);
-  await recordChange(context, version, { row, rootVersion, created: true });
+  const eventId = await recordChange(context, version, {
+    row,
+    rootVersion,
+    created: true,
+  });
+  await commitCommentMentions(context, work.transaction, {
+    organizationId: work.organizationId,
+    commentId: id,
+    conversationId: version.conversation_id,
+    taskId: version.task_id,
+    sourceEventId: eventId,
+    resolved: mentions,
+  });
   return toComment(row);
 }
 

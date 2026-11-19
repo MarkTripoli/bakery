@@ -18,6 +18,7 @@ import type { PasskeyPlugin } from "../../apps/server/src/modules/auth/adapters/
 import { createApp } from "../../apps/server/src/app.ts";
 import { MigrationOwner } from "../../apps/server/src/platform/migrate.ts";
 import { readRuntimeConfig } from "../../packages/config/src/env.ts";
+import { PASSWORD_POLICY } from "../../packages/contracts/src/auth-provider-client.ts";
 import { AuthProblemCode } from "../../packages/contracts/src/http.ts";
 import {
   authRequest,
@@ -60,9 +61,13 @@ Deno.test("the auth module exposes one configured Better Auth factory", async ()
     assertStrictEquals(auth.options.database, pgDatabase);
     assertEquals(auth.options.baseURL, "http://127.0.0.1:8788");
     assertEquals(auth.options.basePath, "/api/auth");
+    // The length rule the web app words for a person is the one enforced here.
+    assertEquals(PASSWORD_POLICY, { minLength: 8, maxLength: 128 });
     assertEquals(auth.options.emailAndPassword, {
       enabled: true,
       autoSignIn: false,
+      minPasswordLength: PASSWORD_POLICY.minLength,
+      maxPasswordLength: PASSWORD_POLICY.maxLength,
     });
     assertEquals(auth.options.session?.cookieCache?.enabled, false);
     assertEquals(auth.options.advanced?.database?.generateId, "uuid");
