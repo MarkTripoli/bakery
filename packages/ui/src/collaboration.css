@@ -2185,6 +2185,7 @@ button.ui-activity-line__row:hover {
   align-items: center;
   color: var(--color-fg-muted);
   display: flex;
+  flex-wrap: wrap;
   font: var(--type-hint);
   gap: var(--space-2);
   margin: 0;
@@ -2222,10 +2223,12 @@ button.ui-activity-line__row:hover {
   color: var(--color-status-warning);
 }
 
+/* The sentence takes what is left; a control after it drops to the next line
+   when there is no room for both, instead of overflowing. */
 .ui-session-now__text {
-  flex: 1 1 auto;
+  flex: 1 1 min-content;
   min-inline-size: 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .ui-session-now__elapsed {
@@ -2282,7 +2285,7 @@ button.ui-activity-line__row:hover {
   border: var(--border-none);
   color: inherit;
   cursor: pointer;
-  flex: 1 1 auto;
+  flex: 1 1 min-content;
   font: inherit;
   min-inline-size: 0;
   padding: 0;
