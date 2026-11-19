@@ -5,6 +5,7 @@ import {
   assertNotEquals,
 } from "@std/assert";
 import { withPgTransaction } from "../../../apps/server/src/platform/database.ts";
+import { githubIngress } from "../../../apps/server/src/modules/catalog/integration-providers/github-ingress.ts";
 import { registerPullRequest } from "../../../apps/server/src/modules/integrations/pull-requests.ts";
 import { deleteGitHubAppRegistrationRows } from "../auth.ts";
 import { count, type GitHubAppFixture } from "../github-app-registration.ts";
@@ -1141,5 +1142,88 @@ Deno.test("issue 71 receipts: a deadline that fires between two database stateme
     assertEquals(problem.code, "DEPENDENCY_TIMEOUT");
     assertEquals(problem.retryable, true);
     assertEquals(await rowCounts(f), NO_ROWS, "everything rolled back");
+  });
+});
+
+Deno.test("issue 408 ingress: the port decides verification, and the receipt is still the host's", async () => {
+  await withFixture(async (f) => {
+    // The receiver now runs every delivery through the provider ingress port.
+    // These three cases are the contract between the port and the receipt: a
+    // valid delivery reaches a receipt, a bad signature writes nothing, and a
+    // replayed id is acknowledged rather than applied twice.
+    const r = await enabledReceiver(f);
+    const body = noisyIssues(r);
+
+    // Valid delivery: one receipt, routed.
+    const deliveryId = crypto.randomUUID();
+    const accepted = await receipt(r, { event: "issues", body, deliveryId });
+    assertEquals(accepted.status, "accepted");
+    assertEquals((await rowCounts(f)).receipts, 1);
+
+    // Bad signature: refused, and nothing is written. The refusal is the one
+    // code the port answers for every verify failure, so the caller cannot tell
+    // a wrong secret from a forgery.
+    const forged = await send(r, {
+      event: "issues",
+      body,
+      deliveryId: crypto.randomUUID(),
+      secret: "not-the-secret",
+    });
+    assertEquals(forged.status, 401);
+    assertEquals((await forged.json()).code, "AUTH_INVALID");
+    assertEquals((await rowCounts(f)).receipts, 1, "nothing new was written");
+
+    // Replayed id: the same delivery again is a duplicate, not a second receipt.
+    const replayed = await receipt(r, { event: "issues", body, deliveryId });
+    assertEquals(replayed.status, "duplicate");
+    assertEquals(replayed.eventId, accepted.eventId);
+    assertEquals((await rowCounts(f)).receipts, 1);
+  });
+});
+
+Deno.test("issue 408 ingress: the stored secret is zeroed after a forged delivery", async () => {
+  await withFixture(async (f) => {
+    // The route owns the secret's lifetime, so this has to be observed at the
+    // route. Wrapping `verify` captures the exact buffer the route handed over;
+    // after the request returns it must be zeroed, or a forging caller could
+    // keep the webhook secret alive in memory by failing repeatedly.
+    const r = await enabledReceiver(f);
+    let seen: Uint8Array | null = null;
+    const watching = {
+      ...githubIngress,
+      verify: (input: {
+        body: Uint8Array;
+        headers: Headers;
+        secrets: readonly Uint8Array[];
+        now: Date;
+      }) => {
+        seen = input.secrets[0] ?? null;
+        return githubIngress.verify(input);
+      },
+    };
+    // Mounted through the same helper as every other receipt test, with only
+    // the ingress replaced: same registry, database and secrets key.
+    const app = receiverApp(f, { ingress: watching });
+
+    const forged = await app.fetch(
+      await deliveryOf(r, {
+        event: "issues",
+        body: noisyIssues(r),
+        deliveryId: crypto.randomUUID(),
+        secret: "not-the-secret",
+      }),
+    );
+    assertEquals(forged.status, 401);
+    assertEquals((await forged.json()).code, "AUTH_INVALID");
+    assertEquals((await rowCounts(f)).receipts, 0, "a forgery writes nothing");
+
+    assert(seen !== null, "the route handed a secret to verify");
+    const captured = seen as Uint8Array;
+    assertEquals(captured.byteLength > 0, true);
+    assertEquals(
+      Array.from(captured),
+      new Array(captured.byteLength).fill(0),
+      "the stored secret was zeroed after the failed verification",
+    );
   });
 });

@@ -19,6 +19,7 @@ import {
   TicketStoredReportSchema,
 } from "@bakery/contracts/ticket-admission";
 import type { PgTransactionClient } from "../../platform/database.ts";
+import { repositoryContainer } from "./ticket-container.ts";
 import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
 import {
   parseOffsetInstant,
@@ -119,7 +120,7 @@ export type TicketSource = {
   organizationId: string;
   connectionId: string;
   resourceId: string;
-  applicationId: string;
+  applicationId: string | null;
   repositoryId: string | null;
   externalContainerId: string;
   enabled: boolean;
@@ -136,7 +137,7 @@ type TicketSourceRow = {
   organization_id: string;
   integration_connection_id: string;
   integration_resource_id: string;
-  application_id: string;
+  application_id: string | null;
   repository_id: string | null;
   external_container_id: string;
   enabled: boolean;
@@ -400,6 +401,25 @@ const TICKET_COLUMNS = `id, organization_id, ticket_source_id,
   external_ticket_id, key, number, snapshot, requirements_digest,
   provider_update_marker, state, version`;
 
+/**
+ * Brings a stored snapshot up to the current shape.
+ *
+ * Snapshots written before the container generalisation carry
+ * `repositoryFullName` and no container. They are only rewritten when the ticket
+ * is next observed, so a read has to understand both shapes or an old ticket
+ * would report no container at all and fail every comparison that uses one.
+ */
+function normalisedSnapshot(stored: TicketSnapshot): TicketSnapshot {
+  if (stored.container !== undefined) return stored;
+  const legacy = (stored as { repositoryFullName?: unknown })
+    .repositoryFullName;
+  if (typeof legacy !== "string") return stored;
+  return {
+    ...stored,
+    container: repositoryContainer(legacy),
+  };
+}
+
 function toTicket(row: TicketRowRaw): TicketRow {
   return {
     id: row.id,
@@ -408,7 +428,7 @@ function toTicket(row: TicketRowRaw): TicketRow {
     externalTicketId: row.external_ticket_id,
     key: row.key,
     number: row.number,
-    snapshot: row.snapshot,
+    snapshot: normalisedSnapshot(row.snapshot),
     requirementsDigest: row.requirements_digest,
     providerUpdateMarker: row.provider_update_marker,
     state: row.state,
@@ -471,7 +491,10 @@ export async function upsertExternalTicket(
       },
     });
   }
-  const repositoryFullName = observation.snapshot.repositoryFullName;
+  // The stored container names the ticket's home in provider terms; GitHub's
+  // own key and URL are still built here, which is what `TicketsPort.present()`
+  // takes over in a later slice.
+  const repositoryFullName = observation.snapshot.container.displayName;
   const identity = [
     `${repositoryFullName}#${observation.number}`,
     String(observation.number),
@@ -1340,7 +1363,7 @@ export async function taskHasUnconsumedApproval(
 /** The task a request owns, locked `for update`. */
 export type LockedTask = {
   id: string;
-  applicationId: string;
+  applicationId: string | null;
   repositoryId: string | null;
   conversationId: string;
   version: number;
@@ -1362,7 +1385,7 @@ export async function lockTaskForUpdate(
 ): Promise<LockedTask> {
   const result = await transaction.query<{
     id: string;
-    application_id: string;
+    application_id: string | null;
     repository_id: string | null;
     conversation_id: string;
     version: number;

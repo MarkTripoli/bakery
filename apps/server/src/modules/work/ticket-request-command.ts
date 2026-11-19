@@ -102,7 +102,7 @@ async function recordFact(
   facts: {
     organizationId: string;
     principalId: string;
-    applicationId: string;
+    applicationId: string | null;
     repositoryId: string | null;
     task?: { id: string; conversation_id: string };
     operation: string;

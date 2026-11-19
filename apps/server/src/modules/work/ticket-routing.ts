@@ -211,7 +211,14 @@ type RuleRow = {
  */
 export async function readRouteRules(
   transaction: PgTransactionClient,
-  source: { organizationId: string; id: string; applicationId: string },
+  // A provider-neutral source may name no application (0206). The rule query
+  // then compares against null and matches nothing, which is the right answer:
+  // no rule can claim a source that has no application to claim it by.
+  source: {
+    organizationId: string;
+    id: string;
+    applicationId: string | null;
+  },
 ): Promise<TicketRouteRule[]> {
   const result = await transaction.query<RuleRow>(
     `select rule.id, rule.provider_label_id, rule.label_name,

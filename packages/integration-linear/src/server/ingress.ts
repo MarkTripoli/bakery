@@ -31,6 +31,12 @@ export type LinearWebhookBody = {
   /** Milliseconds since the epoch; Linear sends it on every delivery. */
   webhookTimestamp?: number;
   webhookId?: string;
+  /**
+   * The workspace the delivery belongs to. Linear puts it at the top level of the
+   * body, beside `webhookTimestamp`, and not inside `data`: `data` is the subject
+   * entity, which for a comment or an issue carries no workspace.
+   */
+  organizationId?: string;
   data?: Record<string, unknown>;
   updatedFrom?: Record<string, unknown>;
 };
@@ -139,13 +145,29 @@ export const linearIngress: WebhookIngress = {
       // acknowledges and ignores.
       return { ok: true, delivery };
     }
-    if (typeof delivery.webhookTimestamp === "number") {
-      const age = input.now.getTime() - delivery.webhookTimestamp;
-      // A future timestamp is refused too: it would otherwise sit inside the
-      // window for as long as the sender chose.
-      if (age > LINEAR_REPLAY_WINDOW_MS || age < -LINEAR_REPLAY_WINDOW_MS) {
-        return { ok: false, reason: "stale" };
-      }
+    // A delivery with no usable timestamp cannot be judged fresh, so it is refused
+    // rather than let past the window. Linear sends the timestamp on every
+    // delivery; a signed body without one was not built by Linear. `NaN` and an
+    // infinite number are refused too, because every comparison with them is false
+    // and would read as "inside the window".
+    const sentAt = delivery.webhookTimestamp;
+    if (typeof sentAt !== "number" || !Number.isFinite(sentAt)) {
+      return { ok: false, reason: "malformed" };
+    }
+    const age = input.now.getTime() - sentAt;
+    // A future timestamp is refused too: it would otherwise sit inside the
+    // window for as long as the sender chose.
+    if (age > LINEAR_REPLAY_WINDOW_MS || age < -LINEAR_REPLAY_WINDOW_MS) {
+      return { ok: false, reason: "stale" };
+    }
+    // The workspace picks the installation the host routes to, so a delivery the
+    // host would route has to name one. An empty id would match no installation
+    // by accident and a missing one would be routed on a default.
+    if (
+      (delivery.type === "Issue" || delivery.type === "Comment") &&
+      organizationOf(delivery) === null
+    ) {
+      return { ok: false, reason: "malformed" };
     }
     return {
       ok: true,
@@ -204,10 +226,12 @@ function issueIdOf(body: LinearWebhookBody): string | null {
   return typeof id === "string" ? id : null;
 }
 
-/** The workspace the delivery belongs to. */
+/** The workspace the delivery belongs to, or `null` when it names none. */
 function organizationOf(body: LinearWebhookBody): string | null {
-  const organizationId = body.data?.organizationId;
-  return typeof organizationId === "string" ? organizationId : null;
+  const organizationId = body.organizationId;
+  return typeof organizationId === "string" && organizationId.trim() !== ""
+    ? organizationId
+    : null;
 }
 
 /**
