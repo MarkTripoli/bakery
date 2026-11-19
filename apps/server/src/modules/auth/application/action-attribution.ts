@@ -23,7 +23,7 @@ export type ActionAttribution = Readonly<{
  * principal (the seat's own identity).
  */
 export function attributeAction(
-  context: Pick<ActionContext, "principal" | "accessToken">,
+  context: Pick<ActionContext, "principal" | "accessToken" | "agentSession">,
   principalId: string,
 ): ActionAttribution {
   const principalType = typeof context.principal === "object" &&
@@ -32,7 +32,11 @@ export function attributeAction(
     ? (context.principal as { principalType: unknown }).principalType
     : undefined;
   const accessTokenId = context.accessToken?.id ?? null;
+  // A session call carries the person's own principal (a human), so the
+  // principal type alone would label an agent's action as the person's. The
+  // session marker is what says an agent made the call (O50).
   const agent = accessTokenId !== null ||
+    context.agentSession !== undefined ||
     principalType !== PrincipalType.Human;
   return Object.freeze({
     principalId,
