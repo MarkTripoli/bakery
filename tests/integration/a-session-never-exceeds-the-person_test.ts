@@ -65,12 +65,16 @@ Deno.test("a claimed session can ask what it may call", () =>
       tools?: readonly { name: string }[];
     };
     assert(Array.isArray(body.tools), "no tool list was returned");
+    const offered = body.tools.map((tool) => tool.name);
     // The run-reading tools are the ones a nonmodel quality check needs.
+    assert(offered.includes("runs.get"), `offered ${offered.join(", ")}`);
+    // The catalog operations live in a different module's registry, so their
+    // presence is the proof the composition reaches past the task registry. A
+    // gateway that offered only what one module owned would look complete and
+    // silently withhold half the tools an agent is meant to have.
     assert(
-      body.tools.some((tool) => tool.name === "runs.get"),
-      `the session was offered ${
-        body.tools.map((tool) => tool.name).join(", ")
-      }`,
+      offered.includes("skills.list") && offered.includes("agents.list"),
+      `catalog tools missing from ${offered.join(", ")}`,
     );
     // Seeded for clarity: the job is real work, not a fixture convention.
     assertEquals(typeof seeded.runId, "string");
