@@ -9,7 +9,7 @@ import { StandardError } from "@bakery/contracts/http";
 import { candidateHeadSha } from "@bakery/persistence/repository-admission";
 import { loopSnapshotOf } from "./plan-run-view.ts";
 import type { PgTransactionClient } from "../../platform/database.ts";
-import type { DecisionCheckFact } from "./repair-loop.ts";
+import type { DecisionCheckFact } from "../review-loop/decision.ts";
 import type { CandidateIdentity } from "./identity.ts";
 import { commandSubjects } from "./check-pins.ts";
 import { deriveReviewPins, type ReviewPins } from "./review-pins.ts";

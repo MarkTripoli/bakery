@@ -5,7 +5,7 @@ import {
   type IndependenceInput,
   REVIEW_INDEPENDENCE_VIOLATIONS,
   REVIEW_NOT_INDEPENDENT_REASON,
-} from "../../../apps/server/src/modules/delivery/independence.ts";
+} from "../../../apps/server/src/modules/review-loop/independence.ts";
 
 /**
  * Cases for the independence rule: a reviewer is the review step's own fresh
