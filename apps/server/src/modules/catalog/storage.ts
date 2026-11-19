@@ -425,6 +425,25 @@ export class SkillFileStore implements SkillObjectStore {
     }
   }
 
+  async delete(objectKey: string): Promise<boolean> {
+    await this.initialize();
+    // The same key validation every other call uses: a key that could resolve
+    // outside the root is refused here rather than unlinked somewhere else.
+    const path = fileNameFromKey(this.#root, objectKey);
+    try {
+      const stat = await nodeLstat(path);
+      // A directory or a symlink is not an object, and unlinking one would
+      // remove something the store never wrote. Collection leaves it alone.
+      if (!stat.isFile()) fail("SKILL_FILE_TARGET_INVALID");
+      await Deno.remove(path);
+      return true;
+    } catch (error) {
+      if (error instanceof SkillFileStoreError) throw error;
+      if (isNotFound(error)) return false;
+      throw error;
+    }
+  }
+
   async read(
     objectKey: string,
     expectedSha256: string,
