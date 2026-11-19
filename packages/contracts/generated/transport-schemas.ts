@@ -11058,7 +11058,7 @@ const transportSchemas = {
           "name": "workflowId",
           "type": "uuid|null",
           "required": false,
-          "description": "Immutable id of the workflow whose agent sessions hold the power: an agent running a step of that workflow may use it. Null or absent covers every workflow and then requires accessTokenId, so no grant reaches every agent on every workflow."
+          "description": "Immutable id of a workflow that holds the power in two senses: an agent session running a step of it may use the power, and an agent may use the power on its runs. An agent acts on a target only when both its own workflow and the target's hold the grant, so one grant cannot reach every workflow. Null or absent covers every workflow and then requires accessTokenId, so no grant reaches every agent on every workflow."
         },
         {
           "name": "accessTokenId",
@@ -28360,7 +28360,7 @@ const transportSchemas = {
       "fieldDescriptions": {
         "id": "Stable UUID identifying the grant.",
         "power": "The power granted: decide, run_control or run_start.",
-        "workflowId": "Immutable id of the workflow whose agent sessions hold the power; null covers every workflow for the named seat.",
+        "workflowId": "Immutable id of the workflow that holds the power, as an agent's own workflow and as a target workflow; null covers every workflow for the named seat.",
         "accessTokenId": "Seat (access token) the grant is limited to; null for any agent session of the named workflow.",
         "grantedBy": "Person who made the grant.",
         "createdAt": "When the grant was made.",

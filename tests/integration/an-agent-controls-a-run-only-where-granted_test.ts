@@ -3,7 +3,11 @@ import { withWorkerFixture } from "../helpers/worker-execution/scenarios.ts";
 import {
   type AgentFixture,
   agentSession,
+  copyRunTo,
+  grantPower,
+  insertChildTask,
   seedOtherRun,
+  ungrantedWorkflowVersion,
 } from "../helpers/agent-session.ts";
 
 // #414 slice 2: an agent pauses, resumes, cancels or interrupts a run only where
@@ -29,7 +33,9 @@ Deno.test("an agent cancels another run where its workflow is granted, labelled 
   withWorkerFixture(async (fixture) => {
     const session = await agentSession(fixture, { granted: "run_control" });
     assert((await session.tools()).includes("runs.control"));
+    // The target's workflow must hold the power too, not only the agent's own.
     const target = await seedOtherRun(fixture);
+    await grantPower(fixture, target.workflowId, "run_control");
     const response = await cancel(session, target.runId);
     assertEquals(response.status, 200, await response.text());
     assertEquals(await runStatus(fixture, target.runId), "canceled");
@@ -97,4 +103,66 @@ Deno.test("runs.retry is never offered or callable, even with run_control", () =
       `runs.retry answered ${response.status}`,
     );
     await response.body?.cancel();
+  }));
+
+const noControlAudit = async (fixture: AgentFixture) =>
+  (await fixture.pgDatabase.query(
+    `select 1 from bakery.audit_events
+      where organization_id = $1 and operation = 'runs.control.agent'`,
+    [fixture.organizationId],
+  )).rows.length;
+
+Deno.test("an agent never controls its own run", () =>
+  withWorkerFixture(async (fixture) => {
+    const session = await agentSession(fixture, { granted: "run_control" });
+    const response = await cancel(session, session.own.runId);
+    assertEquals(response.status, 403, await response.text());
+    assertEquals(
+      await runStatus(fixture, session.own.runId) === "canceled",
+      false,
+    );
+    assertEquals(await noControlAudit(fixture), 0);
+  }));
+
+Deno.test("an agent never controls another run of its own task, such as a retry", () =>
+  withWorkerFixture(async (fixture) => {
+    const session = await agentSession(fixture, { granted: "run_control" });
+    const retry = await copyRunTo(fixture, session.own.runId);
+    const response = await cancel(session, retry);
+    assertEquals(response.status, 403, await response.text());
+    assertEquals(await runStatus(fixture, retry) === "canceled", false);
+    assertEquals(await noControlAudit(fixture), 0);
+  }));
+
+Deno.test("an agent never controls a run in its own task lineage", () =>
+  withWorkerFixture(async (fixture) => {
+    const session = await agentSession(fixture, { granted: "run_control" });
+    const child = await insertChildTask(fixture, session.own);
+    const below = await copyRunTo(fixture, session.own.runId, {
+      taskId: child.taskId,
+    });
+    const response = await cancel(session, below);
+    assertEquals(response.status, 403, await response.text());
+    assertEquals(await runStatus(fixture, below) === "canceled", false);
+  }));
+
+Deno.test("a run_control grant reaches only the workflows it names: the target's must be granted too", () =>
+  withWorkerFixture(async (fixture) => {
+    const session = await agentSession(fixture, { granted: "run_control" });
+    const target = await seedOtherRun(fixture);
+    const second = await ungrantedWorkflowVersion(fixture, session.own);
+    await fixture.pgDatabase.query(
+      `update bakery.workflow_runs set workflow_version_id = $3
+        where organization_id = $1 and id = $2`,
+      [fixture.organizationId, target.runId, second.versionId],
+    );
+    const refused = await cancel(session, target.runId);
+    assertEquals(refused.status, 403, await refused.text());
+    assertEquals(await runStatus(fixture, target.runId) === "canceled", false);
+    // The control: once the target's workflow also grants it, the same control
+    // goes through.
+    await grantPower(fixture, second.workflowId, "run_control");
+    const allowed = await cancel(session, target.runId);
+    assertEquals(allowed.status, 200, await allowed.text());
+    assertEquals(await runStatus(fixture, target.runId), "canceled");
   }));

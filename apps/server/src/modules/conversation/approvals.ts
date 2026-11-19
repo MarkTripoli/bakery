@@ -24,6 +24,7 @@ import { decideHumanApproval } from "../work/human-approval-store.ts";
 import {
   AgentPower,
   assertAgentMayExercise,
+  assertAgentMayTarget,
 } from "../auth/application/agent-power-grants.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import {
@@ -575,20 +576,22 @@ export async function decideApproval(
     if (peek.subject_type !== "run_step") {
       conflict("agent_decision_unsupported");
     }
-    const own = await transaction.query<{ run_id: string | null }>(
+    const subject = await transaction.query<{ run_id: string | null }>(
       `select run_id from bakery.questions
         where organization_id = $1 and id = $2`,
       [organizationId, id],
     );
-    if (
-      exercised.origin !== null &&
-      own.rows[0]?.run_id === exercised.origin.runId
-    ) {
-      throw new StandardError({
-        code: "AUTH_FORBIDDEN",
-        params: { reason: "agent_cannot_decide_own_output" },
-      });
+    // An approval with no run has no workflow to match a grant to.
+    if (subject.rows[0]?.run_id == null) {
+      throw new StandardError({ code: "AUTH_FORBIDDEN" });
     }
+    // Never its own work (its run, a retry, its task lineage), and the approval's
+    // own workflow must hold the decide power too.
+    await assertAgentMayTarget(transaction, exercised, {
+      organizationId,
+      power: AgentPower.Decide,
+      targetRunId: subject.rows[0].run_id,
+    });
   }
 
   // A step approval and a stage approval are decided by the same route, so a

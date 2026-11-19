@@ -38,6 +38,7 @@ import {
 import {
   AgentPower,
   assertAgentMayExercise,
+  assertAgentMayTarget,
 } from "../auth/application/agent-power-grants.ts";
 import {
   PostgresAuthorityRunner,
@@ -332,6 +333,13 @@ async function runControlAction(
     organizationId,
     principalId,
     power: AgentPower.RunControl,
+  });
+  // Never its own run, another run of its task or its lineage, and the target
+  // run's workflow must hold the power too, not only the agent's own.
+  await assertAgentMayTarget(transaction, exercised, {
+    organizationId,
+    power: AgentPower.RunControl,
+    targetRunId: runId,
   });
   const runResult = await transaction.query<RunControlRow>(
     `select ${RUN_COLUMNS},

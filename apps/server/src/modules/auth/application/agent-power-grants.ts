@@ -38,12 +38,17 @@ export function isAgentPower(value: unknown): value is AgentPower {
     (AGENT_POWERS as readonly string[]).includes(value);
 }
 
+/** The refusal for an agent acting on work that is its own or its lineage's. */
+export const AGENT_TARGET_OWN_WORK = "agent_target_own_work";
+
 /** The refusal an agent without a grant receives, for every power. */
 export const AGENT_POWER_REQUIRES_GRANT = "agent_power_requires_grant";
 
 /** The run, workflow and agent session an attempt belongs to. */
 export type AttemptOrigin = Readonly<{
   runId: string;
+  /** The task the run belongs to: the work the session is part of. */
+  taskId: string;
   workflowId: string;
   agentSessionId: string | null;
 }>;
@@ -62,10 +67,12 @@ export async function attemptOrigin(
 ): Promise<AttemptOrigin | null> {
   const found = await transaction.query<{
     runId: string;
+    taskId: string;
     workflowId: string;
     agentSessionId: string | null;
   }>(
-    `select run.id as "runId", version.workflow_id as "workflowId",
+    `select run.id as "runId", run.task_id as "taskId",
+            version.workflow_id as "workflowId",
             (
               select session.id
                 from bakery.agent_sessions as session
@@ -178,5 +185,85 @@ function refusal(): StandardError {
   return new StandardError({
     code: "AUTH_FORBIDDEN",
     params: { reason: AGENT_POWER_REQUIRES_GRANT },
+  });
+}
+
+/**
+ * Refuses an agent acting on a run that is its own work, and on a run whose
+ * workflow has not granted the power (chapter 25 sections 18.2 and 18.3, O51,
+ * O52). The permission guard above proves the agent's own workflow holds the
+ * power; this proves the target's does too, so one grant cannot reach every
+ * workflow, and that the target is not the agent's own work, so a grant cannot
+ * be used to approve or control what the agent produced.
+ *
+ * The agent's own work is its own run, any other run of its task (a retry or a
+ * later run is the same work), and any run in its task lineage, the tasks above
+ * it and below it. A person passes untouched.
+ */
+export async function assertAgentMayTarget(
+  transaction: PgTransactionClient,
+  exercised: ExercisedPower,
+  scope: Readonly<{
+    organizationId: string;
+    power: AgentPower;
+    targetRunId: string;
+  }>,
+): Promise<void> {
+  if (exercised.attribution.actorKind === "person") return;
+  const target = await transaction.query<
+    { taskId: string; workflowId: string }
+  >(
+    `select run.task_id as "taskId", version.workflow_id as "workflowId"
+       from bakery.workflow_runs as run
+       join bakery.workflow_versions as version
+         on version.organization_id = run.organization_id
+        and version.id = run.workflow_version_id
+      where run.organization_id = $1 and run.id = $2`,
+    [scope.organizationId, scope.targetRunId],
+  );
+  const row = target.rows[0];
+  if (!row) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+
+  const origin = exercised.origin;
+  if (origin !== null) {
+    // Own run included: it belongs to the agent's own task, which is in the lineage.
+    const lineage = await transaction.query(
+      `with recursive up as (
+         select id, parent_task_id from bakery.tasks
+          where organization_id = $1 and id = $2
+         union all
+         select task.id, task.parent_task_id
+           from up
+           join bakery.tasks as task
+             on task.organization_id = $1 and task.id = up.parent_task_id
+       ), down as (
+         select id from bakery.tasks where organization_id = $1 and id = $2
+         union all
+         select task.id
+           from down
+           join bakery.tasks as task
+             on task.organization_id = $1 and task.parent_task_id = down.id
+       )
+       select 1 where $3::uuid in (select id from up)
+                   or $3::uuid in (select id from down)`,
+      [scope.organizationId, origin.taskId, row.taskId],
+    );
+    if (lineage.rows.length > 0) throw ownWork();
+  }
+
+  if (
+    !(await agentHoldsPower(transaction, {
+      organizationId: scope.organizationId,
+      power: scope.power,
+      workflowId: row.workflowId,
+      accessTokenId: exercised.attribution.accessTokenId,
+    }))
+  ) throw refusal();
+}
+
+function ownWork(): StandardError {
+  return new StandardError({
+    code: "AUTH_FORBIDDEN",
+    params: { reason: AGENT_TARGET_OWN_WORK },
   });
 }

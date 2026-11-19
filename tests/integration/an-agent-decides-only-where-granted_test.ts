@@ -3,7 +3,11 @@ import { withWorkerFixture } from "../helpers/worker-execution/scenarios.ts";
 import {
   type AgentFixture,
   agentSession,
+  copyRunTo,
+  grantPower,
+  insertChildTask,
   seedOtherRun,
+  ungrantedWorkflowVersion,
 } from "../helpers/agent-session.ts";
 import { requestHumanApproval } from "../../apps/server/src/modules/work/human-approval-store.ts";
 import type { PgTransactionClient } from "../../apps/server/src/platform/database.ts";
@@ -64,7 +68,10 @@ Deno.test("an agent decides another run's approval where its workflow is granted
   withWorkerFixture(async (fixture) => {
     const { decide, tools } = await sessionFor(fixture, { granted: true });
     assert((await tools()).includes("approvals.decide"));
-    const approvalId = await approvalIn(fixture, await otherRun()(fixture));
+    // The target's workflow must hold the power too, not only the agent's own.
+    const target = await otherRun()(fixture);
+    await grantPower(fixture, target.workflowId, "decide");
+    const approvalId = await approvalIn(fixture, target);
     const response = await decide(approvalId);
     assertEquals(response.status, 200, await response.text());
 
@@ -198,4 +205,79 @@ Deno.test("a grant naming no workflow and no seat covers nobody", () =>
     );
     const response = await decide(approvalId);
     assertEquals(response.status, 403, await response.text());
+  }));
+
+/** The approval is still open and nothing was recorded for it. */
+async function assertUntouched(fixture: AgentFixture, approvalId: string) {
+  const state = await fixture.pgDatabase.query<{ status: string }>(
+    `select status from bakery.questions where organization_id = $1 and id = $2`,
+    [fixture.organizationId, approvalId],
+  );
+  assertEquals(state.rows[0].status, "open");
+  const ledger = await fixture.pgDatabase.query(
+    `select 1 from bakery.decisions_ledger
+      where organization_id = $1 and subject_id = $2`,
+    [fixture.organizationId, approvalId],
+  );
+  assertEquals(ledger.rows.length, 0);
+}
+
+Deno.test("an agent cannot approve a later run of its own task: a retry is its own work", () =>
+  withWorkerFixture(async (fixture) => {
+    const { decide, own } = await sessionFor(fixture, { granted: true });
+    // A different run of the same task: the run id check alone lets it through.
+    const retry = await copyRunTo(fixture, own.runId);
+    const approvalId = await approvalIn(fixture, { ...own, runId: retry });
+    const response = await decide(approvalId);
+    assertEquals(response.status, 403, await response.text());
+    await assertUntouched(fixture, approvalId);
+  }));
+
+Deno.test("an agent cannot approve work in its own task lineage, below it or above it", () =>
+  withWorkerFixture(async (fixture) => {
+    const { decide, own } = await sessionFor(fixture, { granted: true });
+    // Below: a run of a child task of the session's own task.
+    const child = await insertChildTask(fixture, own);
+    const below = await copyRunTo(fixture, own.runId, { taskId: child.taskId });
+    const belowApproval = await approvalIn(fixture, {
+      runId: below,
+      taskId: child.taskId,
+      conversationId: child.conversationId,
+      applicationId: own.applicationId,
+    });
+    assertEquals((await decide(belowApproval)).status, 403);
+    await assertUntouched(fixture, belowApproval);
+    // Above: the task the session's own task hangs under.
+    const parent = await seedOtherRun(fixture);
+    await fixture.pgDatabase.query(
+      `update bakery.tasks set parent_task_id = $3
+        where organization_id = $1 and id = $2`,
+      [fixture.organizationId, own.taskId, parent.taskId],
+    );
+    const aboveApproval = await approvalIn(fixture, parent);
+    assertEquals((await decide(aboveApproval)).status, 403);
+    await assertUntouched(fixture, aboveApproval);
+  }));
+
+Deno.test("a decide grant reaches only the workflows it names: the target's must be granted too", () =>
+  withWorkerFixture(async (fixture) => {
+    const { decide, own } = await sessionFor(fixture, { granted: true });
+    // A run of another workflow, unrelated to the session's task.
+    const target = await seedOtherRun(fixture);
+    const second = await ungrantedWorkflowVersion(fixture, own);
+    await fixture.pgDatabase.query(
+      `update bakery.workflow_runs set workflow_version_id = $3
+        where organization_id = $1 and id = $2`,
+      [fixture.organizationId, target.runId, second.versionId],
+    );
+    const approvalId = await approvalIn(fixture, target);
+    // The agent's own workflow holds decide, the target's does not: refused.
+    const refused = await decide(approvalId);
+    assertEquals(refused.status, 403, await refused.text());
+    await assertUntouched(fixture, approvalId);
+    // The control: once the target's workflow also grants it, the same decision
+    // goes through, so the refusal above was the target's missing grant.
+    await grantPower(fixture, second.workflowId, "decide");
+    const allowed = await decide(approvalId);
+    assertEquals(allowed.status, 200, await allowed.text());
   }));

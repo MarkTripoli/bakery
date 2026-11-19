@@ -1,4 +1,8 @@
-import { registeredWorker, workerRequest } from "./worker-execution.ts";
+import {
+  type JobSeed,
+  registeredWorker,
+  workerRequest,
+} from "./worker-execution.ts";
 import { seedEligibleNonmodelJob } from "./worker-execution/nonmodel-job.ts";
 import {
   claimAssignment,
@@ -85,4 +89,100 @@ export async function agentSession(
     return body.tools.map((tool) => tool.name);
   };
   return { own, grantId, call, tools, attemptId: assignment.attemptId };
+}
+
+/**
+ * A run row copied from `ownRunId` onto the same task by default, or onto
+ * another task or workflow version. A copy on the same task stands in for a
+ * retry or a later run of the work the session belongs to.
+ */
+export async function copyRunTo(
+  fixture: AgentFixture,
+  ownRunId: string,
+  target: {
+    taskId?: string;
+    workflowVersionId?: string;
+    status?: string;
+  } = {},
+): Promise<string> {
+  const id = crypto.randomUUID();
+  await fixture.pgDatabase.query(
+    `insert into bakery.workflow_runs (
+       id, organization_id, task_id, workflow_version_id, requested_by, status,
+       snapshot, budget_limit_usd
+     ) select $3, organization_id, coalesce($4::uuid, task_id),
+              coalesce($5::uuid, workflow_version_id), requested_by, $6,
+              snapshot, 0
+         from bakery.workflow_runs
+        where organization_id = $1 and id = $2`,
+    [
+      fixture.organizationId,
+      ownRunId,
+      id,
+      target.taskId ?? null,
+      target.workflowVersionId ?? null,
+      target.status ?? "queued",
+    ],
+  );
+  return id;
+}
+
+/** A task below `parent`, with its own conversation, as the job seeder makes one. */
+export async function insertChildTask(
+  fixture: AgentFixture,
+  parent: JobSeed,
+): Promise<{ taskId: string; conversationId: string }> {
+  const conversationId = crypto.randomUUID();
+  const taskId = crypto.randomUUID();
+  await fixture.pgDatabase.query(
+    `insert into bakery.conversations (
+       id, organization_id, application_id, title, created_by, repository_id
+     ) select $3, organization_id, application_id, 'child', created_by,
+              repository_id
+         from bakery.conversations
+        where organization_id = $1 and id = $2`,
+    [fixture.organizationId, parent.conversationId, conversationId],
+  );
+  await fixture.pgDatabase.query(
+    `insert into bakery.tasks (
+       id, organization_id, application_id, conversation_id, title, task_type,
+       status, priority, created_by, repository_id, repository_profile_id,
+       repository_profile_revision, repository_profile_digest, parent_task_id
+     ) select $3, organization_id, application_id, $4, 'child', task_type,
+              'draft', priority, created_by, repository_id,
+              repository_profile_id, repository_profile_revision,
+              repository_profile_digest, id
+         from bakery.tasks
+        where organization_id = $1 and id = $2`,
+    [fixture.organizationId, parent.taskId, taskId, conversationId],
+  );
+  return { taskId, conversationId };
+}
+
+/** A second workflow with its own version, which no grant covers. */
+export async function ungrantedWorkflowVersion(
+  fixture: AgentFixture,
+  from: { workflowId: string; workflowVersionId: string },
+): Promise<{ workflowId: string; versionId: string }> {
+  const workflowId = crypto.randomUUID();
+  const versionId = crypto.randomUUID();
+  await fixture.pgDatabase.query(
+    `insert into bakery.workflow_definitions (id, organization_id, slug, name)
+     select $3::uuid, organization_id, 'ungranted-' || gen_random_uuid()::text,
+            'Ungranted'
+       from bakery.workflow_definitions
+      where organization_id = $1 and id = $2`,
+    [fixture.organizationId, from.workflowId, workflowId],
+  );
+  await fixture.pgDatabase.query(
+    `insert into bakery.workflow_versions (
+       id, organization_id, workflow_id, revision, source_yaml, normalized_spec,
+       digest, status, created_by
+     ) select $3, organization_id, $4, 1, source_yaml, normalized_spec,
+              digest || '-ungranted', status, created_by
+         from bakery.workflow_versions
+        where organization_id = $1 and id = $2`,
+    [fixture.organizationId, from.workflowVersionId, versionId, workflowId],
+  );
+  return { workflowId, versionId };
 }
