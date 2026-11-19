@@ -320,6 +320,21 @@
       "slug": "session-required",
       "title": "Browser session required",
       "detail": "This action needs a signed-in browser session; an access token cannot perform it."
+    },
+    "STORAGE_AREA_REFUSED": {
+      "status": 409,
+      "retryable": false,
+      "slug": "storage-area-refused"
+    },
+    "STORAGE_QUOTA_EXCEEDED": {
+      "status": 409,
+      "retryable": false,
+      "slug": "storage-quota-exceeded"
+    },
+    "STORAGE_FILE_TOO_LARGE": {
+      "status": 422,
+      "retryable": false,
+      "slug": "storage-file-too-large"
     }
   },
   "conventions": {
@@ -11669,6 +11684,374 @@
       ],
       "description": "Unauthenticated redemption of a password reset link: sets the new password, consumes the link and signs the person out of every browser session. An unknown, used, expired or revoked link gets one identical refusal."
     },
+    "StorageFilePut": {
+      "fields": [
+        {
+          "name": "path",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 2,
+            "maxLength": 4096
+          },
+          "description": "Where the file goes: Absolute path in the organization's storage tree, such as /shared/briefs/plan.md. Segments are compared case-insensitively after Unicode normalization; an empty segment, '.', '..', a control character or a missing leading slash is refused. Its parent folder must exist and be in a working, personal (owner only) or scratch area."
+        },
+        {
+          "name": "mediaType",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "description": "IANA media type the version records and later serves, such as text/markdown or application/octet-stream."
+        },
+        {
+          "name": "content",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 1398104
+          },
+          "description": "The file's bytes, base64, for a small file of at most 1 MiB. Send exactly one of content or blobId."
+        },
+        {
+          "name": "blobId",
+          "type": "uuid",
+          "required": false,
+          "description": "A blob a completed resumable upload stored in this organization (blobUploads.complete). This is how a large file is uploaded: upload the bytes, then put the blob at a path. Send exactly one of content or blobId."
+        }
+      ],
+      "rules": [
+        "Idempotency-Key is required. Writing a new file needs no If-Match and refuses one (412). Replacing an existing file needs a strong If-Match with the entry's version (428 when missing, 412 when stale).",
+        "Identical bytes and media type change nothing and return the entry as it is, so a retried put is idempotent. A larger file than the organization's maxFileBytes is 422 STORAGE_FILE_TOO_LARGE; a write that would take usage past 90% of the organization, project or personal quota is 409 STORAGE_QUOTA_EXCEEDED with reason organization, project or personal.",
+        "A parent in a record area, the library, /connections, /trash or /system is 409 STORAGE_AREA_REFUSED with a reason; a missing parent, or another member's personal folder, is 404."
+      ],
+      "description": "Writes a file at a path in a working area (O42, chapter 25 section 17.4 put and upload): the first write makes the file entry, each later write adds a version. Working areas keep the newest versions up to the organization's setting; scratch keeps only the latest."
+    },
+    "StorageFolderCreate": {
+      "fields": [
+        {
+          "name": "path",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 2,
+            "maxLength": 4096
+          },
+          "description": "The new folder: Absolute path in the organization's storage tree, such as /shared/briefs/plan.md. Segments are compared case-insensitively after Unicode normalization; an empty segment, '.', '..', a control character or a missing leading slash is refused. Its parent must exist and be writable by the caller."
+        }
+      ],
+      "rules": [
+        "Idempotency-Key is required. An existing folder at the path is returned unchanged; a file there is 409 STATE_CONFLICT reason name_taken."
+      ],
+      "description": "Makes a folder in a working, personal or scratch area. People add folders only in assets, attachments, /shared, workspaces and their own personal folder (section 17.2); everywhere else is refused."
+    },
+    "StorageEntryDestination": {
+      "fields": [
+        {
+          "name": "destinationPath",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 2,
+            "maxLength": 4096
+          },
+          "description": "Where the entry ends up, name included: Absolute path in the organization's storage tree, such as /shared/briefs/plan.md. Segments are compared case-insensitively after Unicode normalization; an empty segment, '.', '..', a control character or a missing leading slash is refused. Its parent must be a folder the caller may write."
+        }
+      ],
+      "rules": [
+        "Idempotency-Key is required; a move also needs a strong If-Match with the entry's version.",
+        "A destination name already taken in that folder is 409 STATE_CONFLICT reason name_taken. Moving a folder into itself is 422."
+      ],
+      "description": "The destination of a copy or a move inside the storage tree. A copy makes a new entry naming the same bytes; a move changes only the entry's parent and name, so nothing pinned to its versions breaks (O34)."
+    },
+    "StorageSettingsPut": {
+      "fields": [
+        {
+          "name": "workingVersionsKept",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1,
+            "max": 1000
+          },
+          "description": "How many versions a working-area file keeps; older ones are removed on the next write. Default 20."
+        },
+        {
+          "name": "trashRetentionDays",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1,
+            "max": 3650
+          },
+          "description": "Days a deleted working file stays in /trash, restorable, before the hourly sweep removes it. Default 30."
+        },
+        {
+          "name": "scratchRetentionDays",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1,
+            "max": 3650
+          },
+          "description": "Days a file in a personal scratch folder lives after its last write before the sweep removes it. Default 30."
+        },
+        {
+          "name": "maxFileBytes",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1,
+            "max": 5368709120
+          },
+          "description": "Largest single file a put accepts, in bytes; at most the 5 GiB blob limit. Default 5 GiB."
+        },
+        {
+          "name": "organizationQuotaBytes",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1,
+            "max": 1125899906842624
+          },
+          "description": "Bytes all working-area files of the organization may hold. Usage warns at 75% and new writes pause at 90%. Default 100 GiB."
+        },
+        {
+          "name": "projectQuotaBytes",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1,
+            "max": 1125899906842624
+          },
+          "description": "Bytes each project's working-area files (assets, workspaces, attachments) may hold, with the same 75% warning and 90% pause. Default 50 GiB."
+        },
+        {
+          "name": "personalQuotaBytes",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1,
+            "max": 1125899906842624
+          },
+          "description": "Bytes each member's personal folder may hold, with the same 75% warning and 90% pause. Default 10 GiB."
+        }
+      ],
+      "rules": [
+        "Organization Admin only. Idempotency-Key is required. The first save needs no If-Match and refuses one; every later save needs a strong If-Match with the settings version (428 when missing, 412 when stale). Every value is replaced; a value outside its bounds is 422 and nothing is stored."
+      ],
+      "description": "Replaces the organization's storage limits (O42): versions kept, trash and scratch retention, maximum file size and the organization, project and personal quotas."
+    },
+    "RunRequestCreate": {
+      "fields": [
+        {
+          "name": "recipientId",
+          "type": "uuid",
+          "required": true,
+          "description": "The person to ask: an active human member of this organization other than the asker. Resolved once, when the request is made, and frozen on it."
+        },
+        {
+          "name": "intent",
+          "type": "enum(fyi|review|approve|answer|take_over)",
+          "required": true,
+          "description": "What is needed: fyi (just let them know), review, approve, answer or take_over. Only fyi is accepted until the powers for the others are built; the rest answer 422."
+        },
+        {
+          "name": "stepKey",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "description": "The step the request concerns, or omitted for the run as a whole."
+        },
+        {
+          "name": "note",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 280
+          },
+          "description": "Optional one line shown to the person asked."
+        },
+        {
+          "name": "neededBy",
+          "type": "timestamp",
+          "required": false,
+          "description": "Optional deadline shown to the person asked. The request itself still expires after seven days."
+        }
+      ],
+      "rules": [
+        "Developer or Admin who can see the run. Bounded by the asker: nobody hands over a right they do not hold. Asking the same person for the same thing again while a request is open reminds them and returns the open request."
+      ],
+      "description": "Asks one person, on one run, for one thing. Gives the person the right to see this run and nothing else until the intent's power is added."
+    },
+    "FileSearchQuery": {
+      "fields": [
+        {
+          "name": "query",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "description": "Text to find, matched case-insensitively as a substring of a file's name or of a library item's name; wildcard characters in it are matched literally."
+        },
+        {
+          "name": "path",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "description": "Absolute storage path of a folder; only files under it are searched. A path that is not a folder in this organization returns no hits rather than an error, so it reveals nothing about other trees."
+        },
+        {
+          "name": "kind",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "description": "Restricts hits to one kind: an artifact's type for a file, or `skill`, `agent`, `workflow`, `kind` or `package` for a library item."
+        },
+        {
+          "name": "mediaType",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "description": "Restricts hits to files whose current version has exactly this media type. Library items have none, so this filter excludes them."
+        },
+        {
+          "name": "mediaGroup",
+          "type": "enum",
+          "required": false,
+          "enum": [
+            "text",
+            "image",
+            "video",
+            "audio",
+            "data",
+            "archive",
+            "other"
+          ],
+          "description": "Restricts hits to files whose current version falls in this plain group: text (other text/*), image, video, audio, data (JSON, CSV, YAML, XML, NDJSON), archive (zip, gzip, tar) or other. Library items have no media type, so this filter excludes them."
+        },
+        {
+          "name": "producerId",
+          "type": "uuid",
+          "required": false,
+          "description": "Restricts hits to files whose current version was authored by this principal. Library items have no producer, so this filter excludes them."
+        },
+        {
+          "name": "factKey",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "description": "With `factValue`, restricts hits to files whose current version metadata holds this key with exactly this string value. Until kind validators publish typed facts, a version's metadata is where its facts live. Library items have none, so this filter excludes them."
+        },
+        {
+          "name": "factValue",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 500
+          },
+          "description": "The string value `factKey` must hold; required when `factKey` is given and refused without it."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from a prior files.search page; bound to this operation, the caller, the organization and the same filters, so it is rejected if any of them change."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum number of hits returned per page; defaults to 25 and cannot exceed 100."
+        }
+      ],
+      "pagination": "pagination",
+      "rules": [
+        "At least one of query, path, kind, mediaType, mediaGroup, producerId or factKey is required. Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind the cursor to this operation, current principal and organization, the filters and the ordering; validate before the keyset query."
+      ],
+      "description": "Searches the organization's file tree and its read-only library mirror by name, path, kind, media type, producer and a metadata fact, newest first. Only files and library items the caller may read are returned, and nothing of another organization is ever counted or listed."
+    },
+    "LibraryFolderQuery": {
+      "fields": [
+        {
+          "name": "path",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "description": "Absolute path of a library folder: /library lists the sections that hold a published item, /library/<section> lists that section's published items. Defaults to /library. Any other path is not found."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from a prior files.library page; bound to this operation, the caller, the organization and the same path, so it is rejected if any of them change."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum number of entries returned per page; defaults to 25 and cannot exceed 100."
+        }
+      ],
+      "pagination": "pagination",
+      "rules": [
+        "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind the cursor to this operation, current principal and organization, the path and the ordering; validate before the keyset query."
+      ],
+      "description": "Lists one folder of the read-only /library mirror of the catalog, computed from the catalog on every call. Needs library:read, and an agent session needs the library.read scope. Items are ordered oldest first, keyed by creation time and id; sections are a short fixed list."
+    },
+    "ReviewAccept": {
+      "fields": [
+        {
+          "name": "reason",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "description": "Why the owner overrules the reviewer and accepts the candidate anyway. It is recorded verbatim in the work item's decisions ledger and shown on the review, in the open; a blank reason is refused."
+        }
+      ],
+      "description": "Records an owner's accept-with-reason decision against one review that requested changes, overruling that reviewer (chapter 25 section 9, O18). An organization administrator may record it, and so may a member whose role holds the review:accept permission; an agent never may. The review stays what it was, immutable; the decision is a separate record shown on it. It does not restart a run that has already stopped: that needs a workflow that reads decisions."
+    },
     "DesktopSignInStart": {
       "fields": [
         {
@@ -18558,7 +18941,10 @@
         "artifactVersionId",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "acceptedBy",
+        "acceptedAt",
+        "acceptReason"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -18579,7 +18965,10 @@
         "artifactVersionId": "uuid|null",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "acceptedBy": "uuid|null",
+        "acceptedAt": "timestamp|null",
+        "acceptReason": "string|null"
       },
       "fieldBounds": {
         "ordinal": {
@@ -18599,7 +18988,10 @@
       },
       "nullableFields": [
         "pullRequestId",
-        "artifactVersionId"
+        "artifactVersionId",
+        "acceptedBy",
+        "acceptedAt",
+        "acceptReason"
       ],
       "description": "One immutable independent automated review of one exact candidate of a run: the head and base commits and the effective policy digest it judged, the reviewer's fresh server-created agent session and worker principal, and the implementing session and principal it reviewed. A cycle is recorded only after the server verified the report against its own pins and the independence rules, so its approval is evidence for that exact candidate and is invalid once the head, base or policy digest changes. Only approved and changes_requested are written; running and failed are never stored because a review that did not complete leaves no cycle. Rows are never updated, so updatedAt equals createdAt and version is always 1.",
       "fieldDescriptions": {
@@ -18621,8 +19013,16 @@
         "artifactVersionId": "Stable UUID linking this record to the related artifact version entity; always null because a cycle keeps its findings in rows.",
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated; equals createdAt because rows are immutable.",
-        "version": "Always 1 because review cycle rows are immutable."
-      }
+        "version": "Always 1 because review cycle rows are immutable.",
+        "acceptedBy": "Principal who recorded an accept-with-reason decision overruling this review (an organization administrator, or a member whose role holds review:accept); null when none was recorded.",
+        "acceptedAt": "UTC timestamp of that decision; null when none was recorded.",
+        "acceptReason": "The reason the decider gave, verbatim; null when none was recorded."
+      },
+      "optionalFields": [
+        "acceptedBy",
+        "acceptedAt",
+        "acceptReason"
+      ]
     },
     "ReviewFinding": {
       "projection": "review_findings",
@@ -29672,6 +30072,370 @@
         "expiresAt": "UTC timestamp one hour after issue, after which the link no longer works."
       }
     },
+    "StorageEntry": {
+      "fields": [
+        "id",
+        "parentId",
+        "path",
+        "name",
+        "kind",
+        "policy",
+        "artifactId",
+        "currentVersionId",
+        "revision",
+        "sha256",
+        "sizeBytes",
+        "mediaType",
+        "trashedAt",
+        "restoreParentId",
+        "originalName",
+        "originalFolderPath",
+        "trashedById",
+        "trashedByName",
+        "deletionRequestedAt",
+        "version",
+        "updatedAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "parentId": "uuid|null",
+        "path": "string",
+        "name": "string",
+        "kind": "enum(folder|file)",
+        "policy": "enum(record|working|scratch|library|personal|system)",
+        "artifactId": "uuid|null",
+        "currentVersionId": "uuid|null",
+        "revision": "integer|null",
+        "sha256": "string|null",
+        "sizeBytes": "integer|null",
+        "mediaType": "string|null",
+        "trashedAt": "timestamp|null",
+        "restoreParentId": "uuid|null",
+        "originalName": "string|null",
+        "originalFolderPath": "string|null",
+        "trashedById": "uuid|null",
+        "trashedByName": "string|null",
+        "deletionRequestedAt": "timestamp|null",
+        "version": "integer",
+        "updatedAt": "timestamp"
+      },
+      "nullableFields": [
+        "parentId",
+        "artifactId",
+        "currentVersionId",
+        "revision",
+        "sha256",
+        "sizeBytes",
+        "mediaType",
+        "trashedAt",
+        "restoreParentId",
+        "originalName",
+        "originalFolderPath",
+        "trashedById",
+        "trashedByName",
+        "deletionRequestedAt"
+      ],
+      "description": "A folder or file in the organization's storage tree as the caller may see it: where it is, what policy it follows and, for a working-area file, its current version's digest and size.",
+      "fieldDescriptions": {
+        "id": "Stable id of the entry. A rename or move never changes it, so links and pins keep working.",
+        "parentId": "Folder that holds the entry now; the /trash folder while it is deleted. Null only for a top-level area.",
+        "path": "The entry's path now, a label that changes with a rename or move; the id is its identity.",
+        "name": "The entry's display name, unique in its folder when compared case-insensitively.",
+        "kind": "Whether this is a folder or a file.",
+        "policy": "Folder policy the entry follows: record areas keep their files, working and personal areas take writes and delete to trash, scratch keeps only the latest version and expires.",
+        "artifactId": "The artifact a record-area file shows; null for a file written into a working area and for folders.",
+        "currentVersionId": "The working-area file's current version; null for folders and record-area files, whose version is their artifact's.",
+        "revision": "Revision number of the current working-area version, counting from 1.",
+        "sha256": "Lowercase hexadecimal SHA-256 of the current working-area version's bytes.",
+        "sizeBytes": "Size of the current working-area version in bytes.",
+        "mediaType": "Media type of the current working-area version.",
+        "trashedAt": "When the entry was deleted to trash; null while it is live.",
+        "restoreParentId": "Folder a restore puts a trashed entry back into; null while it is live.",
+        "originalName": "Name the entry had before it was deleted, which a restore gives it back; null while it is live.",
+        "originalFolderPath": "Path of the folder the entry was deleted from, for showing where it came from; null while it is live.",
+        "trashedById": "Person or agent that deleted the entry to trash; null while it is live.",
+        "trashedByName": "Display name of whoever deleted the entry, as shown in the trash list; null while it is live.",
+        "deletionRequestedAt": "When an Admin asked to delete this record-area file forever; set while that request waits for the owner maintenance task, so the page can show it as being deleted. Null when no deletion is pending.",
+        "version": "Optimistic concurrency version; send it as If-Match to replace, move, delete or restore this entry.",
+        "updatedAt": "When the entry or its current version last changed."
+      }
+    },
+    "Page<StorageEntry>": {
+      "pageOf": "StorageEntry",
+      "description": "Cursor page of the entries in the organization's trash the caller may see, most recently deleted first. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers or offsets."
+    },
+    "StorageSettings": {
+      "fields": [
+        "workingVersionsKept",
+        "trashRetentionDays",
+        "scratchRetentionDays",
+        "maxFileBytes",
+        "organizationQuotaBytes",
+        "projectQuotaBytes",
+        "personalQuotaBytes",
+        "organizationUsedBytes",
+        "organizationQuotaState",
+        "customized",
+        "version"
+      ],
+      "fieldTypes": {
+        "workingVersionsKept": "integer",
+        "trashRetentionDays": "integer",
+        "scratchRetentionDays": "integer",
+        "maxFileBytes": "integer",
+        "organizationQuotaBytes": "integer",
+        "projectQuotaBytes": "integer",
+        "personalQuotaBytes": "integer",
+        "organizationUsedBytes": "integer",
+        "organizationQuotaState": "enum(ok|warning|paused)",
+        "customized": "boolean",
+        "version": "integer"
+      },
+      "nullableFields": [],
+      "description": "The organization's storage limits and how much of its quota working-area files use. Every limit is an organization setting with a default (O42).",
+      "fieldDescriptions": {
+        "workingVersionsKept": "Versions a working-area file keeps.",
+        "trashRetentionDays": "Days a deleted working file stays restorable in /trash.",
+        "scratchRetentionDays": "Days a scratch file lives after its last write.",
+        "maxFileBytes": "Largest single file a put accepts, in bytes.",
+        "organizationQuotaBytes": "Bytes the organization's working-area files may hold.",
+        "projectQuotaBytes": "Bytes each project's working-area files may hold.",
+        "personalQuotaBytes": "Bytes each member's personal folder may hold.",
+        "organizationUsedBytes": "Bytes working-area file versions hold now, trash included until it is swept or purged.",
+        "organizationQuotaState": "Where usage stands against the organization quota: warning from 75%, paused from 90%, when new writes are refused.",
+        "customized": "False while the organization uses Bakery's defaults; true once an Admin saved its own values.",
+        "version": "Settings version for If-Match on the next save; 0 while the defaults apply."
+      }
+    },
+    "StoragePurgeResult": {
+      "fields": [
+        "id",
+        "status",
+        "alreadyRequested",
+        "entriesRemoved",
+        "bytesRemoved"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "status": "enum(removed|queued)",
+        "alreadyRequested": "boolean",
+        "entriesRemoved": "integer",
+        "bytesRemoved": "integer"
+      },
+      "nullableFields": [],
+      "description": "What an Admin purge did. A purge is permanent and audited. A working, personal or scratch entry is removed at once; a record-area file is queued, because only the owner-privileged purge job may clear an artifact's bytes. A record-area folder is refused.",
+      "fieldDescriptions": {
+        "id": "The purged entry.",
+        "status": "removed when the entry and everything under it were deleted in this request; queued when a record-area file's purge was recorded for the owner-privileged job, which clears every version's bytes and leaves the entry as a tombstone. Purging the same file again before the job runs returns queued for the same request.",
+        "alreadyRequested": "True when the record-area file already had a pending purge request, so this call queued nothing new; false when this call made the request or removed the entry.",
+        "entriesRemoved": "Entries deleted with their versions: the entry and everything under it. Zero when the purge is queued.",
+        "bytesRemoved": "Bytes of working-area versions deleted. Zero when the purge is queued."
+      }
+    },
+    "RunRequestPerson": {
+      "fields": [
+        "principalId",
+        "displayName"
+      ],
+      "fieldTypes": {
+        "principalId": "uuid",
+        "displayName": "string"
+      },
+      "nullableFields": [],
+      "description": "A person named on a request: stable identity and saved display name.",
+      "fieldDescriptions": {
+        "principalId": "Stable principal UUID.",
+        "displayName": "The person's saved display name."
+      }
+    },
+    "RunRequest": {
+      "projection": "person_requests",
+      "fields": [
+        "id",
+        "runId",
+        "stepKey",
+        "intent",
+        "recipient",
+        "askedBy",
+        "askedByKind",
+        "note",
+        "neededBy",
+        "status",
+        "expiresAt",
+        "ownerFallback",
+        "fallbackForName",
+        "createdAt",
+        "updatedAt",
+        "version"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "runId": "uuid",
+        "stepKey": "string|null",
+        "intent": "enum(fyi|review|approve|answer|take_over)",
+        "recipient": "RunRequestPerson",
+        "askedBy": "RunRequestPerson|null",
+        "askedByKind": "enum(person|agent|workflow)",
+        "note": "string|null",
+        "neededBy": "timestamp|null",
+        "status": "enum(open|answered|handled|expired|withdrawn)",
+        "expiresAt": "timestamp",
+        "ownerFallback": "boolean",
+        "fallbackForName": "string|null",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp",
+        "version": "integer"
+      },
+      "nullableFields": [
+        "stepKey",
+        "askedBy",
+        "note",
+        "neededBy",
+        "fallbackForName"
+      ],
+      "description": "A request: one person asked for one thing on one run, with how it stands.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of the request.",
+        "runId": "The run the request is on.",
+        "stepKey": "The step it concerns, or null for the run as a whole.",
+        "intent": "What was asked for.",
+        "recipient": "The person asked, frozen when the request was made.",
+        "askedBy": "The person who asked, or null when the asker no longer exists.",
+        "askedByKind": "Whether a person, an agent or a workflow's own step asked.",
+        "note": "The optional one-line note, or null.",
+        "neededBy": "The optional deadline, or null.",
+        "status": "open until answered, handled by someone else, expired seven days after it was made, or withdrawn.",
+        "expiresAt": "UTC time the request expires; silence never approves.",
+        "ownerFallback": "True when the person asked for could not be resolved and the run's starter was asked instead.",
+        "fallbackForName": "Who was meant when ownerFallback is true, otherwise null.",
+        "createdAt": "UTC time the request was made.",
+        "updatedAt": "UTC time it last changed.",
+        "version": "Optimistic-concurrency version used as If-Match."
+      }
+    },
+    "RunRequests": {
+      "fields": [
+        "requests"
+      ],
+      "fieldTypes": {
+        "requests": "RunRequest[]"
+      },
+      "nullableFields": [],
+      "description": "The requests made on one run, or the requests addressed to the caller on one run, newest first.",
+      "fieldDescriptions": {
+        "requests": "Requests in newest-first order; bounded to the most recent fifty."
+      }
+    },
+    "FileSearchHit": {
+      "fields": [
+        "source",
+        "entryId",
+        "path",
+        "name",
+        "kind",
+        "mediaType",
+        "mediaGroup",
+        "sizeBytes",
+        "versionId",
+        "producerId",
+        "producerKind",
+        "producerName",
+        "producerTaskId",
+        "producerTaskTitle",
+        "nameMatchStart",
+        "nameMatchLength",
+        "createdAt"
+      ],
+      "fieldTypes": {
+        "source": "enum(files|library)",
+        "entryId": "uuid|null",
+        "path": "string",
+        "name": "string",
+        "kind": "string",
+        "mediaType": "string|null",
+        "mediaGroup": "enum(text|image|video|audio|data|archive|other)|null",
+        "sizeBytes": "integer|null",
+        "versionId": "uuid|null",
+        "producerId": "uuid|null",
+        "producerKind": "enum(person|step)|null",
+        "producerName": "string|null",
+        "producerTaskId": "uuid|null",
+        "producerTaskTitle": "string|null",
+        "nameMatchStart": "integer|null",
+        "nameMatchLength": "integer|null",
+        "createdAt": "timestamp"
+      },
+      "nullableFields": [
+        "entryId",
+        "mediaType",
+        "mediaGroup",
+        "sizeBytes",
+        "versionId",
+        "producerId",
+        "producerKind",
+        "producerName",
+        "producerTaskId",
+        "producerTaskTitle",
+        "nameMatchStart",
+        "nameMatchLength"
+      ],
+      "description": "One file or library item matched by files.search, with its absolute path, so a caller can open it by path or by the ids shown.",
+      "fieldDescriptions": {
+        "source": "Where the hit lives: the organization's file tree, or the read-only library mirror.",
+        "entryId": "Stable UUID of the file's tree entry; null for a library item, which is shown by path.",
+        "path": "Absolute path of the hit in the tree, for example /projects/<project>/artifacts/<work item>/plan.md or /library/skills/<slug>.",
+        "name": "Name of the file or library item.",
+        "kind": "The artifact type of a file, or the library kind of a library item.",
+        "mediaType": "Media type of the file's current version; null for a library item or a file with no current version.",
+        "mediaGroup": "Plain group of the file's media type (text, image, video, audio, data, archive or other); null for a library item or a file with no current version.",
+        "sizeBytes": "Size in bytes of the file's current version; null for a library item or a file with no current version.",
+        "versionId": "Stable UUID of the file's current version, the one a run would pin; null for a library item or a file with no current version.",
+        "producerId": "Stable UUID of the principal that authored the file's current version; null for a library item.",
+        "producerKind": "Whether the file's current version was made by a person or by a step of a run; null for a library item.",
+        "producerName": "The person's display name, or the step's key for a step; null for a library item.",
+        "producerTaskId": "For a step, the work item (task) its run belongs to; null otherwise.",
+        "producerTaskTitle": "For a step, the title of that work item; null otherwise.",
+        "nameMatchStart": "Zero-based position in the name where the query first matches, case-insensitively, so a page can mark the match; null when the search had no text or the position is not exact.",
+        "nameMatchLength": "Length of the matched text in the name; null with nameMatchStart.",
+        "createdAt": "UTC timestamp when the entry or library item was created."
+      }
+    },
+    "LibraryEntry": {
+      "fields": [
+        "type",
+        "path",
+        "name",
+        "kind",
+        "createdAt"
+      ],
+      "fieldTypes": {
+        "type": "enum(folder|item)",
+        "path": "string",
+        "name": "string",
+        "kind": "string|null",
+        "createdAt": "timestamp|null"
+      },
+      "nullableFields": [
+        "kind",
+        "createdAt"
+      ],
+      "description": "One entry of a /library folder: a section folder, or a published catalog item with its absolute path.",
+      "fieldDescriptions": {
+        "type": "folder for a section, item for a published catalog item.",
+        "path": "Absolute path: /library/<section> or /library/<section>/<slug>.",
+        "name": "Display name of the section or item.",
+        "kind": "Catalog kind of an item (skill, agent, workflow, kind, package); null for a folder.",
+        "createdAt": "UTC time the catalog item was created; null for a folder."
+      }
+    },
+    "Page<FileSearchHit>": {
+      "pageOf": "FileSearchHit",
+      "description": "Cursor page of file search hits, newest first, returned by GET /v1/files/search. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, totalPages or offsets."
+    },
+    "Page<LibraryEntry>": {
+      "pageOf": "LibraryEntry",
+      "description": "Cursor page of /library entries, returned by GET /v1/files/library. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, totalPages or offsets."
+    },
     "DesktopSignInStarted": {
       "fields": [
         "id",
@@ -31061,6 +31825,24 @@
       "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
     },
     "agentPowerGrant.deleted": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "runRequest.created": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "runRequest.withdrawn": {
       "schemaVersion": 1,
       "payloadFields": {
         "resourceId": "uuid",

@@ -7,6 +7,12 @@ export type FieldProps = {
   hint?: ReactNode;
   htmlFor?: string;
   label: ReactNode;
+  /**
+   * A link or short action shown at the end of the label row, such as
+   * "Forgot password?"; stacked layout only. It follows the control in tab and
+   * reading order, so tabbing from the field before reaches the control first.
+   */
+  labelEnd?: ReactNode;
   /** Quiet line under an inline label, e.g. "Optional". */
   note?: ReactNode;
   /** `inline` puts the label in a left column beside the control (collapses to stacked on narrow screens). */
@@ -23,6 +29,7 @@ export function Field(
     hint,
     htmlFor,
     label,
+    labelEnd,
     layout = "stacked",
     note,
     required = false,
@@ -32,7 +39,12 @@ export function Field(
 ) {
   return (
     <div
-      className={`ui-field ui-field--${variant} ui-field--${layout}`}
+      className={[
+        "ui-field",
+        `ui-field--${variant}`,
+        `ui-field--${layout}`,
+        labelEnd && layout === "stacked" ? "ui-field--label-end" : "",
+      ].filter(Boolean).join(" ")}
       data-ui-component="field"
       data-variant={layout === "inline" ? "inline" : variant}
       data-has-hint={hint && !error ? "" : undefined}
@@ -74,6 +86,9 @@ export function Field(
               : null}
             {!error && hint
               ? <div className="ui-field__hint">{hint}</div>
+              : null}
+            {labelEnd && layout === "stacked"
+              ? <div className="ui-field__label-end">{labelEnd}</div>
               : null}
           </>
         )}

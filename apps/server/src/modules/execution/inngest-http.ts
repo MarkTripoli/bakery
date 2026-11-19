@@ -24,6 +24,7 @@ import {
 } from "../integrations/discovery-workflow.ts";
 import { createIntegrationIntakeRetention } from "../integrations/intake-retention.ts";
 import { createBlobUploadReaper } from "../knowledge/blob-upload-reaper.ts";
+import { createStorageRetentionReaper } from "../knowledge/storage-retention-reaper.ts";
 import { createProviderProbeWorkflow } from "./provider-probe.ts";
 import {
   createIntegrationIntakeRecovery,
@@ -201,6 +202,10 @@ export function createDefaultInngestFunctions(options: {
           database: options.database,
         }),
         createBlobUploadReaper({
+          client: options.client,
+          database: options.database,
+        }),
+        createStorageRetentionReaper({
           client: options.client,
           database: options.database,
         }),

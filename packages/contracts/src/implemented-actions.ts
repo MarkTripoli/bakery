@@ -370,6 +370,7 @@ export const DeliveryImplementedAction = Object.freeze(
   {
     ChecksList: "checks.list",
     RunReviewsList: "runReviews.list",
+    RunReviewsAccept: "runReviews.accept",
     ReviewFindingsList: "reviewFindings.list",
     RunDeliveryDecisionsList: "runDeliveryDecisions.list",
     PullRequestsList: "pullRequests.list",
@@ -428,6 +429,18 @@ export const NotificationImplementedAction = Object.freeze(
 );
 export const notificationImplementedActions = Object.freeze(
   Object.values(NotificationImplementedAction),
+);
+
+export const RunRequestImplementedAction = Object.freeze(
+  {
+    RunRequestsCreate: "runRequests.create",
+    RunRequestsList: "runRequests.list",
+    RunRequestsMine: "runRequests.mine",
+    RunRequestsWithdraw: "runRequests.withdraw",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const runRequestImplementedActions = Object.freeze(
+  Object.values(RunRequestImplementedAction),
 );
 
 export const GroupImplementedAction = Object.freeze(
@@ -517,6 +530,8 @@ export const ArtifactImplementedAction = Object.freeze(
     ArtifactCommentsListAcrossVersions: "artifactComments.listAcrossVersions",
     ArtifactCommentsMentionCandidates: "artifactComments.mentionCandidates",
     ArtifactsList: "artifacts.list",
+    FilesSearch: "files.search",
+    FilesLibrary: "files.library",
     ArtifactsGet: "artifacts.get",
     ArtifactsUpdate: "artifacts.update",
     ArtifactStorageGet: "artifactStorage.get",
@@ -585,6 +600,24 @@ export const BlobUploadImplementedAction = Object.freeze(
 );
 export const blobUploadImplementedActions = Object.freeze(
   Object.values(BlobUploadImplementedAction),
+);
+
+export const StorageImplementedAction = Object.freeze(
+  {
+    StorageFilesPut: "storageFiles.put",
+    StorageFoldersCreate: "storageFolders.create",
+    StorageEntriesCopy: "storageEntries.copy",
+    StorageEntriesMove: "storageEntries.move",
+    StorageEntriesTrash: "storageEntries.trash",
+    StorageEntriesRestore: "storageEntries.restore",
+    StorageEntriesPurge: "storageEntries.purge",
+    StorageTrashList: "storageTrash.list",
+    StorageSettingsGet: "storageSettings.get",
+    StorageSettingsPut: "storageSettings.put",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const storageImplementedActions = Object.freeze(
+  Object.values(StorageImplementedAction),
 );
 
 export const CatalogImplementedAction = Object.freeze(
@@ -691,6 +724,7 @@ export const implementedActions = Object.freeze(
     ...notificationImplementedActions,
     ...groupImplementedActions,
     ...emailSettingsImplementedActions,
+    ...runRequestImplementedActions,
     ...workflowImplementedActions,
     ...workflowActionDiscoveryImplementedActions,
     ...automationImplementedActions,
@@ -702,6 +736,7 @@ export const implementedActions = Object.freeze(
     ...pluginInstallImplementedActions,
     ...skillStorageImplementedActions,
     ...blobUploadImplementedActions,
+    ...storageImplementedActions,
     ...memoryImplementedActions,
   ] as const,
 );
