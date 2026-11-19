@@ -153,7 +153,6 @@ export async function takeOverRunStep(
       taskId: runRow.task_id,
       step: stepRow,
       job: jobRow,
-      attemptCount: attempts.rows.length,
     });
   }
   if (!input.artifactId || !input.versionId) {
@@ -326,7 +325,6 @@ async function restartStep(
       max_attempts: number;
       installation_reservation_id: string | null;
     };
-    attemptCount: number;
   },
 ) {
   const { input, organizationId, principalId, runId, stepKey, step, job } =
