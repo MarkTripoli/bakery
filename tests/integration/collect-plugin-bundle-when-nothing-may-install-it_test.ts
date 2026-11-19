@@ -357,3 +357,102 @@ Deno.test("a sweep tick keeps a candidate that becomes installed after the scan"
     assertEquals((await tombstone(fixture, seeded.versionId)).purged, null);
   });
 });
+
+Deno.test("a bundle another live version still points at is kept, because two packages can share bytes", async () => {
+  await withWorkerFixture(async (fixture) => {
+    // The object key is the organization and the digest, and the digest is
+    // unique only per package, so two packages publishing identical archives
+    // share one object. Collecting for the withdrawn package would strip the
+    // other's live installs of the bytes they point at.
+    const withdrawn = await seedVersion(fixture, {
+      listingStatus: "withdrawn",
+    });
+    const live = await seedVersion(fixture, { listingStatus: "listed" });
+    // Same bytes, so the same key - which is what the digest-driven key means.
+    await fixture.pgDatabase.query(
+      `update bakery.plugin_versions set bundle_object_ref = $2, bundle_digest = $3
+        where organization_id = $1 and id = $4 returning id`,
+      [
+        fixture.organizationId,
+        withdrawn.objectRef,
+        "c".repeat(57),
+        live.versionId,
+      ],
+    );
+    await install(fixture, live);
+
+    const store = trackingStore();
+    assertEquals(
+      await collectPluginBundle(fixture.pgDatabase, store, withdrawn.versionId),
+      false,
+      "the shared object still belongs to a live version",
+    );
+    assertEquals(store.deleted, []);
+    // The object still has a live owner, and it is the package that is still
+    // listed: the withdrawn version's own tombstone stays unwritten too.
+    const found = await fixture.pgDatabase.query<
+      { id: string; bundle_purged_at: Date | null }
+    >(
+      `select id, bundle_purged_at from bakery.plugin_versions
+        where organization_id = $1 and bundle_object_ref = $2`,
+      [fixture.organizationId, withdrawn.objectRef],
+    );
+    assertEquals(found.rows.length, 2, "both versions point at the same bytes");
+    assertEquals(
+      found.rows.filter((row) => row.bundle_purged_at === null).map((row) =>
+        row.id
+      ),
+      [withdrawn.versionId, live.versionId],
+      "neither version is marked collected",
+    );
+  });
+});
+
+Deno.test("the last version pointing at shared bytes releases them", async () => {
+  await withWorkerFixture(async (fixture) => {
+    // A reference count, not a blanket refusal: while one sharing version is
+    // live the object stays, and once it is gone the other version frees it.
+    const first = await seedVersion(fixture, { listingStatus: "listed" });
+    const second = await seedVersion(fixture, { listingStatus: "withdrawn" });
+    await fixture.pgDatabase.query(
+      `update bakery.plugin_versions set bundle_object_ref = $2, bundle_digest = $3
+        where organization_id = $1 and id = $4`,
+      [
+        fixture.organizationId,
+        first.objectRef,
+        "c".repeat(64),
+        second.versionId,
+      ],
+    );
+    const store = trackingStore();
+    assertEquals(
+      await collectPluginBundle(fixture.pgDatabase, store, second.versionId),
+      false,
+      "the listed package still points at the bytes",
+    );
+    assertEquals(store.deleted, []);
+
+    // The listed package is withdrawn, which makes both versions collectable;
+    // neither can go first while the other still counts as a live reference,
+    // and the one the sweep reaches first decides. Whichever order, the object
+    // is freed exactly once, by the last version still pointing at it.
+    await fixture.pgDatabase.query(
+      `update bakery.plugin_packages set listing_status = 'withdrawn'
+        where organization_id = $1 and id = $2`,
+      [fixture.organizationId, first.packageId],
+    );
+    // Retire the second version's claim first, by writing the tombstone it
+    // would have written had it been allowed to collect.
+    await fixture.pgDatabase.query(
+      `update bakery.plugin_versions set bundle_purged_at = now()
+        where organization_id = $1 and id = $2`,
+      [fixture.organizationId, second.versionId],
+    );
+    assertEquals(
+      await collectPluginBundle(fixture.pgDatabase, store, first.versionId),
+      true,
+      "with no live sharer left, the bytes are released",
+    );
+    assertEquals(store.deleted, [first.objectRef]);
+  });
+});

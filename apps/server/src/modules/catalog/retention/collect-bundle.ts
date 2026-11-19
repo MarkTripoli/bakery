@@ -71,6 +71,18 @@ export async function collectPluginBundle(
           versionId,
         )
       ) return null;
+      // The object key is the organization and the digest, while the digest is
+      // unique only per package, so two packages publishing identical archives
+      // share one object. Deleting for one package would strip the other's
+      // installs of bytes they still point at.
+      const shared = await transaction.query(
+        `select 1 from bakery.plugin_versions
+          where organization_id = $1 and bundle_object_ref = $2
+            and id <> $3 and bundle_purged_at is null
+          limit 1`,
+        [row.organization_id, row.bundle_object_ref, versionId],
+      );
+      if (shared.rows.length > 0) return null;
       return {
         organizationId: row.organization_id,
         objectRef: row.bundle_object_ref,
