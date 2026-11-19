@@ -230,6 +230,7 @@ Deno.test("Bakery migrations follow the globally unique migration sequence", asy
       "0232_storage_entries",
       "0233_notification_dedupe_indexes",
       "0234_job_restart_privileges",
+      "0235_run_spawned_by",
       "0239_mentions_and_conversation_access",
       "0240_password_reset_links",
     ],
