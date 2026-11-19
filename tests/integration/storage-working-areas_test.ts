@@ -232,8 +232,8 @@ Deno.test("record areas refuse rm, mv and writes; rm in a working area trashes a
       "STORAGE_AREA_REFUSED",
     );
     assertEquals(refused.reason, "record_area");
-    // Even an Admin purge leaves a record area alone: its bytes are artifact
-    // versions, which only the owner retention collector may clear.
+    // An Admin purge refuses a record-area folder; only a record-area file's
+    // purge is queued (storage-record-purge_test.ts).
     await fixture.pgDatabase.query(
       "update bakery.organization_memberships set role = 'admin' where organization_id = $1 and principal_id = $2",
       [fixture.organizationId, fixture.principalId],

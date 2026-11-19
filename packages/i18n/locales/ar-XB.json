@@ -1304,7 +1304,7 @@
   "problems.RANGE_NOT_SATISFIABLE.title": "[مدى غير مخدوم]",
   "problems.RANGE_NOT_SATISFIABLE.description": "[هذا الكائن أكبر من أن يُخدَم مدى جزئي منه. اطلب الملف كاملًا بدلًا من ذلك.]",
   "problems.STORAGE_AREA_REFUSED.title": "[منطقة مرفوضة]",
-  "problems.STORAGE_AREA_REFUSED.description": "[هذا المجلد لا يسمح بهذا التغيير. تُحفظ الملفات في منطقة السجلات: لا يمكن حذفها أو نقلها أو مسحها نهائيًا، حتى من قِبل المسؤول. لا تُكتب المكتبة وسلة المهملات ومجلدات النظام عبر المسار.]",
+  "problems.STORAGE_AREA_REFUSED.description": "[هذا المجلد لا يسمح بهذا التغيير. تُحفظ الملفات في منطقة السجلات: لا يمكن حذفها أو نقلها. يستطيع المسؤول وحده مسح أحدها نهائيًا، ويُوضع المسح في قائمة الانتظار. لا تُكتب المكتبة وسلة المهملات ومجلدات النظام عبر المسار.]",
   "problems.STORAGE_QUOTA_EXCEEDED.title": "[بلغت حصة التخزين]",
   "problems.STORAGE_QUOTA_EXCEEDED.description": "[الكتابة الجديدة متوقفة لأن التخزين ممتلئ تقريبًا. احذف ملفات أو اطلب من المسؤول رفع الحصة.]",
   "problems.STORAGE_FILE_TOO_LARGE.title": "[الملف كبير جدًا]",

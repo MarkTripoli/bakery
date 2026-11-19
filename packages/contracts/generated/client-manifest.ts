@@ -83548,26 +83548,35 @@ export const clientManifest = {
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
           "description": "The purged entry."
         },
+        "status": {
+          "type": "string",
+          "enum": [
+            "removed",
+            "queued"
+          ],
+          "description": "removed when the entry and everything under it were deleted in this request; queued when a record-area file's purge was recorded for the owner-privileged job, which clears every version's bytes and leaves the entry as a tombstone. Purging the same file again before the job runs returns queued for the same request."
+        },
         "entriesRemoved": {
           "type": "integer",
           "minimum": -9007199254740991,
           "maximum": 9007199254740991,
-          "description": "Entries deleted with their versions: the entry and everything under it."
+          "description": "Entries deleted with their versions: the entry and everything under it. Zero when the purge is queued."
         },
         "bytesRemoved": {
           "type": "integer",
           "minimum": -9007199254740991,
           "maximum": 9007199254740991,
-          "description": "Bytes of working-area versions deleted."
+          "description": "Bytes of working-area versions deleted. Zero when the purge is queued."
         }
       },
       "required": [
         "id",
+        "status",
         "entriesRemoved",
         "bytesRemoved"
       ],
       "additionalProperties": false,
-      "description": "What an Admin purge removed from a working, personal or scratch area. A purge is permanent and audited; record areas are refused, because only retention collection clears an artifact's bytes."
+      "description": "What an Admin purge did. A purge is permanent and audited. A working, personal or scratch entry is removed at once; a record-area file is queued, because only the owner-privileged purge job may clear an artifact's bytes. A record-area folder is refused."
     }
   }
 } as const;

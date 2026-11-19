@@ -1302,7 +1302,7 @@
   "problems.RANGE_NOT_SATISFIABLE.title": "[Range not served]",
   "problems.RANGE_NOT_SATISFIABLE.description": "[This object is too large to serve a partial range. Request the whole file instead.]",
   "problems.STORAGE_AREA_REFUSED.title": "[Area refused]",
-  "problems.STORAGE_AREA_REFUSED.description": "[This folder does not allow that change. Files in a record area are kept: they cannot be deleted, moved or purged, even by an Admin. The library, trash and system folders are not written by path.]",
+  "problems.STORAGE_AREA_REFUSED.description": "[This folder does not allow that change. Files in a record area are kept: they cannot be deleted or moved. Only an Admin can purge one, and the purge is queued. The library, trash and system folders are not written by path.]",
   "problems.STORAGE_QUOTA_EXCEEDED.title": "[Storage quota reached]",
   "problems.STORAGE_QUOTA_EXCEEDED.description": "[New writes are paused because storage is nearly full. Delete or purge files, or ask an Admin to raise the quota.]",
   "problems.STORAGE_FILE_TOO_LARGE.title": "[File too large]",

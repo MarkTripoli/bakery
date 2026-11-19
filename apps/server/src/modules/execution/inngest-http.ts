@@ -25,6 +25,7 @@ import {
 import { createIntegrationIntakeRetention } from "../integrations/intake-retention.ts";
 import { createBlobUploadReaper } from "../knowledge/blob-upload-reaper.ts";
 import { createStorageRetentionReaper } from "../knowledge/storage-retention-reaper.ts";
+import { createStorageRecordPurgeCollector } from "../knowledge/storage-record-purge.ts";
 import { createProviderProbeWorkflow } from "./provider-probe.ts";
 import {
   createIntegrationIntakeRecovery,
@@ -117,6 +118,8 @@ export function createDefaultInngestFunctions(options: {
   integrations?: IntegrationsBackgroundDependencies;
   /** Coordinator executor override; default is the worker executor outside the test environment (see `readCoordinatorExecutor`). */
   coordinatorExecutor?: CoordinatorTurnExecutor;
+  /** A connection as the database owner, for owner-only jobs such as the record-area purge; without one those jobs fail closed. */
+  ownerDatabase?: PgDatabase;
 }): readonly unknown[] {
   const coordinatorExecutor = options.coordinatorExecutor ??
     readCoordinatorExecutor(readCoordinatorEnv(), {
@@ -209,6 +212,12 @@ export function createDefaultInngestFunctions(options: {
           client: options.client,
           database: options.database,
         }),
+        // Never given the runtime database: with no owner connection the
+        // purge job logs and does nothing.
+        createStorageRecordPurgeCollector({
+          client: options.client,
+          ownerDatabase: options.ownerDatabase,
+        }),
         createIntegrationFactSweep({
           client: options.client,
           database: options.database,
@@ -288,6 +297,8 @@ export function createInngestHttpHandler(options: {
   budget?: BudgetRuntimeConfig;
   skillImport?: SkillImportDependencies;
   integrations?: IntegrationsBackgroundDependencies;
+  /** See createDefaultInngestFunctions; the server does not pass one today. */
+  ownerDatabase?: PgDatabase;
 }): (context: unknown) => Promise<Response> {
   const client = (options.client ?? new Inngest({
     id: "bakery-server",
@@ -305,6 +316,7 @@ export function createInngestHttpHandler(options: {
         budget: options.budget,
         skillImport: options.skillImport,
         integrations: options.integrations,
+        ownerDatabase: options.ownerDatabase,
       })
       : [])) as ServeOptions["functions"];
   const officialHandler = serve({

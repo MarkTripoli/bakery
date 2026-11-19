@@ -236,6 +236,7 @@ Deno.test("Bakery migrations follow the globally unique migration sequence", asy
       "0243_organization_groups",
       "0244_installation_email_settings",
       "0245_storage_working_areas",
+      "0246_storage_purge_requests",
     ],
   );
 });

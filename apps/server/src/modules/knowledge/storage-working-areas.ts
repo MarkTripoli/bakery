@@ -1264,9 +1264,16 @@ export async function deleteSubtree(
 /**
  * Admin purge: the permanent removal section 17.5 keeps for leaked secrets and
  * legal demands, audited. A working-area entry, live or trashed, is deleted
- * with everything under it. Record areas are refused: their files are artifact
- * versions, whose bytes only the owner-privileged retention collector may
- * clear. The folders Bakery made are refused too.
+ * with everything under it, at once (status "removed").
+ *
+ * A record-area file is an artifact, whose version bytes only the database
+ * owner may clear; the runtime role may not (pinned by the artifact-pins
+ * security test). So its purge is queued (status "queued"): this records one
+ * request per entry in bakery.storage_purge_requests, touches no artifact
+ * version, and the owner-privileged job in storage-record-purge.ts clears the
+ * bytes and leaves the entry as a tombstone. Purging it again before the job
+ * runs finds the same request. A record-area folder and the folders Bakery
+ * made are refused.
  */
 export async function purgeStorageEntry(context: ActionContext) {
   const { transaction: tx, organizationId, principalId } =
@@ -1274,12 +1281,14 @@ export async function purgeStorageEntry(context: ActionContext) {
   const entry = await lockEntry(tx, organizationId, context.params.id ?? "");
   if (!entry || entry.purged_at !== null) notFound();
   if (entry.system_key !== null) refuse("system_folder");
-  // A record-area file is an artifact version, whose bytes only the
-  // owner-privileged retention collector may clear; the runtime role may not
-  // (pinned by the artifact-pins security test). Purge covers working areas.
-  if (entry.artifact_id !== null || entry.policy === "record") {
-    refuse("record_area");
+  if (entry.artifact_id !== null) {
+    return await queueRecordPurge(tx, context, {
+      organizationId,
+      principalId,
+      entry: { ...entry, artifact_id: entry.artifact_id },
+    });
   }
+  if (entry.policy === "record") refuse("record_area");
   const removed = await deleteSubtree(tx, organizationId, entry.id);
   await audit(tx, context, {
     organizationId,
@@ -1295,7 +1304,52 @@ export async function purgeStorageEntry(context: ActionContext) {
   });
   return {
     id: entry.id,
+    status: "removed" as const,
     entriesRemoved: removed.entries,
     bytesRemoved: removed.bytes,
+  };
+}
+
+/** Records (or finds) the purge request for a record-area file. */
+async function queueRecordPurge(
+  tx: PgTransactionClient,
+  context: ActionContext,
+  input: {
+    organizationId: string;
+    principalId: string;
+    entry: Row & { artifact_id: string };
+  },
+) {
+  const { organizationId, principalId, entry } = input;
+  await tx.query(
+    "insert into bakery.storage_purge_requests" +
+      " (organization_id, entry_id, artifact_id, requested_by_id)" +
+      " values ($1, $2, $3, $4)" +
+      " on conflict (organization_id, entry_id) do nothing",
+    [organizationId, entry.id, entry.artifact_id, principalId],
+  );
+  const request = await tx.query<{ id: string }>(
+    "select id from bakery.storage_purge_requests" +
+      " where organization_id = $1 and entry_id = $2",
+    [organizationId, entry.id],
+  );
+  await audit(tx, context, {
+    organizationId,
+    principalId,
+    operation: "storageEntries.purge",
+    entryId: entry.id,
+    details: {
+      kind: entry.kind,
+      policy: entry.policy,
+      requested: true,
+      purgeRequestId: request.rows[0].id,
+      artifactId: entry.artifact_id,
+    },
+  });
+  return {
+    id: entry.id,
+    status: "queued" as const,
+    entriesRemoved: 0,
+    bytesRemoved: 0,
   };
 }
