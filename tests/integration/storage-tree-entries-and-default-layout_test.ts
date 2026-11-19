@@ -459,3 +459,74 @@ Deno.test("AC: a name the tree refuses is made safe and kept, never failing the 
     );
     assertEquals(files, odd.length);
   }));
+
+Deno.test("AC: renaming an application and reusing its old slug never fails an artifact write", () =>
+  withFixture(async (fixture) => {
+    const seed = await seedOrganization(fixture, "tree-slug-reuse");
+    const taskA = await seedTask(fixture, seed);
+    const slug = await slugOf(fixture, seed);
+    const artifactA = await artifact(fixture, seed, taskA, "a.md");
+    const entryA = await projectArtifactEntry(db(fixture), {
+      organizationId: seed.organizationId,
+      artifactId: artifactA.artifactId,
+    });
+    assert(entryA, "application A's artifact is projected under its slug");
+
+    // A is renamed, and a new application B takes the old slug.
+    await asOwner(
+      `update bakery.applications set slug = $2 where id = $1`,
+      [seed.applicationId, `${slug}-renamed`],
+    );
+    const applicationB = crypto.randomUUID();
+    const conversationB = crypto.randomUUID();
+    const taskB = crypto.randomUUID();
+    await asOwner(
+      `insert into bakery.applications (id, organization_id, slug, name, description)
+       values ($1, $2, $3, 'B', '')`,
+      [applicationB, seed.organizationId, slug],
+    );
+    await asOwner(
+      `insert into bakery.conversations (id, organization_id, application_id, title, created_by, created_at, updated_at, version)
+       values ($1, $2, $3, 'B', $4, now(), now(), 1)`,
+      [conversationB, seed.organizationId, applicationB, seed.principalId],
+    );
+    await asOwner(
+      `insert into bakery.tasks (id, organization_id, application_id, conversation_id, title, description, task_type, status, created_by)
+       values ($1, $2, $3, $4, 'B work', '', 'feature', 'queued', $5)`,
+      [
+        taskB,
+        seed.organizationId,
+        applicationB,
+        conversationB,
+        seed.principalId,
+      ],
+    );
+    const artifactB = await artifact(fixture, seed, taskB, "b.md");
+
+    // The write that used to throw: B's artifact must still get an entry.
+    const entryB = await projectArtifactEntry(db(fixture), {
+      organizationId: seed.organizationId,
+      artifactId: artifactB.artifactId,
+    });
+    assert(entryB, "application B's artifact is projected");
+    assert(entryB !== entryA);
+
+    // Each project folder is keyed by its application id, so both exist, under
+    // different names; the slug is only a display name.
+    const folders = await fixture.pgDatabase.query<
+      { name: string; systemKey: string }
+    >(
+      `select name, system_key as "systemKey" from bakery.storage_entries
+        where organization_id = $1 and system_key in ($2, $3)
+        order by system_key`,
+      [
+        seed.organizationId,
+        `project:${seed.applicationId}`,
+        `project:${applicationB}`,
+      ],
+    );
+    assertEquals(folders.rows.length, 2);
+    assert(folders.rows[0].name !== folders.rows[1].name);
+    const taken = folders.rows.map((row) => row.name.toLowerCase());
+    assert(taken.includes(slug.toLowerCase()), "one project keeps the slug");
+  }));

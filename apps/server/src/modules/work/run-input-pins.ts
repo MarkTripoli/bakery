@@ -53,6 +53,35 @@ export function declaredArtifactVersionIds(inputs: unknown): string[] {
   return ids;
 }
 
+/** Pins one version for a run: the row a worker's read is checked against. */
+async function insertRunInputPin(
+  transaction: PgTransactionClient,
+  pin: {
+    organizationId: string;
+    runId: string;
+    artifactId: string;
+    versionId: string;
+    sha256: string;
+    sizeBytes: number;
+  },
+): Promise<void> {
+  await transaction.query(
+    `insert into bakery.run_input_pins (
+       organization_id, run_id, artifact_id, artifact_version_id,
+       sha256, size_bytes
+     ) values ($1, $2, $3, $4, $5, $6)
+     on conflict (organization_id, run_id, artifact_version_id) do nothing`,
+    [
+      pin.organizationId,
+      pin.runId,
+      pin.artifactId,
+      pin.versionId,
+      pin.sha256,
+      pin.sizeBytes,
+    ],
+  );
+}
+
 /**
  * Pins, at admission, the exact version each declared input resolved to.
  *
@@ -94,21 +123,14 @@ export async function pinDeclaredRunInputs(
     if (!row) {
       throw unprocessable(["inputs"], "input_artifact_unavailable");
     }
-    await transaction.query(
-      `insert into bakery.run_input_pins (
-         organization_id, run_id, artifact_id, artifact_version_id,
-         sha256, size_bytes
-       ) values ($1, $2, $3, $4, $5, $6)
-       on conflict (organization_id, run_id, artifact_version_id) do nothing`,
-      [
-        options.organizationId,
-        options.runId,
-        row.artifact_id,
-        row.id,
-        row.sha256,
-        row.size_bytes,
-      ],
-    );
+    await insertRunInputPin(transaction, {
+      organizationId: options.organizationId,
+      runId: options.runId,
+      artifactId: row.artifact_id,
+      versionId: row.id,
+      sha256: row.sha256,
+      sizeBytes: row.size_bytes,
+    });
   }
 }
 
@@ -240,21 +262,14 @@ export async function recordInputPaths(
         "input_storage_path_unavailable",
       );
     }
-    await transaction.query(
-      `insert into bakery.run_input_pins (
-         organization_id, run_id, artifact_id, artifact_version_id,
-         sha256, size_bytes
-       ) values ($1, $2, $3, $4, $5, $6)
-       on conflict (organization_id, run_id, artifact_version_id) do nothing`,
-      [
-        options.organizationId,
-        options.runId,
-        item.artifactId,
-        item.versionId,
-        item.sha256,
-        version.rows[0].size_bytes,
-      ],
-    );
+    await insertRunInputPin(transaction, {
+      organizationId: options.organizationId,
+      runId: options.runId,
+      artifactId: item.artifactId,
+      versionId: item.versionId,
+      sha256: item.sha256,
+      sizeBytes: version.rows[0].size_bytes,
+    });
     await transaction.query(
       `insert into bakery.run_input_paths (
          organization_id, run_id, input_name, storage_path, entry_id,

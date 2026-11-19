@@ -127,8 +127,14 @@ function toEntry(row: EntryRow): StorageEntry {
 
 /**
  * Finds or makes a folder Bakery owns, keyed by `systemKey` so repeating the
- * call returns the same folder. A name already taken in the parent by something
- * else is a conflict the caller must not paper over.
+ * call returns the same folder.
+ *
+ * The key, not the name, is the folder's identity: a project's key is its
+ * application id, which never changes, and its name is only a display label (the
+ * slug). A name another entry already holds in this parent (an application
+ * renamed and its old slug reused, or two work items whose titles slug alike)
+ * must not fail the write this rides on, so the name falls back to one made
+ * unique by the key, and the last resort is the key itself.
  */
 async function ensureFolder(
   db: StorageQuery,
@@ -140,29 +146,49 @@ async function ensureFolder(
     systemKey: string;
   },
 ): Promise<string> {
-  const { name, nameKey } = normalizeEntryName(input.name);
-  await db.query(
-    `insert into bakery.storage_entries
-       (organization_id, parent_id, name, name_key, kind, policy, system_key)
-     values ($1, $2, $3, $4, 'folder', $5, $6)
-     on conflict do nothing`,
-    [
-      input.organizationId,
-      input.parentId,
-      name,
-      nameKey,
-      input.policy,
+  const keyed = async () => {
+    const found = await db.query<{ id: string }>(
+      `select id from bakery.storage_entries
+        where organization_id = $1 and system_key = $2`,
+      [input.organizationId, input.systemKey],
+    );
+    return found.rows[0]?.id;
+  };
+  const existing = await keyed();
+  if (existing) return existing;
+  const suffix = input.systemKey.replace(/[^0-9a-zA-Z]+/g, "-").slice(-12);
+  for (
+    const candidate of [
+      input.name,
+      `${input.name} (${suffix})`,
       input.systemKey,
-    ],
-  );
-  const found = await db.query<{ id: string }>(
-    `select id from bakery.storage_entries
-      where organization_id = $1 and system_key = $2`,
-    [input.organizationId, input.systemKey],
-  );
-  const id = found.rows[0]?.id;
-  if (!id) throw new Error("STORAGE_FOLDER_NAME_TAKEN");
-  return id;
+    ]
+  ) {
+    let normalized;
+    try {
+      normalized = normalizeEntryName(candidate);
+    } catch (error) {
+      if (error instanceof StorageNameError) continue;
+      throw error;
+    }
+    await db.query(
+      `insert into bakery.storage_entries
+         (organization_id, parent_id, name, name_key, kind, policy, system_key)
+       values ($1, $2, $3, $4, 'folder', $5, $6)
+       on conflict do nothing`,
+      [
+        input.organizationId,
+        input.parentId,
+        normalized.name,
+        normalized.nameKey,
+        input.policy,
+        input.systemKey,
+      ],
+    );
+    const made = await keyed();
+    if (made) return made;
+  }
+  throw new Error("STORAGE_FOLDER_NAME_UNAVAILABLE");
 }
 
 /** The default top-level areas Bakery makes, with the policy each carries. */
