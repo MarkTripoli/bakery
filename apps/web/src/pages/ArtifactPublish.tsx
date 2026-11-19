@@ -16,8 +16,8 @@ import { invalidateArtifactQueries } from "./artifact-live.ts";
 type Previewed = Readonly<{
   checkpointId: string;
   textDigest: string;
-  /** Agent suggestions still waiting; they stay in the draft. */
-  waiting: number;
+  /** Agent suggestions still waiting (they stay in the draft); null when the list could not be read. */
+  waiting: number | null;
 }>;
 
 type Dialog =
@@ -103,11 +103,13 @@ export function usePublish(
         limit: 100,
       }),
     ]);
-    if (!draft.ok || !suggestions.ok) return null;
+    // Publishing does not wait on the suggestions: if they cannot be read the
+    // dialog just leaves their line out rather than saying there are none.
+    if (!draft.ok) return null;
     return {
       checkpointId: draft.data.checkpointId,
       textDigest: draft.data.textDigest,
-      waiting: suggestions.data.items.length,
+      waiting: suggestions.ok ? suggestions.data.items.length : null,
     };
   };
 
@@ -336,7 +338,7 @@ export function usePublish(
               <UI.Text>
                 {t("artifact.edit.publish.body", { version: nextVersion })}
               </UI.Text>
-              {previewed.waiting > 0 && (
+              {previewed.waiting !== null && previewed.waiting > 0 && (
                 <UI.InlineNotice tone="warning">
                   {t(
                     previewed.waiting === 1

@@ -280,6 +280,8 @@ export type DraftResponse = ClientOutputMap["Draft"];
 /** One publication of a draft checkpoint as a new immutable version. */
 export type DraftPublicationResponse = ClientOutputMap["DraftPublication"];
 export type DraftPublicationCreate = ClientInputMap["DraftPublicationCreate"];
+/** One agent suggestion on a draft, with the state it is in. */
+export type DraftSuggestionResponse = ClientOutputMap["DraftSuggestion"];
 /** A page of the agent suggestions made on a draft. */
 export type DraftSuggestionPageResponse =
   ClientOutputMap["Page<DraftSuggestion>"];
@@ -1578,6 +1580,20 @@ export type BakeryApiClient = {
     readonly limit?: number;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<DraftSuggestionPageResponse>>;
+  /** Accepts one suggestion: the server applies it to the draft as this person's edit. */
+  readonly acceptDraftSuggestion: (options: {
+    readonly organizationId: string;
+    readonly draftId: string;
+    readonly suggestionId: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<DraftSuggestionResponse>>;
+  /** Rejects one suggestion: it leaves the list and the draft does not change. */
+  readonly rejectDraftSuggestion: (options: {
+    readonly organizationId: string;
+    readonly draftId: string;
+    readonly suggestionId: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<DraftSuggestionResponse>>;
   /** The collaboration socket for one organization (`/v1/collaboration`). */
   readonly collaborationSocketUrl: (organizationId: string) => string;
   readonly createMessage: (
@@ -3757,6 +3773,36 @@ export function createBakeryApiClient({
             ...(options.state ? { state: options.state } : {}),
             ...(options.limit ? { limit: options.limit } : {}),
           },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async acceptDraftSuggestion(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["draftSuggestions.accept"](
+          { id: options.draftId, suggestionId: options.suggestionId },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async rejectDraftSuggestion(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["draftSuggestions.reject"](
+          { id: options.draftId, suggestionId: options.suggestionId },
           { signal: options.signal },
         );
         return { ok: true, data };
