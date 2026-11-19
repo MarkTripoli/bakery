@@ -18,7 +18,7 @@ import {
   type TicketFixture,
   withTicketFixture,
 } from "./fixtures.ts";
-import { assertNoDeadlock, holdRow, raceInOrder } from "../lock-race.ts";
+import { assertNoDeadlock, holdRow } from "../lock-race.ts";
 import { addMember } from "../durable-questions.ts";
 import { cleanupSeededOrganizations } from "../coordinator-turns.ts";
 import {
@@ -1035,8 +1035,10 @@ Deno.test("issue 82 ops locks: a preview and a single-ticket operation on a late
     const sourceId = await fx.insertSource();
     seedIssues(fx, 3);
     await previewAll(fx, sourceId);
-    // Ticket 3 is the last of the page: the preview reaches it after it holds
-    // the application row, while the other operation holds it and wants the row.
+    // A preview stores nothing (#69) and takes no row `for update`, so it no
+    // longer queues on the application row the way a writer does. It must
+    // still finish beside a single-ticket operation on the last ticket of its
+    // page, whichever starts first, with neither a deadlock victim.
     const last = await ticketOf(fx, sourceId, 3);
     const preview = () => post(fx, `${SOURCES}/${sourceId}/previews`);
     const single: [string, () => Promise<Response>][] = [
@@ -1049,7 +1051,6 @@ Deno.test("issue 82 ops locks: a preview and a single-ticket operation on a late
         () => post(fx, `${TICKETS}/${last.id}/requests`, requestBody(last)),
       ],
     ];
-    // A deadlock victim answers 500 and the app reports the error with its cause.
     const failures: string[] = [];
     const stop = installProblemErrorReporter((error) => {
       const cause = (error as { cause?: unknown })?.cause;
@@ -1063,16 +1064,22 @@ Deno.test("issue 82 ops locks: a preview and a single-ticket operation on a late
             fx.organizationId,
             fx.applicationId,
           ]);
-          const [first, second] = previewFirst
-            ? await raceInOrder(fx.owner, hold, preview, operation)
-            : await raceInOrder(fx.owner, hold, operation, preview);
+          const first = previewFirst ? preview() : operation();
+          await sleep(200);
+          const second = previewFirst ? operation() : preview();
+          await sleep(200);
+          hold.release();
+          await hold.done;
+          const outcomes = await Promise.allSettled([first, second]);
           assertEquals(failures, [], label);
-          assertNoDeadlock(first);
-          assertNoDeadlock(second);
-          const answers = [first, second].map((outcome) =>
-            outcome.status === "fulfilled" ? outcome.value.status : "rejected"
+          for (const outcome of outcomes) assertNoDeadlock(outcome);
+          assertEquals(
+            outcomes.map((outcome) =>
+              outcome.status === "fulfilled" ? outcome.value.status : "rejected"
+            ),
+            [201, 201],
+            label,
           );
-          assertEquals(answers, [201, 201], label);
         }
       }
     } finally {
