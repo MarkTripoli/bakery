@@ -3314,6 +3314,12 @@
           "description": "Restrict results to pull requests opened by this workflow run; pull requests registered without a run never match."
         },
         {
+          "name": "externalTicketId",
+          "type": "uuid",
+          "required": false,
+          "description": "Restrict results to pull requests of tasks linked to this external ticket through ticket_task_links, primary or reference. A ticket with no linked task, or one outside the caller's organization, matches nothing rather than revealing whether it exists."
+        },
+        {
           "name": "cursor",
           "type": "string",
           "required": false,
@@ -7250,6 +7256,53 @@
       ],
       "pagination": "pagination",
       "description": "Query parameters for listing this organization's cached external ticket snapshots; results reflect the last synchronized state, not a live provider fetch."
+    },
+    "TicketTaskLinkQuery": {
+      "fields": [
+        {
+          "name": "externalTicketId",
+          "type": "uuid",
+          "required": false,
+          "description": "Lists the links of this one external ticket: every task linked to it. Exactly one of externalTicketId and taskId is required (422 ticket_task_link_scope_required otherwise); a ticket outside the caller's organization answers 404."
+        },
+        {
+          "name": "taskId",
+          "type": "uuid",
+          "required": false,
+          "description": "Lists the links of this one Bakery task: every external ticket it is linked to, at most one of them as primary. Exactly one of externalTicketId and taskId is required; a task outside the caller's organization answers 404."
+        },
+        {
+          "name": "role",
+          "type": "enum(primary|reference)",
+          "required": false,
+          "description": "Keeps only links with this role: primary for the link an admission created (the task was started from the ticket), reference for a link a person added. Omitted, both roles are listed."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from a previous page's nextCursor, bound to the caller and the filters in force; pass it back verbatim and never construct it."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum number of links in one page, capped at 100; defaults to 25 when omitted."
+        }
+      ],
+      "rules": [
+        "Exactly one of externalTicketId and taskId; keyset pages newest link first."
+      ],
+      "pagination": "pagination",
+      "description": "Query for the links between external tickets and Bakery tasks, from either side, with each link's role and the sync health of Bakery's status note on the ticket."
     },
     "TicketReadinessCreate": {
       "fields": [

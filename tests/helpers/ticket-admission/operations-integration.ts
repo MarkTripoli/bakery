@@ -2,7 +2,6 @@ import { assert, assertEquals, assertNotEquals } from "@std/assert";
 import { installProblemErrorReporter } from "../../../packages/contracts/src/http.ts";
 import { withPgTransaction } from "../../../apps/server/src/platform/database.ts";
 import { unadmittedError } from "../../../apps/server/src/modules/work/ticket-request-command.ts";
-import { recordReadiness } from "../../../apps/server/src/modules/work/ticket-admission.ts";
 import {
   type RemoteFact,
   upsertFact,
@@ -14,6 +13,7 @@ import {
   EXECUTE_LABEL,
   HOLD_LABEL,
   insertBareTask,
+  recordOpenIssues,
   seedLabeler,
   type TicketFixture,
   withTicketFixture,
@@ -488,6 +488,184 @@ Deno.test("issue 69 preview: an issue a poll already recorded keeps its stored r
       snapshot: { labels: string[] };
     };
     assertEquals(ticket.snapshot.labels, []);
+  });
+});
+
+type LinkView = {
+  id: string;
+  externalTicketId: string;
+  taskId: string;
+  role: string;
+  syncHealth: string;
+  statusCommentExternalId: string | null;
+  lastProblemCode: string | null;
+};
+
+Deno.test("issue 69 reads: links list from either side, keyset paged, and PRs filter by ticket", async () => {
+  await withTicketFixture(async (fx) => {
+    const sourceId = await fx.insertSource();
+    seedIssues(fx, 2);
+    await previewAll(fx, sourceId);
+    const first = await ticketOf(fx, sourceId, 1);
+    const second = await ticketOf(fx, sourceId, 2);
+    const tasks = [
+      await fx.createPlainTask(),
+      await fx.createPlainTask(),
+      await fx.createPlainTask(),
+    ];
+    for (const taskId of tasks) {
+      await read(
+        await post(fx, `${TICKETS}/${first.id}/links`, {
+          taskId,
+          role: "reference",
+        }),
+        201,
+      );
+    }
+    await read(
+      await post(fx, `${TICKETS}/${second.id}/links`, {
+        taskId: tasks[0],
+        role: "reference",
+      }),
+      201,
+    );
+    const LINKS = "/v1/ticket-task-links";
+    const list = (query: string, cookie?: string) =>
+      ticketCall(
+        fx,
+        "GET",
+        `${LINKS}?${query}`,
+        cookie === undefined ? {} : { cookie },
+      );
+
+    // By ticket: newest first, two pages of two then one.
+    const page1 = await read<Page<LinkView>>(
+      await list(`externalTicketId=${first.id}&limit=2`),
+      200,
+    );
+    assertEquals(page1.items.length, 2);
+    assert(page1.nextCursor !== null);
+    const page2 = await read<Page<LinkView>>(
+      await list(
+        `externalTicketId=${first.id}&limit=2&cursor=${
+          encodeURIComponent(page1.nextCursor!)
+        }`,
+      ),
+      200,
+    );
+    assertEquals(page2.nextCursor, null);
+    const byTicket = [...page1.items, ...page2.items];
+    assertEquals(
+      byTicket.map((link) => link.taskId).sort(),
+      [...tasks].sort(),
+    );
+    assert(byTicket.every((link) => link.externalTicketId === first.id));
+    assert(
+      byTicket.every((link) =>
+        link.role === "reference" && link.syncHealth === "unknown" &&
+        link.statusCommentExternalId === null
+      ),
+    );
+    // A cursor is bound to its filters.
+    const rebound = await list(
+      `externalTicketId=${second.id}&cursor=${
+        encodeURIComponent(page1.nextCursor!)
+      }`,
+    );
+    assertEquals(rebound.status, 400);
+    assertEquals((await rebound.json() as Problem).code, "INVALID_CURSOR");
+
+    // By task: the task's tickets; the role filter narrows.
+    const byTask = await read<Page<LinkView>>(
+      await list(`taskId=${tasks[0]}`),
+      200,
+    );
+    assertEquals(
+      byTask.items.map((link) => link.externalTicketId).sort(),
+      [first.id, second.id].sort(),
+    );
+    assertEquals(
+      (await read<Page<LinkView>>(
+        await list(`taskId=${tasks[0]}&role=primary`),
+        200,
+      )).items,
+      [],
+    );
+
+    // Exactly one side; a developer may read.
+    for (
+      const query of ["", `externalTicketId=${first.id}&taskId=${tasks[0]}`]
+    ) {
+      const refused = await list(query);
+      assertEquals(refused.status, 422, query);
+      assertEquals(
+        (await refused.json() as Problem).issues?.[0].code,
+        "ticket_task_link_scope_required",
+      );
+    }
+    assertEquals(
+      (await list(`taskId=${tasks[0]}`, fx.f.developerCookie)).status,
+      200,
+    );
+
+    // Another organization's task, and an unknown ticket, are 404.
+    const foreignOrganization = crypto.randomUUID();
+    await fx.owner.query(
+      `insert into bakery.organizations (id, name, slug, created_at, updated_at)
+       values ($1, 'Foreign', $2, now(), now())`,
+      [foreignOrganization, `foreign-${foreignOrganization}`],
+    );
+    const foreignApplication = crypto.randomUUID();
+    await fx.owner.query(
+      `insert into bakery.applications (id, organization_id, slug, name, description)
+       values ($1, $2, $3, 'foreign', '')`,
+      [foreignApplication, foreignOrganization, `app-${foreignApplication}`],
+    );
+    const foreignTask = await insertBareTask({
+      owner: fx.owner,
+      organizationId: foreignOrganization,
+      applicationId: foreignApplication,
+      adminId: fx.adminId,
+    });
+    assertEquals((await list(`taskId=${foreignTask}`)).status, 404);
+    assertEquals(
+      (await list(`externalTicketId=${crypto.randomUUID()}`)).status,
+      404,
+    );
+
+    // Pull requests filter by ticket through the links.
+    const pull = async (taskId: string, number: number) => {
+      await fx.owner.query(
+        `insert into bakery.pull_requests (
+           id, organization_id, task_id, repository_id, provider_number, url,
+           head_sha, base_sha, status, version
+         ) values ($1, $2, $3, $4, $5, $6, $7, $7, 'open', 1)`,
+        [
+          crypto.randomUUID(),
+          fx.organizationId,
+          taskId,
+          fx.repositoryId,
+          number,
+          `https://example.test/pull/${number}`,
+          "a".repeat(40),
+        ],
+      );
+    };
+    await pull(tasks[1], 11);
+    await pull(tasks[2], 12);
+    const unlinked = await fx.createPlainTask();
+    await pull(unlinked, 13);
+    const pulls = (ticketId: string) =>
+      ticketCall(fx, "GET", `/v1/pull-requests?externalTicketId=${ticketId}`)
+        .then((response) =>
+          read<Page<{ providerNumber: number }>>(response, 200)
+        );
+    assertEquals(
+      (await pulls(first.id)).items.map((item) => item.providerNumber),
+      [11, 12],
+    );
+    assertEquals((await pulls(second.id)).items, []);
+    assertEquals((await pulls(crypto.randomUUID())).items, []);
   });
 });
 
@@ -1001,35 +1179,9 @@ async function ticketOf(
   return found;
 }
 
-/**
- * Records every open seeded issue as a poll would, so each has a ticket row
- * and a report. A preview no longer writes (#69), so this goes through
- * `recordReadiness` in automation mode, the path a poll takes.
- */
+/** Records every open seeded issue, so each has a ticket row. */
 async function previewAll(fx: TicketFixture, sourceId: string) {
-  const page = await fx.reader.listIssues(
-    undefined as never,
-    { page: 1, since: null },
-    new AbortController().signal,
-  );
-  if (page.kind !== "present") throw new Error("the seeded page lists");
-  for (const { number } of page.numbers) {
-    await recordReadiness({
-      reader: fx.reader,
-      budget: undefined,
-      readsAllowed: true,
-      database: fx.runtime,
-    }, {
-      organizationId: fx.organizationId,
-      sourceId,
-      number,
-      intent: null,
-      origin: "poll",
-      caller: null,
-      prefetch: null,
-      signal: new AbortController().signal,
-    });
-  }
+  await recordOpenIssues(fx, sourceId);
 }
 
 /** The body `ticketRequests.create` takes for a ticket as the caller last saw it. */

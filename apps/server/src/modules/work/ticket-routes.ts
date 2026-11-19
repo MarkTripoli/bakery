@@ -22,7 +22,13 @@ export function createTicketRoutes(
   },
 ) {
   const app = new Hono<{ Variables: AuthVariables }>();
-  for (const path of ["/v1/ticket-sources", "/v1/external-tickets"]) {
+  for (
+    const path of [
+      "/v1/ticket-sources",
+      "/v1/external-tickets",
+      "/v1/ticket-task-links",
+    ]
+  ) {
     app.use(path, options.session);
     app.use(`${path}/*`, options.session);
   }

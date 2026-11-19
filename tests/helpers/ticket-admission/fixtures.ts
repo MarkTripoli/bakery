@@ -42,6 +42,7 @@ import {
   type RecheckOrigin,
   type RecheckResult,
   recheckTicket,
+  recordReadiness,
 } from "../../../apps/server/src/modules/work/ticket-admission.ts";
 import type { TicketPrefetch } from "../../../apps/server/src/modules/work/ticket-prefetch.ts";
 import type {
@@ -977,4 +978,35 @@ export async function insertBareTask(
     ],
   );
   return taskId;
+}
+
+/**
+ * Records every open seeded issue of a source as a poll would: a ticket row
+ * and a report each. `ticketSources.preview` stores nothing (#69), so tests
+ * that need recorded tickets go through `recordReadiness`, the path a poll
+ * takes, in automation mode.
+ */
+export async function recordOpenIssues(
+  fixture: Pick<TicketFixture, "reader" | "organizationId" | "automationDeps">,
+  sourceId: string,
+): Promise<void> {
+  const signal = new AbortController().signal;
+  const page = await fixture.reader.listIssues(
+    undefined as never,
+    { page: 1, since: null },
+    signal,
+  );
+  if (page.kind !== "present") throw new Error("the seeded page lists");
+  for (const { number } of page.numbers) {
+    await recordReadiness(fixture.automationDeps(), {
+      organizationId: fixture.organizationId,
+      sourceId,
+      number,
+      intent: null,
+      origin: "poll",
+      caller: null,
+      prefetch: null,
+      signal,
+    });
+  }
 }

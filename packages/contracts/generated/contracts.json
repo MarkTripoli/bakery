@@ -8828,6 +8828,30 @@
     },
     {
       "group": "Tickets",
+      "method": "GET",
+      "path": "/v1/ticket-task-links",
+      "action": "ticketTaskLinks.list",
+      "access": "Developer",
+      "permission": "externalTicket:read",
+      "input": "TicketTaskLinkQuery",
+      "output": "Page<TicketTaskLink>",
+      "event": "",
+      "mcp": "bakery_ticketTaskLinks_list",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Tickets",
       "method": "POST",
       "path": "/v1/external-tickets/{id}/requests",
       "action": "ticketRequests.create",
@@ -10316,6 +10340,7 @@
     "externalTickets.get",
     "ticketReadiness.create",
     "ticketTaskLinks.create",
+    "ticketTaskLinks.list",
     "ticketRequests.create",
     "notifications.list",
     "notifications.count",
@@ -25989,6 +26014,17 @@
               }
             },
             {
+              "name": "externalTicketId",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "description": "Restrict results to pull requests of tasks linked to this external ticket through ticket_task_links, primary or reference. A ticket with no linked task, or one outside the caller's organization, matches nothing rather than revealing whether it exists.",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              }
+            },
+            {
               "name": "cursor",
               "in": "query",
               "required": false,
@@ -32793,6 +32829,106 @@
                   "$ref": "#/components/schemas/TicketTaskLinkCreate"
                 }
               }
+            }
+          }
+        }
+      },
+      "/v1/ticket-task-links": {
+        "get": {
+          "operationId": "ticketTaskLinks.list",
+          "parameters": [
+            {
+              "name": "externalTicketId",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "description": "Lists the links of this one external ticket: every task linked to it. Exactly one of externalTicketId and taskId is required (422 ticket_task_link_scope_required otherwise); a ticket outside the caller's organization answers 404.",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              }
+            },
+            {
+              "name": "taskId",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "description": "Lists the links of this one Bakery task: every external ticket it is linked to, at most one of them as primary. Exactly one of externalTicketId and taskId is required; a task outside the caller's organization answers 404.",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              }
+            },
+            {
+              "name": "role",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "description": "Keeps only links with this role: primary for the link an admission created (the task was started from the ticket), reference for a link a person added. Omitted, both roles are listed.",
+                "type": "string",
+                "enum": [
+                  "primary",
+                  "reference"
+                ]
+              }
+            },
+            {
+              "name": "cursor",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "description": "Opaque continuation token from a previous page's nextCursor, bound to the caller and the filters in force; pass it back verbatim and never construct it. TicketTaskLinkQuery.cursor must contain at most 512 UTF-8 bytes.",
+                "type": "string",
+                "maxLength": 65536,
+                "x-utf8-max-bytes": 512
+              }
+            },
+            {
+              "name": "limit",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "description": "Maximum number of links in one page, capped at 100; defaults to 25 when omitted. TicketTaskLinkQuery.limit must be at least 1. TicketTaskLinkQuery.limit must be at most 100.",
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Page<TicketTaskLink>"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request."
+            },
+            "401": {
+              "description": "Authentication required."
+            },
+            "403": {
+              "description": "Forbidden."
+            },
+            "500": {
+              "description": "Internal server error."
             }
           }
         }
@@ -43521,6 +43657,7 @@
                 "externalTickets.get",
                 "ticketReadiness.create",
                 "ticketTaskLinks.create",
+                "ticketTaskLinks.list",
                 "ticketRequests.create",
                 "externalTickets.create",
                 "pluginPackages.list",
@@ -45542,6 +45679,12 @@
             },
             "runId": {
               "description": "Restrict results to pull requests opened by this workflow run; pull requests registered without a run never match.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "externalTicketId": {
+              "description": "Restrict results to pull requests of tasks linked to this external ticket through ticket_task_links, primary or reference. A ticket with no linked task, or one outside the caller's organization, matches nothing rather than revealing whether it exists.",
               "type": "string",
               "format": "uuid",
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
@@ -56660,6 +56803,46 @@
           },
           "additionalProperties": false,
           "description": "Query parameters for listing this organization's cached external ticket snapshots; results reflect the last synchronized state, not a live provider fetch."
+        },
+        "TicketTaskLinkQuery": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "externalTicketId": {
+              "description": "Lists the links of this one external ticket: every task linked to it. Exactly one of externalTicketId and taskId is required (422 ticket_task_link_scope_required otherwise); a ticket outside the caller's organization answers 404.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "taskId": {
+              "description": "Lists the links of this one Bakery task: every external ticket it is linked to, at most one of them as primary. Exactly one of externalTicketId and taskId is required; a task outside the caller's organization answers 404.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "role": {
+              "description": "Keeps only links with this role: primary for the link an admission created (the task was started from the ticket), reference for a link a person added. Omitted, both roles are listed.",
+              "type": "string",
+              "enum": [
+                "primary",
+                "reference"
+              ]
+            },
+            "cursor": {
+              "description": "Opaque continuation token from a previous page's nextCursor, bound to the caller and the filters in force; pass it back verbatim and never construct it. TicketTaskLinkQuery.cursor must contain at most 512 UTF-8 bytes.",
+              "type": "string",
+              "maxLength": 65536,
+              "x-utf8-max-bytes": 512
+            },
+            "limit": {
+              "description": "Maximum number of links in one page, capped at 100; defaults to 25 when omitted. TicketTaskLinkQuery.limit must be at least 1. TicketTaskLinkQuery.limit must be at most 100.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          "additionalProperties": false,
+          "description": "Query for the links between external tickets and Bakery tasks, from either side, with each link's role and the sync health of Bakery's status note on the ticket."
         },
         "TicketReadinessCreate": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -88117,6 +88300,7 @@
                 "externalTickets.get",
                 "ticketReadiness.create",
                 "ticketTaskLinks.create",
+                "ticketTaskLinks.list",
                 "ticketRequests.create",
                 "externalTickets.create",
                 "pluginPackages.list",
@@ -88629,6 +88813,7 @@
                 "externalTickets.get",
                 "ticketReadiness.create",
                 "ticketTaskLinks.create",
+                "ticketTaskLinks.list",
                 "ticketRequests.create",
                 "externalTickets.create",
                 "pluginPackages.list",
@@ -89141,6 +89326,7 @@
                 "externalTickets.get",
                 "ticketReadiness.create",
                 "ticketTaskLinks.create",
+                "ticketTaskLinks.list",
                 "ticketRequests.create",
                 "externalTickets.create",
                 "pluginPackages.list",
@@ -133970,6 +134156,7 @@
                       "externalTickets.get",
                       "ticketReadiness.create",
                       "ticketTaskLinks.create",
+                      "ticketTaskLinks.list",
                       "ticketRequests.create",
                       "externalTickets.create",
                       "pluginPackages.list",
@@ -221180,7 +221367,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:3dc37ef49079060dd07c906038265883d0349b1b4cc098bb80ac10de7ec45070",
+  "compatibilityDigest": "sha256:35289c7b7121b46622c0a6a312265ec2ac855f7d8f0eedef881f5df75bcc994e",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -228759,6 +228946,7 @@
             "externalTickets.get",
             "ticketReadiness.create",
             "ticketTaskLinks.create",
+            "ticketTaskLinks.list",
             "ticketRequests.create",
             "externalTickets.create",
             "pluginPackages.list",
@@ -230784,6 +230972,12 @@
         },
         "runId": {
           "description": "Restrict results to pull requests opened by this workflow run; pull requests registered without a run never match.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "externalTicketId": {
+          "description": "Restrict results to pull requests of tasks linked to this external ticket through ticket_task_links, primary or reference. A ticket with no linked task, or one outside the caller's organization, matches nothing rather than revealing whether it exists.",
           "type": "string",
           "format": "uuid",
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
@@ -241942,6 +242136,46 @@
       },
       "additionalProperties": false,
       "description": "Query parameters for listing this organization's cached external ticket snapshots; results reflect the last synchronized state, not a live provider fetch."
+    },
+    "TicketTaskLinkQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "externalTicketId": {
+          "description": "Lists the links of this one external ticket: every task linked to it. Exactly one of externalTicketId and taskId is required (422 ticket_task_link_scope_required otherwise); a ticket outside the caller's organization answers 404.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "taskId": {
+          "description": "Lists the links of this one Bakery task: every external ticket it is linked to, at most one of them as primary. Exactly one of externalTicketId and taskId is required; a task outside the caller's organization answers 404.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "role": {
+          "description": "Keeps only links with this role: primary for the link an admission created (the task was started from the ticket), reference for a link a person added. Omitted, both roles are listed.",
+          "type": "string",
+          "enum": [
+            "primary",
+            "reference"
+          ]
+        },
+        "cursor": {
+          "description": "Opaque continuation token from a previous page's nextCursor, bound to the caller and the filters in force; pass it back verbatim and never construct it. TicketTaskLinkQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "limit": {
+          "description": "Maximum number of links in one page, capped at 100; defaults to 25 when omitted. TicketTaskLinkQuery.limit must be at least 1. TicketTaskLinkQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "additionalProperties": false,
+      "description": "Query for the links between external tickets and Bakery tasks, from either side, with each link's role and the sync health of Bakery's status note on the ticket."
     },
     "TicketReadinessCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -273507,6 +273741,7 @@
             "externalTickets.get",
             "ticketReadiness.create",
             "ticketTaskLinks.create",
+            "ticketTaskLinks.list",
             "ticketRequests.create",
             "externalTickets.create",
             "pluginPackages.list",
@@ -274019,6 +274254,7 @@
             "externalTickets.get",
             "ticketReadiness.create",
             "ticketTaskLinks.create",
+            "ticketTaskLinks.list",
             "ticketRequests.create",
             "externalTickets.create",
             "pluginPackages.list",
@@ -274531,6 +274767,7 @@
             "externalTickets.get",
             "ticketReadiness.create",
             "ticketTaskLinks.create",
+            "ticketTaskLinks.list",
             "ticketRequests.create",
             "externalTickets.create",
             "pluginPackages.list",
@@ -319508,6 +319745,7 @@
                   "externalTickets.get",
                   "ticketReadiness.create",
                   "ticketTaskLinks.create",
+                  "ticketTaskLinks.list",
                   "ticketRequests.create",
                   "externalTickets.create",
                   "pluginPackages.list",

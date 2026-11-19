@@ -19,6 +19,7 @@ import { addMember } from "../durable-questions.ts";
 import {
   EXECUTE_LABEL,
   insertBareTask,
+  recordOpenIssues,
   type TicketFixture,
   withTicketFixture,
 } from "./fixtures.ts";
@@ -89,12 +90,7 @@ function operations(sourceId: string, ticketId: string) {
 async function seededSource(fx: TicketFixture) {
   const sourceId = await fx.insertSource();
   fx.reader.setIssue({ number: 1, labels: [] });
-  await read(
-    await ticketCall(fx, "POST", `${SOURCES}/${sourceId}/previews`, {
-      body: {},
-    }),
-    201,
-  );
+  await recordOpenIssues(fx, sourceId);
   const ticket = await fx.owner.query<{ id: string }>(
     `select id from bakery.external_tickets where ticket_source_id = $1`,
     [sourceId],
@@ -424,12 +420,17 @@ Deno.test("issue 82 ops security: issue text stays out of logs, audit rows and e
       };
     }
     try {
-      await read(
-        await ticketCall(fx, "POST", `${SOURCES}/${sourceId}/previews`, {
-          body: {},
-        }),
-        201,
+      // The preview answers with titles, never bodies; it records nothing, so
+      // the tickets below are recorded as a poll would.
+      const preview = await ticketCall(
+        fx,
+        "POST",
+        `${SOURCES}/${sourceId}/previews`,
+        { body: {} },
       );
+      assertEquals(preview.status, 201);
+      assert(!(await preview.text()).includes(`Body ${marker}`));
+      await recordOpenIssues(fx, sourceId);
       // Readiness and request answers, accepted and refused, never echo the text.
       const ticket = await fx.owner.query<
         { id: string; requirements_digest: string }

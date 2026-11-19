@@ -34,6 +34,7 @@ import {
 import {
   createExternalTicketsListHandler,
   createTicketSourcesListHandler,
+  createTicketTaskLinksListHandler,
   getExternalTicket,
   getTicketSource,
 } from "./ticket-query.ts";
@@ -200,6 +201,15 @@ export function createTicketActionRegistry(
     output: contractSchemas.TicketTaskLink,
     policy: developer,
     handler: createTicketTaskLink,
+  }).register({
+    name: TicketImplementedAction.TicketTaskLinksList,
+    method: HttpMethod.Get,
+    path: "/v1/ticket-task-links",
+    input: contractSchemas.TicketTaskLinkQuery,
+    output: contractSchemas["Page<TicketTaskLink>"],
+    policy: query,
+    transactionIsolation: TransactionIsolation.RepeatableRead,
+    handler: createTicketTaskLinksListHandler(dependencies.cursorSecret),
   }).register({
     name: TicketImplementedAction.TicketRequestsCreate,
     method: HttpMethod.Post,
