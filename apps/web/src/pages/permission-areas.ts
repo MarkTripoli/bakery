@@ -32,6 +32,7 @@ export const RESOURCE_AREAS = {
   externalTicket: "work",
   run: "work",
   runStep: "work",
+  runRequest: "work",
   job: "work",
   jobAttempt: "work",
   session: "work",
