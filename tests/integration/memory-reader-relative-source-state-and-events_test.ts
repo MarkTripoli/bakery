@@ -1,6 +1,7 @@
 import { assert, assertEquals } from "@std/assert";
 import { withPgTransaction } from "@bakery/persistence";
 import { appendMemorySourceChanged } from "../../apps/server/src/modules/knowledge/memory-source-state.ts";
+import { seedRun } from "../helpers/deterministic-checks/run-fixture.ts";
 import {
   admin,
   as,
@@ -302,6 +303,82 @@ async function case7(suite: Suite) {
   }
 }
 
+/**
+ * A reader who holds artifactVersion:read is still denied a version the artifact
+ * version reads would not reach. Here the version names a run step of another
+ * task's run, which artifactVersions.list filters out; the memory must say
+ * no_access and withhold the id, exactly as it does for a reader with no
+ * permission at all.
+ */
+async function caseUnreachableForAPermittedReader(suite: Suite) {
+  const seeded = await seedSource(suite);
+  const ownerDb = seeded.fixture.fixture.pgDatabase;
+  const otherRun = await seedRun(ownerDb, {
+    organizationId: seeded.organizationId,
+    principalId: seeded.fixture.adminA.principalId,
+  });
+  assert(otherRun.taskId !== seeded.taskId, "the run belongs to another task");
+  const unreachable = crypto.randomUUID();
+  const [author] = await seeded.fixture.owner<{ author_id: string }[]>`
+    select author_id from bakery.artifact_versions where id = ${seeded.artifactVersionId}`;
+  await seeded.fixture
+    .owner`insert into bakery.artifact_versions (id, organization_id, artifact_id, task_id, run_step_id, author_id, revision, metadata, content, sha256, size_bytes, media_type)
+    values (${unreachable}, ${seeded.organizationId}, ${seeded.artifactId}, ${seeded.taskId}, ${otherRun.stepId}, ${author.author_id}, 2, '{}'::jsonb, ${new Uint8Array(
+    [3],
+  )}, ${"c".repeat(64)}, 1, 'text/plain')`;
+
+  // The artifact version reads hide it from this reader: that is the rule the
+  // memory's state has to follow.
+  const versions = await as(
+    seeded,
+    admin(seeded),
+    "GET",
+    `/v1/artifacts/${seeded.artifactId}/versions`,
+  );
+  assertEquals(versions.status, 200, await versions.clone().text());
+  const listed = (await versions.json()).items.map((item: { id: string }) =>
+    item.id
+  );
+  assert(
+    listed.includes(seeded.artifactVersionId),
+    "the reachable version is listed",
+  );
+  assert(
+    !listed.includes(unreachable),
+    "artifactVersions.list hides the unreachable version",
+  );
+
+  const response = await as(seeded, admin(seeded), "POST", "/v1/memories", {
+    repositoryId: seeded.repositoryId,
+    subject: "unreachable source",
+    content: "Cited from a version this reader cannot reach.",
+    provenance: {
+      sourceArtifactVersionId: unreachable,
+      repositoryId: seeded.repositoryId,
+      conflictScan: { verdict: "clean", conflictingMemoryIds: [] },
+      confidence: 0.9,
+      reviewPolicy: "on_source_change",
+    },
+  });
+  assertEquals(response.status, 201, await response.clone().text());
+  const created = await response.json() as { id: string };
+
+  const { entry, revisions, list } = await readBoth(
+    seeded,
+    admin(seeded),
+    created.id,
+  );
+  assertEquals(entry.sourceState, "no_access");
+  assertEquals(list.items[0].sourceState, "no_access");
+  assertEquals(revisions.items[0].sourceState, "no_access");
+  assertEquals(revisions.items[0].sourceArtifactVersionId, null);
+  assertIdInvariant(revisions.items);
+  assert(
+    !JSON.stringify({ entry, revisions, list }).includes(unreachable),
+    "the unreachable id never appears",
+  );
+}
+
 // One fixture for the file: one schema reset in and one out, rather than one
 // pair per case (see the suite in memory-source-fixture.ts).
 Deno.test("memory source state is judged per reader, and every memory write emits its event", async (t) => {
@@ -334,6 +411,10 @@ Deno.test("memory source state is judged per reader, and every memory write emit
     await t.step(
       "removing a cited source emits memory.source_changed for each memory that cites it",
       () => case7(suite),
+    );
+    await t.step(
+      "a reader who may read artifact versions sees no_access for a version the artifact reads would not reach",
+      () => caseUnreachableForAPermittedReader(suite),
     );
   } finally {
     await suite.close();
