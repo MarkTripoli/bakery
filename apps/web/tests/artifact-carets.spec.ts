@@ -15,13 +15,18 @@ test.describe("Other people's carets", () => {
     await expect(caret.locator(".ui-document-editor__caret-label")).toHaveText(
       "Ana",
     );
-    // Clipping does not make a label invisible to Playwright, so compare the
-    // boxes: the whole label sits inside the editor, not above its top edge.
-    const label = await caret.locator(".ui-document-editor__caret-label")
-      .boundingBox();
-    const frame = await page.locator(".ui-document-editor .cm-editor")
-      .boundingBox();
-    expect(label!.y).toBeGreaterThanOrEqual(frame!.y);
+    const name = caret.locator(".ui-document-editor__caret-label");
+    if ((page.viewportSize()?.width ?? 1280) < 744) {
+      // On a phone the presence line names people; the caret has no name.
+      await expect(name).toBeHidden();
+    } else {
+      // Clipping does not make a label invisible to Playwright, so compare the
+      // boxes: the whole label sits inside the editor, not above its top edge.
+      const label = await name.boundingBox();
+      const frame = await page.locator(".ui-document-editor .cm-editor")
+        .boundingBox();
+      expect(label!.y).toBeGreaterThanOrEqual(frame!.y);
+    }
     await still(page, "caret-one");
   });
 
@@ -31,6 +36,20 @@ test.describe("Other people's carets", () => {
     });
     await expect(page.locator(".ui-document-editor__peer-selection"))
       .toHaveText("brave");
+    // Tinted in the person's colour, not the grey every selection shares.
+    const tints = await page.evaluate(() => {
+      const mark = document.querySelector(
+        ".ui-document-editor__peer-selection",
+      )!;
+      const plain = document.createElement("span");
+      plain.className = "ui-document-editor__peer-selection";
+      mark.after(plain);
+      const own = getComputedStyle(mark).backgroundColor;
+      const grey = getComputedStyle(plain).backgroundColor;
+      plain.remove();
+      return { own, grey };
+    });
+    expect(tints.own).not.toBe(tints.grey);
     await still(page, "caret-selection");
   });
 

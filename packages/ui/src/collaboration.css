@@ -2520,6 +2520,12 @@ button.ui-activity-line__row:hover {
   position: absolute;
   white-space: nowrap;
 }
+/* On a phone the presence line names people; the caret is drawn without a name. */
+@media (max-width: 743px) {
+  .ui-document-editor .ui-document-editor__caret-label {
+    display: none;
+  }
+}
 .ui-document-editor .ui-document-editor__peer-selection {
   background: var(--color-surface-subtle);
   border-block-end: var(--focus-width) solid var(--color-fg);
@@ -2531,6 +2537,7 @@ button.ui-activity-line__row:hover {
   background: var(--color-presence-1);
 }
 .ui-document-editor .ui-document-editor__peer-selection[data-presence-color="1"] {
+  background: var(--color-presence-1-surface);
   border-block-end-color: var(--color-presence-1);
 }
 .ui-document-editor .ui-document-editor__caret[data-presence-color="2"] {
@@ -2540,6 +2547,7 @@ button.ui-activity-line__row:hover {
   background: var(--color-presence-2);
 }
 .ui-document-editor .ui-document-editor__peer-selection[data-presence-color="2"] {
+  background: var(--color-presence-2-surface);
   border-block-end-color: var(--color-presence-2);
 }
 .ui-document-editor .ui-document-editor__caret[data-presence-color="3"] {
@@ -2549,6 +2557,7 @@ button.ui-activity-line__row:hover {
   background: var(--color-presence-3);
 }
 .ui-document-editor .ui-document-editor__peer-selection[data-presence-color="3"] {
+  background: var(--color-presence-3-surface);
   border-block-end-color: var(--color-presence-3);
 }
 .ui-document-editor .ui-document-editor__caret[data-presence-color="4"] {
@@ -2558,6 +2567,7 @@ button.ui-activity-line__row:hover {
   background: var(--color-presence-4);
 }
 .ui-document-editor .ui-document-editor__peer-selection[data-presence-color="4"] {
+  background: var(--color-presence-4-surface);
   border-block-end-color: var(--color-presence-4);
 }
 .ui-document-editor .ui-document-editor__caret[data-presence-color="5"] {
@@ -2567,6 +2577,7 @@ button.ui-activity-line__row:hover {
   background: var(--color-presence-5);
 }
 .ui-document-editor .ui-document-editor__peer-selection[data-presence-color="5"] {
+  background: var(--color-presence-5-surface);
   border-block-end-color: var(--color-presence-5);
 }
 .ui-document-editor .ui-document-editor__caret[data-presence-color="6"] {
@@ -2576,6 +2587,7 @@ button.ui-activity-line__row:hover {
   background: var(--color-presence-6);
 }
 .ui-document-editor .ui-document-editor__peer-selection[data-presence-color="6"] {
+  background: var(--color-presence-6-surface);
   border-block-end-color: var(--color-presence-6);
 }
 .ui-document-editor .cm-placeholder {
