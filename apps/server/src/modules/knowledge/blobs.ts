@@ -1,6 +1,9 @@
 import { createHash } from "node:crypto";
 import type { PgTransactionClient } from "@bakery/persistence";
 import { StandardError } from "@bakery/contracts/http";
+import { blobKeyLock } from "../../platform/blob-key-lock.ts";
+import type { OrganizationBlobStore } from "../catalog/storage-port.ts";
+import { blobObjectKey } from "../catalog/storage-port.ts";
 
 /** Largest file a single blob may be, per chapter 25 §17.5. */
 export const MAX_BLOB_BYTES = 5 * 1024 * 1024 * 1024;
@@ -474,6 +477,7 @@ export async function recordBlob(
     sizeBytes: number;
     mediaType: string;
   }>,
+  store: Pick<OrganizationBlobStore, "stat">,
 ): Promise<{
   readonly id: string;
   readonly created: boolean;
@@ -490,6 +494,26 @@ export async function recordBlob(
   readonly createdAt: Date;
 }> {
   assertDeclared(input.sha256, input.sizeBytes);
+  // Recorded under the same lock the plugin bundle collector takes, so a
+  // completion cannot register a claim on an object while the collector is
+  // deleting it. The key is spelled the way the object key is, tenant and
+  // object ref, which is also what the version writer locks.
+  const objectKey = blobObjectKey(input.organizationId, input.sha256);
+  await tx.query(
+    `select pg_advisory_xact_lock(hashtextextended($1, 0))`,
+    [blobKeyLock(input.organizationId, objectKey)],
+  );
+  // Under the lock, the object has to still be there. Bytes can go between the
+  // upload writing them and this call recording them - a bundle sweep of a
+  // withdrawn plugin that happens to share the digest deletes the key - and a
+  // row naming bytes nothing holds is a claim the registry cannot detect or
+  // repair. Refusing names the problem instead of storing the lie.
+  if (await store.stat(input.organizationId, input.sha256) === null) {
+    throw new StandardError({
+      code: "PRECONDITION_FAILED",
+      params: { reason: "blob_bytes_missing" },
+    });
+  }
   const inserted = await tx.query<{ id: string; createdAt: Date }>(
     `insert into bakery.blobs
        (organization_id, sha256, size_bytes, media_type, created_by_id)
