@@ -14,6 +14,10 @@ import {
 import type { PgTransactionClient } from "@bakery/persistence";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import { commitArtifactVersion } from "../knowledge/persistence.ts";
+import {
+  projectArtifactEntry,
+  storageQueryOf,
+} from "../knowledge/storage-tree.ts";
 
 // Execution-owned transcript publication. A closed stream's grant, minted under
 // live worker authority, is the only way transcript artifacts are published:
@@ -236,6 +240,12 @@ async function parent(
   )).rows[0];
   if (!row || row.revision !== 1 || row.version !== 1) precondition();
   if (row.currentVersionId !== null) precondition();
+  // The transcript artifact appears in the storage tree under its work item in
+  // the same transaction (#444); no artifact or version row changes.
+  await projectArtifactEntry(storageQueryOf(transaction), {
+    organizationId: grant.organization_id,
+    artifactId: row.id,
+  });
   return row;
 }
 async function finalizationReceipt(

@@ -1,5 +1,6 @@
 import type { DataMigration } from "./platform/data-migrate.ts";
 import { authDataMigrations } from "./modules/auth/migrations.ts";
+import { knowledgeDataMigrations } from "./modules/knowledge/migrations.ts";
 import { workDataMigrations } from "./modules/work/migrations.ts";
 
 /**
@@ -9,7 +10,9 @@ import { workDataMigrations } from "./modules/work/migrations.ts";
  * DATA_MIGRATION_ORDER_VIOLATION. Every caller uses this list.
  */
 export const bakeryDataMigrations: readonly DataMigration[] = Object.freeze(
-  [...workDataMigrations, ...authDataMigrations].sort((left, right) =>
-    left.version.localeCompare(right.version)
-  ),
+  [
+    ...workDataMigrations,
+    ...authDataMigrations,
+    ...knowledgeDataMigrations,
+  ].sort((left, right) => left.version.localeCompare(right.version)),
 );
