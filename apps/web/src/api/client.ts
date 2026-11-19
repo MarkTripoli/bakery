@@ -227,6 +227,11 @@ export type DefinitionUpdate = ClientInputMap["DefinitionUpdate"];
 export type AgentVersionResponse = ClientOutputMap["AgentVersion"];
 export type AgentVersionListResponse = ClientOutputMap["Page<AgentVersion>"];
 export type AgentDefinitionResponse = ClientOutputMap["AgentDefinition"];
+export type MemoryEntryResponse = ClientOutputMap["MemoryEntry"];
+export type MemoryEntryListResponse = ClientOutputMap["Page<MemoryEntry>"];
+export type MemoryRevisionResponse = ClientOutputMap["MemoryRevision"];
+export type MemoryRevisionListResponse =
+  ClientOutputMap["Page<MemoryRevision>"];
 export type AgentDefinitionListResponse =
   ClientOutputMap["Page<AgentDefinition>"];
 export type RepositoryResponse = ClientOutputMap["Repository"];
@@ -1374,6 +1379,27 @@ export type BakeryApiClient = {
     readonly limit?: number;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<AgentVersionListResponse>>;
+  /** The organization's remembered facts, one page of a cursor list; each entry carries its current revision. */
+  readonly listMemories: (options: {
+    readonly organizationId: string;
+    readonly cursor?: string;
+    readonly limit?: number;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<MemoryEntryListResponse>>;
+  /** One remembered fact with its current revision. */
+  readonly getMemory: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<MemoryEntryResponse>>;
+  /** A fact's wordings, newest first: the history shown under it. */
+  readonly listMemoryRevisions: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly cursor?: string;
+    readonly limit?: number;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<MemoryRevisionListResponse>>;
   /** The organization's agent definitions, one page of a cursor list. */
   readonly listAgents: (options: {
     readonly organizationId: string;
@@ -4781,6 +4807,61 @@ export function createBakeryApiClient({
         const data = await client.actions["agentVersions.list"](
           {
             id: options.agentId,
+            ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+            ...(options.limit === undefined ? {} : { limit: options.limit }),
+          },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listMemories(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["memories.list"](
+          options.cursor === undefined && options.limit === undefined ? {} : {
+            ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+            ...(options.limit === undefined ? {} : { limit: options.limit }),
+          },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async getMemory(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["memories.get"](
+          { id: options.id },
+          { signal: options.signal },
+        );
+        if (data.id !== options.id) {
+          throw new ApiTransportError("protocol", 200);
+        }
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listMemoryRevisions(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["memoryRevisions.list"](
+          {
+            id: options.id,
             ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
             ...(options.limit === undefined ? {} : { limit: options.limit }),
           },
