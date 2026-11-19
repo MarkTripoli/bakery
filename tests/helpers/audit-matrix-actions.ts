@@ -25,6 +25,7 @@ export const AUDIT_MATRIX_ACTIONS = [
   "scimConnection.revoke",
   "installationAdministrators.create",
   "installationAdministrators.revoke",
+  "passwordResetLinks.create",
   "integrationAppRegistrations.begin",
   "integrationAppRegistrations.put",
   "skillStorageSettings.put",
