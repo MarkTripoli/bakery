@@ -33,6 +33,13 @@ export type SlackBlock =
     readonly text: { readonly type: "mrkdwn"; readonly text: string };
   }
   | {
+    readonly type: "context";
+    readonly elements: readonly {
+      readonly type: "mrkdwn";
+      readonly text: string;
+    }[];
+  }
+  | {
     readonly type: "actions";
     readonly elements: readonly SlackButton[];
   };
