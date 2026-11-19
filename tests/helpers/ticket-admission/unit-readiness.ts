@@ -1572,6 +1572,36 @@ Deno.test("issue 82 unit readiness: authority_live for a delegated admission che
       "wait",
       "actor_role_insufficient",
     ],
+    // Rank decides, and the provider's word for the role does not. Every other
+    // case in this table builds a role whose name and rank agree, so replacing
+    // the rank comparison with a name comparison would leave them all green;
+    // these two disagree on purpose.
+    [
+      "rank acts while the name reads",
+      {
+        authority: auth(applied(), {
+          kind: "present",
+          userId: ACTOR_ID,
+          permission: "read",
+          rank: 2,
+        }),
+      },
+      "pass",
+      "ok",
+    ],
+    [
+      "rank does not act while the name says admin",
+      {
+        authority: auth(applied(), {
+          kind: "present",
+          userId: ACTOR_ID,
+          permission: "admin",
+          rank: 1,
+        }),
+      },
+      "wait",
+      "actor_role_insufficient",
+    ],
     [
       "role of another user",
       { authority: auth(applied(), role("write", "2002")) },
