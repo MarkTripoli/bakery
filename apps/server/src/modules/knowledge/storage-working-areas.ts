@@ -411,18 +411,28 @@ function decodeBase64(content: string): Uint8Array {
 async function putBytes(
   tx: PgTransactionClient,
   organizationId: string,
+  principalId: string,
   input: { blobId?: string; content?: string; mediaType: string },
 ): Promise<FileBytes> {
   if ((input.blobId === undefined) === (input.content === undefined)) {
     unprocessable("content", "exactly_one_of_content_or_blob");
   }
   if (input.blobId !== undefined) {
+    // Only the caller's own completed upload. Blobs are deduplicated across
+    // the organization, so a bare blob id could name bytes the caller cannot
+    // read; anything else is 404, never a sign that the blob exists.
+    if (!UUID.test(input.blobId)) notFound();
     const found = await tx.query<
       { id: string; sha256: string; size_bytes: string }
     >(
-      "select id, sha256, size_bytes::text from bakery.blobs" +
-        " where organization_id = $1 and id = $2",
-      [organizationId, input.blobId],
+      "select blob.id, blob.sha256, blob.size_bytes::text" +
+        " from bakery.blobs blob" +
+        " where blob.organization_id = $1 and blob.id = $2" +
+        " and exists (select 1 from bakery.blob_upload_sessions upload" +
+        " where upload.organization_id = $1" +
+        " and upload.completed_blob_id = blob.id" +
+        " and upload.state = 'completed' and upload.created_by_id = $3)",
+      [organizationId, input.blobId, principalId],
     );
     const blob = found.rows[0];
     if (!blob) notFound();
@@ -556,6 +566,16 @@ async function project(
     [organizationId, id],
   );
   const row = found.rows[0];
+  return entryView(
+    row,
+    row.trash_parent_id === null
+      ? null
+      : await folderPath(tx, organizationId, row.trash_parent_id),
+  );
+}
+
+/** The StorageEntry shape, from a projected row and its original folder path. */
+function entryView(row: ProjectedRow, originalFolderPath: string | null) {
   return {
     id: row.id,
     parentId: row.parent_id,
@@ -572,9 +592,7 @@ async function project(
     trashedAt: row.trashed_at?.toISOString() ?? null,
     restoreParentId: row.trash_parent_id,
     originalName: row.trash_name,
-    originalFolderPath: row.trash_parent_id === null
-      ? null
-      : await folderPath(tx, organizationId, row.trash_parent_id),
+    originalFolderPath,
     trashedById: row.trashed_by_id,
     trashedByName: row.trashed_by_name,
     deletionRequestedAt: row.deletion_requested_at?.toISOString() ?? null,
@@ -699,7 +717,7 @@ export async function putStorageFile(context: ActionContext, input: PutInput) {
     input.path,
   );
   const limits = await readStorageLimits(tx, organizationId);
-  const bytes = await putBytes(tx, organizationId, input);
+  const bytes = await putBytes(tx, organizationId, principalId, input);
   if (bytes.sizeBytes > limits.maxFileBytes) {
     throw new StandardError({ code: "STORAGE_FILE_TOO_LARGE" });
   }
@@ -1067,7 +1085,9 @@ export async function restoreStorageEntry(context: ActionContext) {
   const parent = entry.trash_parent_id === null
     ? undefined
     : await lockEntry(tx, organizationId, entry.trash_parent_id);
-  if (!parent || parent.purged_at !== null) conflict("restore_parent_gone");
+  // Only record-area files are ever marked purged, and a trashed entry's
+  // parent is a working-area folder, so a missing parent is the only case.
+  if (!parent) conflict("restore_parent_gone");
   const trashedAbove = await tx.query<{ trashed: boolean }>(
     UP_FROM + " select bool_or(trashed_at is not null) as trashed from up",
     [organizationId, parent.id],
@@ -1095,6 +1115,51 @@ export async function restoreStorageEntry(context: ActionContext) {
   return await project(tx, organizationId, entry.id);
 }
 
+/**
+ * One trash page with every StorageEntry column, in one query: the page, then
+ * one recursive walk up from each entry and from each original folder, so the
+ * paths need no query per row. Parameters: organization, caller, cursor
+ * position (trashed_at, id), and limit.
+ */
+const TRASH_PAGE = "with recursive page as (" +
+  " select " + ENTRY_COLUMNS + ", entry.trashed_by_id," +
+  " to_char(entry.trashed_at at time zone 'UTC'," +
+  ' \'YYYY-MM-DD"T"HH24:MI:SS.US"Z"\') as cursor_trashed_at' +
+  " from bakery.storage_entries entry" +
+  " where entry.organization_id = $1 and entry.trashed_at is not null" +
+  " and (entry.owner_id is null or entry.owner_id = $2)" +
+  " and ($3::timestamptz is null or" +
+  " (entry.trashed_at, entry.id) < ($3, $4::uuid))" +
+  " order by entry.trashed_at desc, entry.id desc limit $5)," +
+  " starts as (select id as start_id from page" +
+  " union select trash_parent_id from page where trash_parent_id is not null)," +
+  " walk as (" +
+  " select starts.start_id, s.parent_id, s.name, 0 as depth" +
+  " from starts join bakery.storage_entries s" +
+  " on s.organization_id = $1 and s.id = starts.start_id" +
+  " union all" +
+  " select walk.start_id, e.parent_id, e.name, walk.depth + 1" +
+  " from walk join bakery.storage_entries e" +
+  " on e.organization_id = $1 and e.id = walk.parent_id" +
+  " where walk.depth < 64)," +
+  " paths as (select start_id," +
+  " '/' || string_agg(name, '/' order by depth desc) as path" +
+  " from walk group by start_id)" +
+  " select page.*, own.path, origin.path as original_folder_path," +
+  " v.sha256, v.size_bytes::text, v.media_type, v.revision," +
+  " who.display_name as trashed_by_name," +
+  " request.requested_at as deletion_requested_at" +
+  " from page" +
+  " join paths own on own.start_id = page.id" +
+  " left join paths origin on origin.start_id = page.trash_parent_id" +
+  " left join bakery.storage_file_versions v" +
+  " on v.organization_id = $1 and v.id = page.current_version_id" +
+  " left join bakery.principals who on who.id = page.trashed_by_id" +
+  " left join bakery.storage_purge_requests request" +
+  " on request.organization_id = $1 and request.entry_id = page.id" +
+  " and request.completed_at is null" +
+  " order by page.trashed_at desc, page.id desc";
+
 /** What is in the trash and visible to the caller, newest first. */
 export function createTrashLister(secret: string) {
   return async (
@@ -1116,27 +1181,20 @@ export function createTrashLister(secret: string) {
       schemaVersion: 1,
     };
     const position = await decodeCursor(secret, input.cursor, binding);
-    const found = await tx.query<{ id: string; cursor_trashed_at: string }>(
-      "select id, to_char(trashed_at at time zone 'UTC'," +
-        ' \'YYYY-MM-DD"T"HH24:MI:SS.US"Z"\') as cursor_trashed_at' +
-        " from bakery.storage_entries" +
-        " where organization_id = $1 and trashed_at is not null" +
-        " and purged_at is null and (owner_id is null or owner_id = $2)" +
-        " and ($3::timestamptz is null or (trashed_at, id) < ($3, $4::uuid))" +
-        " order by trashed_at desc, id desc limit $5",
-      [
-        organizationId,
-        principalId,
-        position?.createdAt ?? null,
-        position?.id ?? null,
-        limit + 1,
-      ],
-    );
+    const found = await tx.query<
+      ProjectedRow & {
+        cursor_trashed_at: string;
+        original_folder_path: string | null;
+      }
+    >(TRASH_PAGE, [
+      organizationId,
+      principalId,
+      position?.createdAt ?? null,
+      position?.id ?? null,
+      limit + 1,
+    ]);
     const rows = found.rows.slice(0, limit);
-    const items = [];
-    for (const row of rows) {
-      items.push(await project(tx, organizationId, row.id));
-    }
+    const items = rows.map((row) => entryView(row, row.original_folder_path));
     const last = rows.at(-1);
     return {
       items,

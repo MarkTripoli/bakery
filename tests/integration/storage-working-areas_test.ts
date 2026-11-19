@@ -86,6 +86,98 @@ const versions = async (fixture: Fixture, entryId: string) =>
     )).rows[0].n,
   );
 
+/** A blob and the completed upload session that stored it, by createdById. */
+async function completedUpload(
+  fixture: Fixture,
+  digest: string,
+  sizeBytes: number,
+  createdById: string,
+) {
+  const blob = await fixture.pgDatabase.query<{ id: string }>(
+    "insert into bakery.blobs (organization_id, sha256, size_bytes, media_type, created_by_id) values ($1, $2, $3, 'application/octet-stream', $4) returning id",
+    [fixture.organizationId, digest, sizeBytes, createdById],
+  );
+  await fixture.pgDatabase.query(
+    "insert into bakery.blob_upload_sessions (organization_id, created_by_id, sha256, size_bytes, media_type, state, expires_at, completed_blob_id) values ($1, $2, $3, $4, 'application/octet-stream', 'completed', now() + interval '1 day', $5)",
+    [fixture.organizationId, createdById, digest, sizeBytes, blob.rows[0].id],
+  );
+  return blob;
+}
+
+/** Another active member of the fixture's organization; returns a cleanup. */
+async function otherMember(fixture: Fixture) {
+  const db = fixture.pgDatabase;
+  const principalId = crypto.randomUUID();
+  const userId = crypto.randomUUID();
+  const now = new Date();
+  await db.query(
+    `insert into public."user" (id, name, email, "emailVerified", "createdAt", "updatedAt")
+     values ($1, 'Other member', $2, true, $3, $3)`,
+    [userId, `storage-447-${userId}@example.test`, now],
+  );
+  await db.query(
+    `insert into bakery.principals (id, provider_user_id, display_name, principal_type)
+     values ($1, $2, 'Other member', 'human')`,
+    [principalId, userId],
+  );
+  await db.query(
+    `insert into bakery.organization_memberships (id, organization_id, principal_id, role, status, joined_at, created_at, updated_at, version)
+     values ($1, $2, $3, 'developer', 'active', $4, $4, $4, 1)`,
+    [crypto.randomUUID(), fixture.organizationId, principalId, now],
+  );
+  return {
+    principalId,
+    async remove() {
+      for (
+        const sql of [
+          "delete from bakery.blob_upload_sessions where created_by_id = $1",
+          "delete from bakery.blobs where created_by_id = $1",
+          "delete from bakery.organization_memberships where principal_id = $1",
+          "delete from bakery.principals where id = $1",
+        ]
+      ) await db.query(sql, [principalId]);
+      await db.query('delete from public."user" where id = $1', [userId]);
+    },
+  };
+}
+
+Deno.test("a put naming another member's upload, or a blob with no upload, is 404", () =>
+  withWorkerFixture(async (fixture) => {
+    const other = await otherMember(fixture);
+    try {
+      const bytes = new TextEncoder().encode("their bytes");
+      const theirs = await completedUpload(
+        fixture,
+        await sha256Bytes(bytes),
+        bytes.byteLength,
+        other.principalId,
+      );
+      const bare = await fixture.pgDatabase.query<{ id: string }>(
+        "insert into bakery.blobs (organization_id, sha256, size_bytes, media_type, created_by_id) values ($1, $2, 4, 'application/octet-stream', $3) returning id",
+        [
+          fixture.organizationId,
+          await sha256Bytes(new TextEncoder().encode("bare")),
+          other.principalId,
+        ],
+      );
+      for (const blobId of [theirs.rows[0].id, bare.rows[0].id]) {
+        await problem(
+          await call(fixture, "PUT", "/v1/storage/files", {
+            body: {
+              path: "/shared/stolen.bin",
+              mediaType: "application/octet-stream",
+              blobId,
+            },
+          }),
+          404,
+          "RESOURCE_NOT_FOUND",
+        );
+      }
+    } finally {
+      await other.remove();
+    }
+  }));
+
 Deno.test("put, upload, mkdir, cp and mv in a working area", () =>
   withWorkerFixture(async (fixture) => {
     // put: the first write makes the file, at revision 1.
@@ -118,13 +210,16 @@ Deno.test("put, upload, mkdir, cp and mv in a working area", () =>
     );
     assertEquals(second.revision, 2);
 
-    // Upload: a completed blob put at a path. The blob row is what
-    // blobUploads.complete records; the upload routes have their own test.
+    // Upload: the caller's completed upload put at a path. The blob and
+    // session rows are what blobUploads.complete records; the upload routes
+    // have their own test.
     const bytes = new TextEncoder().encode("uploaded bytes");
     const digest = await sha256Bytes(bytes);
-    const blob = await fixture.pgDatabase.query<{ id: string }>(
-      "insert into bakery.blobs (organization_id, sha256, size_bytes, media_type, created_by_id) values ($1, $2, $3, 'application/octet-stream', $4) returning id",
-      [fixture.organizationId, digest, bytes.byteLength, fixture.principalId],
+    const blob = await completedUpload(
+      fixture,
+      digest,
+      bytes.byteLength,
+      fixture.principalId,
     );
     const uploaded = await ok(
       await call(fixture, "PUT", "/v1/storage/files", {

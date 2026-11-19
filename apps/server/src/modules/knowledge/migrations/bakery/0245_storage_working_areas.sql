@@ -30,7 +30,9 @@ alter table bakery.storage_entries
   add column trashed_by_id uuid,
   add column trash_parent_id uuid,
   add column trash_name text,
-  -- An Admin purge of a record-area file leaves the entry as a tombstone.
+  -- Set by the owner storage-purges task when it completes an Admin purge of
+  -- a record-area file: the entry stays as a tombstone. A working-area purge
+  -- deletes the entry instead, so only record-area files carry it.
   add column purged_at timestamptz,
   add constraint storage_entries_owner_fk
     foreign key (owner_id) references bakery.principals (id)

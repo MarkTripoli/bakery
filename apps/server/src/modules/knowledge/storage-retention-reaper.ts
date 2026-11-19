@@ -44,7 +44,7 @@ const CANDIDATES = "select entry.organization_id, entry.id," +
   " from bakery.storage_entries entry" +
   " left join bakery.storage_settings settings" +
   " on settings.organization_id = entry.organization_id" +
-  " where entry.purged_at is null and (" +
+  " where (" +
   " (entry.trashed_at is not null and entry.trashed_at <= now() -" +
   " make_interval(days => coalesce(settings.trash_retention_days, $1)))" +
   " or (entry.trashed_at is null and entry.kind = 'file'" +
@@ -84,7 +84,7 @@ export async function reapExpiredStorage(
           " left join bakery.storage_settings settings" +
           " on settings.organization_id = entry.organization_id" +
           " where entry.organization_id = $1 and entry.id = $2" +
-          " and entry.purged_at is null and (" +
+          " and (" +
           " (entry.trashed_at is not null and entry.trashed_at <= now() -" +
           " make_interval(days => coalesce(settings.trash_retention_days, $3)))" +
           " or (entry.trashed_at is null and entry.kind = 'file'" +
