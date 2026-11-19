@@ -63,6 +63,25 @@ test.describe("Editing a document in place", () => {
       .toHaveCount(0);
   });
 
+  test("stopping with text the server has not acknowledged keeps it: Edit again offers it back", async ({ page }) => {
+    const { editor, updates } = await openEditor(page, "Hello", {
+      onUpdate: "ignore",
+    });
+    await editor.click();
+    await page.keyboard.press("Control+End");
+    await page.keyboard.insertText(" kept text");
+    await expect.poll(() => updates.length).toBe(1);
+    await page.getByTestId("artifact-edit-toggle").click();
+    await expect(editor).toHaveCount(0);
+    await page.getByTestId("artifact-edit-toggle").click();
+    await expect(page.getByText(/You have text from .* that was not saved\./))
+      .toBeVisible();
+    await page.getByRole("button", { name: "Review" }).click();
+    await expect(
+      page.getByRole("dialog", { name: "Text that was not saved" }),
+    ).toContainText("kept text");
+  });
+
   test("losing access with unsaved text shows the banner and the text, not a second notice", async ({ page }) => {
     const { editor, updates, serverSend, room } = await openEditor(
       page,
