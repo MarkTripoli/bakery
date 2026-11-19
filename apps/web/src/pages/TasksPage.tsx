@@ -181,16 +181,26 @@ function useTaskAge() {
 }
 
 function InboxResults(
-  { composer, filters, filtersContent, layout, onStatus, scopeRestore, valid }:
-    {
-      composer?: ReactNode;
-      scopeRestore: OrganizationScopeRestore;
-      filters: TaskCursorQuery;
-      filtersContent: React.ReactNode;
-      layout: "rail" | "sheet";
-      onStatus: (status: TaskCursorQuery["status"]) => void;
-      valid: boolean;
-    },
+  {
+    composer,
+    filters,
+    filtersContent,
+    layout,
+    onClear,
+    onStatus,
+    scopeRestore,
+    valid,
+  }: {
+    composer?: ReactNode;
+    scopeRestore: OrganizationScopeRestore;
+    filters: TaskCursorQuery;
+    filtersContent: React.ReactNode;
+    layout: "rail" | "sheet";
+    /** Drops the search, the repository and the status in one step. */
+    onClear: () => void;
+    onStatus: (status: TaskCursorQuery["status"]) => void;
+    valid: boolean;
+  },
 ) {
   const { translate: t } = useI18n();
   const api = useBakeryApi();
@@ -244,23 +254,11 @@ function InboxResults(
     : query.data.items.length === 0
     ? "empty"
     : "ready";
+  // A failed load has nothing to filter: one error block, no controls above it.
+  const failed = state === "error" ||
+    (scopeFailure !== null && scopeFailure !== "forbidden");
   // Nothing is filtered, so "no tasks" means none exist yet, not "none match".
   const noFilters = !filters.search && !filters.repositoryId && !filters.status;
-  const message = !valid
-    ? t("tasks.live.invalidRepository")
-    : state === "forbidden"
-    ? t("tasks.live.forbidden")
-    : state === "offline"
-    ? t("tasks.live.offline")
-    : state === "reconnecting"
-    ? t("tasks.inbox.reconnecting")
-    : state === "error"
-    ? t("tasks.live.error")
-    : state === "loading"
-    ? t("tasks.inbox.loading")
-    : state === "empty"
-    ? t(noFilters ? "tasks.inbox.emptyNone" : "tasks.inbox.empty")
-    : null;
   const items = valid && !query.isError ? query.data?.items ?? [] : [];
   const rows = items.map((task) => ({
     id: task.id,
@@ -296,12 +294,116 @@ function InboxResults(
     question.kind !== "approval" && question.status === "open"
   );
   const answers = useQuestionAnswers(scope.organizationId);
+  const hasRows = rows.length > 0;
+  const retrying = query.isFetching;
+  const clearFilters = (
+    <UI.Button variant="secondary" onClick={onClear}>
+      {t("tasks.queue.clearFilters")}
+    </UI.Button>
+  );
+  const skeleton = (
+    <UI.Stack
+      aria-busy="true"
+      aria-label={t("tasks.inbox.loading")}
+      gap="standard"
+    >
+      {[0, 1, 2, 3, 4].map((row) => <UI.Skeleton shape="row" key={row} />)}
+    </UI.Stack>
+  );
+  // One block where the rows would be: what happened, and the one thing to do.
+  const stateBlock = failed
+    ? (
+      <UI.ErrorState
+        title={t("tasks.error.title")}
+        description={t("tasks.error.description")}
+        action={
+          <UI.Button
+            variant="secondary"
+            disabled={retrying}
+            aria-busy={retrying || undefined}
+            onClick={scopeFailure !== null
+              ? scopeRestore.retry
+              : () => void query.refetch()}
+          >
+            {t(retrying ? "tasks.live.retrying" : "tasks.live.retry")}
+          </UI.Button>
+        }
+      />
+    )
+    : state === "forbidden"
+    ? (
+      <UI.EmptyState
+        title={t("tasks.error.forbidden.title")}
+        description={t("tasks.error.forbidden.body")}
+        variant="firstUse"
+      />
+    )
+    : !valid
+    ? (
+      <UI.EmptyState
+        title={t("tasks.queue.invalidRepository.title")}
+        action={clearFilters}
+        variant="firstUse"
+      />
+    )
+    : state === "offline" || state === "reconnecting"
+    ? hasRows
+      ? (
+        <UI.InlineNotice tone="warning">
+          {t(
+            state === "offline"
+              ? "tasks.inbox.offline"
+              : "tasks.inbox.reconnecting",
+          )}
+        </UI.InlineNotice>
+      )
+      : state === "offline"
+      ? (
+        <UI.EmptyState
+          title={t("tasks.offline.title")}
+          description={t("tasks.offline.work")}
+          variant="firstUse"
+        />
+      )
+      : skeleton
+    : state === "loading"
+    ? (hasRows ? undefined : skeleton)
+    : state === "empty"
+    ? noFilters
+      ? (
+        <UI.EmptyState
+          title={t("tasks.queue.empty.none.title")}
+          description={t("tasks.queue.empty.none.body")}
+          action={
+            <UI.Button
+              variant="primary"
+              onClick={() => void navigate({ to: "/tasks/new" })}
+            >
+              {t("tasks.queue.newTask")}
+            </UI.Button>
+          }
+          variant="firstUse"
+        />
+      )
+      : (
+        <UI.EmptyState
+          title={t("tasks.queue.empty.match.title")}
+          description={t("tasks.queue.empty.match.body")}
+          action={clearFilters}
+          variant="firstUse"
+        />
+      )
+    : undefined;
+  // Nothing to filter yet, or nothing at all: no controls above the block.
+  const hideFilters = failed || state === "forbidden" ||
+    ((state === "loading" || state === "offline") && !hasRows) ||
+    (state === "empty" && noFilters && valid);
   return (
     <WorkQueueView
       layout={layout}
       inspector={composer}
       state={state}
-      filters={filtersContent}
+      filters={hideFilters ? undefined : filtersContent}
       groups={groups}
       selectedId={selected?.id}
       onSelect={setSelectedId}
@@ -358,26 +460,7 @@ function InboxResults(
         : "all"}
       onSelectView={(id) =>
         onStatus(viewStatuses.find((status) => status === id))}
-      stateContent={message && (
-        <UI.Stack gap="compact">
-          <UI.Text>{message}</UI.Text>
-          {state === "empty" && noFilters && (
-            <RouterLink to="/tasks/new" activeProps={{}} inactiveProps={{}}>
-              {t("tasks.queue.newTask")}
-            </RouterLink>
-          )}
-          {(state === "error" || (scopeFailure !== null &&
-            scopeFailure !== "forbidden")) && (
-            <UI.Button
-              onClick={scopeFailure !== null
-                ? scopeRestore.retry
-                : () => void query.refetch()}
-            >
-              {t("tasks.live.retry")}
-            </UI.Button>
-          )}
-        </UI.Stack>
-      )}
+      stateContent={stateBlock}
       cursorControls={pageable && (
         <UI.CursorControls
           variant="previousNext"
@@ -420,6 +503,7 @@ function Detail(
 ) {
   const { translate: t } = useI18n();
   const viewport = useShellViewport();
+  const navigate = useNavigate();
   const scope = useProtectedScope();
   const api = useBakeryApi();
   const online = useOnline();
@@ -475,7 +559,7 @@ function Detail(
                   </UI.Button>
                 }
               >
-                {t("tasks.detail.error")}
+                {t("tasks.detail.refreshFailed")}
               </UI.InlineNotice>
             )}
             <TaskLiveReads
@@ -500,7 +584,11 @@ function Detail(
   return (
     <TaskSessionView
       layout={viewport === "phone" ? "sheet" : "rail"}
-      title={t("tasks.live.detail")}
+      title={t("tasks.detail.pageTitle")}
+      breadcrumbs={[
+        { label: t("tasks.queue.title"), href: "/tasks" },
+        { label: t("tasks.detail.pageTitle") },
+      ]}
       state={forbidden
         ? "forbidden"
         : missing || query.isError || scopeFailure !== null
@@ -508,34 +596,80 @@ function Detail(
         : query.isPending
         ? "loading"
         : "ready"}
-      presence={<RouterLink to="/tasks">{t("tasks.live.back")}</RouterLink>}
       messages={[]}
     >
-      {(!online || scopeFailure === "offline") && (
-        <UI.InlineNotice tone="warning">
-          {t("tasks.live.offline")}
-        </UI.InlineNotice>
-      )}
-      {missing
-        ? <UI.Text>{t("tasks.live.notFound")}</UI.Text>
-        : forbidden
-        ? <UI.Text>{t("tasks.detail.forbidden")}</UI.Text>
+      {missing || forbidden
+        ? (
+          <UI.EmptyState
+            title={t("tasks.detail.unavailable.title")}
+            description={t("tasks.detail.unavailable.body")}
+            action={
+              <UI.Button
+                variant="secondary"
+                onClick={() => void navigate({ to: "/tasks" })}
+              >
+                {t("tasks.detail.unavailable.back")}
+              </UI.Button>
+            }
+            variant="firstUse"
+          />
+        )
+        : !online || scopeFailure === "offline"
+        ? (
+          <UI.EmptyState
+            title={t("tasks.offline.title")}
+            description={t("tasks.offline.task")}
+            action={
+              <UI.Button
+                variant="secondary"
+                onClick={() => void navigate({ to: "/tasks" })}
+              >
+                {t("tasks.detail.unavailable.back")}
+              </UI.Button>
+            }
+            variant="firstUse"
+          />
+        )
         : query.isError || scopeFailure !== null
         ? (
           <UI.ErrorState
-            title={t("tasks.detail.error")}
+            title={t("tasks.detail.failed.title")}
+            description={t("tasks.error.description")}
             action={
-              <UI.Button
-                onClick={scopeFailure !== null
-                  ? scopeRestore.retry
-                  : () => void query.refetch()}
-              >
-                {t("tasks.live.retry")}
-              </UI.Button>
+              <UI.Inline gap="compact">
+                <UI.Button
+                  variant="secondary"
+                  disabled={query.isFetching}
+                  aria-busy={query.isFetching || undefined}
+                  onClick={scopeFailure !== null
+                    ? scopeRestore.retry
+                    : () => void query.refetch()}
+                >
+                  {t(
+                    query.isFetching
+                      ? "tasks.live.retrying"
+                      : "tasks.live.retry",
+                  )}
+                </UI.Button>
+                <UI.Button
+                  variant="quiet"
+                  onClick={() => void navigate({ to: "/tasks" })}
+                >
+                  {t("tasks.detail.unavailable.back")}
+                </UI.Button>
+              </UI.Inline>
             }
           />
         )
-        : <UI.Text>{t("tasks.session.state.loading")}</UI.Text>}
+        : (
+          <UI.Stack
+            aria-busy="true"
+            aria-label={t("tasks.detail.loading")}
+            gap="standard"
+          >
+            {[0, 1, 2].map((row) => <UI.Skeleton shape="row" key={row} />)}
+          </UI.Stack>
+        )}
     </TaskSessionView>
   );
 }
@@ -593,6 +727,11 @@ function Inbox(
       filters={filters}
       layout={layout}
       onStatus={setStatus}
+      onClear={() => {
+        setSearch("");
+        setRepository("");
+        setStatus(undefined);
+      }}
       valid={valid}
       filtersContent={
         <WorkQueueFilters
@@ -644,18 +783,36 @@ function TaskArtifacts(
       tabIndex={presentation === "run" ? -1 : undefined}
     >
       {query.isPending
-        ? <UI.Text>{t("projects.onboarding.pagination.loading")}</UI.Text>
-        : query.isError
         ? (
-          <UI.ErrorState
-            title={t(forbidden ? "tasks.live.forbidden" : "tasks.live.error")}
-            action={!forbidden && (
-              <UI.Button onClick={() => void query.refetch()}>
-                {t("tasks.live.retry")}
-              </UI.Button>
-            )}
-          />
+          <UI.Stack
+            aria-busy="true"
+            aria-label={t("tasks.live.artifactsLoading")}
+            gap="compact"
+          >
+            <UI.Skeleton shape="row" />
+            <UI.Skeleton shape="row" />
+          </UI.Stack>
         )
+        : query.isError
+        ? forbidden
+          ? (
+            <UI.Text variant="muted">
+              {t("tasks.live.artifactsForbidden")}
+            </UI.Text>
+          )
+          : (
+            <UI.ErrorState
+              title={t("tasks.live.artifactsError")}
+              action={
+                <UI.Button
+                  variant="secondary"
+                  onClick={() => void query.refetch()}
+                >
+                  {t("tasks.live.retry")}
+                </UI.Button>
+              }
+            />
+          )
         : (
           <>
             {query.data.items.length === 0 && (
@@ -820,31 +977,35 @@ export function WorkQueueView(
 ) {
   const { translate: t } = useI18n();
   const unknown = t("tasks.queue.unknown");
+  // Told there is no access, a person is not offered the primary action or tabs.
+  const noAccess = state === "forbidden";
   const selected = groups.flatMap((group) => group.rows).find((row) =>
     row.id === selectedId
   );
   return (
     <>
       <ShellFlushMain />
-      <ShellSlot name="actions">
-        <UI.Inline gap="compact">
-          <RouterLink
-            to="/tasks/new"
-            activeProps={{}}
-            inactiveProps={{}}
-            variant={layout === "sheet" ? "primaryIcon" : "primaryButton"}
-            aria-label={layout === "sheet"
-              ? t("tasks.queue.newTask")
-              : undefined}
-          >
-            <UI.IconGlyph
-              name="plus"
-              size={layout === "sheet" ? "large" : "medium"}
-            />
-            {layout === "rail" && t("tasks.queue.newTask")}
-          </RouterLink>
-        </UI.Inline>
-      </ShellSlot>
+      {!noAccess && (
+        <ShellSlot name="actions">
+          <UI.Inline gap="compact">
+            <RouterLink
+              to="/tasks/new"
+              activeProps={{}}
+              inactiveProps={{}}
+              variant={layout === "sheet" ? "primaryIcon" : "primaryButton"}
+              aria-label={layout === "sheet"
+                ? t("tasks.queue.newTask")
+                : undefined}
+            >
+              <UI.IconGlyph
+                name="plus"
+                size={layout === "sheet" ? "large" : "medium"}
+              />
+              {layout === "rail" && t("tasks.queue.newTask")}
+            </RouterLink>
+          </UI.Inline>
+        </ShellSlot>
+      )}
       {/* E8-0 has no worker strip on phones; readiness stays a desktop footer. */}
       {statusStrip && layout === "rail" && (
         <ShellSlot name="statusStrip">{statusStrip}</ShellSlot>
@@ -880,7 +1041,7 @@ export function WorkQueueView(
         stateContent={stateContent}
         resultSummary={layout === "rail" ? summary : undefined}
         variant={layout === "sheet" ? "sheet" : "queue"}
-        views={views}
+        views={noAccess ? undefined : views}
         viewsLabel={t("tasks.queue.views")}
         maxVisibleViews={layout === "sheet" ? 2 : undefined}
         moreViewsLabel={t("tasks.queue.moreViews")}
