@@ -81,7 +81,20 @@ export type AdmittedRepositoryProfile = RepositoryExecutionPins & {
 };
 
 // Identical canonical JSON convention to profile/observation publication.
-function canonical(value: unknown, omitRootKey?: string): string {
+/**
+ * Root keys a job's stored input carries that the run snapshot does not derive:
+ * the repository profile frozen at admission, and the notes left for the step
+ * before it started (#412), which the server adds once at admission.
+ */
+const ADMISSION_ADDED_ROOT_KEYS: readonly string[] = [
+  "repositoryProfile",
+  "stepNotes",
+];
+
+function canonical(
+  value: unknown,
+  omitRootKeys: readonly string[] = [],
+): string {
   const normalize = (entry: unknown): unknown => {
     if (
       entry === null || typeof entry === "string" || typeof entry === "boolean"
@@ -91,7 +104,7 @@ function canonical(value: unknown, omitRootKey?: string): string {
     if (entry !== null && typeof entry === "object") {
       const sorted: Record<string, unknown> = {};
       for (const key of Object.keys(entry).sort()) {
-        if (entry === value && key === omitRootKey) continue;
+        if (entry === value && omitRootKeys.includes(key)) continue;
         const child = (entry as Record<string, unknown>)[key];
         if (child !== undefined) sorted[key] = normalize(child);
       }
@@ -904,7 +917,8 @@ export function executionJobInputMatchesSnapshot(
       authorized.input !== null && typeof authorized.input === "object" &&
       !Array.isArray(authorized.input) &&
       !Object.hasOwn(authorized.input, "repositoryProfile") &&
-      canonical(input, "repositoryProfile") === canonical(authorized.input);
+      canonical(input, ADMISSION_ADDED_ROOT_KEYS) ===
+        canonical(authorized.input);
   } catch {
     return false;
   }
@@ -1542,7 +1556,8 @@ export async function admitRepositoryExecutionJob(
       authorized.input === null || typeof authorized.input !== "object" ||
       Array.isArray(authorized.input) ||
       Object.hasOwn(authorized.input, "repositoryProfile") ||
-      canonical(input, "repositoryProfile") !== canonical(authorized.input)
+      canonical(input, ADMISSION_ADDED_ROOT_KEYS) !==
+        canonical(authorized.input)
     ) unavailable();
     frozenAgent = authorized.agent;
     requiredCapabilities = authorized.requiredCapabilities;
