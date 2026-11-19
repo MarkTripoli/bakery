@@ -403,7 +403,7 @@ export function issueNumberFromRef(ref: TicketRef): number | null {
 export function createTicketSourceReader(
   dependencies: ReconcileDependencies,
 ): TicketSourceReader {
-  const github = dependencies.github;
+  const client = dependencies.github;
   return {
     async readIssue(handle, ref, signal): Promise<TicketIssueRead> {
       const number = issueNumberFromRef(ref);
@@ -523,7 +523,7 @@ export function createTicketSourceReader(
         // (`links_truncated`), as it does for the sub-issue count below.
         let truncated = detail.blockedByTotal === null;
         if (detail.blockedByTotal !== 0) {
-          const page = await github.listBlockedBy({
+          const page = await client.listBlockedBy({
             token: access.token,
             fullName: access.fullName,
             number,
@@ -614,7 +614,7 @@ export function createTicketSourceReader(
           if (closing.commitId === null) {
             return { kind: "closed_unmerged", stateReason: "completed" };
           }
-          const repository = await github.readRepositoryIdentity({
+          const repository = await client.readRepositoryIdentity({
             token: access.token,
             fullName: access.fullName,
             withDefaultBranch: true,
@@ -633,7 +633,7 @@ export function createTicketSourceReader(
           }[] = [];
           let pullsComplete = false;
           for (let page = 1; page <= TICKET_PULL_PAGE_LIMIT; page++) {
-            const pulls = await github.listCommitPullRequests({
+            const pulls = await client.listCommitPullRequests({
               token: access.token,
               fullName: access.fullName,
               sha: closing.commitId,
@@ -775,7 +775,7 @@ export function createTicketSourceReader(
         handle,
         signal,
         async (access): Promise<TicketActorRole> => {
-          const read = await github.readCollaboratorPermission({
+          const read = await client.readCollaboratorPermission({
             token: access.token,
             fullName: access.fullName,
             login,
@@ -801,7 +801,7 @@ export function createTicketSourceReader(
         handle,
         signal,
         async (access): Promise<TicketLabelPage> => {
-          const page = await github.listRepositoryLabels({
+          const page = await client.listRepositoryLabels({
             token: access.token,
             fullName: access.fullName,
             page: request.page,
@@ -819,7 +819,7 @@ export function createTicketSourceReader(
         handle,
         signal,
         async (access): Promise<TicketIssueListPage> => {
-          const page = await github.listRepositoryIssues({
+          const page = await client.listRepositoryIssues({
             token: access.token,
             fullName: access.fullName,
             state: "open",
