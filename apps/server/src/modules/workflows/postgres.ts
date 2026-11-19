@@ -34,6 +34,7 @@ import {
   type WorkflowValidationIssue,
 } from "./validation.ts";
 import { assertWorkflowSatisfiesRepositoryRules } from "./rule-guard.ts";
+import { readStartSchedules } from "./start-schedules.ts";
 import { attributeAction } from "../auth/application/action-attribution.ts";
 import {
   assertMayPublishDefinition,
@@ -1221,7 +1222,9 @@ export async function publishWorkflowVersion(
     // Validated on the way in, because the column is jsonb and the database
     // can say nothing about its shape: a version that published a start the
     // contract refuses would be one no matcher could ever read back.
-    starts: canonicalJson(WorkflowStartsSchema.parse(draft.starts)),
+    starts: canonicalJson(
+      readStartSchedules(WorkflowStartsSchema.parse(draft.starts)),
+    ),
   });
   await transaction.query(
     `delete from bakery.workflow_drafts

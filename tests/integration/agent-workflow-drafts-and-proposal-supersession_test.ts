@@ -515,4 +515,90 @@ Deno.test("publishing a version stores its starts canonically, and an invalid st
       0,
       "no version row is written for a refused start",
     );
+
+    // The contract checks a schedule's shape, not that the clock can read it.
+    // A version is immutable once published, so these must be refused at
+    // publish rather than frozen into a version that fails at its first tick.
+    for (
+      const [index, reason, on] of [
+        [
+          1,
+          "an expression the scheduler cannot read",
+          { kind: "schedule", cron: "61 * * * *", timezone: "UTC" },
+        ],
+        [
+          2,
+          "a zone that is not a zone",
+          { kind: "schedule", cron: "0 9 * * *", timezone: "Europe/Nowhere" },
+        ],
+      ] as const
+    ) {
+      const bad = await seedWorkflowDraft(
+        fixture,
+        person,
+        `starts-bad-${index}`,
+      );
+      await fixture.pgDatabase.query(
+        `update bakery.workflow_drafts set starts = $1::jsonb
+          where organization_id = $2 and id = $3`,
+        [
+          JSON.stringify([{ id: "clock", on }]),
+          seed.organizationId,
+          bad.draft.id,
+        ],
+      );
+      const refused = await publish(fixture, person, bad.workflowId, {
+        id: bad.draft.id,
+        version: bad.draft.version,
+      }, { expectedDigest: bad.draft.digest });
+      assert(
+        refused.status >= 400 && refused.status < 500,
+        `${reason} is refused: ${refused.status}`,
+      );
+      assertEquals(
+        await countRows(
+          fixture,
+          `select count(*)::text as count from bakery.workflow_versions
+            where organization_id = $1 and workflow_id = $2`,
+          [seed.organizationId, bad.workflowId],
+        ),
+        0,
+        `${reason} publishes nothing`,
+      );
+    }
+
+    // A schedule the scheduler can read publishes, with the zone in its
+    // canonical spelling so two versions naming one zone store the same text.
+    const clock = await seedWorkflowDraft(fixture, person, "starts-clock");
+    await fixture.pgDatabase.query(
+      `update bakery.workflow_drafts set starts = $1::jsonb
+        where organization_id = $2 and id = $3`,
+      [
+        JSON.stringify([{
+          id: "clock",
+          on: {
+            kind: "schedule",
+            cron: "0 9 * * *",
+            timezone: "europe/london",
+          },
+        }]),
+        seed.organizationId,
+        clock.draft.id,
+      ],
+    );
+    const scheduled = await json<Version>(
+      await publish(fixture, person, clock.workflowId, clock.draft, {
+        expectedDigest: clock.draft.digest,
+      }),
+      200,
+    );
+    const clockRow = await fixture.pgDatabase.query<{ starts: unknown }>(
+      `select starts from bakery.workflow_versions
+        where organization_id = $1 and id = $2`,
+      [seed.organizationId, scheduled.id],
+    );
+    assertEquals(clockRow.rows[0].starts, [{
+      id: "clock",
+      on: { cron: "0 9 * * *", kind: "schedule", timezone: "Europe/London" },
+    }]);
   }));
