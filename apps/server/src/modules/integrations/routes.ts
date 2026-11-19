@@ -155,9 +155,9 @@ export function createIntegrationsRoutes(options: {
         context,
         registry,
         options.publicBaseUrl,
-        IntegrationsImplementedAction.GitHubManifestCallback,
+        IntegrationsImplementedAction.IntegrationManifestCallback,
         (query) =>
-          coerceQueryInput(contractSchemas.GitHubManifestCallback, query),
+          coerceQueryInput(contractSchemas.IntegrationManifestCallback, query),
       ),
   );
   app.get(
@@ -167,11 +167,14 @@ export function createIntegrationsRoutes(options: {
         context,
         registry,
         options.publicBaseUrl,
-        IntegrationsImplementedAction.GitHubSetup,
+        IntegrationsImplementedAction.IntegrationSetup,
         (query) => {
           const input = githubQuery(query, SETUP_QUERY);
           if (!SETUP_ACTIONS.has(input.setupAction)) delete input.setupAction;
-          return coerceQueryInput(contractSchemas.GitHubSetupCallback, input);
+          return coerceQueryInput(
+            contractSchemas.IntegrationSetupCallback,
+            input,
+          );
         },
       ),
   );
@@ -182,7 +185,7 @@ export function createIntegrationsRoutes(options: {
         context,
         registry,
         options.publicBaseUrl,
-        IntegrationsImplementedAction.GitHubCallback,
+        IntegrationsImplementedAction.IntegrationAuthorizationCallback,
         (query) =>
           coerceQueryInput(
             contractSchemas.OAuthCallback,

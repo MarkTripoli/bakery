@@ -183,6 +183,36 @@ function allPermissions(actor: OrganizationActor): CatalogPermissionKey[] {
  * caller is one of the two roles the policy names. The handlers narrow the
  * reads and refuse a foreign write, which is where ownership is enforced.
  */
+/**
+ * Guard for an action whose policy says "Admin for organization scope".
+ *
+ * The catalog grants the action to Developer by default, because a person may
+ * act on their own records with it; whether this particular call reaches the
+ * whole organization is decided by the input, so the action asks here. Keeping
+ * the role knowledge in this file is what the no-raw-role-checks rail exists to
+ * enforce: an organization module names the authority it needs, never the role.
+ */
+export function authorizeOrganizationAdministrator(
+  actor: OrganizationActor,
+): void {
+  if (actor.role !== OrganizationRole.Admin) {
+    throw new StandardError({ code: "AUTH_FORBIDDEN" });
+  }
+}
+
+/**
+ * The same requirement, for a role read live from the database inside a
+ * transaction rather than taken from the session.
+ *
+ * A session's role can be stale: somebody demoted a minute ago still carries
+ * Admin in their cookie. A write that widens what the whole organization can
+ * use re-reads the membership row and asks here, so the role knowledge stays in
+ * this file and the caller only names the authority it needs.
+ */
+export function isOrganizationAdministratorRole(role: string): boolean {
+  return role === OrganizationRole.Admin;
+}
+
 export function authorizeInitiatingPrincipal(actor: OrganizationActor): void {
   if (
     actor.role !== OrganizationRole.Admin &&

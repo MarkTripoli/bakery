@@ -31,7 +31,9 @@
     "typecheck": "tsc --noEmit --pretty false"
   },
   "dependencies": {
-    "@bakery/i18n": "workspace:*"
+    "@bakery/i18n": "workspace:*",
+    "@codemirror/state": "6.7.6",
+    "@codemirror/view": "6.43.15"
   },
   "peerDependencies": {
     "react": "19.3.0"
@@ -44,6 +46,8 @@
     "@storybook/react-vite": "10.6.0",
     "@types/react": "19.3.0",
     "esbuild": "0.28.2",
+    "loro-codemirror": "0.3.3",
+    "loro-crdt": "1.16.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "storybook": "10.6.0",

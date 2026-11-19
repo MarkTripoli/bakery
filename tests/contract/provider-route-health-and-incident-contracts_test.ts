@@ -6,10 +6,12 @@ import { implementedActions } from "../../packages/contracts/src/implemented-act
  * The read surface issue #26 slice 1 publishes: three nouns and the operations
  * that return them.
  *
- * These are contracts only. Nothing writes a route, a health row or an incident
- * yet, so every action below must stay out of `implementedActions` until a later
- * slice serves it. Asserting the absence is the point: a catalogue entry with no
- * handler behind it tells a caller the feature exists.
+ * Slice 1 published these as contracts with no handler. Slice 2 registered the
+ * handlers, so the assertion now runs the other way: a catalogue entry with no
+ * handler behind it tells a caller the feature exists, and an entry claiming to be
+ * implemented with nothing serving it says the same thing. Both directions are the
+ * same defect seen from a different side, so the check survives the change rather
+ * than being deleted once it was inconvenient.
  */
 const readActions = [
   {
@@ -93,7 +95,7 @@ function enumOf(schema: JsonSchema, where: string): string[] {
   return [...branch.enum].sort();
 }
 
-Deno.test("the route reads are catalogued and not yet implemented", () => {
+Deno.test("the route reads are catalogued and served", () => {
   const catalogue = catalogActions as unknown as {
     action: string;
     method: string;
@@ -119,9 +121,14 @@ Deno.test("the route reads are catalogued and not yet implemented", () => {
         entry.permission === "providerIncident:read",
       `${expected.action} carries ${entry.permission}`,
     );
+    // The guard was written the other way while these reads were catalogued and
+    // unserved, and it caught exactly what it was for: the slice that serves them had
+    // to come back and say so. Ticking the catalogue without a handler is the defect
+    // this asserts against, so it is now stated in the direction that still fails -
+    // a read that claims to be implemented must be one the server actually registers.
     assert(
-      !implementedActions.includes(expected.action as never),
-      `${expected.action} is served by no handler yet, so it must not claim to be implemented`,
+      implementedActions.includes(expected.action as never),
+      `${expected.action} is served by a handler, so it must claim to be implemented`,
     );
   }
 });

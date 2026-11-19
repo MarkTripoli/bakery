@@ -734,7 +734,7 @@ Deno.test("issue 71 receiver security: the registered action refuses any call th
       traceId: "trace",
       signal: new AbortController().signal,
     };
-    const error = await registry.execute("intake.github", context, envelope)
+    const error = await registry.execute("intake.webhook", context, envelope)
       .then(() => null, (thrown) => thrown);
     assert(error instanceof StandardError);
     assertEquals(error.code, "AUTH_INVALID");

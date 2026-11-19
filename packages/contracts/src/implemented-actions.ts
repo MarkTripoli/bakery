@@ -243,6 +243,27 @@ export const agentImplementedActions = Object.freeze(
   Object.values(AgentImplementedAction),
 );
 
+/**
+ * The provider route and incident reads (#26 slice 2).
+ *
+ * Slice 1 published the contracts and deliberately left every action out of this
+ * set, so a catalogue entry could not tell a caller a feature existed with no
+ * handler behind it. These five have handlers now, and nothing else about them
+ * moves: they are reads, they take no body and they write no row.
+ */
+export const ProviderReadsImplementedAction = Object.freeze(
+  {
+    ProviderRoutesList: "providerRoutes.list",
+    ProviderRoutesGet: "providerRoutes.get",
+    ProviderRoutesHealth: "providerRoutes.health",
+    ProviderIncidentsList: "providerIncidents.list",
+    ProviderIncidentsGet: "providerIncidents.get",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const providerReadsImplementedActions = Object.freeze(
+  Object.values(ProviderReadsImplementedAction),
+);
+
 export const RepositoryRulesImplementedAction = Object.freeze(
   {
     RepositoryRulesGet: "repositoryRules.get",
@@ -273,11 +294,11 @@ export const IntegrationsImplementedAction = Object.freeze(
     IntegrationAppRegistrationsGet: "integrationAppRegistrations.get",
     IntegrationAppRegistrationsBegin: "integrationAppRegistrations.begin",
     IntegrationAppRegistrationsPut: "integrationAppRegistrations.put",
-    GitHubManifestCallback: "integrationAuth.githubManifestCallback",
+    IntegrationManifestCallback: "integrationAuth.manifestCallback",
     IntegrationAuthAttemptsCreate: "integrationAuthAttempts.create",
     IntegrationAuthAttemptsGet: "integrationAuthAttempts.get",
-    GitHubSetup: "integrationAuth.githubSetup",
-    GitHubCallback: "integrationAuth.githubCallback",
+    IntegrationSetup: "integrationAuth.setup",
+    IntegrationAuthorizationCallback: "integrationAuth.authorizationCallback",
     IntegrationConnectionsGet: "integrationConnections.get",
     IntegrationConnectionsCreate: "integrationConnections.create",
     IntegrationConnectionsList: "integrationConnections.list",
@@ -295,7 +316,7 @@ export const IntegrationsImplementedAction = Object.freeze(
     IntegrationDiscoveriesCreate: "integrationDiscoveries.create",
     IntegrationInstallationsList: "integrationInstallations.list",
     IntegrationInstallationsGet: "integrationInstallations.get",
-    IntakeGithub: "intake.github",
+    IntakeWebhook: "intake.webhook",
   } as const satisfies Record<string, CatalogActionName>,
 );
 export const integrationsImplementedActions = Object.freeze(
@@ -525,6 +546,20 @@ export const pluginPackageImplementedActions = Object.freeze(
   Object.values(PluginPackageImplementedAction),
 );
 
+export const PluginInstallImplementedAction = Object.freeze(
+  {
+    PluginInstallsList: "pluginInstalls.list",
+    PluginInstallsCreate: "pluginInstalls.create",
+    PluginInstallsGet: "pluginInstalls.get",
+    PluginInstallsUpdate: "pluginInstalls.update",
+    PluginStateGet: "pluginState.get",
+    PluginStatePut: "pluginState.put",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const pluginInstallImplementedActions = Object.freeze(
+  Object.values(PluginInstallImplementedAction),
+);
+
 export const MemoryImplementedAction = Object.freeze(
   {
     MemoriesList: "memories.list",
@@ -567,6 +602,7 @@ export const implementedActions = Object.freeze(
     ...attemptReadImplementedActions,
     ...projectsImplementedActions,
     ...agentImplementedActions,
+    ...providerReadsImplementedActions,
     ...repositoryRulesImplementedActions,
     ...artifactKindImplementedActions,
     ...integrationsImplementedActions,
@@ -581,6 +617,7 @@ export const implementedActions = Object.freeze(
     ...secretsImplementedActions,
     ...catalogImplementedActions,
     ...pluginPackageImplementedActions,
+    ...pluginInstallImplementedActions,
     ...skillStorageImplementedActions,
     ...blobUploadImplementedActions,
     ...memoryImplementedActions,

@@ -4830,8 +4830,12 @@
       "idempotency": "Read; opaque cursor pagination",
       "errors": [
         "AUTH_REQUIRED",
-        "AUTH_FORBIDDEN"
-      ]
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
     },
     {
       "group": "Providers",
@@ -4848,8 +4852,11 @@
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
-        "RESOURCE_NOT_FOUND"
-      ]
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
     },
     {
       "group": "Providers",
@@ -4866,8 +4873,11 @@
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
-        "RESOURCE_NOT_FOUND"
-      ]
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
     },
     {
       "group": "Providers",
@@ -4883,8 +4893,12 @@
       "idempotency": "Read; opaque cursor pagination",
       "errors": [
         "AUTH_REQUIRED",
-        "AUTH_FORBIDDEN"
-      ]
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
     },
     {
       "group": "Providers",
@@ -4901,8 +4915,11 @@
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
-        "RESOURCE_NOT_FOUND"
-      ]
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
     },
     {
       "group": "Providers",
@@ -6418,10 +6435,10 @@
       "group": "Integrations intake",
       "method": "POST",
       "path": "/v1/webhooks/github",
-      "action": "intake.github",
+      "action": "intake.webhook",
       "access": "Verified GitHub App raw-body signature; installation/resource routes to existing organization connection",
       "permission": null,
-      "input": "GitHubWebhook",
+      "input": "IntegrationWebhook",
       "output": "WebhookReceipt",
       "event": "intake.received",
       "mcp": null,
@@ -7200,7 +7217,7 @@
       "group": "Integration setup",
       "method": "GET",
       "path": "/v1/integration-auth/github/callback",
-      "action": "integrationAuth.githubCallback",
+      "action": "integrationAuth.authorizationCallback",
       "access": "Bound browser auth attempt",
       "permission": null,
       "input": "OAuthCallback",
@@ -7225,10 +7242,10 @@
       "group": "Integration setup",
       "method": "GET",
       "path": "/v1/integration-auth/github/setup",
-      "action": "integrationAuth.githubSetup",
+      "action": "integrationAuth.setup",
       "access": "Bound browser auth attempt",
       "permission": null,
-      "input": "GitHubSetupCallback",
+      "input": "IntegrationSetupCallback",
       "output": "AuthRedirect",
       "event": "integration.auth_attempt_changed",
       "mcp": null,
@@ -7538,10 +7555,10 @@
       "group": "Installation administration",
       "method": "GET",
       "path": "/v1/integration-auth/github/manifest-callback",
-      "action": "integrationAuth.githubManifestCallback",
+      "action": "integrationAuth.manifestCallback",
       "access": "Installation administrator",
       "permission": "installationSetting:manage",
-      "input": "GitHubManifestCallback",
+      "input": "IntegrationManifestCallback",
       "output": "AuthRedirect",
       "event": "",
       "mcp": null,
