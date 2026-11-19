@@ -24,6 +24,7 @@ import {
   decideDelivery,
   type DeliveryDecisionResult,
 } from "../review-loop/decision.ts";
+import { reviewerWasSteered } from "./reviewer-steers.ts";
 import { deriveReviewPins, type ReviewPins } from "./review-pins.ts";
 import { parseReviewReport, verifyReviewReport } from "./review-report.ts";
 import {
@@ -214,7 +215,16 @@ export async function finalizeReview(
     [organizationId, report.sessionId],
   );
   const reviewer = session.rows[0];
+  // Anyone steering the reviewer, a person or an agent, makes the review steered:
+  // it is labelled and does not count as independent (O18).
+  const steered = await reviewerWasSteered(transaction, {
+    organizationId,
+    runId: job.runId,
+    reviewStepId: job.runStepId,
+    reviewerSessionId: report.sessionId,
+  });
   assertIndependentReviewer({
+    steered,
     reviewer: {
       sessionId: report.sessionId,
       runStepId: reviewer?.run_step_id ?? null,

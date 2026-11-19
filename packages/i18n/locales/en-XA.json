@@ -4400,5 +4400,7 @@
   "integrations.linear.permission.write": "⟦Ɓàķëŕÿ çàñ çĥàñĝë Ļïñëàŕ ïššûëš àñð þôšŧ çôɱɱëñŧš. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "integrations.linear.permission.other": "⟦Ļïñëàŕ ĝŕàñŧëð {scope} àççëšš, ŵĥïçĥ Ɓàķëŕÿ ðôëš ñôŧ ûšë. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "integrations.linear.resource.project": "⟦À Ļïñëàŕ þŕôĵëçŧ ŧëš⟧",
-  "integrations.linear.resource.team": "⟦À Ļïñëàŕ ŧëàɱ ŧë⟧"
+  "integrations.linear.resource.team": "⟦À Ļïñëàŕ ŧëàɱ ŧë⟧",
+  "notifications.landing.arrived": "⟦Ôþëñëð ƒŕôɱ à ñôŧïƒïçàŧïôñ. ŧëšŧ çô⟧",
+  "notifications.landing.partGone": "⟦Ŧĥë þàŕŧ ŧĥïš ñôŧïƒïçàŧïôñ ŵàš àƀôûŧ ïš ñô ļôñĝëŕ ĥëŕë. ŧëšŧ çôþÿ ŧëšŧ çô⟧"
 }

@@ -35,6 +35,7 @@ import {
   appendAudit,
   appendDomainEvent,
 } from "@bakery/persistence/event-audit";
+import { DEFAULT_AGENT_SPAWN } from "@bakery/config";
 import {
   AgentPower,
   assertAgentMayExercise,
@@ -528,8 +529,9 @@ async function runControlAction(
  * authority guard. The handlers hold no state, so each caller may build its own.
  */
 export function createRunControlRegistry(
-  options: Pick<ExecutionRouteOptions, "database" | "secret">,
+  options: Pick<ExecutionRouteOptions, "database" | "secret" | "agentSpawn">,
 ): ActionRegistry {
+  const limits = options.agentSpawn ?? DEFAULT_AGENT_SPAWN;
   const registry = new ActionRegistry(
     new PostgresAuthorityRunner(options.database),
     createPostgresCommandRunner(),
@@ -630,7 +632,7 @@ export function createRunControlRegistry(
       organizationContext:
         OrganizationContextPolicy.RequiredAuthenticatedContext,
     },
-    handler: steerAgentSession,
+    handler: (context, input) => steerAgentSession(context, input, limits),
   });
   registry.register({
     name: ExecutionImplementedAction.RunStepsNote,
@@ -644,7 +646,7 @@ export function createRunControlRegistry(
       organizationContext:
         OrganizationContextPolicy.RequiredAuthenticatedContext,
     },
-    handler: createRunStepNote,
+    handler: (context, input) => createRunStepNote(context, input, limits),
   });
   registry.register({
     name: ExecutionImplementedAction.RunStepsTakeOver,

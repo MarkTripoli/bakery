@@ -565,6 +565,8 @@ function ShellFrame() {
     const focusHeading = () => {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
+        // A notification's landing put focus on the part it opened: keep it.
+        if (document.activeElement?.hasAttribute("data-landing-focus")) return;
         const heading = document.querySelector<HTMLElement>("main h1");
         if (!heading || heading === focusedHeading) return;
         if (!heading.hasAttribute("tabindex")) heading.tabIndex = -1;
