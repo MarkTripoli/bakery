@@ -97,6 +97,9 @@ Deno.test("the context the route dispatches carries the person", () => {
     principalType: "human",
     displayName: "Ada Admin",
   });
+  // The session's own scopes travel with the call so an action that reads
+  // across surfaces can leave out the ones the credential has no scope for.
+  assertEquals(context.sessionScopes, ["runs.read"]);
 });
 
 Deno.test("a session holding the scope is still refused when the person lacks the permission", async () => {

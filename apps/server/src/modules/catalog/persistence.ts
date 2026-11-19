@@ -307,6 +307,8 @@ async function searchLibraryPage(options: {
   principalId: string;
   input: LibrarySearchInput;
   secret: string;
+  /** False when a session lacks the scope artifacts need; see below. */
+  includeArtifacts: boolean;
 }) {
   const kind = options.input.kind ?? null;
   const binding: CursorBinding = {
@@ -343,6 +345,7 @@ async function searchLibraryPage(options: {
          select 'artifact'::text, id, name, null::text, created_at
            from bakery.artifacts
           where organization_id = $1 and ($5::text is null or $5 = 'artifact')
+            and $7::boolean
             and strpos(lower(name), lower($6)) > 0
        ) as hits
       where ($2::timestamptz is null or (created_at, id) < ($2, $3::uuid))
@@ -355,6 +358,7 @@ async function searchLibraryPage(options: {
       limit + 1,
       kind,
       options.input.query,
+      options.includeArtifacts,
     ],
   );
   const visible = result.rows.slice(0, limit);
@@ -663,12 +667,23 @@ export function createCatalogHandlers(
     async searchLibrary(context: ActionContext, input: LibrarySearchInput) {
       const { transaction, organizationId, principalId } =
         requireWorkTransaction(context);
+      // Artifacts are gated by their own scope (`artifacts.read`), which the
+      // `library.read` scope that offers this tool does not imply. A session
+      // that holds the one and not the other must not list artifacts through
+      // search that `artifacts.list` would refuse it. A person's own request
+      // carries no session scopes and is bounded by their permissions alone.
+      const includeArtifacts = context.sessionScopes === undefined ||
+        context.sessionScopes.includes("artifacts.read");
+      if (!includeArtifacts && input.kind === "artifact") {
+        throw new StandardError({ code: "AUTH_FORBIDDEN" });
+      }
       return await searchLibraryPage({
         transaction,
         organizationId,
         principalId,
         input,
         secret,
+        includeArtifacts,
       });
     },
 

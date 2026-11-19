@@ -133,3 +133,70 @@ Deno.test("a session can search the library as the person it acts for", () =>
     const refused = await search({ query: "zebra" });
     assertEquals(refused.status, 404, await refused.text());
   }));
+
+Deno.test("a session without artifacts.read gets no artifact through search", () =>
+  withWorkerFixture(async (fixture) => {
+    const worker = await registeredWorker(fixture, { slots: 1 });
+    const seeded = await seedEligibleNonmodelJob(
+      fixture.pgDatabase,
+      fixture.organizationId,
+      fixture.principalId,
+    );
+    const org = fixture.organizationId;
+    await fixture.pgDatabase.query(
+      `insert into bakery.skills (id, organization_id, slug, name, description)
+       values ($1, $2, 'zebra-planner', 'Zebra Planner', null)`,
+      [crypto.randomUUID(), org],
+    );
+    await fixture.pgDatabase.query(
+      `insert into bakery.agent_definitions (organization_id, slug, name, description)
+       values ($1, 'zebra-agent', 'Zebra Agent', null)`,
+      [org],
+    );
+    await fixture.pgDatabase.query(
+      `insert into bakery.artifacts (organization_id, task_id, artifact_type, name)
+       values ($1, $2, 'research', 'zebra notes')`,
+      [org, seeded.taskId],
+    );
+    const assignment = await claimAssignment(fixture, worker) as unknown as {
+      attemptId: string;
+      sessionCredential: string;
+    };
+    const search = (args: Record<string, unknown>) =>
+      workerRequest(
+        fixture,
+        worker.credential,
+        SESSION_CALL_PATH.replace(":id", assignment.attemptId),
+        { tool: "library.search", arguments: args },
+        {
+          headers: {
+            [SESSION_CREDENTIAL_HEADER]: assignment.sessionCredential,
+          },
+        },
+      );
+    const kinds = async (args: Record<string, unknown>) => {
+      const response = await search(args);
+      const text = await response.text();
+      assertEquals(response.status, 200, text);
+      return (JSON.parse(text) as { result: Page }).result.items
+        .map((hit) => hit.kind).sort();
+    };
+
+    // With every read scope the session sees all three kinds.
+    assertEquals(await kinds({ query: "zebra" }), [
+      "agent",
+      "artifact",
+      "skill",
+    ]);
+
+    // A definition narrowed to library.read: skills and agents still answer,
+    // artifacts do not, and asking for them by kind is refused outright.
+    await fixture.pgDatabase.query(
+      `update bakery.session_operation_credentials set scopes = $1
+        where attempt_id = $2 and revoked_at is null`,
+      [["library.read"], assignment.attemptId],
+    );
+    assertEquals(await kinds({ query: "zebra" }), ["agent", "skill"]);
+    const forbidden = await search({ query: "zebra", kind: "artifact" });
+    assertEquals(forbidden.status, 403, await forbidden.text());
+  }));
