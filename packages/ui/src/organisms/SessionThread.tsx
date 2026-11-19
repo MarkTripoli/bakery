@@ -124,7 +124,14 @@ function PathText({ path }: { path: string }) {
   return (
     <span className="ui-session-path" dir="ltr" translate="no" title={path}>
       {folder
-        ? <span className="ui-session-path__folder">{folder}</span>
+        ? (
+          <span
+            className="ui-session-path__folder"
+            data-rail="truncation-allowed"
+          >
+            {folder}
+          </span>
+        )
         : null}
       <span className="ui-session-path__name">{name}</span>
     </span>
