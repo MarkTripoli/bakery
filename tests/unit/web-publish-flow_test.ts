@@ -84,6 +84,9 @@ Deno.test("a text that keeps moving is tried three times, then reported, with no
   assertEquals(await publishCheckpoint(deps, first), { kind: "kept-changing" });
   assertEquals(calls.publish, ["a", "b", "c"]);
   assertEquals(calls.publish.length, MOVED_ON_ATTEMPTS);
+  // One re-read between tries, none after the last: a read there could fail
+  // and turn "kept changing" into "unknown".
+  assertEquals(calls.read, MOVED_ON_ATTEMPTS - 1);
 });
 
 Deno.test("a lost answer is never published a second time: it is unknown, with its checkpoint", async () => {
