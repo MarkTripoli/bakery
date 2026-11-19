@@ -2084,6 +2084,100 @@ Deno.test("an install refuses a draft version and a withdrawn package", () =>
     assertEquals(grants.rows[0].count, "0");
   }));
 
+Deno.test("an upgrade refuses a draft version and a withdrawn package", () =>
+  withPluginFixture(async (fixture, store) => {
+    // The install site is covered above. This is the upgrade site, which is the
+    // one that could launder a draft's or a withdrawn package's authority
+    // through an install that already exists: PATCH names the version, so the
+    // same two predicates have to hold there as well.
+    const published = await publishInstallable(fixture, store);
+    // A different version of the same package: an upgrade means pinning a
+    // version the install does not already hold, otherwise no upgrade branch
+    // runs and the predicates are never asked anything.
+    const second = await publishSecondVersion(fixture, store, published);
+    const install = await (await call(fixture, "/v1/plugin-installs", {
+      method: "POST",
+      body: {
+        packageId: published.packageId,
+        versionId: published.versionId,
+        scope: "organization",
+      },
+    })).json();
+
+    const before = await fixture.pgDatabase.query<{
+      plugin_version_id: string;
+      status: string;
+      grants: string;
+    }>(
+      `select i.plugin_version_id, i.status,
+         (select count(*)::text from bakery.plugin_install_grants g
+           where g.organization_id = i.organization_id
+             and g.plugin_install_id = i.id) as grants
+         from bakery.plugin_installs i
+        where i.organization_id = $1 and i.id = $2`,
+      [fixture.organizationId, install.id],
+    );
+
+    // A draft: creation publishes, so reach the state through the row, exactly
+    // as the install-site test does, to prove the predicate rather than a flow.
+    await fixture.pgDatabase.query(
+      `update bakery.plugin_versions set published_at = null
+        where organization_id = $1 and id = $2`,
+      [fixture.organizationId, second.versionId],
+    );
+    const toDraft = await call(
+      fixture,
+      `/v1/plugin-installs/${install.id}`,
+      { method: "PATCH", body: { versionId: second.versionId } },
+    );
+    assertEquals(
+      toDraft.status,
+      404,
+      `an upgrade must not install a draft version: ${await toDraft.clone()
+        .text()}`,
+    );
+
+    // A withdrawn package, reachable only through the upgrade.
+    await fixture.pgDatabase.query(
+      `update bakery.plugin_versions set published_at = now()
+        where organization_id = $1 and id = $2`,
+      [fixture.organizationId, second.versionId],
+    );
+    await fixture.pgDatabase.query(
+      `update bakery.plugin_packages set listing_status = 'withdrawn'
+        where organization_id = $1 and id = $2`,
+      [fixture.organizationId, published.packageId],
+    );
+    const toWithdrawn = await call(
+      fixture,
+      `/v1/plugin-installs/${install.id}`,
+      { method: "PATCH", body: { versionId: second.versionId } },
+    );
+    assertEquals(
+      toWithdrawn.status,
+      404,
+      `an upgrade must not install a withdrawn package's version: ${await toWithdrawn
+        .clone()
+        .text()}`,
+    );
+
+    // Neither refusal changed the install or wrote a grant.
+    const after = await fixture.pgDatabase.query<{
+      plugin_version_id: string;
+      status: string;
+      grants: string;
+    }>(
+      `select i.plugin_version_id, i.status,
+         (select count(*)::text from bakery.plugin_install_grants g
+           where g.organization_id = i.organization_id
+             and g.plugin_install_id = i.id) as grants
+         from bakery.plugin_installs i
+        where i.organization_id = $1 and i.id = $2`,
+      [fixture.organizationId, install.id],
+    );
+    assertEquals(after.rows[0], before.rows[0]);
+  }));
+
 Deno.test("a concurrent upgrade cannot undo a disable and restore its grants", () =>
   withPluginFixture(async (fixture, store) => {
     const published = await publishInstallable(fixture, store);
@@ -2138,5 +2232,101 @@ Deno.test("a concurrent upgrade cannot undo a disable and restore its grants", (
       (await grants()).rows[0].count,
       "0",
       "a concurrent upgrade must not restore revoked grants",
+    );
+  }));
+
+Deno.test("the upgrade read holds the install row lock until the write", () =>
+  withPluginFixture(async (fixture, store) => {
+    // This asserts the lock is HELD in the window, which the source rail cannot
+    // do: it would pass with the argument present but the lock never taken.
+    // The seam is qa2's: `updatePluginInstall` takes its transaction from the
+    // ActionContext it is handed, so a wrapped transaction can stand in the
+    // window between the read returning and the UPDATE beginning.
+    const published = await publishInstallable(fixture, store);
+    const install = await (await call(fixture, "/v1/plugin-installs", {
+      method: "POST",
+      body: {
+        packageId: published.packageId,
+        versionId: published.versionId,
+        scope: "organization",
+      },
+    })).json();
+    const admin = await fixture.pgDatabase.query<{ principal_id: string }>(
+      `select m.principal_id from bakery.organization_memberships m
+        where m.organization_id = $1 and m.role = 'admin' limit 1`,
+      [fixture.organizationId],
+    );
+    const principalId = admin.rows[0]!.principal_id;
+    const { updatePluginInstall } = await import(
+      "../../apps/server/src/modules/catalog/plugin-install-postgres.ts"
+    );
+
+    const lockProbe = async (): Promise<string> => {
+      const other = await fixture.pgDatabase.connect();
+      try {
+        await other.query("begin");
+        try {
+          await other.query(
+            `select 1 from bakery.plugin_installs
+              where organization_id = $1 and id = $2 for update nowait`,
+            [fixture.organizationId, install.id],
+          );
+          return "acquired";
+        } catch (error) {
+          return (error as { code?: string }).code ?? "error";
+        } finally {
+          await other.query("rollback").catch(() => {});
+        }
+      } finally {
+        other.release();
+      }
+    };
+
+    // Positive control: outside the write path the row is free, so the probe
+    // acquires it. Without this, a probe that always failed would look like a
+    // lock and prove nothing.
+    assertEquals(await lockProbe(), "acquired");
+
+    const client = await fixture.pgDatabase.connect();
+    let probeResult = "never ran";
+    try {
+      await client.query("begin");
+      let paused = false;
+      const wrapped = {
+        async query(text: unknown, values?: unknown[]) {
+          const result = await client.query(text as string, values);
+          // The first read of the install row has returned: stand in the window
+          // before the UPDATE and ask whether the row is held.
+          if (!paused && /from bakery\.plugin_installs i/.test(String(text))) {
+            paused = true;
+            probeResult = await lockProbe();
+          }
+          return result;
+        },
+      };
+      await updatePluginInstall(
+        {
+          transaction: wrapped,
+          authority: {
+            organizationId: fixture.organizationId,
+            subject: { principalId },
+          },
+        } as never,
+        { status: "disabled" },
+        install.id,
+      );
+      await client.query("commit");
+    } catch (error) {
+      await client.query("rollback").catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
+    // 55P03 is lock_not_available: the read took the row lock, so a concurrent
+    // writer cannot slip between the decision and the write.
+    assertEquals(
+      probeResult,
+      "55P03",
+      "the install row must be locked between the read and the UPDATE",
     );
   }));
