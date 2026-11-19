@@ -156,6 +156,10 @@ export type ExternalTicketListResponse =
 export type TicketSourceResponse = ClientOutputMap["TicketSource"];
 export type TicketSourcePersonResponse = ClientOutputMap["TicketSourcePerson"];
 export type TicketSourceListResponse = ClientOutputMap["Page<TicketSource>"];
+export type PluginPackageListResponse = ClientOutputMap["Page<PluginPackage>"];
+export type PluginVersionListResponse = ClientOutputMap["Page<PluginVersion>"];
+export type PluginInstallListResponse = ClientOutputMap["Page<PluginInstall>"];
+export type PluginInstallResponse = ClientOutputMap["PluginInstall"];
 export type TicketSourceCreate = ClientInputMap["TicketSourceCreate"];
 export type TicketSourceUpdate = ClientInputMap["TicketSourceUpdate"];
 export type TicketOperationReceiptResponse =
@@ -701,6 +705,52 @@ export type BakeryApiClient = {
       readonly principalId: string;
       readonly idempotencyKey?: string;
     }) => Promise<ApiResult<void>>;
+  };
+  /** Private plugins published to the organization, and who has them installed. */
+  readonly plugins: {
+    /** `GET /v1/plugin-packages`: the plugins published in this organization. */
+    readonly packages: (options: {
+      readonly organizationId: string;
+      readonly cursor?: string;
+      readonly limit?: number;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<PluginPackageListResponse>>;
+    /** `GET /v1/plugin-packages/{id}/versions`: the published versions of one plugin. */
+    readonly versions: (options: {
+      readonly organizationId: string;
+      readonly packageId: string;
+      readonly cursor?: string;
+      readonly limit?: number;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<PluginVersionListResponse>>;
+    /** `GET /v1/plugin-installs`: the installs this person may see. */
+    readonly installs: (options: {
+      readonly organizationId: string;
+      readonly cursor?: string;
+      readonly limit?: number;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<PluginInstallListResponse>>;
+    /** `POST /v1/plugin-installs`: installs one published version, for everyone or for one person. */
+    readonly install: (options: {
+      readonly organizationId: string;
+      readonly packageId: string;
+      readonly versionId: string;
+      readonly scope: "organization" | "personal";
+      readonly idempotencyKey?: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<PluginInstallResponse>>;
+    /** `PATCH /v1/plugin-installs/{id}`: turns an install on or off, moves it to another version, or removes it. */
+    readonly update: (options: {
+      readonly organizationId: string;
+      readonly id: string;
+      readonly version: number;
+      readonly change: {
+        readonly versionId?: string;
+        readonly status?: "enabled" | "disabled" | "uninstalled";
+      };
+      readonly idempotencyKey?: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<PluginInstallResponse>>;
   };
   /** GitHub issues Bakery has read, and the repositories it takes them from. */
   readonly tickets: {
@@ -2130,6 +2180,67 @@ export function createBakeryApiClient({
   };
 
   return {
+    plugins: {
+      packages(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["pluginPackages.list"]({
+              cursor: options.cursor,
+              limit: options.limit,
+            }, { signal: options.signal }),
+        );
+      },
+      versions(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["pluginVersions.list"]({
+              id: options.packageId,
+              cursor: options.cursor,
+              limit: options.limit,
+            }, { signal: options.signal }),
+        );
+      },
+      installs(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["pluginInstalls.list"]({
+              cursor: options.cursor,
+              limit: options.limit,
+            }, { signal: options.signal }),
+        );
+      },
+      install(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["pluginInstalls.create"]({
+              packageId: options.packageId,
+              versionId: options.versionId,
+              scope: options.scope,
+            }, {
+              idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
+            }),
+        );
+      },
+      update(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["pluginInstalls.update"]({
+              id: options.id,
+              ...options.change,
+            }, {
+              ifMatch: versionEtag(options.version),
+              idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
+            }),
+        );
+      },
+    },
     tickets: {
       list(options) {
         return workerResult(
