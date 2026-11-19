@@ -31,13 +31,17 @@ create table bakery.batches (
   pause_reason text,
   paused_by uuid,
   paused_at timestamptz,
-  -- Why it ended, when it has: a limit, nothing left to start, a failure, a
-  -- change on GitHub, lost authority. Null while it is live.
+  -- Why it ended: a limit, nothing left to start, a failure, a change on GitHub,
+  -- lost authority. Set when the batch starts finishing, so a batch that reached a
+  -- limit while an issue was running still says why; finished_at is set when it ends.
   finish_reason text,
   finished_at timestamptz,
   stopped_by uuid,
   -- Whether a stop also cancelled the issue being worked on.
   stop_cancelled_current boolean not null default false,
+  -- Set by a person's yes to the next issue under ask_first, and consumed when the
+  -- supervisor starts it, so a yes is used once and the next issue asks again.
+  next_approved boolean not null default false,
   -- The limit clock: elapsed time is counted from here, not from creation, so a
   -- pause that outlasts the limit is the supervisor's finding and not a surprise.
   started_at timestamptz not null default now(),
@@ -124,7 +128,7 @@ create table bakery.batch_issues (
 grant select, insert on bakery.batches to bakery_app;
 grant update (
   state, pause_reason, paused_by, paused_at, finish_reason, finished_at,
-  stopped_by, stop_cancelled_current, updated_at, version
+  stopped_by, stop_cancelled_current, next_approved, updated_at, version
 ) on bakery.batches to bakery_app;
 
 grant select, insert on bakery.batch_issues to bakery_app;

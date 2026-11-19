@@ -454,7 +454,8 @@ export function startNextInBatch(context: ActionContext): Promise<Batch> {
     },
     async (transaction, batch) => {
       await transaction.query(
-        `update bakery.batches set state = 'running', ${touch} where id = $1`,
+        `update bakery.batches set state = 'running', next_approved = true, ${touch}
+          where id = $1`,
         [batch.id],
       );
     },
