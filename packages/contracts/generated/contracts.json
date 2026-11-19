@@ -226747,27 +226747,22 @@
               "type": "integer",
               "minimum": -9007199254740991,
               "maximum": 9007199254740991,
-              "description": "Entries deleted with their versions: the entry and everything under it. Zero for a record-area tombstone."
+              "description": "Entries deleted with their versions: the entry and everything under it."
             },
             "bytesRemoved": {
               "type": "integer",
               "minimum": -9007199254740991,
               "maximum": 9007199254740991,
               "description": "Bytes of working-area versions deleted."
-            },
-            "tombstone": {
-              "type": "boolean",
-              "description": "True when the entry was a record-area file: its bytes are cleared and the entry stays as a tombstone."
             }
           },
           "required": [
             "id",
             "entriesRemoved",
-            "bytesRemoved",
-            "tombstone"
+            "bytesRemoved"
           ],
           "additionalProperties": false,
-          "description": "What an Admin purge removed. A purge is permanent and audited; it is the only early removal from a record area."
+          "description": "What an Admin purge removed from a working, personal or scratch area. A purge is permanent and audited; record areas are refused, because only retention collection clears an artifact's bytes."
         },
         "ArtifactOutput": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -228322,7 +228317,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:6a2a59391a2f0ae4f13d681608c1b70b85518ce075f427e98a9c94d2e244e788",
+  "compatibilityDigest": "sha256:8b678bbf838775c011b9c68e724319e19beb1c7777df0a94e8fad28312ad509e",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -416558,27 +416553,22 @@
           "type": "integer",
           "minimum": -9007199254740991,
           "maximum": 9007199254740991,
-          "description": "Entries deleted with their versions: the entry and everything under it. Zero for a record-area tombstone."
+          "description": "Entries deleted with their versions: the entry and everything under it."
         },
         "bytesRemoved": {
           "type": "integer",
           "minimum": -9007199254740991,
           "maximum": 9007199254740991,
           "description": "Bytes of working-area versions deleted."
-        },
-        "tombstone": {
-          "type": "boolean",
-          "description": "True when the entry was a record-area file: its bytes are cleared and the entry stays as a tombstone."
         }
       },
       "required": [
         "id",
         "entriesRemoved",
-        "bytesRemoved",
-        "tombstone"
+        "bytesRemoved"
       ],
       "additionalProperties": false,
-      "description": "What an Admin purge removed. A purge is permanent and audited; it is the only early removal from a record area."
+      "description": "What an Admin purge removed from a working, personal or scratch area. A purge is permanent and audited; record areas are refused, because only retention collection clears an artifact's bytes."
     },
     "ArtifactOutput": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

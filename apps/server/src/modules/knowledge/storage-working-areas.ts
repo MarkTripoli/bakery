@@ -21,7 +21,6 @@ import { appendAudit } from "@bakery/persistence/event-audit";
 import type { PgTransactionClient } from "@bakery/persistence";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import { sha256Bytes } from "./bytes.ts";
-import { appendMemorySourceChanged } from "./memory-source-state.ts";
 import {
   type CursorBinding,
   decodeCursor,
@@ -1265,10 +1264,9 @@ export async function deleteSubtree(
 /**
  * Admin purge: the permanent removal section 17.5 keeps for leaked secrets and
  * legal demands, audited. A working-area entry, live or trashed, is deleted
- * with everything under it. A record-area file is the only early removal from
- * a record area: every version's bytes are cleared the way retention
- * collection clears them and the entry stays as a tombstone. The folders
- * Bakery made, and record-area folders, are refused.
+ * with everything under it. Record areas are refused: their files are artifact
+ * versions, whose bytes only the owner-privileged retention collector may
+ * clear. The folders Bakery made are refused too.
  */
 export async function purgeStorageEntry(context: ActionContext) {
   const { transaction: tx, organizationId, principalId } =
@@ -1276,47 +1274,12 @@ export async function purgeStorageEntry(context: ActionContext) {
   const entry = await lockEntry(tx, organizationId, context.params.id ?? "");
   if (!entry || entry.purged_at !== null) notFound();
   if (entry.system_key !== null) refuse("system_folder");
-  if (entry.artifact_id !== null) {
-    const versions = await tx.query<{ id: string }>(
-      "update bakery.artifact_versions" +
-        " set content = null, blob_id = null, purged_at = now()," +
-        " purge_policy = 'admin-purge'" +
-        " where organization_id = $1 and artifact_id = $2" +
-        " and purged_at is null returning id",
-      [organizationId, entry.artifact_id],
-    );
-    for (const version of versions.rows) {
-      await appendMemorySourceChanged(tx, {
-        organizationId,
-        versionId: version.id,
-        traceId: context.traceId,
-      });
-    }
-    await tx.query(
-      "update bakery.storage_entries" +
-        " set purged_at = now(), version = version + 1, updated_at = now()" +
-        " where organization_id = $1 and id = $2",
-      [organizationId, entry.id],
-    );
-    await audit(tx, context, {
-      organizationId,
-      principalId,
-      operation: "storageEntries.purge",
-      entryId: entry.id,
-      details: {
-        artifactId: entry.artifact_id,
-        versionsPurged: versions.rows.length,
-        tombstone: true,
-      },
-    });
-    return {
-      id: entry.id,
-      entriesRemoved: 0,
-      bytesRemoved: 0,
-      tombstone: true,
-    };
+  // A record-area file is an artifact version, whose bytes only the
+  // owner-privileged retention collector may clear; the runtime role may not
+  // (pinned by the artifact-pins security test). Purge covers working areas.
+  if (entry.artifact_id !== null || entry.policy === "record") {
+    refuse("record_area");
   }
-  if (entry.policy === "record") refuse("record_area");
   const removed = await deleteSubtree(tx, organizationId, entry.id);
   await audit(tx, context, {
     organizationId,
@@ -1328,13 +1291,11 @@ export async function purgeStorageEntry(context: ActionContext) {
       policy: entry.policy,
       entriesRemoved: removed.entries,
       bytesRemoved: removed.bytes,
-      tombstone: false,
     },
   });
   return {
     id: entry.id,
     entriesRemoved: removed.entries,
     bytesRemoved: removed.bytes,
-    tombstone: false,
   };
 }

@@ -113,8 +113,3 @@ create table bakery.storage_settings (
 grant update, delete on bakery.storage_entries to bakery_app;
 grant select, insert, delete on bakery.storage_file_versions to bakery_app;
 grant select, insert, update on bakery.storage_settings to bakery_app;
--- An Admin purge is the only early removal from a record area (section 17.5):
--- it clears a version's bytes the way retention collection does, leaving the
--- row as a tombstone. The action is gated to Admins and audited.
-grant update (content, blob_id, purged_at, purge_policy)
-  on bakery.artifact_versions to bakery_app;

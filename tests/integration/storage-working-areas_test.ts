@@ -232,6 +232,24 @@ Deno.test("record areas refuse rm, mv and writes; rm in a working area trashes a
       "STORAGE_AREA_REFUSED",
     );
     assertEquals(refused.reason, "record_area");
+    // Even an Admin purge leaves a record area alone: its bytes are artifact
+    // versions, which only the owner retention collector may clear.
+    await fixture.pgDatabase.query(
+      "update bakery.organization_memberships set role = 'admin' where organization_id = $1 and principal_id = $2",
+      [fixture.organizationId, fixture.principalId],
+    );
+    assertEquals(
+      (await problem(
+        await call(
+          fixture,
+          "POST",
+          "/v1/storage/entries/" + record.rows[0].id + "/purge",
+        ),
+        409,
+        "STORAGE_AREA_REFUSED",
+      )).reason,
+      "record_area",
+    );
     assertEquals(
       (await problem(
         await put(fixture, "/projects/evidence/x.md", "x"),
@@ -516,11 +534,7 @@ async function purgeAcrossOrganizations(
   const purged = await ok(
     await call(fixture, "POST", "/v1/storage/entries/" + file.id + "/purge"),
   );
-  assertEquals([purged.entriesRemoved, purged.bytesRemoved, purged.tombstone], [
-    1,
-    6,
-    false,
-  ]);
+  assertEquals([purged.entriesRemoved, purged.bytesRemoved], [1, 6]);
   const rows = await fixture.pgDatabase.query(
     "select 1 from bakery.storage_file_versions where entry_id = $1",
     [file.id],

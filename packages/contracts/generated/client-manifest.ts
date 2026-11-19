@@ -83552,27 +83552,22 @@ export const clientManifest = {
           "type": "integer",
           "minimum": -9007199254740991,
           "maximum": 9007199254740991,
-          "description": "Entries deleted with their versions: the entry and everything under it. Zero for a record-area tombstone."
+          "description": "Entries deleted with their versions: the entry and everything under it."
         },
         "bytesRemoved": {
           "type": "integer",
           "minimum": -9007199254740991,
           "maximum": 9007199254740991,
           "description": "Bytes of working-area versions deleted."
-        },
-        "tombstone": {
-          "type": "boolean",
-          "description": "True when the entry was a record-area file: its bytes are cleared and the entry stays as a tombstone."
         }
       },
       "required": [
         "id",
         "entriesRemoved",
-        "bytesRemoved",
-        "tombstone"
+        "bytesRemoved"
       ],
       "additionalProperties": false,
-      "description": "What an Admin purge removed. A purge is permanent and audited; it is the only early removal from a record area."
+      "description": "What an Admin purge removed from a working, personal or scratch area. A purge is permanent and audited; record areas are refused, because only retention collection clears an artifact's bytes."
     }
   }
 } as const;
