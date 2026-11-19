@@ -90,9 +90,11 @@ const organizationMinimumRoles = new Map<
   ],
   [ActionAccess.CurrentMember, OrganizationRole.Developer],
   [ActionAccess.CurrentMemberLinkingSelf, OrganizationRole.Developer],
+  // Developer is the floor: the action's own guard raises the bar to Admin for
+  // the organization-scope case, which a single role mapping cannot express.
   [
     ActionAccess.DeveloperForPersonalAdminForOrganization,
-    OrganizationRole.Admin,
+    OrganizationRole.Developer,
   ],
   [ActionAccess.DeveloperAndAdmissionAuthority, OrganizationRole.Developer],
   [ActionAccess.DeveloperAndDeployGrant, OrganizationRole.Developer],
@@ -110,7 +112,11 @@ const organizationMinimumRoles = new Map<
   [ActionAccess.InitiatingPrincipalOrAdmin, OrganizationRole.Developer],
   [ActionAccess.LinkedPrincipalOrAdmin, OrganizationRole.Developer],
   [ActionAccess.OrganizationMember, OrganizationRole.Developer],
-  [ActionAccess.OwnerForPersonalAdminForOrganization, OrganizationRole.Admin],
+  // Developer is the floor; the guard checks ownership per row.
+  [
+    ActionAccess.OwnerForPersonalAdminForOrganization,
+    OrganizationRole.Developer,
+  ],
 ]);
 
 export function organizationMinimumRole(
