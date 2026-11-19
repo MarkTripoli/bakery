@@ -13,6 +13,7 @@ import {
   decodeCursor,
   encodeCursor,
 } from "../../platform/cursor.ts";
+import { appendDecision } from "../work/human-approval-store.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import {
   adapterSupportsSteering,
@@ -366,6 +367,32 @@ export async function steerAgentSession(
   );
   const message = inserted.rows[0];
   if (!message) throw new Error("MESSAGE_INSERT_FAILED");
+
+  // Chapter 25 section 9: a steer is recorded in the work item's decisions
+  // ledger before it is delivered, in the same transaction as the worker
+  // command, so a delivered steer always has a ledger entry and a refused one
+  // leaves none.
+  const owner = await transaction.query<{ task_id: string; run_id: string }>(
+    `select run.task_id, run.id as run_id
+       from bakery.run_steps step
+       join bakery.workflow_runs run
+         on run.organization_id = step.organization_id and run.id = step.run_id
+      where step.organization_id = $1 and step.id = $2`,
+    [organizationId, session.run_step_id],
+  );
+  const ownerRow = owner.rows[0];
+  if (!ownerRow) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  await appendDecision(transaction, {
+    organizationId,
+    taskId: ownerRow.task_id,
+    runId: ownerRow.run_id,
+    kind: "steer",
+    subjectKind: "session",
+    subjectId: session.id,
+    decidedBy: principalId,
+    text: input.body,
+    detail: { mode, messageId: message.id },
+  });
 
   const metadata = requireCommandMetadata(context);
   await enqueueWorkerControlCommand(transaction, {
