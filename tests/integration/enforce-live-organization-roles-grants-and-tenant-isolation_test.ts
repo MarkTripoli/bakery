@@ -75,12 +75,11 @@ const stableProblem = (body: Record<string, unknown>) => {
 
 const ADMIN_MINIMUM_ACCESS = [
   "Admin",
-  "Developer for personal; Admin for organization",
-  "Owner for personal; Admin for organization",
 ];
 
 const DEVELOPER_MINIMUM_ACCESS = [
   "Developer",
+  "Developer for personal; Admin for organization",
   "Developer or Worker (pinned version + current lease)",
   "Developer+action grant",
   "Authorized owner/member",
@@ -97,6 +96,7 @@ const DEVELOPER_MINIMUM_ACCESS = [
   "Initiating principal or Admin",
   "Linked principal or Admin",
   "Organization member",
+  "Owner for personal; Admin for organization",
 ];
 
 /**

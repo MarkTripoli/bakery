@@ -140,6 +140,11 @@ Deno.test("real authenticated quality.check claim leases NULL-billing work with 
     assert((assignment.leaseToken as string).length > 0);
     assertMatch(String(assignment.leaseExpiresAt), /^\d{4}-\d{2}-\d{2}T/);
     assertMatch(String(assignment.serverTime), /^\d{4}-\d{2}-\d{2}T/);
+    // The claim carries the W3C trace context of the run it belongs to.
+    assertMatch(
+      String(assignment.traceparent),
+      /^00-[0-9a-f]{32}-[0-9a-f]{16}-0[01]$/,
+    );
     assertEquals(assignment, {
       jobId: job.jobId,
       attemptId: assignment.attemptId,
@@ -161,6 +166,7 @@ Deno.test("real authenticated quality.check claim leases NULL-billing work with 
       leaseDurationSeconds: 45,
       serverTime: assignment.serverTime,
       sealedCredentialOperation: null,
+      traceparent: assignment.traceparent,
     });
 
     const state = await readExecutionState(fixture.pgDatabase, job.jobId);
