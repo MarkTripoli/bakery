@@ -190,7 +190,7 @@ export function InstalledList(
       columns={[
         {
           id: "plugin",
-          width: "46%",
+          width: "38%",
           header: translate("settings.plugins.column.plugin"),
           cell: (row) => (
             <UI.Stack gap="none">
@@ -203,13 +203,13 @@ export function InstalledList(
         },
         {
           id: "status",
-          width: "16%",
+          width: "14%",
           header: translate("settings.plugins.column.status"),
           cell: badge,
         },
         {
           id: "for",
-          width: "18%",
+          width: "16%",
           header: translate("settings.plugins.column.for"),
           cell: (row) => <UI.Text>{scopeLabel(row, translate)}</UI.Text>,
         },

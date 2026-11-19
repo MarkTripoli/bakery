@@ -17,6 +17,7 @@ import {
   type PluginActor,
   type PluginVersion,
   publishedVersions,
+  updateFailureOf,
 } from "../app/plugins.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useRestoreOrganizationScope } from "../app/restore-organization.ts";
@@ -151,6 +152,12 @@ export function PluginPage({ installId }: { readonly installId: string }) {
           id: installId,
           version: row!.installVersion,
           change: { versionId: version.id },
+        }).then((result) => {
+          // A refused version comes back as the install with the failure on it.
+          if (updateFailureOf(result)?.versionId === version.id) {
+            throw new Error("plugin_update_refused");
+          }
+          return result;
         }),
       () => {
         setDidNotStart((previous) => {
@@ -167,17 +174,28 @@ export function PluginPage({ installId }: { readonly installId: string }) {
     });
 
   const published = publishedVersions(versions);
-  const newest = published[0];
   const who = row?.scope === "organization"
     ? translate("settings.plugins.remove.whoOrganization", {
       organization: organization.data?.name ?? "",
     })
     : translate("settings.plugins.remove.whoYou");
-  const failedNext = row?.update === undefined || row?.update === null
-    ? null
-    : didNotStart.has(row.update.versionId)
-    ? row.update.versionName
-    : null;
+  // The failure the server remembers, or one this page just saw.
+  const failedNext = row?.updateFailure?.versionName ??
+    (row?.update === undefined || row?.update === null
+      ? null
+      : didNotStart.has(row.update.versionId)
+      ? row.update.versionName
+      : null);
+  const dismissFailure = () =>
+    void change(
+      () =>
+        changes.update.mutateAsync({
+          id: installId,
+          version: row!.installVersion,
+          change: { dismissUpdateFailure: true },
+        }),
+      () => setDidNotStart(new Set()),
+    ).catch(() => undefined);
 
   return (
     <>
@@ -259,6 +277,19 @@ export function PluginPage({ installId }: { readonly installId: string }) {
                         next: failedNext,
                       })}
                     </UI.Text>
+                    {mayChange
+                      ? (
+                        <UI.Inline gap="compact">
+                          <UI.Button
+                            variant="secondary"
+                            disabled={changes.pending}
+                            onClick={dismissFailure}
+                          >
+                            {translate("settings.plugins.update.dismiss")}
+                          </UI.Button>
+                        </UI.Inline>
+                      )
+                      : null}
                   </UI.InlineNotice>
                 )
                 : null}
@@ -309,15 +340,6 @@ export function PluginPage({ installId }: { readonly installId: string }) {
                           {translate("settings.plugins.action.turnOn")}
                         </UI.Button>
                       )}
-                    <UI.Button
-                      variant="secondary"
-                      onClick={() => {
-                        setFailure(null);
-                        setDialog({ kind: "remove" });
-                      }}
-                    >
-                      {translate("settings.plugins.remove.action")}
-                    </UI.Button>
                   </UI.Inline>
                 )
                 : null}
@@ -366,7 +388,8 @@ export function PluginPage({ installId }: { readonly installId: string }) {
                           {translate("settings.plugins.versions.current")}
                         </UI.Badge>
                       )
-                      : didNotStart.has(version.id)
+                      : didNotStart.has(version.id) ||
+                          row.updateFailure?.versionId === version.id
                       ? (
                         <UI.Badge tone="danger">
                           {translate("settings.plugins.versions.didNotStart")}
@@ -379,9 +402,7 @@ export function PluginPage({ installId }: { readonly installId: string }) {
                       version.publishedAt! > current.publishedAt;
                     return (
                       <UI.Button
-                        variant={newer && version.id === newest?.id
-                          ? "primary"
-                          : "secondary"}
+                        variant="secondary"
                         aria-label={newer
                           ? translate("settings.plugins.versions.updateNamed", {
                             version: version.versionName,
@@ -481,6 +502,26 @@ export function PluginPage({ installId }: { readonly installId: string }) {
                     );
                 })()}
               </UI.Stack>
+              {mayChange
+                ? (
+                  <UI.Stack gap="standard" data-testid="plugin-more">
+                    <UI.Heading level="section">
+                      {translate("settings.plugins.page.more")}
+                    </UI.Heading>
+                    <UI.Inline gap="compact">
+                      <UI.Button
+                        variant="secondary"
+                        onClick={() => {
+                          setFailure(null);
+                          setDialog({ kind: "remove" });
+                        }}
+                      >
+                        {translate("settings.plugins.remove.action")}
+                      </UI.Button>
+                    </UI.Inline>
+                  </UI.Stack>
+                )
+                : null}
             </>
           )}
       </UI.SettingsContent>

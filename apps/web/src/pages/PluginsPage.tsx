@@ -20,6 +20,7 @@ import {
   mayInstall,
   type PluginActor,
   type PluginVersion,
+  updateFailureOf,
 } from "../app/plugins.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useRestoreOrganizationScope } from "../app/restore-organization.ts";
@@ -106,7 +107,8 @@ export function PluginsPage() {
     versionsByPackage,
   ).map((row) => ({
     ...row,
-    failedUpdate: failedUpdates.get(row.installId) ?? null,
+    failedUpdate: row.updateFailure?.versionName ??
+      failedUpdates.get(row.installId) ?? null,
     mayChange: mayChangeInstall(row, actor),
     // The server returns no display name for another person, so a private
     // install reads as just "Private".
@@ -178,11 +180,17 @@ export function PluginsPage() {
     if (row.update === null) return;
     setFailure(null);
     try {
-      await changes.update.mutateAsync({
+      const result = await changes.update.mutateAsync({
         id: row.installId,
         version: row.installVersion,
         change: { versionId: row.update.versionId },
       });
+      // The server answers a refused update as the install with the failure
+      // recorded on it, so a 200 is not yet a success.
+      if (updateFailureOf(result)?.versionId === row.update.versionId) {
+        setFailure("failed");
+        return;
+      }
       setFailedUpdates((previous) => {
         const next = new Map(previous);
         next.delete(row.installId);

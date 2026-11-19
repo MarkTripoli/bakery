@@ -4507,13 +4507,14 @@
   "settings.plugins.update.failed.body": "⟦Ṽëŕšïôñ {version} ïš šŧïļļ ŕûññïñĝ àñð ñôŧĥïñĝ ŵàš ļôšŧ. Ɓàķëŕÿ çĥëçķëð {next} ƀëƒôŕë šŵïŧçĥïñĝ àñð ïŧ ðïð ñôŧ þàšš. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
   "settings.plugins.update.retry": "⟦Ŧŕÿ ŧĥë ûþðàŧë àĝàïñ ŧëšŧ⟧",
   "settings.plugins.versions.heading": "⟦Ṽëŕšïôñš…⟧",
-  "settings.plugins.versions.current": "⟦Ïñ ûšë…⟧",
   "settings.plugins.versions.didNotStart": "⟦Ðïð ñôŧ šŧàŕŧ ŧë⟧",
   "settings.plugins.versions.goBack": "⟦Ĝô ƀàçķ…⟧",
   "settings.plugins.versions.goBackNamed": "⟦Ĝô ƀàçķ ŧô {version} ŧëšŧ⟧",
   "settings.plugins.goBack.title": "⟦Ĝô ƀàçķ ŧô {version}? ŧëšŧŧ⟧",
   "settings.plugins.goBack.body": "⟦{name} šŵïŧçĥëš ŧô {version} àƒŧëŕ ïŧ ïš çĥëçķëð. Ïƒ ïŧ ðôëš ñôŧ þàšš, {current} ķëëþš ŕûññïñĝ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
   "settings.plugins.goBack.refused": "⟦Çôûļð ñôŧ ĝô ƀàçķ ŧô {version}. {current} ïš šŧïļļ ŕûññïñĝ. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
-  "settings.plugins.versions.update": "⟦Ûþðàŧë…⟧",
-  "settings.plugins.versions.updateNamed": "⟦Ûþðàŧë ŧô {version} ŧëšŧ⟧"
+  "settings.plugins.versions.updateNamed": "⟦Ûþðàŧë ŧô {version} ŧëšŧ⟧",
+  "settings.plugins.versions.current": "⟦Ïñšŧàļļëð ŧ⟧",
+  "settings.plugins.versions.update": "⟦Ŕëṽïëŵ ûþðàŧë ŧë⟧",
+  "settings.plugins.update.dismiss": "⟦Ðïšɱïšš…⟧"
 }

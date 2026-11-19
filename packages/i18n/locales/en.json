@@ -4507,13 +4507,14 @@
   "settings.plugins.update.failed.body": "Version {version} is still running and nothing was lost. Bakery checked {next} before switching and it did not pass.",
   "settings.plugins.update.retry": "Try the update again",
   "settings.plugins.versions.heading": "Versions",
-  "settings.plugins.versions.current": "In use",
+  "settings.plugins.versions.current": "Installed",
   "settings.plugins.versions.didNotStart": "Did not start",
   "settings.plugins.versions.goBack": "Go back",
   "settings.plugins.versions.goBackNamed": "Go back to {version}",
   "settings.plugins.goBack.title": "Go back to {version}?",
   "settings.plugins.goBack.body": "{name} switches to {version} after it is checked. If it does not pass, {current} keeps running.",
   "settings.plugins.goBack.refused": "Could not go back to {version}. {current} is still running.",
-  "settings.plugins.versions.update": "Update",
-  "settings.plugins.versions.updateNamed": "Update to {version}"
+  "settings.plugins.versions.update": "Review update",
+  "settings.plugins.versions.updateNamed": "Update to {version}",
+  "settings.plugins.update.dismiss": "Dismiss"
 }

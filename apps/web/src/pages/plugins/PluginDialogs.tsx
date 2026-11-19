@@ -107,17 +107,19 @@ export function InstallDialog(
           {translate("settings.plugins.install.published", { when })}
         </UI.Text>
         {digest === "" ? null : (
-          <UI.Inline gap="compact">
-            <UI.Text variant="caption">
-              {translate("settings.plugins.install.fingerprint")}
-            </UI.Text>
+          <UI.Stack gap="none">
+            <UI.Inline gap="compact">
+              <UI.Text variant="caption">
+                {translate("settings.plugins.install.fingerprint")}
+              </UI.Text>
+              <UI.HelpTip
+                label={translate("settings.plugins.install.fingerprint")}
+              >
+                {translate("settings.plugins.install.fingerprintHelp")}
+              </UI.HelpTip>
+            </UI.Inline>
             <UI.DataText>{digest.slice(0, 19)}</UI.DataText>
-            <UI.HelpTip
-              label={translate("settings.plugins.install.fingerprint")}
-            >
-              {translate("settings.plugins.install.fingerprintHelp")}
-            </UI.HelpTip>
-          </UI.Inline>
+          </UI.Stack>
         )}
         <UI.Stack
           gap="tight"
@@ -286,15 +288,19 @@ export function VersionChangeDialog(
             </UI.Stack>
           )
           : null}
-        <UI.Text variant="hint">
-          {kind === "update"
-            ? translate("settings.plugins.update.check", { from: fromName })
-            : translate("settings.plugins.goBack.body", {
-              name,
-              version: to.versionName,
-              current: fromName,
-            })}
-        </UI.Text>
+        {kind === "update" && failure === "failed"
+          ? null
+          : (
+            <UI.Text variant="hint">
+              {kind === "update"
+                ? translate("settings.plugins.update.check", { from: fromName })
+                : translate("settings.plugins.goBack.body", {
+                  name,
+                  version: to.versionName,
+                  current: fromName,
+                })}
+            </UI.Text>
+          )}
         {failure === null
           ? null
           : kind === "update" && failure === "failed"

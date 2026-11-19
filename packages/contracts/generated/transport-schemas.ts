@@ -7805,12 +7805,18 @@ const transportSchemas = {
             "uninstalled"
           ],
           "description": "New lifecycle status to apply: enabled to activate, disabled to block new authority while retaining configuration, or uninstalled to remove it; in-flight work under the pinned version still observes live revocation."
+        },
+        {
+          "name": "dismissUpdateFailure",
+          "type": "boolean",
+          "required": false,
+          "description": "True to clear the install's recorded last update failure without changing its version or status."
         }
       ],
       "rules": [
-        "At least one field; If-Match required. New version/scopes stage and validate before activation; failed activation preserves prior usable version."
+        "At least one field; If-Match required. New version/scopes stage and validate before activation; failed activation preserves prior usable version. A version that does not pass its checks (plugin_sdk_incompatible, plugin_manifest_*) is not an error: the install is answered unchanged with lastUpdateFailure set, because an error would discard the record. A missing, draft or withdrawn version is still RESOURCE_NOT_FOUND."
       ],
-      "description": "Updates an existing plugin install's pinned version or lifecycle status; requires at least one field and an If-Match precondition, and a new version is staged and validated before it becomes active."
+      "description": "Updates an existing plugin install's pinned version or lifecycle status, or dismisses its last update failure; requires at least one field and an If-Match precondition, and a new version is staged and validated before it becomes active. If the new version does not pass its checks the install keeps its prior version and the answer carries lastUpdateFailure."
     },
     "PluginStatePut": {
       "fields": [
@@ -25649,7 +25655,8 @@ const transportSchemas = {
         "disabledAt",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "lastUpdateFailure"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -25664,14 +25671,16 @@ const transportSchemas = {
         "disabledAt": "timestamp|null",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "lastUpdateFailure": "json|null"
       },
       "nullableFields": [
         "ownerPrincipalId",
         "activatedAt",
-        "disabledAt"
+        "disabledAt",
+        "lastUpdateFailure"
       ],
-      "description": "One organization-wide or personal installation of a pinned, immutable plugin version, returned by creating, reading or updating an install. Tracks lifecycle status (staged, enabled, disabled, failed, uninstalled), the stateSchemaVersion stored state is checked against, and activation/disable timestamps; ownerPrincipalId is set only for a personal-scope install.",
+      "description": "One organization-wide or personal installation of a pinned, immutable plugin version, returned by creating, reading or updating an install. Tracks lifecycle status (staged, enabled, disabled, failed, uninstalled), the stateSchemaVersion stored state is checked against, and activation/disable timestamps; ownerPrincipalId is set only for a personal-scope install. lastUpdateFailure records an update that was refused because the new version did not pass its checks.",
       "fieldDescriptions": {
         "id": "Stable UUID identifying this plugin install record.",
         "organizationId": "UUID of the organization that owns this record.",
@@ -25685,8 +25694,12 @@ const transportSchemas = {
         "disabledAt": "Timestamp recording when the disabled event occurred for this plugin install record. May be null when unavailable.",
         "createdAt": "Timestamp recording when the created event occurred for this plugin install record.",
         "updatedAt": "Timestamp recording the last update to this plugin install record.",
-        "version": "Monotonic revision used to order or conditionally update this plugin install record."
-      }
+        "version": "Monotonic revision used to order or conditionally update this plugin install record.",
+        "lastUpdateFailure": "The last update that did not start, kept until the next update succeeds or a person dismisses it: {versionId, versionName, reason, at}, where reason is a stable slug (plugin_sdk_incompatible, or plugin_manifest_ followed by the manifest problem) and at is a UTC timestamp. The install keeps running its prior version. Null when there is nothing to show."
+      },
+      "optionalFields": [
+        "lastUpdateFailure"
+      ]
     },
     "Page<PluginInstall>": {
       "pageOf": "PluginInstall"

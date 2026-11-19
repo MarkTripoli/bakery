@@ -50,7 +50,7 @@ const STATE_ORDERING = "createdAt:desc,id:desc";
 const INSTALL_COLUMNS = `
   i.id, i.plugin_package_id, i.plugin_version_id, i.scope,
   i.owner_principal_id, i.status, i.state_schema_version, i.activated_at,
-  i.disabled_at, i.created_at, i.updated_at, i.version
+  i.disabled_at, i.created_at, i.updated_at, i.version, i.last_update_failure
 `;
 
 const STATE_COLUMNS = `
@@ -72,6 +72,7 @@ type InstallRow = {
   created_at: Date | string;
   updated_at: Date | string;
   version: number;
+  last_update_failure: unknown;
 };
 
 type StateRow = {
@@ -109,6 +110,10 @@ function toInstall(row: InstallRow, organizationId: string): PluginInstall {
     createdAt: iso(row.created_at)!,
     updatedAt: iso(row.updated_at)!,
     version: row.version,
+    lastUpdateFailure: row.last_update_failure === null ||
+        row.last_update_failure === undefined
+      ? null
+      : row.last_update_failure as PluginInstall["lastUpdateFailure"],
   };
 }
 
@@ -526,6 +531,39 @@ export async function createPluginInstall(
 }
 
 /**
+ * Records that an update did not start and returns the install as it is. The
+ * version, status and grants are untouched, so the install still runs what it
+ * ran. An uninstalled install is finished and refuses any change, this one too.
+ */
+async function recordUpdateFailure(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  row: InstallRow,
+  failure: { versionId: string; versionName: string; reason: string },
+): Promise<PluginInstall> {
+  if (row.status === "uninstalled") {
+    throw new StandardError({
+      code: "STATE_CONFLICT",
+      params: { reason: "plugin_install_uninstalled" },
+    });
+  }
+  const rows = await transaction.query<InstallRow>(
+    `update bakery.plugin_installs i
+        set last_update_failure = $3::jsonb,
+            updated_at = now(),
+            version = i.version + 1
+      where i.organization_id = $1 and i.id = $2
+      returning ${INSTALL_COLUMNS.replaceAll("i.", "")}`,
+    [
+      organizationId,
+      row.id,
+      JSON.stringify({ ...failure, at: new Date().toISOString() }),
+    ],
+  );
+  return toInstall(rows.rows[0], organizationId);
+}
+
+/**
  * Change an install: upgrade it, disable it, or uninstall it.
  *
  * Disabling and uninstalling revoke the grants in the same transaction, which is
@@ -571,8 +609,9 @@ export async function updatePluginInstall(
     const version = await transaction.query<{
       manifest: unknown;
       sdk_range: string;
+      version_name: string;
     }>(
-      `select v.manifest, v.sdk_range
+      `select v.manifest, v.sdk_range, v.version_name
          from bakery.plugin_versions v
          join bakery.plugin_packages p
            on p.organization_id = v.organization_id
@@ -590,10 +629,15 @@ export async function updatePluginInstall(
         params: { reason: "plugin_version_not_found" },
       });
     }
+    // A version that does not pass its checks is not switched to. The install
+    // keeps running on its prior version, and the refusal is recorded on the
+    // install and answered as the install itself, not as an error: an error
+    // would roll this transaction back and take the record with it.
     if (!satisfiesSdkRange(versionRow.sdk_range)) {
-      throw new StandardError({
-        code: "STATE_CONFLICT",
-        params: { reason: "plugin_sdk_incompatible" },
+      return await recordUpdateFailure(transaction, organizationId, row, {
+        versionId: input.versionId,
+        versionName: versionRow.version_name,
+        reason: "plugin_sdk_incompatible",
       });
     }
     let manifest;
@@ -601,9 +645,10 @@ export async function updatePluginInstall(
       manifest = parsePluginManifest(versionRow.manifest);
     } catch (error) {
       if (error instanceof PluginManifestError) {
-        throw new StandardError({
-          code: "STATE_CONFLICT",
-          params: { reason: `plugin_manifest_${error.code.toLowerCase()}` },
+        return await recordUpdateFailure(transaction, organizationId, row, {
+          versionId: input.versionId,
+          versionName: versionRow.version_name,
+          reason: `plugin_manifest_${error.code.toLowerCase()}`,
         });
       }
       throw error;
@@ -670,17 +715,21 @@ export async function updatePluginInstall(
     );
   }
 
+  // A successful move to another version, or a person dismissing it, clears
+  // the note of the last update that did not start.
+  const clearFailure = upgraded || input.dismissUpdateFailure === true;
   const rows = await transaction.query<InstallRow>(
     `update bakery.plugin_installs i
         set plugin_version_id = $3,
             status = $4,
             activated_at = case when $4 = 'enabled' then now() else i.activated_at end,
             disabled_at = case when $4 in ('disabled', 'uninstalled') then now() else i.disabled_at end,
+            last_update_failure = case when $5::boolean then null else i.last_update_failure end,
             updated_at = now(),
             version = i.version + 1
       where i.organization_id = $1 and i.id = $2
       returning ${INSTALL_COLUMNS.replaceAll("i.", "")}`,
-    [organizationId, installId, nextVersionId, nextStatus],
+    [organizationId, installId, nextVersionId, nextStatus, clearFailure],
   );
   return toInstall(rows.rows[0], organizationId);
 }

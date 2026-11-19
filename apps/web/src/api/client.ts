@@ -747,6 +747,7 @@ export type BakeryApiClient = {
       readonly change: {
         readonly versionId?: string;
         readonly status?: "enabled" | "disabled" | "uninstalled";
+        readonly dismissUpdateFailure?: boolean;
       };
       readonly idempotencyKey?: string;
       readonly signal?: AbortSignal;

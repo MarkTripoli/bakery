@@ -225,3 +225,33 @@ Deno.test("who may change an install and who may install", async () => {
   assertEquals(mayInstall("personal", dev), true);
   assertEquals(mayInstall("personal", viewer), false);
 });
+
+Deno.test("the recorded failure is read off an install, and a malformed one is ignored", async () => {
+  const { updateFailureOf, installedPlugins } = await import(
+    "../../apps/web/src/app/plugins.ts"
+  );
+  const failure = {
+    versionId: v2.id,
+    versionName: "1.1.0",
+    reason: "plugin_sdk_incompatible",
+    at: "2026-11-19T21:00:00.000Z",
+  };
+  const withFailure = {
+    ...install(61, notes.id, v1.id, "enabled"),
+    lastUpdateFailure: failure,
+  } as PluginInstall;
+  assertEquals(updateFailureOf(withFailure), failure);
+  assertEquals(updateFailureOf(undefined), null);
+  assertEquals(
+    updateFailureOf({ lastUpdateFailure: null } as PluginInstall),
+    null,
+  );
+  assertEquals(
+    updateFailureOf(
+      { lastUpdateFailure: { versionId: 7 } } as unknown as PluginInstall,
+    ),
+    null,
+  );
+  const rows = installedPlugins([withFailure], [notes], versions);
+  assertEquals(rows[0].updateFailure, failure);
+});

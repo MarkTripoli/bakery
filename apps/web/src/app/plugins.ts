@@ -31,6 +31,35 @@ export const PLUGIN_CAPABILITIES = [
 ] as const;
 export type PluginCapability = typeof PLUGIN_CAPABILITIES[number];
 
+/** The last update the server refused to start, kept on the install. */
+export type PluginUpdateFailure = Readonly<{
+  versionId: string;
+  versionName: string;
+  reason: string;
+  at: string;
+}>;
+
+/** Reads the recorded failure off an install, or null when there is none or it is malformed. */
+export function updateFailureOf(
+  install: Pick<PluginInstall, "lastUpdateFailure"> | undefined,
+): PluginUpdateFailure | null {
+  const raw = install?.lastUpdateFailure as
+    | Record<string, unknown>
+    | null
+    | undefined;
+  if (
+    raw === null || raw === undefined || typeof raw !== "object" ||
+    typeof raw.versionId !== "string" || typeof raw.versionName !== "string" ||
+    typeof raw.reason !== "string" || typeof raw.at !== "string"
+  ) return null;
+  return {
+    versionId: raw.versionId,
+    versionName: raw.versionName,
+    reason: raw.reason,
+    at: raw.at,
+  };
+}
+
 export type InstalledPlugin = Readonly<{
   installId: string;
   /** The install's `version`, sent back as the precondition of a change. */
@@ -43,6 +72,8 @@ export type InstalledPlugin = Readonly<{
   scope: PluginScope;
   /** Set for a personal install, so an administrator can say whose it is. */
   ownerPrincipalId: string | null;
+  /** The last update the server refused to start, until it succeeds or is dismissed. */
+  updateFailure: PluginUpdateFailure | null;
   /** The newest published version, when it is not the one installed. */
   update: Readonly<{ versionId: string; versionName: string }> | null;
 }>;
@@ -128,6 +159,7 @@ export function installedPlugins(
       state,
       scope: install.scope,
       ownerPrincipalId: install.ownerPrincipalId,
+      updateFailure: updateFailureOf(install),
       update: latest !== null && latest.id !== install.pluginVersionId &&
           // Only an upgrade is offered here; moving back is a separate choice.
           (current === undefined || current.publishedAt === null ||

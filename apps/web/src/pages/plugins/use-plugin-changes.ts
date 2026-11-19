@@ -16,6 +16,7 @@ export function changeFailureOf(error: unknown): ChangeFailure {
 type Change = {
   readonly versionId?: string;
   readonly status?: "enabled" | "disabled" | "uninstalled";
+  readonly dismissUpdateFailure?: boolean;
 };
 
 /**

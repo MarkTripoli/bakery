@@ -58,6 +58,12 @@ type Install = {
   createdAt: string;
   updatedAt: string;
   version: number;
+  lastUpdateFailure?: {
+    versionId: string;
+    versionName: string;
+    reason: string;
+    at: string;
+  } | null;
 };
 type Write = {
   method: string;
@@ -124,6 +130,8 @@ type Fixture = {
   writes: Write[];
   /** Status the next write answers with, once. */
   refuseNextWrite: { status: number; code: string; reason?: string } | null;
+  /** The next version change is refused the way the server does: answered as the install, failure recorded. */
+  failNextUpdate: boolean;
 };
 
 async function pluginsFixture(
@@ -146,6 +154,7 @@ async function pluginsFixture(
     ],
     writes: [],
     refuseNextWrite: null,
+    failNextUpdate: false,
   };
   await mockAuthenticatedSession(page);
   const empty = (route: Route) =>
@@ -251,8 +260,23 @@ async function pluginsFixture(
       item.id === path.split("/")[3]
     );
     if (!target) return route.fulfill(problem(404, "RESOURCE_NOT_FOUND"));
+    if (body?.versionId && state.failNextUpdate) {
+      state.failNextUpdate = false;
+      target.lastUpdateFailure = {
+        versionId: String(body.versionId),
+        versionName: "1.1.0",
+        reason: "plugin_sdk_incompatible",
+        at: "2026-11-19T21:00:00.000Z",
+      };
+      target.version += 1;
+      return route.fulfill(json(target));
+    }
+    if (body?.dismissUpdateFailure) target.lastUpdateFailure = null;
     if (body?.status) target.status = body.status as Install["status"];
-    if (body?.versionId) target.pluginVersionId = String(body.versionId);
+    if (body?.versionId) {
+      target.pluginVersionId = String(body.versionId);
+      target.lastUpdateFailure = null;
+    }
     target.version += 1;
     return route.fulfill(json(target));
   });
@@ -297,6 +321,11 @@ for (
           document.documentElement.scrollWidth <= globalThis.innerWidth
         ),
       ).toBe(true);
+      // "Review update" stays on one line, so the row keeps its height.
+      const review = installed.getByRole("button", {
+        name: "Review update of Notes",
+      });
+      expect((await review.boundingBox())!.height).toBeLessThan(48);
       await shot(page, `plugins-list-${viewport.name}`);
     });
 
@@ -369,6 +398,24 @@ for (
       expect(state.writes[0].body).toMatchObject({ scope: "personal" });
     });
 
+    test("with nothing published, the page says so and offers nothing to press", async ({ page }) => {
+      await pluginsFixture(page, { installs: [] });
+      await page.route(
+        "**/v1/plugin-packages?**",
+        (route) => route.fulfill(json({ items: [], nextCursor: null })),
+      );
+      await page.goto("/settings/organization/plugins");
+      await expect(page.getByText("No plugins yet")).toBeVisible();
+      await expect(
+        page.getByText(
+          "Plugins are built for your organization and published here. When one is published, it appears on this page to install.",
+        ),
+      ).toBeVisible();
+      await expect(page.getByRole("button", { name: /install|upload/i }))
+        .toHaveCount(0);
+      await shot(page, `plugins-empty-${viewport.name}`);
+    });
+
     test("a viewer sees the list and nothing to change", async ({ page }) => {
       await pluginsFixture(page, { role: "viewer" });
       await page.goto("/settings/organization/plugins");
@@ -413,13 +460,9 @@ for (
       expect(state.writes[0].ifMatch).toBe('"v3"');
     });
 
-    test("an update that does not start says the old version is still running", async ({ page }) => {
+    test("an update that does not start is remembered, says the old version is still running, and can be dismissed", async ({ page }) => {
       const state = await pluginsFixture(page);
-      state.refuseNextWrite = {
-        status: 422,
-        code: "UNPROCESSABLE",
-        reason: "plugin_activation_failed",
-      };
+      state.failNextUpdate = true;
       await page.goto("/settings/organization/plugins");
       await page.getByRole("button", { name: "Review update of Notes" })
         .click();
@@ -432,19 +475,41 @@ for (
           "Version 1.0.0 is still running and nothing was lost. Bakery checked 1.1.0 before switching and it did not pass.",
         ),
       ).toBeVisible();
+      // Once the error shows, the "is checked before" line is not repeated.
+      await expect(dialog.getByText(/is checked before Bakery switches/))
+        .toHaveCount(0);
       await shot(page, `plugins-update-failed-${viewport.name}`, [], {
         windowOnly: true,
       });
       await dialog.getByRole("button", { name: "Not now" }).click();
-      // The row says so too, and its one control is See problem.
+      // The row says so, and its one control is See problem.
       await expect(page.getByText("Update failed", { exact: true }))
         .toBeVisible();
       await expect(
         page.getByRole("button", { name: "See the problem with Notes" }),
-      )
-        .toBeVisible();
-      // The install was not changed.
+      ).toBeVisible();
       expect(state.installs[0].pluginVersionId).toBe(NOTES_V1);
+
+      // It is still there after a reload: the server remembers it.
+      await page.reload();
+      await expect(page.getByText("Update failed", { exact: true }))
+        .toBeVisible();
+      await page.getByRole("button", { name: "See the problem with Notes" })
+        .click();
+      await expect(page.getByText("The update to 1.1.0 did not start."))
+        .toBeVisible();
+      await expect(
+        page.getByTestId("plugin-versions").getByText("Did not start", {
+          exact: true,
+        }),
+      ).toBeVisible();
+
+      // Dismissing sends only that, and the note goes.
+      await page.getByRole("button", { name: "Dismiss" }).click();
+      await expect(page.getByText("The update to 1.1.0 did not start."))
+        .toHaveCount(0);
+      const last = state.writes.at(-1)!;
+      expect(last.body).toEqual({ dismissUpdateFailure: true });
     });
 
     test("the plugin page shows what it can do, read only, and turning off takes it away", async ({ page }) => {
@@ -469,11 +534,31 @@ for (
       await expect(page.getByRole("button", { name: /Take away/ })).toHaveCount(
         0,
       );
+      // Versions: the installed one is "Installed" (not "In use"), the other is
+      // offered as a quiet "Review update", and Remove sits at the end under More.
+      const versions = page.getByTestId("plugin-versions");
+      await expect(versions.getByText("Installed", { exact: true }))
+        .toBeVisible();
+      await expect(versions.getByText("In use")).toHaveCount(0);
+      await expect(
+        versions.getByRole("button", { name: "Update to 1.1.0" }),
+      ).toHaveText("Review update");
+      await expect(
+        page.getByTestId("plugin-more").getByRole("button", { name: "Remove" }),
+      ).toBeVisible();
+      await expect(
+        page.getByTestId("plugin-can-do").getByRole("button", {
+          name: "Remove",
+        }),
+      ).toHaveCount(0);
       await shot(page, `plugin-page-on-${viewport.name}`);
 
       await page.getByRole("button", { name: "Turn off" }).click();
       const dialog = page.getByRole("alertdialog");
       await expect(dialog.getByText("Turn off Notes?")).toBeVisible();
+      await shot(page, `plugin-turn-off-${viewport.name}`, [], {
+        windowOnly: true,
+      });
       await expect(
         dialog.getByText(
           "It stops for everyone and loses its 3 permissions. Its saved data is kept. You can turn it on again.",
@@ -500,6 +585,9 @@ for (
       await page.getByRole("button", { name: "Remove" }).click();
       const dialog = page.getByRole("alertdialog");
       await expect(dialog.getByText(/cannot be turned back on/)).toBeVisible();
+      await shot(page, `plugin-remove-${viewport.name}`, [], {
+        windowOnly: true,
+      });
       state.refuseNextWrite = { status: 412, code: "PRECONDITION_FAILED" };
       await dialog.getByRole("button", { name: "Remove" }).click();
       await expect(
@@ -518,6 +606,9 @@ for (
       await page.getByRole("button", { name: "Go back to 1.0.0" }).click();
       const dialog = page.getByRole("dialog");
       await expect(dialog.getByText("1.1.0 → 1.0.0")).toBeVisible();
+      await shot(page, `plugin-go-back-${viewport.name}`, [], {
+        windowOnly: true,
+      });
       await expect(
         dialog.getByText("Version 1.0.0 can also: Save its own data."),
       )
