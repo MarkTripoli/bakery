@@ -302,7 +302,9 @@ export type NowCard =
   | Readonly<{ kind: "mergeNoPermission" }>
   | Readonly<{ kind: "mergeUnknown"; head: string }>
   | Readonly<{ kind: "mergeRefused"; head: string; mayMerge: boolean }>
-  | Readonly<{ kind: "mergeMoved"; approved: string; current: string }>
+  | Readonly<
+    { kind: "mergeMoved"; approved: string; current: string; tried: boolean }
+  >
   | Readonly<{ kind: "changesRequested" }>
   | Readonly<{ kind: "rejected" }>
   | Readonly<{ kind: "checksFailed"; failed: number }>
@@ -340,6 +342,8 @@ export type DeliveryModel = Readonly<{
   headSha: string | null;
   baseSha: string | null;
   outOfDate: boolean;
+  /** The results are older only because the pull request now ends elsewhere: nothing is re-running. */
+  pullRequestMoved: boolean;
   checks: Readonly<{
     rows: readonly CheckRow[];
     total: number;
@@ -520,7 +524,7 @@ export function mergeView(
       ...base,
       state: "moved",
       approvedSha: headSha,
-      attemptedSha: null,
+      attemptedSha: newest?.expectedHeadSha ?? null,
     };
   }
   if (newest?.state === "refused") {
@@ -557,7 +561,7 @@ export function deliveryModel(input: DeliveryInput): DeliveryModel {
   const newestCheck = [...input.checks].sort(byCreatedAt).at(-1);
   const newestReview = [...input.reviews].sort((a, b) => a.ordinal - b.ordinal)
     .at(-1);
-  const headSha = input.revisionHeadSha ??
+  const evidenceHeadSha = input.revisionHeadSha ??
     [newestCheck, newestReview].filter((row) => row !== undefined)
       .sort(byCreatedAt).at(-1)?.headSha ??
     null;
@@ -578,6 +582,22 @@ export function deliveryModel(input: DeliveryInput): DeliveryModel {
   };
   const maxRepairs = latestDecision?.limits.maxRepairCycles ??
     DEFAULT_MAX_REPAIRS;
+  // The results were current for the commit that was approved. When the pull
+  // request now ends somewhere else, that commit is the older one: the
+  // results, review and approval are marked as being for an older commit.
+  const evidenceOutOfDate = evidenceHeadSha !== null && (
+    input.checks.some((check) => check.headSha !== evidenceHeadSha) ||
+    input.reviews.some((entry) => entry.headSha !== evidenceHeadSha) ||
+    latestDecision?.reason === "stale_evidence"
+  );
+  const chosenPullRequest = choosePullRequest(input.pullRequests, input.runId);
+  const pullRequestMoved = approval?.state === "approved" &&
+    !evidenceOutOfDate && evidenceHeadSha !== null &&
+    chosenPullRequest?.status === "open" &&
+    chosenPullRequest.headSha !== evidenceHeadSha;
+  const headSha = pullRequestMoved && chosenPullRequest !== undefined
+    ? chosenPullRequest.headSha
+    : evidenceHeadSha;
   const repairs = input.decisions.filter((entry) => entry.decision === "repair")
     .length;
 
@@ -657,8 +677,8 @@ export function deliveryModel(input: DeliveryInput): DeliveryModel {
     pullRequest: choosePullRequest(input.pullRequests, input.runId),
     attempts: input.mergeAttempts,
     approval,
-    outOfDate,
-    headSha,
+    outOfDate: evidenceOutOfDate,
+    headSha: evidenceHeadSha,
     unavailable: input.mergeUnavailable,
   });
   const after = afterApproval(input.pullRequests, input.runId);
@@ -668,6 +688,7 @@ export function deliveryModel(input: DeliveryInput): DeliveryModel {
     headSha,
     baseSha: input.baseSha,
     outOfDate,
+    pullRequestMoved,
     checks,
     review,
     fixing,
@@ -744,6 +765,7 @@ function mergeNow(
         kind: "mergeMoved",
         approved: shortSha(merge.approvedSha ?? merge.headSha),
         current: shortSha(merge.headSha),
+        tried: merge.attemptedSha !== null,
       };
   }
 }

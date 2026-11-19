@@ -144,7 +144,11 @@ function nowCopy(t: Translate, now: NowCard): NowCopy {
       };
     case "mergeMoved":
       return {
-        title: t("tasks.delivery.now.mergeMoved.title"),
+        title: t(
+          now.tried
+            ? "tasks.delivery.now.mergeMoved.title"
+            : "tasks.delivery.now.mergeMovedUntried.title",
+        ),
         body: t("tasks.delivery.now.mergeMoved.body", {
           approved: now.approved,
           current: now.current,
@@ -831,7 +835,13 @@ function ReadyView(
           <UI.Heading level="subsection">
             {t("tasks.delivery.outOfDate.title")}
           </UI.Heading>
-          <UI.Text>{t("tasks.delivery.outOfDate.body")}</UI.Text>
+          <UI.Text>
+            {t(
+              model.pullRequestMoved
+                ? "tasks.delivery.outOfDate.pullRequestBody"
+                : "tasks.delivery.outOfDate.body",
+            )}
+          </UI.Text>
         </UI.InlineNotice>
       )}
       <Steps model={model} />
@@ -1394,7 +1404,8 @@ function Steps({ model }: Readonly<{ model: DeliveryModel }>) {
               })
               : model.merge?.state === "refused"
               ? t("tasks.delivery.afterApproval.merge.refused")
-              : model.merge?.state === "moved"
+              : model.merge?.state === "moved" &&
+                  model.merge.attemptedSha !== null
               ? t("tasks.delivery.afterApproval.merge.moved")
               : model.merge?.state === "unknown" || pullRequest === null ||
                   pullRequest.status === "merged"

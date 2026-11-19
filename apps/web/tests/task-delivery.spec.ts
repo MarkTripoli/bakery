@@ -1897,10 +1897,20 @@ test("a pull request that moved after the approval is not offered to merge, and 
     pullRequests: [pullRequestRow(482, { headSha: OLD })],
   });
   const now = nowCard(page);
-  await expect(now).toContainText("Not merged: the pull request changed");
+  // Nothing was tried, so the title says what changed, not that a merge failed.
+  await expect(now).toContainText(
+    "The pull request changed since it was approved",
+  );
   await expect(now).toContainText("Commit 91d0aa3 was approved");
   await expect(now).toContainText("now ends at 4be19c2");
   await expect(now.getByRole("button")).toHaveCount(0);
+  // The results, review and approval are marked as being for the older commit,
+  // not shown as green for the commit the pull request no longer ends at.
+  const section = page.getByTestId("delivery-section");
+  await expect(section).toContainText(
+    "The changes were updated after these results",
+  );
+  await expect(section).toContainText("Older commit 91d0aa3");
 });
 
 for (
@@ -2024,32 +2034,67 @@ const MERGE_STILLS = [
   ["moved", { pullRequests: [pullRequestRow(482, { headSha: OLD })] }],
 ] as const;
 
+/**
+ * The stills show one consistent state: a finished run on an approved change,
+ * and a side panel that loads (nothing to show) instead of reporting an error.
+ */
+async function stubStillsPage(page: Page) {
+  const empty = (route: Route) => route.fulfill({ json: page_([]) });
+  for (
+    const pattern of [
+      "**/v1/conversations/*/messages*",
+      "**/v1/conversations/*/turns*",
+      "**/v1/conversations/*/participants*",
+      "**/v1/plan-revisions*",
+      "**/v1/questions*",
+      "**/v1/coordination-plans*",
+    ]
+  ) await page.route(pattern, empty);
+  await page.route(
+    `**/v1/runs/${runId}`,
+    (route) =>
+      route.fulfill({
+        json: {
+          ...run,
+          status: "completed",
+          finishedAt: "2026-01-01T00:09:00.000Z",
+        },
+      }),
+  );
+}
+
+/** The whole delivery section: the steps, the Now card and After approval. */
+async function stillOfSection(page: Page, file: string) {
+  const section = page.getByTestId("delivery-section");
+  await section.scrollIntoViewIfNeeded();
+  await section.screenshot({
+    path: `${STILLS}/${file}`,
+    animations: "disabled",
+  });
+}
+
+const STILL_SIZES = [["1440", 1440, 900], ["390", 390, 844]] as const;
+
 for (const [name, scenario] of MERGE_STILLS) {
   test(`still: merge, ${name}`, async ({ page }) => {
     test.skip(STILLS === undefined, "BAKERY_STILLS_DIR is not set");
     test.setTimeout(laneBudgetMs(120_000));
     for (const scheme of ["light", "dark"] as const) {
-      for (
-        const [size, width, height] of [["1440", 1440, 900], [
-          "390",
-          390,
-          844,
-        ]] as const
-      ) {
+      for (const [size, width, height] of STILL_SIZES) {
         const fresh = await page.context().newPage();
         await fresh.emulateMedia({ colorScheme: scheme });
         await fresh.setViewportSize({ width, height });
+        await stubStillsPage(fresh);
         await openMerge(fresh, { ...CLEAN, ...scenario });
-        await nowCard(fresh).scrollIntoViewIfNeeded();
-        await fresh.screenshot({
-          path: `${STILLS}/merge-${name}-${size}-${scheme}.png`,
-          animations: "disabled",
-        });
-        if (name === "ready" && size === "1440" && scheme === "light") {
+        await stillOfSection(fresh, `merge-${name}-${size}-${scheme}.png`);
+        if (name === "ready") {
+          // The confirmation, with the focus ring on Cancel where it lands.
           await button(nowCard(fresh), "Merge").click();
-          await fresh.getByRole("alertdialog").waitFor();
+          const dialog = fresh.getByRole("alertdialog");
+          await dialog.waitFor();
+          await expect(button(dialog, "Cancel")).toBeFocused();
           await fresh.screenshot({
-            path: `${STILLS}/merge-confirm-1440-light.png`,
+            path: `${STILLS}/merge-confirm-${size}-${scheme}.png`,
             animations: "disabled",
           });
         }
@@ -2058,3 +2103,42 @@ for (const [name, scenario] of MERGE_STILLS) {
     }
   });
 }
+
+test("still: merge, the answer never arrived", async ({ page }) => {
+  test.skip(STILLS === undefined, "BAKERY_STILLS_DIR is not set");
+  test.setTimeout(laneBudgetMs(120_000));
+  for (const scheme of ["light", "dark"] as const) {
+    for (const [size, width, height] of STILL_SIZES) {
+      const fresh = await page.context().newPage();
+      await fresh.emulateMedia({ colorScheme: scheme });
+      await fresh.setViewportSize({ width, height });
+      await stubStillsPage(fresh);
+      const scenario: Scenario = {
+        ...CLEAN,
+        pullRequests: [pullRequestRow(482)],
+      };
+      await openMerge(fresh, scenario, {
+        merge: async (route) => {
+          // The server did record an attempt, but the answer was lost: the
+          // read that follows shows it, and the page moves to what it says.
+          scenario.mergeAttempts = [mergeAttemptRow("unknown")];
+          await route.fulfill({
+            status: 503,
+            contentType: "application/problem+json",
+            json: problemBody(503, "UNAVAILABLE"),
+          });
+        },
+      });
+      await button(nowCard(fresh), "Merge").click();
+      await button(fresh.getByRole("alertdialog"), "Merge").click();
+      await expect(fresh.getByTestId("delivery-merge-notice")).toContainText(
+        "did not get an answer",
+      );
+      await expect(nowCard(fresh)).toContainText(
+        "Bakery does not know whether this merged",
+      );
+      await stillOfSection(fresh, `merge-no-answer-${size}-${scheme}.png`);
+      await fresh.close();
+    }
+  }
+});

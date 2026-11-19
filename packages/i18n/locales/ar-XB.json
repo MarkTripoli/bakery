@@ -4434,5 +4434,7 @@
   "tasks.delivery.merge.notice.notMerged": "⟪GitHub did not merge it. You can merge again.⟫",
   "tasks.delivery.merge.notice.conflict": "⟪The pull request changed just now. The latest is shown.⟫",
   "tasks.delivery.merge.notice.forbidden": "⟪Someone who can merge in this repository can do it here.⟫",
-  "tasks.delivery.merge.notice.noAnswer": "⟪Bakery did not get an answer, so the merge may or may not have started. What it recorded is shown here.⟫"
+  "tasks.delivery.merge.notice.noAnswer": "⟪Bakery did not get an answer, so the merge may or may not have started. What it recorded is shown here.⟫",
+  "tasks.delivery.now.mergeMovedUntried.title": "⟪The pull request changed since it was approved⟫",
+  "tasks.delivery.outOfDate.pullRequestBody": "⟪Checks and review below are for an older commit and no longer count. The pull request now ends at a different commit.⟫"
 }
