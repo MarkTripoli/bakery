@@ -211,6 +211,8 @@ function fakeApi(
     publishDraft: rejecting,
     getDraftPublication: rejecting,
     listDraftSuggestions: rejecting,
+    acceptDraftSuggestion: rejecting,
+    rejectDraftSuggestion: rejecting,
     collaborationSocketUrl: () => "ws://127.0.0.1/v1/collaboration",
     createMessage: rejecting,
     listMessages: rejecting,

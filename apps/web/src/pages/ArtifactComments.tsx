@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { landOn } from "../notifications/landed.ts";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import * as UI from "@bakery/ui";
 import { contractSchemas } from "@bakery/contracts/contracts";
@@ -26,11 +27,15 @@ import {
   ArtifactCommentAnchor,
 } from "./ArtifactCommentAnchor.tsx";
 
-export function ArtifactComments({ artifact, version, commentId }: {
-  readonly artifact: ArtifactResponse;
-  readonly version: ArtifactVersionResponse;
-  readonly commentId?: string;
-}) {
+export function ArtifactComments(
+  { artifact, version, commentId, landed = false }: {
+    readonly artifact: ArtifactResponse;
+    readonly version: ArtifactVersionResponse;
+    readonly commentId?: string;
+    /** The comment is where a notification landed: centre it, outline it once. */
+    readonly landed?: boolean;
+  },
+) {
   const api = useBakeryApi();
   const scope = useProtectedScope();
   const { translate: t } = useI18n();
@@ -109,12 +114,16 @@ export function ArtifactComments({ artifact, version, commentId }: {
     if (focusedComment.current === commentId) return;
     const element = document.getElementById(`comment-${commentId}`);
     if (element) {
-      element.focus();
-      element.scrollIntoView({ block: "nearest" });
+      if (landed) landOn(element);
+      else {
+        element.focus();
+        element.scrollIntoView({ block: "nearest" });
+      }
       focusedComment.current = commentId;
     }
   }, [
     commentId,
+    landed,
     foundComment,
     comments.isError,
     comments.isPending,

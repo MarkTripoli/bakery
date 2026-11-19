@@ -89,6 +89,14 @@ export type WorkflowsActionHandlers = {
     context: ActionContext,
     input: z.output<typeof contractSchemas.IdPath>,
   ) => Promise<null>;
+  createAgentPowerGrant: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.AgentPowerGrantCreate>,
+  ) => Promise<z.output<typeof contractSchemas.AgentPowerGrant>>;
+  deleteAgentPowerGrant: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.IdPath>,
+  ) => Promise<null>;
 };
 
 export function createWorkflowsActionRegistry(
@@ -284,6 +292,28 @@ export function createWorkflowsActionRegistry(
     policy: { ...commandPolicy, sessionOnly: true },
     explicitIdempotency: "key-and-if-match",
     handler: handlers.deletePublishGrant,
+  });
+
+  // Granting an agent an off-by-default power is a person's act too (O51).
+  registry.register({
+    name: WorkflowImplementedAction.AgentPowerGrantsCreate,
+    method: HttpMethod.Post,
+    path: "/v1/agent-power-grants",
+    input: contractSchemas.AgentPowerGrantCreate,
+    output: contractSchemas.AgentPowerGrant,
+    policy: { ...commandPolicy, sessionOnly: true },
+    successStatus: 201,
+    handler: handlers.createAgentPowerGrant,
+  });
+  registry.register({
+    name: WorkflowImplementedAction.AgentPowerGrantsDelete,
+    method: HttpMethod.Delete,
+    path: "/v1/agent-power-grants/:id",
+    input: contractSchemas.IdPath,
+    output: contractSchemas.NoContent,
+    policy: { ...commandPolicy, sessionOnly: true },
+    explicitIdempotency: "key-and-if-match",
+    handler: handlers.deleteAgentPowerGrant,
   });
 
   assertRegisteredActions(registry);

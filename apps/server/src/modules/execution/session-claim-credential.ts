@@ -20,7 +20,14 @@ import {
   issueStoredSessionCredential,
   revokeAttemptCredentials,
 } from "./session-credential-store.ts";
-import { sessionOperationScopeValues } from "./session-tools.ts";
+import {
+  POWER_SESSION_SCOPES,
+  sessionOperationScopeValues,
+} from "./session-tools.ts";
+import {
+  attemptOrigin,
+  isAgentPower,
+} from "../auth/application/agent-power-grants.ts";
 import type { PgTransactionClient } from "@bakery/persistence";
 import type { OperationScope } from "./session-credential.ts";
 
@@ -143,6 +150,17 @@ export async function issueCredentialForAttempt(
     organizationId: input.organizationId,
     attemptId: input.attemptId,
   });
+  // Reads for everyone, plus the write scope of each power a person granted the
+  // workflow this attempt runs under (O52). Off by default: no grant, no scope.
+  const scopes = input.scopes ??
+    [
+      ...readScopesForSession(),
+      ...await grantedScopesForAttempt(
+        tx,
+        input.organizationId,
+        input.attemptId,
+      ),
+    ];
   return await issueStoredSessionCredential(tx, {
     organizationId: input.organizationId,
     attemptId: input.attemptId,
@@ -152,8 +170,36 @@ export async function issueCredentialForAttempt(
     workerSessionGeneration: input.workerSessionGeneration,
     fence: input.fence,
     leaseTokenHash: input.leaseTokenHash,
-    scopes: input.scopes ?? readScopesForSession(),
+    scopes,
     leaseExpiresAt: input.leaseExpiresAt,
     now: input.now,
   });
+}
+
+/**
+ * The session scopes the powers granted to this attempt's workflow add.
+ *
+ * Reads the grants for the workflow only (a session has no seat), so a grant
+ * tied to a seat does not widen a worker session. An attempt with no workflow
+ * holds no power and gets no scope.
+ */
+export async function grantedScopesForAttempt(
+  tx: PgTransactionClient,
+  organizationId: string,
+  attemptId: string,
+): Promise<readonly OperationScope[]> {
+  const origin = await attemptOrigin(tx, organizationId, attemptId);
+  if (origin === null) return [];
+  const granted = await tx.query<{ power: string }>(
+    `select distinct power from bakery.agent_power_grants
+      where organization_id = $1 and workflow_id = $2
+        and access_token_id is null`,
+    [organizationId, origin.workflowId],
+  );
+  const scopes = new Set<OperationScope>();
+  for (const { power } of granted.rows) {
+    if (!isAgentPower(power)) continue;
+    for (const scope of POWER_SESSION_SCOPES[power]) scopes.add(scope);
+  }
+  return [...scopes].sort();
 }

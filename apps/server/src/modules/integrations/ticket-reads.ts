@@ -16,9 +16,11 @@ import type {
   TicketFactIndex,
   TicketIssueListPage,
   TicketIssueRead,
+  TicketLabelPage,
   TicketLabelProvenance,
   TicketLinksRead,
   TicketReadFailure,
+  TicketRef,
   TicketSourceHandle,
   TicketSourceReader,
   TicketStatusRead,
@@ -378,12 +380,34 @@ const COLLABORATOR_LOGIN = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/;
  * Builds the live reader. `dependencies.database` is read only for the
  * authority rows; every provider call runs outside a transaction.
  */
+/**
+ * The ordinal a GitHub read needs, from a provider-neutral reference.
+ *
+ * GitHub addresses a ticket by its per-repository number, so the neutral key is
+ * parsed rather than trusted: `ENG-42` reaching a GitHub reader is a caller
+ * mistake, and answering it with an issue number read out of someone else's
+ * name would be worse than refusing.
+ */
+export function issueNumberFromRef(ref: TicketRef): number | null {
+  // Exact, not tolerant: `Number` also reads " 1", "1.0", "0x1" and "1e0" as 1,
+  // so comparing the parse back to the key without trimming is what keeps a
+  // name a name. A key arrives from stored data and links, never from a person
+  // typing into a box, so there is no whitespace to forgive.
+  const parsed = Number(ref.externalKey);
+  return Number.isSafeInteger(parsed) && parsed > 0 &&
+      String(parsed) === ref.externalKey
+    ? parsed
+    : null;
+}
+
 export function createTicketSourceReader(
   dependencies: ReconcileDependencies,
 ): TicketSourceReader {
-  const github = dependencies.github;
+  const client = dependencies.github;
   return {
-    async readIssue(handle, number, signal): Promise<TicketIssueRead> {
+    async readIssue(handle, ref, signal): Promise<TicketIssueRead> {
+      const number = issueNumberFromRef(ref);
+      if (number === null) return failure("provider_error");
       return await withAccess(dependencies, handle, signal, async (access) => {
         const detail = await readIssueOrAbsent(
           dependencies,
@@ -399,6 +423,12 @@ export function createTicketSourceReader(
           return { kind: "pull_request" as const };
         }
         if (detail.number !== number) return failure("provider_error");
+        // The key resolved to a different ticket than the one asked for, which
+        // the id catches and the number alone cannot (repository renumbering, a
+        // moved issue, a link that since points elsewhere).
+        if (ref.externalId !== null && String(detail.id) !== ref.externalId) {
+          return failure("provider_error");
+        }
         // GitHub documents no label order, so a hold or execute label past the
         // bound may have been cut: the label list is incomplete, and an
         // incomplete list never reads as "not held". Fail closed, as the
@@ -437,7 +467,9 @@ export function createTicketSourceReader(
       });
     },
 
-    async readLinks(handle, number, signal): Promise<TicketLinksRead> {
+    async readLinks(handle, ref, signal): Promise<TicketLinksRead> {
+      const number = issueNumberFromRef(ref);
+      if (number === null) return failure("provider_error");
       return await withAccess(dependencies, handle, signal, async (access) => {
         const detail = await readIssueOrAbsent(
           dependencies,
@@ -449,6 +481,12 @@ export function createTicketSourceReader(
         // The caller read the issue first; an issue that vanished or became
         // a pull request since gives no links to rely on.
         if (detail.kind !== "issue") return failure("provider_error");
+        // The caller's reference may carry the id it believes this key has. A key
+        // that now resolves to another id is a ticket that moved, so its links
+        // belong to the wrong ticket and must not gate anything.
+        if (ref.externalId !== null && String(detail.id) !== ref.externalId) {
+          return failure("provider_error");
+        }
         let parent: IssueRef | null = null;
         if (
           detail.parent !== null &&
@@ -485,7 +523,7 @@ export function createTicketSourceReader(
         // (`links_truncated`), as it does for the sub-issue count below.
         let truncated = detail.blockedByTotal === null;
         if (detail.blockedByTotal !== 0) {
-          const page = await github.listBlockedBy({
+          const page = await client.listBlockedBy({
             token: access.token,
             fullName: access.fullName,
             number,
@@ -576,7 +614,7 @@ export function createTicketSourceReader(
           if (closing.commitId === null) {
             return { kind: "closed_unmerged", stateReason: "completed" };
           }
-          const repository = await github.readRepositoryIdentity({
+          const repository = await client.readRepositoryIdentity({
             token: access.token,
             fullName: access.fullName,
             withDefaultBranch: true,
@@ -595,7 +633,7 @@ export function createTicketSourceReader(
           }[] = [];
           let pullsComplete = false;
           for (let page = 1; page <= TICKET_PULL_PAGE_LIMIT; page++) {
-            const pulls = await github.listCommitPullRequests({
+            const pulls = await client.listCommitPullRequests({
               token: access.token,
               fullName: access.fullName,
               sha: closing.commitId,
@@ -642,10 +680,12 @@ export function createTicketSourceReader(
 
     async readLabelProvenance(
       handle,
-      number,
+      ref,
       label,
       signal,
     ): Promise<TicketLabelProvenance> {
+      const number = issueNumberFromRef(ref);
+      if (number === null) return failure("provider_error");
       return await withAccess(
         dependencies,
         handle,
@@ -685,7 +725,7 @@ export function createTicketSourceReader(
 
     async readStatuses(
       handle,
-      number,
+      ref,
       signal,
       issue,
     ): Promise<TicketStatusRead> {
@@ -694,7 +734,7 @@ export function createTicketSourceReader(
       // provider call to learn what is already known.
       let snapshot = issue;
       if (snapshot === undefined) {
-        const read = await this.readIssue(handle, number, signal);
+        const read = await this.readIssue(handle, ref, signal);
         // A pull request is not a ticket, and a gone or moved issue has no
         // status to report; admission refuses on the issue read before it ever
         // asks for a status, so `unsupported` here is the honest answer rather
@@ -735,7 +775,7 @@ export function createTicketSourceReader(
         handle,
         signal,
         async (access): Promise<TicketActorRole> => {
-          const read = await github.readCollaboratorPermission({
+          const read = await client.readCollaboratorPermission({
             token: access.token,
             fullName: access.fullName,
             login,
@@ -755,13 +795,31 @@ export function createTicketSourceReader(
       );
     },
 
+    async readLabels(handle, request, signal): Promise<TicketLabelPage> {
+      return await withAccess(
+        dependencies,
+        handle,
+        signal,
+        async (access): Promise<TicketLabelPage> => {
+          const page = await client.listRepositoryLabels({
+            token: access.token,
+            fullName: access.fullName,
+            page: request.page,
+          }, signal);
+          // A moved or vanished repository path answers nothing about labels.
+          if (page.kind !== "present") return failure("provider_error");
+          return { kind: "present", labels: page.items, hasNext: page.hasNext };
+        },
+      );
+    },
+
     async listIssues(handle, request, signal): Promise<TicketIssueListPage> {
       return await withAccess(
         dependencies,
         handle,
         signal,
         async (access): Promise<TicketIssueListPage> => {
-          const page = await github.listRepositoryIssues({
+          const page = await client.listRepositoryIssues({
             token: access.token,
             fullName: access.fullName,
             state: "open",

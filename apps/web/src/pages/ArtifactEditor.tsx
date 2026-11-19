@@ -6,14 +6,29 @@ import {
   useSyncExternalStore,
 } from "react";
 import { EditorView } from "@codemirror/view";
+import { createPortal } from "react-dom";
 import * as UI from "@bakery/ui";
 import { useBakeryApi } from "../api/context.tsx";
 import type { DraftResponse } from "../api/client.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
-import { loroExtensions, sizeLimit } from "../collaboration/editor-binding.ts";
+import {
+  loroExtensions,
+  remoteCaretLayer,
+  setRemoteCarets,
+  showSuggestedRange,
+  sizeLimit,
+  suggestionTint,
+} from "../collaboration/editor-binding.ts";
 import { peopleOf } from "../collaboration/people.ts";
+import { encodeCursorAt, remoteCarets } from "../collaboration/carets.ts";
+import { useSession } from "../app/session-context.tsx";
 import { usePublish } from "./ArtifactPublish.tsx";
+import {
+  SuggestionsConfirm,
+  SuggestionsPanel,
+  useSuggestions,
+} from "./ArtifactSuggestions.tsx";
 import {
   CollaborationSession,
   DOCUMENT_LIMIT_BYTES,
@@ -35,8 +50,10 @@ const PRESENCE_COLORS = [1, 2, 3, 4, 5, 6] as const;
  * what became of text the server did not keep (#71).
  */
 export function ArtifactEditor(
-  { artifactId, onViewVersion, publishedVersion, taskId }: {
+  { artifactId, onViewVersion, publishedVersion, suggestionsHost, taskId }: {
     readonly artifactId: string;
+    /** The side column's element for the suggestions; null on a phone (a sheet then). */
+    readonly suggestionsHost: HTMLElement | null;
     /** Leaves the editor for the version page (after "View version"). */
     readonly onViewVersion: () => void;
     /** The version number last published, or null when nothing is. */
@@ -110,21 +127,30 @@ export function ArtifactEditor(
       draftId={opened.draft.id}
       onViewVersion={onViewVersion}
       publishedVersion={publishedVersion}
+      suggestionsHost={suggestionsHost}
       taskId={taskId}
     />
   );
 }
 
 function OpenDraft(
-  { artifactId, canPublish, draftId, onViewVersion, publishedVersion, taskId }:
-    {
-      readonly artifactId: string;
-      readonly canPublish: boolean;
-      readonly draftId: string;
-      readonly onViewVersion: () => void;
-      readonly publishedVersion: number | null;
-      readonly taskId: string;
-    },
+  {
+    artifactId,
+    canPublish,
+    draftId,
+    onViewVersion,
+    publishedVersion,
+    suggestionsHost,
+    taskId,
+  }: {
+    readonly artifactId: string;
+    readonly canPublish: boolean;
+    readonly draftId: string;
+    readonly onViewVersion: () => void;
+    readonly publishedVersion: number | null;
+    readonly suggestionsHost: HTMLElement | null;
+    readonly taskId: string;
+  },
 ) {
   const api = useBakeryApi();
   const scope = useProtectedScope();
@@ -156,6 +182,7 @@ function OpenDraft(
         onViewVersion={onViewVersion}
         publishedVersion={publishedVersion}
         session={session}
+        suggestionsHost={suggestionsHost}
         taskId={taskId}
       />
     )
@@ -178,8 +205,10 @@ function DraftEditor(
     onViewVersion,
     publishedVersion,
     session,
+    suggestionsHost,
     taskId,
   }: {
+    readonly suggestionsHost: HTMLElement | null;
     readonly artifactId: string;
     readonly canPublish: boolean;
     readonly draftId: string;
@@ -208,13 +237,34 @@ function DraftEditor(
   );
   const clock = (milliseconds: number) => time.format(new Date(milliseconds));
 
+  // This person's own presence: typing, and where the caret and selection are.
+  const cursorRef = useRef<{ anchor: string; head: string } | null>(null);
+  const typingNow = useRef(false);
+  const announceRef = useRef(() => {});
+  announceRef.current = () =>
+    session.setPresence({
+      activity: "active",
+      typing: typingNow.current,
+      cursor: cursorRef.current,
+    });
+  const selfPrincipalId = useSession().identity?.principalId ?? null;
   // The editor binds to the session's document and starts again whenever the
   // session rebuilds it from the server's text.
   const extensions = useMemo(
     () => [
       ...loroExtensions(session.document),
       sizeLimit(),
+      suggestionTint(),
+      remoteCaretLayer(),
       EditorView.updateListener.of((update) => {
+        if (update.selectionSet || update.docChanged) {
+          // Where this person's caret and selection are, for everyone else.
+          const main = update.state.selection.main;
+          const anchor = encodeCursorAt(session.document, main.anchor);
+          const head = encodeCursorAt(session.document, main.head);
+          cursorRef.current = anchor && head ? { anchor, head } : null;
+          if (!update.docChanged) announceRef.current();
+        }
         if (!update.docChanged) return;
         setTypedAt(Date.now());
       }),
@@ -227,10 +277,12 @@ function DraftEditor(
   // Others see "is typing" while this person's changes keep coming.
   useEffect(() => {
     if (typedAt === 0) return;
-    session.setPresence({ activity: "active", typing: true, cursor: null });
+    typingNow.current = true;
+    announceRef.current();
     if (typing.current !== null) clearTimeout(typing.current);
     typing.current = setTimeout(() => {
-      session.setPresence({ activity: "active", typing: false, cursor: null });
+      typingNow.current = false;
+      announceRef.current();
     }, 2000);
     return () => {
       if (typing.current !== null) clearTimeout(typing.current);
@@ -265,6 +317,28 @@ function DraftEditor(
       color: colours.current.get(person.principalId),
     };
   });
+  // Other people's carets, in the colours their avatars have.
+  useEffect(() => {
+    const view = editorView.current;
+    if (!view) return;
+    view.dispatch({
+      effects: setRemoteCarets.of(
+        remoteCarets(session.document, snapshot.participants, selfPrincipalId)
+          .map((caret) => ({
+            name: caret.name,
+            colour: colours.current.get(caret.principalId) ?? 1,
+            anchor: caret.anchor,
+            head: caret.head,
+          })),
+      ),
+    });
+  }, [
+    session,
+    snapshot.participants,
+    snapshot.documentVersion,
+    typedAt,
+    selfPrincipalId,
+  ]);
   const status = people
     .filter((person) => person.status !== "away" || people.length > 0)
     .map((person) =>
@@ -283,6 +357,22 @@ function DraftEditor(
     null;
   // The editor's own view, for returning focus to the text after publishing.
   const editorView = useRef<EditorView | null>(null);
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+  const chosenRange = useRef<{ from: number; to: number } | null>(null);
+  const suggestions = useSuggestions({
+    document: session.document,
+    documentTick: snapshot.documentVersion + typedAt,
+    draftId,
+    onSelectRange: (range) => {
+      chosenRange.current = range;
+      if (editorView.current) showSuggestedRange(editorView.current, range);
+    },
+  });
+  const reshowChosen = () => {
+    if (editorView.current && chosenRange.current) {
+      showSuggestedRange(editorView.current, chosenRange.current);
+    }
+  };
   const publish = usePublish({
     artifactId,
     canPublish,
@@ -418,6 +508,49 @@ function DraftEditor(
             ? t("artifact.edit.refused.stale")
             : t("artifact.edit.refused.one")}
         </UI.InlineNotice>
+      )}
+      {suggestionsHost === null &&
+        suggestions.listed.length + (suggestions.phase === "failed" ? 1 : 0) >
+          0 &&
+        (
+          <UI.Button
+            data-testid="suggestions-open"
+            onClick={() => setSuggestionsOpen(true)}
+            variant="outline"
+          >
+            {suggestions.phase === "failed" && suggestions.listed.length === 0
+              ? t("artifact.edit.suggestions.titleNoCount")
+              : t("artifact.edit.suggestions.title", {
+                count: suggestions.listed.length,
+              })}
+          </UI.Button>
+        )}
+      {suggestionsHost !== null &&
+        createPortal(<SuggestionsPanel state={suggestions} />, suggestionsHost)}
+      <SuggestionsConfirm state={suggestions} />
+      {suggestionsHost === null && suggestionsOpen && (
+        <UI.Sheet
+          dismissLabel={t("artifact.edit.suggestions.sheetClose")}
+          onOpenChange={setSuggestionsOpen}
+          open
+          title={suggestions.phase === "failed" &&
+              suggestions.listed.length === 0
+            ? t("artifact.edit.suggestions.titleNoCount")
+            : t("artifact.edit.suggestions.title", {
+              count: suggestions.listed.length,
+            })}
+          variant="side"
+        >
+          <SuggestionsPanel
+            hideTitle
+            afterChoose={() => {
+              setSuggestionsOpen(false);
+              // Once the sheet is gone, show the text the card points at.
+              globalThis.requestAnimationFrame(() => reshowChosen());
+            }}
+            state={suggestions}
+          />
+        </UI.Sheet>
       )}
       {bytesUsed >= DOCUMENT_LIMIT_BYTES && (
         <UI.InlineNotice tone="warning">
