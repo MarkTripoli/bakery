@@ -316,6 +316,34 @@
     "path": "/__fixtures__/machines/detail"
   },
   {
+    "id": "fixture-session-thread:default",
+    "path": "/__fixtures__/session-thread/default"
+  },
+  {
+    "id": "fixture-session-thread:loading",
+    "path": "/__fixtures__/session-thread/loading"
+  },
+  {
+    "id": "fixture-session-thread:empty",
+    "path": "/__fixtures__/session-thread/empty"
+  },
+  {
+    "id": "fixture-session-thread:error",
+    "path": "/__fixtures__/session-thread/error"
+  },
+  {
+    "id": "fixture-session-thread:failed",
+    "path": "/__fixtures__/session-thread/failed"
+  },
+  {
+    "id": "fixture-session-thread:complete",
+    "path": "/__fixtures__/session-thread/complete"
+  },
+  {
+    "id": "fixture-session-thread:reconnecting",
+    "path": "/__fixtures__/session-thread/reconnecting"
+  },
+  {
     "id": "fixture-api-boundary",
     "path": "/__fixtures__/api-boundary"
   },
