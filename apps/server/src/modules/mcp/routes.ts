@@ -31,6 +31,10 @@ import {
   getMcpConnection,
 } from "./connection-commands.ts";
 import {
+  listMcpToolClassifications,
+  putMcpToolClassification,
+} from "./classification-commands.ts";
+import {
   createMcpDiscoverer,
   getMcpCapabilities,
 } from "./connection-discovery.ts";
@@ -165,6 +169,22 @@ export function createMcpActionRegistry(
     output: contractSchemas.McpCapabilitySnapshot,
     policy: query,
     handler: getMcpCapabilities,
+  }).register({
+    name: ConnectionAction.McpToolClassificationsList,
+    method: HttpMethod.Get,
+    path: "/v1/mcp-connections/:id/tool-classifications",
+    input: contractSchemas.IdPath,
+    output: contractSchemas.McpToolClassificationList,
+    policy: query,
+    handler: listMcpToolClassifications,
+  }).register({
+    name: ConnectionAction.McpToolClassificationsPut,
+    method: HttpMethod.Put,
+    path: "/v1/mcp-connections/:id/tool-classifications/:toolName",
+    input: contractSchemas.McpToolClassificationPut,
+    output: contractSchemas.McpToolClassification,
+    policy: ownerOrAdmin,
+    handler: putMcpToolClassification,
   });
   assertRegisteredActions(registry);
   assertImplementedActionRegistry(registry, [

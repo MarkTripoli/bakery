@@ -3440,6 +3440,51 @@
     },
     {
       "group": "Extensions",
+      "method": "GET",
+      "path": "/v1/mcp-connections/{id}/tool-classifications",
+      "action": "mcpToolClassifications.list",
+      "access": "Developer",
+      "permission": "mcpConnection:read",
+      "input": "IdPath",
+      "output": "McpToolClassificationList",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND"
+      ],
+      "organizationContext": "none",
+      "implemented": true
+    },
+    {
+      "group": "Extensions",
+      "method": "PUT",
+      "path": "/v1/mcp-connections/{id}/tool-classifications/{toolName}",
+      "action": "mcpToolClassifications.put",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "mcpConnection:manage",
+      "input": "McpToolClassificationPut",
+      "output": "McpToolClassification",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required; If-Match with the current version once the tool is classified",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_REQUIRED",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH"
+      ],
+      "organizationContext": "none",
+      "implemented": true
+    },
+    {
+      "group": "Extensions",
       "method": "POST",
       "path": "/v1/capability-bindings",
       "action": "capabilityBindings.create",
@@ -10763,6 +10808,8 @@
     "mcpConnections.update",
     "mcpConnections.discover",
     "mcpConnections.capabilities",
+    "mcpToolClassifications.list",
+    "mcpToolClassifications.put",
     "blobUploads.start",
     "blobUploads.part",
     "blobUploads.complete",
@@ -19453,6 +19500,111 @@
             },
             "500": {
               "description": "Internal server error."
+            }
+          }
+        }
+      },
+      "/v1/mcp-connections/{id}/tool-classifications": {
+        "get": {
+          "operationId": "mcpToolClassifications.list",
+          "parameters": [
+            {
+              "name": "id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/McpToolClassificationList"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request."
+            },
+            "401": {
+              "description": "Authentication required."
+            },
+            "403": {
+              "description": "Forbidden."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          }
+        }
+      },
+      "/v1/mcp-connections/{id}/tool-classifications/{toolName}": {
+        "put": {
+          "operationId": "mcpToolClassifications.put",
+          "parameters": [
+            {
+              "name": "id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            },
+            {
+              "name": "toolName",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/McpToolClassification"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request."
+            },
+            "401": {
+              "description": "Authentication required."
+            },
+            "403": {
+              "description": "Forbidden."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          },
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpToolClassificationPut"
+                }
+              }
             }
           }
         }
@@ -44471,6 +44623,8 @@
                 "mcpConnections.update",
                 "mcpConnections.discover",
                 "mcpConnections.capabilities",
+                "mcpToolClassifications.list",
+                "mcpToolClassifications.put",
                 "capabilityBindings.create",
                 "capabilityBindings.list",
                 "capabilityBindings.delete",
@@ -63973,6 +64127,55 @@
           ],
           "additionalProperties": false,
           "description": "Unauthenticated redemption of a password reset link: sets the new password, consumes the link and signs the person out of every browser session. An unknown, used, expired or revoked link gets one identical refusal."
+        },
+        "McpToolClassificationPut": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "effectClass": {
+              "type": "string",
+              "enum": [
+                "read",
+                "write_idempotent",
+                "write_reconcilable",
+                "write_opaque"
+              ],
+              "description": "What the tool does to the outside world, as an Admin classifies it: read changes nothing; write_idempotent repeats safely when given the same effect key; write_reconcilable can be confirmed afterwards by a paired read tool; write_opaque is a write Bakery runs at most once and, if the outcome is unknown, leaves for a person."
+            },
+            "effectKeyArgument": {
+              "description": "McpToolClassificationPut.effectKeyArgument may be null in this transport value.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 128,
+                  "description": "For write_idempotent only: the name of the tool argument whose value is the effect key, so a repeated call with the same value is the same effect. It must be an argument the tool's input schema declares. McpToolClassificationPut.effectKeyArgument must contain at most 128 characters."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ]
+            },
+            "pairedReadTool": {
+              "description": "McpToolClassificationPut.pairedReadTool may be null in this transport value.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 128,
+                  "description": "For write_reconcilable only: the name of another tool in the same snapshot, already classified read, that confirms whether the write happened. McpToolClassificationPut.pairedReadTool must contain at most 128 characters."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ]
+            }
+          },
+          "required": [
+            "effectClass"
+          ],
+          "additionalProperties": false,
+          "description": "Classifies one tool's side effects (O26). Server hints are suggestions only: this is the Admin's statement and the only one Bakery acts on. An unclassified tool is a write that runs at most once."
         },
         "applications": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -89599,6 +89802,8 @@
                 "mcpConnections.update",
                 "mcpConnections.discover",
                 "mcpConnections.capabilities",
+                "mcpToolClassifications.list",
+                "mcpToolClassifications.put",
                 "capabilityBindings.create",
                 "capabilityBindings.list",
                 "capabilityBindings.delete",
@@ -90124,6 +90329,8 @@
                 "mcpConnections.update",
                 "mcpConnections.discover",
                 "mcpConnections.capabilities",
+                "mcpToolClassifications.list",
+                "mcpToolClassifications.put",
                 "capabilityBindings.create",
                 "capabilityBindings.list",
                 "capabilityBindings.delete",
@@ -90649,6 +90856,8 @@
                 "mcpConnections.update",
                 "mcpConnections.discover",
                 "mcpConnections.capabilities",
+                "mcpToolClassifications.list",
+                "mcpToolClassifications.put",
                 "capabilityBindings.create",
                 "capabilityBindings.list",
                 "capabilityBindings.delete",
@@ -135507,6 +135716,8 @@
                       "mcpConnections.update",
                       "mcpConnections.discover",
                       "mcpConnections.capabilities",
+                      "mcpToolClassifications.list",
+                      "mcpToolClassifications.put",
                       "capabilityBindings.create",
                       "capabilityBindings.list",
                       "capabilityBindings.delete",
@@ -222838,6 +223049,200 @@
           "additionalProperties": false,
           "description": "A newly issued password reset link. The URL carries the only copy of the token and is returned in this response alone; it is never stored, replayed or readable again."
         },
+        "McpToolClassification": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "toolName": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The tool's name in the pinned snapshot."
+            },
+            "effectClass": {
+              "type": "string",
+              "enum": [
+                "read",
+                "write_idempotent",
+                "write_reconcilable",
+                "write_opaque"
+              ],
+              "description": "The class in force: the Admin's, or write_opaque when unclassified."
+            },
+            "classified": {
+              "type": "boolean",
+              "description": "True once an Admin has classified this tool."
+            },
+            "effectKeyArgument": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "For write_idempotent, the argument that carries the effect key; otherwise null."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the projected value is unavailable."
+                }
+              ],
+              "description": "McpToolClassification.effectKeyArgument may be null in the safe projection."
+            },
+            "pairedReadTool": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "For write_reconcilable, the read tool that confirms the write; otherwise null."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the projected value is unavailable."
+                }
+              ],
+              "description": "McpToolClassification.pairedReadTool may be null in the safe projection."
+            },
+            "classifiedAgainstCurrentSnapshot": {
+              "type": "boolean",
+              "description": "False when the connection has been rediscovered since this classification was made, so the Admin should check that it still describes the tool. True for an unclassified tool."
+            },
+            "classifiedAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "description": "UTC timestamp of the classification, or null when unclassified."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the projected value is unavailable."
+                }
+              ],
+              "description": "McpToolClassification.classifiedAt may be null in the safe projection."
+            },
+            "version": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Classification version: 0 when unclassified, then the If-Match value for the next change."
+            }
+          },
+          "required": [
+            "toolName",
+            "effectClass",
+            "classified",
+            "effectKeyArgument",
+            "pairedReadTool",
+            "classifiedAgainstCurrentSnapshot",
+            "classifiedAt",
+            "version"
+          ],
+          "additionalProperties": false,
+          "description": "One tool of a connection's current snapshot with the effect class an Admin gave it. A tool nobody has classified reads as write_opaque with classified false, because that is how Bakery treats it."
+        },
+        "McpToolClassificationList": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "toolName": {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The tool's name in the pinned snapshot."
+                  },
+                  "effectClass": {
+                    "type": "string",
+                    "enum": [
+                      "read",
+                      "write_idempotent",
+                      "write_reconcilable",
+                      "write_opaque"
+                    ],
+                    "description": "The class in force: the Admin's, or write_opaque when unclassified."
+                  },
+                  "classified": {
+                    "type": "boolean",
+                    "description": "True once an Admin has classified this tool."
+                  },
+                  "effectKeyArgument": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "For write_idempotent, the argument that carries the effect key; otherwise null."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the projected value is unavailable."
+                      }
+                    ],
+                    "description": "McpToolClassification.effectKeyArgument may be null in the safe projection."
+                  },
+                  "pairedReadTool": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "For write_reconcilable, the read tool that confirms the write; otherwise null."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the projected value is unavailable."
+                      }
+                    ],
+                    "description": "McpToolClassification.pairedReadTool may be null in the safe projection."
+                  },
+                  "classifiedAgainstCurrentSnapshot": {
+                    "type": "boolean",
+                    "description": "False when the connection has been rediscovered since this classification was made, so the Admin should check that it still describes the tool. True for an unclassified tool."
+                  },
+                  "classifiedAt": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                        "description": "UTC timestamp of the classification, or null when unclassified."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the projected value is unavailable."
+                      }
+                    ],
+                    "description": "McpToolClassification.classifiedAt may be null in the safe projection."
+                  },
+                  "version": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Classification version: 0 when unclassified, then the If-Match value for the next change."
+                  }
+                },
+                "required": [
+                  "toolName",
+                  "effectClass",
+                  "classified",
+                  "effectKeyArgument",
+                  "pairedReadTool",
+                  "classifiedAgainstCurrentSnapshot",
+                  "classifiedAt",
+                  "version"
+                ],
+                "additionalProperties": false,
+                "description": "The snapshot's tools with their classifications. Each array item follows this format."
+              },
+              "description": "The snapshot's tools with their classifications."
+            }
+          },
+          "required": [
+            "items"
+          ],
+          "additionalProperties": false,
+          "description": "Every tool of a connection's current snapshot with its effect classification, in name order. Empty when nothing has been discovered."
+        },
         "ArtifactOutput": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
@@ -224391,7 +224796,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:54d8ef40abc33f6f3dc1033758490fbe4f1f2955c870ca60de3e26ae49749faf",
+  "compatibilityDigest": "sha256:b6a0d20d38fa6c8d6b71694f79b2ce3fec4859c6a7fb1abe67f0551df9a089ba",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -231760,6 +232165,8 @@
             "mcpConnections.update",
             "mcpConnections.discover",
             "mcpConnections.capabilities",
+            "mcpToolClassifications.list",
+            "mcpToolClassifications.put",
             "capabilityBindings.create",
             "capabilityBindings.list",
             "capabilityBindings.delete",
@@ -251320,6 +251727,55 @@
       ],
       "additionalProperties": false,
       "description": "Unauthenticated redemption of a password reset link: sets the new password, consumes the link and signs the person out of every browser session. An unknown, used, expired or revoked link gets one identical refusal."
+    },
+    "McpToolClassificationPut": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "effectClass": {
+          "type": "string",
+          "enum": [
+            "read",
+            "write_idempotent",
+            "write_reconcilable",
+            "write_opaque"
+          ],
+          "description": "What the tool does to the outside world, as an Admin classifies it: read changes nothing; write_idempotent repeats safely when given the same effect key; write_reconcilable can be confirmed afterwards by a paired read tool; write_opaque is a write Bakery runs at most once and, if the outcome is unknown, leaves for a person."
+        },
+        "effectKeyArgument": {
+          "description": "McpToolClassificationPut.effectKeyArgument may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 128,
+              "description": "For write_idempotent only: the name of the tool argument whose value is the effect key, so a repeated call with the same value is the same effect. It must be an argument the tool's input schema declares. McpToolClassificationPut.effectKeyArgument must contain at most 128 characters."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "pairedReadTool": {
+          "description": "McpToolClassificationPut.pairedReadTool may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 128,
+              "description": "For write_reconcilable only: the name of another tool in the same snapshot, already classified read, that confirms whether the write happened. McpToolClassificationPut.pairedReadTool must contain at most 128 characters."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "effectClass"
+      ],
+      "additionalProperties": false,
+      "description": "Classifies one tool's side effects (O26). Server hints are suggestions only: this is the Admin's statement and the only one Bakery acts on. An unclassified tool is a write that runs at most once."
     },
     "applications": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -277040,6 +277496,8 @@
             "mcpConnections.update",
             "mcpConnections.discover",
             "mcpConnections.capabilities",
+            "mcpToolClassifications.list",
+            "mcpToolClassifications.put",
             "capabilityBindings.create",
             "capabilityBindings.list",
             "capabilityBindings.delete",
@@ -277565,6 +278023,8 @@
             "mcpConnections.update",
             "mcpConnections.discover",
             "mcpConnections.capabilities",
+            "mcpToolClassifications.list",
+            "mcpToolClassifications.put",
             "capabilityBindings.create",
             "capabilityBindings.list",
             "capabilityBindings.delete",
@@ -278090,6 +278550,8 @@
             "mcpConnections.update",
             "mcpConnections.discover",
             "mcpConnections.capabilities",
+            "mcpToolClassifications.list",
+            "mcpToolClassifications.put",
             "capabilityBindings.create",
             "capabilityBindings.list",
             "capabilityBindings.delete",
@@ -323096,6 +323558,8 @@
                   "mcpConnections.update",
                   "mcpConnections.discover",
                   "mcpConnections.capabilities",
+                  "mcpToolClassifications.list",
+                  "mcpToolClassifications.put",
                   "capabilityBindings.create",
                   "capabilityBindings.list",
                   "capabilityBindings.delete",
@@ -410544,6 +411008,200 @@
       ],
       "additionalProperties": false,
       "description": "A newly issued password reset link. The URL carries the only copy of the token and is returned in this response alone; it is never stored, replayed or readable again."
+    },
+    "McpToolClassification": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "toolName": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The tool's name in the pinned snapshot."
+        },
+        "effectClass": {
+          "type": "string",
+          "enum": [
+            "read",
+            "write_idempotent",
+            "write_reconcilable",
+            "write_opaque"
+          ],
+          "description": "The class in force: the Admin's, or write_opaque when unclassified."
+        },
+        "classified": {
+          "type": "boolean",
+          "description": "True once an Admin has classified this tool."
+        },
+        "effectKeyArgument": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "For write_idempotent, the argument that carries the effect key; otherwise null."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "McpToolClassification.effectKeyArgument may be null in the safe projection."
+        },
+        "pairedReadTool": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "For write_reconcilable, the read tool that confirms the write; otherwise null."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "McpToolClassification.pairedReadTool may be null in the safe projection."
+        },
+        "classifiedAgainstCurrentSnapshot": {
+          "type": "boolean",
+          "description": "False when the connection has been rediscovered since this classification was made, so the Admin should check that it still describes the tool. True for an unclassified tool."
+        },
+        "classifiedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp of the classification, or null when unclassified."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "McpToolClassification.classifiedAt may be null in the safe projection."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Classification version: 0 when unclassified, then the If-Match value for the next change."
+        }
+      },
+      "required": [
+        "toolName",
+        "effectClass",
+        "classified",
+        "effectKeyArgument",
+        "pairedReadTool",
+        "classifiedAgainstCurrentSnapshot",
+        "classifiedAt",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "One tool of a connection's current snapshot with the effect class an Admin gave it. A tool nobody has classified reads as write_opaque with classified false, because that is how Bakery treats it."
+    },
+    "McpToolClassificationList": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "toolName": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The tool's name in the pinned snapshot."
+              },
+              "effectClass": {
+                "type": "string",
+                "enum": [
+                  "read",
+                  "write_idempotent",
+                  "write_reconcilable",
+                  "write_opaque"
+                ],
+                "description": "The class in force: the Admin's, or write_opaque when unclassified."
+              },
+              "classified": {
+                "type": "boolean",
+                "description": "True once an Admin has classified this tool."
+              },
+              "effectKeyArgument": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "For write_idempotent, the argument that carries the effect key; otherwise null."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "McpToolClassification.effectKeyArgument may be null in the safe projection."
+              },
+              "pairedReadTool": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "For write_reconcilable, the read tool that confirms the write; otherwise null."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "McpToolClassification.pairedReadTool may be null in the safe projection."
+              },
+              "classifiedAgainstCurrentSnapshot": {
+                "type": "boolean",
+                "description": "False when the connection has been rediscovered since this classification was made, so the Admin should check that it still describes the tool. True for an unclassified tool."
+              },
+              "classifiedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "UTC timestamp of the classification, or null when unclassified."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "McpToolClassification.classifiedAt may be null in the safe projection."
+              },
+              "version": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Classification version: 0 when unclassified, then the If-Match value for the next change."
+              }
+            },
+            "required": [
+              "toolName",
+              "effectClass",
+              "classified",
+              "effectKeyArgument",
+              "pairedReadTool",
+              "classifiedAgainstCurrentSnapshot",
+              "classifiedAt",
+              "version"
+            ],
+            "additionalProperties": false,
+            "description": "The snapshot's tools with their classifications. Each array item follows this format."
+          },
+          "description": "The snapshot's tools with their classifications."
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "additionalProperties": false,
+      "description": "Every tool of a connection's current snapshot with its effect classification, in name order. Empty when nothing has been discovered."
     },
     "ArtifactOutput": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

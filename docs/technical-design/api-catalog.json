@@ -3326,6 +3326,47 @@
     },
     {
       "group": "Extensions",
+      "method": "GET",
+      "path": "/v1/mcp-connections/{id}/tool-classifications",
+      "action": "mcpToolClassifications.list",
+      "access": "Developer",
+      "permission": "mcpConnection:read",
+      "input": "IdPath",
+      "output": "McpToolClassificationList",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND"
+      ]
+    },
+    {
+      "group": "Extensions",
+      "method": "PUT",
+      "path": "/v1/mcp-connections/{id}/tool-classifications/{toolName}",
+      "action": "mcpToolClassifications.put",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "mcpConnection:manage",
+      "input": "McpToolClassificationPut",
+      "output": "McpToolClassification",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required; If-Match with the current version once the tool is classified",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_REQUIRED",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH"
+      ]
+    },
+    {
+      "group": "Extensions",
       "method": "POST",
       "path": "/v1/capability-bindings",
       "action": "capabilityBindings.create",

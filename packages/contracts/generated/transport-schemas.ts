@@ -11425,6 +11425,48 @@ const transportSchemas = {
         }
       ],
       "description": "Unauthenticated redemption of a password reset link: sets the new password, consumes the link and signs the person out of every browser session. An unknown, used, expired or revoked link gets one identical refusal."
+    },
+    "McpToolClassificationPut": {
+      "fields": [
+        {
+          "name": "effectClass",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "read",
+            "write_idempotent",
+            "write_reconcilable",
+            "write_opaque"
+          ],
+          "description": "What the tool does to the outside world, as an Admin classifies it: read changes nothing; write_idempotent repeats safely when given the same effect key; write_reconcilable can be confirmed afterwards by a paired read tool; write_opaque is a write Bakery runs at most once and, if the outcome is unknown, leaves for a person."
+        },
+        {
+          "name": "effectKeyArgument",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "bounds": {
+            "maxLength": 128
+          },
+          "description": "For write_idempotent only: the name of the tool argument whose value is the effect key, so a repeated call with the same value is the same effect. It must be an argument the tool's input schema declares."
+        },
+        {
+          "name": "pairedReadTool",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "bounds": {
+            "maxLength": 128
+          },
+          "description": "For write_reconcilable only: the name of another tool in the same snapshot, already classified read, that confirms whether the write happened."
+        }
+      ],
+      "rules": [
+        "effectKeyArgument is required for write_idempotent and refused for any other class",
+        "pairedReadTool is required for write_reconcilable and refused for any other class",
+        "the tool must be in the connection's current snapshot"
+      ],
+      "description": "Classifies one tool's side effects (O26). Server hints are suggestions only: this is the Admin's statement and the only one Bakery acts on. An unclassified tool is a write that runs at most once."
     }
   },
   "projections": {
@@ -29066,6 +29108,57 @@ const transportSchemas = {
         "id": "Stable UUID of the reset link record, as the audit trail names it.",
         "url": "Absolute web URL of the reset page with the one-time token; hand it to the person over a trusted channel.",
         "expiresAt": "UTC timestamp one hour after issue, after which the link no longer works."
+      }
+    },
+    "McpToolClassification": {
+      "fields": [
+        "toolName",
+        "effectClass",
+        "classified",
+        "effectKeyArgument",
+        "pairedReadTool",
+        "classifiedAgainstCurrentSnapshot",
+        "classifiedAt",
+        "version"
+      ],
+      "nullableFields": [
+        "effectKeyArgument",
+        "pairedReadTool",
+        "classifiedAt"
+      ],
+      "fieldTypes": {
+        "toolName": "string",
+        "effectClass": "enum(read|write_idempotent|write_reconcilable|write_opaque)",
+        "classified": "boolean",
+        "effectKeyArgument": "string",
+        "pairedReadTool": "string",
+        "classifiedAgainstCurrentSnapshot": "boolean",
+        "classifiedAt": "timestamp",
+        "version": "integer"
+      },
+      "description": "One tool of a connection's current snapshot with the effect class an Admin gave it. A tool nobody has classified reads as write_opaque with classified false, because that is how Bakery treats it.",
+      "fieldDescriptions": {
+        "toolName": "The tool's name in the pinned snapshot.",
+        "effectClass": "The class in force: the Admin's, or write_opaque when unclassified.",
+        "classified": "True once an Admin has classified this tool.",
+        "effectKeyArgument": "For write_idempotent, the argument that carries the effect key; otherwise null.",
+        "pairedReadTool": "For write_reconcilable, the read tool that confirms the write; otherwise null.",
+        "classifiedAgainstCurrentSnapshot": "False when the connection has been rediscovered since this classification was made, so the Admin should check that it still describes the tool. True for an unclassified tool.",
+        "classifiedAt": "UTC timestamp of the classification, or null when unclassified.",
+        "version": "Classification version: 0 when unclassified, then the If-Match value for the next change."
+      }
+    },
+    "McpToolClassificationList": {
+      "fields": [
+        "items"
+      ],
+      "nullableFields": [],
+      "fieldTypes": {
+        "items": "McpToolClassification[]"
+      },
+      "description": "Every tool of a connection's current snapshot with its effect classification, in name order. Empty when nothing has been discovered.",
+      "fieldDescriptions": {
+        "items": "The snapshot's tools with their classifications."
       }
     }
   },
