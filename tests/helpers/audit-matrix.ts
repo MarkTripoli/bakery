@@ -619,6 +619,35 @@ export async function runAuditMatrix(
       },
     },
     {
+      // A client secret is write-only: the audit row records the provider and a
+      // revision, never the secret itself.
+      operation: "integrationClientCredentials.put",
+      failure: () =>
+        call(f, "PUT", "/v1/integration-client-credentials/linear", developer, {
+          body: {
+            clientId: "audit-matrix-client",
+            clientSecret: "audit-matrix-client-secret",
+          },
+          headers: { "Idempotency-Key": key() },
+        }),
+      success: async () => ({
+        response: await call(
+          f,
+          "PUT",
+          "/v1/integration-client-credentials/linear",
+          f.adminCookie,
+          {
+            body: {
+              clientId: "audit-matrix-client",
+              clientSecret: "audit-matrix-client-secret",
+            },
+            headers: { "Idempotency-Key": key() },
+          },
+        ),
+        organizationId: null,
+      }),
+    },
+    {
       // Saves first so the verification below probes the injected result.
       operation: "skillStorageSettings.put",
       failure: () =>

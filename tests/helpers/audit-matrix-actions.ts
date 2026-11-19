@@ -27,6 +27,7 @@ export const AUDIT_MATRIX_ACTIONS = [
   "installationAdministrators.revoke",
   "integrationAppRegistrations.begin",
   "integrationAppRegistrations.put",
+  "integrationClientCredentials.put",
   "skillStorageSettings.put",
   "skillStorageSettings.verify",
   "principals.create",
