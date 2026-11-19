@@ -44,6 +44,55 @@ type RouteOutput = z.output<typeof contractSchemas.ProviderRoute>;
 /** SQLSTATE for a foreign-key violation: the account or binding is not in this organization. */
 const POSTGRES_FOREIGN_KEY_VIOLATION = "23503";
 
+/**
+ * Whether an address literal is one a public provider can never have: loopback,
+ * private, link-local (which includes the cloud metadata address), unspecified or
+ * unique-local. A route's endpoint is called by the server, so a value that names
+ * the server's own network is a request to read it (SSRF), whatever the route is
+ * for. This is the static half of the rule: it sees only what is written in the
+ * URL, so a name that *resolves* to such an address is the probe's to refuse at
+ * connect time.
+ */
+function isNonPublicAddress(host: string): boolean {
+  const ipv4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
+  if (ipv4) {
+    const [a, b] = [Number(ipv4[1]), Number(ipv4[2])];
+    return a === 0 || a === 10 || a === 127 || (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) ||
+      (a === 100 && b >= 64 && b <= 127) || a >= 224;
+  }
+  if (host.startsWith("[") || host.includes(":")) {
+    const bare = host.replace(/^\[|\]$/g, "").toLowerCase();
+    return bare === "::" || bare === "::1" || bare.startsWith("fe80") ||
+      bare.startsWith("fc") || bare.startsWith("fd") ||
+      bare.startsWith("::ffff:");
+  }
+  return false;
+}
+
+/**
+ * A route endpoint must be an https origin and path a provider serves, and must
+ * not carry what the contract says it never carries: credentials or a query
+ * secret. Refused as unprocessable on the `endpoint` field.
+ */
+export function assertProviderEndpoint(endpoint: string): void {
+  let url: URL;
+  try {
+    url = new URL(endpoint);
+  } catch {
+    throw unprocessable(["endpoint"], "provider_endpoint_invalid");
+  }
+  const host = url.hostname.toLowerCase();
+  const refused = url.protocol !== "https:" || url.username !== "" ||
+    url.password !== "" || url.search !== "" || url.hash !== "" ||
+    host === "" || host === "localhost" || host.endsWith(".localhost") ||
+    host.endsWith(".local") || host.endsWith(".internal") ||
+    isNonPublicAddress(host);
+  if (refused) {
+    throw unprocessable(["endpoint"], "provider_endpoint_invalid");
+  }
+}
+
 /** The route's audit row and domain event, in the command's own transaction. */
 async function recordRouteFact(
   context: ActionContext,
@@ -96,6 +145,7 @@ export async function createProviderRoute(
     context,
   );
   const value = input as RouteCreate;
+  assertProviderEndpoint(value.endpoint);
   let row: ProviderRouteRow | undefined;
   try {
     const inserted = await transaction.query<ProviderRouteRow>(

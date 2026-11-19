@@ -2,6 +2,7 @@ import { assert, assertEquals, assertRejects } from "@std/assert";
 import { StandardError } from "../../packages/contracts/src/http.ts";
 import type { ActionContext } from "../../packages/contracts/src/action-registry.ts";
 import {
+  assertProviderEndpoint,
   createProviderRoute,
   updateProviderRoute,
 } from "../../apps/server/src/modules/execution/provider-writes.ts";
@@ -313,4 +314,65 @@ Deno.test("clearing the region with null is a change", async () => {
   )!;
   // region flag true, value null.
   assertEquals(update.values.slice(4, 6), [true, null]);
+});
+
+Deno.test("an endpoint that carries a credential, or names the server's own network, is refused", () => {
+  for (
+    const endpoint of [
+      "http://api.openai.example/v1",
+      "ftp://api.openai.example/v1",
+      "https://user:secret@api.openai.example/v1",
+      "https://api.openai.example/v1?key=abc",
+      "https://api.openai.example/v1#frag",
+      "https://localhost/v1",
+      "https://models.localhost/v1",
+      "https://db.internal/v1",
+      "https://printer.local/v1",
+      "https://127.0.0.1/v1",
+      "https://10.1.2.3/v1",
+      "https://172.16.0.9/v1",
+      "https://192.168.1.1/v1",
+      "https://169.254.169.254/latest/meta-data",
+      "https://100.64.0.1/v1",
+      "https://0.0.0.0/v1",
+      "https://[::1]/v1",
+      "https://[fe80::1]/v1",
+      "https://[fd00::1]/v1",
+      "https://[::ffff:127.0.0.1]/v1",
+      "not a url",
+      "",
+    ]
+  ) {
+    let refused = false;
+    try {
+      assertProviderEndpoint(endpoint);
+    } catch (error) {
+      refused = (error as StandardError).code === "UNPROCESSABLE";
+    }
+    assert(refused, endpoint);
+  }
+  for (
+    const endpoint of [
+      "https://api.openai.example/v1",
+      "https://api.anthropic.example",
+      "https://eu.provider.example:8443/v1/models",
+      "https://8.8.8.8/v1",
+      "https://172.32.0.1/v1",
+    ]
+  ) {
+    assertProviderEndpoint(endpoint);
+  }
+});
+
+Deno.test("a create with a refused endpoint writes nothing", async () => {
+  const { transaction, recorded } = transactionWith();
+  await assertRejects(
+    () =>
+      createProviderRoute(context(transaction), {
+        ...create,
+        endpoint: "https://169.254.169.254/latest",
+      }),
+    StandardError,
+  );
+  assertEquals(writes(recorded), []);
 });

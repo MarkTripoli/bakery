@@ -10982,7 +10982,7 @@
           "bounds": {
             "maxLength": 2048
           },
-          "description": "Provider endpoint host and path the route calls; never a URL carrying a credential or a query secret."
+          "description": "Provider endpoint host and path the route calls. It must be an https URL with no credentials, query or fragment, and its host must not be a loopback, private, link-local or internal address; the server calls it, so one that names its own network is refused as unprocessable."
         },
         {
           "name": "region",
