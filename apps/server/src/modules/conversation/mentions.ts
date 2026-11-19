@@ -4,7 +4,6 @@ import {
   type CatalogPermissionKey,
   contractSchemas,
   MembershipStatus,
-  OrganizationRole,
   PrincipalType,
 } from "@bakery/contracts/contracts";
 import { StandardError } from "@bakery/contracts/http";
@@ -18,7 +17,10 @@ import type {
   AuthorizedActionContext,
   OrganizationActor,
 } from "../auth/application/authority.ts";
-import { authorize } from "../auth/application/authorize.ts";
+import {
+  authorize,
+  organizationMemberRoleSql,
+} from "../auth/application/authorize.ts";
 import { scopeAllows } from "../auth/application/scopes.ts";
 import { signalInboxChanged } from "../work/notification-signal.ts";
 
@@ -144,9 +146,7 @@ const ELIGIBLE_MEMBER_SQL = `
    and custom.id = membership.custom_role_id
   where membership.organization_id = $1::uuid
     and membership.status = '${MembershipStatus.Active}'
-    and membership.role is not null
-    and (membership.role <> '${OrganizationRole.Guest}'
-      or membership.custom_role_id is not null)
+    and ${organizationMemberRoleSql("membership")}
     and principal.principal_type = '${PrincipalType.Human}'
     and principal.disabled_at is null`;
 
