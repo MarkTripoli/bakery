@@ -2,7 +2,7 @@
 # Keeps a shared self-hosted runner host from filling its root disk.
 # Installed to /usr/local/sbin and run from /etc/cron.d every 15 minutes (see
 # docs/runbooks/runner-host-maintenance.md). It removes only Docker objects that no
-# container uses, and only past an age limit:
+# container uses (for the runner user in GUARD_USERS only), and only past an age limit:
 # - at or above LIMIT_PCT of the root disk it prunes everything older than
 #   MIN_AGE_HOURS, plus images and build cache older than 72 hours;
 # - below it, it still sweeps leaked containers and volumes older than
@@ -12,6 +12,10 @@ set -u
 LIMIT_PCT="${LIMIT_PCT:-75}"
 MIN_AGE_HOURS="${MIN_AGE_HOURS:-2}"
 IDLE_AGE_HOURS="${IDLE_AGE_HOURS:-24}"
+# Only this project's own runner user. Other projects' runners share these hosts
+# under the `runner` user and their Docker is not ours to prune.
+GUARD_USERS="${GUARD_USERS:-ci-runner}"
+GUARD_RUN_DIR="${GUARD_RUN_DIR:-/run/user}"
 
 log() {
   if [ -n "${GUARD_LOG_FILE:-}" ]; then
@@ -74,9 +78,9 @@ main() {
     pressure=1
     log "root filesystem at ${used}% (limit ${LIMIT_PCT}%): pruning unused Docker objects older than ${hours}h"
   fi
-  for user in ci-runner runner; do
+  for user in $GUARD_USERS; do
     uid="$(id -u "$user" 2>/dev/null)" || continue
-    sock="/run/user/${uid}/docker.sock"
+    sock="${GUARD_RUN_DIR}/${uid}/docker.sock"
     [ -S "$sock" ] || { log "no Docker socket for ${user}"; continue; }
     export DOCKER_HOST="unix://${sock}"
     timeout 60 docker info >/dev/null 2>&1 || { log "Docker for ${user} is not answering"; continue; }

@@ -15,7 +15,9 @@ const decoder = new TextDecoder();
 
 const STUB_DOCKER = `#!/usr/bin/env bash
 S="$STUB_STATE"
+echo "$DOCKER_HOST $*" >> "$S/docker.calls"
 case "$1 $2" in
+  "info "*) exit 0 ;;
   "volume ls")
     for v in "$S"/volumes/*; do
       [ -e "$v" ] || continue
@@ -68,6 +70,11 @@ type Volume = { name: string; ageHours: number; refuseRemoval?: boolean };
 async function onStubHost(
   host: { containers?: Container[]; volumes: Volume[] },
   snippet: string,
+  extra: {
+    env?: Record<string, string>;
+    bins?: Record<string, string>;
+    prepare?: (root: string) => Promise<void>;
+  } = {},
 ) {
   const root = Deno.makeTempDirSync({ prefix: "bakery-disk-guard-" });
   try {
@@ -77,6 +84,10 @@ async function onStubHost(
     Deno.writeTextFileSync(join(root, "bin/docker"), STUB_DOCKER, {
       mode: 0o755,
     });
+    for (const [name, script] of Object.entries(extra.bins ?? {})) {
+      Deno.writeTextFileSync(join(root, "bin", name), script, { mode: 0o755 });
+    }
+    await extra.prepare?.(root);
     for (const volume of host.volumes) {
       Deno.writeTextFileSync(
         join(root, "state/volumes", volume.name),
@@ -108,6 +119,8 @@ async function onStubHost(
         LIMIT_PCT: "75",
         MIN_AGE_HOURS: "2",
         IDLE_AGE_HOURS: "24",
+        GUARD_RUN_DIR: join(root, "run"),
+        ...extra.env,
       },
       stdout: "piped",
       stderr: "piped",
@@ -132,6 +145,7 @@ async function onStubHost(
       containers: list("containers"),
       log: read("guard.log"),
       calls: read("state/calls.log"),
+      dockerCalls: read("state/docker.calls"),
       stdout: decoder.decode(result.stdout),
     };
   } finally {
@@ -228,4 +242,63 @@ Deno.test("below the limit the sweep uses the long age and leaves images alone",
   assertEquals(pressure.volumes, []);
   assertStringIncludes(pressure.calls, "image prune");
   assertStringIncludes(pressure.calls, "builder prune");
+});
+
+// Other projects' runners share these hosts under the `runner` user, and their Docker
+// is not the guard's to prune. The guard's own `main` runs here against a host
+// where both users have a Docker socket.
+const THIS_RUNNER_UID = "1001";
+const OTHER_RUNNER_UID = "1002";
+
+async function bothUsersHaveADocker(root: string) {
+  for (const uid of [THIS_RUNNER_UID, OTHER_RUNNER_UID]) {
+    Deno.mkdirSync(join(root, "run", uid), { recursive: true });
+    const made = await new Deno.Command("python3", {
+      args: [
+        "-c",
+        "import socket,sys; s=socket.socket(socket.AF_UNIX); s.bind(sys.argv[1])",
+        join(root, "run", uid, "docker.sock"),
+      ],
+    }).output();
+    if (!made.success) throw new Error(decoder.decode(made.stderr));
+  }
+}
+
+const HOST_USERS = {
+  id: `#!/usr/bin/env bash
+case "$2" in ci-runner) echo \${STUB_THIS_UID} ;; runner) echo \${STUB_OTHER_UID} ;; *) exit 1 ;; esac
+`,
+  df: `#!/usr/bin/env bash
+printf 'Use%%\n 40%%\n'
+`,
+};
+
+Deno.test("the guard prunes only this project's runner user, never another project's Docker", async () => {
+  const onBothUsersHost = (guardUsers?: string) =>
+    onStubHost(
+      { volumes: [{ name: "leaked", ageHours: 48 }] },
+      "main",
+      {
+        bins: HOST_USERS,
+        env: {
+          STUB_THIS_UID: THIS_RUNNER_UID,
+          STUB_OTHER_UID: OTHER_RUNNER_UID,
+          ...(guardUsers === undefined ? {} : { GUARD_USERS: guardUsers }),
+        },
+        prepare: bothUsersHaveADocker,
+      },
+    );
+
+  const byDefault = await onBothUsersHost();
+  assertStringIncludes(
+    byDefault.dockerCalls,
+    `/run/${THIS_RUNNER_UID}/docker.sock`,
+  );
+  assertEquals(byDefault.dockerCalls.includes(`/${OTHER_RUNNER_UID}/`), false);
+  assertEquals(byDefault.volumes, []);
+
+  // The control: asked to include the other user, the same stub host does reach
+  // that Docker, so the assertion above is not passing for want of a socket.
+  const both = await onBothUsersHost("ci-runner runner");
+  assertStringIncludes(both.dockerCalls, `/${OTHER_RUNNER_UID}/docker.sock`);
 });
