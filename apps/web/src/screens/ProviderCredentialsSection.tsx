@@ -1,4 +1,4 @@
-import { type FormEvent, useId, useState } from "react";
+import { type FormEvent, useEffect, useId, useState } from "react";
 import * as UI from "@bakery/ui";
 import type { MessageKey } from "@bakery/i18n";
 import { useI18n } from "../i18n/I18nProvider.tsx";
@@ -113,6 +113,12 @@ export function ProviderCredentialsSection(
     setReplacing(false);
     setAttempted(false);
   };
+  // "Copied" goes back to "Copy" after a moment, so the button is never stuck.
+  useEffect(() => {
+    if (!copied) return;
+    const timer = setTimeout(() => setCopied(false), 2000);
+    return () => clearTimeout(timer);
+  }, [copied]);
   const copy = async () => {
     if (!saved) return;
     try {
@@ -251,6 +257,13 @@ export function ProviderCredentialsSection(
                                 : "settings.integrations.credentials.copy",
                             )}
                           </UI.Button>
+                          <UI.VisuallyHidden role="status">
+                            {copied
+                              ? translate(
+                                "settings.integrations.credentials.copied",
+                              )
+                              : ""}
+                          </UI.VisuallyHidden>
                         </UI.Inline>
                       </UI.Field>
                       <UI.Field
@@ -261,6 +274,7 @@ export function ProviderCredentialsSection(
                           : idTooLong
                           ? translate(
                             "settings.integrations.credentials.tooLong",
+                            { limit: CLIENT_ID_MAX },
                           )
                           : undefined}
                         htmlFor={ids.clientId}
@@ -290,6 +304,7 @@ export function ProviderCredentialsSection(
                           : secretTooLong
                           ? translate(
                             "settings.integrations.credentials.tooLong",
+                            { limit: CLIENT_SECRET_MAX },
                           )
                           : undefined}
                         htmlFor={ids.clientSecret}

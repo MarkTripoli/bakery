@@ -4411,7 +4411,6 @@
   "integrations.linear.credentials.clientIdSaved": "⟪Client ID {id}⟫",
   "integrations.linear.credentials.secretSaved": "⟪Client secret saved {date}⟫",
   "integrations.linear.credentials.saveFailed": "⟪The details could not be saved. Try again.⟫",
-  "integrations.linear.credentials.stale": "⟪These details changed in another window. Enter yours again.⟫",
   "integrations.linear.credentials.loading": "⟪Loading the Linear details.⟫",
   "integrations.linear.credentials.loadError": "⟪The Linear details could not be loaded.⟫",
   "settings.integrations.credentials.clientIdRequired": "⟪Enter the client ID.⟫",
@@ -4422,5 +4421,6 @@
   "settings.integrations.credentials.save": "⟪Save⟫",
   "settings.integrations.credentials.replace": "⟪Replace details⟫",
   "settings.integrations.credentials.cancel": "⟪Cancel⟫",
-  "settings.integrations.credentials.tooLong": "⟪That is too long.⟫"
+  "integrations.linear.credentials.stale": "⟪These details changed since this page loaded. Nothing was saved. Check the current details, then enter yours again.⟫",
+  "settings.integrations.credentials.tooLong": "⟪Use at most {limit} characters.⟫"
 }

@@ -2956,31 +2956,6 @@
     {
       "group": "Extensions",
       "method": "GET",
-      "path": "/v1/integration-provider-setup",
-      "action": "integrationProviderSetup.list",
-      "access": "Developer",
-      "permission": "integrationConnection:read",
-      "input": "Empty",
-      "output": "IntegrationProviderSetupList",
-      "event": "",
-      "mcp": null,
-      "idempotency": "read",
-      "errors": [
-        "AUTH_REQUIRED",
-        "AUTH_INVALID",
-        "AUTH_EXPIRED",
-        "AUTH_FACTOR_REQUIRED",
-        "AUTH_FORBIDDEN",
-        "RESOURCE_NOT_FOUND",
-        "INVALID_CURSOR",
-        "MALFORMED_REQUEST",
-        "SCOPE_REQUIRED"
-      ],
-      "organizationContext": "required_authenticated_context"
-    },
-    {
-      "group": "Extensions",
-      "method": "GET",
       "path": "/v1/integration-connections/{id}",
       "action": "integrationConnections.get",
       "access": "Developer",

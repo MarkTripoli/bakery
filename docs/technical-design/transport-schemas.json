@@ -28848,35 +28848,6 @@
         "callbackUrl": "The URL to enter in the provider's OAuth application as its callback, derived from this installation's public address.",
         "version": "Registration version: 0 while nothing is registered, then the optimistic-concurrency value to send as If-Match when replacing the credentials."
       }
-    },
-    "IntegrationProviderSetup": {
-      "fields": [
-        "provider",
-        "setupState"
-      ],
-      "nullableFields": [],
-      "fieldTypes": {
-        "provider": "string",
-        "setupState": "enum(needs_setup|ready)"
-      },
-      "description": "Whether one integration provider this server deploys is ready for an organization to connect. It states only whether the installation has registered the provider's application; it carries no credential and no detail of what was registered.",
-      "fieldDescriptions": {
-        "provider": "Provider slug, as the provider registry names it.",
-        "setupState": "needs_setup while an installation administrator has not yet registered the provider's application, so a connection cannot be started; ready once it has, or when the provider needs no registration."
-      }
-    },
-    "IntegrationProviderSetupList": {
-      "fields": [
-        "providers"
-      ],
-      "nullableFields": [],
-      "fieldTypes": {
-        "providers": "IntegrationProviderSetup[]"
-      },
-      "description": "Every integration provider this server deploys, in registry order, each with whether it is ready to connect. It is the organization-visible half of provider setup: installation administrators register a provider's application, and everyone who can see integrations can tell whether that has happened.",
-      "fieldDescriptions": {
-        "providers": "Every deployed provider, in registry order, with its setup state."
-      }
     }
   },
   "pageEnvelope": {

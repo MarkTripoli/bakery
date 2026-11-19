@@ -113,8 +113,6 @@ export type IntegrationClientCredentials =
   ClientOutputMap["IntegrationClientCredentials"];
 export type IntegrationClientCredentialsPut =
   ClientInputMap["IntegrationClientCredentialsPut"];
-export type IntegrationProviderSetupList =
-  ClientOutputMap["IntegrationProviderSetupList"];
 export type SkillStorageSettings = ClientOutputMap["SkillStorageSettings"];
 export type SkillStorageSettingsPut = ClientInputMap["SkillStorageSettingsPut"];
 export type SkillStorageVerification =
@@ -1017,12 +1015,6 @@ export type BakeryApiClient = {
       readonly idempotencyKey: string;
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<IntegrationClientCredentials>>;
-  };
-  /** `GET /v1/integration-provider-setup`: which deployed providers are ready to connect. */
-  readonly integrationProviderSetup: {
-    readonly list: (
-      signal?: AbortSignal,
-    ) => Promise<ApiResult<IntegrationProviderSetupList>>;
   };
   /** Installation skill object storage; administrators only, never a secret in a result. */
   readonly skillStorage: {
@@ -3240,21 +3232,6 @@ export function createBakeryApiClient({
                 signal: options.signal,
               },
             ),
-          };
-        } catch (error) {
-          return failed(error);
-        }
-      },
-    },
-
-    integrationProviderSetup: {
-      async list(signal) {
-        try {
-          return {
-            ok: true,
-            data: await client.actions["integrationProviderSetup.list"]({}, {
-              signal,
-            }),
           };
         } catch (error) {
           return failed(error);

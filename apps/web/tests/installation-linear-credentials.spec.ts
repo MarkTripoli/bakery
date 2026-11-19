@@ -214,7 +214,7 @@ test.describe("Linear credentials on installation settings", () => {
     await field(page, "clientSecret").fill("x-secret");
     await save(page).click();
     await expect(section(page)).toContainText(
-      "These details changed in another window. Enter yours again.",
+      "These details changed since this page loaded. Nothing was saved. Check the current details, then enter yours again.",
     );
   });
 

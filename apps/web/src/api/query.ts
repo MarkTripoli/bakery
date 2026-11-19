@@ -38,7 +38,6 @@ import type {
   IntegrationAppRegistration,
   IntegrationClientCredentials,
   IntegrationConnection,
-  IntegrationProviderSetupList,
   IntegrationResource,
   MessageListResponse,
   NotificationCountResponse,
@@ -1521,18 +1520,6 @@ export function integrationClientCredentialsQueryOptions(
       unwrap(
         await client.integrationClientCredentials.get({ provider, signal }),
       ),
-    retry: retryNetworkOnce,
-  });
-}
-
-export function integrationProviderSetupQueryOptions(
-  client: Pick<BakeryApiClient, "integrationProviderSetup">,
-  scope: ApiScope,
-) {
-  return queryOptions<IntegrationProviderSetupList, ApiFailure>({
-    queryKey: protectedQueryKey(scope, "integrationProviderSetup.list", {}),
-    queryFn: async ({ signal }) =>
-      unwrap(await client.integrationProviderSetup.list(signal)),
     retry: retryNetworkOnce,
   });
 }
