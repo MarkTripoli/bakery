@@ -522,7 +522,42 @@ export type OutputStreamPage = ClientOutputMap["OutputStreamPage"];
 export type OutputStream = OutputStreamPage["items"][number];
 export type OutputReadPage = ClientOutputMap["OutputReadPage"];
 
+export type StorageFolderPage = ClientOutputMap["Page<StorageFolderItem>"];
+export type StorageFolderItem = StorageFolderPage["items"][number];
+export type StorageFileVersionPage =
+  ClientOutputMap["Page<StorageFileVersion>"];
+export type StorageFileVersion = StorageFileVersionPage["items"][number];
+export type StorageFileUsePage = ClientOutputMap["Page<StorageFileUse>"];
+export type StorageFileUse = StorageFileUsePage["items"][number];
+
 export type BakeryApiClient = {
+  /** The stored files and their folders: the read-only files browser's reads. */
+  readonly files: {
+    /** The caller's top-level folders, in display order, on one page. */
+    readonly roots: (
+      organizationId: string,
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<StorageFolderPage>>;
+    /** One folder's entries, folders first, by name. */
+    readonly entries: (
+      organizationId: string,
+      folderId: string,
+      cursor?: string,
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<StorageFolderPage>>;
+    readonly versions: (
+      organizationId: string,
+      fileId: string,
+      cursor?: string,
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<StorageFileVersionPage>>;
+    readonly uses: (
+      organizationId: string,
+      fileId: string,
+      cursor?: string,
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<StorageFileUsePage>>;
+  };
   readonly output: {
     readonly attempts: (
       organizationId: string,
@@ -2667,6 +2702,80 @@ export function createBakeryApiClient({
         url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
         url.searchParams.set("organizationId", org);
         return url.href;
+      },
+    },
+    files: {
+      async roots(org, signal) {
+        const scoped = createBakeryClient({
+          baseUrl,
+          fetch: fetchImpl,
+          getContext: () => ({ organizationId: org }),
+        });
+        try {
+          return {
+            ok: true,
+            data: await scoped.actions["storageRoots.list"]({}, { signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async entries(org, folderId, cursor, signal) {
+        const scoped = createBakeryClient({
+          baseUrl,
+          fetch: fetchImpl,
+          getContext: () => ({ organizationId: org }),
+        });
+        try {
+          return {
+            ok: true,
+            data: await scoped.actions["storageFolderEntries.list"]({
+              id: folderId,
+              cursor,
+              limit: 50,
+            }, { signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async versions(org, fileId, cursor, signal) {
+        const scoped = createBakeryClient({
+          baseUrl,
+          fetch: fetchImpl,
+          getContext: () => ({ organizationId: org }),
+        });
+        try {
+          return {
+            ok: true,
+            data: await scoped.actions["storageFileVersions.list"]({
+              id: fileId,
+              cursor,
+              limit: 50,
+            }, { signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async uses(org, fileId, cursor, signal) {
+        const scoped = createBakeryClient({
+          baseUrl,
+          fetch: fetchImpl,
+          getContext: () => ({ organizationId: org }),
+        });
+        try {
+          return {
+            ok: true,
+            data: await scoped.actions["storageFileUses.list"]({
+              id: fileId,
+              cursor,
+              limit: 50,
+            }, { signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
       },
     },
     sessions: {
