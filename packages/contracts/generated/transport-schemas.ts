@@ -20377,6 +20377,7 @@ const transportSchemas = {
         "topic",
         "tags",
         "currentRevisionId",
+        "sourceState",
         "status",
         "createdAt",
         "updatedAt",
@@ -20388,6 +20389,7 @@ const transportSchemas = {
         "topic": "string",
         "tags": "json",
         "currentRevisionId": "uuid|null",
+        "sourceState": "enum(available|deleted|no_access|unknown)",
         "status": "enum(proposed|active|retired)",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
@@ -20403,6 +20405,7 @@ const transportSchemas = {
         "topic": "Topic used to organize the memory entry.",
         "tags": "Labels used to classify the record.",
         "currentRevisionId": "Stable UUID linking this record to the related current revision entity.",
+        "sourceState": "Whether the artifact version cited by the current revision is available, deleted, not readable by this reader (no_access) or unknown, judged against the reader's live access at read time.",
         "status": "Current lifecycle status of the record.",
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
@@ -20418,6 +20421,7 @@ const transportSchemas = {
         "body",
         "reason",
         "sourceArtifactVersionId",
+        "sourceState",
         "supersedesId",
         "confidence",
         "expiresAt",
@@ -20431,7 +20435,8 @@ const transportSchemas = {
         "memoryId": "uuid",
         "revision": "integer",
         "body": "string",
-        "sourceArtifactVersionId": "uuid",
+        "sourceArtifactVersionId": "uuid|null",
+        "sourceState": "enum(available|deleted|no_access|unknown)",
         "supersedesId": "uuid|null",
         "confidence": "decimal",
         "expiresAt": "timestamp|null",
@@ -20444,15 +20449,17 @@ const transportSchemas = {
       "nullableFields": [
         "supersedesId",
         "expiresAt",
-        "reason"
+        "reason",
+        "sourceArtifactVersionId"
       ],
-      "description": "One versioned, confidence-scored statement belonging to a memory entry, created by memoryRevisions.create; confidence reflects model judgment rather than verified fact, and a revision can supersede an earlier one or carry its own expiry after which it stops being offered as active context.",
+      "description": "One versioned, confidence-scored statement belonging to a memory entry, created by memoryRevisions.create; confidence reflects model judgment rather than verified fact, and a revision can supersede an earlier one or carry its own expiry after which it stops being offered as active context. sourceArtifactVersionId is null if and only if sourceState is no_access.",
       "fieldDescriptions": {
         "id": "Stable UUID identifying the memory revision record.",
         "memoryId": "Stable UUID linking this record to the related memory entity.",
         "revision": "Monotonic revision number used to order updates to the record.",
         "body": "User-visible body content carried by the record.",
-        "sourceArtifactVersionId": "Stable UUID linking this record to the related source artifact version entity.",
+        "sourceArtifactVersionId": "Artifact version whose evidence justifies this revision. Invariant: sourceArtifactVersionId is null if and only if sourceState is no_access, so a reader who cannot read artifact versions is never shown the id and every other state names it.",
+        "sourceState": "Whether the cited artifact version is available, deleted (its content was purged), not readable by this reader (no_access) or unknown, judged against the reader's live access at read time rather than at write time. sourceArtifactVersionId is null if and only if sourceState is no_access.",
         "supersedesId": "Stable UUID linking this record to the related supersedes entity.",
         "confidence": "Confidence assigned to the revision.",
         "expiresAt": "UTC timestamp when the record expires.",
@@ -28772,6 +28779,15 @@ const transportSchemas = {
       "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
     },
     "memory.revised": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "memory.source_changed": {
       "schemaVersion": 1,
       "payloadFields": {
         "resourceId": "uuid",
