@@ -8225,7 +8225,7 @@
       "access": "Admin",
       "permission": "ticketSource:manage",
       "input": "TicketPreviewCreate",
-      "output": "TicketOperationReceipt",
+      "output": "TicketPreviewResult",
       "event": "ticket.preview_requested",
       "mcp": null,
       "idempotency": "Idempotency-Key required",

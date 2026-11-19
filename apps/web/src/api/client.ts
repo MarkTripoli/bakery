@@ -160,6 +160,8 @@ export type TicketSourceCreate = ClientInputMap["TicketSourceCreate"];
 export type TicketSourceUpdate = ClientInputMap["TicketSourceUpdate"];
 export type TicketOperationReceiptResponse =
   ClientOutputMap["TicketOperationReceipt"];
+export type TicketPreviewResultResponse =
+  ClientOutputMap["TicketPreviewResult"];
 export type TicketRequestResponse = ClientOutputMap["TicketRequest"];
 export type TicketRequestIntent = "start" | "plan";
 export type WorkerResponse = ClientOutputMap["WorkerHost"];
@@ -756,13 +758,13 @@ export type BakeryApiClient = {
       readonly id: string;
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<TicketSourceResponse>>;
-    /** `POST /v1/ticket-sources/{id}/previews`: reads GitHub again with the saved settings and records what each issue needs. */
+    /** `POST /v1/ticket-sources/{id}/previews`: reads GitHub again and answers how each issue would be judged under the saved settings; stores nothing. */
     readonly preview: (options: {
       readonly organizationId: string;
       readonly sourceId: string;
       readonly idempotencyKey?: string;
       readonly signal?: AbortSignal;
-    }) => Promise<ApiResult<TicketOperationReceiptResponse>>;
+    }) => Promise<ApiResult<TicketPreviewResultResponse>>;
     /** `GET /v1/ticket-sources/{id}/people/{login}`: turns a GitHub username into the id the settings store. */
     readonly lookupPerson: (options: {
       readonly organizationId: string;

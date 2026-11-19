@@ -2,6 +2,7 @@ import { assert, assertEquals, assertNotEquals } from "@std/assert";
 import { installProblemErrorReporter } from "../../../packages/contracts/src/http.ts";
 import { withPgTransaction } from "../../../apps/server/src/platform/database.ts";
 import { unadmittedError } from "../../../apps/server/src/modules/work/ticket-request-command.ts";
+import { recordReadiness } from "../../../apps/server/src/modules/work/ticket-admission.ts";
 import {
   type RemoteFact,
   upsertFact,
@@ -11,6 +12,7 @@ import {
   automaticPolicy,
   BEFORE_SINCE,
   EXECUTE_LABEL,
+  HOLD_LABEL,
   insertBareTask,
   seedLabeler,
   type TicketFixture,
@@ -260,35 +262,82 @@ Deno.test("issue 82 ops: a source is created, read, updated and listed, each cha
   });
 });
 
-Deno.test("issue 82 ops: preview records snapshots and reports and never a link, request, task or run", async () => {
+type PreviewResult = {
+  sourceId: string;
+  policyRevision: number;
+  draft: boolean;
+  evaluatedAt: string;
+  counts: {
+    wouldStart: number;
+    planOnly: number;
+    held: number;
+    blocked: number;
+  };
+  issues: {
+    number: number;
+    title: string | null;
+    outcome: string;
+    verdict: string;
+    reasons: string[];
+  }[];
+  skipped: number;
+};
+
+/** Every count a preview must leave alone: it judges and stores nothing. */
+const NOTHING_STORED = {
+  tickets: 0,
+  reports: 0,
+  links: 0,
+  requests: 0,
+  nonterminalRequests: 0,
+  tasks: 0,
+  conversations: 0,
+  runs: 0,
+};
+
+Deno.test("issue 69 preview: the saved policy and a draft are judged with counts, and nothing is stored", async () => {
   await withTicketFixture(async (fx) => {
     const sourceId = await fx.insertSource({ policy: automaticPolicy(fx) });
     seedLabeler(fx);
-    seedIssues(fx, 3);
-    // Issue 1 would be admitted by a poll: labeled inside the window by an allowlisted writer.
+    seedIssues(fx, 4);
+    // Issue 1 would start: labeled inside the window by an allowlisted writer.
     fx.reader.setIssue({ number: 1, labels: [EXECUTE_LABEL] });
     fx.reader.setLabelApplied(1, EXECUTE_LABEL, { appliedAt: AFTER_SINCE });
+    // Issue 2 is held, whatever else it carries.
+    fx.reader.setIssue({ number: 2, labels: [EXECUTE_LABEL, HOLD_LABEL] });
+    fx.reader.setLabelApplied(2, EXECUTE_LABEL, { appliedAt: AFTER_SINCE });
+    // Issue 3 carries a label only the draft names as its execute label.
+    fx.reader.setIssue({ number: 3, labels: ["go"] });
+    fx.reader.setLabelApplied(3, "go", { appliedAt: AFTER_SINCE });
     const path = `${SOURCES}/${sourceId}/previews`;
 
     const requestId = "not-a-uuid";
     const key = crypto.randomUUID();
-    const receipt = await read<Receipt>(
+    const saved = await read<PreviewResult>(
       await post(fx, path, {}, { key, headers: { "X-Request-Id": requestId } }),
       201,
     );
-    assert(UUID_PATTERN.test(receipt.operationId), receipt.operationId);
-    assertNotEquals(receipt.operationId, requestId);
-    assertEquals(receipt.status, "completed");
-    assertEquals(await fx.counts(sourceId), {
-      tickets: 3,
-      reports: 3,
-      links: 0,
-      requests: 0,
-      nonterminalRequests: 0,
-      tasks: 0,
-      conversations: 0,
-      runs: 0,
+    assertEquals(
+      [saved.sourceId, saved.policyRevision, saved.draft, saved.skipped],
+      [sourceId, 1, false, 0],
+    );
+    assertEquals(saved.issues.map((issue) => [issue.number, issue.outcome]), [
+      [1, "would_start"],
+      [2, "held"],
+      [3, "blocked"],
+      [4, "blocked"],
+    ]);
+    assertEquals(saved.counts, {
+      wouldStart: 1,
+      planOnly: 0,
+      held: 1,
+      blocked: 2,
     });
+    assertEquals(saved.issues[0].verdict, "ready");
+    assertEquals(saved.issues[0].reasons, []);
+    assert(saved.issues[2].reasons.length > 0, "a blocked issue says why");
+    assert(!Number.isNaN(Date.parse(saved.evaluatedAt)));
+    assertEquals(await fx.counts(sourceId), NOTHING_STORED);
     assertEquals(await sourceFacts(fx, sourceId), {
       audit: ["ticketSources.preview"],
       events: ["ticket.preview_requested"],
@@ -297,28 +346,148 @@ Deno.test("issue 82 ops: preview records snapshots and reports and never a link,
 
     // The same key answers from the stored response without asking GitHub again.
     const calls = fx.reader.calls.length;
-    const replay = await read<Receipt>(await post(fx, path, {}, { key }), 201);
-    assertEquals(replay, receipt);
+    const replay = await read<PreviewResult>(
+      await post(fx, path, {}, { key }),
+      201,
+    );
+    assertEquals(replay, saved);
     assertEquals(fx.reader.calls.length, calls);
 
-    // `filters` is accepted only when absent or empty, and a refusal reads nothing.
-    assertEquals((await post(fx, path, { filters: {} })).status, 201);
-    const filtered = await post(fx, path, { filters: { labels: ["x"] } });
-    assertEquals(filtered.status, 422);
-    assertEquals(
-      (await filtered.json() as Problem).issues?.[0].code,
-      "filters_unsupported",
+    // A draft that renames the execute label and adds a plan-only label is
+    // judged under its own labels; the saved policy and revision do not move.
+    const draft = automaticPolicy(fx, {});
+    const draftBody = {
+      policy: {
+        ...draft,
+        labels: { execute: "go", planOnly: EXECUTE_LABEL, hold: HOLD_LABEL },
+      },
+    };
+    const judged = await read<PreviewResult>(
+      await post(fx, path, draftBody),
+      201,
     );
-    const afterFilters = fx.reader.calls.length;
-    assertEquals((await sourceFacts(fx, sourceId)).audit.length, 2);
+    assertEquals(judged.draft, true);
+    assertEquals(judged.policyRevision, 1);
+    assertEquals(judged.issues.map((issue) => [issue.number, issue.outcome]), [
+      [1, "plan_only"],
+      [2, "held"],
+      [3, "would_start"],
+      [4, "blocked"],
+    ]);
+    assertEquals(judged.counts, {
+      wouldStart: 1,
+      planOnly: 1,
+      held: 1,
+      blocked: 1,
+    });
+    assertEquals(await fx.counts(sourceId), NOTHING_STORED);
+    const stored = await read<SourceView>(
+      await ticketCall(fx, "GET", `${SOURCES}/${sourceId}`),
+      200,
+    );
+    assertEquals(
+      [
+        stored.policyRevision,
+        stored.version,
+        (stored.policy as unknown as { labels: { execute: string } }).labels
+          .execute,
+      ],
+      [1, 1, EXECUTE_LABEL],
+    );
+
+    // A draft with automatic admission off starts nothing by itself.
+    const off = await read<PreviewResult>(
+      await post(fx, path, {
+        policy: { ...draft, automatic: { enabled: false } },
+      }),
+      201,
+    );
+    assertEquals(off.counts.wouldStart, 0);
+
+    // Filters narrow the issues judged: by number, then by label.
+    const byNumber = await read<PreviewResult>(
+      await post(fx, path, { filters: { numbers: [3, 1, 3] } }),
+      201,
+    );
+    assertEquals(byNumber.issues.map((issue) => issue.number), [3, 1]);
+    const byLabel = await read<PreviewResult>(
+      await post(fx, path, { filters: { labels: [HOLD_LABEL] } }),
+      201,
+    );
+    assertEquals(byLabel.issues.map((issue) => issue.number), [2]);
+    assertEquals((await post(fx, path, { filters: {} })).status, 201);
+
+    // A refused filter or draft reads nothing and writes no audit row.
+    const audits = (await sourceFacts(fx, sourceId)).audit.length;
+    const before = fx.reader.calls.length;
+    const refusals: [unknown, string][] = [
+      [{ filters: { repositories: ["x"] } }, "filters_invalid"],
+      [{ filters: { numbers: [] } }, "filters_invalid"],
+      [
+        { policy: { ...draft, labels: { execute: "" } } },
+        "ticket_source_policy_invalid",
+      ],
+    ];
+    for (const [body, code] of refusals) {
+      const refused = await post(fx, path, body);
+      assertEquals(refused.status, 422, code);
+      assertEquals((await refused.json() as Problem).issues?.[0].code, code);
+    }
+    assertEquals(fx.reader.calls.length, before);
+    // A draft delegating to a principal outside the organization is refused.
+    const stranger = await post(fx, path, {
+      policy: {
+        ...draft,
+        delegation: {
+          principalId: crypto.randomUUID(),
+          externalActorIds: ["1"],
+        },
+      },
+    });
+    assertEquals(stranger.status, 422);
+    assertEquals(
+      (await stranger.json() as Problem).issues?.[0].code,
+      "delegation_principal_unknown",
+    );
+    assertEquals((await sourceFacts(fx, sourceId)).audit.length, audits);
+    assertEquals(await fx.counts(sourceId), NOTHING_STORED);
 
     // A page the provider cannot list is DEPENDENCY_UNAVAILABLE and writes nothing.
     fx.reader.failNext("listIssues");
     const down = await post(fx, path);
     assertEquals(down.status, 503, await down.clone().text());
     assertEquals((await down.json() as Problem).code, "DEPENDENCY_UNAVAILABLE");
-    assertEquals((await sourceFacts(fx, sourceId)).audit.length, 2);
-    assert(fx.reader.calls.length > afterFilters);
+    assertEquals((await sourceFacts(fx, sourceId)).audit.length, audits);
+
+    // A developer may not preview, and is refused before any read.
+    const reads = fx.reader.calls.length;
+    const developer = await post(fx, path, {}, {
+      cookie: fx.f.developerCookie,
+    });
+    assertEquals(developer.status, 403);
+    assertEquals(fx.reader.calls.length, reads);
+  });
+});
+
+Deno.test("issue 69 preview: an issue a poll already recorded keeps its stored report and row", async () => {
+  await withTicketFixture(async (fx) => {
+    const sourceId = await fx.insertSource();
+    seedIssues(fx, 2);
+    await previewAll(fx, sourceId);
+    const before = await fx.counts(sourceId);
+    assertEquals([before.tickets, before.reports], [2, 2]);
+    // An edit the provider shows would change the snapshot and the report.
+    fx.reader.setIssue({ number: 1, labels: [EXECUTE_LABEL], body: "Edited." });
+    const judged = await read<PreviewResult>(
+      await post(fx, `${SOURCES}/${sourceId}/previews`),
+      201,
+    );
+    assertEquals(judged.issues.length, 2);
+    assertEquals(await fx.counts(sourceId), before);
+    const ticket = await ticketOf(fx, sourceId, 1) as unknown as {
+      snapshot: { labels: string[] };
+    };
+    assertEquals(ticket.snapshot.labels, []);
   });
 });
 
@@ -378,18 +547,24 @@ Deno.test("issue 69: an admin looks up a username on the source's repository, a 
   });
 });
 
-Deno.test("issue 82 ops: preview keeps the issues it could read when one read fails", async () => {
+Deno.test("issue 82 ops: preview judges every issue when one read fails", async () => {
   await withTicketFixture(async (fx) => {
     const sourceId = await fx.insertSource();
     seedIssues(fx, 3);
     fx.reader.failNext("readIssue");
-    const receipt = await read<Receipt>(
+    const judged = await read<PreviewResult>(
       await post(fx, `${SOURCES}/${sourceId}/previews`),
       201,
     );
-    assertEquals(receipt.status, "completed");
-    const counts = await fx.counts(sourceId);
-    assertEquals([counts.tickets, counts.reports], [2, 2]);
+    // The failed read is judged as waiting on the provider; the others as read.
+    assertEquals(judged.issues.length, 3);
+    assertEquals(
+      judged.issues.filter((issue) =>
+        issue.reasons.includes("provider_unavailable")
+      ).length,
+      1,
+    );
+    assertEquals(await fx.counts(sourceId), NOTHING_STORED);
   });
 });
 
@@ -403,17 +578,13 @@ Deno.test("issue 82 ops: a preview of 25 issues against a slow provider finishes
       await sleep(20);
     };
     const started = performance.now();
-    const receipt = await read<Receipt>(
+    const judged = await read<PreviewResult>(
       await post(fx, `${SOURCES}/${sourceId}/previews`),
       201,
     );
     assert(performance.now() - started < 30_000);
-    assertEquals(receipt.status, "completed");
-    assertEquals(
-      (await fx.counts(sourceId)).tickets,
-      25,
-      "the page is cut at 25",
-    );
+    assertEquals(judged.issues.length, 25, "the page is cut at 25");
+    assertEquals(await fx.counts(sourceId), NOTHING_STORED);
     // The watch saw the list and each issue read, and none had a transaction open.
     assert(observed.length >= 50, `${observed.length} reads watched`);
     assertEquals(Math.max(...observed), 0);
@@ -830,9 +1001,35 @@ async function ticketOf(
   return found;
 }
 
-/** Records every seeded issue through a preview, so each has a ticket row. */
+/**
+ * Records every open seeded issue as a poll would, so each has a ticket row
+ * and a report. A preview no longer writes (#69), so this goes through
+ * `recordReadiness` in automation mode, the path a poll takes.
+ */
 async function previewAll(fx: TicketFixture, sourceId: string) {
-  await read(await post(fx, `${SOURCES}/${sourceId}/previews`), 201);
+  const page = await fx.reader.listIssues(
+    undefined as never,
+    { page: 1, since: null },
+    new AbortController().signal,
+  );
+  if (page.kind !== "present") throw new Error("the seeded page lists");
+  for (const { number } of page.numbers) {
+    await recordReadiness({
+      reader: fx.reader,
+      budget: undefined,
+      readsAllowed: true,
+      database: fx.runtime,
+    }, {
+      organizationId: fx.organizationId,
+      sourceId,
+      number,
+      intent: null,
+      origin: "poll",
+      caller: null,
+      prefetch: null,
+      signal: new AbortController().signal,
+    });
+  }
 }
 
 /** The body `ticketRequests.create` takes for a ticket as the caller last saw it. */

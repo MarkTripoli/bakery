@@ -610,6 +610,31 @@ export type TicketSourcePolicyInput = z.input<
   typeof TicketSourcePolicyInputSchema
 >;
 
+/** Most issues one ticket preview evaluates. */
+export const TICKET_PREVIEW_ISSUE_LIMIT = 25;
+
+/**
+ * The `filters` of `ticketSources.preview` (#69): which issues the preview
+ * evaluates. Neither changes the policy being previewed.
+ */
+export const TicketPreviewFiltersSchema = z.object({
+  labels: z.array(providerLabelName).min(1).max(10).optional().describe(
+    "Only issues carrying at least one of these label names (exact, case-sensitive) are evaluated; 1 to 10 names. Omitted, labels do not narrow the preview.",
+  ),
+  numbers: z.array(
+    z.number().int().min(1).max(2_147_483_647).describe(
+      "One provider issue number within the source's repository.",
+    ),
+  ).min(1).max(
+    TICKET_PREVIEW_ISSUE_LIMIT,
+  ).optional().describe(
+    "Issue numbers to evaluate instead of the provider's first page of open issues, 1 to 25, evaluated in this order; a repeated number is evaluated once.",
+  ),
+}).strict().describe(
+  "Narrowing of one ticket preview: the issues to evaluate and the labels they must carry. An empty object narrows nothing.",
+);
+export type TicketPreviewFilters = z.output<typeof TicketPreviewFiltersSchema>;
+
 /**
  * A fresh default policy: execute "ready for agent", planning-only
  * "ready for planning", hold "bakery:hold", no delegation, automatic admission

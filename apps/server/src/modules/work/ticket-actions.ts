@@ -126,7 +126,7 @@ export function createTicketActionRegistry(
     method: HttpMethod.Post,
     path: "/v1/ticket-sources/:id/previews",
     input: contractSchemas.TicketPreviewCreate,
-    output: contractSchemas.TicketOperationReceipt,
+    output: contractSchemas.TicketPreviewResult,
     policy: admin,
     handler: createTicketSourcePreviewHandler(dependencies),
   }).register({
