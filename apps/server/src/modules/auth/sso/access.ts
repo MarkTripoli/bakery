@@ -159,16 +159,18 @@ export async function readRemovalEffect(
     providerVerified: boolean;
     others: string;
   }>(
+    // The settings table keys the organization as a uuid and the provider table
+    // as text, so the id is passed once per type (one parameter cannot be both).
     `select
        coalesce((select enforce from bakery.organization_sso_settings
-                  where organization_id = $1), false) as enforced,
+                  where organization_id = $1::uuid), false) as enforced,
        coalesce((select "domainVerified" is true from public."ssoProvider"
-                  where "providerId" = $2 and "organizationId" = $1), false)
+                  where "providerId" = $2 and "organizationId" = $3::text), false)
          as "providerVerified",
        (select count(*)::text from public."ssoProvider"
-         where "organizationId" = $1 and "providerId" <> $2
+         where "organizationId" = $3::text and "providerId" <> $2
            and "domainVerified" is true) as others`,
-    [organizationId, providerId],
+    [organizationId, providerId, organizationId],
   );
   const row = result.rows[0];
   const otherVerifiedProviders = Number(row.others);
