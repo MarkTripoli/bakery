@@ -7,6 +7,18 @@ import { still } from "./helpers/stills.ts";
 registerPageHealth(test);
 
 /**
+ * An evidence still of the settings page. The save bar sticks to the window, so
+ * a full-page still would lay it over the options; it is left in the flow here.
+ */
+const evidence = async (page: Page, name: string) => {
+  if (!process.env.BAKERY_EVIDENCE_DIR) return;
+  await page.addStyleTag({
+    content: ".ui-draft-bar { position: static !important; }",
+  });
+  await still(page, name);
+};
+
+/**
  * Issue settings (#69, slice 1): the list of connected repositories and one
  * repository's settings, with the preview of the saved settings.
  *
@@ -579,7 +591,7 @@ for (
         "Applies to issues started from now on. Work already started keeps the settings and routing it started with.",
       )).toBeVisible();
       await page.mouse.move(700, 700);
-      await still(page, "issue-settings-routing");
+      await evidence(page, "issue-settings-routing");
       await page.getByRole("button", { name: "Save" }).click();
       await expect(page.getByText("Settings saved.")).toBeVisible();
       // Only the rules changed: no settings write.
@@ -591,6 +603,26 @@ for (
         repositoryId: API_REPOSITORY,
         role: "api",
       }]);
+    });
+
+    test("two saved rules are listed, each with its label, repository and role", async ({ page }) => {
+      await settingsFixture(page, {
+        rules: [
+          {
+            labelId: "1001",
+            labelName: "api-work",
+            repositoryId: API_REPOSITORY,
+          },
+          { labelId: "1002", labelName: "docs", repositoryId: WEB_REPOSITORY },
+        ],
+      });
+      await openSettings(page);
+      await expect(rule(page)).toHaveCount(2);
+      await expect(rule(page).nth(1).getByLabel("Repository")).toHaveValue(
+        WEB_REPOSITORY,
+      );
+      await expect(page.getByRole("button", { name: "Save" })).toHaveCount(0);
+      await evidence(page, "issue-settings-routing-two-rules");
     });
 
     test("a saved rule is listed, and Remove takes it out on Save", async ({ page }) => {
@@ -631,6 +663,7 @@ for (
         second.getByText("This label already goes to that repository."),
       )
         .toBeVisible();
+      await evidence(page, "issue-settings-routing-error");
       await expect(page.getByRole("button", { name: "Save" })).toBeDisabled();
     });
 
@@ -679,6 +712,7 @@ for (
       await expect(page.getByText(
         "Settings saved. The routing rules were not saved: a repository is archived or not in this project.",
       )).toBeVisible();
+      await evidence(page, "issue-settings-routing-partial-save");
       expect(seen.patches).toHaveLength(1);
       expect(seen.replaces).toHaveLength(1);
       // The rule is still in the form to fix.

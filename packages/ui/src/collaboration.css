@@ -1026,6 +1026,16 @@
   margin: var(--space-0);
   overflow-wrap: anywhere;
 }
+/* Conversation layout: a muted row of linked context under the header, on the page's side padding. */
+.ui-task-detail__linked {
+  color: var(--color-fg-muted);
+  flex: 0 0 auto;
+  font: var(--type-hint);
+  padding: var(--space-0) var(--space-8) var(--space-3);
+}
+.ui-task-detail--conversation.ui-task-detail--sheet .ui-task-detail__linked {
+  padding: var(--space-2) var(--space-4) var(--space-0);
+}
 .ui-task-detail__stages {
   border-block-end: var(--border-default) solid var(--color-border);
   flex: 0 0 auto;

@@ -127,7 +127,6 @@ async function world(page: Page, links: ReturnType<typeof link>[]) {
       "**/v1/coordination-plans*",
       "**/v1/plan-revisions*",
       "**/v1/approvals*",
-      "**/v1/output-streams?*",
     ]
   ) {
     await page.route(
@@ -135,6 +134,18 @@ async function world(page: Page, links: ReturnType<typeof link>[]) {
       (route) => route.fulfill({ json: { items: [], nextCursor: null } }),
     );
   }
+  // No output streams: the output read answers with its byte count as well.
+  await page.route(
+    "**/v1/output-streams?*",
+    (route) =>
+      route.fulfill({
+        json: { items: [], nextCursor: null, encodedBytes: 32 },
+      }),
+  );
+  // The page opens its event stream; nothing is said on it here.
+  await page.routeWebSocket("**/v1/events?*", (socket) => {
+    socket.onMessage(() => {});
+  });
   await page.route("**/v1/sync*", (route) =>
     route.fulfill({
       json: {
@@ -229,7 +240,12 @@ for (
         }),
       ).toHaveAttribute("href", "https://github.com/acme/web/issues/201");
       await page.mouse.move(700, 700);
-      await still(page, "task-from-issue");
+      // The task is taller than the window; the whole page shows in the shot.
+      await still(
+        page,
+        "task-from-issue",
+        page.locator('[data-ui-component="taskDetail"]'),
+      );
     });
 
     test("an issue a task only mentions is listed under Mentions", async ({ page }) => {

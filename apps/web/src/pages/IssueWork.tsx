@@ -389,7 +389,23 @@ export function IssueWork(
           </UI.Stack>
         )
         : null}
-      {task.data ? <UI.Text>{task.data.title}</UI.Text> : null}
+      {task.data !== undefined && own !== undefined
+        ? (
+          <UI.Link
+            href={`/tasks/${own.taskId}`}
+            variant="quiet"
+            onClick={(event) => {
+              event.preventDefault();
+              void navigate({
+                to: "/tasks/$taskId",
+                params: { taskId: own.taskId },
+              });
+            }}
+          >
+            {task.data.title}
+          </UI.Link>
+        )
+        : null}
       {repositoryTargets.length > 1
         ? (
           <UI.DescriptionList>

@@ -57,6 +57,19 @@ const TWO_REPOSITORIES: WorkSeed = {
   mentioned: [{ title: "Tidy the auth module", status: "completed" }],
 };
 
+/** The live request the issue itself carries while this work is under way. */
+const requestOf = (work: WorkSeed | undefined): Seed["request"] => {
+  if (work === undefined) return undefined;
+  if (work.progress === "active" || work.progress === "admitted") {
+    return { disposition: "active" };
+  }
+  if (
+    work.progress === "suspended" || work.progress === "pending" ||
+    work.progress === "waiting"
+  ) return { disposition: work.progress };
+  return undefined;
+};
+
 for (
   const viewport of [
     { name: "desktop", width: 1280, height: 800 },
@@ -71,7 +84,11 @@ for (
       work: WorkSeed | undefined,
       more: Options = {},
     ) => {
-      const seen = await issuesFixture(page, { open: [ISSUE], work, ...more });
+      const seen = await issuesFixture(page, {
+        open: [{ ...ISSUE, request: requestOf(work) }],
+        work,
+        ...more,
+      });
       await page.goto(`/issues/${uuid(ISSUE.number)}`);
       await expect(
         page.getByRole("heading", {
@@ -97,7 +114,8 @@ for (
       await expect(work.getByText("Working", { exact: true })).toBeVisible();
       await expect(work.getByText(/started by you · 12 minutes ago/))
         .toBeVisible();
-      await expect(work.getByText("Fix the login redirect")).toBeVisible();
+      await expect(work.getByRole("link", { name: "Fix the login redirect" }))
+        .toHaveAttribute("href", `/tasks/${uuid(8100)}`);
       await expect(work.getByRole("button", { name: "Open task" }))
         .toBeVisible();
       await expect(
@@ -110,6 +128,18 @@ for (
         .toHaveAttribute("href", "https://github.com/acme/web/issues/201");
       await page.mouse.move(700, 700);
       await still(page, "issue-work-one-repository");
+    });
+
+    test("already working: Start work on an issue somebody just started says so", async ({ page }) => {
+      await open(page, undefined, { start: "alreadyRunning" });
+      await page.getByRole("button", { name: "Start work" }).first().click();
+      await page.getByRole("alertdialog").getByRole("button", {
+        name: "Start work",
+      }).click();
+      await expect(page.getByText("In progress", { exact: true }).first())
+        .toBeVisible();
+      await page.mouse.move(700, 700);
+      await still(page, "issue-work-already-working");
     });
 
     test("two repositories: a line each with its state and pull requests", async ({ page }) => {

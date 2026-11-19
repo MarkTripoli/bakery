@@ -181,19 +181,52 @@ export function RoutingRules(
                             role,
                           })}
                       </UI.Text>
-                      <UI.IconButton
-                        disabled={disabled}
-                        label={translate(
-                          "issues.settings.routing.remove" as never,
-                          {
-                            number: index + 1,
-                          },
+                      {phone
+                        ? (
+                          <UI.Button
+                            aria-label={translate(
+                              "issues.settings.routing.remove" as never,
+                              {
+                                number: index + 1,
+                              },
+                            )}
+                            disabled={disabled}
+                            onClick={() =>
+                              onChange(
+                                rows.filter((one) => one.key !== row.key),
+                              )}
+                            type="button"
+                            variant="quiet"
+                          >
+                            {translate(
+                              "issues.settings.routing.removeShort" as never,
+                            )}
+                          </UI.Button>
+                        )
+                        : (
+                          <UI.Tooltip
+                            content={translate(
+                              "issues.settings.routing.removeShort" as never,
+                            )}
+                          >
+                            <UI.IconButton
+                              disabled={disabled}
+                              label={translate(
+                                "issues.settings.routing.remove" as never,
+                                {
+                                  number: index + 1,
+                                },
+                              )}
+                              onClick={() =>
+                                onChange(
+                                  rows.filter((one) => one.key !== row.key),
+                                )}
+                              variant="compact"
+                            >
+                              <UI.IconGlyph name="close" size="small" />
+                            </UI.IconButton>
+                          </UI.Tooltip>
                         )}
-                        onClick={() =>
-                          onChange(rows.filter((one) => one.key !== row.key))}
-                      >
-                        ×
-                      </UI.IconButton>
                     </Row>
                     {problem === null
                       ? null

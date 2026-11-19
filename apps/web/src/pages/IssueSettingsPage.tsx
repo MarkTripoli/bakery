@@ -419,17 +419,19 @@ export function IssueSettingsPage({ sourceId }: { sourceId: string }) {
                 : null}
 
               <UI.Stack gap="standard" data-testid="issue-settings-taking">
-                <UI.Badge
-                  tone={badge === "working"
-                    ? "success"
-                    : badge === "reconnecting"
-                    ? "danger"
-                    : badge === "trouble"
-                    ? "warning"
-                    : "neutral"}
-                >
-                  {translate(`issues.settings.badge.${badge}` as never)}
-                </UI.Badge>
+                <UI.Inline gap="compact">
+                  <UI.Badge
+                    tone={badge === "working"
+                      ? "success"
+                      : badge === "reconnecting"
+                      ? "danger"
+                      : badge === "trouble"
+                      ? "warning"
+                      : "neutral"}
+                  >
+                    {translate(`issues.settings.badge.${badge}` as never)}
+                  </UI.Badge>
+                </UI.Inline>
                 <UI.Switch
                   checked={shown.enabled}
                   disabled={labelsDisabled}
