@@ -4363,6 +4363,7 @@
   "integrations.linear.resource.team": "⟪A Linear team⟫",
   "notifications.landing.arrived": "⟪Opened from a notification.⟫",
   "notifications.landing.partGone": "⟪The part this notification was about is no longer here.⟫",
+  "settings.roles.verb.share": "⟪Give and remove other people's access to {things}⟫",
   "auth.signIn.genericFailure": "⟪That email and password do not match. Try again.⟫",
   "auth.signIn.rateLimited": "⟪Too many tries. Try again in {wait}.⟫",
   "auth.signIn.rateLimitedNoWait": "⟪Too many tries. Wait a moment, then try again.⟫",
