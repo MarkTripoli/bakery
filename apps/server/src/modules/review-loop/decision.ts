@@ -3,7 +3,6 @@ import {
   type CheckReason,
   type CheckResult,
 } from "@bakery/contracts/check-evidence";
-import { REPOSITORY_RULE_MODES } from "@bakery/contracts/repository-rules";
 import {
   DELIVERY_REASON_DECISIONS,
   type DeliveryDecisionKind,
@@ -15,10 +14,11 @@ import {
   type ReviewSeverity,
 } from "@bakery/contracts/review-evidence";
 import {
-  type CandidateChecksVerdict,
+  type EvidenceEvaluation,
+  type EvidenceVerdict,
+  REQUIREMENT_MODES,
   REQUIREMENT_STATUSES,
-  type RequirementEvaluation,
-} from "./verdict.ts";
+} from "./evidence.ts";
 
 /**
  * The bounded delivery decision (issue #94): after a review, say whether the
@@ -118,9 +118,15 @@ export type DecisionBudget = {
   readonly nextCycleUsd: string;
 };
 
-export type DeliveryDecisionInput = {
-  /** #83 verdict for the candidate: current required checks against its rows. */
-  readonly verdict: CandidateChecksVerdict;
+export type DeliveryDecisionInput<
+  Verdict extends EvidenceVerdict = EvidenceVerdict,
+> = {
+  /**
+   * The pack's verdict for the candidate: its current required checks against
+   * their rows. A pack passes its own richer verdict type; the decision reads
+   * only what `EvidenceVerdict` names.
+   */
+  readonly verdict: Verdict;
   /**
    * Facts of the check runs the verdict named (`rowId`); extra rows are
    * ignored. The verdict keeps a row that did not pass as `failed` whether or
@@ -259,19 +265,19 @@ function blockingFingerprintsOf(review: DecisionReview): string[] {
  * refused. `Array.from` visits every index from 0 to `length - 1` and reads each
  * one exactly once.
  */
-function snapshotEvaluations(list: unknown): RequirementEvaluation[] {
+function snapshotEvaluations(list: unknown): EvidenceEvaluation[] {
   if (!Array.isArray(list)) invalid("evaluations");
   return Array.from(list as readonly unknown[], (entry) => {
     if (entry === null || typeof entry !== "object") {
       invalid("evaluation_entry");
     }
-    const evaluation = entry as RequirementEvaluation;
+    const evaluation = entry as EvidenceEvaluation;
     const requirement: unknown = evaluation.requirement;
     if (requirement === null || typeof requirement !== "object") {
       invalid("evaluation_requirement");
     }
     return {
-      requirement: { ...(requirement as RequirementEvaluation["requirement"]) },
+      requirement: { ...(requirement as EvidenceEvaluation["requirement"]) },
       status: evaluation.status,
       reason: evaluation.reason,
       blocking: evaluation.blocking,
@@ -289,11 +295,11 @@ function snapshotEvaluations(list: unknown): RequirementEvaluation[] {
  * stale or unavailable required check as non-blocking therefore cannot reach
  * the `clean` row.
  */
-function validateEvaluation(evaluation: RequirementEvaluation): void {
+function validateEvaluation(evaluation: EvidenceEvaluation): void {
   // Closed sets first: the blocking recomputation below reads both values, and
   // an unknown mode or status would otherwise read as non-blocking by default.
   if (
-    !(REPOSITORY_RULE_MODES as readonly unknown[]).includes(
+    !(REQUIREMENT_MODES as readonly unknown[]).includes(
       evaluation.requirement.mode,
     )
   ) invalid("evaluation_mode");
@@ -310,7 +316,7 @@ function validateEvaluation(evaluation: RequirementEvaluation): void {
 }
 
 function failedCheckOf(
-  evaluation: RequirementEvaluation,
+  evaluation: EvidenceEvaluation,
   facts: ReadonlyMap<string, DecisionCheckFact>,
 ): DecisionFailedCheck {
   const fact = evaluation.rowId === null

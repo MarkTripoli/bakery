@@ -570,6 +570,15 @@ The boundary test: no kernel module imports the delivery pack, and no kernel
 table has a column that only means something for git (today `tasks.base_sha` and
 `artifact_versions.subject_head_sha` fail it).
 
+The review loop module landed in `apps/server/src/modules/review-loop/` (#440): the
+findings convention, the progress rule and caps, the rounds a decision appends,
+the step lookup of a loop and reviewer isolation. A rail
+(`tests/unit/review-loop-module-stays-neutral_test.ts`) fails if it imports the
+delivery pack or integrations, names a git-only field, or exports a repository
+concept. The pack keeps the review tables' single writer (`review-store.ts`),
+the finalizer that binds candidate facts to the loop, repository checks and the
+merge gate.
+
 ### 15.4 MCP servers as connections (O24 to O27, O31)
 
 MCP needs no new extension point (O24). E4 becomes **connections**, with two
