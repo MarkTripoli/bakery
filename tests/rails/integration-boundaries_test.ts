@@ -39,6 +39,15 @@ const cases: readonly Case[] = [
     rules: ["b1a", "b1b"],
   },
   {
+    // The SDK is not a provider: every provider web module imports its `/web`
+    // entry for the types it satisfies, and a rule that called that a coupling
+    // would make the web tier impossible to write.
+    name: "a provider web file importing the SDK's web entry",
+    path: "packages/integration-github/src/web/mod.ts",
+    source: 'import { defineWebProvider } from "@bakery/integration-sdk/web";',
+    rules: [],
+  },
+  {
     name: "a provider web file reaching server code",
     path: "packages/integration-github/src/web/mod.ts",
     source: 'import { y } from "../server/mod.ts";',

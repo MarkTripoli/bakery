@@ -1,3 +1,4 @@
+import { ticketRef } from "../../../apps/server/src/modules/work/ticket-source-reader.ts";
 /**
  * Issue 82 integration lane: recheck, advance and pause on real Postgres.
  * Transactions run as the application role; the reader is in memory. AC3 is
@@ -971,7 +972,7 @@ Deno.test("issue 82 recheck: provider reads never happen inside a transaction, a
       return await prefetchTicketReads(
         fx.reader,
         handle,
-        { number, policy: source.policy, origin: "poll" },
+        { ref: ticketRef(number), policy: source.policy, origin: "poll" },
         call.signal,
       );
     };

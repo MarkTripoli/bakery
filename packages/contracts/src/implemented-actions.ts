@@ -398,6 +398,8 @@ export const TicketImplementedAction = Object.freeze(
     ExternalTicketsGet: "externalTickets.get",
     TicketReadinessCreate: "ticketReadiness.create",
     TicketTaskLinksCreate: "ticketTaskLinks.create",
+    TicketTaskLinksList: "ticketTaskLinks.list",
+    TicketTaskLinksResyncNote: "ticketTaskLinks.resyncNote",
     TicketRequestsCreate: "ticketRequests.create",
   } as const satisfies Record<string, CatalogActionName>,
 );

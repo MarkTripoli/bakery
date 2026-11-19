@@ -34,9 +34,16 @@ import {
 import {
   createExternalTicketsListHandler,
   createTicketSourcesListHandler,
+  createTicketTaskLinksListHandler,
   getExternalTicket,
   getTicketSource,
 } from "./ticket-query.ts";
+import {
+  createTicketNoteRunner,
+  recordTicketNoteSync,
+  type TicketNoteWriter,
+  UNAVAILABLE_NOTE_WRITER,
+} from "./ticket-notes.ts";
 import {
   createTicketSource,
   createTicketSourcePreviewHandler,
@@ -49,12 +56,15 @@ import {
 export type TicketActionDependencies = TicketOperationDependencies & {
   /** Signs list cursors. */
   cursorSecret: string;
+  /** Posts Bakery's status note on a ticket (#69); none wired refuses every write as failed. */
+  noteWriter?: TicketNoteWriter;
 };
 
 /**
  * Ticket operations. The four that read GitHub run through the probe, read,
- * execute wrapper, so no registry transaction is open during a provider call;
- * the rest go straight to the authority runner. Remote ticket creation
+ * execute wrapper, and the status note resync through claim, write, record,
+ * so no registry transaction is open during a provider call; the rest go
+ * straight to the authority runner. Remote ticket creation
  * (`externalTickets.create`) is not registered.
  */
 export function createTicketActionRegistry(
@@ -63,10 +73,16 @@ export function createTicketActionRegistry(
 ): ActionRegistry {
   const base = new PostgresAuthorityRunner(database);
   const reading = createTicketOperationRunner(base, dependencies);
+  const noting = createTicketNoteRunner(
+    base,
+    dependencies.noteWriter ?? UNAVAILABLE_NOTE_WRITER,
+  );
   const authority: ActionAuthorityRunner = {
     run: (action, context, input, next) =>
       readsProvider(action.name)
         ? reading(action, context, input, next)
+        : action.name === TicketImplementedAction.TicketTaskLinksResyncNote
+        ? noting(action, context, input, next)
         : base.run(action, context, input, next),
   };
   const registry = new ActionRegistry(authority, createPostgresCommandRunner());
@@ -126,7 +142,7 @@ export function createTicketActionRegistry(
     method: HttpMethod.Post,
     path: "/v1/ticket-sources/:id/previews",
     input: contractSchemas.TicketPreviewCreate,
-    output: contractSchemas.TicketOperationReceipt,
+    output: contractSchemas.TicketPreviewResult,
     policy: admin,
     handler: createTicketSourcePreviewHandler(dependencies),
   }).register({
@@ -200,6 +216,25 @@ export function createTicketActionRegistry(
     output: contractSchemas.TicketTaskLink,
     policy: developer,
     handler: createTicketTaskLink,
+  }).register({
+    name: TicketImplementedAction.TicketTaskLinksList,
+    method: HttpMethod.Get,
+    path: "/v1/ticket-task-links",
+    input: contractSchemas.TicketTaskLinkQuery,
+    output: contractSchemas["Page<TicketTaskLink>"],
+    policy: query,
+    transactionIsolation: TransactionIsolation.RepeatableRead,
+    handler: createTicketTaskLinksListHandler(dependencies.cursorSecret),
+  }).register({
+    name: TicketImplementedAction.TicketTaskLinksResyncNote,
+    method: HttpMethod.Post,
+    path: "/v1/ticket-task-links/:id/note-syncs",
+    input: contractSchemas.TicketTaskLinkNoteSync,
+    output: contractSchemas.TicketTaskLink,
+    policy: developer,
+    // The link version is the precondition; the claim checks it.
+    explicitIdempotency: "key-and-if-match",
+    handler: recordTicketNoteSync,
   }).register({
     name: TicketImplementedAction.TicketRequestsCreate,
     method: HttpMethod.Post,

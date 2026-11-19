@@ -12,7 +12,16 @@
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "paths": {
-      "@bakery/ui": ["../../packages/ui/src/index.ts"]
+      "@bakery/ui": ["../../packages/ui/src/index.ts"],
+      "@bakery/integration-sdk/web": [
+        "../../packages/integration-sdk/src/web-provider.ts"
+      ],
+      "@bakery/integration-sdk/provider": [
+        "../../packages/integration-sdk/src/provider-manifest.ts"
+      ],
+      "@bakery/integration-linear/web": [
+        "../../packages/integration-linear/src/web/mod.ts"
+      ]
     },
     "resolveJsonModule": true,
     "allowImportingTsExtensions": true,
@@ -20,6 +29,12 @@
     "noEmit": true,
     "jsx": "react-jsx"
   },
-  "include": ["src", "../../packages/ui/src"],
+  "include": [
+    "src",
+    "../../packages/ui/src",
+    "../../packages/integration-linear/src/web",
+    "../../packages/integration-sdk/src/web-provider.ts",
+    "../../packages/integration-sdk/src/provider-manifest.ts"
+  ],
   "exclude": ["src/**/*.stories.tsx"]
 }

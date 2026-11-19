@@ -1,3 +1,4 @@
+import { ticketRef } from "../../../apps/server/src/modules/work/ticket-source-reader.ts";
 /**
  * Issue 82 integration lane: admission on real Postgres. Transactions run as
  * the application role; the reader is in memory and the fake GitHub only
@@ -388,7 +389,7 @@ async function prefetchOf(
   return await prefetchTicketReads(
     fx.reader,
     handle,
-    { number, policy: source.policy, origin },
+    { ref: ticketRef(number), policy: source.policy, origin },
     new AbortController().signal,
   );
 }
