@@ -5,6 +5,7 @@
 #   api              run-main.sh: allowlisted env, Deno permission flags, /tini as PID 1.
 #   dispatch         outbox + execution coordinator (run-dispatch.ts).
 #   predeploy        bootstrap roles/databases as superuser, then migrate as owner.
+#   storage-purges   complete queued record-area purges as owner (run on a schedule).
 #   createsuperuser  interactive first-admin task (needs a TTY).
 #   envcheck         print NAME=set|missing for a fixed list; never a secret.
 #
@@ -118,6 +119,11 @@ case "$mode" in
     pnpm --filter @bakery/server bootstrap:database
     pnpm --filter @bakery/server migrate
     ;;
+  storage-purges)
+    [[ -n "${DATABASE_URL:-}" ]] || fail 'DATABASE_URL_REQUIRED'
+    cd "$root"
+    exec pnpm --filter @bakery/server storage-purges
+    ;;
   createsuperuser)
     cd "$root"
     exec pnpm --filter @bakery/server createsuperuser
@@ -127,6 +133,6 @@ case "$mode" in
     envcheck "$@"
     ;;
   *)
-    fail 'Usage: server-entrypoint.sh api|dispatch|predeploy|createsuperuser|envcheck' 64
+    fail 'Usage: server-entrypoint.sh api|dispatch|predeploy|storage-purges|createsuperuser|envcheck' 64
     ;;
 esac
