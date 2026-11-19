@@ -397,6 +397,14 @@ export async function createPluginVersion(
     bundleDigest: input.bundleDigest,
   });
 
+  // The bundle collector deletes bytes while holding this same lock, so a
+  // version cannot be published into the window between the collector deciding
+  // an object is unshared and the object being deleted.
+  await transaction.query(
+    `select pg_advisory_xact_lock(hashtextextended($1, 0))`,
+    [`${organizationId}:${input.bundleObjectRef}`],
+  );
+
   try {
     const rows = await transaction.query<VersionRow>(
       `insert into bakery.plugin_versions

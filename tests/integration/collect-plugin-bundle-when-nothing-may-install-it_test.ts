@@ -456,3 +456,88 @@ Deno.test("the last version pointing at shared bytes releases them", async () =>
     assertEquals(store.deleted, [first.objectRef]);
   });
 });
+
+Deno.test("bytes an artifact blob shares are never a plugin bundle's to delete", async () => {
+  await withWorkerFixture(async (fixture) => {
+    // Artifact and upload bytes live at the same organization-and-digest key as
+    // a plugin bundle, and nothing collects their blobs. A withdrawn version
+    // whose archive hashes to a digest the blob registry knows must leave the
+    // object alone, or collecting a plugin would delete an artifact's bytes.
+    const seeded = await seedVersion(fixture, { listingStatus: "withdrawn" });
+    const digest = "d".repeat(64);
+    await fixture.pgDatabase.query(
+      `update bakery.plugin_versions set bundle_digest = $2
+        where organization_id = $1 and id = $3`,
+      [fixture.organizationId, digest, seeded.versionId],
+    );
+    await fixture.pgDatabase.query(
+      `insert into bakery.blobs
+         (organization_id, sha256, size_bytes, media_type, created_by_id)
+       values ($1, $2, 12, 'text/plain', $3)`,
+      [fixture.organizationId, digest, fixture.principalId],
+    );
+
+    const store = trackingStore();
+    assertEquals(
+      await collectPluginBundle(fixture.pgDatabase, store, seeded.versionId),
+      false,
+      "the blob registry owns these bytes",
+    );
+    assertEquals(store.deleted, []);
+    assertEquals((await tombstone(fixture, seeded.versionId)).purged, null);
+  });
+});
+
+Deno.test("two collectable versions sharing bytes still release them", async () => {
+  await withWorkerFixture(async (fixture) => {
+    // A reference count that counted dead versions would leak: two withdrawn
+    // versions of two packages on identical bytes would each refuse forever
+    // because the other exists. Only a version that can still serve an install
+    // keeps the bytes alive.
+    const first = await seedVersion(fixture, { listingStatus: "withdrawn" });
+    const second = await seedVersion(fixture, { listingStatus: "withdrawn" });
+    await fixture.pgDatabase.query(
+      `update bakery.plugin_versions set bundle_object_ref = $2, bundle_digest = $3
+        where organization_id = $1 and id = $4`,
+      [
+        fixture.organizationId,
+        first.objectRef,
+        "c".repeat(64),
+        second.versionId,
+      ],
+    );
+
+    // A store that forgets a key once it is deleted, the way the real one
+    // answers false for an absent object rather than reporting it twice.
+    const held = new Set<string>();
+    const deleted: string[] = [];
+    const store = {
+      delete(objectKey: string): Promise<boolean> {
+        if (!held.has(objectKey)) return Promise.resolve(false);
+        held.delete(objectKey);
+        deleted.push(objectKey);
+        return Promise.resolve(true);
+      },
+    };
+    const first_ = await fixture.pgDatabase.query<
+      { bundle_object_ref: string }
+    >(
+      `select bundle_object_ref from bakery.plugin_versions
+        where organization_id = $1 and id = $2`,
+      [fixture.organizationId, first.versionId],
+    );
+    held.add(first_.rows[0].bundle_object_ref);
+
+    assertEquals(
+      await collectPluginBundle(fixture.pgDatabase, store, first.versionId),
+      true,
+      "a dead sharer does not hold the bytes",
+    );
+    assertEquals(
+      await collectPluginBundle(fixture.pgDatabase, store, second.versionId),
+      true,
+      "the second version still finishes, against bytes that are already gone",
+    );
+    assertEquals(deleted, [first.objectRef], "the object is deleted once");
+  });
+});

@@ -138,3 +138,46 @@ Deno.test("the rail states which relation it inspects", async () => {
     "the registry names the relation it classifies",
   );
 });
+
+Deno.test("the collector and the version writer lock the same blob key", async () => {
+  // A static pin, not a timing test: it proves both sides name the same key,
+  // which is the part an edit can break silently. That they hold it across the
+  // delete and the insert respectively is visible in each function's order.
+  const reader = (path: string) =>
+    Deno.readTextFile(new URL(`../../${path}`, import.meta.url));
+  const collector = await reader(
+    "apps/server/src/modules/catalog/retention/collect-bundle.ts",
+  );
+  const writer = await reader(
+    "apps/server/src/modules/catalog/plugin-postgres.ts",
+  );
+
+  const lockOf = (source: string, label: string) => {
+    const at = source.indexOf("pg_advisory_xact_lock");
+    assert(at > 0, `${label} takes the blob key lock`);
+    // The key is the tenant and the object ref, so two tenants never collide.
+    const around = source.slice(at, at + 220);
+    assert(
+      around.includes("${row.organization_id}:${row.bundle_object_ref}") ||
+        around.includes("${organizationId}:${input.bundleObjectRef}"),
+      `${label} locks tenant and object ref: ${around.slice(0, 120)}`,
+    );
+  };
+  lockOf(collector, "the collector");
+  lockOf(writer, "the version writer");
+
+  // The collector deletes and tombstones after taking the lock, not before.
+  const collectLock = collector.indexOf("pg_advisory_xact_lock");
+  const collectDelete = collector.indexOf("store.delete(");
+  assert(
+    collectLock > 0 && collectDelete > collectLock,
+    "the collector holds the lock while it deletes bytes",
+  );
+  // The writer takes the lock before it inserts the version row.
+  const writeLock = writer.indexOf("pg_advisory_xact_lock");
+  const writeInsert = writer.indexOf("insert into bakery.plugin_versions");
+  assert(
+    writeLock > 0 && writeInsert > writeLock,
+    "the version writer holds the lock while it inserts",
+  );
+});

@@ -36,21 +36,28 @@ export async function collectPluginBundle(
   if (!policy.trim() || policy.length > 100) {
     throw new StandardError({ code: "VALIDATION_FAILED" });
   }
-  const subject = await withPgTransaction(
+  // One transaction decides everything and holds the blob key's lock across
+  // the delete, so a version published with the same bytes cannot slip between
+  // the decision and the deletion. The bytes are still written outside the
+  // PostgreSQL transaction - an object store cannot join one - so the ordering
+  // stays bytes-first: a crash between the delete and the commit leaves an
+  // archive gone and a tombstone missing, and the retry finishes the job.
+  const collected = await withPgTransaction(
     ownerDatabase,
     async (transaction) => {
       const version = await transaction.query<
         {
           organization_id: string;
           bundle_object_ref: string;
+          bundle_digest: string;
           bundle_purged_at: Date | null;
           published_at: Date | null;
           listing_status: string;
         }
       >(
         `select version.organization_id, version.bundle_object_ref,
-              version.bundle_purged_at, version.published_at,
-              package.listing_status
+              version.bundle_digest, version.bundle_purged_at,
+              version.published_at, package.listing_status
          from bakery.plugin_versions version
          join bakery.plugin_packages package
            on package.organization_id = version.organization_id
@@ -61,6 +68,15 @@ export async function collectPluginBundle(
       );
       const row = version.rows[0];
       if (!row || row.bundle_purged_at !== null) return null;
+
+      // Nothing else that writes a version or an artifact blob takes this lock
+      // yet, but taking it here means the day one does, the window is closed by
+      // that change and not by this one.
+      await transaction.query(
+        `select pg_advisory_xact_lock(hashtextextended($1, 0))`,
+        [`${row.organization_id}:${row.bundle_object_ref}`],
+      );
+
       const withdrawn = row.listing_status === "withdrawn";
       const unpublished = row.published_at === null;
       if (!withdrawn && !unpublished) return null;
@@ -73,52 +89,70 @@ export async function collectPluginBundle(
       ) return null;
       // The object key is the organization and the digest, while the digest is
       // unique only per package, so two packages publishing identical archives
-      // share one object. Deleting for one package would strip the other's
-      // installs of bytes they still point at.
+      // share one object. Only a version that could still serve an install
+      // needs the bytes back; one that is itself collectable does not, so two
+      // dead versions do not keep each other's archive alive forever.
       const shared = await transaction.query(
-        `select 1 from bakery.plugin_versions
-          where organization_id = $1 and bundle_object_ref = $2
-            and id <> $3 and bundle_purged_at is null
-          limit 1`,
+        `select 1
+         from bakery.plugin_versions other
+         join bakery.plugin_packages package
+           on package.organization_id = other.organization_id
+          and package.id = other.plugin_package_id
+        where other.organization_id = $1
+          and other.bundle_object_ref = $2
+          and other.id <> $3
+          and other.bundle_purged_at is null
+          and (
+            (package.listing_status <> 'withdrawn' and other.published_at is not null)
+            or exists (
+              select 1 from bakery.plugin_installs install
+               where install.organization_id = other.organization_id
+                 and install.plugin_version_id = other.id
+                 and install.status <> 'uninstalled'
+            )
+          )
+        limit 1`,
         [row.organization_id, row.bundle_object_ref, versionId],
       );
       if (shared.rows.length > 0) return null;
-      return {
-        organizationId: row.organization_id,
-        objectRef: row.bundle_object_ref,
-      };
-    },
-  );
-  if (subject === null) return false;
-  // The bytes go first, outside the transaction: an object store cannot join a
-  // PostgreSQL transaction, and deleting after a commit that later failed would
-  // leave a row claiming bytes it no longer has. Deleting first means a crash
-  // between the two leaves a version whose archive is gone but whose tombstone
-  // is not yet written - and the second attempt deletes nothing, records the
-  // tombstone and finishes, which is why `delete` answers false for an absent
-  // key instead of throwing.
-  const removed = await store.delete(subject.objectRef);
-  await withPgTransaction(ownerDatabase, async (transaction) => {
-    await transaction.query(
-      `update bakery.plugin_versions
+      // Artifact and upload bytes live at the same organization-and-digest key,
+      // and nothing collects their blobs, so an object the blob registry knows
+      // is never a plugin bundle's to delete.
+      const registry = await transaction.query(
+        `select 1 from bakery.blobs
+        where organization_id = $1 and sha256 = $2
+        limit 1`,
+        [row.organization_id, row.bundle_digest],
+      );
+      if (registry.rows.length > 0) return null;
+
+      // Bytes first, tombstone second, both while the blob key's lock is held.
+      // A crash between them leaves an archive gone with no tombstone, and the
+      // retry finishes the job because a delete of an absent key answers false
+      // rather than throwing.
+      const removed = await store.delete(row.bundle_object_ref);
+      await transaction.query(
+        `update bakery.plugin_versions
           set bundle_purged_at = now(), purge_policy = $2
         where organization_id = $1 and id = $3 and bundle_purged_at is null`,
-      [subject.organizationId, policy, versionId],
-    );
-    await appendAudit(transaction, {
-      organizationId: subject.organizationId,
-      principalId: null,
-      operation: "pluginVersions.collect",
-      resourceType: "plugin_version",
-      resourceId: versionId,
-      requestId: crypto.randomUUID(),
-      traceId: crypto.randomUUID(),
-      // The store's own answer is recorded but not returned: it says whether
-      // bytes existed, and the caller needs to know whether the row now reads
-      // as collected.
-      details: { policy, objectRemoved: removed },
-    });
-  }).catch((error: unknown) => {
+        [row.organization_id, policy, versionId],
+      );
+      await appendAudit(transaction, {
+        organizationId: row.organization_id,
+        principalId: null,
+        operation: "pluginVersions.collect",
+        resourceType: "plugin_version",
+        resourceId: versionId,
+        requestId: crypto.randomUUID(),
+        traceId: crypto.randomUUID(),
+        // The store's own answer is recorded but not returned: it says whether
+        // bytes existed, and the caller needs to know whether the row now reads
+        // as collected.
+        details: { policy, objectRemoved: removed },
+      });
+      return "collected" as const;
+    },
+  ).catch((error: unknown) => {
     switch (postgresErrorCode(error)) {
       case "40P01":
       case "55P03":
@@ -130,5 +164,5 @@ export async function collectPluginBundle(
         throw error;
     }
   });
-  return true;
+  return collected === "collected";
 }
