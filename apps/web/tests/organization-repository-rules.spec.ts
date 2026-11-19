@@ -365,7 +365,10 @@ test.describe("organization repository rules", () => {
       page.getByText("Require blocks delivery until the check passes."),
     )
       .toBeVisible();
-    await shot(page, "rules-help-enforcement", [], { windowOnly: true });
+    await shot(page, "rules-help-enforcement", [], {
+      only: "desktop",
+      windowOnly: true,
+    });
     await page.keyboard.press("Escape");
     await page.getByRole("button", {
       name: "About what repositories can change",
@@ -375,7 +378,10 @@ test.describe("organization repository rules", () => {
       page.getByText("Locked rules apply to every repository as set here."),
     )
       .toBeVisible();
-    await shot(page, "rules-help-access", [], { windowOnly: true });
+    await shot(page, "rules-help-access", [], {
+      only: "desktop",
+      windowOnly: true,
+    });
   });
 
   test("a failed read says so and offers no rules", async ({ page }) => {

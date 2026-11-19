@@ -431,31 +431,33 @@ export function OrganizationRepositoryRulesPage() {
                                   "settings.repositoryRules.edit.named",
                                   { rule: translate(RULE_NAME[row.ruleKey]) },
                                 )}
-                                detail={summarize(row, translate)}
-                                detailLines={2}
+                                detail={
+                                  <>
+                                    {translate(
+                                      "settings.repositoryRules.enforcementAccess",
+                                      {
+                                        enforcement: translate(
+                                          enforcementOf(row),
+                                        ),
+                                        access: translate(
+                                          row.locked
+                                            ? "settings.repositoryRules.access.lockedShort"
+                                            : "settings.repositoryRules.access.overrideShort",
+                                        ),
+                                      },
+                                    )}
+                                    <br />
+                                    {summarize(row, translate)}
+                                  </>
+                                }
                                 onSelect={() =>
                                   openEditor(row.ruleKey)}
                                 title={translate(RULE_NAME[row.ruleKey])}
                                 trailing={
-                                  <UI.Stack gap="tight">
-                                    <span>
-                                      {translate(
-                                        "settings.repositoryRules.enforcementAccess",
-                                        {
-                                          enforcement: translate(
-                                            enforcementOf(row),
-                                          ),
-                                          access: translate(
-                                            row.locked
-                                              ? "settings.repositoryRules.access.lockedShort"
-                                              : "settings.repositoryRules.access.overrideShort",
-                                          ),
-                                        },
-                                      )}
-                                    </span>
+                                  <>
                                     {was(row, enforcementOf)}
                                     {was(row, accessOf)}
-                                  </UI.Stack>
+                                  </>
                                 }
                               />
                             </div>
