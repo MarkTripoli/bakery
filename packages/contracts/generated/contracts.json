@@ -5013,10 +5013,13 @@
       "idempotency": "Read; opaque cursor pagination",
       "errors": [
         "AUTH_REQUIRED",
-        "AUTH_FORBIDDEN"
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
       ],
-      "organizationContext": "none",
-      "implemented": false
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
     },
     {
       "group": "Providers",
@@ -5033,10 +5036,12 @@
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
-        "RESOURCE_NOT_FOUND"
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
       ],
-      "organizationContext": "none",
-      "implemented": false
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
     },
     {
       "group": "Providers",
@@ -5053,10 +5058,12 @@
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
-        "RESOURCE_NOT_FOUND"
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
       ],
-      "organizationContext": "none",
-      "implemented": false
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
     },
     {
       "group": "Providers",
@@ -5072,10 +5079,13 @@
       "idempotency": "Read; opaque cursor pagination",
       "errors": [
         "AUTH_REQUIRED",
-        "AUTH_FORBIDDEN"
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
       ],
-      "organizationContext": "none",
-      "implemented": false
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
     },
     {
       "group": "Providers",
@@ -5092,10 +5102,12 @@
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
-        "RESOURCE_NOT_FOUND"
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
       ],
-      "organizationContext": "none",
-      "implemented": false
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
     },
     {
       "group": "Providers",
@@ -8621,54 +8633,6 @@
     {
       "group": "Tickets",
       "method": "GET",
-      "path": "/v1/ticket-sources/{id}/routing-rules",
-      "action": "ticketRoutingRules.get",
-      "access": "Developer",
-      "permission": "ticketSource:read",
-      "input": "IdPath",
-      "output": "TicketRoutingRuleSet",
-      "event": "",
-      "mcp": "",
-      "idempotency": "read",
-      "errors": [
-        "AUTH_REQUIRED",
-        "AUTH_FORBIDDEN",
-        "RESOURCE_NOT_FOUND",
-        "MALFORMED_REQUEST",
-        "SCOPE_REQUIRED"
-      ],
-      "organizationContext": "required_authenticated_context",
-      "implemented": true
-    },
-    {
-      "group": "Tickets",
-      "method": "PUT",
-      "path": "/v1/ticket-sources/{id}/routing-rules",
-      "action": "ticketRoutingRules.replace",
-      "access": "Admin",
-      "permission": "ticketSource:manage",
-      "input": "TicketRoutingRulesReplace",
-      "output": "TicketRoutingRuleSet",
-      "event": "ticket.source_changed",
-      "mcp": "",
-      "idempotency": "Idempotency-Key + If-Match required",
-      "errors": [
-        "AUTH_REQUIRED",
-        "AUTH_FORBIDDEN",
-        "RESOURCE_NOT_FOUND",
-        "UNPROCESSABLE",
-        "PRECONDITION_FAILED",
-        "PRECONDITION_REQUIRED",
-        "IDEMPOTENCY_PAYLOAD_MISMATCH",
-        "MALFORMED_REQUEST",
-        "SCOPE_REQUIRED"
-      ],
-      "organizationContext": "required_authenticated_context",
-      "implemented": true
-    },
-    {
-      "group": "Tickets",
-      "method": "GET",
       "path": "/v1/external-tickets",
       "action": "externalTickets.list",
       "access": "Developer",
@@ -8960,7 +8924,7 @@
         "SCOPE_REQUIRED"
       ],
       "organizationContext": "required_authenticated_context",
-      "implemented": false
+      "implemented": true
     },
     {
       "group": "Plugins",
@@ -8986,7 +8950,7 @@
         "SCOPE_REQUIRED"
       ],
       "organizationContext": "required_authenticated_context",
-      "implemented": false
+      "implemented": true
     },
     {
       "group": "Plugins",
@@ -9009,7 +8973,7 @@
         "SCOPE_REQUIRED"
       ],
       "organizationContext": "required_authenticated_context",
-      "implemented": false
+      "implemented": true
     },
     {
       "group": "Plugins",
@@ -9035,7 +8999,7 @@
         "SCOPE_REQUIRED"
       ],
       "organizationContext": "required_authenticated_context",
-      "implemented": false
+      "implemented": true
     },
     {
       "group": "Plugins",
@@ -9058,7 +9022,7 @@
         "SCOPE_REQUIRED"
       ],
       "organizationContext": "required_authenticated_context",
-      "implemented": false
+      "implemented": true
     },
     {
       "group": "Plugins",
@@ -9084,7 +9048,7 @@
         "SCOPE_REQUIRED"
       ],
       "organizationContext": "required_authenticated_context",
-      "implemented": false
+      "implemented": true
     },
     {
       "group": "Plugins",
@@ -10193,6 +10157,11 @@
     "agents.activateVersion",
     "agentVersions.create",
     "agentVersions.list",
+    "providerRoutes.list",
+    "providerRoutes.get",
+    "providerRoutes.health",
+    "providerIncidents.list",
+    "providerIncidents.get",
     "repositoryRules.get",
     "repositoryRuleVersions.create",
     "repositoryRuleVersions.list",
@@ -10243,8 +10212,6 @@
     "ticketSources.preview",
     "ticketSources.lookupPerson",
     "ticketSources.sync",
-    "ticketRoutingRules.get",
-    "ticketRoutingRules.replace",
     "externalTickets.list",
     "externalTickets.get",
     "ticketReadiness.create",
@@ -10336,6 +10303,12 @@
     "pluginPackages.get",
     "pluginVersions.list",
     "pluginVersions.create",
+    "pluginInstalls.list",
+    "pluginInstalls.create",
+    "pluginInstalls.get",
+    "pluginInstalls.update",
+    "pluginState.get",
+    "pluginState.put",
     "skillStorageSettings.get",
     "skillStorageSettings.put",
     "skillStorageSettings.verify",
@@ -22753,6 +22726,18 @@
                 "minimum": 1,
                 "maximum": 100
               }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
             }
           ],
           "responses": {
@@ -22795,6 +22780,18 @@
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
               }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
             }
           ],
           "responses": {
@@ -22836,6 +22833,18 @@
                 "format": "uuid",
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
               }
             }
           ],
@@ -22928,6 +22937,18 @@
                 "minimum": 1,
                 "maximum": 100
               }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
             }
           ],
           "responses": {
@@ -22969,6 +22990,18 @@
                 "format": "uuid",
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
               }
             }
           ],
@@ -32088,122 +32121,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TicketSyncCreate"
-                }
-              }
-            }
-          }
-        }
-      },
-      "/v1/ticket-sources/{id}/routing-rules": {
-        "get": {
-          "operationId": "ticketRoutingRules.get",
-          "parameters": [
-            {
-              "name": "id",
-              "in": "path",
-              "required": true,
-              "schema": {
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
-              }
-            },
-            {
-              "name": "Bakery-Organization-Id",
-              "in": "header",
-              "required": true,
-              "schema": {
-                "$schema": "https://json-schema.org/draft/2020-12/schema",
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
-              }
-            }
-          ],
-          "responses": {
-            "200": {
-              "description": "Successful response",
-              "content": {
-                "application/json": {
-                  "schema": {
-                    "$ref": "#/components/schemas/TicketRoutingRuleSet"
-                  }
-                }
-              }
-            },
-            "400": {
-              "description": "Malformed request."
-            },
-            "401": {
-              "description": "Authentication required."
-            },
-            "403": {
-              "description": "Forbidden."
-            },
-            "500": {
-              "description": "Internal server error."
-            }
-          }
-        },
-        "put": {
-          "operationId": "ticketRoutingRules.replace",
-          "parameters": [
-            {
-              "name": "id",
-              "in": "path",
-              "required": true,
-              "schema": {
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
-              }
-            },
-            {
-              "name": "Bakery-Organization-Id",
-              "in": "header",
-              "required": true,
-              "schema": {
-                "$schema": "https://json-schema.org/draft/2020-12/schema",
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
-              }
-            }
-          ],
-          "responses": {
-            "200": {
-              "description": "Successful response",
-              "content": {
-                "application/json": {
-                  "schema": {
-                    "$ref": "#/components/schemas/TicketRoutingRuleSet"
-                  }
-                }
-              }
-            },
-            "400": {
-              "description": "Malformed request."
-            },
-            "401": {
-              "description": "Authentication required."
-            },
-            "403": {
-              "description": "Forbidden."
-            },
-            "500": {
-              "description": "Internal server error."
-            }
-          },
-          "requestBody": {
-            "required": true,
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TicketRoutingRulesReplace"
                 }
               }
             }
@@ -43214,8 +43131,6 @@
                 "ticketSources.preview",
                 "ticketSources.lookupPerson",
                 "ticketSources.sync",
-                "ticketRoutingRules.get",
-                "ticketRoutingRules.replace",
                 "externalTickets.list",
                 "externalTickets.get",
                 "ticketReadiness.create",
@@ -61671,111 +61586,6 @@
           },
           "additionalProperties": false,
           "description": "Filters and page position for listing provider incidents. An incident is one durable record per affected route and generation, not one per failed attempt, so duplicate and stale probe results do not multiply rows."
-        },
-        "TicketRoutingRuleInput": {
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
-          "type": "object",
-          "properties": {
-            "labelId": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 100,
-              "description": "The provider's stable id of one label of the ticket source (for example a numeric label id written as a string), exactly as the source's ticket reader reports it. Rules match this id, never the name, so renaming the label keeps its routing. TicketRoutingRuleInput.labelId must contain at least 1 characters. TicketRoutingRuleInput.labelId must contain at most 100 characters."
-            },
-            "labelName": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 100,
-              "description": "Display name of the label, shown in settings and in readiness evidence; never matched. Send the current name to rename it; a rename alone changes nothing about routing. TicketRoutingRuleInput.labelName must contain at least 1 characters. TicketRoutingRuleInput.labelName must contain at most 100 characters."
-            },
-            "repositoryId": {
-              "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "Bakery repository the label routes to. It must belong to the ticket source's application and must not be archived when the rules are saved; otherwise the whole replacement answers 422."
-            },
-            "role": {
-              "type": "string",
-              "maxLength": 63,
-              "pattern": "^[a-z0-9]+(?:[-_][a-z0-9]+)*$",
-              "description": "Role the repository plays for a routed ticket, such as backend or frontend. The application must bind this repository to this role with an alias (applicationRepositoryRoles.set), because the target runs as a lane of a coordination plan that names it by that alias. Within one ticket a role must resolve to one repository and a repository to one role, or admission is blocked as ambiguous. TicketRoutingRuleInput.role must contain at most 63 characters."
-            },
-            "presetId": {
-              "description": "Workflow preset the routed repository target runs; omitted means fixed-coding, the only preset admission runs. The preset's revision and digest are pinned on each admitted target.",
-              "type": "string",
-              "enum": [
-                "fixed-coding"
-              ]
-            }
-          },
-          "required": [
-            "labelId",
-            "labelName",
-            "repositoryId",
-            "role"
-          ],
-          "additionalProperties": false,
-          "description": "One routing rule as a client sends it: a provider label id and its display name, the repository it routes to, that repository's role and the preset it runs."
-        },
-        "TicketRoutingRulesReplace": {
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
-          "type": "object",
-          "properties": {
-            "rules": {
-              "maxItems": 50,
-              "type": "array",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "labelId": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 100,
-                    "description": "The provider's stable id of one label of the ticket source (for example a numeric label id written as a string), exactly as the source's ticket reader reports it. Rules match this id, never the name, so renaming the label keeps its routing. TicketRoutingRuleInput.labelId must contain at least 1 characters. TicketRoutingRuleInput.labelId must contain at most 100 characters."
-                  },
-                  "labelName": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 100,
-                    "description": "Display name of the label, shown in settings and in readiness evidence; never matched. Send the current name to rename it; a rename alone changes nothing about routing. TicketRoutingRuleInput.labelName must contain at least 1 characters. TicketRoutingRuleInput.labelName must contain at most 100 characters."
-                  },
-                  "repositoryId": {
-                    "type": "string",
-                    "format": "uuid",
-                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                    "description": "Bakery repository the label routes to. It must belong to the ticket source's application and must not be archived when the rules are saved; otherwise the whole replacement answers 422."
-                  },
-                  "role": {
-                    "type": "string",
-                    "maxLength": 63,
-                    "pattern": "^[a-z0-9]+(?:[-_][a-z0-9]+)*$",
-                    "description": "Role the repository plays for a routed ticket, such as backend or frontend. The application must bind this repository to this role with an alias (applicationRepositoryRoles.set), because the target runs as a lane of a coordination plan that names it by that alias. Within one ticket a role must resolve to one repository and a repository to one role, or admission is blocked as ambiguous. TicketRoutingRuleInput.role must contain at most 63 characters."
-                  },
-                  "presetId": {
-                    "description": "Workflow preset the routed repository target runs; omitted means fixed-coding, the only preset admission runs. The preset's revision and digest are pinned on each admitted target.",
-                    "type": "string",
-                    "enum": [
-                      "fixed-coding"
-                    ]
-                  }
-                },
-                "required": [
-                  "labelId",
-                  "labelName",
-                  "repositoryId",
-                  "role"
-                ],
-                "additionalProperties": false,
-                "description": "The complete rule set of the ticket source, at most 50 rules, each (labelId, repositoryId) pair at most once. An empty list removes every rule, so tickets route to the source's own repository again. Each array item follows this format."
-              },
-              "description": "The complete rule set of the ticket source, at most 50 rules, each (labelId, repositoryId) pair at most once. An empty list removes every rule, so tickets route to the source's own repository again. TicketRoutingRulesReplace.rules must contain at most 50 items."
-            }
-          },
-          "required": [
-            "rules"
-          ],
-          "additionalProperties": false,
-          "description": "Replaces the label routing rules of one ticket source as a whole, under compare-and-swap on the source version."
         },
         "applications": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -87596,8 +87406,6 @@
                 "ticketSources.preview",
                 "ticketSources.lookupPerson",
                 "ticketSources.sync",
-                "ticketRoutingRules.get",
-                "ticketRoutingRules.replace",
                 "externalTickets.list",
                 "externalTickets.get",
                 "ticketReadiness.create",
@@ -88106,8 +87914,6 @@
                 "ticketSources.preview",
                 "ticketSources.lookupPerson",
                 "ticketSources.sync",
-                "ticketRoutingRules.get",
-                "ticketRoutingRules.replace",
                 "externalTickets.list",
                 "externalTickets.get",
                 "ticketReadiness.create",
@@ -88616,8 +88422,6 @@
                 "ticketSources.preview",
                 "ticketSources.lookupPerson",
                 "ticketSources.sync",
-                "ticketRoutingRules.get",
-                "ticketRoutingRules.replace",
                 "externalTickets.list",
                 "externalTickets.get",
                 "ticketReadiness.create",
@@ -113030,143 +112834,6 @@
               "minimum": -9007199254740991,
               "maximum": 9007199254740991,
               "description": "Monotonic revision used to order or conditionally update this ticket request record."
-            },
-            "targets": {
-              "description": "Repository-scoped children pinned at admission, one per routed repository and ordered by role: the union of the matched routing rules deduplicated by repository, or the source's own repository when no rule matched. Never retargeted by a later rule or policy edit. Omitted by servers that predate label routing.",
-              "type": "array",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "repositoryId": {
-                    "type": "string",
-                    "format": "uuid",
-                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                    "description": "UUID of the repository this child is scoped to; a request holds each repository at most once."
-                  },
-                  "role": {
-                    "type": "string",
-                    "maxLength": 65536,
-                    "description": "Role the repository plays for the request; default when the ticket matched no rule and fell back to the source's own repository."
-                  },
-                  "routingRuleId": {
-                    "anyOf": [
-                      {
-                        "type": "string",
-                        "format": "uuid",
-                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                        "description": "UUID of the rule that routed the ticket here as pinned at admission (the rule may since have been deleted), or null for the fallback to the source's repository."
-                      },
-                      {
-                        "type": "null",
-                        "description": "Null indicates that the value is unavailable."
-                      }
-                    ],
-                    "description": "TicketRequestTarget.routingRuleId may be null in this transport value."
-                  },
-                  "routingRuleVersion": {
-                    "anyOf": [
-                      {
-                        "type": "integer",
-                        "minimum": -9007199254740991,
-                        "maximum": 9007199254740991,
-                        "description": "Version of that rule at admission, or null for the fallback."
-                      },
-                      {
-                        "type": "null",
-                        "description": "Null indicates that the value is unavailable."
-                      }
-                    ],
-                    "description": "TicketRequestTarget.routingRuleVersion may be null in this transport value."
-                  },
-                  "sourcePolicyRevision": {
-                    "type": "integer",
-                    "minimum": -9007199254740991,
-                    "maximum": 9007199254740991,
-                    "description": "Ticket source policy revision the child was admitted under."
-                  },
-                  "pinnedPreset": {
-                    "anyOf": [
-                      {
-                        "type": "string",
-                        "description": "JSON string value."
-                      },
-                      {
-                        "type": "number",
-                        "description": "JSON number value."
-                      },
-                      {
-                        "type": "boolean",
-                        "description": "JSON boolean value."
-                      },
-                      {
-                        "type": "null",
-                        "description": "JSON null value."
-                      },
-                      {
-                        "type": "array",
-                        "items": {
-                          "$ref": "#/components/schemas/TicketRequest____schema1"
-                        },
-                        "description": "JSON array value."
-                      },
-                      {
-                        "type": "object",
-                        "propertyNames": {
-                          "type": "string",
-                          "description": "JSON object key."
-                        },
-                        "additionalProperties": {
-                          "$ref": "#/components/schemas/TicketRequest____schema1"
-                        },
-                        "description": "JSON object value."
-                      }
-                    ],
-                    "description": "Workflow preset identity (id, revision, digest) the child was admitted with."
-                  },
-                  "coordinationPlanId": {
-                    "anyOf": [
-                      {
-                        "type": "string",
-                        "format": "uuid",
-                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                        "description": "Ticket-origin coordination plan whose lane runs this target, or null for the fallback to the source's repository, which runs on the request's own task."
-                      },
-                      {
-                        "type": "null",
-                        "description": "Null indicates that the value is unavailable."
-                      }
-                    ],
-                    "description": "TicketRequestTarget.coordinationPlanId may be null in this transport value."
-                  },
-                  "childTaskId": {
-                    "anyOf": [
-                      {
-                        "type": "string",
-                        "format": "uuid",
-                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                        "description": "Child task of the request's task that runs this target in its repository, or null for the fallback. The request completes only when every child task completes and fails when any fails."
-                      },
-                      {
-                        "type": "null",
-                        "description": "Null indicates that the value is unavailable."
-                      }
-                    ],
-                    "description": "TicketRequestTarget.childTaskId may be null in this transport value."
-                  }
-                },
-                "required": [
-                  "repositoryId",
-                  "role",
-                  "routingRuleId",
-                  "routingRuleVersion",
-                  "sourcePolicyRevision",
-                  "pinnedPreset",
-                  "coordinationPlanId",
-                  "childTaskId"
-                ],
-                "additionalProperties": false,
-                "description": "Repository-scoped children pinned at admission, one per routed repository and ordered by role: the union of the matched routing rules deduplicated by repository, or the source's own repository when no rule matched. Never retargeted by a later rule or policy edit. Omitted by servers that predate label routing. Each array item follows this format."
-              }
             }
           },
           "required": [
@@ -113290,117 +112957,6 @@
                     },
                     "additionalProperties": {
                       "$ref": "#/components/schemas/TicketRequest____schema0"
-                    },
-                    "description": "JSON object value."
-                  }
-                ],
-                "description": "JSON value node."
-              },
-              "description": "JSON object value."
-            }
-          ],
-          "description": "JSON value node."
-        },
-        "TicketRequest____schema1": {
-          "anyOf": [
-            {
-              "type": "string",
-              "description": "JSON string value."
-            },
-            {
-              "type": "number",
-              "description": "JSON number value."
-            },
-            {
-              "type": "boolean",
-              "description": "JSON boolean value."
-            },
-            {
-              "type": "null",
-              "description": "JSON null value."
-            },
-            {
-              "type": "array",
-              "items": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "description": "JSON string value."
-                  },
-                  {
-                    "type": "number",
-                    "description": "JSON number value."
-                  },
-                  {
-                    "type": "boolean",
-                    "description": "JSON boolean value."
-                  },
-                  {
-                    "type": "null",
-                    "description": "JSON null value."
-                  },
-                  {
-                    "type": "array",
-                    "items": {
-                      "$ref": "#/components/schemas/TicketRequest____schema1"
-                    },
-                    "description": "JSON array value."
-                  },
-                  {
-                    "type": "object",
-                    "propertyNames": {
-                      "type": "string",
-                      "description": "JSON object key."
-                    },
-                    "additionalProperties": {
-                      "$ref": "#/components/schemas/TicketRequest____schema1"
-                    },
-                    "description": "JSON object value."
-                  }
-                ],
-                "description": "JSON value node."
-              },
-              "description": "JSON array value."
-            },
-            {
-              "type": "object",
-              "propertyNames": {
-                "type": "string",
-                "description": "JSON object key."
-              },
-              "additionalProperties": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "description": "JSON string value."
-                  },
-                  {
-                    "type": "number",
-                    "description": "JSON number value."
-                  },
-                  {
-                    "type": "boolean",
-                    "description": "JSON boolean value."
-                  },
-                  {
-                    "type": "null",
-                    "description": "JSON null value."
-                  },
-                  {
-                    "type": "array",
-                    "items": {
-                      "$ref": "#/components/schemas/TicketRequest____schema1"
-                    },
-                    "description": "JSON array value."
-                  },
-                  {
-                    "type": "object",
-                    "propertyNames": {
-                      "type": "string",
-                      "description": "JSON object key."
-                    },
-                    "additionalProperties": {
-                      "$ref": "#/components/schemas/TicketRequest____schema1"
                     },
                     "description": "JSON object value."
                   }
@@ -133423,8 +132979,6 @@
                       "ticketSources.preview",
                       "ticketSources.lookupPerson",
                       "ticketSources.sync",
-                      "ticketRoutingRules.get",
-                      "ticketRoutingRules.replace",
                       "externalTickets.list",
                       "externalTickets.get",
                       "ticketReadiness.create",
@@ -201036,143 +200590,6 @@
                     "minimum": -9007199254740991,
                     "maximum": 9007199254740991,
                     "description": "Monotonic revision used to order or conditionally update this ticket request record."
-                  },
-                  "targets": {
-                    "description": "Repository-scoped children pinned at admission, one per routed repository and ordered by role: the union of the matched routing rules deduplicated by repository, or the source's own repository when no rule matched. Never retargeted by a later rule or policy edit. Omitted by servers that predate label routing.",
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "properties": {
-                        "repositoryId": {
-                          "type": "string",
-                          "format": "uuid",
-                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                          "description": "UUID of the repository this child is scoped to; a request holds each repository at most once."
-                        },
-                        "role": {
-                          "type": "string",
-                          "maxLength": 65536,
-                          "description": "Role the repository plays for the request; default when the ticket matched no rule and fell back to the source's own repository."
-                        },
-                        "routingRuleId": {
-                          "anyOf": [
-                            {
-                              "type": "string",
-                              "format": "uuid",
-                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                              "description": "UUID of the rule that routed the ticket here as pinned at admission (the rule may since have been deleted), or null for the fallback to the source's repository."
-                            },
-                            {
-                              "type": "null",
-                              "description": "Null indicates that the value is unavailable."
-                            }
-                          ],
-                          "description": "TicketRequestTarget.routingRuleId may be null in this transport value."
-                        },
-                        "routingRuleVersion": {
-                          "anyOf": [
-                            {
-                              "type": "integer",
-                              "minimum": -9007199254740991,
-                              "maximum": 9007199254740991,
-                              "description": "Version of that rule at admission, or null for the fallback."
-                            },
-                            {
-                              "type": "null",
-                              "description": "Null indicates that the value is unavailable."
-                            }
-                          ],
-                          "description": "TicketRequestTarget.routingRuleVersion may be null in this transport value."
-                        },
-                        "sourcePolicyRevision": {
-                          "type": "integer",
-                          "minimum": -9007199254740991,
-                          "maximum": 9007199254740991,
-                          "description": "Ticket source policy revision the child was admitted under."
-                        },
-                        "pinnedPreset": {
-                          "anyOf": [
-                            {
-                              "type": "string",
-                              "description": "JSON string value."
-                            },
-                            {
-                              "type": "number",
-                              "description": "JSON number value."
-                            },
-                            {
-                              "type": "boolean",
-                              "description": "JSON boolean value."
-                            },
-                            {
-                              "type": "null",
-                              "description": "JSON null value."
-                            },
-                            {
-                              "type": "array",
-                              "items": {
-                                "$ref": "#/components/schemas/Page<TicketRequest>____schema1"
-                              },
-                              "description": "JSON array value."
-                            },
-                            {
-                              "type": "object",
-                              "propertyNames": {
-                                "type": "string",
-                                "description": "JSON object key."
-                              },
-                              "additionalProperties": {
-                                "$ref": "#/components/schemas/Page<TicketRequest>____schema1"
-                              },
-                              "description": "JSON object value."
-                            }
-                          ],
-                          "description": "Workflow preset identity (id, revision, digest) the child was admitted with."
-                        },
-                        "coordinationPlanId": {
-                          "anyOf": [
-                            {
-                              "type": "string",
-                              "format": "uuid",
-                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                              "description": "Ticket-origin coordination plan whose lane runs this target, or null for the fallback to the source's repository, which runs on the request's own task."
-                            },
-                            {
-                              "type": "null",
-                              "description": "Null indicates that the value is unavailable."
-                            }
-                          ],
-                          "description": "TicketRequestTarget.coordinationPlanId may be null in this transport value."
-                        },
-                        "childTaskId": {
-                          "anyOf": [
-                            {
-                              "type": "string",
-                              "format": "uuid",
-                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                              "description": "Child task of the request's task that runs this target in its repository, or null for the fallback. The request completes only when every child task completes and fails when any fails."
-                            },
-                            {
-                              "type": "null",
-                              "description": "Null indicates that the value is unavailable."
-                            }
-                          ],
-                          "description": "TicketRequestTarget.childTaskId may be null in this transport value."
-                        }
-                      },
-                      "required": [
-                        "repositoryId",
-                        "role",
-                        "routingRuleId",
-                        "routingRuleVersion",
-                        "sourcePolicyRevision",
-                        "pinnedPreset",
-                        "coordinationPlanId",
-                        "childTaskId"
-                      ],
-                      "additionalProperties": false,
-                      "description": "Repository-scoped children pinned at admission, one per routed repository and ordered by role: the union of the matched routing rules deduplicated by repository, or the source's own repository when no rule matched. Never retargeted by a later rule or policy edit. Omitted by servers that predate label routing. Each array item follows this format."
-                    }
                   }
                 },
                 "required": [
@@ -201350,117 +200767,6 @@
                     },
                     "additionalProperties": {
                       "$ref": "#/components/schemas/Page<TicketRequest>____schema0"
-                    },
-                    "description": "JSON object value."
-                  }
-                ],
-                "description": "JSON value node."
-              },
-              "description": "JSON object value."
-            }
-          ],
-          "description": "JSON value node."
-        },
-        "Page<TicketRequest>____schema1": {
-          "anyOf": [
-            {
-              "type": "string",
-              "description": "JSON string value."
-            },
-            {
-              "type": "number",
-              "description": "JSON number value."
-            },
-            {
-              "type": "boolean",
-              "description": "JSON boolean value."
-            },
-            {
-              "type": "null",
-              "description": "JSON null value."
-            },
-            {
-              "type": "array",
-              "items": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "description": "JSON string value."
-                  },
-                  {
-                    "type": "number",
-                    "description": "JSON number value."
-                  },
-                  {
-                    "type": "boolean",
-                    "description": "JSON boolean value."
-                  },
-                  {
-                    "type": "null",
-                    "description": "JSON null value."
-                  },
-                  {
-                    "type": "array",
-                    "items": {
-                      "$ref": "#/components/schemas/Page<TicketRequest>____schema1"
-                    },
-                    "description": "JSON array value."
-                  },
-                  {
-                    "type": "object",
-                    "propertyNames": {
-                      "type": "string",
-                      "description": "JSON object key."
-                    },
-                    "additionalProperties": {
-                      "$ref": "#/components/schemas/Page<TicketRequest>____schema1"
-                    },
-                    "description": "JSON object value."
-                  }
-                ],
-                "description": "JSON value node."
-              },
-              "description": "JSON array value."
-            },
-            {
-              "type": "object",
-              "propertyNames": {
-                "type": "string",
-                "description": "JSON object key."
-              },
-              "additionalProperties": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "description": "JSON string value."
-                  },
-                  {
-                    "type": "number",
-                    "description": "JSON number value."
-                  },
-                  {
-                    "type": "boolean",
-                    "description": "JSON boolean value."
-                  },
-                  {
-                    "type": "null",
-                    "description": "JSON null value."
-                  },
-                  {
-                    "type": "array",
-                    "items": {
-                      "$ref": "#/components/schemas/Page<TicketRequest>____schema1"
-                    },
-                    "description": "JSON array value."
-                  },
-                  {
-                    "type": "object",
-                    "propertyNames": {
-                      "type": "string",
-                      "description": "JSON object key."
-                    },
-                    "additionalProperties": {
-                      "$ref": "#/components/schemas/Page<TicketRequest>____schema1"
                     },
                     "description": "JSON object value."
                   }
@@ -218115,456 +217421,6 @@
           "additionalProperties": false,
           "description": "The monitoring view of one provider route: circuit state, the typed reason for it, the bounded evidence watermark, the probe schedule and the current incident generation. It exists so a caller can answer why a route is paused and when it will be probed without reading free-form provider output. A status-page corroboration and a successful health read are reachability evidence only; neither proves the inference path, which is why inferenceVerifiedAt is separate and only an already-authorized trial sets it."
         },
-        "TicketRoutingRule": {
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
-          "type": "object",
-          "properties": {
-            "id": {
-              "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "Stable UUID of the rule; an unchanged rule keeps it across replacements, and admitted targets pin it."
-            },
-            "organizationId": {
-              "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "UUID of the organization that owns the rule."
-            },
-            "ticketSourceId": {
-              "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "UUID of the ticket source the rule belongs to."
-            },
-            "labelId": {
-              "type": "string",
-              "maxLength": 65536,
-              "description": "Provider label id the rule matches, compared exactly with the label ids on a ticket."
-            },
-            "labelName": {
-              "type": "string",
-              "maxLength": 65536,
-              "description": "Display name of the label as last saved; shown only, never matched."
-            },
-            "repositoryId": {
-              "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "UUID of the repository the label routes to."
-            },
-            "role": {
-              "type": "string",
-              "maxLength": 65536,
-              "description": "Role the repository plays for a routed ticket."
-            },
-            "presetId": {
-              "type": "string",
-              "enum": [
-                "fixed-coding"
-              ],
-              "description": "Workflow preset the routed target runs."
-            },
-            "version": {
-              "type": "integer",
-              "minimum": -9007199254740991,
-              "maximum": 9007199254740991,
-              "description": "Edit count of this rule, starting at 1; admitted targets pin it."
-            },
-            "createdAt": {
-              "type": "string",
-              "format": "date-time",
-              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-              "description": "UTC timestamp when the rule was first saved."
-            },
-            "updatedAt": {
-              "type": "string",
-              "format": "date-time",
-              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-              "description": "UTC timestamp when the rule last changed."
-            }
-          },
-          "required": [
-            "id",
-            "organizationId",
-            "ticketSourceId",
-            "labelId",
-            "labelName",
-            "repositoryId",
-            "role",
-            "presetId",
-            "version",
-            "createdAt",
-            "updatedAt"
-          ],
-          "additionalProperties": false,
-          "description": "One label routing rule of a ticket source: tickets carrying the label are routed to the repository in the given role."
-        },
-        "TicketRoutingRuleSet": {
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
-          "type": "object",
-          "properties": {
-            "ticketSourceId": {
-              "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "UUID of the ticket source."
-            },
-            "policyRevision": {
-              "type": "integer",
-              "minimum": -9007199254740991,
-              "maximum": 9007199254740991,
-              "description": "Ticket source policy revision the rules belong to; every rule change advances it."
-            },
-            "version": {
-              "type": "integer",
-              "minimum": -9007199254740991,
-              "maximum": 9007199254740991,
-              "description": "Ticket source version; the If-Match value a replacement must send."
-            },
-            "rules": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string",
-                    "format": "uuid",
-                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                    "description": "Stable UUID of the rule; an unchanged rule keeps it across replacements, and admitted targets pin it."
-                  },
-                  "organizationId": {
-                    "type": "string",
-                    "format": "uuid",
-                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                    "description": "UUID of the organization that owns the rule."
-                  },
-                  "ticketSourceId": {
-                    "type": "string",
-                    "format": "uuid",
-                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                    "description": "UUID of the ticket source the rule belongs to."
-                  },
-                  "labelId": {
-                    "type": "string",
-                    "maxLength": 65536,
-                    "description": "Provider label id the rule matches, compared exactly with the label ids on a ticket."
-                  },
-                  "labelName": {
-                    "type": "string",
-                    "maxLength": 65536,
-                    "description": "Display name of the label as last saved; shown only, never matched."
-                  },
-                  "repositoryId": {
-                    "type": "string",
-                    "format": "uuid",
-                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                    "description": "UUID of the repository the label routes to."
-                  },
-                  "role": {
-                    "type": "string",
-                    "maxLength": 65536,
-                    "description": "Role the repository plays for a routed ticket."
-                  },
-                  "presetId": {
-                    "type": "string",
-                    "enum": [
-                      "fixed-coding"
-                    ],
-                    "description": "Workflow preset the routed target runs."
-                  },
-                  "version": {
-                    "type": "integer",
-                    "minimum": -9007199254740991,
-                    "maximum": 9007199254740991,
-                    "description": "Edit count of this rule, starting at 1; admitted targets pin it."
-                  },
-                  "createdAt": {
-                    "type": "string",
-                    "format": "date-time",
-                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-                    "description": "UTC timestamp when the rule was first saved."
-                  },
-                  "updatedAt": {
-                    "type": "string",
-                    "format": "date-time",
-                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-                    "description": "UTC timestamp when the rule last changed."
-                  }
-                },
-                "required": [
-                  "id",
-                  "organizationId",
-                  "ticketSourceId",
-                  "labelId",
-                  "labelName",
-                  "repositoryId",
-                  "role",
-                  "presetId",
-                  "version",
-                  "createdAt",
-                  "updatedAt"
-                ],
-                "additionalProperties": false,
-                "description": "Every rule of the source, at most 50, ordered by label key and then repository id. Each array item follows this format."
-              },
-              "description": "Every rule of the source, at most 50, ordered by label key and then repository id."
-            }
-          },
-          "required": [
-            "ticketSourceId",
-            "policyRevision",
-            "version",
-            "rules"
-          ],
-          "additionalProperties": false,
-          "description": "The complete label routing rule set of one ticket source, with the source's policy revision and version. Send version as If-Match to replace it; pass policyRevision as expectedSourcePolicyRevision to admit under these rules."
-        },
-        "TicketRequestTarget": {
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
-          "type": "object",
-          "properties": {
-            "repositoryId": {
-              "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "UUID of the repository this child is scoped to; a request holds each repository at most once."
-            },
-            "role": {
-              "type": "string",
-              "maxLength": 65536,
-              "description": "Role the repository plays for the request; default when the ticket matched no rule and fell back to the source's own repository."
-            },
-            "routingRuleId": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "uuid",
-                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                  "description": "UUID of the rule that routed the ticket here as pinned at admission (the rule may since have been deleted), or null for the fallback to the source's repository."
-                },
-                {
-                  "type": "null",
-                  "description": "Null indicates that the value is unavailable."
-                }
-              ],
-              "description": "TicketRequestTarget.routingRuleId may be null in this transport value."
-            },
-            "routingRuleVersion": {
-              "anyOf": [
-                {
-                  "type": "integer",
-                  "minimum": -9007199254740991,
-                  "maximum": 9007199254740991,
-                  "description": "Version of that rule at admission, or null for the fallback."
-                },
-                {
-                  "type": "null",
-                  "description": "Null indicates that the value is unavailable."
-                }
-              ],
-              "description": "TicketRequestTarget.routingRuleVersion may be null in this transport value."
-            },
-            "sourcePolicyRevision": {
-              "type": "integer",
-              "minimum": -9007199254740991,
-              "maximum": 9007199254740991,
-              "description": "Ticket source policy revision the child was admitted under."
-            },
-            "pinnedPreset": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "description": "JSON string value."
-                },
-                {
-                  "type": "number",
-                  "description": "JSON number value."
-                },
-                {
-                  "type": "boolean",
-                  "description": "JSON boolean value."
-                },
-                {
-                  "type": "null",
-                  "description": "JSON null value."
-                },
-                {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/TicketRequestTarget____schema0"
-                  },
-                  "description": "JSON array value."
-                },
-                {
-                  "type": "object",
-                  "propertyNames": {
-                    "type": "string",
-                    "description": "JSON object key."
-                  },
-                  "additionalProperties": {
-                    "$ref": "#/components/schemas/TicketRequestTarget____schema0"
-                  },
-                  "description": "JSON object value."
-                }
-              ],
-              "description": "Workflow preset identity (id, revision, digest) the child was admitted with."
-            },
-            "coordinationPlanId": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "uuid",
-                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                  "description": "Ticket-origin coordination plan whose lane runs this target, or null for the fallback to the source's repository, which runs on the request's own task."
-                },
-                {
-                  "type": "null",
-                  "description": "Null indicates that the value is unavailable."
-                }
-              ],
-              "description": "TicketRequestTarget.coordinationPlanId may be null in this transport value."
-            },
-            "childTaskId": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "uuid",
-                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                  "description": "Child task of the request's task that runs this target in its repository, or null for the fallback. The request completes only when every child task completes and fails when any fails."
-                },
-                {
-                  "type": "null",
-                  "description": "Null indicates that the value is unavailable."
-                }
-              ],
-              "description": "TicketRequestTarget.childTaskId may be null in this transport value."
-            }
-          },
-          "required": [
-            "repositoryId",
-            "role",
-            "routingRuleId",
-            "routingRuleVersion",
-            "sourcePolicyRevision",
-            "pinnedPreset",
-            "coordinationPlanId",
-            "childTaskId"
-          ],
-          "additionalProperties": false,
-          "description": "One repository-scoped child of an admitted ticket request, pinned at admission and run as a child task of the request's coordination plan. Later rule or policy edits never change it."
-        },
-        "TicketRequestTarget____schema0": {
-          "anyOf": [
-            {
-              "type": "string",
-              "description": "JSON string value."
-            },
-            {
-              "type": "number",
-              "description": "JSON number value."
-            },
-            {
-              "type": "boolean",
-              "description": "JSON boolean value."
-            },
-            {
-              "type": "null",
-              "description": "JSON null value."
-            },
-            {
-              "type": "array",
-              "items": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "description": "JSON string value."
-                  },
-                  {
-                    "type": "number",
-                    "description": "JSON number value."
-                  },
-                  {
-                    "type": "boolean",
-                    "description": "JSON boolean value."
-                  },
-                  {
-                    "type": "null",
-                    "description": "JSON null value."
-                  },
-                  {
-                    "type": "array",
-                    "items": {
-                      "$ref": "#/components/schemas/TicketRequestTarget____schema0"
-                    },
-                    "description": "JSON array value."
-                  },
-                  {
-                    "type": "object",
-                    "propertyNames": {
-                      "type": "string",
-                      "description": "JSON object key."
-                    },
-                    "additionalProperties": {
-                      "$ref": "#/components/schemas/TicketRequestTarget____schema0"
-                    },
-                    "description": "JSON object value."
-                  }
-                ],
-                "description": "JSON value node."
-              },
-              "description": "JSON array value."
-            },
-            {
-              "type": "object",
-              "propertyNames": {
-                "type": "string",
-                "description": "JSON object key."
-              },
-              "additionalProperties": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "description": "JSON string value."
-                  },
-                  {
-                    "type": "number",
-                    "description": "JSON number value."
-                  },
-                  {
-                    "type": "boolean",
-                    "description": "JSON boolean value."
-                  },
-                  {
-                    "type": "null",
-                    "description": "JSON null value."
-                  },
-                  {
-                    "type": "array",
-                    "items": {
-                      "$ref": "#/components/schemas/TicketRequestTarget____schema0"
-                    },
-                    "description": "JSON array value."
-                  },
-                  {
-                    "type": "object",
-                    "propertyNames": {
-                      "type": "string",
-                      "description": "JSON object key."
-                    },
-                    "additionalProperties": {
-                      "$ref": "#/components/schemas/TicketRequestTarget____schema0"
-                    },
-                    "description": "JSON object value."
-                  }
-                ],
-                "description": "JSON value node."
-              },
-              "description": "JSON object value."
-            }
-          ],
-          "description": "JSON value node."
-        },
         "ArtifactOutput": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
@@ -220118,7 +218974,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:dc97eb179d04dbbece49b9f399e390e602657b465b38d9c49fd7d46404e7f413",
+  "compatibilityDigest": "sha256:ad80c2f8bc188eb1f5077254d403cc99d8f0eef61f41306a7d02beefa60e4e4c",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -227689,8 +226545,6 @@
             "ticketSources.preview",
             "ticketSources.lookupPerson",
             "ticketSources.sync",
-            "ticketRoutingRules.get",
-            "ticketRoutingRules.replace",
             "externalTickets.list",
             "externalTickets.get",
             "ticketReadiness.create",
@@ -246204,111 +245058,6 @@
       },
       "additionalProperties": false,
       "description": "Filters and page position for listing provider incidents. An incident is one durable record per affected route and generation, not one per failed attempt, so duplicate and stale probe results do not multiply rows."
-    },
-    "TicketRoutingRuleInput": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "labelId": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 100,
-          "description": "The provider's stable id of one label of the ticket source (for example a numeric label id written as a string), exactly as the source's ticket reader reports it. Rules match this id, never the name, so renaming the label keeps its routing. TicketRoutingRuleInput.labelId must contain at least 1 characters. TicketRoutingRuleInput.labelId must contain at most 100 characters."
-        },
-        "labelName": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 100,
-          "description": "Display name of the label, shown in settings and in readiness evidence; never matched. Send the current name to rename it; a rename alone changes nothing about routing. TicketRoutingRuleInput.labelName must contain at least 1 characters. TicketRoutingRuleInput.labelName must contain at most 100 characters."
-        },
-        "repositoryId": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "Bakery repository the label routes to. It must belong to the ticket source's application and must not be archived when the rules are saved; otherwise the whole replacement answers 422."
-        },
-        "role": {
-          "type": "string",
-          "maxLength": 63,
-          "pattern": "^[a-z0-9]+(?:[-_][a-z0-9]+)*$",
-          "description": "Role the repository plays for a routed ticket, such as backend or frontend. The application must bind this repository to this role with an alias (applicationRepositoryRoles.set), because the target runs as a lane of a coordination plan that names it by that alias. Within one ticket a role must resolve to one repository and a repository to one role, or admission is blocked as ambiguous. TicketRoutingRuleInput.role must contain at most 63 characters."
-        },
-        "presetId": {
-          "description": "Workflow preset the routed repository target runs; omitted means fixed-coding, the only preset admission runs. The preset's revision and digest are pinned on each admitted target.",
-          "type": "string",
-          "enum": [
-            "fixed-coding"
-          ]
-        }
-      },
-      "required": [
-        "labelId",
-        "labelName",
-        "repositoryId",
-        "role"
-      ],
-      "additionalProperties": false,
-      "description": "One routing rule as a client sends it: a provider label id and its display name, the repository it routes to, that repository's role and the preset it runs."
-    },
-    "TicketRoutingRulesReplace": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "rules": {
-          "maxItems": 50,
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "labelId": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 100,
-                "description": "The provider's stable id of one label of the ticket source (for example a numeric label id written as a string), exactly as the source's ticket reader reports it. Rules match this id, never the name, so renaming the label keeps its routing. TicketRoutingRuleInput.labelId must contain at least 1 characters. TicketRoutingRuleInput.labelId must contain at most 100 characters."
-              },
-              "labelName": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 100,
-                "description": "Display name of the label, shown in settings and in readiness evidence; never matched. Send the current name to rename it; a rename alone changes nothing about routing. TicketRoutingRuleInput.labelName must contain at least 1 characters. TicketRoutingRuleInput.labelName must contain at most 100 characters."
-              },
-              "repositoryId": {
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "Bakery repository the label routes to. It must belong to the ticket source's application and must not be archived when the rules are saved; otherwise the whole replacement answers 422."
-              },
-              "role": {
-                "type": "string",
-                "maxLength": 63,
-                "pattern": "^[a-z0-9]+(?:[-_][a-z0-9]+)*$",
-                "description": "Role the repository plays for a routed ticket, such as backend or frontend. The application must bind this repository to this role with an alias (applicationRepositoryRoles.set), because the target runs as a lane of a coordination plan that names it by that alias. Within one ticket a role must resolve to one repository and a repository to one role, or admission is blocked as ambiguous. TicketRoutingRuleInput.role must contain at most 63 characters."
-              },
-              "presetId": {
-                "description": "Workflow preset the routed repository target runs; omitted means fixed-coding, the only preset admission runs. The preset's revision and digest are pinned on each admitted target.",
-                "type": "string",
-                "enum": [
-                  "fixed-coding"
-                ]
-              }
-            },
-            "required": [
-              "labelId",
-              "labelName",
-              "repositoryId",
-              "role"
-            ],
-            "additionalProperties": false,
-            "description": "The complete rule set of the ticket source, at most 50 rules, each (labelId, repositoryId) pair at most once. An empty list removes every rule, so tickets route to the source's own repository again. Each array item follows this format."
-          },
-          "description": "The complete rule set of the ticket source, at most 50 rules, each (labelId, repositoryId) pair at most once. An empty list removes every rule, so tickets route to the source's own repository again. TicketRoutingRulesReplace.rules must contain at most 50 items."
-        }
-      },
-      "required": [
-        "rules"
-      ],
-      "additionalProperties": false,
-      "description": "Replaces the label routing rules of one ticket source as a whole, under compare-and-swap on the source version."
     },
     "applications": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -272223,8 +270972,6 @@
             "ticketSources.preview",
             "ticketSources.lookupPerson",
             "ticketSources.sync",
-            "ticketRoutingRules.get",
-            "ticketRoutingRules.replace",
             "externalTickets.list",
             "externalTickets.get",
             "ticketReadiness.create",
@@ -272733,8 +271480,6 @@
             "ticketSources.preview",
             "ticketSources.lookupPerson",
             "ticketSources.sync",
-            "ticketRoutingRules.get",
-            "ticketRoutingRules.replace",
             "externalTickets.list",
             "externalTickets.get",
             "ticketReadiness.create",
@@ -273243,8 +271988,6 @@
             "ticketSources.preview",
             "ticketSources.lookupPerson",
             "ticketSources.sync",
-            "ticketRoutingRules.get",
-            "ticketRoutingRules.replace",
             "externalTickets.list",
             "externalTickets.get",
             "ticketReadiness.create",
@@ -297751,143 +296494,6 @@
           "minimum": -9007199254740991,
           "maximum": 9007199254740991,
           "description": "Monotonic revision used to order or conditionally update this ticket request record."
-        },
-        "targets": {
-          "description": "Repository-scoped children pinned at admission, one per routed repository and ordered by role: the union of the matched routing rules deduplicated by repository, or the source's own repository when no rule matched. Never retargeted by a later rule or policy edit. Omitted by servers that predate label routing.",
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "repositoryId": {
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "UUID of the repository this child is scoped to; a request holds each repository at most once."
-              },
-              "role": {
-                "type": "string",
-                "maxLength": 65536,
-                "description": "Role the repository plays for the request; default when the ticket matched no rule and fell back to the source's own repository."
-              },
-              "routingRuleId": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "format": "uuid",
-                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                    "description": "UUID of the rule that routed the ticket here as pinned at admission (the rule may since have been deleted), or null for the fallback to the source's repository."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "TicketRequestTarget.routingRuleId may be null in this transport value."
-              },
-              "routingRuleVersion": {
-                "anyOf": [
-                  {
-                    "type": "integer",
-                    "minimum": -9007199254740991,
-                    "maximum": 9007199254740991,
-                    "description": "Version of that rule at admission, or null for the fallback."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "TicketRequestTarget.routingRuleVersion may be null in this transport value."
-              },
-              "sourcePolicyRevision": {
-                "type": "integer",
-                "minimum": -9007199254740991,
-                "maximum": 9007199254740991,
-                "description": "Ticket source policy revision the child was admitted under."
-              },
-              "pinnedPreset": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "description": "JSON string value."
-                  },
-                  {
-                    "type": "number",
-                    "description": "JSON number value."
-                  },
-                  {
-                    "type": "boolean",
-                    "description": "JSON boolean value."
-                  },
-                  {
-                    "type": "null",
-                    "description": "JSON null value."
-                  },
-                  {
-                    "type": "array",
-                    "items": {
-                      "$ref": "#/$defs/__schema1"
-                    },
-                    "description": "JSON array value."
-                  },
-                  {
-                    "type": "object",
-                    "propertyNames": {
-                      "type": "string",
-                      "description": "JSON object key."
-                    },
-                    "additionalProperties": {
-                      "$ref": "#/$defs/__schema1"
-                    },
-                    "description": "JSON object value."
-                  }
-                ],
-                "description": "Workflow preset identity (id, revision, digest) the child was admitted with."
-              },
-              "coordinationPlanId": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "format": "uuid",
-                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                    "description": "Ticket-origin coordination plan whose lane runs this target, or null for the fallback to the source's repository, which runs on the request's own task."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "TicketRequestTarget.coordinationPlanId may be null in this transport value."
-              },
-              "childTaskId": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "format": "uuid",
-                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                    "description": "Child task of the request's task that runs this target in its repository, or null for the fallback. The request completes only when every child task completes and fails when any fails."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "TicketRequestTarget.childTaskId may be null in this transport value."
-              }
-            },
-            "required": [
-              "repositoryId",
-              "role",
-              "routingRuleId",
-              "routingRuleVersion",
-              "sourcePolicyRevision",
-              "pinnedPreset",
-              "coordinationPlanId",
-              "childTaskId"
-            ],
-            "additionalProperties": false,
-            "description": "Repository-scoped children pinned at admission, one per routed repository and ordered by role: the union of the matched routing rules deduplicated by repository, or the source's own repository when no rule matched. Never retargeted by a later rule or policy edit. Omitted by servers that predate label routing. Each array item follows this format."
-          }
         }
       },
       "required": [
@@ -298011,117 +296617,6 @@
                     },
                     "additionalProperties": {
                       "$ref": "#/$defs/__schema0"
-                    },
-                    "description": "JSON object value."
-                  }
-                ],
-                "description": "JSON value node."
-              },
-              "description": "JSON object value."
-            }
-          ],
-          "description": "JSON value node."
-        },
-        "__schema1": {
-          "anyOf": [
-            {
-              "type": "string",
-              "description": "JSON string value."
-            },
-            {
-              "type": "number",
-              "description": "JSON number value."
-            },
-            {
-              "type": "boolean",
-              "description": "JSON boolean value."
-            },
-            {
-              "type": "null",
-              "description": "JSON null value."
-            },
-            {
-              "type": "array",
-              "items": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "description": "JSON string value."
-                  },
-                  {
-                    "type": "number",
-                    "description": "JSON number value."
-                  },
-                  {
-                    "type": "boolean",
-                    "description": "JSON boolean value."
-                  },
-                  {
-                    "type": "null",
-                    "description": "JSON null value."
-                  },
-                  {
-                    "type": "array",
-                    "items": {
-                      "$ref": "#/$defs/__schema1"
-                    },
-                    "description": "JSON array value."
-                  },
-                  {
-                    "type": "object",
-                    "propertyNames": {
-                      "type": "string",
-                      "description": "JSON object key."
-                    },
-                    "additionalProperties": {
-                      "$ref": "#/$defs/__schema1"
-                    },
-                    "description": "JSON object value."
-                  }
-                ],
-                "description": "JSON value node."
-              },
-              "description": "JSON array value."
-            },
-            {
-              "type": "object",
-              "propertyNames": {
-                "type": "string",
-                "description": "JSON object key."
-              },
-              "additionalProperties": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "description": "JSON string value."
-                  },
-                  {
-                    "type": "number",
-                    "description": "JSON number value."
-                  },
-                  {
-                    "type": "boolean",
-                    "description": "JSON boolean value."
-                  },
-                  {
-                    "type": "null",
-                    "description": "JSON null value."
-                  },
-                  {
-                    "type": "array",
-                    "items": {
-                      "$ref": "#/$defs/__schema1"
-                    },
-                    "description": "JSON array value."
-                  },
-                  {
-                    "type": "object",
-                    "propertyNames": {
-                      "type": "string",
-                      "description": "JSON object key."
-                    },
-                    "additionalProperties": {
-                      "$ref": "#/$defs/__schema1"
                     },
                     "description": "JSON object value."
                   }
@@ -318198,8 +316693,6 @@
                   "ticketSources.preview",
                   "ticketSources.lookupPerson",
                   "ticketSources.sync",
-                  "ticketRoutingRules.get",
-                  "ticketRoutingRules.replace",
                   "externalTickets.list",
                   "externalTickets.get",
                   "ticketReadiness.create",
@@ -385899,143 +384392,6 @@
                 "minimum": -9007199254740991,
                 "maximum": 9007199254740991,
                 "description": "Monotonic revision used to order or conditionally update this ticket request record."
-              },
-              "targets": {
-                "description": "Repository-scoped children pinned at admission, one per routed repository and ordered by role: the union of the matched routing rules deduplicated by repository, or the source's own repository when no rule matched. Never retargeted by a later rule or policy edit. Omitted by servers that predate label routing.",
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "repositoryId": {
-                      "type": "string",
-                      "format": "uuid",
-                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                      "description": "UUID of the repository this child is scoped to; a request holds each repository at most once."
-                    },
-                    "role": {
-                      "type": "string",
-                      "maxLength": 65536,
-                      "description": "Role the repository plays for the request; default when the ticket matched no rule and fell back to the source's own repository."
-                    },
-                    "routingRuleId": {
-                      "anyOf": [
-                        {
-                          "type": "string",
-                          "format": "uuid",
-                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                          "description": "UUID of the rule that routed the ticket here as pinned at admission (the rule may since have been deleted), or null for the fallback to the source's repository."
-                        },
-                        {
-                          "type": "null",
-                          "description": "Null indicates that the value is unavailable."
-                        }
-                      ],
-                      "description": "TicketRequestTarget.routingRuleId may be null in this transport value."
-                    },
-                    "routingRuleVersion": {
-                      "anyOf": [
-                        {
-                          "type": "integer",
-                          "minimum": -9007199254740991,
-                          "maximum": 9007199254740991,
-                          "description": "Version of that rule at admission, or null for the fallback."
-                        },
-                        {
-                          "type": "null",
-                          "description": "Null indicates that the value is unavailable."
-                        }
-                      ],
-                      "description": "TicketRequestTarget.routingRuleVersion may be null in this transport value."
-                    },
-                    "sourcePolicyRevision": {
-                      "type": "integer",
-                      "minimum": -9007199254740991,
-                      "maximum": 9007199254740991,
-                      "description": "Ticket source policy revision the child was admitted under."
-                    },
-                    "pinnedPreset": {
-                      "anyOf": [
-                        {
-                          "type": "string",
-                          "description": "JSON string value."
-                        },
-                        {
-                          "type": "number",
-                          "description": "JSON number value."
-                        },
-                        {
-                          "type": "boolean",
-                          "description": "JSON boolean value."
-                        },
-                        {
-                          "type": "null",
-                          "description": "JSON null value."
-                        },
-                        {
-                          "type": "array",
-                          "items": {
-                            "$ref": "#/$defs/__schema1"
-                          },
-                          "description": "JSON array value."
-                        },
-                        {
-                          "type": "object",
-                          "propertyNames": {
-                            "type": "string",
-                            "description": "JSON object key."
-                          },
-                          "additionalProperties": {
-                            "$ref": "#/$defs/__schema1"
-                          },
-                          "description": "JSON object value."
-                        }
-                      ],
-                      "description": "Workflow preset identity (id, revision, digest) the child was admitted with."
-                    },
-                    "coordinationPlanId": {
-                      "anyOf": [
-                        {
-                          "type": "string",
-                          "format": "uuid",
-                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                          "description": "Ticket-origin coordination plan whose lane runs this target, or null for the fallback to the source's repository, which runs on the request's own task."
-                        },
-                        {
-                          "type": "null",
-                          "description": "Null indicates that the value is unavailable."
-                        }
-                      ],
-                      "description": "TicketRequestTarget.coordinationPlanId may be null in this transport value."
-                    },
-                    "childTaskId": {
-                      "anyOf": [
-                        {
-                          "type": "string",
-                          "format": "uuid",
-                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                          "description": "Child task of the request's task that runs this target in its repository, or null for the fallback. The request completes only when every child task completes and fails when any fails."
-                        },
-                        {
-                          "type": "null",
-                          "description": "Null indicates that the value is unavailable."
-                        }
-                      ],
-                      "description": "TicketRequestTarget.childTaskId may be null in this transport value."
-                    }
-                  },
-                  "required": [
-                    "repositoryId",
-                    "role",
-                    "routingRuleId",
-                    "routingRuleVersion",
-                    "sourcePolicyRevision",
-                    "pinnedPreset",
-                    "coordinationPlanId",
-                    "childTaskId"
-                  ],
-                  "additionalProperties": false,
-                  "description": "Repository-scoped children pinned at admission, one per routed repository and ordered by role: the union of the matched routing rules deduplicated by repository, or the source's own repository when no rule matched. Never retargeted by a later rule or policy edit. Omitted by servers that predate label routing. Each array item follows this format."
-                }
               }
             },
             "required": [
@@ -386213,117 +384569,6 @@
                     },
                     "additionalProperties": {
                       "$ref": "#/$defs/__schema0"
-                    },
-                    "description": "JSON object value."
-                  }
-                ],
-                "description": "JSON value node."
-              },
-              "description": "JSON object value."
-            }
-          ],
-          "description": "JSON value node."
-        },
-        "__schema1": {
-          "anyOf": [
-            {
-              "type": "string",
-              "description": "JSON string value."
-            },
-            {
-              "type": "number",
-              "description": "JSON number value."
-            },
-            {
-              "type": "boolean",
-              "description": "JSON boolean value."
-            },
-            {
-              "type": "null",
-              "description": "JSON null value."
-            },
-            {
-              "type": "array",
-              "items": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "description": "JSON string value."
-                  },
-                  {
-                    "type": "number",
-                    "description": "JSON number value."
-                  },
-                  {
-                    "type": "boolean",
-                    "description": "JSON boolean value."
-                  },
-                  {
-                    "type": "null",
-                    "description": "JSON null value."
-                  },
-                  {
-                    "type": "array",
-                    "items": {
-                      "$ref": "#/$defs/__schema1"
-                    },
-                    "description": "JSON array value."
-                  },
-                  {
-                    "type": "object",
-                    "propertyNames": {
-                      "type": "string",
-                      "description": "JSON object key."
-                    },
-                    "additionalProperties": {
-                      "$ref": "#/$defs/__schema1"
-                    },
-                    "description": "JSON object value."
-                  }
-                ],
-                "description": "JSON value node."
-              },
-              "description": "JSON array value."
-            },
-            {
-              "type": "object",
-              "propertyNames": {
-                "type": "string",
-                "description": "JSON object key."
-              },
-              "additionalProperties": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "description": "JSON string value."
-                  },
-                  {
-                    "type": "number",
-                    "description": "JSON number value."
-                  },
-                  {
-                    "type": "boolean",
-                    "description": "JSON boolean value."
-                  },
-                  {
-                    "type": "null",
-                    "description": "JSON null value."
-                  },
-                  {
-                    "type": "array",
-                    "items": {
-                      "$ref": "#/$defs/__schema1"
-                    },
-                    "description": "JSON array value."
-                  },
-                  {
-                    "type": "object",
-                    "propertyNames": {
-                      "type": "string",
-                      "description": "JSON object key."
-                    },
-                    "additionalProperties": {
-                      "$ref": "#/$defs/__schema1"
                     },
                     "description": "JSON object value."
                   }
@@ -403005,458 +401250,6 @@
       ],
       "additionalProperties": false,
       "description": "The monitoring view of one provider route: circuit state, the typed reason for it, the bounded evidence watermark, the probe schedule and the current incident generation. It exists so a caller can answer why a route is paused and when it will be probed without reading free-form provider output. A status-page corroboration and a successful health read are reachability evidence only; neither proves the inference path, which is why inferenceVerifiedAt is separate and only an already-authorized trial sets it."
-    },
-    "TicketRoutingRule": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "Stable UUID of the rule; an unchanged rule keeps it across replacements, and admitted targets pin it."
-        },
-        "organizationId": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "UUID of the organization that owns the rule."
-        },
-        "ticketSourceId": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "UUID of the ticket source the rule belongs to."
-        },
-        "labelId": {
-          "type": "string",
-          "maxLength": 65536,
-          "description": "Provider label id the rule matches, compared exactly with the label ids on a ticket."
-        },
-        "labelName": {
-          "type": "string",
-          "maxLength": 65536,
-          "description": "Display name of the label as last saved; shown only, never matched."
-        },
-        "repositoryId": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "UUID of the repository the label routes to."
-        },
-        "role": {
-          "type": "string",
-          "maxLength": 65536,
-          "description": "Role the repository plays for a routed ticket."
-        },
-        "presetId": {
-          "type": "string",
-          "enum": [
-            "fixed-coding"
-          ],
-          "description": "Workflow preset the routed target runs."
-        },
-        "version": {
-          "type": "integer",
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991,
-          "description": "Edit count of this rule, starting at 1; admitted targets pin it."
-        },
-        "createdAt": {
-          "type": "string",
-          "format": "date-time",
-          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-          "description": "UTC timestamp when the rule was first saved."
-        },
-        "updatedAt": {
-          "type": "string",
-          "format": "date-time",
-          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-          "description": "UTC timestamp when the rule last changed."
-        }
-      },
-      "required": [
-        "id",
-        "organizationId",
-        "ticketSourceId",
-        "labelId",
-        "labelName",
-        "repositoryId",
-        "role",
-        "presetId",
-        "version",
-        "createdAt",
-        "updatedAt"
-      ],
-      "additionalProperties": false,
-      "description": "One label routing rule of a ticket source: tickets carrying the label are routed to the repository in the given role."
-    },
-    "TicketRoutingRuleSet": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "ticketSourceId": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "UUID of the ticket source."
-        },
-        "policyRevision": {
-          "type": "integer",
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991,
-          "description": "Ticket source policy revision the rules belong to; every rule change advances it."
-        },
-        "version": {
-          "type": "integer",
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991,
-          "description": "Ticket source version; the If-Match value a replacement must send."
-        },
-        "rules": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "Stable UUID of the rule; an unchanged rule keeps it across replacements, and admitted targets pin it."
-              },
-              "organizationId": {
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "UUID of the organization that owns the rule."
-              },
-              "ticketSourceId": {
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "UUID of the ticket source the rule belongs to."
-              },
-              "labelId": {
-                "type": "string",
-                "maxLength": 65536,
-                "description": "Provider label id the rule matches, compared exactly with the label ids on a ticket."
-              },
-              "labelName": {
-                "type": "string",
-                "maxLength": 65536,
-                "description": "Display name of the label as last saved; shown only, never matched."
-              },
-              "repositoryId": {
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "UUID of the repository the label routes to."
-              },
-              "role": {
-                "type": "string",
-                "maxLength": 65536,
-                "description": "Role the repository plays for a routed ticket."
-              },
-              "presetId": {
-                "type": "string",
-                "enum": [
-                  "fixed-coding"
-                ],
-                "description": "Workflow preset the routed target runs."
-              },
-              "version": {
-                "type": "integer",
-                "minimum": -9007199254740991,
-                "maximum": 9007199254740991,
-                "description": "Edit count of this rule, starting at 1; admitted targets pin it."
-              },
-              "createdAt": {
-                "type": "string",
-                "format": "date-time",
-                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-                "description": "UTC timestamp when the rule was first saved."
-              },
-              "updatedAt": {
-                "type": "string",
-                "format": "date-time",
-                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-                "description": "UTC timestamp when the rule last changed."
-              }
-            },
-            "required": [
-              "id",
-              "organizationId",
-              "ticketSourceId",
-              "labelId",
-              "labelName",
-              "repositoryId",
-              "role",
-              "presetId",
-              "version",
-              "createdAt",
-              "updatedAt"
-            ],
-            "additionalProperties": false,
-            "description": "Every rule of the source, at most 50, ordered by label key and then repository id. Each array item follows this format."
-          },
-          "description": "Every rule of the source, at most 50, ordered by label key and then repository id."
-        }
-      },
-      "required": [
-        "ticketSourceId",
-        "policyRevision",
-        "version",
-        "rules"
-      ],
-      "additionalProperties": false,
-      "description": "The complete label routing rule set of one ticket source, with the source's policy revision and version. Send version as If-Match to replace it; pass policyRevision as expectedSourcePolicyRevision to admit under these rules."
-    },
-    "TicketRequestTarget": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "repositoryId": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "UUID of the repository this child is scoped to; a request holds each repository at most once."
-        },
-        "role": {
-          "type": "string",
-          "maxLength": 65536,
-          "description": "Role the repository plays for the request; default when the ticket matched no rule and fell back to the source's own repository."
-        },
-        "routingRuleId": {
-          "anyOf": [
-            {
-              "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "UUID of the rule that routed the ticket here as pinned at admission (the rule may since have been deleted), or null for the fallback to the source's repository."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the value is unavailable."
-            }
-          ],
-          "description": "TicketRequestTarget.routingRuleId may be null in this transport value."
-        },
-        "routingRuleVersion": {
-          "anyOf": [
-            {
-              "type": "integer",
-              "minimum": -9007199254740991,
-              "maximum": 9007199254740991,
-              "description": "Version of that rule at admission, or null for the fallback."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the value is unavailable."
-            }
-          ],
-          "description": "TicketRequestTarget.routingRuleVersion may be null in this transport value."
-        },
-        "sourcePolicyRevision": {
-          "type": "integer",
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991,
-          "description": "Ticket source policy revision the child was admitted under."
-        },
-        "pinnedPreset": {
-          "anyOf": [
-            {
-              "type": "string",
-              "description": "JSON string value."
-            },
-            {
-              "type": "number",
-              "description": "JSON number value."
-            },
-            {
-              "type": "boolean",
-              "description": "JSON boolean value."
-            },
-            {
-              "type": "null",
-              "description": "JSON null value."
-            },
-            {
-              "type": "array",
-              "items": {
-                "$ref": "#/$defs/__schema0"
-              },
-              "description": "JSON array value."
-            },
-            {
-              "type": "object",
-              "propertyNames": {
-                "type": "string",
-                "description": "JSON object key."
-              },
-              "additionalProperties": {
-                "$ref": "#/$defs/__schema0"
-              },
-              "description": "JSON object value."
-            }
-          ],
-          "description": "Workflow preset identity (id, revision, digest) the child was admitted with."
-        },
-        "coordinationPlanId": {
-          "anyOf": [
-            {
-              "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "Ticket-origin coordination plan whose lane runs this target, or null for the fallback to the source's repository, which runs on the request's own task."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the value is unavailable."
-            }
-          ],
-          "description": "TicketRequestTarget.coordinationPlanId may be null in this transport value."
-        },
-        "childTaskId": {
-          "anyOf": [
-            {
-              "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "Child task of the request's task that runs this target in its repository, or null for the fallback. The request completes only when every child task completes and fails when any fails."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the value is unavailable."
-            }
-          ],
-          "description": "TicketRequestTarget.childTaskId may be null in this transport value."
-        }
-      },
-      "required": [
-        "repositoryId",
-        "role",
-        "routingRuleId",
-        "routingRuleVersion",
-        "sourcePolicyRevision",
-        "pinnedPreset",
-        "coordinationPlanId",
-        "childTaskId"
-      ],
-      "additionalProperties": false,
-      "description": "One repository-scoped child of an admitted ticket request, pinned at admission and run as a child task of the request's coordination plan. Later rule or policy edits never change it.",
-      "$defs": {
-        "__schema0": {
-          "anyOf": [
-            {
-              "type": "string",
-              "description": "JSON string value."
-            },
-            {
-              "type": "number",
-              "description": "JSON number value."
-            },
-            {
-              "type": "boolean",
-              "description": "JSON boolean value."
-            },
-            {
-              "type": "null",
-              "description": "JSON null value."
-            },
-            {
-              "type": "array",
-              "items": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "description": "JSON string value."
-                  },
-                  {
-                    "type": "number",
-                    "description": "JSON number value."
-                  },
-                  {
-                    "type": "boolean",
-                    "description": "JSON boolean value."
-                  },
-                  {
-                    "type": "null",
-                    "description": "JSON null value."
-                  },
-                  {
-                    "type": "array",
-                    "items": {
-                      "$ref": "#/$defs/__schema0"
-                    },
-                    "description": "JSON array value."
-                  },
-                  {
-                    "type": "object",
-                    "propertyNames": {
-                      "type": "string",
-                      "description": "JSON object key."
-                    },
-                    "additionalProperties": {
-                      "$ref": "#/$defs/__schema0"
-                    },
-                    "description": "JSON object value."
-                  }
-                ],
-                "description": "JSON value node."
-              },
-              "description": "JSON array value."
-            },
-            {
-              "type": "object",
-              "propertyNames": {
-                "type": "string",
-                "description": "JSON object key."
-              },
-              "additionalProperties": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "description": "JSON string value."
-                  },
-                  {
-                    "type": "number",
-                    "description": "JSON number value."
-                  },
-                  {
-                    "type": "boolean",
-                    "description": "JSON boolean value."
-                  },
-                  {
-                    "type": "null",
-                    "description": "JSON null value."
-                  },
-                  {
-                    "type": "array",
-                    "items": {
-                      "$ref": "#/$defs/__schema0"
-                    },
-                    "description": "JSON array value."
-                  },
-                  {
-                    "type": "object",
-                    "propertyNames": {
-                      "type": "string",
-                      "description": "JSON object key."
-                    },
-                    "additionalProperties": {
-                      "$ref": "#/$defs/__schema0"
-                    },
-                    "description": "JSON object value."
-                  }
-                ],
-                "description": "JSON value node."
-              },
-              "description": "JSON object value."
-            }
-          ],
-          "description": "JSON value node."
-        }
-      }
     },
     "ArtifactOutput": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

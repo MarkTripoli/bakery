@@ -4568,6 +4568,116 @@ export const clientManifest = {
     },
     {
       "group": "Providers",
+      "method": "GET",
+      "path": "/v1/provider-routes",
+      "action": "providerRoutes.list",
+      "access": "Developer",
+      "permission": "providerRoute:read",
+      "input": "ProviderRouteQuery",
+      "output": "Page<ProviderRoute>",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Read; opaque cursor pagination",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Providers",
+      "method": "GET",
+      "path": "/v1/provider-routes/{id}",
+      "action": "providerRoutes.get",
+      "access": "Developer",
+      "permission": "providerRoute:read",
+      "input": "IdPath",
+      "output": "ProviderRoute",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Read; no body",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Providers",
+      "method": "GET",
+      "path": "/v1/provider-routes/{id}/health",
+      "action": "providerRoutes.health",
+      "access": "Developer",
+      "permission": "providerRoute:read",
+      "input": "IdPath",
+      "output": "RouteHealth",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Read; no body",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Providers",
+      "method": "GET",
+      "path": "/v1/provider-incidents",
+      "action": "providerIncidents.list",
+      "access": "Developer",
+      "permission": "providerIncident:read",
+      "input": "ProviderIncidentQuery",
+      "output": "Page<ProviderIncident>",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Read; opaque cursor pagination",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Providers",
+      "method": "GET",
+      "path": "/v1/provider-incidents/{id}",
+      "action": "providerIncidents.get",
+      "access": "Developer",
+      "permission": "providerIncident:read",
+      "input": "IdPath",
+      "output": "ProviderIncident",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Read; no body",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Providers",
       "method": "POST",
       "path": "/v1/workers/{id}/provider-bindings",
       "action": "workerProviderBindings.create",
@@ -6837,54 +6947,6 @@ export const clientManifest = {
     {
       "group": "Tickets",
       "method": "GET",
-      "path": "/v1/ticket-sources/{id}/routing-rules",
-      "action": "ticketRoutingRules.get",
-      "access": "Developer",
-      "permission": "ticketSource:read",
-      "input": "IdPath",
-      "output": "TicketRoutingRuleSet",
-      "event": "",
-      "mcp": "",
-      "idempotency": "read",
-      "errors": [
-        "AUTH_REQUIRED",
-        "AUTH_FORBIDDEN",
-        "RESOURCE_NOT_FOUND",
-        "MALFORMED_REQUEST",
-        "SCOPE_REQUIRED"
-      ],
-      "organizationContext": "required_authenticated_context",
-      "implemented": true
-    },
-    {
-      "group": "Tickets",
-      "method": "PUT",
-      "path": "/v1/ticket-sources/{id}/routing-rules",
-      "action": "ticketRoutingRules.replace",
-      "access": "Admin",
-      "permission": "ticketSource:manage",
-      "input": "TicketRoutingRulesReplace",
-      "output": "TicketRoutingRuleSet",
-      "event": "ticket.source_changed",
-      "mcp": "",
-      "idempotency": "Idempotency-Key + If-Match required",
-      "errors": [
-        "AUTH_REQUIRED",
-        "AUTH_FORBIDDEN",
-        "RESOURCE_NOT_FOUND",
-        "UNPROCESSABLE",
-        "PRECONDITION_FAILED",
-        "PRECONDITION_REQUIRED",
-        "IDEMPOTENCY_PAYLOAD_MISMATCH",
-        "MALFORMED_REQUEST",
-        "SCOPE_REQUIRED"
-      ],
-      "organizationContext": "required_authenticated_context",
-      "implemented": true
-    },
-    {
-      "group": "Tickets",
-      "method": "GET",
       "path": "/v1/external-tickets",
       "action": "externalTickets.list",
       "access": "Developer",
@@ -7115,6 +7177,153 @@ export const clientManifest = {
       "event": "plugin.version_created",
       "mcp": "",
       "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Plugins",
+      "method": "GET",
+      "path": "/v1/plugin-installs",
+      "action": "pluginInstalls.list",
+      "access": "Developer",
+      "permission": "pluginInstall:read",
+      "input": "PluginInstallQuery",
+      "output": "Page<PluginInstall>",
+      "event": "",
+      "mcp": "bakery_pluginInstalls_list",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Plugins",
+      "method": "POST",
+      "path": "/v1/plugin-installs",
+      "action": "pluginInstalls.create",
+      "access": "Developer for personal; Admin for organization",
+      "permission": "pluginInstall:manage",
+      "input": "PluginInstallCreate",
+      "output": "PluginInstall",
+      "event": "plugin.install_changed",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Plugins",
+      "method": "GET",
+      "path": "/v1/plugin-installs/{id}",
+      "action": "pluginInstalls.get",
+      "access": "Authorized owner/member",
+      "permission": "pluginInstall:read",
+      "input": "IdPath",
+      "output": "PluginInstall",
+      "event": "",
+      "mcp": "bakery_pluginInstalls_get",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Plugins",
+      "method": "PATCH",
+      "path": "/v1/plugin-installs/{id}",
+      "action": "pluginInstalls.update",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "pluginInstall:manage",
+      "input": "PluginInstallUpdate",
+      "output": "PluginInstall",
+      "event": "plugin.install_changed",
+      "mcp": "",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Plugins",
+      "method": "GET",
+      "path": "/v1/plugin-installs/{id}/state",
+      "action": "pluginState.get",
+      "access": "Authorized owner/member",
+      "permission": "pluginState:read",
+      "input": "CursorQuery",
+      "output": "Page<PluginState>",
+      "event": "",
+      "mcp": "bakery_pluginState_get",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Plugins",
+      "method": "PUT",
+      "path": "/v1/plugin-installs/{id}/state/{namespace}/{key}",
+      "action": "pluginState.put",
+      "access": "Authorized owner/member+install grant",
+      "permission": "pluginState:write",
+      "input": "PluginStatePut",
+      "output": "PluginState",
+      "event": "plugin.state_changed",
+      "mcp": "",
+      "idempotency": "Idempotency-Key + expectedCasVersion required",
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
@@ -13007,8 +13216,6 @@ export const clientManifest = {
             "ticketSources.preview",
             "ticketSources.lookupPerson",
             "ticketSources.sync",
-            "ticketRoutingRules.get",
-            "ticketRoutingRules.replace",
             "externalTickets.list",
             "externalTickets.get",
             "ticketReadiness.create",
@@ -19068,6 +19275,297 @@ export const clientManifest = {
         }
       }
     },
+    "PluginInstallQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "scope": {
+          "description": "Filters installs to organization-wide or personal scope; a personal install remains visible only to its owner or an authorized Admin regardless of this filter.",
+          "type": "string",
+          "enum": [
+            "organization",
+            "personal"
+          ]
+        },
+        "status": {
+          "description": "Filters installs by lifecycle status: staged pending activation, enabled, disabled, failed, or uninstalled.",
+          "type": "string",
+          "enum": [
+            "staged",
+            "enabled",
+            "disabled",
+            "failed",
+            "uninstalled"
+          ]
+        },
+        "cursor": {
+          "description": "Opaque pagination cursor from a previous page of this plugin-install listing; bound to the current caller, filters and ordering, and rejected if reused with a different query. PluginInstallQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "limit": {
+          "description": "Maximum number of plugin installs to return per page; defaults to 25 and caps at 100. PluginInstallQuery.limit must be at least 1. PluginInstallQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "additionalProperties": false,
+      "description": "Filter and pagination parameters for listing plugin installs visible to the caller; personal installs are further restricted to their owner or an authorized Admin regardless of the filters applied."
+    },
+    "PluginInstallCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "packageId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Package being installed; the selected versionId must belong to this package."
+        },
+        "versionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Immutable package version this install pins; installing this version grants no capabilities by itself until any needed permission_grants are separately approved."
+        },
+        "scope": {
+          "type": "string",
+          "enum": [
+            "organization",
+            "personal"
+          ],
+          "description": "Whether this install is organization-wide, shared and requiring Admin, or personal to the creating principal and requiring Developer; determines whether ownerPrincipalId must be set."
+        },
+        "ownerPrincipalId": {
+          "description": "Owning principal for a personal-scope install; must be omitted for an organization-scope install, which has no personal owner.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        }
+      },
+      "required": [
+        "packageId",
+        "versionId",
+        "scope"
+      ],
+      "additionalProperties": false,
+      "description": "Installs one immutable, published plugin version into the organization (Admin-only, shared) or for one principal personally (Developer, private); installing pins the version but grants no capabilities on its own."
+    },
+    "PluginInstallUpdate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "versionId": {
+          "description": "New package version to move this install to; the new version is staged and validated before activation, and a failed activation leaves the install on its prior usable version.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "status": {
+          "description": "New lifecycle status to apply: enabled to activate, disabled to block new authority while retaining configuration, or uninstalled to remove it; in-flight work under the pinned version still observes live revocation.",
+          "type": "string",
+          "enum": [
+            "enabled",
+            "disabled",
+            "uninstalled"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "description": "Updates an existing plugin install's pinned version or lifecycle status; requires at least one field and an If-Match precondition, and a new version is staged and validated before it becomes active."
+    },
+    "PluginStatePut": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "namespace": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "Package-defined grouping for this state entry, such as a feature area within the plugin; combined with key to address one value under this install. PluginStatePut.namespace must contain at most 200 characters."
+        },
+        "key": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "Identifier for this state entry within its namespace; unique per install, and per personal owner for a personal-scope install. PluginStatePut.key must contain at most 200 characters."
+        },
+        "schemaVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "description": "Version of the plugin's own state schema this value conforms to, letting the plugin evolve its stored state format across releases. PluginStatePut.schemaVersion must be at least 1."
+        },
+        "value": {
+          "description": "The stored state payload, validated against the plugin's declared schema for schemaVersion; secrets must be passed by reference rather than embedded here. PluginStatePut.value must contain at most 65536 UTF-8 bytes.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "x-utf8-max-bytes": 65536
+        },
+        "expectedCasVersion": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Compare-and-set version the caller last read; the write is rejected if the stored value has moved on since, preventing a lost update between concurrent writers. PluginStatePut.expectedCasVersion must be at least 0."
+        }
+      },
+      "required": [
+        "namespace",
+        "key",
+        "schemaVersion",
+        "value",
+        "expectedCasVersion"
+      ],
+      "additionalProperties": false,
+      "description": "Writes one namespaced key's bounded JSON state for a plugin install, guarded by a compare-and-set version so concurrent writers cannot silently overwrite each other; a personal owner is derived from the authenticated principal, never supplied directly.",
+      "$defs": {
+        "__schema0": {
+          "description": "JSON value node.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON object value."
+            }
+          ]
+        }
+      }
+    },
     "UserPreferencesUpdate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -21331,65 +21829,334 @@ export const clientManifest = {
         }
       }
     },
-    "TicketRoutingRulesReplace": {
+    "ProviderRouteQuery": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
       "properties": {
-        "rules": {
-          "maxItems": 50,
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "labelId": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 100,
-                "description": "The provider's stable id of one label of the ticket source (for example a numeric label id written as a string), exactly as the source's ticket reader reports it. Rules match this id, never the name, so renaming the label keeps its routing. TicketRoutingRuleInput.labelId must contain at least 1 characters. TicketRoutingRuleInput.labelId must contain at most 100 characters."
-              },
-              "labelName": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 100,
-                "description": "Display name of the label, shown in settings and in readiness evidence; never matched. Send the current name to rename it; a rename alone changes nothing about routing. TicketRoutingRuleInput.labelName must contain at least 1 characters. TicketRoutingRuleInput.labelName must contain at most 100 characters."
-              },
-              "repositoryId": {
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "Bakery repository the label routes to. It must belong to the ticket source's application and must not be archived when the rules are saved; otherwise the whole replacement answers 422."
-              },
-              "role": {
-                "type": "string",
-                "maxLength": 63,
-                "pattern": "^[a-z0-9]+(?:[-_][a-z0-9]+)*$",
-                "description": "Role the repository plays for a routed ticket, such as backend or frontend. The application must bind this repository to this role with an alias (applicationRepositoryRoles.set), because the target runs as a lane of a coordination plan that names it by that alias. Within one ticket a role must resolve to one repository and a repository to one role, or admission is blocked as ambiguous. TicketRoutingRuleInput.role must contain at most 63 characters."
-              },
-              "presetId": {
-                "description": "Workflow preset the routed repository target runs; omitted means fixed-coding, the only preset admission runs. The preset's revision and digest are pinned on each admitted target.",
-                "type": "string",
-                "enum": [
-                  "fixed-coding"
-                ]
-              }
+        "status": {
+          "description": "Restricts the page to routes in this lifecycle state; a revoked or disabled route is readable but never probed or admitted for new work.",
+          "type": "string",
+          "enum": [
+            "active",
+            "disabled",
+            "revoked"
+          ]
+        },
+        "health": {
+          "description": "Restricts the page to routes in this circuit state: healthy (closed, inference proven), degraded (failing below the open threshold), open (paused, probing), or unverified (reachable but no inference proof yet).",
+          "type": "string",
+          "enum": [
+            "healthy",
+            "degraded",
+            "open",
+            "unverified"
+          ]
+        },
+        "cursor": {
+          "description": "Opaque keyset cursor for the next page of routes; bound to the caller's organization and the same status and health filters, so it is rejected if replayed under a different query. ProviderRouteQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "limit": {
+          "description": "Maximum number of provider routes returned per page; defaults to 25 and cannot exceed 100. ProviderRouteQuery.limit must be at least 1. ProviderRouteQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "additionalProperties": false,
+      "description": "Filters and page position for listing the organization's provider routes. Routes are organization-scoped addresses for one provider endpoint, model, harness and credential binding, so this page never spans organizations."
+    },
+    "ProviderIncidentQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "routeId": {
+          "description": "Restricts the page to incidents recorded against one provider route; omit to list incidents across every route the caller can see.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "status": {
+          "description": "Restricts the page to incidents in this state: open (still failing), recovered (probes proved the route again), or superseded (a newer incident generation replaced it without recovery).",
+          "type": "string",
+          "enum": [
+            "open",
+            "recovered",
+            "superseded"
+          ]
+        },
+        "severity": {
+          "description": "Restricts the page to degraded incidents, where the route still serves some work, or outage incidents, where it serves none.",
+          "type": "string",
+          "enum": [
+            "degraded",
+            "outage"
+          ]
+        },
+        "cursor": {
+          "description": "Opaque keyset cursor for the next page of incidents; bound to the caller's organization and the same route, status and severity filters. ProviderIncidentQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "limit": {
+          "description": "Maximum number of provider incidents returned per page; defaults to 25 and cannot exceed 100. ProviderIncidentQuery.limit must be at least 1. ProviderIncidentQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "additionalProperties": false,
+      "description": "Filters and page position for listing provider incidents. An incident is one durable record per affected route and generation, not one per failed attempt, so duplicate and stale probe results do not multiply rows."
+    },
+    "PluginState": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID identifying this plugin state record."
+        },
+        "organizationId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "UUID of the organization that owns this record."
+        },
+        "pluginInstallId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "UUID identifying the related plugin install resource."
+        },
+        "ownerPrincipalId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "UUID of the principal associated with this plugin state record. May be null when unavailable."
             },
-            "required": [
-              "labelId",
-              "labelName",
-              "repositoryId",
-              "role"
-            ],
-            "additionalProperties": false,
-            "description": "The complete rule set of the ticket source, at most 50 rules, each (labelId, repositoryId) pair at most once. An empty list removes every rule, so tickets route to the source's own repository again. Each array item follows this format."
-          },
-          "description": "The complete rule set of the ticket source, at most 50 rules, each (labelId, repositoryId) pair at most once. An empty list removes every rule, so tickets route to the source's own repository again. TicketRoutingRulesReplace.rules must contain at most 50 items."
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "PluginState.ownerPrincipalId may be null in this transport value."
+        },
+        "namespace": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Grouping the plugin package defines to partition its stored state, for example one namespace per feature area. Paired with \"key\" to address a specific stored value within one install's state."
+        },
+        "key": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Name of this state entry within its \"namespace\". Combined with the plugin install, optional personal owner, and namespace, it forms the unique address of one stored state value."
+        },
+        "schemaVersion": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Schema version of this entry's stored value, set when the entry was written. Compared against the owning install's stateSchemaVersion to detect state that still needs migration after a plugin update."
+        },
+        "casVersion": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Compare-and-swap version used for conditional updates to this plugin state record."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "Timestamp recording when the created event occurred for this plugin state record."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "Timestamp recording the last update to this plugin state record."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Monotonic revision used to order or conditionally update this plugin state record."
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "Measured value recorded at the metric point."
         }
       },
       "required": [
-        "rules"
+        "id",
+        "organizationId",
+        "pluginInstallId",
+        "ownerPrincipalId",
+        "namespace",
+        "key",
+        "schemaVersion",
+        "casVersion",
+        "createdAt",
+        "updatedAt",
+        "version",
+        "value"
       ],
       "additionalProperties": false,
-      "description": "Replaces the label routing rules of one ticket source as a whole, under compare-and-swap on the source version."
+      "description": "One namespaced key's stored JSON state for a plugin install, returned only to its owner or an authorized member with an install grant, never as part of a public catalog or list. Guarded by casVersion for compare-and-set updates; schemaVersion records which state-schema revision the value was written under, checked against the install's own stateSchemaVersion to decide whether it needs migration.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
     },
     "UserPreferences": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -33728,8 +34495,6 @@ export const clientManifest = {
                   "ticketSources.preview",
                   "ticketSources.lookupPerson",
                   "ticketSources.sync",
-                  "ticketRoutingRules.get",
-                  "ticketRoutingRules.replace",
                   "externalTickets.list",
                   "externalTickets.get",
                   "ticketReadiness.create",
@@ -50723,8 +51488,6 @@ export const clientManifest = {
             "ticketSources.preview",
             "ticketSources.lookupPerson",
             "ticketSources.sync",
-            "ticketRoutingRules.get",
-            "ticketRoutingRules.replace",
             "externalTickets.list",
             "externalTickets.get",
             "ticketReadiness.create",
@@ -63251,143 +64014,6 @@ export const clientManifest = {
           "minimum": -9007199254740991,
           "maximum": 9007199254740991,
           "description": "Monotonic revision used to order or conditionally update this ticket request record."
-        },
-        "targets": {
-          "description": "Repository-scoped children pinned at admission, one per routed repository and ordered by role: the union of the matched routing rules deduplicated by repository, or the source's own repository when no rule matched. Never retargeted by a later rule or policy edit. Omitted by servers that predate label routing.",
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "repositoryId": {
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "UUID of the repository this child is scoped to; a request holds each repository at most once."
-              },
-              "role": {
-                "type": "string",
-                "maxLength": 65536,
-                "description": "Role the repository plays for the request; default when the ticket matched no rule and fell back to the source's own repository."
-              },
-              "routingRuleId": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "format": "uuid",
-                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                    "description": "UUID of the rule that routed the ticket here as pinned at admission (the rule may since have been deleted), or null for the fallback to the source's repository."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "TicketRequestTarget.routingRuleId may be null in this transport value."
-              },
-              "routingRuleVersion": {
-                "anyOf": [
-                  {
-                    "type": "integer",
-                    "minimum": -9007199254740991,
-                    "maximum": 9007199254740991,
-                    "description": "Version of that rule at admission, or null for the fallback."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "TicketRequestTarget.routingRuleVersion may be null in this transport value."
-              },
-              "sourcePolicyRevision": {
-                "type": "integer",
-                "minimum": -9007199254740991,
-                "maximum": 9007199254740991,
-                "description": "Ticket source policy revision the child was admitted under."
-              },
-              "pinnedPreset": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "description": "JSON string value."
-                  },
-                  {
-                    "type": "number",
-                    "description": "JSON number value."
-                  },
-                  {
-                    "type": "boolean",
-                    "description": "JSON boolean value."
-                  },
-                  {
-                    "type": "null",
-                    "description": "JSON null value."
-                  },
-                  {
-                    "type": "array",
-                    "items": {
-                      "$ref": "#/$defs/__schema1"
-                    },
-                    "description": "JSON array value."
-                  },
-                  {
-                    "type": "object",
-                    "propertyNames": {
-                      "type": "string",
-                      "description": "JSON object key."
-                    },
-                    "additionalProperties": {
-                      "$ref": "#/$defs/__schema1"
-                    },
-                    "description": "JSON object value."
-                  }
-                ],
-                "description": "Workflow preset identity (id, revision, digest) the child was admitted with."
-              },
-              "coordinationPlanId": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "format": "uuid",
-                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                    "description": "Ticket-origin coordination plan whose lane runs this target, or null for the fallback to the source's repository, which runs on the request's own task."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "TicketRequestTarget.coordinationPlanId may be null in this transport value."
-              },
-              "childTaskId": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "format": "uuid",
-                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                    "description": "Child task of the request's task that runs this target in its repository, or null for the fallback. The request completes only when every child task completes and fails when any fails."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "TicketRequestTarget.childTaskId may be null in this transport value."
-              }
-            },
-            "required": [
-              "repositoryId",
-              "role",
-              "routingRuleId",
-              "routingRuleVersion",
-              "sourcePolicyRevision",
-              "pinnedPreset",
-              "coordinationPlanId",
-              "childTaskId"
-            ],
-            "additionalProperties": false,
-            "description": "Repository-scoped children pinned at admission, one per routed repository and ordered by role: the union of the matched routing rules deduplicated by repository, or the source's own repository when no rule matched. Never retargeted by a later rule or policy edit. Omitted by servers that predate label routing. Each array item follows this format."
-          }
         }
       },
       "required": [
@@ -63511,117 +64137,6 @@ export const clientManifest = {
                     },
                     "additionalProperties": {
                       "$ref": "#/$defs/__schema0"
-                    },
-                    "description": "JSON object value."
-                  }
-                ],
-                "description": "JSON value node."
-              },
-              "description": "JSON object value."
-            }
-          ],
-          "description": "JSON value node."
-        },
-        "__schema1": {
-          "anyOf": [
-            {
-              "type": "string",
-              "description": "JSON string value."
-            },
-            {
-              "type": "number",
-              "description": "JSON number value."
-            },
-            {
-              "type": "boolean",
-              "description": "JSON boolean value."
-            },
-            {
-              "type": "null",
-              "description": "JSON null value."
-            },
-            {
-              "type": "array",
-              "items": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "description": "JSON string value."
-                  },
-                  {
-                    "type": "number",
-                    "description": "JSON number value."
-                  },
-                  {
-                    "type": "boolean",
-                    "description": "JSON boolean value."
-                  },
-                  {
-                    "type": "null",
-                    "description": "JSON null value."
-                  },
-                  {
-                    "type": "array",
-                    "items": {
-                      "$ref": "#/$defs/__schema1"
-                    },
-                    "description": "JSON array value."
-                  },
-                  {
-                    "type": "object",
-                    "propertyNames": {
-                      "type": "string",
-                      "description": "JSON object key."
-                    },
-                    "additionalProperties": {
-                      "$ref": "#/$defs/__schema1"
-                    },
-                    "description": "JSON object value."
-                  }
-                ],
-                "description": "JSON value node."
-              },
-              "description": "JSON array value."
-            },
-            {
-              "type": "object",
-              "propertyNames": {
-                "type": "string",
-                "description": "JSON object key."
-              },
-              "additionalProperties": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "description": "JSON string value."
-                  },
-                  {
-                    "type": "number",
-                    "description": "JSON number value."
-                  },
-                  {
-                    "type": "boolean",
-                    "description": "JSON boolean value."
-                  },
-                  {
-                    "type": "null",
-                    "description": "JSON null value."
-                  },
-                  {
-                    "type": "array",
-                    "items": {
-                      "$ref": "#/$defs/__schema1"
-                    },
-                    "description": "JSON array value."
-                  },
-                  {
-                    "type": "object",
-                    "propertyNames": {
-                      "type": "string",
-                      "description": "JSON object key."
-                    },
-                    "additionalProperties": {
-                      "$ref": "#/$defs/__schema1"
                     },
                     "description": "JSON object value."
                   }
@@ -65294,6 +65809,643 @@ export const clientManifest = {
                     },
                     "additionalProperties": {
                       "$ref": "#/$defs/__schema2"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
+    },
+    "PluginInstall": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID identifying this plugin install record."
+        },
+        "organizationId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "UUID of the organization that owns this record."
+        },
+        "pluginPackageId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "UUID identifying the related plugin package resource."
+        },
+        "pluginVersionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "UUID identifying the related plugin version resource."
+        },
+        "scope": {
+          "type": "string",
+          "enum": [
+            "organization",
+            "personal"
+          ],
+          "description": "Bounded enum(organization|personal) value identifying or describing this plugin install record."
+        },
+        "ownerPrincipalId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "UUID of the principal associated with this plugin install record. May be null when unavailable."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "PluginInstall.ownerPrincipalId may be null in this transport value."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "staged",
+            "enabled",
+            "disabled",
+            "failed",
+            "uninstalled"
+          ],
+          "description": "Current lifecycle state of this plugin install record."
+        },
+        "stateSchemaVersion": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Schema version of plugin_state currently expected for this install, advanced when the plugin stages a state migration as part of an update. Stored state entries are checked against this value to decide whether they must be migrated before use."
+        },
+        "activatedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "Timestamp recording when the activated event occurred for this plugin install record. May be null when unavailable."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "PluginInstall.activatedAt may be null in this transport value."
+        },
+        "disabledAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "Timestamp recording when the disabled event occurred for this plugin install record. May be null when unavailable."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "PluginInstall.disabledAt may be null in this transport value."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "Timestamp recording when the created event occurred for this plugin install record."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "Timestamp recording the last update to this plugin install record."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Monotonic revision used to order or conditionally update this plugin install record."
+        }
+      },
+      "required": [
+        "id",
+        "organizationId",
+        "pluginPackageId",
+        "pluginVersionId",
+        "scope",
+        "ownerPrincipalId",
+        "status",
+        "stateSchemaVersion",
+        "activatedAt",
+        "disabledAt",
+        "createdAt",
+        "updatedAt",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "One organization-wide or personal installation of a pinned, immutable plugin version, returned by creating, reading or updating an install. Tracks lifecycle status (staged, enabled, disabled, failed, uninstalled), the stateSchemaVersion stored state is checked against, and activation/disable timestamps; ownerPrincipalId is set only for a personal-scope install."
+    },
+    "Page<PluginInstall>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID identifying this plugin install record."
+              },
+              "organizationId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the organization that owns this record."
+              },
+              "pluginPackageId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID identifying the related plugin package resource."
+              },
+              "pluginVersionId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID identifying the related plugin version resource."
+              },
+              "scope": {
+                "type": "string",
+                "enum": [
+                  "organization",
+                  "personal"
+                ],
+                "description": "Bounded enum(organization|personal) value identifying or describing this plugin install record."
+              },
+              "ownerPrincipalId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "UUID of the principal associated with this plugin install record. May be null when unavailable."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "PluginInstall.ownerPrincipalId may be null in this transport value."
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "staged",
+                  "enabled",
+                  "disabled",
+                  "failed",
+                  "uninstalled"
+                ],
+                "description": "Current lifecycle state of this plugin install record."
+              },
+              "stateSchemaVersion": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Schema version of plugin_state currently expected for this install, advanced when the plugin stages a state migration as part of an update. Stored state entries are checked against this value to decide whether they must be migrated before use."
+              },
+              "activatedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "Timestamp recording when the activated event occurred for this plugin install record. May be null when unavailable."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "PluginInstall.activatedAt may be null in this transport value."
+              },
+              "disabledAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "Timestamp recording when the disabled event occurred for this plugin install record. May be null when unavailable."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "PluginInstall.disabledAt may be null in this transport value."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "Timestamp recording when the created event occurred for this plugin install record."
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "Timestamp recording the last update to this plugin install record."
+              },
+              "version": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Monotonic revision used to order or conditionally update this plugin install record."
+              }
+            },
+            "required": [
+              "id",
+              "organizationId",
+              "pluginPackageId",
+              "pluginVersionId",
+              "scope",
+              "ownerPrincipalId",
+              "status",
+              "stateSchemaVersion",
+              "activatedAt",
+              "disabledAt",
+              "createdAt",
+              "updatedAt",
+              "version"
+            ],
+            "additionalProperties": false,
+            "description": "One organization-wide or personal installation of a pinned, immutable plugin version, returned by creating, reading or updating an install. Tracks lifecycle status (staged, enabled, disabled, failed, uninstalled), the stateSchemaVersion stored state is checked against, and activation/disable timestamps; ownerPrincipalId is set only for a personal-scope install."
+          },
+          "description": "PluginInstall items in this cursor page. Page<PluginInstall>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<PluginInstall>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<PluginInstall>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<PluginInstall>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<PluginInstall>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of PluginInstall."
+    },
+    "Page<PluginState>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID identifying this plugin state record."
+              },
+              "organizationId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the organization that owns this record."
+              },
+              "pluginInstallId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID identifying the related plugin install resource."
+              },
+              "ownerPrincipalId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "UUID of the principal associated with this plugin state record. May be null when unavailable."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "PluginState.ownerPrincipalId may be null in this transport value."
+              },
+              "namespace": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Grouping the plugin package defines to partition its stored state, for example one namespace per feature area. Paired with \"key\" to address a specific stored value within one install's state."
+              },
+              "key": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Name of this state entry within its \"namespace\". Combined with the plugin install, optional personal owner, and namespace, it forms the unique address of one stored state value."
+              },
+              "schemaVersion": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Schema version of this entry's stored value, set when the entry was written. Compared against the owning install's stateSchemaVersion to detect state that still needs migration after a plugin update."
+              },
+              "casVersion": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Compare-and-swap version used for conditional updates to this plugin state record."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "Timestamp recording when the created event occurred for this plugin state record."
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "Timestamp recording the last update to this plugin state record."
+              },
+              "version": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Monotonic revision used to order or conditionally update this plugin state record."
+              },
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "Measured value recorded at the metric point."
+              }
+            },
+            "required": [
+              "id",
+              "organizationId",
+              "pluginInstallId",
+              "ownerPrincipalId",
+              "namespace",
+              "key",
+              "schemaVersion",
+              "casVersion",
+              "createdAt",
+              "updatedAt",
+              "version",
+              "value"
+            ],
+            "additionalProperties": false,
+            "description": "One namespaced key's stored JSON state for a plugin install, returned only to its owner or an authorized member with an install grant, never as part of a public catalog or list. Guarded by casVersion for compare-and-set updates; schemaVersion records which state-schema revision the value was written under, checked against the install's own stateSchemaVersion to decide whether it needs migration."
+          },
+          "description": "PluginState items in this cursor page. Page<PluginState>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<PluginState>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<PluginState>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<PluginState>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<PluginState>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of PluginState.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
                     },
                     "description": "JSON object value."
                   }
@@ -74813,29 +75965,12 @@ export const clientManifest = {
         }
       }
     },
-    "TicketRoutingRuleSet": {
+    "Page<ProviderIncident>": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
       "properties": {
-        "ticketSourceId": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "UUID of the ticket source."
-        },
-        "policyRevision": {
-          "type": "integer",
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991,
-          "description": "Ticket source policy revision the rules belong to; every rule change advances it."
-        },
-        "version": {
-          "type": "integer",
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991,
-          "description": "Ticket source version; the If-Match value a replacement must send."
-        },
-        "rules": {
+        "items": {
+          "maxItems": 100,
           "type": "array",
           "items": {
             "type": "object",
@@ -74844,94 +75979,1176 @@ export const clientManifest = {
                 "type": "string",
                 "format": "uuid",
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "Stable UUID of the rule; an unchanged rule keeps it across replacements, and admitted targets pin it."
+                "description": "Stable UUID identifying the incident record."
               },
-              "organizationId": {
+              "routeId": {
                 "type": "string",
                 "format": "uuid",
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "UUID of the organization that owns the rule."
+                "description": "UUID of the provider route this incident is scoped to."
               },
-              "ticketSourceId": {
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "UUID of the ticket source the rule belongs to."
-              },
-              "labelId": {
-                "type": "string",
-                "maxLength": 65536,
-                "description": "Provider label id the rule matches, compared exactly with the label ids on a ticket."
-              },
-              "labelName": {
-                "type": "string",
-                "maxLength": 65536,
-                "description": "Display name of the label as last saved; shown only, never matched."
-              },
-              "repositoryId": {
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "UUID of the repository the label routes to."
-              },
-              "role": {
-                "type": "string",
-                "maxLength": 65536,
-                "description": "Role the repository plays for a routed ticket."
-              },
-              "presetId": {
-                "type": "string",
-                "enum": [
-                  "fixed-coding"
-                ],
-                "description": "Workflow preset the routed target runs."
-              },
-              "version": {
+              "generation": {
                 "type": "integer",
                 "minimum": -9007199254740991,
                 "maximum": 9007199254740991,
-                "description": "Edit count of this rule, starting at 1; admitted targets pin it."
+                "description": "Monotonic generation for the route's incident line at the moment this incident opened. A probe result, notification or continuation choice carrying a lower generation is stale."
               },
-              "createdAt": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "open",
+                  "recovered",
+                  "superseded"
+                ],
+                "description": "Incident state: open (the route is still failing), recovered (probes proved the route again), or superseded (a newer generation replaced this incident without recovery)."
+              },
+              "severity": {
+                "type": "string",
+                "enum": [
+                  "degraded",
+                  "outage"
+                ],
+                "description": "degraded (the route still serves some work) or outage (the route serves none)."
+              },
+              "reason": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "rate_limited",
+                      "credential_invalid",
+                      "quota_exhausted",
+                      "transport_failure",
+                      "provider_error",
+                      "timeout",
+                      "reachable_inference_unverified"
+                    ],
+                    "description": "Typed cause recorded when the incident opened, or null when it opened without a classified reason: rate_limited, credential_invalid, quota_exhausted, transport_failure, provider_error, timeout, or reachable_inference_unverified."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "ProviderIncident.reason may be null in the safe projection."
+              },
+              "firstFailureAt": {
                 "type": "string",
                 "format": "date-time",
                 "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-                "description": "UTC timestamp when the rule was first saved."
+                "description": "UTC timestamp of the first classified failure in this generation."
+              },
+              "lastFailureAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp of the most recent classified failure in this generation."
+              },
+              "lastProbeAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "UTC timestamp of the most recent saved probe result for this incident; null when no probe has run yet."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "ProviderIncident.lastProbeAt may be null in the safe projection."
+              },
+              "nextProbeAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "UTC timestamp at which the next probe becomes claimable; null when probing has stopped."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "ProviderIncident.nextProbeAt may be null in the safe projection."
+              },
+              "evidenceWatermark": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Opaque bounded reference to the deduplicated evidence that keeps this incident current; never a credential, prompt or raw provider error."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "ProviderIncident.evidenceWatermark may be null in the safe projection."
+              },
+              "affectedTaskCount": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Number of tasks paused by this incident, counted once per task however many probe results arrive."
+              },
+              "recoveredTaskCount": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Number of paused tasks that resumed automatically once the route recovered."
+              },
+              "switchedTaskCount": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Number of paused tasks continued on a different route through an authorized switch."
+              },
+              "stillBlockedTaskCount": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Number of paused tasks that remain blocked, for example because recovery is no longer eligible or an operator paused them."
+              },
+              "openedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the incident opened."
+              },
+              "closedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "UTC timestamp when the incident recovered or was superseded; null while it is open."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "ProviderIncident.closedAt may be null in the safe projection."
               },
               "updatedAt": {
                 "type": "string",
                 "format": "date-time",
                 "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-                "description": "UTC timestamp when the rule last changed."
+                "description": "UTC timestamp of the last change to the incident record."
+              },
+              "version": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Optimistic concurrency version, incremented on every write to the incident record."
               }
             },
             "required": [
               "id",
-              "organizationId",
-              "ticketSourceId",
-              "labelId",
-              "labelName",
-              "repositoryId",
-              "role",
-              "presetId",
-              "version",
-              "createdAt",
-              "updatedAt"
+              "routeId",
+              "generation",
+              "status",
+              "severity",
+              "reason",
+              "firstFailureAt",
+              "lastFailureAt",
+              "lastProbeAt",
+              "nextProbeAt",
+              "evidenceWatermark",
+              "affectedTaskCount",
+              "recoveredTaskCount",
+              "switchedTaskCount",
+              "stillBlockedTaskCount",
+              "openedAt",
+              "closedAt",
+              "updatedAt",
+              "version"
             ],
             "additionalProperties": false,
-            "description": "Every rule of the source, at most 50, ordered by label key and then repository id. Each array item follows this format."
+            "description": "One durable provider incident, recorded once per affected route and generation. Duplicate and stale probe results update this record instead of opening another, and a result carrying an older generation cannot close a newer incident. The record carries the evidence watermark, the probe schedule and the recovery tallies so an operator can see what is paused, what resumed, what switched and what is still blocked without reading provider output. It is the record a continuation choice names, so a stale choice can be rejected against the generation it was offered at."
           },
-          "description": "Every rule of the source, at most 50, ordered by label key and then repository id."
+          "description": "ProviderIncident items in this cursor page. Page<ProviderIncident>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<ProviderIncident>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<ProviderIncident>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<ProviderIncident>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<ProviderIncident>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
         }
       },
       "required": [
-        "ticketSourceId",
-        "policyRevision",
-        "version",
-        "rules"
+        "items",
+        "nextCursor"
       ],
       "additionalProperties": false,
-      "description": "The complete label routing rule set of one ticket source, with the source's policy revision and version. Send version as If-Match to replace it; pass policyRevision as expectedSourcePolicyRevision to admit under these rules."
+      "description": "Cursor page of ProviderIncident."
+    },
+    "Page<ProviderRoute>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID identifying the provider route record."
+              },
+              "provider": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Provider key this route sends to."
+              },
+              "endpoint": {
+                "type": "string",
+                "maxLength": 65536,
+                "pattern": "^(?!.*[@#])(?!.*[?&][^\\s]*(?:token|secret|key|signature|credential|password)=)[a-z][a-z0-9+.-]*:\\/\\/[^\\s]+$",
+                "description": "Configured provider endpoint host and path the route calls; never a URL carrying a credential or query secret. ProviderRoute.endpoint must match the pattern ^(?!.*[@#])(?!.*[?&][^\\s]*(?:token|secret|key|signature|credential|password)=)[a-z][a-z0-9+.-]*://[^\\s]+$."
+              },
+              "region": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Provider region the endpoint serves; null when the provider has no regional endpoints."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "ProviderRoute.region may be null in the safe projection."
+              },
+              "model": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Model identifier pinned for work admitted on this route."
+              },
+              "harness": {
+                "type": "string",
+                "enum": [
+                  "pi",
+                  "claude_code",
+                  "codex",
+                  "mastra"
+                ],
+                "description": "Harness path that executes work on this route: pi, claude_code, codex or mastra."
+              },
+              "billingRoute": {
+                "type": "string",
+                "enum": [
+                  "subscription",
+                  "api_metered",
+                  "local"
+                ],
+                "description": "Billing route the route's spend follows: subscription, api_metered or local."
+              },
+              "providerAccountId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Provider account whose identity and quota observation the route uses; null for a route with no verified account, which must report usage as unknown rather than zero."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "ProviderRoute.providerAccountId may be null in the safe projection."
+              },
+              "workerBindingId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Machine provider binding that places this route, when one does; null for a route served without a machine binding."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "ProviderRoute.workerBindingId may be null in the safe projection."
+              },
+              "credentialLocation": {
+                "type": "string",
+                "enum": [
+                  "harness_host",
+                  "bakery_secret"
+                ],
+                "description": "Where the credential is kept: harness_host (the machine holds it) or bakery_secret (Bakery holds it as a secret reference). The credential value itself is never returned."
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "active",
+                  "disabled",
+                  "revoked"
+                ],
+                "description": "Route lifecycle: active (eligible for new work and probes), disabled (temporarily withdrawn, kept readable), or revoked (permanently withdrawn, never probed again)."
+              },
+              "health": {
+                "type": "string",
+                "enum": [
+                  "healthy",
+                  "degraded",
+                  "open",
+                  "unverified"
+                ],
+                "description": "Current circuit state for the route: healthy (closed after proven inference), degraded (failing but below the open threshold), open (paused while probing), or unverified (reachable, inference not yet proven)."
+              },
+              "incidentId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Current incident for this route; null while no incident is open."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "ProviderRoute.incidentId may be null in the safe projection."
+              },
+              "incidentGeneration": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Monotonic generation for this route's incident line. A probe result or a continuation choice carrying an older generation is stale and cannot close a newer incident or commit a switch."
+              },
+              "lastProbeAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "UTC timestamp of the most recent probe that completed and was saved under the current generation; null when no probe has run."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "ProviderRoute.lastProbeAt may be null in the safe projection."
+              },
+              "nextProbeAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "UTC timestamp at which the next probe becomes claimable; null when probing is stopped because the route is revoked, disabled, or nothing is waiting on it."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "ProviderRoute.nextProbeAt may be null in the safe projection."
+              },
+              "inferenceVerifiedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "UTC timestamp when an already-authorized request last proved the route's inference path end to end; null means reachable-but-unverified, and a status page or health read never sets it."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "ProviderRoute.inferenceVerifiedAt may be null in the safe projection."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the route record was created."
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp of the last change to the route record."
+              },
+              "version": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Optimistic concurrency version, incremented on every write to the route record."
+              }
+            },
+            "required": [
+              "id",
+              "provider",
+              "endpoint",
+              "region",
+              "model",
+              "harness",
+              "billingRoute",
+              "providerAccountId",
+              "workerBindingId",
+              "credentialLocation",
+              "status",
+              "health",
+              "incidentId",
+              "incidentGeneration",
+              "lastProbeAt",
+              "nextProbeAt",
+              "inferenceVerifiedAt",
+              "createdAt",
+              "updatedAt",
+              "version"
+            ],
+            "additionalProperties": false,
+            "description": "One organization-scoped provider route: the provider endpoint, region, model, harness and credential binding that outbound work is admitted against. A route is the unit an outage is scoped to, so one expired credential, one 429 or one broken network never declares the organization down. Health and the current incident generation are projected here so a listing needs no per-route health read; the incident's own evidence and probe schedule live in RouteHealth and ProviderIncident. Credentials are never returned, only where they are kept."
+          },
+          "description": "ProviderRoute items in this cursor page. Page<ProviderRoute>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<ProviderRoute>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<ProviderRoute>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<ProviderRoute>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<ProviderRoute>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of ProviderRoute."
+    },
+    "ProviderIncident": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID identifying the incident record."
+        },
+        "routeId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "UUID of the provider route this incident is scoped to."
+        },
+        "generation": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Monotonic generation for the route's incident line at the moment this incident opened. A probe result, notification or continuation choice carrying a lower generation is stale."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "open",
+            "recovered",
+            "superseded"
+          ],
+          "description": "Incident state: open (the route is still failing), recovered (probes proved the route again), or superseded (a newer generation replaced this incident without recovery)."
+        },
+        "severity": {
+          "type": "string",
+          "enum": [
+            "degraded",
+            "outage"
+          ],
+          "description": "degraded (the route still serves some work) or outage (the route serves none)."
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "rate_limited",
+                "credential_invalid",
+                "quota_exhausted",
+                "transport_failure",
+                "provider_error",
+                "timeout",
+                "reachable_inference_unverified"
+              ],
+              "description": "Typed cause recorded when the incident opened, or null when it opened without a classified reason: rate_limited, credential_invalid, quota_exhausted, transport_failure, provider_error, timeout, or reachable_inference_unverified."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "ProviderIncident.reason may be null in the safe projection."
+        },
+        "firstFailureAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp of the first classified failure in this generation."
+        },
+        "lastFailureAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp of the most recent classified failure in this generation."
+        },
+        "lastProbeAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp of the most recent saved probe result for this incident; null when no probe has run yet."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "ProviderIncident.lastProbeAt may be null in the safe projection."
+        },
+        "nextProbeAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp at which the next probe becomes claimable; null when probing has stopped."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "ProviderIncident.nextProbeAt may be null in the safe projection."
+        },
+        "evidenceWatermark": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque bounded reference to the deduplicated evidence that keeps this incident current; never a credential, prompt or raw provider error."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "ProviderIncident.evidenceWatermark may be null in the safe projection."
+        },
+        "affectedTaskCount": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Number of tasks paused by this incident, counted once per task however many probe results arrive."
+        },
+        "recoveredTaskCount": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Number of paused tasks that resumed automatically once the route recovered."
+        },
+        "switchedTaskCount": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Number of paused tasks continued on a different route through an authorized switch."
+        },
+        "stillBlockedTaskCount": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Number of paused tasks that remain blocked, for example because recovery is no longer eligible or an operator paused them."
+        },
+        "openedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when the incident opened."
+        },
+        "closedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp when the incident recovered or was superseded; null while it is open."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "ProviderIncident.closedAt may be null in the safe projection."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp of the last change to the incident record."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Optimistic concurrency version, incremented on every write to the incident record."
+        }
+      },
+      "required": [
+        "id",
+        "routeId",
+        "generation",
+        "status",
+        "severity",
+        "reason",
+        "firstFailureAt",
+        "lastFailureAt",
+        "lastProbeAt",
+        "nextProbeAt",
+        "evidenceWatermark",
+        "affectedTaskCount",
+        "recoveredTaskCount",
+        "switchedTaskCount",
+        "stillBlockedTaskCount",
+        "openedAt",
+        "closedAt",
+        "updatedAt",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "One durable provider incident, recorded once per affected route and generation. Duplicate and stale probe results update this record instead of opening another, and a result carrying an older generation cannot close a newer incident. The record carries the evidence watermark, the probe schedule and the recovery tallies so an operator can see what is paused, what resumed, what switched and what is still blocked without reading provider output. It is the record a continuation choice names, so a stale choice can be rejected against the generation it was offered at."
+    },
+    "ProviderRoute": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID identifying the provider route record."
+        },
+        "provider": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Provider key this route sends to."
+        },
+        "endpoint": {
+          "type": "string",
+          "maxLength": 65536,
+          "pattern": "^(?!.*[@#])(?!.*[?&][^\\s]*(?:token|secret|key|signature|credential|password)=)[a-z][a-z0-9+.-]*:\\/\\/[^\\s]+$",
+          "description": "Configured provider endpoint host and path the route calls; never a URL carrying a credential or query secret. ProviderRoute.endpoint must match the pattern ^(?!.*[@#])(?!.*[?&][^\\s]*(?:token|secret|key|signature|credential|password)=)[a-z][a-z0-9+.-]*://[^\\s]+$."
+        },
+        "region": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Provider region the endpoint serves; null when the provider has no regional endpoints."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "ProviderRoute.region may be null in the safe projection."
+        },
+        "model": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Model identifier pinned for work admitted on this route."
+        },
+        "harness": {
+          "type": "string",
+          "enum": [
+            "pi",
+            "claude_code",
+            "codex",
+            "mastra"
+          ],
+          "description": "Harness path that executes work on this route: pi, claude_code, codex or mastra."
+        },
+        "billingRoute": {
+          "type": "string",
+          "enum": [
+            "subscription",
+            "api_metered",
+            "local"
+          ],
+          "description": "Billing route the route's spend follows: subscription, api_metered or local."
+        },
+        "providerAccountId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Provider account whose identity and quota observation the route uses; null for a route with no verified account, which must report usage as unknown rather than zero."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "ProviderRoute.providerAccountId may be null in the safe projection."
+        },
+        "workerBindingId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Machine provider binding that places this route, when one does; null for a route served without a machine binding."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "ProviderRoute.workerBindingId may be null in the safe projection."
+        },
+        "credentialLocation": {
+          "type": "string",
+          "enum": [
+            "harness_host",
+            "bakery_secret"
+          ],
+          "description": "Where the credential is kept: harness_host (the machine holds it) or bakery_secret (Bakery holds it as a secret reference). The credential value itself is never returned."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "active",
+            "disabled",
+            "revoked"
+          ],
+          "description": "Route lifecycle: active (eligible for new work and probes), disabled (temporarily withdrawn, kept readable), or revoked (permanently withdrawn, never probed again)."
+        },
+        "health": {
+          "type": "string",
+          "enum": [
+            "healthy",
+            "degraded",
+            "open",
+            "unverified"
+          ],
+          "description": "Current circuit state for the route: healthy (closed after proven inference), degraded (failing but below the open threshold), open (paused while probing), or unverified (reachable, inference not yet proven)."
+        },
+        "incidentId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Current incident for this route; null while no incident is open."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "ProviderRoute.incidentId may be null in the safe projection."
+        },
+        "incidentGeneration": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Monotonic generation for this route's incident line. A probe result or a continuation choice carrying an older generation is stale and cannot close a newer incident or commit a switch."
+        },
+        "lastProbeAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp of the most recent probe that completed and was saved under the current generation; null when no probe has run."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "ProviderRoute.lastProbeAt may be null in the safe projection."
+        },
+        "nextProbeAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp at which the next probe becomes claimable; null when probing is stopped because the route is revoked, disabled, or nothing is waiting on it."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "ProviderRoute.nextProbeAt may be null in the safe projection."
+        },
+        "inferenceVerifiedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp when an already-authorized request last proved the route's inference path end to end; null means reachable-but-unverified, and a status page or health read never sets it."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "ProviderRoute.inferenceVerifiedAt may be null in the safe projection."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when the route record was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp of the last change to the route record."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Optimistic concurrency version, incremented on every write to the route record."
+        }
+      },
+      "required": [
+        "id",
+        "provider",
+        "endpoint",
+        "region",
+        "model",
+        "harness",
+        "billingRoute",
+        "providerAccountId",
+        "workerBindingId",
+        "credentialLocation",
+        "status",
+        "health",
+        "incidentId",
+        "incidentGeneration",
+        "lastProbeAt",
+        "nextProbeAt",
+        "inferenceVerifiedAt",
+        "createdAt",
+        "updatedAt",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "One organization-scoped provider route: the provider endpoint, region, model, harness and credential binding that outbound work is admitted against. A route is the unit an outage is scoped to, so one expired credential, one 429 or one broken network never declares the organization down. Health and the current incident generation are projected here so a listing needs no per-route health read; the incident's own evidence and probe schedule live in RouteHealth and ProviderIncident. Credentials are never returned, only where they are kept."
+    },
+    "RouteHealth": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "routeId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "UUID of the provider route this health view describes."
+        },
+        "health": {
+          "type": "string",
+          "enum": [
+            "healthy",
+            "degraded",
+            "open",
+            "unverified"
+          ],
+          "description": "Circuit state: healthy (closed), degraded (failing below the open threshold), open (paused and probing), or unverified (reachable, inference not yet proven)."
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "rate_limited",
+                "credential_invalid",
+                "quota_exhausted",
+                "transport_failure",
+                "provider_error",
+                "timeout",
+                "reachable_inference_unverified"
+              ],
+              "description": "Typed reason for the current state, or null while the route is healthy: rate_limited (the provider asked us to slow down), credential_invalid (the credential is rejected), quota_exhausted (the account's allowance is spent), transport_failure (connection-level failure), provider_error (a classified provider 5xx), timeout (the deadline passed), or reachable_inference_unverified (the endpoint answers but no authorized request has proven inference)."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "RouteHealth.reason may be null in the safe projection."
+        },
+        "consecutiveFailures": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Failures since the last success, reset to zero by a saved probe success; this is what crosses the open threshold."
+        },
+        "consecutiveInferenceTrials": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Consecutive successful authorized inference trials since the route opened; two are required before the circuit closes and waiting work is released."
+        },
+        "evidenceWatermark": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque bounded reference to the evidence that produced this state, so duplicate observations can be deduplicated; it never carries a credential, prompt or raw provider error."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "RouteHealth.evidenceWatermark may be null in the safe projection."
+        },
+        "lastFailureAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp of the most recent classified failure; null when none is recorded under the current generation."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "RouteHealth.lastFailureAt may be null in the safe projection."
+        },
+        "lastSuccessAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp of the most recent successful probe or trial; null when none is recorded."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "RouteHealth.lastSuccessAt may be null in the safe projection."
+        },
+        "lastProbeAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp of the most recent saved probe result; null when no probe has run."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "RouteHealth.lastProbeAt may be null in the safe projection."
+        },
+        "nextProbeAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp at which the next probe becomes claimable; null when probing is stopped."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "RouteHealth.nextProbeAt may be null in the safe projection."
+        },
+        "probeLeaseExpiresAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp when the current probe lease lapses, after which another process may claim the probe; null when no probe is in flight. This is what makes duplicate wakes take one lease rather than several probes."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "RouteHealth.probeLeaseExpiresAt may be null in the safe projection."
+        },
+        "corroboration": {
+          "type": "string",
+          "enum": [
+            "none",
+            "status_page"
+          ],
+          "description": "Whether an external status page corroborates the incident: none, or status_page. Corroboration never authorizes recovery on its own."
+        },
+        "incidentId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Current incident for this route; null while no incident is open."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "RouteHealth.incidentId may be null in the safe projection."
+        },
+        "incidentGeneration": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Monotonic incident generation for this route. A probe result saved against an older generation is stale and must not change this view."
+        },
+        "inferenceVerifiedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp when an already-authorized request last proved the inference path; null while inference is unproven."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "RouteHealth.inferenceVerifiedAt may be null in the safe projection."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp of the last health change."
+        }
+      },
+      "required": [
+        "routeId",
+        "health",
+        "reason",
+        "consecutiveFailures",
+        "consecutiveInferenceTrials",
+        "evidenceWatermark",
+        "lastFailureAt",
+        "lastSuccessAt",
+        "lastProbeAt",
+        "nextProbeAt",
+        "probeLeaseExpiresAt",
+        "corroboration",
+        "incidentId",
+        "incidentGeneration",
+        "inferenceVerifiedAt",
+        "updatedAt"
+      ],
+      "additionalProperties": false,
+      "description": "The monitoring view of one provider route: circuit state, the typed reason for it, the bounded evidence watermark, the probe schedule and the current incident generation. It exists so a caller can answer why a route is paused and when it will be probed without reading free-form provider output. A status-page corroboration and a successful health read are reachability evidence only; neither proves the inference path, which is why inferenceVerifiedAt is separate and only an already-authorized trial sets it."
     }
   }
 } as const;
