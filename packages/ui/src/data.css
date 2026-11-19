@@ -2073,3 +2073,39 @@
     );
   }
 }
+
+/*
+ * One figure with its label (Usage page). A row on a wide screen, stacked on a
+ * phone: `flex-wrap` plus a min width means three tiles read across a desktop
+ * and as three lines on 390px without a separate phone rule.
+ */
+.ui-stat-tile {
+  display: flex;
+  flex: 1 1 12rem;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.ui-stat-tile__label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-fg-muted);
+  font: var(--type-row-title);
+}
+
+.ui-stat-tile__value {
+  /* Section heading, not hero: the figure is one of three, and a page heading
+     size would make an unknown count look like the point of the page. */
+  font: var(--type-heading-section);
+  font-variant-numeric: tabular-nums;
+  /* Long sums wrap rather than overflow: the figure is the content, so it may
+     break; every figure is money or a count, both of which wrap at a space. */
+  overflow-wrap: anywhere;
+}
+
+.ui-stat-tile__detail {
+  color: var(--color-fg-muted);
+  font: var(--type-caption);
+}

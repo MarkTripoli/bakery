@@ -80,6 +80,7 @@ import {
 import { ConnectionPage } from "./pages/integrations/ConnectionPage.tsx";
 import { SsoPage } from "./pages/SsoPage.tsx";
 import { InstallationSettingsPage } from "./pages/InstallationSettingsPage.tsx";
+import { InstallationUsagePage } from "./pages/InstallationUsagePage.tsx";
 import { AccessPage } from "./pages/AccessPage.tsx";
 import { SettingsIndexPage } from "./pages/SettingsIndexPage.tsx";
 import { ProfilePage } from "./pages/ProfilePage.tsx";
@@ -544,6 +545,23 @@ export const routeCoverage = [
       "busy",
       "error",
       "conflict",
+      "forbidden",
+    ],
+  },
+  {
+    id: "installation-usage",
+    path: "/installation/usage",
+    classification: "production",
+    // `unknown` is not a fifth kind of failure: it is the state where the
+    // records exist but Bakery cannot say how complete they are, and the page
+    // must still render figures with that warning rather than an error.
+    states: [
+      "loading",
+      "default",
+      "partial",
+      "unknown",
+      "empty",
+      "error",
       "forbidden",
     ],
   },
@@ -1441,6 +1459,19 @@ const installationIntegrationsRoute = createRoute({
   errorComponent: ProtectedRouteError,
 });
 
+const installationUsageRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/installation/usage",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => (
+    <InstallationBreadcrumbs section="installation.usage.title">
+      <InstallationUsagePage />
+    </InstallationBreadcrumbs>
+  ),
+  errorComponent: ProtectedRouteError,
+});
+
 const installationAuditRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/installation/audit",
@@ -2256,6 +2287,7 @@ const routeTree = rootRoute.addChildren([
   organizationsRoute,
   organizationSettingsRoute,
   installationSettingsRoute,
+  installationUsageRoute,
   installationAuditRoute,
   installationIntegrationsRoute,
   organizationAccessRoute,

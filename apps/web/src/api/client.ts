@@ -101,6 +101,10 @@ export type UserPreferencesUpdate = ClientInputMap["UserPreferencesUpdate"];
 export type InstallationCapabilities =
   ClientOutputMap["InstallationCapabilities"];
 export type InstallationSettings = ClientOutputMap["InstallationSettings"];
+/** What the installation-wide usage summary answers: figures and budgets. */
+export type UsageSummary = ClientOutputMap["UsageSummary"];
+/** Window and filters for that summary; all three are optional on the server. */
+export type UsageQuery = ClientInputMap["UsageQuery"];
 export type IntegrationAppRegistration =
   ClientOutputMap["IntegrationAppRegistration"];
 export type IntegrationAppManifestStart =
@@ -956,6 +960,13 @@ export type BakeryApiClient = {
     readonly get: (
       signal?: AbortSignal,
     ) => Promise<ApiResult<InstallationCapabilities>>;
+  };
+  readonly usage: {
+    /** `GET /v1/usage`: the installation's usage summary (administrators only). */
+    readonly list: (options: {
+      readonly query: UsageQuery;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<UsageSummary>>;
   };
   readonly installationSettings: {
     readonly get: (
@@ -3092,6 +3103,21 @@ export function createBakeryApiClient({
             ok: true,
             data: await client.actions["installation.capabilities"]({}, {
               signal,
+            }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+    },
+
+    usage: {
+      async list(options) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["usage.list"](options.query, {
+              signal: options.signal,
             }),
           };
         } catch (error) {

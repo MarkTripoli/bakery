@@ -171,6 +171,7 @@ export * from "./molecules/RecoveryCodes.tsx";
 export * from "./molecules/ResourcePicker.tsx";
 export * from "./molecules/SearchField.tsx";
 export * from "./molecules/SegmentedControl.tsx";
+export * from "./molecules/StatTile.tsx";
 export * from "./molecules/StatusStrip.tsx";
 export * from "./molecules/SetupKey.tsx";
 export * from "./molecules/SettingsIndexRow.tsx";

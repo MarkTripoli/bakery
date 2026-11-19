@@ -77,6 +77,8 @@ import type {
   TaskResponse,
   TicketSourceListResponse,
   TicketSourceResponse,
+  UsageQuery,
+  UsageSummary,
   UserPreferences,
   UserProfile,
   WorkerComponentListResponse,
@@ -1472,6 +1474,27 @@ export function scimConnectionQueryOptions(
       );
     },
     enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/**
+ * The installation's usage summary for one window and provider filter.
+ *
+ * The window is in the key because two periods are two answers, and a cache
+ * that answered the new period with the old figures would show a wrong number
+ * under a right heading. `undefined` provider means "all", which is the
+ * server's own default for the field.
+ */
+export function usageSummaryQueryOptions(
+  client: Pick<BakeryApiClient, "usage">,
+  scope: ApiScope,
+  query: UsageQuery,
+) {
+  return queryOptions<UsageSummary, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "usage.list", { ...query }),
+    queryFn: async ({ signal }) =>
+      unwrap(await client.usage.list({ query, signal })),
     retry: retryNetworkOnce,
   });
 }
