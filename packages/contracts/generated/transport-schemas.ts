@@ -11467,6 +11467,40 @@ const transportSchemas = {
         "Installation administrator, session only. Requires If-Match once settings exist. Saving resets the last test, so the state is not_tested until a test email is sent."
       ],
       "description": "Saves how this installation sends email over SMTP. The password is write-only and is never returned."
+    },
+    "PasswordResetLinkCreate": {
+      "fields": [
+        {
+          "name": "principalId",
+          "type": "uuid",
+          "required": true,
+          "description": "Enabled human principal whose password the link resets; any installation person, whichever organizations they belong to."
+        }
+      ],
+      "description": "Installation administrator's request for a one-hour, single-use password reset link for one person. Issuing revokes that person's earlier unused links."
+    },
+    "PasswordResetRedemption": {
+      "fields": [
+        {
+          "name": "token",
+          "type": "secretString",
+          "required": true,
+          "bounds": {
+            "maxLength": 256
+          },
+          "description": "Reset token from the link's token query parameter, sent exactly as issued. The server stores only its SHA-256 digest."
+        },
+        {
+          "name": "newPassword",
+          "type": "secretString",
+          "required": true,
+          "bounds": {
+            "maxLength": 1024
+          },
+          "description": "The person's new sign-in password; it must meet the same length rule as sign-up and password change, and is hashed by the auth provider before storage."
+        }
+      ],
+      "description": "Unauthenticated redemption of a password reset link: sets the new password, consumes the link and signs the person out of every browser session. An unknown, used, expired or revoked link gets one identical refusal."
     }
   },
   "projections": {
@@ -29130,6 +29164,24 @@ const transportSchemas = {
         "fromName": "Saved sender display name, or null when off.",
         "lastTest": "The last test email result since the settings were saved, or null if none was sent.",
         "version": "Settings revision used as If-Match; 0 while off."
+      }
+    },
+    "PasswordResetLinkIssued": {
+      "fields": [
+        "id",
+        "url",
+        "expiresAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "url": "secretString",
+        "expiresAt": "timestamp"
+      },
+      "description": "A newly issued password reset link. The URL carries the only copy of the token and is returned in this response alone; it is never stored, replayed or readable again.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of the reset link record, as the audit trail names it.",
+        "url": "Absolute web URL of the reset page with the one-time token; hand it to the person over a trusted channel.",
+        "expiresAt": "UTC timestamp one hour after issue, after which the link no longer works."
       }
     }
   },
