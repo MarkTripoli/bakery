@@ -20,6 +20,7 @@ import {
 } from "./fixtures.ts";
 import { assertNoDeadlock, holdRow, raceInOrder } from "../lock-race.ts";
 import { addMember } from "../durable-questions.ts";
+import { cleanupSeededOrganizations } from "../coordinator-turns.ts";
 import {
   factsOf,
   idleInTransaction,
@@ -880,38 +881,42 @@ Deno.test("issue 69 note: only a Developer may resync; a viewer is refused befor
     const ticket = await ticketOf(fx, sourceId, 1);
     const { id } = await insertPrimaryLink(fx, ticket.id);
     const path = `/v1/ticket-task-links/${id}/note-syncs`;
-    const viewer = await addMember(
-      fx.f,
-      {
-        organizationId: fx.organizationId,
-        principalId: fx.adminId,
-        cookie: fx.f.adminCookie,
-        applicationId: fx.applicationId,
-        repositoryId: fx.repositoryId,
-        conversationId: "",
-        agentVersionId: "",
-      },
-      "note-viewer",
-      "viewer",
-    );
-    const asViewer = await post(fx, path, {}, {
-      ifMatch: 1,
-      cookie: viewer.cookie,
-    });
-    assertEquals(asViewer.status, 403);
-    assertEquals(fx.notes.posts.length, 0);
-    const untouched = await fx.owner.query<{ sync_health: string }>(
-      `select sync_health from bakery.ticket_task_links where id = $1`,
-      [id],
-    );
-    assertEquals(untouched.rows[0].sync_health, "unknown");
-    // The developer may, and the write runs as them.
-    const asDeveloper = await read<NoteLink>(
-      await post(fx, path, {}, { ifMatch: 1, cookie: fx.f.developerCookie }),
-      201,
-    );
-    assertEquals(asDeveloper.syncHealth, "healthy");
-    assertEquals(fx.notes.posts[0].actorPrincipalId, fx.developerId);
+    try {
+      const viewer = await addMember(
+        fx.f,
+        {
+          organizationId: fx.organizationId,
+          principalId: fx.adminId,
+          cookie: fx.f.adminCookie,
+          applicationId: fx.applicationId,
+          repositoryId: fx.repositoryId,
+          conversationId: "",
+          agentVersionId: "",
+        },
+        "note-viewer",
+        "viewer",
+      );
+      const asViewer = await post(fx, path, {}, {
+        ifMatch: 1,
+        cookie: viewer.cookie,
+      });
+      assertEquals(asViewer.status, 403);
+      assertEquals(fx.notes.posts.length, 0);
+      const untouched = await fx.owner.query<{ sync_health: string }>(
+        `select sync_health from bakery.ticket_task_links where id = $1`,
+        [id],
+      );
+      assertEquals(untouched.rows[0].sync_health, "unknown");
+      // The developer may, and the write runs as them.
+      const asDeveloper = await read<NoteLink>(
+        await post(fx, path, {}, { ifMatch: 1, cookie: fx.f.developerCookie }),
+        201,
+      );
+      assertEquals(asDeveloper.syncHealth, "healthy");
+      assertEquals(fx.notes.posts[0].actorPrincipalId, fx.developerId);
+    } finally {
+      await cleanupSeededOrganizations(fx.f);
+    }
   });
 });
 
