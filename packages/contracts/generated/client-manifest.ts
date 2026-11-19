@@ -2848,6 +2848,55 @@ export const clientManifest = {
     },
     {
       "group": "Skills",
+      "method": "GET",
+      "path": "/v1/skills/{id}/use-grants",
+      "action": "skills.useGrants.list",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "skill:author",
+      "input": "CursorQuery",
+      "output": "Page<SkillUseGrant>",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Skills",
+      "method": "DELETE",
+      "path": "/v1/skills/{id}/use-grants/{grantId}",
+      "action": "skills.useGrants.delete",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "skill:author",
+      "input": "IdPath",
+      "output": "NoContent",
+      "event": "skillUseGrant.deleted",
+      "mcp": "",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Skills",
       "method": "POST",
       "path": "/v1/skills/{id}/versions",
       "action": "skillVersions.create",
@@ -13735,6 +13784,8 @@ export const clientManifest = {
             "library.search",
             "skills.get",
             "skills.update",
+            "skills.useGrants.list",
+            "skills.useGrants.delete",
             "skillVersions.list",
             "skillVersions.get",
             "skillFiles.get",
@@ -36088,6 +36139,8 @@ export const clientManifest = {
                   "library.search",
                   "skills.get",
                   "skills.update",
+                  "skills.useGrants.list",
+                  "skills.useGrants.delete",
                   "skillVersions.list",
                   "skillVersions.get",
                   "skillFiles.get",
@@ -53744,6 +53797,8 @@ export const clientManifest = {
             "library.search",
             "skills.get",
             "skills.update",
+            "skills.useGrants.list",
+            "skills.useGrants.delete",
             "skillVersions.list",
             "skillVersions.get",
             "skillFiles.get",
@@ -82513,6 +82568,137 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "A newly issued password reset link. The URL carries the only copy of the token and is returned in this response alone; it is never stored, replayed or readable again."
+    },
+    "Page<SkillUseGrant>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID identifying the grant."
+              },
+              "skillId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID of the personal skill the grant is for."
+              },
+              "skillVersionId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Immutable skill version the workflow may use; a newer version needs a new grant."
+              },
+              "workflowId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID of the workflow the skill was attached to."
+              },
+              "workflowName": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Display name of that workflow, so the owner can recognise it."
+              },
+              "stepPath": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "JSON Pointer of the step in the workflow definition that uses the skill."
+              },
+              "grantedBy": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Person who confirmed the grant, always the skill owner."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "When the grant was made."
+              },
+              "version": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Optimistic-concurrency version a stop must name in If-Match."
+              }
+            },
+            "required": [
+              "id",
+              "skillId",
+              "skillVersionId",
+              "workflowId",
+              "workflowName",
+              "stepPath",
+              "grantedBy",
+              "createdAt",
+              "version"
+            ],
+            "additionalProperties": false,
+            "description": "One use grant: the owner of a personal skill let one workflow use one exact version of it at one step. It lives until the owner stops it; stopping deletes it and the audit log keeps both."
+          },
+          "description": "SkillUseGrant items in this cursor page. Page<SkillUseGrant>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<SkillUseGrant>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<SkillUseGrant>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<SkillUseGrant>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<SkillUseGrant>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of SkillUseGrant."
     }
   }
 } as const;

@@ -17,6 +17,7 @@ import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import { attributeAction } from "../auth/application/action-attribution.ts";
 import { assertMayAuthorSkill } from "./skill-scope-guard.ts";
+import { deleteSkillUseGrant, listSkillUseGrants } from "./skill-use-grants.ts";
 import {
   type RunRow,
   runWorkspaceBaseShaColumn,
@@ -800,6 +801,14 @@ export function createCatalogHandlers(
         resourceVersion: row.version,
       });
       return toSkill(row);
+    },
+
+    listSkillUseGrants(context: ActionContext, input: CursorInput) {
+      return listSkillUseGrants(context, input, secret);
+    },
+
+    deleteSkillUseGrant(context: ActionContext) {
+      return deleteSkillUseGrant(context);
     },
 
     createSkillVersion(

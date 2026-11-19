@@ -58,6 +58,14 @@ export type CatalogActionHandlers = {
     context: ActionContext,
     input: z.output<typeof contractSchemas.DefinitionUpdate>,
   ) => Promise<z.output<typeof contractSchemas.Skill>>;
+  listSkillUseGrants: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.CursorQuery>,
+  ) => Promise<z.output<typeof contractSchemas["Page<SkillUseGrant>"]>>;
+  deleteSkillUseGrant: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.IdPath>,
+  ) => Promise<null>;
   createSkillVersion: (
     context: ActionContext,
     input: z.output<typeof contractSchemas.LocalSkillVersion>,
@@ -171,7 +179,12 @@ export function createCatalogActionRegistry(
     path: "/v1/skills",
     input: contractSchemas.SkillCreate,
     output: contractSchemas.Skill,
-    policy: commandPolicy,
+    // Developer for a personal skill; the handler raises the bar to Admin for
+    // an organization skill, which one access value cannot express.
+    policy: {
+      ...commandPolicy,
+      access: ActionAccess.DeveloperForPersonalAdminForOrganization,
+    },
     handler: handlers.createSkill,
   });
   registry.register({
@@ -180,8 +193,37 @@ export function createCatalogActionRegistry(
     path: "/v1/skills/:id",
     input: contractSchemas.DefinitionUpdate,
     output: contractSchemas.Skill,
-    policy: commandPolicy,
+    // The owner for a personal skill, an Admin for an organization one; the
+    // handler decides which from the skill itself.
+    policy: {
+      ...commandPolicy,
+      access: ActionAccess.OwnerForPersonalAdminForOrganization,
+    },
     handler: handlers.updateSkill,
+  });
+  registry.register({
+    name: CatalogImplementedAction.SkillUseGrantsList,
+    method: HttpMethod.Get,
+    path: "/v1/skills/:id/use-grants",
+    input: contractSchemas.CursorQuery,
+    output: contractSchemas["Page<SkillUseGrant>"],
+    policy: {
+      ...queryPolicy,
+      access: ActionAccess.OwnerForPersonalAdminForOrganization,
+    },
+    handler: handlers.listSkillUseGrants,
+  });
+  registry.register({
+    name: CatalogImplementedAction.SkillUseGrantsDelete,
+    method: HttpMethod.Delete,
+    path: "/v1/skills/:id/use-grants/:grantId",
+    input: contractSchemas.IdPath,
+    output: contractSchemas.NoContent,
+    policy: {
+      ...commandPolicy,
+      access: ActionAccess.OwnerForPersonalAdminForOrganization,
+    },
+    handler: handlers.deleteSkillUseGrant,
   });
   registry.register({
     name: CatalogImplementedAction.LibrarySearch,
@@ -199,7 +241,10 @@ export function createCatalogActionRegistry(
       path: "/v1/skills/:id/versions",
       input: contractSchemas.LocalSkillVersion,
       output: contractSchemas.SkillVersion,
-      policy: commandPolicy,
+      policy: {
+        ...commandPolicy,
+        access: ActionAccess.OwnerForPersonalAdminForOrganization,
+      },
       handler: handlers.createSkillVersion,
     });
   }
@@ -232,7 +277,7 @@ export function createSkillVersionActionRegistry(
     output: contractSchemas.SkillVersion,
     policy: {
       type: ActionKind.Command,
-      access: ActionAccess.Admin,
+      access: ActionAccess.OwnerForPersonalAdminForOrganization,
       organizationContext:
         OrganizationContextPolicy.RequiredAuthenticatedContext,
     },

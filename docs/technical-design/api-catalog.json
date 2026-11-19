@@ -2817,6 +2817,53 @@
     },
     {
       "group": "Skills",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "skill:author",
+      "mcp": null,
+      "organizationContext": "required_authenticated_context",
+      "method": "GET",
+      "path": "/v1/skills/{id}/use-grants",
+      "action": "skills.useGrants.list",
+      "input": "CursorQuery",
+      "output": "Page<SkillUseGrant>",
+      "event": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ]
+    },
+    {
+      "group": "Skills",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "skill:author",
+      "mcp": null,
+      "organizationContext": "required_authenticated_context",
+      "method": "DELETE",
+      "path": "/v1/skills/{id}/use-grants/{grantId}",
+      "action": "skills.useGrants.delete",
+      "input": "IdPath",
+      "output": "NoContent",
+      "event": "skillUseGrant.deleted",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ]
+    },
+    {
+      "group": "Skills",
       "method": "GET",
       "path": "/v1/skills/{id}/versions",
       "action": "skillVersions.list",

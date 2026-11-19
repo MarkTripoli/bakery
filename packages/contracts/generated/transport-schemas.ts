@@ -29623,6 +29623,47 @@ const transportSchemas = {
         "url": "Absolute web URL of the reset page with the one-time token; hand it to the person over a trusted channel.",
         "expiresAt": "UTC timestamp one hour after issue, after which the link no longer works."
       }
+    },
+    "SkillUseGrant": {
+      "fields": [
+        "id",
+        "skillId",
+        "skillVersionId",
+        "workflowId",
+        "workflowName",
+        "stepPath",
+        "grantedBy",
+        "createdAt",
+        "version"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "skillId": "uuid",
+        "skillVersionId": "uuid",
+        "workflowId": "uuid",
+        "workflowName": "string",
+        "stepPath": "string",
+        "grantedBy": "uuid",
+        "createdAt": "timestamp",
+        "version": "integer"
+      },
+      "nullableFields": [],
+      "description": "One use grant: the owner of a personal skill let one workflow use one exact version of it at one step. It lives until the owner stops it; stopping deletes it and the audit log keeps both.",
+      "fieldDescriptions": {
+        "id": "Stable UUID identifying the grant.",
+        "skillId": "Stable UUID of the personal skill the grant is for.",
+        "skillVersionId": "Immutable skill version the workflow may use; a newer version needs a new grant.",
+        "workflowId": "Stable UUID of the workflow the skill was attached to.",
+        "workflowName": "Display name of that workflow, so the owner can recognise it.",
+        "stepPath": "JSON Pointer of the step in the workflow definition that uses the skill.",
+        "grantedBy": "Person who confirmed the grant, always the skill owner.",
+        "createdAt": "When the grant was made.",
+        "version": "Optimistic-concurrency version a stop must name in If-Match."
+      }
+    },
+    "Page<SkillUseGrant>": {
+      "pageOf": "SkillUseGrant",
+      "description": "Cursor page of SkillUseGrant rows in the collection's stable sort order. items and nextCursor are always present, with nextCursor=null marking the last page; there is no page-number or offset form."
     }
   },
   "pageEnvelope": {

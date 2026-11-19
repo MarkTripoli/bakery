@@ -259,6 +259,110 @@ Deno.test("attaching a personal skill to a shared workflow needs its owner's con
     assertEquals(secondBody.includes("skill_unavailable"), true, secondBody);
     // The refusal does not say who owns the skill.
     assertEquals(secondBody.includes(principalId), false);
+
+    // The owner sees where the skill is used; nobody else can even ask.
+    const grantsPath = `/v1/skills/${personalSkill.id}/use-grants`;
+    const read = (cookie: string, path: string) =>
+      fixture.app.fetch(
+        new Request(`${authTestOrigin}${path}`, {
+          headers: { cookie, "Bakery-Organization-Id": organizationId },
+        }),
+      );
+    const ownerGrants = await read(ownerCookie, grantsPath);
+    assertEquals(ownerGrants.status, 200);
+    const grantPage = await ownerGrants.json() as {
+      items: {
+        id: string;
+        workflowName: string;
+        stepPath: string;
+        skillVersionId: string;
+        version: number;
+      }[];
+      nextCursor: string | null;
+    };
+    assertEquals(grantPage.items.length, 1);
+    assertEquals(grantPage.items[0].workflowName, "Attach flow");
+    assertEquals(grantPage.items[0].stepPath, "/steps/0");
+    assertEquals(grantPage.items[0].skillVersionId, personalVersion);
+    assertEquals((await read(adminCookie, grantsPath)).status, 404);
+
+    // Stopping is the owner's act, needs the grant's version, and deletes it.
+    const stop = (
+      cookie: string,
+      key: string,
+      ifMatch?: string,
+    ) =>
+      fixture.app.fetch(
+        new Request(`${authTestOrigin}${grantsPath}/${grantPage.items[0].id}`, {
+          method: "DELETE",
+          headers: {
+            cookie,
+            "Bakery-Organization-Id": organizationId,
+            "Idempotency-Key": key,
+            origin: authTestOrigin,
+            ...(ifMatch === undefined ? {} : { "If-Match": ifMatch }),
+          },
+        }),
+      );
+    assertEquals((await stop(adminCookie, "stop-by-admin", '"1"')).status, 404);
+    assertEquals((await stop(ownerCookie, "stop-no-version")).status, 428);
+    assertEquals((await stop(ownerCookie, "stop-stale", '"9"')).status, 412);
+    assertEquals((await stop(ownerCookie, "stop-ok", '"1"')).status, 204);
+    const emptyGrants = await (await read(ownerCookie, grantsPath)).json() as {
+      items: unknown[];
+    };
+    assertEquals(emptyGrants.items.length, 0);
+
+    // After the stop the step is no longer covered: another Admin is refused,
+    // and the owner has to confirm again.
+    const afterStop = await read(
+      ownerCookie,
+      `${versionsPath}/${draft.id}`,
+    );
+    const stopped = await afterStop.json() as Version;
+    const adminAfterStop = await patch(
+      adminCookie,
+      `${versionsPath}/${draft.id}`,
+      { definition: definition([personalVersion, sharedVersion].sort()) },
+      "attach-admin-after-stop",
+      stopped.version,
+    );
+    assertEquals(adminAfterStop.status, 422);
+    assertEquals(
+      (await adminAfterStop.text()).includes("skill_unavailable"),
+      true,
+    );
+    const ownerUnconfirmed = await patch(
+      ownerCookie,
+      `${versionsPath}/${draft.id}`,
+      { definition: definition([personalVersion, sharedVersion].sort()) },
+      "attach-owner-after-stop",
+      stopped.version,
+    );
+    assertEquals(ownerUnconfirmed.status, 422);
+    assertEquals(
+      (await ownerUnconfirmed.text()).includes(
+        "personal_skill_confirmation_required",
+      ),
+      true,
+    );
+    const ownerReconfirmed = await patch(
+      ownerCookie,
+      `${versionsPath}/${draft.id}`,
+      {
+        definition: definition([personalVersion, sharedVersion].sort()),
+        confirmPersonalSkillUse: [personalVersion],
+      },
+      "attach-owner-reconfirm",
+      stopped.version,
+    );
+    assertEquals(ownerReconfirmed.status, 200);
+    const regranted = await fixture.pgDatabase.query<{ n: number }>(
+      `select count(*)::int as n from bakery.skill_use_grants
+        where organization_id = $1 and workflow_id = $2`,
+      [organizationId, workflow.id],
+    );
+    assertEquals(regranted.rows[0].n, 1);
   } finally {
     await cleanupAuthFixture(fixture.pgDatabase, [ownerEmail, adminEmail]);
     await fixture.close();
