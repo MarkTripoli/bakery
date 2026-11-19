@@ -5750,6 +5750,28 @@
       "organizationContext": "required_authenticated_context"
     },
     {
+      "group": "Library",
+      "method": "GET",
+      "path": "/v1/files/library",
+      "action": "files.library",
+      "access": "Developer",
+      "permission": "library:read",
+      "input": "LibraryFolderQuery",
+      "output": "Page<LibraryEntry>",
+      "event": "",
+      "mcp": "bakery_files_library",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
       "group": "Artifacts",
       "method": "GET",
       "path": "/v1/artifacts/{id}",

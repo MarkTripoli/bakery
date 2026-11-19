@@ -1,7 +1,7 @@
 import type { z } from "zod";
 import type { ActionContext } from "@bakery/contracts/action-registry";
 import { contractSchemas } from "@bakery/contracts/contracts";
-import { unprocessable } from "@bakery/contracts/http";
+import { StandardError, unprocessable } from "@bakery/contracts/http";
 import type { PgTransactionClient } from "@bakery/persistence";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import { decodeCursor, encodeCursor } from "../../platform/cursor.ts";
@@ -152,7 +152,12 @@ export type LibraryChild = Readonly<{
   path: string;
   kind: string | null;
   createdAt: string | null;
+  /** Keyset position of an item (microsecond creation time and id); null for a folder. */
+  position: Readonly<{ createdAt: string; id: string }> | null;
 }>;
+
+/** Items of one section a page holds when the caller names no limit. */
+export const LIBRARY_PAGE_DEFAULT = 100;
 
 /**
  * Lists the read-only `/library` mirror: with no section, the sections that
@@ -163,7 +168,14 @@ export type LibraryChild = Readonly<{
  */
 export async function listLibraryFolder(
   transaction: PgTransactionClient,
-  input: { organizationId: string; section?: string },
+  input: {
+    organizationId: string;
+    section?: string;
+    /** Items to return, oldest first; sections are a short fixed list and ignore it. */
+    limit?: number;
+    /** Keyset position to continue after, from the last item of the prior page. */
+    after?: { createdAt: string; id: string } | null;
+  },
 ): Promise<LibraryChild[] | undefined> {
   if (input.section === undefined) {
     const children: LibraryChild[] = [];
@@ -180,6 +192,7 @@ export async function listLibraryFolder(
           path: `/library/${source.section}`,
           kind: null,
           createdAt: null,
+          position: null,
         });
       }
     }
@@ -188,14 +201,29 @@ export async function listLibraryFolder(
   const source = LIBRARY_SOURCES.find((item) => item.section === input.section);
   if (!source) return undefined;
   const items = await transaction.query<
-    { name: string; slug: string; created_at: Date | string }
+    {
+      id: string;
+      name: string;
+      slug: string;
+      created_at: Date | string;
+      cursor_created_at: string;
+    }
   >(
-    `select x.${source.name} as name, x.${source.slug} as slug, x.created_at
+    `select x.id, x.${source.name} as name, x.${source.slug} as slug,
+            x.created_at,
+            to_char(x.created_at at time zone 'UTC',
+                    'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as cursor_created_at
        from ${source.table} x
       where x.organization_id = $1 ${source.where}
-      order by lower(x.${source.name}), x.id
-      limit 1000`,
-    [input.organizationId],
+        and ($2::timestamptz is null or (x.created_at, x.id) > ($2::timestamptz, $3::uuid))
+      order by x.created_at, x.id
+      limit $4`,
+    [
+      input.organizationId,
+      input.after?.createdAt ?? null,
+      input.after?.id ?? null,
+      input.limit ?? LIBRARY_PAGE_DEFAULT,
+    ],
   );
   return items.rows.map((row) => ({
     type: "item" as const,
@@ -203,7 +231,65 @@ export async function listLibraryFolder(
     path: `/library/${source.section}/${row.slug}`,
     kind: source.kind,
     createdAt: toIso(row.created_at),
+    position: { createdAt: row.cursor_created_at, id: row.id },
   }));
+}
+
+/**
+ * `files.library`: one folder of the read-only `/library` mirror as a keyset
+ * page. The route's permission is `library:read`; an agent session also needs
+ * the `library.read` scope, and no scope narrows nothing. Only `/library` and
+ * `/library/<section>` exist; any other path is not found.
+ */
+export function createLibraryFolderHandler(secret: string) {
+  return async function listLibrary(
+    context: ActionContext,
+    input: { path?: string; cursor?: string; limit?: number },
+  ) {
+    const { transaction, organizationId, principalId } = requireWorkTransaction(
+      context,
+    );
+    const scopes = context.sessionScopes;
+    if (scopes !== undefined && !scopes.includes("library.read")) {
+      throw new StandardError({ code: "SCOPE_REQUIRED" });
+    }
+    const path = (input.path ?? "/library").replace(/\/+$/, "");
+    const match = /^\/library(?:\/([^/]+))?$/.exec(path);
+    if (!match) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+    const section = match[1];
+    const binding: CursorBinding = {
+      action: "files.library",
+      principalId,
+      organizationId,
+      ordering: "createdAt:asc,id:asc",
+      filters: JSON.stringify({ path }),
+      schemaVersion: 1,
+    };
+    const position = await decodeCursor(secret, input.cursor, binding);
+    const limit = input.limit ?? 25;
+    const children = await listLibraryFolder(transaction, {
+      organizationId,
+      ...(section === undefined ? {} : { section }),
+      limit: limit + 1,
+      after: position?.createdAt === undefined
+        ? null
+        : { createdAt: position.createdAt, id: position.id },
+    });
+    if (children === undefined) {
+      throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+    }
+    // The sections are a fixed list of at most five with nothing to continue
+    // from, so they come whole whatever the limit.
+    const visible = section === undefined ? children : children.slice(0, limit);
+    const last = visible.at(-1)?.position;
+    const strip = ({ position: _position, ...entry }: LibraryChild) => entry;
+    return {
+      items: visible.map(strip),
+      nextCursor: section !== undefined && children.length > limit && last
+        ? await encodeCursor(secret, binding, last)
+        : null,
+    };
+  };
 }
 
 export function createFileSearchHandler(

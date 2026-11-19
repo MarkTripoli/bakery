@@ -488,6 +488,7 @@ export const ArtifactImplementedAction = Object.freeze(
     ArtifactCommentsListAcrossVersions: "artifactComments.listAcrossVersions",
     ArtifactsList: "artifacts.list",
     FilesSearch: "files.search",
+    FilesLibrary: "files.library",
     ArtifactsGet: "artifacts.get",
     ArtifactsUpdate: "artifacts.update",
     ArtifactStorageGet: "artifactStorage.get",

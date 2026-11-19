@@ -5174,6 +5174,29 @@ export const clientManifest = {
       "implemented": true
     },
     {
+      "group": "Library",
+      "method": "GET",
+      "path": "/v1/files/library",
+      "action": "files.library",
+      "access": "Developer",
+      "permission": "library:read",
+      "input": "LibraryFolderQuery",
+      "output": "Page<LibraryEntry>",
+      "event": "",
+      "mcp": "bakery_files_library",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
       "group": "Artifacts",
       "method": "GET",
       "path": "/v1/artifacts/{id}",
@@ -13554,6 +13577,7 @@ export const clientManifest = {
             "worker.invokeTool",
             "artifacts.list",
             "files.search",
+            "files.library",
             "artifacts.get",
             "artifacts.create",
             "artifactVersions.list",
@@ -23224,6 +23248,32 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Unauthenticated redemption of a password reset link: sets the new password, consumes the link and signs the person out of every browser session. An unknown, used, expired or revoked link gets one identical refusal."
+    },
+    "LibraryFolderQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "path": {
+          "description": "Absolute path of a library folder: /library lists the sections that hold a published item, /library/<section> lists that section's published items. Defaults to /library. Any other path is not found. LibraryFolderQuery.path must contain at least 1 characters. LibraryFolderQuery.path must contain at most 1024 characters.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        },
+        "cursor": {
+          "description": "Opaque continuation token from a prior files.library page; bound to this operation, the caller, the organization and the same path, so it is rejected if any of them change. LibraryFolderQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "limit": {
+          "description": "Maximum number of entries returned per page; defaults to 25 and cannot exceed 100. LibraryFolderQuery.limit must be at least 1. LibraryFolderQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "additionalProperties": false,
+      "description": "Lists one folder of the read-only /library mirror of the catalog, computed from the catalog on every call. Needs library:read, and an agent session needs the library.read scope. Items are ordered oldest first, keyed by creation time and id; sections are a short fixed list."
     },
     "PluginState": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -35700,6 +35750,7 @@ export const clientManifest = {
                   "worker.invokeTool",
                   "artifacts.list",
                   "files.search",
+                  "files.library",
                   "artifacts.get",
                   "artifacts.create",
                   "artifactVersions.list",
@@ -53319,6 +53370,7 @@ export const clientManifest = {
             "worker.invokeTool",
             "artifacts.list",
             "files.search",
+            "files.library",
             "artifacts.get",
             "artifacts.create",
             "artifactVersions.list",
@@ -81404,6 +81456,128 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "A newly issued password reset link. The URL carries the only copy of the token and is returned in this response alone; it is never stored, replayed or readable again."
+    },
+    "Page<LibraryEntry>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "folder",
+                  "item"
+                ],
+                "description": "folder for a section, item for a published catalog item."
+              },
+              "path": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Absolute path: /library/<section> or /library/<section>/<slug>."
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Display name of the section or item."
+              },
+              "kind": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Catalog kind of an item (skill, agent, workflow, kind, package); null for a folder."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "LibraryEntry.kind may be null in this transport value."
+              },
+              "createdAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "UTC time the catalog item was created; null for a folder."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "LibraryEntry.createdAt may be null in this transport value."
+              }
+            },
+            "required": [
+              "type",
+              "path",
+              "name",
+              "kind",
+              "createdAt"
+            ],
+            "additionalProperties": false,
+            "description": "One entry of a /library folder: a section folder, or a published catalog item with its absolute path."
+          },
+          "description": "LibraryEntry items in this cursor page. Page<LibraryEntry>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<LibraryEntry>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<LibraryEntry>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<LibraryEntry>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<LibraryEntry>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of LibraryEntry."
     }
   }
 } as const;

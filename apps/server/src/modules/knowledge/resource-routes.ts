@@ -34,8 +34,10 @@ import {
   blobUploadImplementedActions,
 } from "@bakery/contracts/implemented-actions";
 import type { AuthorizedActionContext } from "../auth/application/authority.ts";
-import { authorize as authorizePermission } from "../auth/application/authorize.ts";
-import { createFileSearchHandler } from "./file-search.ts";
+import {
+  createFileSearchHandler,
+  createLibraryFolderHandler,
+} from "./file-search.ts";
 import { authorize } from "../auth/application/authorize.ts";
 import { PostgresAuthorityRunner } from "../auth/adapters/authority-postgres.ts";
 import { type AuthVariables, createActionContext } from "../auth/middleware.ts";
@@ -216,8 +218,8 @@ export function createArtifactActions(
     const actor = (context as Partial<AuthorizedActionContext>).authority;
     if (actor === undefined) return false;
     try {
-      authorizePermission(
-        actor as Parameters<typeof authorizePermission>[0],
+      authorize(
+        actor as Parameters<typeof authorize>[0],
         "library:read",
         {
           action: ArtifactImplementedAction.FilesSearch,
@@ -228,6 +230,7 @@ export function createArtifactActions(
       return false;
     }
   });
+  const listLibrary = createLibraryFolderHandler(options.secret);
   const blobUploads = createBlobUploadHandlers(options.blobStore);
   const trustedRepositoryResolver = createTrustedRepositoryResolver();
   const postgresAuthority = new PostgresAuthorityRunner(options.database);
@@ -365,6 +368,18 @@ export function createArtifactActions(
       handler: async (context, input) =>
         contractSchemas["Page<FileSearchHit>"].parse(
           await searchFiles(context, input),
+        ),
+    })
+    .register({
+      name: ArtifactImplementedAction.FilesLibrary,
+      method: HttpMethod.Get,
+      path: "/v1/files/library",
+      input: contractSchemas.LibraryFolderQuery,
+      output: contractSchemas["Page<LibraryEntry>"],
+      policy: readPolicy,
+      handler: async (context, input) =>
+        contractSchemas["Page<LibraryEntry>"].parse(
+          await listLibrary(context, input),
         ),
     })
     .register({
@@ -541,6 +556,7 @@ export function createArtifactResourceRoutes(
   app.use("/v1/artifact-storage", session);
   app.use("/v1/artifacts", session);
   app.use("/v1/files/search", session);
+  app.use("/v1/files/library", session);
   app.use("/v1/artifacts/*", session);
   app.use("/v1/artifact-versions", session);
   app.use("/v1/artifact-preview-availability", session);

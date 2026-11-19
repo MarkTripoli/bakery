@@ -13,6 +13,7 @@ import {
 import { withPgTransaction } from "../../packages/persistence/src/postgres.ts";
 import {
   createFileSearchHandler,
+  createLibraryFolderHandler,
   listLibraryFolder,
   nameMatch,
 } from "../../apps/server/src/modules/knowledge/file-search.ts";
@@ -599,4 +600,144 @@ Deno.test("AC: the /library section list never shows another organization's sect
     );
 
     assertEquals(await sectionsOf(mine), before);
+  }));
+
+type LibraryPage = {
+  items: { type: string; path: string; name: string; kind: string | null }[];
+  nextCursor: string | null;
+};
+
+Deno.test("AC: GET /v1/files/library browses /library by section, pages with a cursor bound to the path, and refuses what it should", () =>
+  withFixture(async (fixture) => {
+    const seed = await seedOrganization(fixture, "library-route");
+    // Five skills a second apart, so the keyset order is unambiguous.
+    for (let i = 0; i < 5; i++) {
+      await fixture.pgDatabase.query(
+        `insert into bakery.skills (id, organization_id, slug, name, enabled, created_at)
+         values ($1, $2, $3, $4, true, $5)`,
+        [
+          crypto.randomUUID(),
+          seed.organizationId,
+          `walk-${i}`,
+          `Walk ${i}`,
+          new Date(Date.UTC(2026, 10, 1, 12, 0, i)),
+        ],
+      );
+    }
+    const get = (query: string) =>
+      request(fixture, seed, `/v1/files/library${query}`);
+    const page = async (query: string) => {
+      const response = await get(query);
+      assertEquals(response.status, 200, await response.clone().text());
+      return await response.json() as LibraryPage;
+    };
+
+    // The root lists the sections that hold a published item, as folders.
+    const root = await page("");
+    assert(root.items.every((entry) => entry.type === "folder"));
+    assert(root.items.some((entry) => entry.path === "/library/skills"));
+    assertEquals(root.nextCursor, null);
+    // A small limit never cuts the section list.
+    assertEquals((await page("?limit=1")).items.length, root.items.length);
+
+    // A section pages through its items with no gap and no repeat.
+    const seen: string[] = [];
+    let cursor: string | null = null;
+    let pages = 0;
+    do {
+      const next: LibraryPage = await page(
+        `?path=/library/skills&limit=2${
+          cursor === null ? "" : `&cursor=${encodeURIComponent(cursor)}`
+        }`,
+      );
+      assert(next.items.length <= 2);
+      seen.push(...next.items.map((entry) => entry.path));
+      cursor = next.nextCursor;
+      pages++;
+    } while (cursor !== null && pages < 10);
+    const walked = seen.filter((path) => path.includes("/walk-"));
+    assertEquals(
+      walked,
+      [0, 1, 2, 3, 4].map((i) => `/library/skills/walk-${i}`),
+    );
+    assertEquals(new Set(seen).size, seen.length, "no item is listed twice");
+    assert(pages >= 3, "the section took several pages");
+
+    // A cursor belongs to its path: it is refused on another folder.
+    const first = await page("?path=/library/skills&limit=1");
+    assert(first.nextCursor !== null);
+    const reused = await get(
+      `?path=/library/agents&limit=1&cursor=${
+        encodeURIComponent(first.nextCursor!)
+      }`,
+    );
+    assertEquals(reused.status, 400, await reused.clone().text());
+
+    // Only /library and its sections exist.
+    for (
+      const path of [
+        "/library/nonsense",
+        "/elsewhere",
+        "/library/skills/walk-1",
+      ]
+    ) {
+      const missing = await get(`?path=${encodeURIComponent(path)}`);
+      assertEquals(
+        missing.status,
+        404,
+        `${path}: ${await missing.clone().text()}`,
+      );
+    }
+  }));
+
+Deno.test("AC: /v1/files/library needs library:read, and an agent session the library.read scope", () =>
+  withFixture(async (fixture) => {
+    const seed = await seedOrganization(fixture, "library-route-permission");
+    await libraryItems(fixture, seed, "gate");
+    // A member who can read files and nothing else.
+    const reader = await addMember(
+      fixture,
+      seed,
+      "files-only-library",
+      "guest",
+    );
+    const roleId = crypto.randomUUID();
+    await fixture.pgDatabase.query(
+      `insert into bakery.organization_roles
+         (id, organization_id, key, name, permissions, created_by_principal_id)
+       values ($1, $2, 'files-only-lib', 'Files only', $3, $4)`,
+      [roleId, seed.organizationId, ["artifact:read"], seed.principalId],
+    );
+    await fixture.pgDatabase.query(
+      `update bakery.organization_memberships set custom_role_id = $3
+        where organization_id = $1 and principal_id = $2`,
+      [seed.organizationId, reader.principalId, roleId],
+    );
+    const denied = await request(
+      fixture,
+      { cookie: reader.cookie, organizationId: seed.organizationId },
+      "/v1/files/library",
+    );
+    // Refused as not found: the platform never confirms a route the caller may not use.
+    assertEquals(denied.status, 404, await denied.clone().text());
+    assert(!(await denied.text()).includes("gate-agent"));
+
+    // A session scoped to files only is refused; one with library.read is not.
+    const handler = createLibraryFolderHandler(SECRET);
+    const call = (scopes: Scopes) =>
+      withPgTransaction(fixture.pgDatabase, (transaction) =>
+        handler(
+          {
+            authority: {
+              organizationId: seed.organizationId,
+              subject: { principalId: seed.principalId },
+            },
+            transaction,
+            ...(scopes === undefined ? {} : { sessionScopes: scopes }),
+          } as unknown as ActionContext,
+          { path: "/library" },
+        ));
+    await assertRejects(() => call(["artifacts.read"]));
+    assert((await call(["library.read"])).items.length > 0);
+    assert((await call(undefined)).items.length > 0);
   }));
