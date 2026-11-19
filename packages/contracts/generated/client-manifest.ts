@@ -4836,6 +4836,28 @@ export const clientManifest = {
     },
     {
       "group": "Providers",
+      "method": "GET",
+      "path": "/v1/runs/{id}/route-continuations",
+      "action": "routeContinuations.list",
+      "access": "Developer",
+      "permission": "providerRoute:read",
+      "input": "IdPath",
+      "output": "RouteContinuationOffers",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Providers",
       "method": "POST",
       "path": "/v1/workers/{id}/provider-bindings",
       "action": "workerProviderBindings.create",
@@ -13284,6 +13306,7 @@ export const clientManifest = {
             "providerRoutes.update",
             "providerIncidents.list",
             "providerIncidents.get",
+            "routeContinuations.list",
             "workerProviderBindings.create",
             "workerProviderBindings.update",
             "workerProviderAuth.create",
@@ -34848,6 +34871,7 @@ export const clientManifest = {
                   "providerRoutes.update",
                   "providerIncidents.list",
                   "providerIncidents.get",
+                  "routeContinuations.list",
                   "workerProviderBindings.create",
                   "workerProviderBindings.update",
                   "workerProviderAuth.create",
@@ -51880,6 +51904,7 @@ export const clientManifest = {
             "providerRoutes.update",
             "providerIncidents.list",
             "providerIncidents.get",
+            "routeContinuations.list",
             "workerProviderBindings.create",
             "workerProviderBindings.update",
             "workerProviderAuth.create",
@@ -78350,6 +78375,182 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "One grant of an off-by-default agent power (O52): which power, which workflow and seat it covers, and the person who granted it. Revoking deletes it; the audit log keeps both."
+    },
+    "RouteContinuationOffers": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "runId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "UUID of the run these offers belong to."
+        },
+        "offers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "runStepId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the run step whose provider is down."
+              },
+              "stepKey": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The step's key within the workflow, for display."
+              },
+              "incidentId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the open incident the step is stalled behind."
+              },
+              "incidentGeneration": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "The incident's generation when this offer was made; a submission carrying a lower or different generation is stale."
+              },
+              "sourceRouteId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the route the step is currently pinned to, whose incident this is."
+              },
+              "runVersion": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "The run's version when this offer was made, so a submission can be refused if the run changed in between."
+              },
+              "estimatedIncrementalCost": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^(?:0|[1-9][0-9]*)$",
+                    "description": "Estimated extra spend of continuing on another route, as a decimal string in USD, or null while no estimate exists; the budget recheck that fills it is a later slice."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "RouteContinuationOffer.estimatedIncrementalCost may be null in this transport value."
+              },
+              "targets": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "routeId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "UUID of the candidate provider route."
+                    },
+                    "provider": {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "Provider key the candidate route sends to."
+                    },
+                    "model": {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "Model identifier the candidate route pins; a continuation runs the step on this model."
+                    },
+                    "harness": {
+                      "type": "string",
+                      "enum": [
+                        "pi",
+                        "claude_code",
+                        "codex",
+                        "mastra"
+                      ],
+                      "description": "Harness path the candidate route executes on: pi, claude_code, codex or mastra."
+                    },
+                    "billingRoute": {
+                      "type": "string",
+                      "enum": [
+                        "subscription",
+                        "api_metered",
+                        "local"
+                      ],
+                      "description": "Billing route the candidate route's spend follows: subscription, api_metered or local."
+                    },
+                    "health": {
+                      "type": "string",
+                      "enum": [
+                        "healthy",
+                        "degraded",
+                        "open",
+                        "unverified"
+                      ],
+                      "description": "The candidate route's current circuit state. Degraded (still serves some work) and unverified (no inference proof yet) routes stay eligible and are shown as such, so a person sees how much to trust a target before choosing it."
+                    },
+                    "eligible": {
+                      "type": "boolean",
+                      "description": "True when the step may continue on this route. A degraded or unverified route is eligible, shown with its health so the person choosing weighs it; only a route that is open, not active or on another harness is refused."
+                    },
+                    "ineligibleReason": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "different_harness",
+                            "route_not_active",
+                            "route_open"
+                          ],
+                          "description": "Why the route cannot take the step, or null when eligible: different_harness (a continuation keeps the step's harness), route_not_active (disabled or revoked), or route_open (the route has its own open incident)."
+                        },
+                        {
+                          "type": "null",
+                          "description": "Null indicates that the projected value is unavailable."
+                        }
+                      ],
+                      "description": "RouteContinuationTarget.ineligibleReason may be null in the safe projection."
+                    }
+                  },
+                  "required": [
+                    "routeId",
+                    "provider",
+                    "model",
+                    "harness",
+                    "billingRoute",
+                    "health",
+                    "eligible",
+                    "ineligibleReason"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Every other route of the organization, each marked eligible or not with the reason. Each array item follows this format."
+                },
+                "description": "Every other route of the organization, each marked eligible or not with the reason."
+              }
+            },
+            "required": [
+              "runStepId",
+              "stepKey",
+              "incidentId",
+              "incidentGeneration",
+              "sourceRouteId",
+              "runVersion",
+              "estimatedIncrementalCost",
+              "targets"
+            ],
+            "additionalProperties": false,
+            "description": "The open choices, empty when no step of the run is stalled behind an incident. Each array item follows this format."
+          },
+          "description": "The open choices, empty when no step of the run is stalled behind an incident."
+        }
+      },
+      "required": [
+        "runId",
+        "offers"
+      ],
+      "additionalProperties": false,
+      "description": "The route continuations a run is waiting on: one offer per step that is pinned to a route with an open incident and has not already been continued for that incident. Empty when nothing is stalled. It is a read of current state, never a decision: nothing is admitted, paused or charged by reading it."
     }
   }
 } as const;

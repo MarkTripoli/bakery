@@ -6,6 +6,7 @@ import {
 import { createSkillStorageRoutes } from "./modules/catalog/skill-storage-actions.ts";
 import { createAgentsRoutes } from "./modules/agents/index.ts";
 import { createProviderReadRoutes } from "./modules/execution/provider-read-routes.ts";
+import { createRouteContinuationRoutes } from "./modules/execution/route-continuations.ts";
 import { createRepositoryRulesRoutes } from "./modules/repository-rules/index.ts";
 import { createArtifactKindsRoutes } from "./modules/artifact-kinds/index.ts";
 import { createMemoryRoutes } from "./modules/knowledge/memory-routes.ts";
@@ -717,6 +718,14 @@ export function createApp(options: {
       browserSession,
       publicBaseUrl: options.config.publicBaseUrl,
       cursorSecret: options.config.auth.secret,
+    }),
+  );
+  app.route(
+    "/",
+    createRouteContinuationRoutes({
+      database: options.pgDatabase,
+      browserSession,
+      publicBaseUrl: options.config.publicBaseUrl,
     }),
   );
   app.route(

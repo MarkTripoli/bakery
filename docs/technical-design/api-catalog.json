@@ -5075,6 +5075,27 @@
     },
     {
       "group": "Providers",
+      "method": "GET",
+      "path": "/v1/runs/{id}/route-continuations",
+      "action": "routeContinuations.list",
+      "access": "Developer",
+      "permission": "providerRoute:read",
+      "input": "IdPath",
+      "output": "RouteContinuationOffers",
+      "event": "",
+      "mcp": null,
+      "idempotency": "Read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Providers",
       "method": "POST",
       "path": "/v1/workers/{id}/provider-bindings",
       "action": "workerProviderBindings.create",
