@@ -1895,10 +1895,11 @@ button.ui-activity-line__row:hover {
 .ui-activity-line__text {
   flex: 0 1 auto;
   min-inline-size: 0;
+  overflow-wrap: anywhere;
 }
 
 .ui-activity-line__time {
-  color: var(--color-fg-tertiary);
+  color: var(--color-fg-muted);
   flex: none;
   font: var(--type-meta);
   font-variant-numeric: tabular-nums;
@@ -2005,7 +2006,7 @@ button.ui-activity-line__row:hover {
 }
 
 .ui-session-thread__receipt {
-  color: var(--color-fg-tertiary);
+  color: var(--color-fg-muted);
   font: var(--type-meta);
   margin: var(--space-2) 0 0;
 }
@@ -2100,7 +2101,7 @@ button.ui-activity-line__row:hover {
 
 /* Fine print that ends a turn's work: not a step, so no icon and no time. */
 .ui-session-thread__usage {
-  color: var(--color-fg-tertiary);
+  color: var(--color-fg-muted);
   font: var(--type-meta);
   font-variant-numeric: tabular-nums;
   margin: var(--space-1) 0 0;
@@ -2227,7 +2228,7 @@ button.ui-activity-line__row:hover {
 }
 
 .ui-session-now__elapsed {
-  color: var(--color-fg-tertiary);
+  color: var(--color-fg-muted);
   flex: none;
   font: var(--type-meta);
   font-variant-numeric: tabular-nums;
@@ -2284,6 +2285,12 @@ button.ui-activity-line__row:hover {
   min-inline-size: 0;
   padding: 0;
   text-align: start;
+}
+
+@media (pointer: coarse) {
+  .ui-session-now__select {
+    min-block-size: var(--target-coarse);
+  }
 }
 
 .ui-session-now__select:focus-visible {
