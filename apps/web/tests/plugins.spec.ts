@@ -301,6 +301,8 @@ for (
     });
 
     test("the list, the install dialog and the plugin page have no accessibility violations", async ({ page }) => {
+      // Three axe scans and two navigations take longer than the default.
+      test.setTimeout(90_000);
       await pluginsFixture(page);
       await page.goto("/settings/organization/plugins");
       await expect(page.getByTestId("plugins-installed")).toBeVisible();
@@ -308,6 +310,9 @@ for (
       await page.getByRole("button", { name: "Install Board" }).click();
       await expect(page.getByRole("dialog")).toBeVisible();
       expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+      await page.getByRole("dialog").getByRole("button", { name: "Cancel" })
+        .click();
+      await expect(page.getByRole("dialog")).toHaveCount(0);
       await page.goto(`/settings/organization/plugins/${NOTES_INSTALL}`);
       await expect(page.getByRole("heading", { name: "What it can do" }))
         .toBeVisible();
