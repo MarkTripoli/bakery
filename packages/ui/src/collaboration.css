@@ -2225,6 +2225,7 @@ button.ui-activity-line__row:hover {
 .ui-session-now__text {
   flex: 1 1 auto;
   min-inline-size: 0;
+  overflow-wrap: anywhere;
 }
 
 .ui-session-now__elapsed {
@@ -2234,9 +2235,10 @@ button.ui-activity-line__row:hover {
   font-variant-numeric: tabular-nums;
 }
 
-/* The slow shimmer on a running line is the "Thinking" cue: a gentle pulse that
-   stops under reduced motion, and the text keeps its ellipsis. */
-.ui-session-now[data-tone="active"] .ui-session-now__text {
+/* The slow pulse on a running line is the "Thinking" cue. It is the dot that
+   pulses, never the text: fading text would drop below the contrast minimum. It
+   stops under reduced motion. */
+.ui-session-now[data-tone="active"] .ui-session-now__dot {
   animation: ui-session-shimmer calc(var(--duration-transition) * 5)
     var(--ease-standard) infinite alternate;
 }
@@ -2248,7 +2250,7 @@ button.ui-activity-line__row:hover {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .ui-session-now[data-tone="active"] .ui-session-now__text {
+  .ui-session-now[data-tone="active"] .ui-session-now__dot {
     animation: none;
   }
 }
