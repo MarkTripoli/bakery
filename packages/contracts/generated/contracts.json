@@ -32389,7 +32389,7 @@
                 "type": "string",
                 "minLength": 1,
                 "maxLength": 39,
-                "description": "The person's username on the ticket source's provider, as typed; supplied via the request's {login} path segment. TicketSourcePersonPath.login must contain at least 1 characters. TicketSourcePersonPath.login must contain at most 39 characters."
+                "description": "The person's username on the ticket source's provider, as typed; supplied via the request's {login} path segment. Letters, digits and single hyphens only, never starting or ending with a hyphen; any other login is refused 422 with issue code login_invalid on login, before any provider read. TicketSourcePersonPath.login must contain at least 1 characters. TicketSourcePersonPath.login must contain at most 39 characters."
               }
             },
             {
@@ -60995,7 +60995,7 @@
               "type": "string",
               "minLength": 1,
               "maxLength": 39,
-              "description": "The person's username on the ticket source's provider, as typed; supplied via the request's {login} path segment. TicketSourcePersonPath.login must contain at least 1 characters. TicketSourcePersonPath.login must contain at most 39 characters."
+              "description": "The person's username on the ticket source's provider, as typed; supplied via the request's {login} path segment. Letters, digits and single hyphens only, never starting or ending with a hyphen; any other login is refused 422 with issue code login_invalid on login, before any provider read. TicketSourcePersonPath.login must contain at least 1 characters. TicketSourcePersonPath.login must contain at most 39 characters."
             }
           },
           "required": [
@@ -220921,7 +220921,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:954ebca6713e6119dad08493bf409901a2ffbd741cb0557971a5ba483e4900ce",
+  "compatibilityDigest": "sha256:45d826af71e885602f5bdf888006cd43192a0562df23fd4ba16a8d6f57db70b0",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -245928,7 +245928,7 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 39,
-          "description": "The person's username on the ticket source's provider, as typed; supplied via the request's {login} path segment. TicketSourcePersonPath.login must contain at least 1 characters. TicketSourcePersonPath.login must contain at most 39 characters."
+          "description": "The person's username on the ticket source's provider, as typed; supplied via the request's {login} path segment. Letters, digits and single hyphens only, never starting or ending with a hyphen; any other login is refused 422 with issue code login_invalid on login, before any provider read. TicketSourcePersonPath.login must contain at least 1 characters. TicketSourcePersonPath.login must contain at most 39 characters."
         }
       },
       "required": [

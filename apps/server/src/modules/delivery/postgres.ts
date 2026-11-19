@@ -29,7 +29,7 @@ import { requireWorkTransaction } from "../work/work-transaction.ts";
 import {
   DECISION_REVIEW_STATUSES,
   type DecisionReviewStatus,
-} from "./repair-loop.ts";
+} from "../review-loop/decision.ts";
 
 function isDecisionReviewStatus(value: string): value is DecisionReviewStatus {
   return (DECISION_REVIEW_STATUSES as readonly string[]).includes(value);
