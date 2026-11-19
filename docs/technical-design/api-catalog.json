@@ -3762,6 +3762,47 @@
       ]
     },
     {
+      "group": "Authentication",
+      "method": "POST",
+      "path": "/v1/desktop-sign-ins",
+      "action": "desktopSignIns.start",
+      "access": "Public",
+      "permission": null,
+      "input": "DesktopSignInStart",
+      "output": "DesktopSignInStarted",
+      "event": "",
+      "mcp": null,
+      "idempotency": "none; every call opens a new ten-minute request",
+      "errors": [
+        "VALIDATION_FAILED",
+        "UNPROCESSABLE",
+        "RATE_LIMITED",
+        "MALFORMED_REQUEST",
+        "INTERNAL"
+      ]
+    },
+    {
+      "group": "Authentication",
+      "method": "POST",
+      "path": "/v1/desktop-sign-ins/{id}/credential",
+      "action": "desktopSignIns.exchange",
+      "access": "Public",
+      "permission": null,
+      "input": "DesktopSignInExchange",
+      "output": "DesktopSignInCredential",
+      "event": "",
+      "mcp": null,
+      "idempotency": "none; a request is exchanged at most once and a replay ends the sign-in it issued",
+      "errors": [
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "VALIDATION_FAILED",
+        "RATE_LIMITED",
+        "MALFORMED_REQUEST",
+        "INTERNAL"
+      ]
+    },
+    {
       "group": "Installation administration",
       "method": "GET",
       "path": "/v1/installation/audit-events",

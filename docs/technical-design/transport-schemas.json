@@ -11668,6 +11668,105 @@
         }
       ],
       "description": "Unauthenticated redemption of a password reset link: sets the new password, consumes the link and signs the person out of every browser session. An unknown, used, expired or revoked link gets one identical refusal."
+    },
+    "DesktopSignInStart": {
+      "fields": [
+        {
+          "name": "clientId",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "bakery-desktop"
+          ],
+          "description": "Built-in identifier of the first-party Bakery desktop app; every server knows it, so no operator registers it, and any other value is refused."
+        },
+        {
+          "name": "codeChallenge",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 43,
+            "maxLength": 43
+          },
+          "description": "PKCE S256 challenge: the unpadded base64url SHA-256 of a verifier only the app holds. The exchange must present that verifier."
+        },
+        {
+          "name": "codeChallengeMethod",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "S256"
+          ],
+          "description": "PKCE transform the challenge used; only S256 is accepted, never plain."
+        },
+        {
+          "name": "redirectUri",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 512
+          },
+          "description": "Where the browser hands the one-time code back to the app: http on 127.0.0.1 or [::1] with an explicit port, or the app link bakery://auth/callback. No credentials, query or fragment."
+        },
+        {
+          "name": "computerName",
+          "type": "nonBlankString",
+          "required": true,
+          "bounds": {
+            "maxLength": 64
+          },
+          "description": "Name of the computer the app runs on, shown on the browser confirmation page and in Active sessions; control characters are refused."
+        }
+      ],
+      "rules": [
+        "Unauthenticated and rate limited per client address. The request is usable for ten minutes and grants nothing until a signed-in person confirms it in the browser."
+      ],
+      "description": "Opens one browser sign-in request for the Bakery desktop app. The response names the browser page that asks the person to confirm; the app keeps the PKCE verifier to itself."
+    },
+    "DesktopSignInExchange": {
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "location": "path",
+          "description": "Identifier of the sign-in request the app opened, from the start response."
+        },
+        {
+          "name": "clientId",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "bakery-desktop"
+          ],
+          "description": "Built-in identifier of the first-party desktop app; it must equal the one the request was opened with."
+        },
+        {
+          "name": "code",
+          "type": "secretString",
+          "required": true,
+          "bounds": {
+            "minLength": 43,
+            "maxLength": 43
+          },
+          "description": "One-time code the browser handed to the app's redirect address after the person confirmed. Only its SHA-256 digest is stored."
+        },
+        {
+          "name": "codeVerifier",
+          "type": "secretString",
+          "required": true,
+          "bounds": {
+            "minLength": 43,
+            "maxLength": 128
+          },
+          "description": "PKCE verifier whose S256 transform equals the request's challenge; RFC 7636 characters only."
+        }
+      ],
+      "rules": [
+        "One attempt per confirmed request: a wrong code, verifier or client spends it. A second exchange of a used request is refused and ends the sign-in the first exchange issued.",
+        "Refusals the app can tell apart carry a STATE_CONFLICT reason: desktop_sign_in_expired, desktop_sign_in_used, desktop_sign_in_cancelled, desktop_sign_in_pending or desktop_sign_in_mismatch. An unknown request is RESOURCE_NOT_FOUND."
+      ],
+      "description": "Exchanges a confirmed desktop sign-in request for the app's credential. The credential is a Bakery sign-in session, accepted by the page API and live updates under the same checks as a browser sign-in."
     }
   },
   "projections": {
@@ -29571,6 +29670,42 @@
         "id": "Stable UUID of the reset link record, as the audit trail names it.",
         "url": "Absolute web URL of the reset page with the one-time token; hand it to the person over a trusted channel.",
         "expiresAt": "UTC timestamp one hour after issue, after which the link no longer works."
+      }
+    },
+    "DesktopSignInStarted": {
+      "fields": [
+        "id",
+        "confirmUrl",
+        "expiresAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "confirmUrl": "uri",
+        "expiresAt": "timestamp"
+      },
+      "description": "A newly opened desktop sign-in request, waiting for the person to confirm it in the browser.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of the request; the app sends it back with the code and verifier.",
+        "confirmUrl": "Absolute browser address of the confirmation page for this request; the app opens it in the system browser.",
+        "expiresAt": "UTC instant ten minutes after the request opened, after which it can no longer be confirmed or exchanged."
+      }
+    },
+    "DesktopSignInCredential": {
+      "fields": [
+        "credential",
+        "sessionId",
+        "expiresAt"
+      ],
+      "fieldTypes": {
+        "credential": "secretString",
+        "sessionId": "uuid",
+        "expiresAt": "timestamp"
+      },
+      "description": "The desktop app's credential, returned once. The app keeps it in the system secret store and sends it as an Authorization bearer value.",
+      "fieldDescriptions": {
+        "credential": "Bearer credential starting with bkd_, sent as `Authorization: Bearer <credential>` to the page API and live updates. Returned only here; Bakery cannot show it again.",
+        "sessionId": "UUID of the sign-in session it opened; the person sees it as the Bakery app in Active sessions and can revoke it there.",
+        "expiresAt": "UTC instant the sign-in ends unless use renews it, as a browser sign-in renews."
       }
     }
   },
