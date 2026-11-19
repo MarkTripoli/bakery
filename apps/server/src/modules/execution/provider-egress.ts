@@ -3,9 +3,12 @@
  *
  * A route's endpoint is typed by an administrator and called by the server, so a
  * value that names the server's own network is a request to read it (SSRF). The
- * rule is one predicate, used twice: the route command refuses an endpoint whose
- * host is written as such an address (the first line), and the probe refuses to
- * connect to one a name *resolves* to (the line that cannot be bypassed by DNS).
+ * rule is one predicate meant to be applied twice. The route command applies it
+ * now, refusing an endpoint whose host is written as such an address (the first
+ * line). The second line, refusing to connect to an address a name *resolves* to,
+ * is not in this module yet: it belongs to the probe, which is what makes the
+ * connection, and until it lands a name that resolves to a private address is not
+ * stopped here.
  *
  * Non-public means anything a public provider can never have: unspecified,
  * loopback, private, shared (carrier-grade NAT), link-local (which includes the

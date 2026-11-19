@@ -49,6 +49,13 @@ const POSTGRES_FOREIGN_KEY_VIOLATION = "23503";
  * A route endpoint must be an https origin and path a provider serves, and must
  * not carry what the contract says it never carries: credentials or a query
  * secret. Refused as unprocessable on the `endpoint` field.
+ *
+ * The host is judged as the resolver will see it. A fully-qualified name may end
+ * in one dot (`localhost.` is `localhost`), so one trailing dot is dropped before
+ * any comparison. A name with no dot at all is refused: it is not a public
+ * provider, and a bare name resolves through the server's search domain to
+ * whatever internal service carries it (`db`, `redis`, `consul`). Port 0 is not a
+ * port a provider serves.
  */
 export function assertProviderEndpoint(endpoint: string): void {
   let url: URL;
@@ -57,12 +64,14 @@ export function assertProviderEndpoint(endpoint: string): void {
   } catch {
     throw unprocessable(["endpoint"], "provider_endpoint_invalid");
   }
-  const host = url.hostname.toLowerCase();
+  const host = url.hostname.toLowerCase().replace(/\.$/, "");
+  const isAddress = host.includes(":") || /^[0-9.]+$/.test(host);
   const refused = url.protocol !== "https:" || url.username !== "" ||
     url.password !== "" || url.search !== "" || url.hash !== "" ||
-    host === "" || host === "localhost" || host.endsWith(".localhost") ||
-    host.endsWith(".local") || host.endsWith(".internal") ||
-    isNonPublicAddress(host);
+    url.port === "0" || host === "" || host.endsWith(".") ||
+    (!isAddress && !host.includes(".")) || host === "localhost" ||
+    host.endsWith(".localhost") || host.endsWith(".local") ||
+    host.endsWith(".internal") || isNonPublicAddress(host);
   if (refused) {
     throw unprocessable(["endpoint"], "provider_endpoint_invalid");
   }

@@ -339,6 +339,18 @@ Deno.test("an endpoint that carries a credential, or names the server's own netw
       "https://[fe80::1]/v1",
       "https://[fd00::1]/v1",
       "https://[::ffff:127.0.0.1]/v1",
+      // A trailing dot is the same host, and a bare name is not a public provider.
+      "https://localhost./v1",
+      "https://foo.localhost./v1",
+      "https://metadata.google.internal./v1",
+      "https://printer.local./v1",
+      "https://127.0.0.1./v1",
+      "https://etc/passwd",
+      "https:///etc/passwd",
+      "https://redis/v1",
+      "https://consul:8500/v1",
+      "https://example.com:0/v1",
+      "https://api.provider.example../v1",
       "not a url",
       "",
     ]
@@ -358,6 +370,8 @@ Deno.test("an endpoint that carries a credential, or names the server's own netw
       "https://eu.provider.example:8443/v1/models",
       "https://8.8.8.8/v1",
       "https://172.32.0.1/v1",
+      "https://api.provider.example./v1",
+      "https://xn--bcher-kva.example/v1",
     ]
   ) {
     assertProviderEndpoint(endpoint);
