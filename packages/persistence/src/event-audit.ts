@@ -82,6 +82,33 @@ export async function nextAggregateVersion(
   return row.rows[0]?.version ?? 1;
 }
 
+/**
+ * What a projection is told about an event just committed to the journal: the
+ * event's id and everything the writer scoped it with. It runs in the writer's
+ * own transaction, so what it writes commits or rolls back with the event.
+ */
+export type DomainEventFacts = EventScope & { eventId: string };
+export type DomainEventProjection = (
+  transaction: PgTransactionClient,
+  event: DomainEventFacts,
+) => Promise<void>;
+
+const projections: DomainEventProjection[] = [];
+
+/**
+ * Registers a projection to run for every domain event, after it is stored and
+ * in the same transaction (the notification inbox is the first one). Registered
+ * once per function, so a second call with the same function is a no-op. A
+ * projection must return at once for an event type it does not read, and must
+ * be safe to run twice for one event: the journal is the source of truth and a
+ * projection only derives rows from it.
+ */
+export function registerDomainEventProjection(
+  projection: DomainEventProjection,
+): void {
+  if (!projections.includes(projection)) projections.push(projection);
+}
+
 export async function appendDomainEvent(
   transaction: PgTransactionClient,
   options: EventScope,
@@ -129,6 +156,9 @@ export async function appendDomainEvent(
        ) values ($1, $2, 'inngest', $3, 'pending')`,
       [options.organizationId, eventId, options.outboxDeliveryKey],
     );
+  }
+  for (const projection of projections) {
+    await projection(transaction, { ...options, eventId });
   }
   return eventId;
 }
