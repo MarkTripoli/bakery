@@ -93,7 +93,7 @@ Deno.test("the desktop handoff issues a bkd_ credential the page API accepts as 
     >(
       `select operation, details from bakery.audit_events
        where resource_type = 'desktop_sign_in' and resource_id = $1
-       order by sequence`,
+       order by created_at`,
       [started.id],
     );
     assertEquals(
