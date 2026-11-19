@@ -153,7 +153,9 @@ Deno.test("a valid signature verifies and a forged one is refused", () => {
     action: "update",
     type: "Issue",
     webhookId: "delivery-1",
-    data: { id: "issue-1", organizationId: "org-1" },
+    webhookTimestamp: Date.now(),
+    organizationId: "org-1",
+    data: { id: "issue-1" },
   });
   const ok = linearServerProvider.impl.ingress.verify({
     body: payload,
@@ -186,7 +188,9 @@ Deno.test("an unset secret never verifies, and a rotation list still finds the r
     action: "update",
     type: "Issue",
     webhookId: "delivery-2",
-    data: { id: "issue-2", organizationId: "org-1" },
+    webhookTimestamp: Date.now(),
+    organizationId: "org-1",
+    data: { id: "issue-2" },
   });
   const empty = new Uint8Array();
   // A real HMAC accepts a delivery signed with an empty key, so a webhook with no
@@ -226,6 +230,76 @@ Deno.test("an unset secret never verifies, and a rotation list still finds the r
   });
 });
 
+/** Verifies a signed body at `now`, the way the host would hand it to the port. */
+const verifySigned = (payload: Uint8Array, now = new Date()) =>
+  linearServerProvider.impl.ingress.verify({
+    body: payload,
+    headers: new Headers([[
+      LINEAR_SIGNATURE_HEADER,
+      hex(signatureFor(payload)),
+    ]]),
+    secrets: [secret],
+    now,
+    signatureMatches,
+  });
+
+Deno.test("a signed delivery with no usable timestamp is refused, not let past the window", () => {
+  const base = {
+    action: "update",
+    type: "Issue",
+    organizationId: "org-1",
+    data: { id: "issue-1" },
+  };
+  // Absent, null and a string are what a body JSON can carry instead of a number;
+  // a skipped freshness check would accept every one of them at any age.
+  for (const webhookTimestamp of [undefined, null, "1700000000000"]) {
+    assertEquals(
+      verifySigned(body({ ...base, webhookTimestamp })),
+      { ok: false, reason: "malformed" },
+      String(webhookTimestamp),
+    );
+  }
+  assertEquals(
+    verifySigned(body({ ...base, webhookTimestamp: Date.now() })).ok,
+    true,
+  );
+});
+
+Deno.test("a routed delivery must name its workspace, at the top level of the body", () => {
+  const base = {
+    action: "update",
+    webhookTimestamp: Date.now(),
+    data: { id: "issue-1", issueId: "issue-1" },
+  };
+  for (const type of ["Issue", "Comment"]) {
+    // Missing, empty, blank, and the old wrong place (inside `data`).
+    for (
+      const named of [
+        {},
+        { organizationId: "" },
+        { organizationId: "   " },
+        { organizationId: 7 },
+        { data: { ...base.data, organizationId: "org-1" } },
+      ]
+    ) {
+      assertEquals(
+        verifySigned(body({ ...base, type, ...named })),
+        { ok: false, reason: "malformed" },
+        `${type} ${JSON.stringify(named)}`,
+      );
+    }
+    assertEquals(
+      verifySigned(body({ ...base, type, organizationId: "org-1" })).ok,
+      true,
+    );
+  }
+  // A delivery this provider never routes does not need a workspace to be ignored.
+  assertEquals(
+    verifySigned(body({ ...base, type: "Attachment" })).ok,
+    true,
+  );
+});
+
 Deno.test("no verifier means refusal, never acceptance", () => {
   // The host supplies the HMAC. A provider that accepted a delivery without one
   // would accept any forgery the moment the wiring was misconfigured.
@@ -249,6 +323,7 @@ Deno.test("an old or future delivery is stale, and the window is the stated one"
       action: "update",
       type: "Issue",
       webhookTimestamp: now.getTime() + offset,
+      organizationId: "org-1",
       data: { id: "issue-1" },
     });
   const verify = (payload: Uint8Array) =>
@@ -306,7 +381,8 @@ Deno.test("an issue delivery routes to a ticket refresh naming the issue", () =>
     action: "update",
     type: "Issue",
     webhookId: "delivery-1",
-    data: { id: "issue-1", organizationId: "org-1" },
+    organizationId: "org-1",
+    data: { id: "issue-1" },
   };
   const classified = linearServerProvider.impl.ingress.classify(delivery);
   assertEquals(classified.kind, "routed");
@@ -324,7 +400,8 @@ Deno.test("a comment delivery routes to the issue it was written on", () => {
   const classified = linearServerProvider.impl.ingress.classify({
     action: "create",
     type: "Comment",
-    data: { id: "comment-1", issueId: "issue-9", organizationId: "org-1" },
+    organizationId: "org-1",
+    data: { id: "comment-1", issueId: "issue-9" },
   });
   if (classified.kind !== "routed") throw new Error("expected routed");
   // The comment names no issue unless `issueId` is read: `data.id` is the comment.
@@ -359,7 +436,8 @@ Deno.test("a delivery naming no issue is ignored rather than routed", () => {
     linearServerProvider.impl.ingress.classify({
       action: "update",
       type: "Issue",
-      data: { organizationId: "org-1" },
+      organizationId: "org-1",
+      data: {},
     }),
     { kind: "ignored" },
   );

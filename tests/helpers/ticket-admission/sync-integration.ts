@@ -8,6 +8,14 @@
  * rate limit idles the source), in operation mode (prefetched answers, one
  * savepoint per candidate) and at its locks.
  */
+function containerOf(repository: string) {
+  return {
+    kind: "repository",
+    externalId: repository,
+    displayName: repository,
+  };
+}
+
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import type { PgTransactionClient } from "../../../apps/server/src/platform/database.ts";
 import type { AdmissionDeps } from "../../../apps/server/src/modules/work/ticket-admission.ts";
@@ -325,7 +333,7 @@ Deno.test("issue 82 sync: a ticket waiting on a blocker is selected every step a
       blockedBy: [{
         id: "5301",
         number: 3,
-        repositoryFullName: fx.repositoryFullName,
+        container: containerOf(fx.repositoryFullName),
       }],
     });
     fx.reader.setProof("5301", { kind: "open" });
