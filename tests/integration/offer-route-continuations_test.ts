@@ -280,6 +280,39 @@ Deno.test("route continuations: nothing is offered without an open incident, or 
   }
 });
 
+Deno.test("route continuations: a step with two matching routes, or two live jobs, gets one offer", async () => {
+  const fixture = await openApprovalFixture();
+  try {
+    const run = await seedRun(fixture);
+    // Two endpoints of one provider share a pin, and both are down.
+    const first = await seedRoute(fixture);
+    const second = await seedRoute(fixture);
+    await openIncident(fixture, first);
+    await openIncident(fixture, second);
+    // A second live job on the same step (another action) with the same pin.
+    await fixture.fx.ownerPg.query(
+      `insert into bakery.jobs (id, organization_id, run_step_id, action, input,
+         requirements, status, current_fence, agent_config, billing)
+       select gen_random_uuid(), organization_id, run_step_id, 'harness.review',
+         '{}', '{}', 'running', 1, agent_config, billing
+       from bakery.jobs where id = $1`,
+      [run.jobId],
+    );
+    const result = await offersOk(fixture, run.runId);
+    assertEquals(result.offers.length, 1);
+    assertEquals(result.offers[0]!.runStepId, run.stepId);
+    // The same data always gives the same offer.
+    const again = await offersOk(fixture, run.runId);
+    assertEquals(
+      again.offers[0]!.sourceRouteId,
+      result.offers[0]!.sourceRouteId,
+    );
+    assertEquals(again.offers[0]!.incidentId, result.offers[0]!.incidentId);
+  } finally {
+    await fixture.close();
+  }
+});
+
 Deno.test("route continuations: the job's billing spelling maps, and local never matches", async () => {
   const fixture = await openApprovalFixture();
   try {

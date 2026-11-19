@@ -78,6 +78,15 @@ const TERMINAL_JOB_STATUSES = ["completed", "failed", "canceled"];
 /**
  * Why a candidate cannot take a step, in the order a person would fix it, or
  * `null` when it can. The source route is never a candidate.
+ *
+ * Only the states that cannot serve work refuse a route. A `degraded` route is
+ * failing below the open threshold, so it still serves some work, and an
+ * `unverified` route is reachable but has no inference proof yet, which is the
+ * state every route is in until the trial slice exists: refusing it would mean a
+ * new route could never be a failover target. The choice is a person's and the
+ * offer shows each route's health beside it, so the person weighs a degraded or
+ * unverified target themselves; only `open` (paused behind its own incident) is
+ * refused outright.
  */
 function ineligibleReason(
   candidate: CandidateRouteRow,
@@ -112,35 +121,45 @@ export async function listRouteContinuations(
     return { runId, offers: [] };
   }
 
+  // One row per step. A step can have more than one live job (one per action),
+  // and more than one active route can share a pin (two endpoints or regions of
+  // one provider), so the joins alone yield several rows for one stalled step. A
+  // person is asked once per step, and the submission that follows names the step,
+  // so the offer is the step's earliest-opened incident, with the route id and job
+  // id as fixed tie-breakers: the same data always gives the same offer.
   const stalled = await transaction.query<StalledStepRow>(
-    `select s.id as run_step_id, s.step_key, r.version as run_version,
-            pr.id as source_route_id, pr.harness as source_harness,
-            i.id as incident_id, i.generation as incident_generation
-       from bakery.workflow_runs as r
-       join bakery.run_steps as s
-         on s.organization_id = r.organization_id and s.run_id = r.id
-       join bakery.jobs as j
-         on j.organization_id = r.organization_id and j.run_step_id = s.id
-       join bakery.provider_routes as pr
-         on pr.organization_id = r.organization_id
-        and pr.status = 'active'
-        and pr.provider = j.billing->>'provider'
-        and pr.model = j.billing->>'model'
-        and pr.harness = j.agent_config->>'harness'
-        and pr.billing_route = case j.billing->>'billingRoute'
-              when 'api' then 'api_metered'
-              else j.billing->>'billingRoute' end
-       join bakery.provider_incidents as i
-         on i.organization_id = pr.organization_id
-        and i.id = pr.incident_id and i.status = 'open'
-      where r.organization_id = $1 and r.id = $2
-        and j.status <> all($3::text[])
-        and not exists (
-          select 1 from bakery.route_continuations as c
-           where c.organization_id = r.organization_id
-             and c.run_step_id = s.id
-             and c.incident_generation = i.generation)
-      order by s.step_key, s.id, pr.id`,
+    `select * from (
+       select distinct on (s.id)
+              s.id as run_step_id, s.step_key, r.version as run_version,
+              pr.id as source_route_id, pr.harness as source_harness,
+              i.id as incident_id, i.generation as incident_generation
+         from bakery.workflow_runs as r
+         join bakery.run_steps as s
+           on s.organization_id = r.organization_id and s.run_id = r.id
+         join bakery.jobs as j
+           on j.organization_id = r.organization_id and j.run_step_id = s.id
+         join bakery.provider_routes as pr
+           on pr.organization_id = r.organization_id
+          and pr.status = 'active'
+          and pr.provider = j.billing->>'provider'
+          and pr.model = j.billing->>'model'
+          and pr.harness = j.agent_config->>'harness'
+          and pr.billing_route = case j.billing->>'billingRoute'
+                when 'api' then 'api_metered'
+                else j.billing->>'billingRoute' end
+         join bakery.provider_incidents as i
+           on i.organization_id = pr.organization_id
+          and i.id = pr.incident_id and i.status = 'open'
+        where r.organization_id = $1 and r.id = $2
+          and j.status <> all($3::text[])
+          and not exists (
+            select 1 from bakery.route_continuations as c
+             where c.organization_id = r.organization_id
+               and c.run_step_id = s.id
+               and c.incident_generation = i.generation)
+        order by s.id, i.opened_at, pr.id, j.id
+     ) as stalled
+     order by step_key, run_step_id`,
     [organizationId, runId, TERMINAL_JOB_STATUSES],
   );
   if (stalled.rows.length === 0) return { runId, offers: [] };

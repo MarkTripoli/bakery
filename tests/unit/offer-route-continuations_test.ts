@@ -209,17 +209,17 @@ Deno.test("a candidate gives exactly one reason for not being eligible, or none"
   }
 });
 
-Deno.test("a step stalled behind two routes with the same pin gets one offer each", async () => {
-  const OTHER = "99999999-9999-4999-8999-999999999999";
-  const { transaction } = stand({
+Deno.test("the stalled-step query returns one row per step in a fixed order", async () => {
+  const { transaction, recorded } = stand({
     run: { status: "running" },
-    stalled: [stalledRow, { ...stalledRow, source_route_id: OTHER }],
-    candidates: [route(SOURCE), route(OTHER), route("e1")],
+    stalled: [stalledRow],
+    candidates: [route(SOURCE)],
   });
-  const offers = (await listRouteContinuations(context(transaction), {}))
-    .offers;
-  assertEquals(offers.map((offer) => offer.sourceRouteId), [SOURCE, OTHER]);
-  // Each offer lists the other source as a candidate, never itself.
-  assertEquals(offers[0]!.targets.map((t) => t.routeId), [OTHER, "e1"]);
-  assertEquals(offers[1]!.targets.map((t) => t.routeId), [SOURCE, "e1"]);
+  await listRouteContinuations(context(transaction), {});
+  const sql =
+    recorded.find(({ sql }) => /join bakery\.run_steps/.test(sql))!.sql;
+  // Several live jobs, or several routes sharing a pin, must not multiply the offer.
+  assert(/distinct on \(s\.id\)/.test(sql));
+  // The tie-break is fixed, so the same data always gives the same offer.
+  assert(/order by s\.id, i\.opened_at, pr\.id, j\.id/.test(sql));
 });

@@ -28325,8 +28325,8 @@
         "model": "Model identifier the candidate route pins; a continuation runs the step on this model.",
         "harness": "Harness path the candidate route executes on: pi, claude_code, codex or mastra.",
         "billingRoute": "Billing route the candidate route's spend follows: subscription, api_metered or local.",
-        "health": "The candidate route's current circuit state, so a choice is not offered onto a route that is itself down without saying so.",
-        "eligible": "True when the step may continue on this route.",
+        "health": "The candidate route's current circuit state. Degraded (still serves some work) and unverified (no inference proof yet) routes stay eligible and are shown as such, so a person sees how much to trust a target before choosing it.",
+        "eligible": "True when the step may continue on this route. A degraded or unverified route is eligible, shown with its health so the person choosing weighs it; only a route that is open, not active or on another harness is refused.",
         "ineligibleReason": "Why the route cannot take the step, or null when eligible: different_harness (a continuation keeps the step's harness), route_not_active (disabled or revoked), or route_open (the route has its own open incident)."
       }
     },
