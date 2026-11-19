@@ -151,10 +151,18 @@ export const ssoApi = {
       post({ providerId, ...changes }),
       () => Promise.resolve(undefined),
     ),
-  remove: (providerId: string) =>
+  /**
+   * Removes a provider. `stopRequiringSso` is sent only when the admin has
+   * confirmed that removing the organization's only verified provider also
+   * ends the SSO requirement; without it the server refuses that removal with
+   * `SSO_LAST_PROVIDER_REQUIRED`.
+   */
+  remove: (providerId: string, stopRequiringSso = false) =>
     send(
       "/api/auth/sso/delete-provider",
-      post({ providerId }),
+      post(
+        stopRequiringSso ? { providerId, stopRequiringSso } : { providerId },
+      ),
       () => Promise.resolve(undefined),
     ),
   requestVerification: (providerId: string) =>
