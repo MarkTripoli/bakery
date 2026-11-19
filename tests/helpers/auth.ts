@@ -413,6 +413,18 @@ export async function cleanupAuthFixture(
     [userIds],
   );
   await pgDatabase.query(
+    `delete from bakery.password_reset_links
+     where principal_id = any(
+       select id from bakery.principals
+       where provider_user_id = any($1::uuid[])
+     )
+        or issued_by_principal_id = any(
+          select id from bakery.principals
+          where provider_user_id = any($1::uuid[])
+        )`,
+    [userIds],
+  );
+  await pgDatabase.query(
     `delete from bakery.permission_grants
      where principal_id = any(
        select id from bakery.principals
