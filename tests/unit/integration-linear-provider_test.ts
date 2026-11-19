@@ -181,6 +181,51 @@ Deno.test("a valid signature verifies and a forged one is refused", () => {
   assertEquals(forged, { ok: false, reason: "signature" });
 });
 
+Deno.test("an unset secret never verifies, and a rotation list still finds the real one", () => {
+  const payload = body({
+    action: "update",
+    type: "Issue",
+    webhookId: "delivery-2",
+    data: { id: "issue-2", organizationId: "org-1" },
+  });
+  const empty = new Uint8Array();
+  // A real HMAC accepts a delivery signed with an empty key, so a webhook with no
+  // secret configured would verify anything the sender signed with nothing. Only
+  // the guard in `verify` stands between the two.
+  assertEquals(
+    signatureMatches({
+      secret: empty,
+      body: payload,
+      signature: signatureFor(payload, empty),
+    }),
+    true,
+  );
+  const headers = new Headers([[
+    LINEAR_SIGNATURE_HEADER,
+    hex(signatureFor(payload, empty)),
+  ]]);
+  const verify = (secrets: Uint8Array[], signed: Headers) =>
+    linearServerProvider.impl.ingress.verify({
+      body: payload,
+      headers: signed,
+      secrets,
+      now: new Date(),
+      signatureMatches,
+    });
+  assertEquals(verify([empty], headers), { ok: false, reason: "signature" });
+  // A rotation window that holds an unset slot next to the real secret still
+  // verifies with the real one, and still refuses the empty-key signature.
+  const realHeaders = new Headers([[
+    LINEAR_SIGNATURE_HEADER,
+    hex(signatureFor(payload)),
+  ]]);
+  assertEquals(verify([empty, secret], realHeaders).ok, true);
+  assertEquals(verify([empty, secret], headers), {
+    ok: false,
+    reason: "signature",
+  });
+});
+
 Deno.test("no verifier means refusal, never acceptance", () => {
   // The host supplies the HMAC. A provider that accepted a delivery without one
   // would accept any forgery the moment the wiring was misconfigured.
