@@ -1,0 +1,81 @@
+import { assert, assertEquals } from "@std/assert";
+import { ApiProblemError } from "@bakery/contracts/client";
+import type { ArtifactProbeResult } from "@bakery/contracts/artifact-probe";
+import { mismatchSelection } from "../../apps/web/src/pages/files/mismatch-selection.ts";
+import { refusedDownload } from "../../apps/web/src/pages/files/media-failure.ts";
+import { previewState } from "../../apps/web/src/pages/preview-state.ts";
+
+function problem(code: string, status: number) {
+  return new ApiProblemError({
+    type: `http://127.0.0.1:0/problems/${code.toLowerCase()}`,
+    title: "problem",
+    status,
+    code,
+    retryable: false,
+  });
+}
+
+Deno.test("a refused download is the file's fault", () => {
+  // The panel and the preview must answer the same question the same way: a
+  // read the server refused as a mismatch is a mismatch, not a failed download.
+  assertEquals(
+    refusedDownload(problem("ARTIFACT_CONTENT_MISMATCH", 409)),
+    "mismatch",
+  );
+});
+
+Deno.test("a download that merely failed is a failed download", () => {
+  // Keeping this distinction is the whole point of the helper: blaming the file
+  // for a network fault would tell someone their intact file is damaged.
+  assertEquals(refusedDownload(new Error("offline")), "failed");
+  assertEquals(refusedDownload(problem("SERVICE_UNAVAILABLE", 503)), "failed");
+});
+
+Deno.test("a refusal shown by the panel becomes the preview's state", () => {
+  // FileDetails sets downloadRefused from the same refusal; the preview folds it
+  // into the state it draws, or the panel would say "does not match" while the
+  // preview still showed a player.
+  assertEquals(previewState(sampleProbe(), { mismatch: true }), {
+    kind: "mismatch",
+  });
+});
+
+Deno.test("without that refusal the same probe is played", () => {
+  // The mirror of the test above: drop the flag and the state must go back to the
+  // player, which is what makes the fold a fold rather than a permanent state.
+  assertEquals(previewState(sampleProbe(), { mismatch: false }), {
+    kind: "video",
+  });
+});
+
+Deno.test("a refusal stays on the file and version that was refused", () => {
+  const refused = mismatchSelection("file-a", undefined);
+  // The same subject keeps it: re-rendering the panel must not clear the state.
+  assertEquals(refused.keep("file-a", undefined), true);
+  // Another file starts clean.
+  assertEquals(refused.keep("file-b", undefined), false);
+  // So does another version of the same file.
+  assertEquals(refused.keep("file-a", 3), false);
+});
+
+/** A probed video, as the server describes one: enough to reach the player. */
+function sampleProbe(): ArtifactProbeResult {
+  return {
+    status: "described",
+    kind: "video",
+    mediaType: "video/mp4",
+    byteLength: 317_705,
+    width: 320,
+    height: 180,
+    durationMs: 2000,
+  };
+}
+
+Deno.test("the selection carries the file and the version it belongs to", () => {
+  const selection = mismatchSelection("file-a", 2);
+  assert(selection.subject.includes("file-a"));
+  assert(selection.subject.includes("2"));
+  // The current version and a named older one are different subjects, or the
+  // refusal on an older copy would blame the current file.
+  assert(selection.keep("file-a", undefined) === false);
+});

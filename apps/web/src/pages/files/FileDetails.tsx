@@ -16,6 +16,7 @@ import { useProtectedScope } from "../../app/query-scope-context.tsx";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 import { sizeParts } from "./files-state.ts";
 import { FilePreview, previewKind } from "./FilePreview.tsx";
+import { mismatchSelection } from "./mismatch-selection.ts";
 import { refusedDownload } from "./media-failure.ts";
 import { offersDownload } from "../preview-actions.ts";
 import { type ReactNode, useState } from "react";
@@ -121,6 +122,17 @@ export function FileDetails(
   // The preview says when the bytes and the record disagree; this panel must not
   // offer to save them, since the design promises exactly that (#437).
   const [bytesMismatch, setBytesMismatch] = useState(false);
+  // A refusal belongs to the file and version that was refused. Selecting
+  // another one starts clean, or one refusal would blame every file opened in
+  // this panel until it closes (#437 review).
+  const selection = mismatchSelection(file.id, revision);
+  const [mismatchFor, setMismatchFor] = useState(selection.subject);
+  if (mismatchFor !== selection.subject) {
+    setMismatchFor(selection.subject);
+    setBytesMismatch(false);
+    setDownloadFailed(false);
+    setMoreOpen(false);
+  }
 
   const shown = revision === undefined || revision === current?.revision
     ? null

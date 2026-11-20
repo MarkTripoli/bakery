@@ -10448,6 +10448,7 @@ const transportSchemas = {
             "destination_refused",
             "destination_unreachable",
             "key_missing",
+            "incomplete_set",
             "runner_error"
           ],
           "description": "Why the backup failed, as a stable code the page turns into a cause and a fix; required with a failed report. A completed report may carry it only when locations is exactly server-host, and then only destination_refused or destination_unreachable: the backup was taken on the host and the off-site copy failed. Refused with a running report and with a completed report that includes off-site."
@@ -12584,15 +12585,18 @@ const transportSchemas = {
       "description": "The owner of a personal MCP connection lets one shared workflow use it. Without a grant a workflow started by someone else cannot use a personal connection, and the connection is always labelled as acting for its owner (O27)."
     },
     "StorageFilePin": {
-      "description": "Record whether one file is kept as a record or treated as working material. A pinned file is the copy a report, check or handover cites, so it must not be overwritten; an unpinned one may be replaced by a later write. Say which one you mean rather than omitting the flag, because the answer is what the file is now, not what it was.",
       "fields": [
         {
           "name": "pinned",
           "type": "boolean",
           "required": true,
-          "description": "True to keep this file as a record that a later write to the same name must not overwrite, false to treat it as working material again. Only a file that is already a record can carry a pin; a working-area file is refused with the reason."
+          "description": "Whether the file's artifact is pinned against retention collection; true protects its versions from expiry-based purge, false lets normal retention apply again. Asking for the state a file is already in changes nothing."
         }
-      ]
+      ],
+      "rules": [
+        "Admin permission (artifact:manage); an access token may call it. A file with no artifact (a working-area file) is refused with UNPROCESSABLE."
+      ],
+      "description": "Sets or clears the administrator pin of a record-area file by its storage-tree id, so the command line can pin without knowing the artifact id or its version. It is the same pin as the artifact PATCH."
     },
     "StorageFilePut": {
       "fields": [
@@ -29872,7 +29876,7 @@ const transportSchemas = {
         "progressPercent": "integer|null",
         "sizeBytes": "decimalString|null",
         "locations": "string[]",
-        "failureCode": "enum(disk_full|destination_refused|destination_unreachable|key_missing|runner_error)|null",
+        "failureCode": "enum(disk_full|destination_refused|destination_unreachable|key_missing|incomplete_set|runner_error)|null",
         "failureDetail": "string|null"
       },
       "nullableFields": [
@@ -29900,7 +29904,7 @@ const transportSchemas = {
         "progressPercent": "Latest reported progress from 0 to 100, or null before any report.",
         "sizeBytes": "Size of the finished encrypted backup set in bytes as a decimal string, or null until completed.",
         "locations": "Words naming where the finished backup is kept: server-host and, once an off-site copy exists, off-site; empty until completed. A completed run with only server-host and a failureCode was not copied off-site.",
-        "failureCode": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, or runner_error. A completed run carries destination_refused or destination_unreachable when the backup was taken on the host but not copied off-site; null otherwise.",
+        "failureCode": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, incomplete_set (the backup set did not contain every declared state store, so it is not a recoverable backup), or runner_error. A completed run carries destination_refused or destination_unreachable when the backup was taken on the host but not copied off-site; null otherwise.",
         "failureDetail": "The runner's plain-text answer for the failure or the failed off-site copy, or null."
       }
     },

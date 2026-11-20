@@ -244,6 +244,22 @@ const STATES = [
     views: [[DESKTOP, LIGHT]],
   },
   {
+    // The same refusal, then a healthy file chosen from the same panel: the
+    // refusal belongs to the bytes it was found on, so the next file must show
+    // its own preview and not be blamed for them (#437 review).
+    id: "panel-mismatch-then-another-file",
+    file: "walkthrough-cut.mp4",
+    download: true,
+    says: /does not match its record/i,
+    then: { file: "walkthrough.mp4", says: /Video · 2 s · 310\.3 KB/ },
+    assert: async (page) => {
+      if (await page.getByText(/does not match its record/i).count() > 0) {
+        throw new Error("the next file kept the previous file's refusal");
+      }
+    },
+    views: [[DESKTOP, LIGHT]],
+  },
+  {
     // An older version carries its own answer: 12 lines, not the current 42.
     id: "older-version",
     file: "changelog.md",
@@ -391,6 +407,26 @@ for (const state of ONLY === "artifact" ? [] : STATES) {
     }
     if (state.absent !== undefined && state.absent.test(body)) {
       throw new Error(`${state.id}: page said ${state.absent}, and must not`);
+    }
+    // A state may name a second file to select afterwards: the panel keeps its
+    // flag across a file change, which is exactly what is being proved.
+    if (state.then !== undefined) {
+      const nextId = ids[state.then.file];
+      if (nextId === undefined) {
+        throw new Error(`seed did not name ${state.then.file}`);
+      }
+      await page.goto(
+        `${WEB}/files/${encodeURIComponent(folder)}?file=${nextId}`,
+        { waitUntil: "load" },
+      );
+      await page.waitForLoadState("networkidle").catch(() => {});
+      body = "";
+      let next = false;
+      for (let attempt = 0; attempt < 30 && !next; attempt += 1) {
+        body = await page.locator("body").innerText();
+        next = state.then.says.test(body);
+        if (!next) await page.waitForTimeout(1000);
+      }
     }
     // The facts line sits under the preview, and the details panel is its own
     // scroller: a still that stops above it shows the file and not the point.
