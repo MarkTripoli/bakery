@@ -55,7 +55,15 @@ def probe_server(credential):
                      "Connection: close\r\n\r\n").encode())
     allow = {k: v for k, v in cors[1].items() if k.startswith("access-control")}
     finding("CORS preflight from tauri://localhost for a bearer call", f"{cors[0]} allow-headers={allow or 'none'}")
-    for label, path in (("without an organization", "/v1/events"),):
+    orgs = raw_http((f"GET /v1/organizations HTTP/1.1\r\nHost: {host}\r\nOrigin: tauri://localhost\r\n"
+                     f"Authorization: Bearer {credential}\r\nConnection: close\r\n\r\n").encode())
+    try:
+        org = json.loads(orgs[2])["items"][0]["id"]
+    except Exception:
+        org = None
+    finding("organizations listed with the bearer", f"{orgs[0]} first={'found' if org else 'none'}")
+    for label, path in (("without an organization", "/v1/events"),
+                        ("with ?organizationId=", f"/v1/events?organizationId={org}")):
         key = b64.b64encode(os.urandom(16)).decode()
         r = raw_http((f"GET {path} HTTP/1.1\r\nHost: {host}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
                       f"Sec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\nOrigin: tauri://localhost\r\n"

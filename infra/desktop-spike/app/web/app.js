@@ -29,7 +29,25 @@ async function connect() {
     return;
   }
   await bearerFetch(origin, credential);
-  const url = origin.replace(/^http/, "ws") + "/v1/events";
+  // A WebSocket cannot carry the Bakery-Organization-Id header, so the organization goes in the
+  // query string. The server does not put one in /v1/me: the app lists the principal's own.
+  let organizationId = null;
+  try {
+    const r = await fetch(origin + "/v1/organizations", {
+      headers: { authorization: "Bearer " + credential },
+    });
+    const page = r.ok ? await r.json() : null;
+    organizationId = page?.items?.[0]?.id ?? null;
+    await report("organizations", {
+      status: r.status,
+      found: organizationId !== null,
+    });
+  } catch (e) {
+    await report("organizations", { error: String(e) });
+  }
+  if (organizationId === null) return;
+  const url = origin.replace(/^http/, "ws") + "/v1/events?organizationId=" +
+    encodeURIComponent(organizationId);
   attempt += 1;
   const n = attempt;
   // A web view cannot set headers on a WebSocket: the credential travels as a subprotocol.
