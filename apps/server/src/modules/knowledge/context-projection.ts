@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { ContextItem } from "./context-budget.ts";
+import { redactContextText } from "./context-redaction.ts";
 
 /**
  * Index-first context projections with exact citations
@@ -9,8 +10,12 @@ import type { ContextItem } from "./context-budget.ts";
  * model text; it is projected as a reference only.
  */
 
-/** Identity of the extractor that produced a projection; part of every citation. */
-export const CONTEXT_EXTRACTOR_VERSION = "bakery.text-window@1";
+/**
+ * Identity of the extractor that produced a projection; part of every citation.
+ * @2: every window is credential-redacted (context-redaction.ts) before it is
+ * returned, so an extract or citation made by @1 is never reused.
+ */
+export const CONTEXT_EXTRACTOR_VERSION = "bakery.text-window@2";
 
 /** Largest text window one projection may carry, in UTF-8 bytes. */
 export const MAX_PROJECTION_BYTES = 65_536;
@@ -91,8 +96,10 @@ export type ProjectionKind =
 export type ContextProjection = {
   kind: ProjectionKind;
   citation: ContextCitation;
-  /** Bounded text for the model; null for every reference projection. */
+  /** Bounded, credential-redacted text for the model; null for every reference projection. */
   text: string | null;
+  /** Credentials replaced in the window; 0 for every reference projection. */
+  redactions: number;
   /** True when the window ends before the version does. */
   truncated: boolean;
   item: ContextItem;
@@ -143,6 +150,7 @@ export function referenceProjection(
       extractorVersion: null,
     }),
     text: null,
+    redactions: 0,
     truncated: false,
     item: {
       id: `ref:${entry.versionId}`,
@@ -156,7 +164,10 @@ export function referenceProjection(
 /**
  * Projects one version into context. Text and logs carry the given bounded
  * window with an exact byte-range citation; anything else, or text with no
- * window, is a reference. A window over MAX_PROJECTION_BYTES is refused.
+ * window, is a reference. A window over MAX_PROJECTION_BYTES is refused. The
+ * citation's range is the raw bytes the window was read from; the text the model
+ * sees has recognised credentials replaced, and its token estimate is the larger
+ * of the raw and redacted sizes so a replacement never undercounts.
  */
 export function projectArtifactVersion(
   entry: ArtifactVersionIndexEntry,
@@ -180,6 +191,8 @@ export function projectArtifactVersion(
   ) {
     throw new RangeError("PROJECTION_WINDOW_INVALID");
   }
+  const redacted = redactContextText(window.text);
+  const redactedBytes = new TextEncoder().encode(redacted.text).byteLength;
   return {
     kind,
     citation: ContextCitationSchema.parse({
@@ -193,11 +206,15 @@ export function projectArtifactVersion(
       },
       extractorVersion: CONTEXT_EXTRACTOR_VERSION,
     }),
-    text: window.text,
+    text: redacted.text,
+    redactions: redacted.count,
     truncated: window.hasMore,
     item: {
       id: `text:${entry.versionId}:${window.startByte}`,
-      count: { state: "estimated", tokens: estimateTextTokens(bytes) },
+      count: {
+        state: "estimated",
+        tokens: estimateTextTokens(Math.max(bytes, redactedBytes)),
+      },
       required: options.required ?? false,
       priority: options.priority ?? 0,
     },

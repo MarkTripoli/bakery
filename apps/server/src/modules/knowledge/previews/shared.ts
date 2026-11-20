@@ -146,3 +146,11 @@ export function appRevisionPath(
 ): string {
   return `/tasks/${taskId}/artifacts/${artifactId}?version=${versionId}`;
 }
+
+/** Running-app previews (#19) use their own paths on the same isolated host. */
+export const RUNNING_PREVIEW_EXCHANGE_PATH = "/running-preview/exchange";
+export const RUNNING_PREVIEW_VIEW_PREFIX = "/running-preview/";
+
+export function runningPreviewViewPath(previewId: string): string {
+  return `${RUNNING_PREVIEW_VIEW_PREFIX}${previewId}/`;
+}
