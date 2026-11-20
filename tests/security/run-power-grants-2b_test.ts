@@ -206,7 +206,7 @@ Deno.test("an observer reads only the granted session's own messages, never the 
           o.fixture.conversationId,
           authorId,
           sessionId,
-          sessionId === null ? "user" : "agent",
+          sessionId === null ? "user" : "assistant",
           body,
           crypto.randomUUID(),
         ],
