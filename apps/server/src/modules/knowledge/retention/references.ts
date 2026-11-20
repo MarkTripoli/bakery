@@ -79,6 +79,23 @@ export const artifactVersionReferences = [
     protection: "retained-evidence",
   },
   {
+    // An evaluation case pins the input it is scored on (#44). A dataset is
+    // only reproducible while that input is readable, so the bytes stay for as
+    // long as the case exists.
+    kind: "evaluation-case-input",
+    table: "evaluation_cases",
+    constraint: "evaluation_cases_input_fk",
+    protection: "retained-evidence",
+  },
+  {
+    // An evaluation result names the exact output it scored. The score is
+    // evidence about those bytes, so they stay for as long as the result does.
+    kind: "evaluation-result-output",
+    table: "evaluation_results",
+    constraint: "evaluation_results_output_fk",
+    protection: "retained-evidence",
+  },
+  {
     // A cached extract is a copy of bytes that already exist elsewhere, so it
     // never keeps a version alive: the purge deletes the extracts with the
     // version, and a cache row that outlived its source would be text nobody
@@ -101,6 +118,8 @@ export const declaredArtifactReferenceKinds = [
   "external-effect-arguments",
   "run-input-pin",
   "memory-source",
+  "evaluation-case-input",
+  "evaluation-result-output",
   "extract-cache",
 ] as const;
 export type ArtifactReferenceKind =
@@ -173,6 +192,30 @@ export const additionalArtifactReferenceChecks: readonly ReferenceCheck[] = [
       const result = await transaction.query(
         `select 1 from bakery.memory_revisions
          where organization_id=$1 and source_artifact_version_id=$2
+         limit 1`,
+        [organizationId, versionId],
+      );
+      return result.rows.length > 0;
+    },
+  },
+  {
+    kind: "evaluation-case-input",
+    async protects(transaction, organizationId, versionId) {
+      const result = await transaction.query(
+        `select 1 from bakery.evaluation_cases
+         where organization_id=$1 and input_artifact_version_id=$2
+         limit 1`,
+        [organizationId, versionId],
+      );
+      return result.rows.length > 0;
+    },
+  },
+  {
+    kind: "evaluation-result-output",
+    async protects(transaction, organizationId, versionId) {
+      const result = await transaction.query(
+        `select 1 from bakery.evaluation_results
+         where organization_id=$1 and output_artifact_version_id=$2
          limit 1`,
         [organizationId, versionId],
       );
