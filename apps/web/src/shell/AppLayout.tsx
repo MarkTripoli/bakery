@@ -536,9 +536,13 @@ function ShellFrame() {
   const selectedId = activeId ?? undefined;
   // A path no route claims must not borrow a section's name: the crumb and the
   // phone title read "Page not found", which is what the page itself says.
+  // The router marks the match it fell back to with `_notFound`; its `status`
+  // stays "success", so asking for a status here silently never matched.
   const notFound = useRouterState({
     select: (state) =>
-      state.matches.some((match) => match.status === "notFound"),
+      state.matches.some(
+        (match) => (match as { _notFound?: boolean })._notFound === true,
+      ),
   });
   const sectionTitle = usePageTitle(pathname);
   const pageTitle = notFound
