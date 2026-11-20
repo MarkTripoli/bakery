@@ -122,18 +122,6 @@ const body = (item: Definition) => ({
   updatedAt: STAMP,
   version: item.version ?? 1,
 });
-/** A workflow adds where it came from: an authored one names no catalog item and no source. */
-const workflowBody = (item: Definition) => ({
-  ...body(item),
-  origin: {
-    kind: "authored",
-    catalogKey: null,
-    catalogVersion: null,
-    sourceWorkflowId: null,
-    sourceVersionId: null,
-    sourceDigest: null,
-  },
-});
 const versionBody = (row: VersionRow) => ({
   id: row.id,
   workflowId: row.workflowId,
@@ -279,14 +267,14 @@ export async function libraryFixture(page: Page, options: Options = {}) {
           slug: input.slug,
         });
         workflows.push(made);
-        return route.fulfill({ ...json(workflowBody(made)), status: 201 });
+        return route.fulfill({ ...json(body(made)), status: 201 });
       }
       seen.workflowReads += 1;
       if (options.offline) return route.abort("failed");
       if (options.endless) {
         return route.fulfill(json({
           items: [
-            workflowBody(
+            body(
               definition(
                 300 + seen.workflowReads,
                 `Page ${seen.workflowReads}`,
@@ -297,7 +285,7 @@ export async function libraryFixture(page: Page, options: Options = {}) {
         }));
       }
       if (options.hold) await held;
-      return answer("workflows", workflows.map(workflowBody))(route);
+      return answer("workflows", workflows.map(body))(route);
     },
   );
   const conflict = (route: import("@playwright/test").Route) =>
@@ -320,7 +308,7 @@ export async function libraryFixture(page: Page, options: Options = {}) {
         if (typeof patch.enabled === "boolean") target.enabled = patch.enabled;
         target.version = (target.version ?? 1) + 1;
       }
-      return route.fulfill(json(workflowBody(target)));
+      return route.fulfill(json(body(target)));
     },
   );
   await page.route(
@@ -419,7 +407,7 @@ export async function libraryFixture(page: Page, options: Options = {}) {
       if (!target) return route.fulfill(problem(404, "RESOURCE_NOT_FOUND"));
       target.activeVersionId = request.versionId;
       target.version = (target.version ?? 1) + 1;
-      return route.fulfill(json(workflowBody(target)));
+      return route.fulfill(json(body(target)));
     },
   );
   await page.route(
