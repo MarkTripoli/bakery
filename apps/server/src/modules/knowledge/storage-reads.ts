@@ -40,6 +40,14 @@ import { agentRootKeys } from "./agent-file-scope.ts";
 import { type StoragePolicy, storageQueryOf } from "./storage-tree.ts";
 import { ensureOrganizationTree } from "./storage-tree.ts";
 import { ensurePersonalFolder } from "./storage-working-areas.ts";
+import {
+  chooseRead,
+  inputPinFor,
+  listingDigest,
+  recordStepRead,
+  stepReaderOf,
+  stepReadSetRow,
+} from "./step-read-set.ts";
 
 const MAX_PAGE_SIZE = 100;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -414,6 +422,21 @@ export function createFolderLister(secret: string) {
       ],
     );
     const rows = found.rows.slice(0, limit);
+    // An agent's listing joins its step's read set (O46). A listing shows the
+    // folder as it is now, so it is never pinned.
+    const stepReader = await stepReaderOf(tx, context, organizationId);
+    const readRow = stepReadSetRow(stepReader, {
+      organizationId,
+      entryId: folder.id,
+      served: { kind: "listing" },
+      sha256: await listingDigest(rows.map((row) => ({
+        id: row.id,
+        kind: row.kind,
+        versionId: row.current_version_id,
+      }))),
+      pinned: false,
+    });
+    if (readRow !== null) await recordStepRead(tx, readRow);
     const prefix = folder.path === "/" ? "" : folder.path;
     const last = rows.at(-1);
     return {
@@ -727,6 +750,7 @@ export function createFileUseLister(secret: string) {
 }
 
 type BytesRow = {
+  id: string;
   revision: number;
   blob_id: string | null;
   content: Uint8Array | null;
@@ -779,20 +803,37 @@ export function createFileContentReader(blobStore?: OrganizationBlobStore) {
     if (file.purged_at !== null) {
       throw new StandardError({ code: "ARTIFACT_CONTENT_EXPIRED" });
     }
+    // O46: an agent's read of a declared input serves the version the run
+    // pinned at admission; a named revision is the latest on request.
+    const stepReader = await stepReaderOf(tx, context, organizationId);
+    const choice = chooseRead({
+      reader: stepReader,
+      pin: stepReader !== null && file.artifact_id !== null
+        ? await inputPinFor(
+          tx,
+          organizationId,
+          stepReader.runId,
+          file.artifact_id,
+        )
+        : null,
+      revision: input.revision,
+    });
+    const pinnedId = choice.kind === "pinned" ? choice.artifactVersionId : null;
     const found = file.artifact_id !== null
       ? await tx.query<BytesRow>(
-        "select v.revision, v.blob_id, v.content, v.sha256," +
+        "select v.id, v.revision, v.blob_id, v.content, v.sha256," +
           " v.size_bytes::text, v.media_type, (v.purged_at is not null) as removed" +
           " from bakery.artifact_versions v" +
           " join bakery.artifacts a" +
           " on a.organization_id = v.organization_id and a.id = v.artifact_id" +
           " where v.organization_id = $1 and v.artifact_id = $2" +
-          " and (($3::int is null and v.id = a.current_version_id)" +
-          " or v.revision = $3)",
-        [organizationId, file.artifact_id, input.revision],
+          " and (case when $4::uuid is not null then v.id = $4::uuid" +
+          " when $3::int is null then v.id = a.current_version_id" +
+          " else v.revision = $3 end)",
+        [organizationId, file.artifact_id, input.revision, pinnedId],
       )
       : await tx.query<BytesRow>(
-        "select revision, blob_id, content, sha256, size_bytes::text," +
+        "select id, revision, blob_id, content, sha256, size_bytes::text," +
           " media_type, false as removed from bakery.storage_file_versions" +
           " where organization_id = $1 and entry_id = $2" +
           " and (($3::int is null and id = $4) or revision = $3)",
@@ -803,6 +844,18 @@ export function createFileContentReader(blobStore?: OrganizationBlobStore) {
     if (row.removed || (row.blob_id === null && row.content === null)) {
       throw new StandardError({ code: "ARTIFACT_CONTENT_EXPIRED" });
     }
+    // The read joins the step's read set in this transaction, before any
+    // answer (a 304 or a range is still a read of this version).
+    const readRow = stepReadSetRow(stepReader, {
+      organizationId,
+      entryId: file.id,
+      served: file.artifact_id !== null
+        ? { kind: "artifact", versionId: row.id }
+        : { kind: "storage", versionId: row.id },
+      sha256: row.sha256,
+      pinned: choice.kind === "pinned",
+    });
+    if (readRow !== null) await recordStepRead(tx, readRow);
     const size = Number(row.size_bytes);
     const safety = storedMediaSafety(row.media_type);
     const headers = new Headers({
