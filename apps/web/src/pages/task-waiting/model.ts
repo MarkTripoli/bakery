@@ -8,6 +8,11 @@
 // and a card only offers the choice.
 import type { MessageKey, Translator } from "@bakery/i18n";
 import type { RouteContinuationOffersResponse } from "../../api/client.ts";
+// The one list of providers a person knows by name: the contract types a
+// provider as an open key, so the usage page's list is the source.
+import { providerName } from "../../screens/usage/usage-display.ts";
+
+export { providerName };
 
 export type Offer = RouteContinuationOffersResponse["offers"][number];
 export type Target = Offer["targets"][number];
@@ -67,16 +72,6 @@ export function agentName(t: Translator, harness: Harness): string {
   return t(AGENT_KEYS[harness]);
 }
 
-const PROVIDER_NAMES: Readonly<Record<string, string>> = {
-  anthropic: "Anthropic",
-  openai: "OpenAI",
-};
-
-/** A provider's name: the known brands spelled out, any other as it is keyed. */
-export function providerName(provider: string): string {
-  return PROVIDER_NAMES[provider] ?? provider;
-}
-
 const PAYMENT_KEYS: Record<Billing, MessageKey> = {
   subscription: "tasks.waiting.payment.subscription",
   api_metered: "tasks.waiting.payment.api_metered",
@@ -94,7 +89,7 @@ export function paymentLabel(t: Translator, billing: Billing): string {
   return t(PAYMENT_KEYS[billing]);
 }
 
-/** How the work is paid, to read inside a sentence ("paid by …"). */
+/** How the work is paid, to read inside a sentence ("using …"). */
 export function paymentInline(t: Translator, billing: Billing): string {
   return t(PAYMENT_INLINE_KEYS[billing]);
 }

@@ -328,7 +328,7 @@ test("a step waiting on a model shows one card that says what, why and what Bake
     "Waiting: Claude Code cannot reach its model",
   );
   await expect(card(page)).toContainText(
-    'The step "implement" runs on Claude Code with claude-opus, paid by the subscription on a machine. Anthropic has been limiting requests since',
+    'The step "implement" runs on Claude Code with claude-opus, using the subscription on a machine. Anthropic has been limiting requests since',
   );
   await expect(card(page)).toContainText(SECOND_LINE);
   await expect(card(page)).toContainText("Bakery tries Anthropic again at");
@@ -431,9 +431,9 @@ test("a choice paid differently says so, names itself on the button and is sent 
   await dialog(page).getByRole("radio", { name: /gpt-5/ }).check();
   await expect(dialog(page).getByTestId("route-waiting-payment"))
     .toContainText(
-      "This changes how the work is paid for: from the subscription on a machine to an API key, charged per use.",
+      "This changes how the work is paid for: from the subscription on a machine to an API key charged per use.",
     );
-  await button(dialog(page), "Continue with gpt-5, an API key, charged per use")
+  await button(dialog(page), "Continue with gpt-5, an API key charged per use")
     .click();
   await expect(page.getByTestId("route-waiting-notice")).toContainText(
     "Continuing with Claude Code with gpt-5. The step starts again.",
@@ -518,10 +518,27 @@ test("several waiting steps show one card each, oldest first", async ({ page }) 
   await expect(card(page).last()).toHaveAttribute("data-step-key", "review");
 });
 
+test("when the offer goes while the dialog is open, it closes, says so and focus moves to the run heading", async ({ page }) => {
+  await page.clock.install();
+  const state = await openWaiting(page, [offerRow()]);
+  await button(card(page), "Choose another way to run it").click();
+  await expect(dialog(page)).toBeVisible();
+  // The incident closes; the page's next read of the offers (every thirty
+  // seconds) finds none.
+  state.offers = [];
+  await page.clock.runFor(31_000);
+  await expect(dialog(page)).toHaveCount(0);
+  await expect(page.getByTestId("route-waiting-notice")).toContainText(
+    "This changed while you were choosing. Nothing was switched; the latest is shown.",
+  );
+  await expect(page.locator("#task-run-heading")).toBeFocused();
+});
+
 // ---- stills for design-ux's and QA's review (only when BAKERY_STILLS_DIR is set).
 const STILLS = process.env.BAKERY_EVIDENCE_DIR ?? process.env.BAKERY_STILLS_DIR;
 const SIZES = [["desktop", 1440, 900], ["phone", 390, 844]] as const;
 const SCHEMES = ["light", "dark"] as const;
+const TALL = { desktop: 1500, phone: 2000 } as const;
 
 for (const scheme of SCHEMES) {
   for (const [size, width, height] of SIZES) {
@@ -532,6 +549,14 @@ for (const scheme of SCHEMES) {
       await page.setViewportSize({ width, height });
       await openWaiting(page, [offerRow()]);
       await expect(card(page)).toBeVisible();
+      // Tall enough that the composer pinned to the bottom of the page does not
+      // cover the card: the whole run overview is in view.
+      await page.setViewportSize({ width, height: TALL[size] });
+      await expect(card(page)).toBeVisible();
+      // The button is a comfortable target on its own row on a phone.
+      const box = await button(card(page), "Choose another way to run it")
+        .boundingBox();
+      expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
       await page.screenshot({
         path: `${STILLS}/waiting-card-${size}-${scheme}.png`,
         animations: "disabled",

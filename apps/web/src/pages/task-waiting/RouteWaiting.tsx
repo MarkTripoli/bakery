@@ -85,6 +85,10 @@ export function RouteWaiting(
     setProblem(null);
     pending.current = null;
     setNotice({ tone: "warning", text: t("tasks.waiting.refused.changed") });
+    // The card's button went with the offer, so focus goes to the run heading.
+    requestAnimationFrame(() =>
+      document.getElementById("task-run-heading")?.focus()
+    );
   }, [dialogStep, working, open, t]);
 
   const refresh = async () => {

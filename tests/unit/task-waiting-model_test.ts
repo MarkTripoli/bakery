@@ -118,7 +118,7 @@ Deno.test("every reason reads as its own sentence", () => {
     );
     assertEquals(
       copy.text,
-      `The step "implement" runs on Claude Code with claude-opus, paid by the subscription on a machine. ${sentence}`,
+      `The step "implement" runs on Claude Code with claude-opus, using the subscription on a machine. ${sentence}`,
     );
   }
 });
@@ -207,7 +207,7 @@ Deno.test("each payment reads in plain words", () => {
       offer({ source: { ...source, billingRoute: "api_metered" } }),
       t,
       when,
-    ).text.includes("paid by an API key, charged per use."),
+    ).text.includes("using an API key charged per use."),
     true,
   );
 });
@@ -215,6 +215,9 @@ Deno.test("each payment reads in plain words", () => {
 Deno.test("a provider's name is spelled out, an unknown one is shown as keyed", () => {
   assertEquals(providerName("anthropic"), "Anthropic");
   assertEquals(providerName("openai"), "OpenAI");
+  assertEquals(providerName("google"), "Google");
+  assertEquals(providerName("mistral"), "Mistral");
+  assertEquals(providerName("xai"), "xAI");
   assertEquals(providerName("acme-llm"), "acme-llm");
 });
 
@@ -240,7 +243,7 @@ Deno.test("the payment notice appears only when the choice is paid differently",
   );
   assertEquals(
     paymentNotice(t, source, target({ billingRoute: "api_metered" })),
-    "This changes how the work is paid for: from the subscription on a machine to an API key, charged per use.",
+    "This changes how the work is paid for: from the subscription on a machine to an API key charged per use.",
   );
   assertEquals(
     paymentNotice(
@@ -248,14 +251,14 @@ Deno.test("the payment notice appears only when the choice is paid differently",
       { billingRoute: "api_metered" },
       target({ billingRoute: "local" }),
     ),
-    "This changes how the work is paid for: from an API key, charged per use to a model running on a machine.",
+    "This changes how the work is paid for: from an API key charged per use to a model running on a machine.",
   );
 });
 
 Deno.test("the button and the success notice name the choice", () => {
   assertEquals(
     continueLabel(t, target({ billingRoute: "api_metered" })),
-    "Continue with gpt-5, an API key, charged per use",
+    "Continue with gpt-5, an API key charged per use",
   );
   assertEquals(
     continuedNotice(t, target()),

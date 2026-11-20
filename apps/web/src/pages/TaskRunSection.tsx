@@ -342,7 +342,11 @@ export function TaskRunSection(
       overview={
         <>
           <UI.Inline gap="standard">
-            <UI.Heading id="task-run-heading" level="section">
+            <UI.Heading
+              id="task-run-heading"
+              level="section"
+              tabIndex={-1}
+            >
               {t("tasks.run.heading")}
             </UI.Heading>
             {validRun && run.data
