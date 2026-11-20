@@ -4849,7 +4849,7 @@
   "settings.plugins.page.noneAsked": "It asks for no permissions.",
   "settings.plugins.page.version": "Version",
   "settings.plugins.page.for": "For",
-  "settings.plugins.page.back": "Plugins",
+  "settings.plugins.page.back": "Go to Plugins",
   "settings.plugins.page.notFound": "This plugin could not be found.",
   "settings.plugins.page.more": "More",
   "settings.plugins.turnOff.action": "Turn off",
