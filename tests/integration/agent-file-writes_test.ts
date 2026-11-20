@@ -19,7 +19,11 @@ import { withPgTransaction } from "../../apps/server/src/platform/database.ts";
 import { StandardError } from "../../packages/contracts/src/http.ts";
 import { assertAgentFileWrite } from "../../apps/server/src/modules/knowledge/agent-file-guard.ts";
 import { stepFilesForAttempt } from "../../apps/server/src/modules/execution/step-files.ts";
-import { DEFAULT_STEP_FILES } from "../../packages/contracts/src/workflow-compiler/mod.ts";
+import {
+  compileWorkflowDocument,
+  DEFAULT_STEP_FILES,
+} from "../../packages/contracts/src/workflow-compiler/mod.ts";
+import { defaultWorkflowCompilerCatalog } from "../../packages/contracts/src/workflow-compiler/default-catalog.ts";
 
 type Fixture = Parameters<Parameters<typeof withWorkerFixture>[0]>[0];
 type Json = Record<string, unknown>;
@@ -560,4 +564,122 @@ Deno.test("an agent at its step's file limit is refused the next write; a person
       ),
       200,
     );
+  }));
+
+/**
+ * Pins a compiled plan document into the seeded run's snapshot, so the claim
+ * reads the claimed step's files section from it. The seeded step's key is
+ * `worker`; `files` is that step's section (undefined: the defaults).
+ */
+async function pinPlanStep(
+  fixture: Fixture,
+  job: Awaited<ReturnType<typeof seedEligibleJob>>,
+  files: Json | undefined,
+): Promise<void> {
+  const compiled = await compileWorkflowDocument({
+    apiVersion: "bakery.dev/v1",
+    kind: "workflow",
+    name: "agent-448-step-files",
+    description: "One step whose files section the claim mints from.",
+    inputs: {},
+    steps: [{
+      id: "worker",
+      uses: "workflow.noop",
+      ...(files === undefined ? {} : { files }),
+    }],
+  }, { catalog: defaultWorkflowCompilerCatalog() });
+  assert(compiled.ok, JSON.stringify(compiled));
+  const updated = await fixture.pgDatabase.query(
+    "update bakery.workflow_runs set snapshot = snapshot || jsonb_build_object('runtime', $3::jsonb)" +
+      " where organization_id = $1 and id = $2",
+    [
+      fixture.organizationId,
+      job.runId,
+      JSON.stringify({ pin: {}, document: compiled.document }),
+    ],
+  );
+  assertEquals(updated.rowCount, 1);
+}
+
+/** The live scopes minted for an attempt's session credential. */
+async function mintedScopes(
+  fixture: Fixture,
+  attemptId: string,
+): Promise<string[]> {
+  const stored = await fixture.pgDatabase.query<{ scopes: string[] }>(
+    "select scopes from bakery.session_operation_credentials" +
+      " where organization_id = $1 and attempt_id = $2" +
+      " and revoked_at is null",
+    [fixture.organizationId, attemptId],
+  );
+  assertEquals(stored.rows.length, 1);
+  return stored.rows[0]!.scopes;
+}
+
+Deno.test("an inputs-only step gets no file scope from a live write grant; a default step keeps files.write", () =>
+  withWorkerFixture(async (fixture) => {
+    const folder = await json(
+      await asPerson(fixture, "POST", "/v1/storage/folders", {
+        path: "/shared/agent-448-inputs-only",
+      }),
+      201,
+    );
+    const isFileScope = (scope: string) =>
+      scope === "files.read" || scope === "files.write" ||
+      scope.startsWith("files.read:") || scope.startsWith("files.write:");
+    // Each session's workflow holds a live person write grant on the folder
+    // before the claim, so the grant would mint files.write if it were kept.
+    const narrow = await agentSession(
+      fixture,
+      "agent-448-inputs-only",
+      async (job) => {
+        await pinPlanStep(fixture, job, {
+          read: ["inputs"],
+          write: ["outputs"],
+        });
+        await grantFolder(
+          fixture,
+          job.workflowId,
+          folder.id as string,
+          "write",
+        );
+      },
+    );
+    assertEquals(
+      await withPgTransaction(
+        fixture.pgDatabase,
+        (tx) =>
+          stepFilesForAttempt(tx, fixture.organizationId, narrow.attemptId),
+      ),
+      { read: ["inputs"], write: ["outputs"] },
+    );
+    const narrowScopes = await mintedScopes(fixture, narrow.attemptId);
+    assertEquals(
+      narrowScopes.filter(isFileScope),
+      [],
+      JSON.stringify(narrowScopes),
+    );
+
+    const wide = await agentSession(
+      fixture,
+      "agent-448-default-section",
+      async (job) => {
+        await pinPlanStep(fixture, job, undefined);
+        await grantFolder(
+          fixture,
+          job.workflowId,
+          folder.id as string,
+          "write",
+        );
+      },
+    );
+    assertEquals(
+      await withPgTransaction(
+        fixture.pgDatabase,
+        (tx) => stepFilesForAttempt(tx, fixture.organizationId, wide.attemptId),
+      ),
+      DEFAULT_STEP_FILES,
+    );
+    const wideScopes = await mintedScopes(fixture, wide.attemptId);
+    assert(wideScopes.includes("files.write"), JSON.stringify(wideScopes));
   }));
