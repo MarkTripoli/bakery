@@ -117,8 +117,24 @@ for (
       // Nothing to test until the required settings are in.
       await expect(page.getByRole("button", { name: "Send a test" }))
         .toBeDisabled();
+      if (viewport.width < 1280) {
+        // Narrow: fill the form, test it, then save, so Test sits between
+        // "What to send" and the save row.
+        const send = await page.getByRole("heading", { name: "What to send" })
+          .boundingBox();
+        const test = await page.getByRole("heading", {
+          name: "Test",
+          exact: true,
+        }).boundingBox();
+        const save = await page.getByRole("button", {
+          name: "Save and turn on",
+        }).boundingBox();
+        expect(send !== null && test !== null && save !== null).toBe(true);
+        expect(test!.y).toBeGreaterThan(send!.y);
+        expect(test!.y).toBeLessThan(save!.y);
+      }
       await expect(
-        page.getByText("Fill in the required settings to send a test."),
+        page.getByText("Fill in the connection fields to send a test."),
       ).toBeVisible();
       await page.getByLabel("Name", { exact: true }).fill("Grafana");
       await page.getByLabel("Address", { exact: true }).fill(
@@ -189,7 +205,6 @@ for (
         .click();
       await page.getByRole("button", { name: "Send a test" }).click();
       await expect(page.getByText("Test failed.")).toBeVisible();
-      await expect(page.getByText("Answer from the destination")).toBeVisible();
       await expect(page.getByText("invalid token")).toBeVisible();
       await expect(page.getByText(/It took 120 ms\./)).toBeVisible();
       await page.mouse.move(700, 700);

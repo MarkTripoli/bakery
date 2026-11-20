@@ -5368,6 +5368,6 @@
   "installation.monitoring.empty.title": "⟦Ñô ðëšŧïñàŧïôñš ÿëŧ ŧëšŧ⟧",
   "installation.monitoring.form.addTitle": "⟦Àðð {kind} ðëšŧïñàŧïôñ ŧëšŧŧ⟧",
   "installation.monitoring.form.removeSecret": "⟦Ŕëɱôṽë ṽàļûë ŧë⟧",
-  "installation.monitoring.test.answer": "⟦Àñšŵëŕ ƒŕôɱ ŧĥë ðëšŧïñàŧïôñ ŧëšŧ çô⟧",
-  "installation.monitoring.test.needsValues": "⟦Ƒïļļ ïñ ŧĥë ŕëǫûïŕëð šëŧŧïñĝš ŧô šëñð à ŧëšŧ. ŧëšŧ çôþÿ ŧëš⟧"
+  "installation.monitoring.test.needsValues": "⟦Ƒïļļ ïñ ŧĥë çôññëçŧïôñ ƒïëļðš ŧô šëñð à ŧëšŧ. ŧëšŧ çôþÿ ŧëš⟧",
+  "installation.monitoring.form.removeSecretNamed": "⟦Ŕëɱôṽë ŧĥë šàṽëð {field} ŧëšŧ ç⟧"
 }

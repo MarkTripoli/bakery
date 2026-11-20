@@ -5,6 +5,7 @@ import type {
   TelemetryDestination,
   TelemetryDestinationTestResult,
 } from "../api/client.ts";
+import { useShellViewport } from "../app/responsive.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import {
   NOTICE_KEYS,
@@ -68,6 +69,7 @@ export function MonitoringDestinationScreen(
   props: MonitoringDestinationScreenProps,
 ) {
   const { translate, locale, timeZone } = useI18n();
+  const viewport = useShellViewport();
   const { state, kind, editing, draft, issues } = props;
   const when = (iso: string) =>
     formatDate(new Date(iso), locale, {
@@ -117,6 +119,9 @@ export function MonitoringDestinationScreen(
   const problem = formProblem(editing, kind, draft);
   const again = reenterNeeded(editing, kind, draft);
   // A new destination has nothing to test until its required settings are in.
+  // Below the two-column width a new destination is filled, tested, then
+  // saved: its Test card sits above the save row, not before an empty form.
+  const testBelowForm = editing === null && viewport !== "desktop";
   const missingValues = editing === null &&
     kind.fields.some((field) =>
       field.required && (draft.values[field.name] ?? "").trim() === ""
@@ -175,6 +180,10 @@ export function MonitoringDestinationScreen(
                     values: { ...draft.values, [field.name]: "" },
                     touchedSecrets: [...draft.touchedSecrets, field.name],
                   })}
+                aria-label={translate(
+                  "installation.monitoring.form.removeSecretNamed",
+                  { field: field.label },
+                )}
                 type="button"
                 variant="secondary"
               >
@@ -229,6 +238,41 @@ export function MonitoringDestinationScreen(
         ? [...draft.measurements, id]
         : draft.measurements.filter((item) => item !== id),
     });
+
+  const testSection = (
+    <UI.SettingsSection
+      title={translate("installation.monitoring.test.heading")}
+      variant="stack"
+    >
+      <UI.Text variant="muted">
+        {translate("installation.monitoring.test.line")}
+      </UI.Text>
+      <UI.Inline gap="standard">
+        <UI.Button
+          disabled={props.test?.state === "sending" ||
+            missingValues ||
+            (again && problem === "reenter")}
+          onClick={props.onTest}
+          type="button"
+          variant="secondary"
+        >
+          {translate(
+            props.test?.state === "sending"
+              ? "installation.monitoring.test.sending"
+              : "installation.monitoring.test.button",
+          )}
+        </UI.Button>
+      </UI.Inline>
+      {missingValues
+        ? (
+          <UI.Text variant="muted">
+            {translate("installation.monitoring.test.needsValues")}
+          </UI.Text>
+        )
+        : null}
+      <TestResult test={props.test} />
+    </UI.SettingsSection>
+  );
 
   return (
     <UI.SettingsContent data-page="installation-monitoring-destination">
@@ -352,6 +396,7 @@ export function MonitoringDestinationScreen(
               )
               : null}
           </UI.SettingsSection>
+          {testBelowForm ? testSection : null}
           <UI.Inline data-form-actions gap="standard" variant="end">
             <UI.Button
               onClick={props.onCancel}
@@ -393,70 +438,41 @@ export function MonitoringDestinationScreen(
             </UI.SettingsSection>
           )}
         </UI.Stack>
-        <UI.Stack gap="spacious">
-          {editing === null ? null : (
-            <UI.SettingsSection
-              title={translate("installation.monitoring.status.heading")}
-              variant="stack"
-            >
-              <UI.DescriptionList>
-                <UI.DescriptionItem
-                  description={editing.lastAcceptedAt === null
-                    ? translate("installation.monitoring.status.never")
-                    : when(editing.lastAcceptedAt)}
-                  title={translate("installation.monitoring.column.lastSent")}
-                />
-                <UI.DescriptionItem
-                  description={editing.lastAnswerReason ??
-                    translate("installation.monitoring.status.noAnswer")}
-                  title={translate("installation.monitoring.status.answer")}
-                />
-                <UI.DescriptionItem
-                  description={editing.dropped > 0 &&
-                      editing.droppedSince !== null
-                    ? translate("installation.monitoring.status.dropped", {
-                      count: editing.dropped,
-                      since: when(editing.droppedSince),
-                    })
-                    : "0"}
-                  title={translate("installation.monitoring.column.dropped")}
-                />
-              </UI.DescriptionList>
-            </UI.SettingsSection>
-          )}
-          <UI.SettingsSection
-            title={translate("installation.monitoring.test.heading")}
-            variant="stack"
-          >
-            <UI.Text variant="muted">
-              {translate("installation.monitoring.test.line")}
-            </UI.Text>
-            <UI.Inline gap="standard">
-              <UI.Button
-                disabled={props.test?.state === "sending" ||
-                  missingValues ||
-                  (again && problem === "reenter")}
-                onClick={props.onTest}
-                type="button"
-                variant="secondary"
+        {editing === null && testBelowForm ? null : (
+          <UI.Stack gap="spacious">
+            {editing === null ? null : (
+              <UI.SettingsSection
+                title={translate("installation.monitoring.status.heading")}
+                variant="stack"
               >
-                {translate(
-                  props.test?.state === "sending"
-                    ? "installation.monitoring.test.sending"
-                    : "installation.monitoring.test.button",
-                )}
-              </UI.Button>
-            </UI.Inline>
-            {missingValues
-              ? (
-                <UI.Text variant="muted">
-                  {translate("installation.monitoring.test.needsValues")}
-                </UI.Text>
-              )
-              : null}
-            <TestResult test={props.test} />
-          </UI.SettingsSection>
-        </UI.Stack>
+                <UI.DescriptionList>
+                  <UI.DescriptionItem
+                    description={editing.lastAcceptedAt === null
+                      ? translate("installation.monitoring.status.never")
+                      : when(editing.lastAcceptedAt)}
+                    title={translate("installation.monitoring.column.lastSent")}
+                  />
+                  <UI.DescriptionItem
+                    description={editing.lastAnswerReason ??
+                      translate("installation.monitoring.status.noAnswer")}
+                    title={translate("installation.monitoring.status.answer")}
+                  />
+                  <UI.DescriptionItem
+                    description={editing.dropped > 0 &&
+                        editing.droppedSince !== null
+                      ? translate("installation.monitoring.status.dropped", {
+                        count: editing.dropped,
+                        since: when(editing.droppedSince),
+                      })
+                      : "0"}
+                    title={translate("installation.monitoring.column.dropped")}
+                  />
+                </UI.DescriptionList>
+              </UI.SettingsSection>
+            )}
+            {testBelowForm ? null : testSection}
+          </UI.Stack>
+        )}
       </UI.Inline>
       <UI.AlertDialog
         cancelAction={
@@ -515,29 +531,19 @@ function TestResult({ test }: { readonly test: MonitoringTest }) {
           </UI.InlineNotice>
         )
         : (
-          <UI.Stack gap="compact">
-            <UI.InlineNotice tone="error">
-              <strong>
-                {translate("installation.monitoring.test.failed")}
-              </strong>{" "}
-              {result.reason ?? ""}
-              {` ${
-                translate("installation.monitoring.test.took", {
-                  ms: result.tookMs,
-                })
-              }`}
-            </UI.InlineNotice>
+          <UI.InlineNotice tone="error">
+            <strong>{translate("installation.monitoring.test.failed")}</strong>
+            {" "}
+            {result.reason ?? ""}
+            {` ${
+              translate("installation.monitoring.test.took", {
+                ms: result.tookMs,
+              })
+            }`}
             {result.answer !== null
-              ? (
-                <UI.Stack gap="none">
-                  <UI.Text variant="muted">
-                    {translate("installation.monitoring.test.answer")}
-                  </UI.Text>
-                  <UI.DataText>{result.answer}</UI.DataText>
-                </UI.Stack>
-              )
+              ? <UI.DataText>{result.answer}</UI.DataText>
               : null}
-          </UI.Stack>
+          </UI.InlineNotice>
         )}
     </div>
   );

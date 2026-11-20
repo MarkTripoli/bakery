@@ -5368,6 +5368,6 @@
   "installation.monitoring.empty.title": "⟪No destinations yet⟫",
   "installation.monitoring.form.addTitle": "⟪Add {kind} destination⟫",
   "installation.monitoring.form.removeSecret": "⟪Remove value⟫",
-  "installation.monitoring.test.answer": "⟪Answer from the destination⟫",
-  "installation.monitoring.test.needsValues": "⟪Fill in the required settings to send a test.⟫"
+  "installation.monitoring.test.needsValues": "⟪Fill in the connection fields to send a test.⟫",
+  "installation.monitoring.form.removeSecretNamed": "⟪Remove the saved {field}⟫"
 }
