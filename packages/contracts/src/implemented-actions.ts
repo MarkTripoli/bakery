@@ -477,6 +477,7 @@ export const WorkflowImplementedAction = Object.freeze(
     WorkflowsCopy: "workflows.copy",
     WorkflowVersionsList: "workflowVersions.list",
     WorkflowVersionsGet: "workflowVersions.get",
+    WorkflowVersionsSkills: "workflowVersions.skills",
     WorkflowVersionsCreate: "workflowVersions.create",
     WorkflowVersionsUpdate: "workflowVersions.update",
     WorkflowVersionsPublish: "workflowVersions.publish",
@@ -681,6 +682,8 @@ export const CatalogImplementedAction = Object.freeze(
     SkillsCreate: "skills.create",
     SkillsUpdate: "skills.update",
     SkillVersionsCreate: "skillVersions.create",
+    SkillUseGrantsList: "skills.useGrants.list",
+    SkillUseGrantsDelete: "skills.useGrants.delete",
     LibrarySearch: "library.search",
   } as const satisfies Record<string, CatalogActionName>,
 );

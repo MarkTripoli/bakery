@@ -33,12 +33,16 @@ import type {
   EnrollmentStatus,
   ExternalTicketListResponse,
   ExternalTicketResponse,
+  FileSearchInput,
+  FileSearchPage,
   InstallationCapabilities,
   InstallationSettings,
   InstallationStatus,
   IntegrationAppRegistration,
   IntegrationConnection,
   IntegrationResource,
+  MemoryEntryResponse,
+  MemoryRevisionResponse,
   MergeAttemptListResponse,
   MessageListResponse,
   NotificationCountResponse,
@@ -75,6 +79,11 @@ import type {
   SavedDataPage,
   ScimConnection,
   SkillStorageSettings,
+  StorageFileAtVersion,
+  StorageFileUsePage,
+  StorageFileVersionPage,
+  StorageFolderItem,
+  StorageFolderPage,
   SyncQuery,
   SyncResponse,
   TaskCursorQuery,
@@ -2168,6 +2177,7 @@ export function workflowPresetsQueryOptions(
 
 /** Pages read, 100 at a time, before the Library says a list was cut short. */
 const LIBRARY_COLLECTION_PAGES = 5;
+const ALL_PAGES_GUARD = 200;
 
 /** Every workflow definition of the organization (a few pages at most), and whether the list was cut short. */
 export function libraryWorkflowsQueryOptions(
@@ -2196,6 +2206,155 @@ export function libraryWorkflowsQueryOptions(
         cursor = read.nextCursor;
       }
       return { items, truncated: true };
+    },
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/** Every remembered fact of the organization (a few pages at most), each with its current revision, and whether the list was cut short. */
+export function libraryMemoriesQueryOptions(
+  client: Pick<BakeryApiClient, "listMemories">,
+  scope: ApiScope,
+) {
+  return queryOptions<
+    { items: MemoryEntryResponse[]; truncated: boolean },
+    ApiFailure
+  >({
+    queryKey: protectedQueryKey(scope, "library.memories", {}),
+    queryFn: async ({ signal }) => {
+      const items: MemoryEntryResponse[] = [];
+      let cursor: string | undefined;
+      for (let page = 0; page < LIBRARY_COLLECTION_PAGES; page += 1) {
+        const read = unwrap(
+          await client.listMemories({
+            organizationId: requireOrganization(scope),
+            cursor,
+            limit: 100,
+            signal,
+          }),
+        );
+        items.push(...read.items);
+        if (read.nextCursor === null) return { items, truncated: false };
+        cursor = read.nextCursor;
+      }
+      return { items, truncated: true };
+    },
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/** Every repository of the organization, page after page: the names the Memory rows show. */
+export function libraryRepositoriesQueryOptions(
+  client: Pick<BakeryApiClient, "listRepositories">,
+  scope: ApiScope,
+) {
+  return queryOptions<RepositoryListResponse["items"], ApiFailure>({
+    queryKey: protectedQueryKey(scope, "library.repositories", {}),
+    queryFn: async ({ signal }) => {
+      const items: RepositoryListResponse["items"] = [];
+      let cursor: string | undefined;
+      // A guard against a cursor that never ends, not a limit anyone reaches.
+      for (let page = 0; page < ALL_PAGES_GUARD; page += 1) {
+        const read = unwrap(
+          await client.listRepositories({
+            organizationId: requireOrganization(scope),
+            cursor,
+            limit: 100,
+            signal,
+          }),
+        );
+        items.push(...read.items);
+        if (read.nextCursor === null) return items;
+        cursor = read.nextCursor;
+      }
+      return items;
+    },
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/** Every document of one repository a correction can cite, page after page. */
+export function memorySourcesQueryOptions(
+  client: Pick<BakeryApiClient, "listArtifacts">,
+  scope: ApiScope,
+  repositoryId: string,
+) {
+  return queryOptions<ArtifactListResponse["items"], ApiFailure>({
+    queryKey: protectedQueryKey(scope, "memory.sources", { repositoryId }),
+    queryFn: async ({ signal }) => {
+      const items: ArtifactListResponse["items"] = [];
+      let cursor: string | undefined;
+      for (let page = 0; page < ALL_PAGES_GUARD; page += 1) {
+        const read = unwrap(
+          await client.listArtifacts({
+            organizationId: requireOrganization(scope),
+            repositoryId,
+            cursor,
+            limit: 100,
+            signal,
+          }),
+        );
+        items.push(...read.items);
+        if (read.nextCursor === null) return items;
+        cursor = read.nextCursor;
+      }
+      return items;
+    },
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/** One remembered fact by id: for a link to a fact the loaded list does not hold. */
+export function memoryQueryOptions(
+  client: Pick<BakeryApiClient, "getMemory">,
+  scope: ApiScope,
+  id: string,
+) {
+  return queryOptions<MemoryEntryResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "memory.one", { id }),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.getMemory({
+          organizationId: requireOrganization(scope),
+          id,
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId) && id !== "",
+    retry: retryNetworkOnce,
+  });
+}
+
+/** Every wording one remembered fact has had (a few pages at most): the history shown under it. */
+export function memoryRevisionsQueryOptions(
+  client: Pick<BakeryApiClient, "listMemoryRevisions">,
+  scope: ApiScope,
+  id: string,
+) {
+  return queryOptions<MemoryRevisionResponse[], ApiFailure>({
+    queryKey: protectedQueryKey(scope, "memory.revisions", { id }),
+    queryFn: async ({ signal }) => {
+      const items: MemoryRevisionResponse[] = [];
+      let cursor: string | undefined;
+      for (let page = 0; page < LIBRARY_COLLECTION_PAGES; page += 1) {
+        const read = unwrap(
+          await client.listMemoryRevisions({
+            organizationId: requireOrganization(scope),
+            id,
+            cursor,
+            limit: 100,
+            signal,
+          }),
+        );
+        items.push(...read.items);
+        if (read.nextCursor === null) return items;
+        cursor = read.nextCursor;
+      }
+      return items;
     },
     enabled: Boolean(scope.organizationId),
     retry: retryNetworkOnce,
@@ -2924,5 +3083,221 @@ export function ticketSourcesAllQueryOptions(
     },
     enabled: enabled && Boolean(scope.organizationId),
     retry: retryNetworkOnce,
+  });
+}
+
+/** The caller's top-level folders in the files browser, on one page. */
+export function storageRootsQueryOptions(
+  client: Pick<BakeryApiClient, "files">,
+  scope: ApiScope,
+) {
+  return queryOptions<StorageFolderPage, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "storageRoots.list", {}),
+    queryFn: async ({ signal }) =>
+      unwrap(await client.files.roots(requireOrganization(scope), signal)),
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/** One folder's entries, folders first and then files by name; more on demand. */
+export function storageFolderEntriesQueryOptions(
+  client: Pick<BakeryApiClient, "files">,
+  scope: ApiScope,
+  folderId: string,
+) {
+  return infiniteQueryOptions<
+    StorageFolderPage,
+    ApiFailure,
+    { pages: StorageFolderPage[]; pageParams: (string | null)[] },
+    ReturnType<typeof protectedQueryKey>,
+    string | null
+  >({
+    queryKey: protectedQueryKey(scope, "storageFolderEntries.list", {
+      folderId,
+    }),
+    initialPageParam: null,
+    getNextPageParam: (last) => last.nextCursor,
+    queryFn: async ({ signal, pageParam }) =>
+      unwrap(
+        await client.files.entries(
+          requireOrganization(scope),
+          folderId,
+          pageParam ?? undefined,
+          signal,
+        ),
+      ),
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/** Every version of one file, newest first; more on demand. */
+export function storageFileVersionsQueryOptions(
+  client: Pick<BakeryApiClient, "files">,
+  scope: ApiScope,
+  fileId: string,
+) {
+  return infiniteQueryOptions<
+    StorageFileVersionPage,
+    ApiFailure,
+    { pages: StorageFileVersionPage[]; pageParams: (string | null)[] },
+    ReturnType<typeof protectedQueryKey>,
+    string | null
+  >({
+    queryKey: protectedQueryKey(scope, "storageFileVersions.list", { fileId }),
+    initialPageParam: null,
+    getNextPageParam: (last) => last.nextCursor,
+    queryFn: async ({ signal, pageParam }) =>
+      unwrap(
+        await client.files.versions(
+          requireOrganization(scope),
+          fileId,
+          pageParam ?? undefined,
+          signal,
+        ),
+      ),
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/** The runs and steps that read one file, newest first; more on demand. */
+export function storageFileUsesQueryOptions(
+  client: Pick<BakeryApiClient, "files">,
+  scope: ApiScope,
+  fileId: string,
+) {
+  return infiniteQueryOptions<
+    StorageFileUsePage,
+    ApiFailure,
+    { pages: StorageFileUsePage[]; pageParams: (string | null)[] },
+    ReturnType<typeof protectedQueryKey>,
+    string | null
+  >({
+    queryKey: protectedQueryKey(scope, "storageFileUses.list", { fileId }),
+    initialPageParam: null,
+    getNextPageParam: (last) => last.nextCursor,
+    queryFn: async ({ signal, pageParam }) =>
+      unwrap(
+        await client.files.uses(
+          requireOrganization(scope),
+          fileId,
+          pageParam ?? undefined,
+          signal,
+        ),
+      ),
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/**
+ * The folders from the top of the tree down to the one at `path` (`/projects/web`),
+ * or null when there is none. Folders are read by id, so the path is walked one
+ * level at a time, matching each entry's own path.
+ */
+export function storageFolderChainQueryOptions(
+  client: Pick<BakeryApiClient, "files">,
+  scope: ApiScope,
+  path: string,
+) {
+  return queryOptions<StorageFolderItem[] | null, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "storageFolderChain", { path }),
+    queryFn: async ({ signal }) => {
+      const organizationId = requireOrganization(scope);
+      const roots = unwrap(await client.files.roots(organizationId, signal));
+      let current = roots.items.find((item) =>
+        item.kind === "folder" &&
+        (item.path === path || path.startsWith(`${item.path}/`))
+      );
+      if (current === undefined) return null;
+      const chain: StorageFolderItem[] = [current];
+      while (current.path !== path) {
+        const parent: StorageFolderItem = current;
+        let cursor: string | undefined;
+        let next: StorageFolderItem | undefined;
+        // Page all the way through the level: a real folder is never reported
+        // as missing because it sorts late in a long list.
+        while (next === undefined) {
+          const entries = unwrap(
+            await client.files.entries(
+              organizationId,
+              parent.id,
+              cursor,
+              signal,
+            ),
+          );
+          next = entries.items.find((item) =>
+            item.kind === "folder" &&
+            (item.path === path || path.startsWith(`${item.path}/`))
+          );
+          if (entries.nextCursor === null) break;
+          cursor = entries.nextCursor;
+        }
+        if (next === undefined) return null;
+        chain.push(next);
+        current = next;
+      }
+      return chain;
+    },
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/** The hits for a files search, newest first; more on demand. */
+export function fileSearchQueryOptions(
+  client: Pick<BakeryApiClient, "files">,
+  scope: ApiScope,
+  input: Omit<FileSearchInput, "cursor">,
+) {
+  return infiniteQueryOptions<
+    FileSearchPage,
+    ApiFailure,
+    { pages: FileSearchPage[]; pageParams: (string | null)[] },
+    ReturnType<typeof protectedQueryKey>,
+    string | null
+  >({
+    queryKey: protectedQueryKey(scope, "files.search", {
+      query: input.query ?? null,
+      path: input.path ?? null,
+      kind: input.kind ?? null,
+      mediaGroup: input.mediaGroup ?? null,
+    }),
+    initialPageParam: null,
+    getNextPageParam: (last) => last.nextCursor,
+    queryFn: async ({ signal, pageParam }) =>
+      unwrap(
+        await client.files.search(
+          requireOrganization(scope),
+          pageParam === null ? input : { ...input, cursor: pageParam },
+          signal,
+        ),
+      ),
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/** The file one saved version belongs to: what a link to a version opens. */
+export function storageFileAtVersionQueryOptions(
+  client: Pick<BakeryApiClient, "files">,
+  scope: ApiScope,
+  versionId: string,
+) {
+  return queryOptions<StorageFileAtVersion, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "storageFiles.byVersion", { versionId }),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.files.atVersion(
+          requireOrganization(scope),
+          versionId,
+          signal,
+        ),
+      ),
+    enabled: Boolean(scope.organizationId),
+    retry: false,
+    staleTime: Infinity,
   });
 }

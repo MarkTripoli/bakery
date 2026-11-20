@@ -16,6 +16,8 @@ import {
   encodeCursor,
 } from "../../platform/cursor.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
+import { mayActOnQuestion } from "../auth/application/run-grants.ts";
+import { completeRequestsOnQuestion } from "../work/run-requests.ts";
 import type { CoordinatorEffect } from "./coordinator.ts";
 import {
   hasQueuedTurnCapacity,
@@ -365,10 +367,16 @@ export async function getQuestion(context: ActionContext) {
   const row = await loadQuestion(transaction, organizationId, id);
   // Approvals are read through approvals.get; they are not plain questions.
   if (row.kind !== "question") notFound();
-  // A question private to named principals is invisible to everyone else.
+  // A question private to named principals is invisible to everyone else,
+  // unless they were given the right to answer exactly this one (#456).
   if (
-    row.audience.type === "principals" &&
-    !row.audience.principalIds.includes(principalId)
+    !await mayActOnQuestion(
+      transaction,
+      organizationId,
+      principalId,
+      row,
+      "answer",
+    )
   ) notFound();
   return toQuestion(row);
 }
@@ -437,8 +445,13 @@ export async function answerQuestion(
   // refusal below: a non-audience caller cannot confirm the item exists,
   // whatever its kind or conversation state.
   if (
-    peek.audience.type === "principals" &&
-    !peek.audience.principalIds.includes(principalId)
+    !await mayActOnQuestion(
+      transaction,
+      organizationId,
+      principalId,
+      peek,
+      "answer",
+    )
   ) notFound();
   // Archived conversation, application or repository refuse answers like
   // messages.create; this also takes the conversation lock first, then the
@@ -472,6 +485,14 @@ export async function answerQuestion(
   );
   const answered = updated.rows[0];
   if (!answered) conflict("question_unavailable");
+  // The request that asked for this answer is done, and so is its power.
+  await completeRequestsOnQuestion(
+    transaction,
+    organizationId,
+    principalId,
+    answered.id,
+    "answered",
+  );
 
   const scope = await scopeOf(
     transaction,
