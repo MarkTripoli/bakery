@@ -40,18 +40,31 @@ size and SHA-256), excluded (with the reason) or failed.
 | `files` | `/var/lib/bakery/skills` and `/var/lib/bakery/worker` | `files.tar.gz.age` |
 | `release-journal` | `/var/lib/bakery/deploy/state.json` | `release.json` |
 | `object-references` | every skill file and blob the database refers to, by object key and SHA-256, so a restore can read each one back. The **bytes of an R2 or other object store are not copied**; filesystem skill bytes are in `files`. | `references.json.age` |
-| `secrets-key-identity` | the **id** of the key that protects saved secrets (`BAKERY_SECRETS_KEY_ID`). The key itself is **never** in a backup. | `manifest.json` only |
+| `secrets-key-identity` | the **id** of the key that protects saved secrets (`BAKERY_SECRETS_KEY_ID`) and a **fingerprint** of the key file. The key itself is **never** in a backup. | `manifest.json` only |
 
 Left out on purpose, and listed in the manifest with the reason: `incoming`
 (transient upload staging), `host-configuration` (`/etc/bakery`: env files, the
 secrets key and the age identity are operator-managed and secret) and
 `postgres-roles` (recreated when a restore starts a database).
 
-**The secrets key is yours to keep.** The manifest records only its id. Without
-the key file (`BAKERY_SECRETS_KEY_FILE`, `/etc/bakery/secrets.key`) saved
-somewhere separate, saved secrets cannot be read after a restore. A host with no
-secrets key configured records that as an explicit exclusion; a key id without
-its file (or the reverse) makes the backup incomplete.
+**The secrets key is yours to keep.** The manifest records only the key's id and
+a fingerprint. The key file (`BAKERY_SECRETS_KEY_FILE`, `/etc/bakery/secrets.key`)
+is read **once, only to compute the fingerprint**, and is never copied, printed
+or stored; save it somewhere separate, because without it saved secrets cannot
+be read after a restore. The fingerprint is the first 16 hex characters of
+`SHA-256("bakery-backup-key-fingerprint-v1\n" + the key file's bytes)`
+(`sha256-16hex-v1`): domain-separated, and too short to help anyone recover the
+key, but enough for a restore to check it has the right one:
+
+```sh
+deno run --no-prompt --allow-read=<set>,<key file> \
+  /opt/bakery/background/scripts/deploy/backup-manifest.ts verify <set> --key-file <key file>
+```
+
+It exits 70 with `key_mismatch` when the key file is not the one the backup was
+taken with. A host with no secrets key configured records that as an explicit
+exclusion; a key id without its file (or the reverse) makes the backup
+incomplete.
 
 The references list is read at the same moment as the database dump but not in
 the same transaction, so a write in between can leave it a little newer than the
@@ -175,7 +188,7 @@ A failed backup keeps a stable code and the runner's plain-text detail:
 | `key_missing`             | `BAKERY_BACKUP_RECIPIENT` is not set in `/etc/bakery/backup.env`, or `age` is not installed or rejects the recipient.                         |
 | `destination_refused`     | only ever the cause of a `not_copied` backup (below): the off-site destination said no. |
 | `destination_unreachable` | only ever the cause of a `not_copied` backup (below): no answer, or an unverifiable copy.                                                       |
-| `incomplete_set`          | the finished set was missing a state store, or did not match its manifest, so it is **not a recoverable backup** and was not kept as `latest`. The detail names the store (for example `redis: store_not_captured`). Fix that store (is the Redis container up and its password right? is the secrets key file in place?) and take another backup. |
+| `incomplete_set`          | the finished set was missing a state store, or did not match its manifest, so it is **not a recoverable backup** and was not kept as `latest`. The detail names the store (for example `redis: store_not_captured`) or the cause `manifest_builder_missing` (below). Fix that and take another backup. |
 | `runner_error`            | anything else: `journalctl -u bakery-backup-runner` has the script's last lines.                                                               |
 
 ### Taken, but not copied off-site (`not_copied`)
@@ -232,6 +245,32 @@ Exit codes: `0` nothing to do or backed up, `1` the backup failed, or it was
 taken but not copied off-site (reported either way),
 `2` the lease was lost, `3` the API could not be reached or refused the runner,
 `64` the environment file is missing or invalid.
+
+## When the manifest cannot be built (`manifest_builder_missing`)
+
+`backup.sh` never stops taking backups. The manifest is built by Deno from the
+release checkout (`/opt/bakery/background/scripts/deploy/backup-manifest.ts`); if
+Deno or that checkout is missing, the dumps are still taken and encrypted exactly
+as always, so the bytes exist. The set is then **kept** (under its normal
+`<UTC time>-<uuid>` name, not deleted) with an `INCOMPLETE.json` marker that says
+`complete: false`, the cause `manifest_builder_missing` and which stores also
+failed (no secret is in it), and the script exits 70 with
+`BACKUP_INCOMPLETE manifest_builder_missing`. The runner reports the run as
+`failed` with `incomplete_set` and that cause. Such a set is **never a usable
+backup**:
+
+- it is never `latest`;
+- `restore-check.sh` and the verifier refuse it with the cause, and
+  `--allow-legacy` does not excuse it;
+- retention treats it as incomplete: it is never "the newest set", so it cannot
+  shield an older complete set from pruning, and it is pruned by age like any
+  other;
+- it is not copied off-site.
+
+**Fix:** install or enable a release so `/opt/bakery/background` exists (and
+Deno is on the host's `PATH`), then take another backup. The older
+`bakery-backup.timer` needs the same: on a host that has never had a release,
+its backups are kept as incomplete sets until the first release is installed.
 
 ## Retention
 
