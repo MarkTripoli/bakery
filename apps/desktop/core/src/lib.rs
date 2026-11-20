@@ -3,4 +3,5 @@ pub mod copy;
 pub mod pkce;
 pub mod platform;
 pub mod session;
+pub mod view;
 pub mod wire;

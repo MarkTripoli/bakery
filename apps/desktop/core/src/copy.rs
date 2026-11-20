@@ -39,7 +39,7 @@ pub enum Detail {
     },
     Waiting {
         status: String,
-        until: Option<String>,
+        until: Option<Until>,
     },
     Address {
         address: String,
@@ -48,6 +48,14 @@ pub enum Detail {
     Warning {
         text: String,
     },
+}
+
+/// The deadline line. The sentence has a `{time}` slot and `at` is the deadline itself: the page
+/// fills the slot with the time on this person's own clock, which only the page knows reliably.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Until {
+    pub text: String,
+    pub at: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -74,7 +82,7 @@ impl Panel {
 /// What the words may depend on, all of it given by the app.
 pub struct Context<'a> {
     pub server: &'a str,
-    /// "You have until {time} to confirm.", already formatted for this person's clock.
+    /// When the sign-in attempt stops being valid (an RFC 3339 time), if the server gave one.
     pub until: Option<&'a str>,
     /// The address to confirm at, shown when the browser could not be opened.
     pub address: Option<&'a str>,
@@ -129,7 +137,10 @@ pub fn panel_for(window: &Window, ctx: &Context) -> Option<Panel> {
             Some("Bakery opened your browser. Confirm the sign-in there. This window continues by itself."),
             Detail::Waiting {
                 status: "Waiting for your browser".into(),
-                until: ctx.until.map(|t| format!("You have until {t} to confirm.")),
+                until: ctx.until.map(|at| Until {
+                    text: "You have until {time} to confirm.".into(),
+                    at: at.into(),
+                }),
             },
             // No primary: the next step is in the browser.
             vec![button(ButtonId::OpenBrowserAgain, "Open the browser again", false), button(ButtonId::Cancel, "Cancel", false)],
@@ -233,7 +244,7 @@ mod tests {
     fn ctx() -> Context<'static> {
         Context {
             server: SERVER,
-            until: Some("14:32"),
+            until: Some("2026-11-20T14:32:00Z"),
             address: Some(URL),
         }
     }
@@ -356,9 +367,10 @@ mod tests {
                 shown.push_str(&b.label);
             }
             match &p.detail {
-                Detail::Waiting { status, until } => {
-                    shown.push_str(&format!(" {status} {}", until.clone().unwrap_or_default()))
-                }
+                Detail::Waiting { status, until } => shown.push_str(&format!(
+                    " {status} {}",
+                    until.as_ref().map(|u| u.text.clone()).unwrap_or_default()
+                )),
                 Detail::Warning { text } => shown.push_str(&format!(" {text}")),
                 _ => {}
             }
@@ -394,7 +406,10 @@ mod tests {
             with.detail,
             Detail::Waiting {
                 status: "Waiting for your browser".into(),
-                until: Some("You have until 14:32 to confirm.".into())
+                until: Some(Until {
+                    text: "You have until {time} to confirm.".into(),
+                    at: "2026-11-20T14:32:00Z".into()
+                })
             }
         );
         let none = panel_for(
