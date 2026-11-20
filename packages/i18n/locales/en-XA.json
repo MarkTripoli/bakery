@@ -4658,5 +4658,7 @@
   "settings.plugins.versions.updateNamed": "⟦Ûþðàŧë ŧô {version} ŧëšŧ⟧",
   "settings.plugins.update.dismiss": "⟦Ðïšɱïšš…⟧",
   "settings.plugins.versions.goBackAllow": "⟦Ĝô ƀàçķ àñð àļļôŵ ŧëš⟧",
-  "settings.plugins.page.about": "⟦Àƀôûŧ ŧĥïš ṽëŕšïôñ ŧëšŧ⟧"
+  "settings.plugins.page.about": "⟦Àƀôûŧ ŧĥïš ṽëŕšïôñ ŧëšŧ⟧",
+  "problems.ARTIFACT_CONTENT_MISMATCH.title": "⟦Ŧĥïš ƒïļë ðôëš ñôŧ ɱàŧçĥ ïŧš ŕëçôŕð ŧëšŧ çôþÿŧ⟧",
+  "problems.ARTIFACT_CONTENT_MISMATCH.description": "⟦Ŵĥàŧ ïš šŧôŕëð ïš ñôŧ ŵĥàŧ ŵàš ŕëçôŕðëð, šô Ɓàķëŕÿ ŵïļļ ñôŧ šĥôŵ ôŕ ðôŵñļôàð ïŧ. Àšķ àñ ôŕĝàñïžàŧïôñ Àðɱïñ ŧô çĥëçķ ïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧"
 }

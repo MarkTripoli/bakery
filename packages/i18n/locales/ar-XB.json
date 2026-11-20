@@ -4658,5 +4658,7 @@
   "settings.plugins.versions.updateNamed": "⟪Update to {version}⟫",
   "settings.plugins.update.dismiss": "⟪Dismiss⟫",
   "settings.plugins.versions.goBackAllow": "⟪Go back and allow⟫",
-  "settings.plugins.page.about": "⟪About this version⟫"
+  "settings.plugins.page.about": "⟪About this version⟫",
+  "problems.ARTIFACT_CONTENT_MISMATCH.title": "⟪This file does not match its record⟫",
+  "problems.ARTIFACT_CONTENT_MISMATCH.description": "⟪What is stored is not what was recorded, so Bakery will not show or download it. Ask an organization Admin to check it.⟫"
 }

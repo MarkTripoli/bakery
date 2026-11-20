@@ -715,7 +715,9 @@ export function createFileContentReader(blobStore?: OrganizationBlobStore) {
       }
       let ranged: Uint8Array;
       if (row.blob_id === null) {
-        await assertStoredBytes(stored, row.content!);
+        await assertStoredBytes(stored, row.content!, {
+          mismatch: "content-mismatch",
+        });
         ranged = row.content!.subarray(resolved.start, resolved.end + 1);
       } else {
         ranged = await readBlobRange(
@@ -737,7 +739,9 @@ export function createFileContentReader(blobStore?: OrganizationBlobStore) {
     }
     let bytes: Uint8Array;
     if (row.blob_id === null) {
-      await assertStoredBytes(stored, row.content!);
+      await assertStoredBytes(stored, row.content!, {
+        mismatch: "content-mismatch",
+      });
       bytes = row.content!;
     } else {
       bytes = await readBlobBytes(blobStore, organizationId, stored);
