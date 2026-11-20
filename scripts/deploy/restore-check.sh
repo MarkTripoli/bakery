@@ -1,10 +1,28 @@
 #!/usr/bin/env bash
 set -euo pipefail
-[[ "$(id -u)" == 0 ]] || exit 77
+# BAKERY_BACKUP_SANDBOX is for tests only (it roots the paths and skips the root
+# check); the systemd units and operators never set it.
+if [[ -n "${BAKERY_BACKUP_SANDBOX:-}" ]]; then
+  root=$BAKERY_BACKUP_SANDBOX/opt/bakery
+  state=$BAKERY_BACKUP_SANDBOX/var/lib/bakery
+else
+  [[ "$(id -u)" == 0 ]] || exit 77
+  root=/opt/bakery
+  state=/var/lib/bakery
+fi
 snapshot=${1:?completed backup directory required}
 identity=${2:?operator age identity file required}
+legacy=${3:-}
 [[ -d "$snapshot" && -f "$identity" ]] || exit 64
+[[ -z "$legacy" || "$legacy" == --allow-legacy ]] || exit 64
 umask 077
+# The set must be complete before anything is restored: the manifest says every
+# declared state store is in it and every file matches what was recorded. A set
+# from before manifests has none, so it fails closed unless --allow-legacy says
+# the operator knows it is an old set (its old checks below still run).
+export DENO_DIR=${DENO_DIR:-$state/backup-runner/deno}
+deno run --no-prompt "--allow-read=$snapshot" \
+  "$root/background/scripts/deploy/backup-manifest.ts" verify "$snapshot" ${legacy:+"$legacy"}
 temporary=$(mktemp -d /var/tmp/bakery-restore-check-XXXXXXXX)
 container="bakery-restore-check-$(cat /proc/sys/kernel/random/uuid)"
 cleanup() {
