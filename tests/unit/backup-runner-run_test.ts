@@ -266,6 +266,35 @@ Deno.test("a failed backup step reports its failure code with a redacted detail 
   assertStringIncludes(last.failureDetail!, "No space left on device");
 });
 
+Deno.test("an incomplete backup set fails the run as incomplete_set, uploads nothing and is never completed", async () => {
+  const h = harness({
+    settings: withOffsite,
+    backup: () =>
+      Promise.reject(
+        new StepError(
+          "incomplete_set",
+          `The backup set is not complete: redis: store_not_captured (the capture failed) ${LEASE}`,
+        ),
+      ),
+  });
+  const outcome = await runOnce(h.deps);
+  assertEquals(outcome, {
+    kind: "failed",
+    runId: RUN,
+    code: "incomplete_set",
+  });
+  // A set missing a declared store is not copied off-site or kept as a backup.
+  assert(!h.events.includes("upload"));
+  assert(!h.events.includes("prune"));
+  assert(!h.reports.some((r) => r.body.status === "completed"));
+  const last = h.reports.at(-1)!.body;
+  assertEquals(last.status, "failed");
+  assertEquals(last.failureCode, "incomplete_set");
+  // The detail names the missing store and carries no secret.
+  assertStringIncludes(last.failureDetail!, "redis");
+  assert(!JSON.stringify(last).includes(LEASE));
+});
+
 Deno.test("a refused destination completes the run on the host as 'not copied off-site', after the backup was taken", async () => {
   const h = harness({
     settings: withOffsite,

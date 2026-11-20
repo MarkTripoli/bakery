@@ -4,6 +4,7 @@ import { StandardError } from "../../packages/contracts/src/http.ts";
 import {
   assertReportShape,
   BACKUP_STALE_AFTER_MS,
+  BackupFailureCode,
   BackupRunStatus,
   backupStateWord,
   decideReport,
@@ -521,4 +522,35 @@ Deno.test("the status schema accepts the not_copied word and still refuses unkno
     !contractSchemas.BackupStatus.safeParse({ ...status, state: "amber" })
       .success,
   );
+});
+
+Deno.test("incomplete_set is a failure cause: accepted on a failed report, refused on a completed one", () => {
+  // The set did not contain every declared store, so the run failed.
+  assertReportShape({
+    sequence: 2,
+    status: "failed",
+    failureCode: "incomplete_set",
+    failureDetail: "The backup set is not complete: redis: store_not_captured",
+  });
+  // A completed report may carry only the two off-site causes, never this one.
+  assertThrows(
+    () =>
+      assertReportShape({
+        sequence: 2,
+        status: "completed",
+        sizeBytes: "10",
+        locations: ["server-host"],
+        failureCode: "incomplete_set",
+      }),
+    StandardError,
+  );
+  // The wire schema knows the word on a report and on a run.
+  const report = contractSchemas.BackupRunReport.parse({
+    leaseToken: "a".repeat(43),
+    sequence: 2,
+    status: "failed",
+    failureCode: "incomplete_set",
+  });
+  assertEquals(report.failureCode, "incomplete_set");
+  assertEquals(BackupFailureCode.IncompleteSet, "incomplete_set");
 });
