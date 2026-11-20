@@ -18,6 +18,7 @@
 import type { PgTransactionClient } from "@bakery/persistence";
 import {
   assertActiveLease,
+  type AttemptLockMode,
   lockAttempt as lockPersistedAttempt,
 } from "./events.ts";
 import { assertAttemptMutationSession, type WorkerIdentity } from "./shared.ts";
@@ -29,6 +30,8 @@ export type ClaimedAttempt = Readonly<{
   attemptId: string;
   /** The job this attempt is running, read under the lock. */
   jobId: string;
+  /** The lock the claim took, so the re-assert takes the same one. */
+  lock: AttemptLockMode;
   /** Hash of the lease token, so a re-assert does not re-read the header. */
   tokenHash: string;
   /**
@@ -73,13 +76,21 @@ export async function claimAttempt(input: {
     workerSessionId?: string;
     workerSessionGeneration?: string;
   }>;
+  /**
+   * `no key update` for a caller that runs work on another connection while
+   * this transaction holds the lock (the session gateway); see
+   * AttemptLockMode. Defaults to `update`.
+   */
+  lock?: AttemptLockMode;
 }): Promise<ClaimedAttempt> {
+  const lock = input.lock ?? "update";
   const tokenHash = input.proof.tokenHash ??
     await sha256Hex(input.proof.leaseToken ?? "");
   const attempt = await lockPersistedAttempt(
     input.transaction,
     input.identity,
     input.attemptId,
+    lock,
   );
   assertAttemptMutationSession(
     input.identity.host,
@@ -93,6 +104,7 @@ export async function claimAttempt(input: {
     identity: input.identity,
     attemptId: input.attemptId,
     jobId: attempt.job_id,
+    lock,
     tokenHash,
     attempt,
     fence: input.proof.fence,
@@ -116,6 +128,7 @@ export async function reassertAttempt(claimed: ClaimedAttempt): Promise<void> {
     claimed.transaction,
     claimed.identity,
     claimed.attemptId,
+    claimed.lock,
   );
   assertAttemptMutationSession(
     claimed.identity.host,

@@ -64,6 +64,10 @@ export const FAULTS = {
   STORAGE_QUOTA_EXCEEDED: [409, false, "storage-quota-exceeded"],
   // The file is larger than the organization's maximum file size (#447).
   STORAGE_FILE_TOO_LARGE: [422, false, "storage-file-too-large"],
+  // An agent step wrote as much as its step write limits allow (O49, #448):
+  // `reason` is files or bytes and `limit` the value of the limit it hit. A
+  // person's own writes are never limited this way.
+  STEP_WRITE_LIMIT_EXCEEDED: [409, false, "step-write-limit-exceeded"],
   VERSION_CONFLICT: [409, false, "version-conflict"],
   EXPECTED_SEQUENCE: [409, true, "expected-sequence"],
   LEASE_EXPIRED: [409, true, "lease-expired"],
@@ -437,6 +441,51 @@ function resolveProblemMessage(
     return catalogs[locale][key] ?? englishCatalog[key] ?? fallback;
   }
 }
+/**
+ * A step write limit refusal names the limit it hit (#448): the bytes in the
+ * Files size format ("2 GB", 1,024 to the step) or the file count grouped
+ * ("2,000"). Undefined for any other fault, or when the reason or limit is
+ * missing, so the generic description is used.
+ */
+export function stepWriteLimitDetail(
+  locale: SupportedLocale,
+  translate: Translator,
+  code: string,
+  reason: string | undefined,
+  limit: number | undefined,
+): string | undefined {
+  if (code !== "STEP_WRITE_LIMIT_EXCEEDED" || limit === undefined) {
+    return undefined;
+  }
+  const number = (value: number, digits: number) =>
+    new Intl.NumberFormat(locale, { maximumFractionDigits: digits })
+      .format(value);
+  try {
+    if (reason === "files") {
+      return translate("problems.STEP_WRITE_LIMIT_EXCEEDED.files", {
+        count: number(limit, 0),
+      });
+    }
+    if (reason === "bytes") {
+      const [value, unit] = limit < 1024
+        ? [limit, "bytes"]
+        : limit < 1024 ** 2
+        ? [limit / 1024, "kilobytes"]
+        : limit < 1024 ** 3
+        ? [limit / 1024 ** 2, "megabytes"]
+        : [limit / 1024 ** 3, "gigabytes"];
+      const size = translate(`files.size.${unit}` as MessageKey, {
+        value: number(value, unit === "bytes" ? 0 : 1),
+      });
+      return translate("problems.STEP_WRITE_LIMIT_EXCEEDED.bytes", {
+        limit: size,
+      });
+    }
+  } catch {
+    return undefined;
+  }
+  return undefined;
+}
 let problemErrorReporter: ((error: unknown) => void) | undefined;
 
 export function installProblemErrorReporter(
@@ -503,7 +552,9 @@ export function toProblem(
       ? (params as Record<string, unknown>).issues
       : undefined,
   );
-  const limit = standard?.code === "BODY_TOO_LARGE" && rawParams &&
+  const limit = (standard?.code === "BODY_TOO_LARGE" ||
+      standard?.code === "STEP_WRITE_LIMIT_EXCEEDED") &&
+      rawParams &&
       typeof rawParams === "object" && typeof rawParams.limit === "number" &&
       Number.isSafeInteger(rawParams.limit) && rawParams.limit >= 0
     ? rawParams.limit
@@ -517,7 +568,8 @@ export function toProblem(
     : undefined;
   const reason = standard?.code === "STATE_CONFLICT" ||
       standard?.code === "STORAGE_AREA_REFUSED" ||
-      standard?.code === "STORAGE_QUOTA_EXCEEDED"
+      standard?.code === "STORAGE_QUOTA_EXCEEDED" ||
+      standard?.code === "STEP_WRITE_LIMIT_EXCEEDED"
     ? safeConflictReason(rawParams?.reason)
     : standard?.code === "DEPENDENCY_UNAVAILABLE"
     ? safeUnavailableReason(rawParams?.reason)
@@ -555,12 +607,13 @@ export function toProblem(
       slug,
     ),
     status: safeStatus,
-    detail: resolveProblemMessage(
-      locale,
-      translate,
-      problemKey(code, "description"),
-      slug,
-    ),
+    detail: stepWriteLimitDetail(locale, translate, code, reason, limit) ??
+      resolveProblemMessage(
+        locale,
+        translate,
+        problemKey(code, "description"),
+        slug,
+      ),
     instance: `urn:bakery:request:${options.requestId}`,
     code,
     requestId: options.requestId,

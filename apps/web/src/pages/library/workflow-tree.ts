@@ -112,6 +112,9 @@ function isCodeOnly(node: Record<string, unknown>, uses: string): boolean {
     }
   }
   if (node.limits !== undefined) return true;
+  // A step that says what it may read and write (#448) is changed in code: the
+  // panel cannot show it, so a visual edit must never drop the key.
+  if (node.sealed !== undefined || node.files !== undefined) return true;
   if (node.effectKey !== undefined) return true;
   if (Array.isArray(node.checks) && node.checks.length > 0) return true;
   return Array.isArray(node.needs) && node.needs.length > 0;
