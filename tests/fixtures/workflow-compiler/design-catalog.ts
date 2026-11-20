@@ -239,6 +239,13 @@ export const designSchemas: Readonly<Record<string, Schema>> = Object.freeze({
     measured: bool(),
   }),
   TaskBriefInput: obj({ taskId: uuid() }),
+  SecretIdentityReadInput: obj({ identityRef: uuid() }),
+  SecretIdentityOutput: obj({
+    status: enumOf("completed", "denied", "uncertain"),
+    accountId: str({ minLength: 1, maxLength: 16 }),
+    login: nonEmpty({ maxLength: 39 }),
+    code: nonEmpty({ maxLength: 64 }),
+  }, ["status"]),
   // #554 added these two actions to the registry without adding their IO here,
   // so the design catalog could not resolve them and this test went red on
   // main. Shapes mirror docs/technical-design/transport-schemas.json and the

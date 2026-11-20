@@ -241,3 +241,51 @@ export function mayInstall(scope: PluginScope, actor: PluginActor): boolean {
     ? actor.role === "admin"
     : actor.role === "admin" || actor.role === "developer";
 }
+
+/** The fingerprint as shown: its first 8 and last 4 characters, without the algorithm prefix. */
+export function shortFingerprint(digest: string): string {
+  const hex = digest.replace(/^[a-z0-9]+:/i, "");
+  return hex.length <= 16 ? hex : `${hex.slice(0, 8)}…${hex.slice(-4)}`;
+}
+
+/** A byte count in words: bytes under 1 KB, then KB and MB with one decimal. */
+export function formatBytes(bytes: number, locale: string): string {
+  const number = (value: number, digits: number) =>
+    new Intl.NumberFormat(locale, {
+      maximumFractionDigits: digits,
+      minimumFractionDigits: 0,
+    }).format(value);
+  if (bytes < 1024) return `${number(bytes, 0)} B`;
+  if (bytes < 1024 * 1024) return `${number(bytes / 1024, 1)} KB`;
+  return `${number(bytes / (1024 * 1024), 1)} MB`;
+}
+
+/** Longest value shown in full before "Show all". */
+export const EVIDENCE_VALUE_LIMIT = 200;
+
+export type EvidenceRow = Readonly<{ name: string; value: string }>;
+
+/** A value as compact text: strings as they are, lists joined, anything else as JSON. */
+function evidenceText(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (value === null || value === undefined) return "";
+  if (Array.isArray(value)) {
+    return value.map(evidenceText).filter((part) => part !== "").join(", ");
+  }
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
+}
+
+/**
+ * The publisher's own details as rows: each top-level entry, in the publisher's
+ * words. Nothing is judged; an entry that says a check passed is still only a
+ * claim, so no row is ever marked as proven.
+ */
+export function evidenceRows(evidence: unknown): EvidenceRow[] {
+  if (
+    evidence === null || typeof evidence !== "object" || Array.isArray(evidence)
+  ) return [];
+  return Object.entries(evidence as Record<string, unknown>).map((
+    [name, value],
+  ) => ({ name, value: evidenceText(value) }));
+}

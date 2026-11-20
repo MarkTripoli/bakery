@@ -722,6 +722,7 @@ export const CatalogImplementedAction = Object.freeze(
     SkillsCreate: "skills.create",
     SkillsCopy: "skills.copy",
     SkillsUpdate: "skills.update",
+    SkillsUsedBy: "skills.usedBy",
     SkillVersionsCreate: "skillVersions.create",
     SkillUseGrantsList: "skills.useGrants.list",
     SkillUseGrantsDelete: "skills.useGrants.delete",
@@ -758,11 +759,25 @@ export const PluginInstallImplementedAction = Object.freeze(
     PluginInstallsGet: "pluginInstalls.get",
     PluginInstallsUpdate: "pluginInstalls.update",
     PluginStateGet: "pluginState.get",
+    PluginStateItemsList: "pluginStateItems.list",
     PluginStatePut: "pluginState.put",
   } as const satisfies Record<string, CatalogActionName>,
 );
 export const pluginInstallImplementedActions = Object.freeze(
   Object.values(PluginInstallImplementedAction),
+);
+
+export const PreviewImplementedAction = Object.freeze(
+  {
+    PreviewsList: "previews.list",
+    PreviewsAccess: "previews.access",
+    PreviewsStop: "previews.stop",
+    PreviewsRevokeAccess: "previews.revokeAccess",
+    PreviewsAvailability: "previews.availability",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const previewImplementedActions = Object.freeze(
+  Object.values(PreviewImplementedAction),
 );
 
 export const MemoryImplementedAction = Object.freeze(
@@ -836,6 +851,7 @@ export const implementedActions = Object.freeze(
     ...blobUploadImplementedActions,
     ...storageImplementedActions,
     ...memoryImplementedActions,
+    ...previewImplementedActions,
   ] as const,
 );
 
@@ -878,6 +894,7 @@ export const WorkflowRuntimeImplementedAction = Object.freeze(
     Review: "review.independent",
     Freeform: "agent.freeform",
     TaskBrief: "task.brief",
+    SecretIdentityRead: "secret.identity.read",
   } as const satisfies Record<string, WorkflowActionName>,
 );
 

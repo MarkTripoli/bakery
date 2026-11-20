@@ -32,6 +32,8 @@ import {
   assertImplementedActionRegistry,
   BlobUploadImplementedAction,
   blobUploadImplementedActions,
+  PreviewImplementedAction,
+  previewImplementedActions,
   StorageImplementedAction,
   storageImplementedActions,
 } from "@bakery/contracts/implemented-actions";
@@ -97,10 +99,26 @@ import {
   previewAvailability,
   revokePreview,
 } from "./previews/actions.ts";
+import {
+  createRunningPreviewAccess,
+  listRunningPreviews,
+  revokeRunningPreviewAccess,
+  runningPreviewAvailability,
+  stopRunningPreview,
+} from "./previews/running.ts";
 
 export type ArtifactResourceRouteOptions = {
   database: PgDatabase;
   browserSession: MiddlewareHandler<{ Variables: AuthVariables }>;
+  /**
+   * The same session middleware, also accepting access tokens. Used only for
+   * GET reads of the storage tree and file search (the command line and
+   * agents read files with a token); every other method and path stays on
+   * `browserSession`, which refuses a token. A token acts through the
+   * authority runner, so its scope and organization are enforced as for any
+   * action; absent, reads take the browser session only.
+   */
+  tokenSession?: MiddlewareHandler<{ Variables: AuthVariables }>;
   publicBaseUrl: string;
   secret: string;
   /** Validated `BAKERY_ARTIFACT_PREVIEW_ORIGIN`; absent fails previews closed. */
@@ -279,7 +297,7 @@ export type ArtifactActions = {
 export function createArtifactActions(
   options: Omit<
     ArtifactResourceRouteOptions,
-    "browserSession" | "artifactActions"
+    "browserSession" | "tokenSession" | "artifactActions"
   >,
 ): ArtifactActions {
   const handlers = createArtifactReadHandlers(
@@ -572,6 +590,82 @@ export function createArtifactActions(
       policy: { ...readPolicy, type: ActionKind.Command, sessionOnly: true },
       handler: (context) => revokePreview(context),
     })
+    .register({
+      name: PreviewImplementedAction.PreviewsList,
+      method: HttpMethod.Get,
+      path: "/v1/previews",
+      input: contractSchemas.PreviewQuery,
+      output: contractSchemas["Page<Preview>"],
+      policy: readPolicy,
+      handler: async (context, input) =>
+        contractSchemas["Page<Preview>"].parse(
+          await listRunningPreviews(
+            context,
+            input as Parameters<typeof listRunningPreviews>[1],
+            {
+              previewOrigin: options.artifactPreviewOrigin,
+              secret: options.secret,
+            },
+          ),
+        ),
+    })
+    .register({
+      // A query-kind POST on purpose, like artifactPreviews.create: the
+      // response carries the one-use grant.
+      name: PreviewImplementedAction.PreviewsAccess,
+      method: HttpMethod.Post,
+      path: "/v1/previews/:id/access",
+      input: contractSchemas.PreviewAccess,
+      output: contractSchemas.PreviewAccessResult,
+      policy: { ...readPolicy, sessionOnly: true },
+      handler: async (context, input) =>
+        contractSchemas.PreviewAccessResult.parse(
+          await createRunningPreviewAccess(
+            context,
+            input as { sessionSeconds?: number },
+            {
+              previewOrigin: options.artifactPreviewOrigin,
+              secret: options.secret,
+            },
+          ),
+        ),
+    })
+    .register({
+      name: PreviewImplementedAction.PreviewsStop,
+      method: HttpMethod.Post,
+      path: "/v1/previews/:id/stop",
+      input: contractSchemas.IdPath,
+      output: contractSchemas.Preview,
+      explicitIdempotency: "key",
+      policy: { ...readPolicy, type: ActionKind.Command, sessionOnly: true },
+      handler: async (context) =>
+        contractSchemas.Preview.parse(await stopRunningPreview(context)),
+    })
+    .register({
+      name: PreviewImplementedAction.PreviewsRevokeAccess,
+      method: HttpMethod.Delete,
+      path: "/v1/preview-grants/:id",
+      input: contractSchemas.IdPath,
+      output: contractSchemas.NoContent,
+      explicitIdempotency: "key",
+      policy: { ...readPolicy, type: ActionKind.Command, sessionOnly: true },
+      handler: (context) => revokeRunningPreviewAccess(context),
+    })
+    .register({
+      name: PreviewImplementedAction.PreviewsAvailability,
+      method: HttpMethod.Get,
+      path: "/v1/preview-availability",
+      input: contractSchemas.Empty,
+      output: contractSchemas.PreviewAvailability,
+      policy: readPolicy,
+      handler: () =>
+        contractSchemas.PreviewAvailability.parse(
+          runningPreviewAvailability({
+            previewOrigin: options.artifactPreviewOrigin,
+            secret: options.secret,
+          }),
+        ),
+    })
     .register(artifactContentActionDefinition)
     // Blob uploads: the session names what it promises, parts are keyed by
     // ordinal, and completion verifies before recording. The client supplies
@@ -615,6 +709,7 @@ export function createArtifactActions(
   assertRegisteredActions(registry);
   assertImplementedActionRegistry(registry, [
     ...artifactImplementedActions,
+    ...previewImplementedActions,
     ...blobUploadImplementedActions,
     ...storageImplementedActions,
   ]);
@@ -887,18 +982,42 @@ export function createArtifactResourceRoutes(
   app.use("/v1/artifact-comments/*", session);
   app.use("/v1/artifact-storage", session);
   app.use("/v1/artifacts", session);
-  app.use("/v1/files/search", session);
+  // An access token reads exactly the file routes the command line calls, and
+  // nothing else on this router: not storage settings, the trash, grants or
+  // the library. A write on the same paths does not accept one either. A path
+  // not listed here, or with a trailing slash, falls to the browser session.
+  const tokenReadablePaths = [
+    /^\/v1\/files\/search$/,
+    /^\/v1\/storage\/roots$/,
+    /^\/v1\/storage\/folders\/[^/]+\/entries$/,
+    /^\/v1\/storage\/files\/[^/]+\/(?:versions|uses|content)$/,
+    /^\/v1\/storage\/file-versions\/[^/]+$/,
+  ];
+  const readsAcceptTokens: MiddlewareHandler<{ Variables: AuthVariables }> = (
+    context,
+    next,
+  ) =>
+    context.req.method === "GET" && options.tokenSession !== undefined &&
+      tokenReadablePaths.some((path) => path.test(context.req.path))
+      ? options.tokenSession(context, next)
+      : session(context, next);
+  app.use("/v1/files/search", readsAcceptTokens);
   app.use("/v1/files/library", session);
   app.use("/v1/artifacts/*", session);
   app.use("/v1/artifact-versions", session);
   app.use("/v1/artifact-preview-availability", session);
   app.use("/v1/artifact-preview-grants/*", session);
+  // Running-app previews (#19): the same signed-in session, never a worker's.
+  app.use("/v1/previews", session);
+  app.use("/v1/previews/*", session);
+  app.use("/v1/preview-grants/*", session);
+  app.use("/v1/preview-availability", session);
   app.use("/v1/artifact-versions/*", session);
   // Without this the blob routes run with no resolved principal, and every call
   // is refused as an anonymous one - a 403 that looks like a permission problem
   // and is really a missing middleware.
   app.use("/v1/blobs/*", session);
-  app.use("/v1/storage/*", session);
+  app.use("/v1/storage/*", readsAcceptTokens);
   app.onError((error, context) =>
     problemResponse(context, error, { publicBaseUrl: options.publicBaseUrl })
   );

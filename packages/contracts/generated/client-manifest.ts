@@ -2901,6 +2901,29 @@ export const clientManifest = {
     {
       "group": "Skills",
       "method": "GET",
+      "path": "/v1/skills/{id}/used-by",
+      "action": "skills.usedBy",
+      "access": "Developer",
+      "permission": "skill:read",
+      "input": "CursorQuery",
+      "output": "Page<SkillUsage>",
+      "event": "",
+      "mcp": "bakery_skills_usedBy",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Skills",
+      "method": "GET",
       "path": "/v1/skills/{id}/use-grants",
       "action": "skills.useGrants.list",
       "access": "Owner for personal; Admin for organization",
@@ -5658,6 +5681,125 @@ export const clientManifest = {
         "SCOPE_REQUIRED",
         "RESOURCE_NOT_FOUND",
         "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Workers",
+      "method": "GET",
+      "path": "/v1/previews",
+      "action": "previews.list",
+      "access": "Developer",
+      "permission": "preview:read",
+      "input": "PreviewQuery",
+      "output": "Page<Preview>",
+      "event": "",
+      "mcp": "bakery_previews_list",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Workers",
+      "method": "POST",
+      "path": "/v1/previews/{id}/access",
+      "action": "previews.access",
+      "access": "Developer",
+      "permission": "preview:access",
+      "input": "PreviewAccess",
+      "output": "PreviewAccessResult",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Not replayed: every call issues a fresh one-use grant, and the grant is never stored in a replayable response",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Workers",
+      "method": "POST",
+      "path": "/v1/previews/{id}/stop",
+      "action": "previews.stop",
+      "access": "Developer",
+      "permission": "preview:access",
+      "input": "IdPath",
+      "output": "Preview",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Workers",
+      "method": "DELETE",
+      "path": "/v1/preview-grants/{id}",
+      "action": "previews.revokeAccess",
+      "access": "Developer",
+      "permission": "preview:access",
+      "input": "IdPath",
+      "output": "NoContent",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Workers",
+      "method": "GET",
+      "path": "/v1/preview-availability",
+      "action": "previews.availability",
+      "access": "Developer",
+      "permission": "preview:read",
+      "input": "Empty",
+      "output": "PreviewAvailability",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
         "MALFORMED_REQUEST"
       ],
       "organizationContext": "required_authenticated_context",
@@ -9150,6 +9292,29 @@ export const clientManifest = {
       "output": "Page<PluginState>",
       "event": "",
       "mcp": "bakery_pluginState_get",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Plugins",
+      "method": "GET",
+      "path": "/v1/plugin-installs/{id}/state-items",
+      "action": "pluginStateItems.list",
+      "access": "Authorized owner/member",
+      "permission": "pluginState:read",
+      "input": "CursorQuery",
+      "output": "Page<PluginStateItem>",
+      "event": "",
+      "mcp": "",
       "idempotency": "read",
       "errors": [
         "AUTH_REQUIRED",
@@ -16032,6 +16197,7 @@ export const clientManifest = {
             "library.search",
             "skills.get",
             "skills.update",
+            "skills.usedBy",
             "skills.useGrants.list",
             "skills.useGrants.delete",
             "skillVersions.list",
@@ -16151,6 +16317,9 @@ export const clientManifest = {
             "jobAttempts.list",
             "previews.list",
             "previews.access",
+            "previews.stop",
+            "previews.revokeAccess",
+            "previews.availability",
             "worker.register",
             "worker.heartbeat",
             "worker.claim",
@@ -16342,6 +16511,7 @@ export const clientManifest = {
             "pluginInstalls.get",
             "pluginInstalls.update",
             "pluginState.get",
+            "pluginStateItems.list",
             "pluginState.put",
             "userPreferences.get",
             "userPreferences.update",
@@ -16418,6 +16588,20 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Input for creating an organization-owned exact capability grant; organization and grantor come from the authorized transaction context and are never accepted from this body."
+    },
+    "PreviewAccess": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "sessionSeconds": {
+          "description": "How long the signed-in preview session lasts once the grant is exchanged, from 60 seconds to 24 hours; it does not change how long the one-use grant can be exchanged, which is always 30 seconds. PreviewAccess.sessionSeconds must be at least 60. PreviewAccess.sessionSeconds must be at most 86400.",
+          "type": "integer",
+          "minimum": 60,
+          "maximum": 86400
+        }
+      },
+      "additionalProperties": false,
+      "description": "Requests a one-use access grant for a running preview. The grant is exchangeable for 30 seconds only; the session it opens lasts sessionSeconds. The caller's client posts the grant to the separate preview origin, which exchanges it for its own HttpOnly cookie."
     },
     "PrincipalCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -18115,9 +18299,10 @@ export const clientManifest = {
             "conversation",
             "worker_enrollment",
             "worker",
-            "inbox"
+            "inbox",
+            "memory"
           ],
-          "description": "Kind of resource the snapshot is scoped to: an organization-wide application feed, one repository, one task, one conversation, one worker enrollment (Admin status feed), or one worker machine (safe status feed). \"inbox\" is events-only: its id must be the caller's own principal id, any member may subscribe to their own, and it carries only notifications.inbox_changed signals; snapshots reject it."
+          "description": "Kind of resource the snapshot is scoped to: an organization-wide application feed, one repository, one task, one conversation, one worker enrollment (Admin status feed), or one worker machine (safe status feed). \"inbox\" is events-only: its id must be the caller's own principal id, any member may subscribe to their own, and it carries only notifications.inbox_changed signals; snapshots reject it. \"memory\" is events-only too: its id must be the organization's own id, only a caller who may read memory may subscribe (anyone else is told it does not exist), and it carries only the content-free memories.created, memories.updated, memory.revised and memory.source_changed signals, which no other scope delivers; snapshots reject it."
         },
         "scopeId": {
           "type": "string",
@@ -23603,7 +23788,8 @@ export const clientManifest = {
             "artifact.publish",
             "memory.promote",
             "evaluation.sample",
-            "task.brief"
+            "task.brief",
+            "secret.identity.read"
           ],
           "description": "Registered workflow action name, for example harness.implement or delivery.candidate_evidence; an unknown name answers not found."
         },
@@ -26816,6 +27002,37 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "A person's choice to continue one stalled step on another route, submitted against the exact offer they saw: the step, the incident and its generation, the run version and the chosen route. Exactly one submission wins however many race; a stale one commits nothing and reports why."
     },
+    "PreviewQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "runId": {
+          "description": "Restrict results to the previews registered by attempts of this workflow run, newest first.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "status": {
+          "description": "Restrict results to the current state of the preview: starting, ready, stopped or expired. PreviewQuery.status must contain at most 50 characters.",
+          "type": "string",
+          "maxLength": 50
+        },
+        "cursor": {
+          "description": "Opaque cursor carried from a prior page of this exact query; leave unset to start from the newest page. PreviewQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "limit": {
+          "description": "Maximum number of items returned per page; defaults to 25, capped at 100. PreviewQuery.limit must be at least 1. PreviewQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "additionalProperties": false,
+      "description": "Filters for listing the running-app previews of an organization, newest first."
+    },
     "PluginState": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -26931,6 +27148,12 @@ export const clientManifest = {
             }
           ],
           "description": "Measured value recorded at the metric point."
+        },
+        "sizeBytes": {
+          "description": "Size in bytes of the stored value's JSON text, so a caller can say how much a plugin has saved without holding the value. Read from the stored row, never from a caller.",
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
         }
       },
       "required": [
@@ -26948,7 +27171,7 @@ export const clientManifest = {
         "value"
       ],
       "additionalProperties": false,
-      "description": "One namespaced key's stored JSON state for a plugin install, returned only to its owner or an authorized member with an install grant, never as part of a public catalog or list. Guarded by casVersion for compare-and-set updates; schemaVersion records which state-schema revision the value was written under, checked against the install's own stateSchemaVersion to decide whether it needs migration.",
+      "description": "One namespaced key's stored JSON state for a plugin install, returned only to its owner or an authorized member with an install grant, never as part of a public catalog or list. Guarded by casVersion for compare-and-set updates; schemaVersion records which state-schema revision the value was written under, checked against the install's own stateSchemaVersion to decide whether it needs migration. sizeBytes is the size of the stored value.",
       "$defs": {
         "__schema0": {
           "anyOf": [
@@ -40342,6 +40565,7 @@ export const clientManifest = {
                   "library.search",
                   "skills.get",
                   "skills.update",
+                  "skills.usedBy",
                   "skills.useGrants.list",
                   "skills.useGrants.delete",
                   "skillVersions.list",
@@ -40461,6 +40685,9 @@ export const clientManifest = {
                   "jobAttempts.list",
                   "previews.list",
                   "previews.access",
+                  "previews.stop",
+                  "previews.revokeAccess",
+                  "previews.availability",
                   "worker.register",
                   "worker.heartbeat",
                   "worker.claim",
@@ -40652,6 +40879,7 @@ export const clientManifest = {
                   "pluginInstalls.get",
                   "pluginInstalls.update",
                   "pluginState.get",
+                  "pluginStateItems.list",
                   "pluginState.put",
                   "userPreferences.get",
                   "userPreferences.update",
@@ -41424,6 +41652,20 @@ export const clientManifest = {
                         "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                         "description": "Principal who created the record."
                       },
+                      "createdByName": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 65536,
+                            "description": "Display name of the principal in createdBy, so the history can say who made each wording without a second read. Null when the principal has no name on record."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "MemoryRevision.createdByName may be null in this transport value."
+                      },
                       "createdAt": {
                         "type": "string",
                         "format": "date-time",
@@ -41456,6 +41698,7 @@ export const clientManifest = {
                       "confidence",
                       "expiresAt",
                       "createdBy",
+                      "createdByName",
                       "createdAt",
                       "updatedAt",
                       "version"
@@ -41833,6 +42076,20 @@ export const clientManifest = {
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "description": "Principal who created the record."
               },
+              "createdByName": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Display name of the principal in createdBy, so the history can say who made each wording without a second read. Null when the principal has no name on record."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MemoryRevision.createdByName may be null in this transport value."
+              },
               "createdAt": {
                 "type": "string",
                 "format": "date-time",
@@ -41865,6 +42122,7 @@ export const clientManifest = {
               "confidence",
               "expiresAt",
               "createdBy",
+              "createdByName",
               "createdAt",
               "updatedAt",
               "version"
@@ -43660,6 +43918,196 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Cursor page of WorkerProviderBinding."
+    },
+    "Page<Preview>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID identifying the preview record."
+              },
+              "runId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The workflow run whose attempt registered this preview."
+              },
+              "attemptId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The attempt that registered this preview; only the newest attempt's preview is offered."
+              },
+              "headSha": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Commit SHA the running preview was built from."
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "starting",
+                  "ready",
+                  "stopped",
+                  "expired"
+                ],
+                "description": "What the preview is now, as the server reads it: starting, ready, stopped (see stopReason) or expired. A preview whose time limit passed, whose run was cancelled or whose machine stopped answering is reported as such when read, not as ready."
+              },
+              "stopReason": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "person",
+                      "run_cancelled",
+                      "run_ended",
+                      "machine_lost",
+                      "time_limit",
+                      "replaced"
+                    ],
+                    "description": "Why it is not live: a person stopped it, the run was cancelled, the run ended, the machine stopped answering, its time limit passed, or a newer attempt replaced it. Null while it is starting or ready."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "Preview.stopReason may be null in the safe projection."
+              },
+              "stoppedBy": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "The principal who stopped it; set only when stopReason is person."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "Preview.stoppedBy may be null in the safe projection."
+              },
+              "stoppedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "UTC timestamp when it stopped being live; null while it is starting or ready."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "Preview.stoppedAt may be null in the safe projection."
+              },
+              "expiresAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the preview stops by itself."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the record was created."
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the record was last updated."
+              },
+              "version": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Optimistic-concurrency version used when updating the record."
+              }
+            },
+            "required": [
+              "id",
+              "runId",
+              "attemptId",
+              "headSha",
+              "status",
+              "stopReason",
+              "stoppedBy",
+              "stoppedAt",
+              "expiresAt",
+              "createdAt",
+              "updatedAt",
+              "version"
+            ],
+            "additionalProperties": false,
+            "description": "Registration of a running app for an authenticated developer preview, made by the attempt's worker (worker.previews). It is private and session-bound and is served from a separate origin with no API cookies forwarded. The route key and port stay server-side and are never returned."
+          },
+          "description": "Preview items in this cursor page. Page<Preview>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<Preview>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<Preview>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<Preview>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<Preview>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of Preview."
     },
     "Page<PullRequest>": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -59769,6 +60217,7 @@ export const clientManifest = {
             "library.search",
             "skills.get",
             "skills.update",
+            "skills.usedBy",
             "skills.useGrants.list",
             "skills.useGrants.delete",
             "skillVersions.list",
@@ -59888,6 +60337,9 @@ export const clientManifest = {
             "jobAttempts.list",
             "previews.list",
             "previews.access",
+            "previews.stop",
+            "previews.revokeAccess",
+            "previews.availability",
             "worker.register",
             "worker.heartbeat",
             "worker.claim",
@@ -60079,6 +60531,7 @@ export const clientManifest = {
             "pluginInstalls.get",
             "pluginInstalls.update",
             "pluginState.get",
+            "pluginStateItems.list",
             "pluginState.put",
             "userPreferences.get",
             "userPreferences.update",
@@ -60671,6 +61124,20 @@ export const clientManifest = {
                   "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                   "description": "Principal who created the record."
                 },
+                "createdByName": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "Display name of the principal in createdBy, so the history can say who made each wording without a second read. Null when the principal has no name on record."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "MemoryRevision.createdByName may be null in this transport value."
+                },
                 "createdAt": {
                   "type": "string",
                   "format": "date-time",
@@ -60703,6 +61170,7 @@ export const clientManifest = {
                 "confidence",
                 "expiresAt",
                 "createdBy",
+                "createdByName",
                 "createdAt",
                 "updatedAt",
                 "version"
@@ -61020,6 +61488,20 @@ export const clientManifest = {
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
           "description": "Principal who created the record."
         },
+        "createdByName": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Display name of the principal in createdBy, so the history can say who made each wording without a second read. Null when the principal has no name on record."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "MemoryRevision.createdByName may be null in this transport value."
+        },
         "createdAt": {
           "type": "string",
           "format": "date-time",
@@ -61052,6 +61534,7 @@ export const clientManifest = {
         "confidence",
         "expiresAt",
         "createdBy",
+        "createdByName",
         "createdAt",
         "updatedAt",
         "version"
@@ -61661,6 +62144,136 @@ export const clientManifest = {
           "description": "JSON value node."
         }
       }
+    },
+    "Preview": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID identifying the preview record."
+        },
+        "runId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The workflow run whose attempt registered this preview."
+        },
+        "attemptId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The attempt that registered this preview; only the newest attempt's preview is offered."
+        },
+        "headSha": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Commit SHA the running preview was built from."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "starting",
+            "ready",
+            "stopped",
+            "expired"
+          ],
+          "description": "What the preview is now, as the server reads it: starting, ready, stopped (see stopReason) or expired. A preview whose time limit passed, whose run was cancelled or whose machine stopped answering is reported as such when read, not as ready."
+        },
+        "stopReason": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "person",
+                "run_cancelled",
+                "run_ended",
+                "machine_lost",
+                "time_limit",
+                "replaced"
+              ],
+              "description": "Why it is not live: a person stopped it, the run was cancelled, the run ended, the machine stopped answering, its time limit passed, or a newer attempt replaced it. Null while it is starting or ready."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "Preview.stopReason may be null in the safe projection."
+        },
+        "stoppedBy": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The principal who stopped it; set only when stopReason is person."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "Preview.stoppedBy may be null in the safe projection."
+        },
+        "stoppedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp when it stopped being live; null while it is starting or ready."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "Preview.stoppedAt may be null in the safe projection."
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when the preview stops by itself."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when the record was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when the record was last updated."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Optimistic-concurrency version used when updating the record."
+        }
+      },
+      "required": [
+        "id",
+        "runId",
+        "attemptId",
+        "headSha",
+        "status",
+        "stopReason",
+        "stoppedBy",
+        "stoppedAt",
+        "expiresAt",
+        "createdAt",
+        "updatedAt",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "Registration of a running app for an authenticated developer preview, made by the attempt's worker (worker.previews). It is private and session-bound and is served from a separate origin with no API cookies forwarded. The route key and port stay server-side and are never returned."
     },
     "MergeEntry": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -62279,7 +62892,8 @@ export const clientManifest = {
             "artifact.publish",
             "memory.promote",
             "evaluation.sample",
-            "task.brief"
+            "task.brief",
+            "secret.identity.read"
           ],
           "description": "Registered workflow action name."
         },
@@ -62313,7 +62927,8 @@ export const clientManifest = {
               "reviewer",
               "integration",
               "delivery",
-              "storage"
+              "storage",
+              "secret.identity"
             ],
             "description": "Capabilities an agent must hold to run the action; an empty list means none. Each array item follows this format."
           },
@@ -62438,7 +63053,8 @@ export const clientManifest = {
                   "artifact.publish",
                   "memory.promote",
                   "evaluation.sample",
-                  "task.brief"
+                  "task.brief",
+                  "secret.identity.read"
                 ],
                 "description": "Registered workflow action name."
               },
@@ -62472,7 +63088,8 @@ export const clientManifest = {
                     "reviewer",
                     "integration",
                     "delivery",
-                    "storage"
+                    "storage",
+                    "secret.identity"
                   ],
                   "description": "Capabilities an agent must hold to run the action; an empty list means none. Each array item follows this format."
                 },
@@ -62793,7 +63410,8 @@ export const clientManifest = {
                   "artifact.publish",
                   "memory.promote",
                   "evaluation.sample",
-                  "task.brief"
+                  "task.brief",
+                  "secret.identity.read"
                 ],
                 "description": "Registered workflow action the step runs."
               },
@@ -62865,7 +63483,8 @@ export const clientManifest = {
                     "reviewer",
                     "integration",
                     "delivery",
-                    "storage"
+                    "storage",
+                    "secret.identity"
                   ],
                   "description": "Capabilities the step's action requires of its agent. Each array item follows this format."
                 },
@@ -63598,6 +64217,56 @@ export const clientManifest = {
           "description": "JSON value node."
         }
       }
+    },
+    "PreviewAccessResult": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "grantId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Identifier of this access grant, used to end one person's access before it expires. Not a secret."
+        },
+        "grant": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536,
+          "description": "One-use secret handoff value: 32 random bytes, base64url. Post it once, in a form body; never put it in a URL, log, event or cache. Only its sha256 is stored."
+        },
+        "exchangeUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "Absolute URL on the separate preview origin that exchanges the posted grant for a preview session."
+        },
+        "previewUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "Absolute URL on the preview origin where the preview is shown after the exchange."
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When the grant stops being exchangeable, 30 seconds after it was issued. This is not the session length."
+        },
+        "sessionSeconds": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "How long the session lasts after the grant is exchanged."
+        }
+      },
+      "required": [
+        "grantId",
+        "grant",
+        "exchangeUrl",
+        "previewUrl",
+        "expiresAt",
+        "sessionSeconds"
+      ],
+      "additionalProperties": false,
+      "description": "One-use grant, exchangeable for 30 seconds, POSTed to exchangeUrl on the isolated preview origin; never put it in a URL query or logs. The session it opens lasts sessionSeconds."
     },
     "BinaryArtifact": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -76672,6 +77341,12 @@ export const clientManifest = {
                   }
                 ],
                 "description": "Measured value recorded at the metric point."
+              },
+              "sizeBytes": {
+                "description": "Size in bytes of the stored value's JSON text, so a caller can say how much a plugin has saved without holding the value. Read from the stored row, never from a caller.",
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
               }
             },
             "required": [
@@ -76689,7 +77364,7 @@ export const clientManifest = {
               "value"
             ],
             "additionalProperties": false,
-            "description": "One namespaced key's stored JSON state for a plugin install, returned only to its owner or an authorized member with an install grant, never as part of a public catalog or list. Guarded by casVersion for compare-and-set updates; schemaVersion records which state-schema revision the value was written under, checked against the install's own stateSchemaVersion to decide whether it needs migration."
+            "description": "One namespaced key's stored JSON state for a plugin install, returned only to its owner or an authorized member with an install grant, never as part of a public catalog or list. Guarded by casVersion for compare-and-set updates; schemaVersion records which state-schema revision the value was written under, checked against the install's own stateSchemaVersion to decide whether it needs migration. sizeBytes is the size of the stored value."
           },
           "description": "PluginState items in this cursor page. Page<PluginState>.items must contain at most 100 items."
         },
@@ -91603,6 +92278,130 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "What an Admin purge did. A purge is permanent and audited. A working, personal or scratch entry is removed at once; a record-area file is queued, because only the owner-privileged purge job may clear an artifact's bytes. A record-area folder is refused."
     },
+    "Page<SkillUsage>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "workflow",
+                  "agent"
+                ],
+                "description": "workflow for a published workflow version, agent for an agent version."
+              },
+              "definitionId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID of the workflow or agent the version belongs to."
+              },
+              "definitionName": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Name of that workflow or agent, as shown in the Library."
+              },
+              "versionId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Immutable UUID of the workflow version or agent version that names the skill."
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Revision number of that workflow or agent version."
+              },
+              "skillVersionIds": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "The versions of this skill the workflow or agent version pins, oldest first; at least one. Each array item follows this format."
+                },
+                "description": "The versions of this skill the workflow or agent version pins, oldest first; at least one."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC time that workflow or agent version was created, which orders the list newest first."
+              }
+            },
+            "required": [
+              "kind",
+              "definitionId",
+              "definitionName",
+              "versionId",
+              "revision",
+              "skillVersionIds",
+              "createdAt"
+            ],
+            "additionalProperties": false,
+            "description": "One workflow version or agent version that pins a version of a skill: what it is, which version of it, and which versions of the skill it names. A workflow version uses a skill when one of its steps lists the version; an agent version uses it when its skill bindings name the version."
+          },
+          "description": "SkillUsage items in this cursor page. Page<SkillUsage>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<SkillUsage>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<SkillUsage>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<SkillUsage>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<SkillUsage>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of SkillUsage."
+    },
     "Page<SkillUseGrant>": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -93501,6 +94300,138 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "The record that a stalled step was continued on another route. The old attempt is fenced, the job is queued again on the new pin, and the step's one budget reservation is re-priced in place, so no second reservation exists and none is left held. Both the pin the step had and the pin it now has are kept."
+    },
+    "Page<PluginStateItem>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Identifier of the saved item."
+              },
+              "pluginInstallId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The install that saved it."
+              },
+              "namespace": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The group the plugin keeps it under, one the plugin's manifest declared."
+              },
+              "key": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The name the plugin saved it under, within its namespace."
+              },
+              "sizeBytes": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Size in bytes of the stored value's JSON text."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC time the item was first saved."
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC time the item was last saved."
+              }
+            },
+            "required": [
+              "id",
+              "pluginInstallId",
+              "namespace",
+              "key",
+              "sizeBytes",
+              "createdAt",
+              "updatedAt"
+            ],
+            "additionalProperties": false,
+            "description": "What one plugin install has saved under one namespaced key, without the saved value: where it is kept, how big it is and when it was created and last saved. For a caller that needs to say what a plugin keeps without being shown, or sent, the data itself. Authorized exactly like the full state read."
+          },
+          "description": "PluginStateItem items in this cursor page. Page<PluginStateItem>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<PluginStateItem>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<PluginStateItem>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<PluginStateItem>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<PluginStateItem>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of PluginStateItem."
+    },
+    "PreviewAvailability": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "available": {
+          "type": "boolean",
+          "description": "True when the deployment configures a separate preview origin. When false every preview operation fails closed and clients show that previews are not set up."
+        }
+      },
+      "required": [
+        "available"
+      ],
+      "additionalProperties": false,
+      "description": "Whether this deployment can serve running-app previews."
     }
   }
 } as const;
