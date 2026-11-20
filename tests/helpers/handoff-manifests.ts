@@ -43,8 +43,13 @@ export async function seedArtifact(
   const content = new TextEncoder().encode(text);
   const sha256 = await sha256Bytes(content);
   await fixture.pgDatabase.query(
-    "insert into bakery.artifacts(id,organization_id,task_id,artifact_type,name) values($1,$2,$3,'plan','Handoff evidence')",
-    [artifactId, fixture.organizationId, taskId],
+    "insert into bakery.artifacts(id,organization_id,task_id,artifact_type,name) values($1,$2,$3,'plan',$4)",
+    [
+      artifactId,
+      fixture.organizationId,
+      taskId,
+      `Handoff evidence ${artifactId}`,
+    ],
   );
   await fixture.pgDatabase.query(
     `insert into bakery.artifact_versions(id,organization_id,artifact_id,task_id,author_id,revision,content,sha256,size_bytes,media_type,retention_class)
