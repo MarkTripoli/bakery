@@ -24,6 +24,12 @@ const expected = [
   ["draftSlices.get", "GET", "/v1/drafts/{id}/slice", "bakery_draftSlices_get"],
   ["drafts.edit", "POST", "/v1/drafts/{id}/edits", "bakery_drafts_edit"],
   [
+    "drafts.rollover",
+    "POST",
+    "/v1/drafts/{id}/rollover",
+    "bakery_drafts_rollover",
+  ],
+  [
     "draftPublications.create",
     "POST",
     "/v1/drafts/{id}/publications",

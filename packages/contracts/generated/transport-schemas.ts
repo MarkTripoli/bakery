@@ -9409,6 +9409,27 @@ const transportSchemas = {
       ],
       "description": "Bounded UTF-16 slice coordinates used to obtain text and opaque stable Loro cursors from a retained authorized checkpoint."
     },
+    "DraftRollover": {
+      "fields": [
+        {
+          "name": "epoch",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1,
+            "max": 2147483647
+          },
+          "description": "Draft epoch being closed, as last read from drafts.get; a call naming any other epoch fails without changing the draft."
+        },
+        {
+          "name": "checkpointId",
+          "type": "uuid",
+          "required": true,
+          "description": "The draft's current checkpoint, which must already be published as an artifact version; the new epoch starts from exactly this text."
+        }
+      ],
+      "description": "Closes the draft's current epoch and opens the next one from the published current checkpoint. Old-epoch edits can no longer be applied and stay available as proposals for reconciliation. No actor, organization or content can be supplied by the caller."
+    },
     "DraftEdit": {
       "fields": [
         {

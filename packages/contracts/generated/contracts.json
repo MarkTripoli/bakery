@@ -11865,6 +11865,33 @@
     {
       "group": "Drafts",
       "method": "POST",
+      "path": "/v1/drafts/{id}/rollover",
+      "action": "drafts.rollover",
+      "access": "Developer",
+      "permission": "draft:write",
+      "input": "DraftRollover",
+      "output": "Draft",
+      "event": "",
+      "mcp": "bakery_drafts_rollover",
+      "idempotency": "Guarded by epoch: the call names the epoch it closes and the published checkpoint it starts from, so a repeat after the roll fails with PRECONDITION_FAILED instead of rolling twice",
+      "idempotencyKeyOptional": false,
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
+        "PRECONDITION_FAILED",
+        "DEPENDENCY_UNAVAILABLE",
+        "DEPENDENCY_TIMEOUT"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Drafts",
+      "method": "POST",
       "path": "/v1/drafts/{id}/publications",
       "action": "draftPublications.create",
       "access": "Developer",
@@ -13209,6 +13236,7 @@
     "draftCheckpoints.get",
     "draftSlices.get",
     "drafts.edit",
+    "drafts.rollover",
     "draftPublications.create",
     "draftPublications.get",
     "draftSuggestions.create",
@@ -43384,6 +43412,70 @@
           }
         }
       },
+      "/v1/drafts/{id}/rollover": {
+        "post": {
+          "operationId": "drafts.rollover",
+          "parameters": [
+            {
+              "name": "id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Draft"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request."
+            },
+            "401": {
+              "description": "Authentication required."
+            },
+            "403": {
+              "description": "Forbidden."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          },
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftRollover"
+                }
+              }
+            }
+          }
+        }
+      },
       "/v1/drafts/{id}/publications": {
         "post": {
           "operationId": "draftPublications.create",
@@ -53527,6 +53619,7 @@
                 "draftCheckpoints.get",
                 "draftSlices.get",
                 "drafts.edit",
+                "drafts.rollover",
                 "draftPublications.create",
                 "draftPublications.get",
                 "draftSuggestions.create",
@@ -70630,6 +70723,30 @@
           ],
           "additionalProperties": false,
           "description": "Bounded UTF-16 slice coordinates used to obtain text and opaque stable Loro cursors from a retained authorized checkpoint."
+        },
+        "DraftRollover": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "epoch": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 2147483647,
+              "description": "Draft epoch being closed, as last read from drafts.get; a call naming any other epoch fails without changing the draft. DraftRollover.epoch must be at least 1. DraftRollover.epoch must be at most 2147483647."
+            },
+            "checkpointId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The draft's current checkpoint, which must already be published as an artifact version; the new epoch starts from exactly this text."
+            }
+          },
+          "required": [
+            "epoch",
+            "checkpointId"
+          ],
+          "additionalProperties": false,
+          "description": "Closes the draft's current epoch and opens the next one from the published current checkpoint. Old-epoch edits can no longer be applied and stay available as proposals for reconciliation. No actor, organization or content can be supplied by the caller."
         },
         "DraftEdit": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -102529,6 +102646,7 @@
                 "draftCheckpoints.get",
                 "draftSlices.get",
                 "drafts.edit",
+                "drafts.rollover",
                 "draftPublications.create",
                 "draftPublications.get",
                 "draftSuggestions.create",
@@ -103151,6 +103269,7 @@
                 "draftCheckpoints.get",
                 "draftSlices.get",
                 "drafts.edit",
+                "drafts.rollover",
                 "draftPublications.create",
                 "draftPublications.get",
                 "draftSuggestions.create",
@@ -103773,6 +103892,7 @@
                 "draftCheckpoints.get",
                 "draftSlices.get",
                 "drafts.edit",
+                "drafts.rollover",
                 "draftPublications.create",
                 "draftPublications.get",
                 "draftSuggestions.create",
@@ -149206,6 +149326,7 @@
                       "draftCheckpoints.get",
                       "draftSlices.get",
                       "drafts.edit",
+                      "drafts.rollover",
                       "draftPublications.create",
                       "draftPublications.get",
                       "draftSuggestions.create",
@@ -257703,7 +257824,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:5e66a87a12bf19b43b3d22c53b9c254451e7f11a1735a521c75db32b0fe4c6cd",
+  "compatibilityDigest": "sha256:ed232d6bae9cab2ee2be907dff343777766cf841c7c0da9d1ae6b933832bde51",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -265447,6 +265568,7 @@
             "draftCheckpoints.get",
             "draftSlices.get",
             "drafts.edit",
+            "drafts.rollover",
             "draftPublications.create",
             "draftPublications.get",
             "draftSuggestions.create",
@@ -282606,6 +282728,30 @@
       ],
       "additionalProperties": false,
       "description": "Bounded UTF-16 slice coordinates used to obtain text and opaque stable Loro cursors from a retained authorized checkpoint."
+    },
+    "DraftRollover": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "epoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647,
+          "description": "Draft epoch being closed, as last read from drafts.get; a call naming any other epoch fails without changing the draft. DraftRollover.epoch must be at least 1. DraftRollover.epoch must be at most 2147483647."
+        },
+        "checkpointId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The draft's current checkpoint, which must already be published as an artifact version; the new epoch starts from exactly this text."
+        }
+      },
+      "required": [
+        "epoch",
+        "checkpointId"
+      ],
+      "additionalProperties": false,
+      "description": "Closes the draft's current epoch and opens the next one from the published current checkpoint. Old-epoch edits can no longer be applied and stay available as proposals for reconciliation. No actor, organization or content can be supplied by the caller."
     },
     "DraftEdit": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -314617,6 +314763,7 @@
             "draftCheckpoints.get",
             "draftSlices.get",
             "drafts.edit",
+            "drafts.rollover",
             "draftPublications.create",
             "draftPublications.get",
             "draftSuggestions.create",
@@ -315239,6 +315386,7 @@
             "draftCheckpoints.get",
             "draftSlices.get",
             "drafts.edit",
+            "drafts.rollover",
             "draftPublications.create",
             "draftPublications.get",
             "draftSuggestions.create",
@@ -315861,6 +316009,7 @@
             "draftCheckpoints.get",
             "draftSlices.get",
             "drafts.edit",
+            "drafts.rollover",
             "draftPublications.create",
             "draftPublications.get",
             "draftSuggestions.create",
@@ -361444,6 +361593,7 @@
                   "draftCheckpoints.get",
                   "draftSlices.get",
                   "drafts.edit",
+                  "drafts.rollover",
                   "draftPublications.create",
                   "draftPublications.get",
                   "draftSuggestions.create",

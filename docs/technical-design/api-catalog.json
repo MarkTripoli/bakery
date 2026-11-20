@@ -11387,6 +11387,32 @@
     {
       "group": "Drafts",
       "method": "POST",
+      "path": "/v1/drafts/{id}/rollover",
+      "action": "drafts.rollover",
+      "access": "Developer",
+      "permission": "draft:write",
+      "input": "DraftRollover",
+      "output": "Draft",
+      "event": "",
+      "mcp": "bakery_drafts_rollover",
+      "idempotency": "Guarded by epoch: the call names the epoch it closes and the published checkpoint it starts from, so a repeat after the roll fails with PRECONDITION_FAILED instead of rolling twice",
+      "idempotencyKeyOptional": false,
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
+        "PRECONDITION_FAILED",
+        "DEPENDENCY_UNAVAILABLE",
+        "DEPENDENCY_TIMEOUT"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Drafts",
+      "method": "POST",
       "path": "/v1/drafts/{id}/publications",
       "action": "draftPublications.create",
       "access": "Developer",
