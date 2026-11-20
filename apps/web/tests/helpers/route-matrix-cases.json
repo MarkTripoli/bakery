@@ -164,6 +164,14 @@
     "path": "/settings/organization/roles"
   },
   {
+    "id": "settings-organization-plugins",
+    "path": "/settings/organization/plugins"
+  },
+  {
+    "id": "settings-organization-plugin",
+    "path": "/settings/organization/plugins/$installId"
+  },
+  {
     "id": "settings-organization-repository-rules",
     "path": "/settings/organization/repository-rules"
   },

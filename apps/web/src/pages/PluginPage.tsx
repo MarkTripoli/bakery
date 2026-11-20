@@ -221,19 +221,26 @@ export function PluginPage({ installId }: { readonly installId: string }) {
         />
       </ShellSlot>
       <UI.SettingsContent data-testid="plugin">
-        {loading ? <UI.Skeleton shape="row" /> : notFound
+        {loading
+          ? <UI.Skeleton shape="row" />
+          : notFound
           ? (
-            <UI.ErrorState
-              title={translate("settings.plugins.page.notFound")}
-              action={
-                <UI.Button
-                  variant="secondary"
-                  onClick={() => void navigate({ to: PLUGINS_PATH })}
-                >
-                  {translate("settings.plugins.page.back")}
-                </UI.Button>
-              }
-            />
+            <UI.Stack gap="standard">
+              <UI.Heading level="page">
+                {translate("shell.navigation.plugins")}
+              </UI.Heading>
+              <UI.ErrorState
+                title={translate("settings.plugins.page.notFound")}
+                action={
+                  <UI.Button
+                    variant="secondary"
+                    onClick={() => void navigate({ to: PLUGINS_PATH })}
+                  >
+                    {translate("settings.plugins.page.back")}
+                  </UI.Button>
+                }
+              />
+            </UI.Stack>
           )
           : row === undefined
           ? null
