@@ -13085,6 +13085,119 @@ const transportSchemas = {
       ],
       "description": "A person's choice to continue one stalled step on another route, submitted against the exact offer they saw: the step, the incident and its generation, the run version and the chosen route. Exactly one submission wins however many race; a stale one commits nothing and reports why."
     },
+    "BackupSchedulePut": {
+      "fields": [
+        {
+          "name": "enabled",
+          "type": "boolean",
+          "required": true,
+          "description": "Whether scheduled backups run. Off keeps the other settings and stops new scheduled runs; a backup a person starts is never affected."
+        },
+        {
+          "name": "interval",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "hourly",
+            "daily",
+            "weekly"
+          ],
+          "description": "How often a scheduled backup is taken: hourly, daily or weekly. Weekly runs on Monday, UTC."
+        },
+        {
+          "name": "timeOfDayUtc",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 5,
+            "maxLength": 5
+          },
+          "description": "Time of the scheduled run as HH:MM on a 24-hour UTC clock. For hourly runs only the minutes count: the backup is due at that minute of every hour."
+        },
+        {
+          "name": "daysToKeep",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1,
+            "max": 3650
+          },
+          "description": "How many days the host runner keeps a finished backup before it removes it, from 1 to 3650."
+        }
+      ],
+      "rules": [
+        "Installation administrator with a browser session and permission backup:manage; access tokens are refused. Idempotency-Key is required. When settings exist a strong If-Match with their version is required (428 when missing, 412 when stale); when none exist If-Match must be absent.",
+        "timeOfDayUtc must be HH:MM from 00:00 to 23:59 (422 UNPROCESSABLE otherwise)."
+      ],
+      "description": "The schedule an administrator sets for automatic backups: on or off, how often, at what UTC time and how many days a finished backup is kept."
+    },
+    "BackupOffsitePut": {
+      "fields": [
+        {
+          "name": "endpoint",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 8,
+            "maxLength": 512
+          },
+          "description": "Address of the S3-compatible service as an https origin such as https://s3.example.com, with no path, query or credentials. Private and loopback addresses are refused. Not a secret."
+        },
+        {
+          "name": "region",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 63
+          },
+          "description": "Region name the service signs requests for, for example us-east-1; some services accept any value. Not a secret."
+        },
+        {
+          "name": "bucket",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 3,
+            "maxLength": 63
+          },
+          "description": "Name of the bucket that receives the encrypted backups: lowercase letters, digits, dots and hyphens, starting and ending with a letter or digit. Not a secret."
+        },
+        {
+          "name": "prefix",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 256
+          },
+          "description": "Folder inside the bucket where backups are kept, such as bakery/prod; empty means the bucket root. Not a secret."
+        },
+        {
+          "name": "accessKeyId",
+          "type": "secretString",
+          "required": false,
+          "bounds": {
+            "maxLength": 256
+          },
+          "description": "Access key id of the account that writes the backups. Write-only: stored with the secret access key as one installation-owned AES-GCM ciphertext and never returned. Supply it together with secretAccessKey; required for the first save and whenever the endpoint, region or bucket changes (the saved pair is never reused for another host, and a move without it answers 422 credentials_required). Omit both on a later save to keep the stored credentials for the same destination, including a change to the prefix only."
+        },
+        {
+          "name": "secretAccessKey",
+          "type": "secretString",
+          "required": false,
+          "bounds": {
+            "maxLength": 1024
+          },
+          "description": "Secret access key of that account. Write-only: stored encrypted next to the access key id and never returned, echoed, logged or audited. Supply it together with accessKeyId."
+        }
+      ],
+      "rules": [
+        "Installation administrator with a browser session and permission backup:manage; access tokens are refused. Idempotency-Key is required. When a destination exists a strong If-Match with its version is required (428 when missing, 412 when stale); when none exists If-Match must be absent.",
+        "endpoint, region, bucket and prefix are validated (422 UNPROCESSABLE otherwise). accessKeyId and secretAccessKey are supplied together or not at all (400 MALFORMED_REQUEST); the first save needs both. With no secrets key configured the request answers 409 STATE_CONFLICT and stores nothing.",
+        "A save that supplies credentials, or changes the endpoint, region, bucket or prefix, first sends a test object to the destination; if the destination refuses it or cannot be reached the request answers 422 UNPROCESSABLE with the stable cause and stores nothing."
+      ],
+      "description": "The off-site destination an administrator sets for copies of every backup: an S3-compatible bucket with its address, region, folder and a write-only credential pair."
+    },
     "PreviewQuery": {
       "fields": [
         {
@@ -29804,7 +29917,7 @@ const transportSchemas = {
       ],
       "description": "The one answer to whether this installation is protected: a state word, the last good backup, the run in progress and whether a host runner has been set up and has been heard from.",
       "fieldDescriptions": {
-        "state": "running while a backup is claimed or running; failed when the newest finished attempt failed; stale when the last good backup is older than 7 days or none exists; protected otherwise.",
+        "state": "running while a backup is claimed or running; failed when the newest finished attempt failed; stale when the last good backup is older than twice the schedule interval (7 days when no schedule is on) or none exists; protected otherwise.",
         "lastGoodBackupAt": "When the newest completed backup finished, or null when none has completed.",
         "lastAttemptAt": "When the newest finished attempt ended, completed or failed, or null when none has finished.",
         "runningRunId": "Run the runner currently holds, or null.",
@@ -33247,6 +33360,166 @@ const transportSchemas = {
         "previousPin": "The provider, model, billing route and billing account the step had before.",
         "newPin": "The provider, model, billing route and billing account the step has now.",
         "admittedAt": "UTC timestamp at which the continuation was admitted."
+      }
+    },
+    "BackupSchedule": {
+      "fields": [
+        "enabled",
+        "interval",
+        "timeOfDayUtc",
+        "daysToKeep",
+        "updatedAt",
+        "version"
+      ],
+      "fieldTypes": {
+        "enabled": "boolean",
+        "interval": "enum(hourly|daily|weekly)",
+        "timeOfDayUtc": "string",
+        "daysToKeep": "integer",
+        "updatedAt": "timestamp|null",
+        "version": "integer"
+      },
+      "nullableFields": [
+        "updatedAt"
+      ],
+      "description": "The automatic backup schedule as an installation administrator sees it. Before any save it reads as off with a daily 03:00 UTC default and a 30 day keep.",
+      "fieldDescriptions": {
+        "enabled": "Whether scheduled backups run.",
+        "interval": "hourly, daily or weekly; weekly runs on Monday, UTC.",
+        "timeOfDayUtc": "HH:MM in UTC; for hourly runs only the minutes count.",
+        "daysToKeep": "How many days the host runner keeps a finished backup.",
+        "updatedAt": "When the schedule last changed, or null before any save.",
+        "version": "Monotonic settings revision, 0 before any save; submit the current value as If-Match when saving again."
+      }
+    },
+    "BackupOffsite": {
+      "fields": [
+        "configured",
+        "endpoint",
+        "region",
+        "bucket",
+        "prefix",
+        "credentialUpdatedAt",
+        "credentialRevision",
+        "updatedAt",
+        "version"
+      ],
+      "fieldTypes": {
+        "configured": "boolean",
+        "endpoint": "string|null",
+        "region": "string|null",
+        "bucket": "string|null",
+        "prefix": "string|null",
+        "credentialUpdatedAt": "timestamp|null",
+        "credentialRevision": "integer|null",
+        "updatedAt": "timestamp|null",
+        "version": "integer"
+      },
+      "nullableFields": [
+        "endpoint",
+        "region",
+        "bucket",
+        "prefix",
+        "credentialUpdatedAt",
+        "credentialRevision",
+        "updatedAt"
+      ],
+      "description": "The off-site backup destination as an installation administrator sees it. The access key id and secret access key are reported only as the configured flag and the active revision; no credential value, ciphertext, key identifier or secret record id is ever returned.",
+      "fieldDescriptions": {
+        "configured": "True when a credential pair is stored encrypted; the values are never returned.",
+        "endpoint": "Saved https origin of the S3-compatible service, or null before any save.",
+        "region": "Saved region name, or null before any save.",
+        "bucket": "Saved bucket name, or null before any save.",
+        "prefix": "Saved folder inside the bucket, empty for the bucket root, or null before any save.",
+        "credentialUpdatedAt": "When the stored credentials were last replaced, or null when none are stored.",
+        "credentialRevision": "Revision number of the active credential version, or null when none is stored; earlier revisions are kept for audit and never returned.",
+        "updatedAt": "When the destination last changed, or null before any save.",
+        "version": "Monotonic settings revision, 0 before any save; submit the current value as If-Match when saving again."
+      }
+    },
+    "BackupOffsiteVerification": {
+      "fields": [
+        "outcome",
+        "detail",
+        "checkedAt"
+      ],
+      "fieldTypes": {
+        "outcome": "enum(verified|not_configured|destination_refused|destination_unreachable|destination_private_address|integrity_failed)",
+        "detail": "string|null",
+        "checkedAt": "timestamp"
+      },
+      "nullableFields": [
+        "detail"
+      ],
+      "description": "Result of the bounded test that puts, reads back and deletes one small object in the saved destination with the stored credentials. A failed test still answers 200 with a stable outcome; the credentials are never returned.",
+      "fieldDescriptions": {
+        "outcome": "verified when the test object round-tripped; not_configured without a saved destination; destination_refused when the service answered and said no (wrong key, no access, missing bucket); destination_unreachable on a network failure, a timeout or a name that cannot be resolved; destination_private_address when the host resolves to an address the server may not connect to (private, loopback, link-local, metadata and similar); integrity_failed when the bytes read back differ.",
+        "detail": "The service's own answer text, at most 500 characters and with both credential halves removed, or null when it said nothing or the test passed.",
+        "checkedAt": "When the test finished."
+      }
+    },
+    "BackupRunnerSettings": {
+      "fields": [
+        "scheduleEnabled",
+        "scheduleInterval",
+        "scheduleTimeOfDayUtc",
+        "daysToKeep",
+        "scheduleVersion",
+        "offsiteConfigured",
+        "offsiteEndpoint",
+        "offsiteRegion",
+        "offsiteBucket",
+        "offsitePrefix",
+        "offsiteAccessKeyId",
+        "offsiteSecretAccessKey",
+        "offsiteRefusal",
+        "offsiteVersion"
+      ],
+      "fieldTypes": {
+        "scheduleEnabled": "boolean",
+        "scheduleInterval": "enum(hourly|daily|weekly)",
+        "scheduleTimeOfDayUtc": "string",
+        "daysToKeep": "integer",
+        "scheduleVersion": "integer",
+        "offsiteConfigured": "boolean",
+        "offsiteEndpoint": "string|null",
+        "offsiteRegion": "string|null",
+        "offsiteBucket": "string|null",
+        "offsitePrefix": "string|null",
+        "offsiteAccessKeyId": "secretString|null",
+        "offsiteSecretAccessKey": "secretString|null",
+        "offsiteRefusal": "enum(destination_private_address|destination_unresolvable|destination_invalid)|null",
+        "offsiteVersion": "integer"
+      },
+      "nullableFields": [
+        "offsiteEndpoint",
+        "offsiteRegion",
+        "offsiteBucket",
+        "offsitePrefix",
+        "offsiteAccessKeyId",
+        "offsiteSecretAccessKey",
+        "offsiteRefusal"
+      ],
+      "sensitiveFields": [
+        "offsiteAccessKeyId",
+        "offsiteSecretAccessKey"
+      ],
+      "description": "What the host backup runner needs to do its work: the schedule and the off-site destination including its decrypted credential pair. This is the one route that returns the credentials, and only to the runner credential, never to a user session. It carries no backup key material: the operator keeps the age keys on the host. Every read that releases the credentials, or refuses to, is audited. The destination's host is resolved again on each read, so a name re-pointed at a private address is not released.",
+      "fieldDescriptions": {
+        "scheduleEnabled": "Whether scheduled backups run.",
+        "scheduleInterval": "hourly, daily or weekly.",
+        "scheduleTimeOfDayUtc": "HH:MM in UTC.",
+        "daysToKeep": "How many days to keep a finished backup.",
+        "scheduleVersion": "Schedule settings revision, 0 before any save.",
+        "offsiteConfigured": "True when a destination with credentials is saved, whether or not the credentials were released.",
+        "offsiteEndpoint": "Https origin of the S3-compatible service, or null when none is saved.",
+        "offsiteRegion": "Region name, or null when none is saved.",
+        "offsiteBucket": "Bucket name, or null when none is saved.",
+        "offsitePrefix": "Folder inside the bucket, empty for the root, or null when none is saved.",
+        "offsiteAccessKeyId": "Access key id, shown only to the runner, or null when none is saved or the credentials were withheld (see offsiteRefusal).",
+        "offsiteSecretAccessKey": "Secret access key, shown only to the runner and never stored by it, or null when none is saved or the credentials were withheld (see offsiteRefusal).",
+        "offsiteRefusal": "Why the credentials were withheld for a saved destination: destination_private_address when its host now resolves to a private, loopback, link-local, metadata or other refused address, destination_unresolvable when its name cannot be resolved, destination_invalid when the saved destination is not a valid one. Null when the credentials were released or no destination is saved. The runner must not upload while this is set.",
+        "offsiteVersion": "Destination settings revision, 0 before any save."
       }
     },
     "PluginStateItem": {

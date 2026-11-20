@@ -1,12 +1,12 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "7747d2f1600bcc39512c40d23a5a482653e16d45"
+    "006746add1aff121cc9ccdf46c7eb4d54d7cd0e1"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:994660e2fb93ca0d5e88f0d86b2fea5e407212e7f1d134fa934d0bda35492413",
-  "reason": "#448 S3-S6 write set, limits, undo and read set re-bind by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 7747d2f1600bcc39512c40d23a5a482653e16d45: the breaking drift is this PR's own (step write and read sets, limits, revert). Main's own approval is preserved unchanged first below.",
+  "targetCompatibilityDigest": "sha256:4b34d06824ea03e2862a772e2f7f1c56f85fc63037820b671eeba8b490a42d3e",
+  "reason": "#448 S3-S6 write set, limits, undo and read set re-bind by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 006746add1aff121cc9ccdf46c7eb4d54d7cd0e1: the breaking drift is this PR's own (step write and read sets, limits, revert). Main's own approval is preserved unchanged first below.",
   "priorApprovals": [
     {
       "id": "v1-unreleased-principal-organization-contracts",
