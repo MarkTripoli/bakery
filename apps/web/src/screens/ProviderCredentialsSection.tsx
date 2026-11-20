@@ -198,9 +198,9 @@ export function ProviderCredentialsSection(
                     {guideUrl
                       ? (
                         <UI.Text>
-                          <a href={guideUrl} rel="noreferrer" target="_blank">
+                          <UI.Link href={guideUrl} variant="external">
                             {translate(key("guide"))}
-                          </a>
+                          </UI.Link>
                         </UI.Text>
                       )
                       : null}
