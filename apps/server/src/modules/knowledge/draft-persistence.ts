@@ -352,14 +352,37 @@ export async function commitDraftOpen(
  * First pass of an epoch rollover (#38): the epoch and checkpoint the caller
  * names must still be the draft's current ones, and that checkpoint must
  * already be published, so the closed epoch ends in a frozen, bounded version.
+ * An exact retry of a roll that happened returns the draft instead.
  */
 export async function prepareDraftRollover(
   transaction: PgTransactionClient,
   organizationId: string,
   draftId: string,
   input: { epoch: number; checkpointId: string },
-): Promise<PreparedDraftRollover> {
+): Promise<PreparedDraftRollover | DraftRead> {
   const scope = await loadDraftScope(transaction, organizationId, draftId);
+  // An exact retry of a roll that already happened (a lost response): the draft
+  // is one epoch on, and its opening checkpoint carries the text of the
+  // published checkpoint this call names. Answer with the draft as it is now.
+  if (scope.epoch === input.epoch + 1) {
+    const rolled = await transaction.query(
+      `select 1
+         from bakery.artifact_draft_publications p
+         join bakery.artifact_draft_checkpoints closed
+           on closed.organization_id=p.organization_id
+          and closed.id=p.checkpoint_id and closed.epoch=$4
+         join bakery.artifact_draft_checkpoints opened
+           on opened.organization_id=p.organization_id
+          and opened.draft_id=p.draft_id and opened.epoch=$5
+          and opened.server_sequence=0
+          and opened.text_digest=closed.text_digest
+        where p.organization_id=$1 and p.draft_id=$2 and p.checkpoint_id=$3`,
+      [organizationId, draftId, input.checkpointId, input.epoch, scope.epoch],
+    );
+    if (rolled.rows.length > 0) {
+      return await readDraft(transaction, organizationId, draftId);
+    }
+  }
   if (
     scope.epoch !== input.epoch ||
     scope.current_checkpoint_id !== input.checkpointId

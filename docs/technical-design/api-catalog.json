@@ -11877,8 +11877,8 @@
       "output": "Draft",
       "event": "",
       "mcp": "bakery_drafts_rollover",
-      "idempotency": "Idempotency-Key required; the call also names the epoch it closes, so a new key after the roll fails with PRECONDITION_FAILED instead of rolling twice",
-      "idempotencyKeyOptional": false,
+      "idempotency": "Natural idempotency by checkpointId: an exact retry after the roll answers with the draft at its current epoch instead of rolling twice; an optional Idempotency-Key is bound to that checkpoint",
+      "idempotencyKeyOptional": true,
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",

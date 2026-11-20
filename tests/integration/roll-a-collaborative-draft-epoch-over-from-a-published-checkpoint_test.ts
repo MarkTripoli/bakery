@@ -1,4 +1,5 @@
 import { assertEquals } from "@std/assert";
+import { sha256Hex } from "../../apps/server/src/platform/canonical-json.ts";
 import {
   cleanupDraftFixture,
   type DraftFixture,
@@ -180,11 +181,82 @@ Deno.test("a repeated or mismatched rollover changes nothing", async () => {
     await wrongCheckpoint.body?.cancel();
     assertEquals((await readDraft(fixture, opened.id)).epoch, 1);
 
-    assertEquals((await rollover(fixture, opened)).status, 201);
+    const first = await rollover(fixture, opened);
+    assertEquals(first.status, 201);
+    const rolled = await responseJson(first) as Draft;
+    // A lost response is retried with the same call: it answers with the draft
+    // as it is now, not an error, and does not roll a second time.
     const repeat = await rollover(fixture, opened);
-    assertEquals(repeat.status, 412);
-    await repeat.body?.cancel();
+    assertEquals(repeat.status, 201, await repeat.clone().text());
+    const again = await responseJson(repeat) as Draft;
+    assertEquals(again.epoch, 2);
+    assertEquals(again.checkpointId, rolled.checkpointId);
     assertEquals((await readDraft(fixture, opened.id)).epoch, 2);
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+/** An agent principal whose token may otherwise write drafts. */
+async function agentToken(fixture: DraftFixture) {
+  const principalId = crypto.randomUUID();
+  const body = btoa(
+    String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32))),
+  ).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
+  const secret = `bky_${body}`;
+  await fixture.pgDatabase.query(
+    `insert into bakery.principals (id,provider_user_id,display_name,principal_type)
+     values ($1,null,'test agent','service')`,
+    [principalId],
+  );
+  await fixture.pgDatabase.query(
+    `insert into bakery.organization_memberships (
+       id,organization_id,principal_id,role,status,joined_at,created_at,
+       updated_at,version
+     ) values ($1,$2,$3,'developer','active',now(),now(),now(),1)`,
+    [crypto.randomUUID(), fixture.ids.organizationId, principalId],
+  );
+  await fixture.pgDatabase.query(
+    `insert into bakery.access_tokens (
+       organization_id,principal_id,created_by_principal_id,name,prefix,
+       secret_sha256,scopes,expires_at
+     ) values ($1,$2,$3,'test agent',$4,$5,$6,$7)`,
+    [
+      fixture.ids.organizationId,
+      principalId,
+      fixture.ids.principalId,
+      secret.slice(0, 12),
+      await sha256Hex(secret),
+      ["bakery:read", "bakery:operate"],
+      new Date(Date.now() + 3_600_000),
+    ],
+  );
+  return secret;
+}
+
+Deno.test("an agent may never roll a draft over, and nothing changes", async () => {
+  const fixture = await openDraftFixture("alpha target omega");
+  try {
+    const opened = await openDraft(fixture);
+    assertEquals((await publish(fixture, opened)).status, 201);
+    const bearer = await agentToken(fixture);
+    const request = jsonDraftRequest(
+      fixture,
+      `/v1/drafts/${opened.id}/rollover`,
+      "POST",
+      { epoch: opened.epoch, checkpointId: opened.checkpointId },
+    );
+    request.headers.set("authorization", `Bearer ${bearer}`);
+    request.headers.delete("cookie");
+    const refused = await fixture.app.fetch(request);
+    assertEquals(refused.status, 403, await refused.clone().text());
+    const problem = await refused.json();
+    assertEquals(
+      problem.reason,
+      "rollover_requires_person",
+      JSON.stringify(problem),
+    );
+    assertEquals((await readDraft(fixture, opened.id)).epoch, 1);
   } finally {
     await cleanup(fixture);
   }

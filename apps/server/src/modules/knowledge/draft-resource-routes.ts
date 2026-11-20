@@ -689,6 +689,8 @@ export function createDraftResourceRoutes(
       input: contractSchemas.DraftRollover,
       output: contractSchemas.Draft,
       policy: commandPolicy,
+      naturalIdempotency: true,
+      naturalIdempotencyInputField: "checkpointId",
       handler: async (context, input) => {
         const { transaction, organizationId, principalId } =
           requireWorkTransaction(context);
@@ -703,12 +705,16 @@ export function createDraftResourceRoutes(
         const stage = (context as StagedActionContext)[draftExecutionStage];
         if (!stage) throw new Error("DRAFT_STAGE_MISSING");
         if (!stage.candidate) {
-          stage.rollover = await prepareDraftRollover(
+          const prepared = await prepareDraftRollover(
             transaction,
             organizationId,
             draftId(context),
             input,
           );
+          if (!("kind" in prepared)) {
+            return withCapabilities(context, prepared);
+          }
+          stage.rollover = prepared;
           stage.organizationId = organizationId;
           throw new DraftPreparationComplete();
         }
