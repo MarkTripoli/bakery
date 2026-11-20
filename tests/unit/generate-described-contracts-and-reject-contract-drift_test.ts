@@ -885,6 +885,7 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
   // of the tree it authorises.
   const approvedBases = [
     "c8cf571ea9fea05e16ae93dfa83ccfd414687a29",
+    "7b27af0ec5771c8deab67b80326829d0ddc2dbcd",
   ];
   const approvedDigest =
     "sha256:fdb9ae6084d1d4db3514b3596518187e565c6c128e770507f105f676b33e84e4";

@@ -3315,7 +3315,7 @@ const FILTER_LIST_MAX_PAGES = 50;
  * FILTER_LIST_MAX_PAGES; when the bound is hit the page keeps its cursor, so
  * the cut is visible rather than silent.
  */
-async function readAllPages<
+export async function readAllPages<
   Item,
   Page extends {
     readonly items: readonly Item[];
@@ -3332,14 +3332,18 @@ async function readAllPages<
   let first: Page | null = null;
   const items: Item[] = [];
   let cursor: string | undefined;
+  let next: string | null = null;
   for (let pages = 0; pages < FILTER_LIST_MAX_PAGES; pages++) {
     const page: Page = unwrap(await read(cursor));
     first ??= page;
     items.push(...page.items);
-    if (page.nextCursor === null) break;
-    cursor = page.nextCursor;
+    next = page.nextCursor;
+    if (next === null) break;
+    cursor = next;
   }
-  return { ...first!, items, nextCursor: cursor ?? null };
+  // null once the last page was read; the cursor still owed when the bound cut
+  // the read short.
+  return { ...first!, items, nextCursor: next };
 }
 
 /** The kinds of document the organization has, by name, for the Kind filter. */
