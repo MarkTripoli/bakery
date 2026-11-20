@@ -310,34 +310,6 @@ function EditForm(
   };
   return (
     <UI.FormContent>
-      {props.conflict
-        ? (
-          <UI.InlineNotice tone="error">
-            {translate("organizationStorage.conflict")}{" "}
-            <UI.Button
-              onClick={props.onReload}
-              type="button"
-              variant="secondary"
-            >
-              {translate("organizationStorage.reload")}
-            </UI.Button>
-          </UI.InlineNotice>
-        )
-        : null}
-      {props.saved
-        ? (
-          <UI.InlineNotice tone="success">
-            {translate("organizationStorage.saved")}
-          </UI.InlineNotice>
-        )
-        : null}
-      {props.saveFailed
-        ? (
-          <UI.InlineNotice tone="error">
-            {translate("organizationStorage.saveError")}
-          </UI.InlineNotice>
-        )
-        : null}
       <form
         noValidate
         onSubmit={(event) => {
@@ -358,6 +330,38 @@ function EditForm(
           >
             {KEPT.map(field)}
           </UI.SettingsSection>
+          {props.conflict
+            ? (
+              <UI.InlineNotice
+                action={
+                  <UI.Button
+                    onClick={props.onReload}
+                    type="button"
+                    variant="secondary"
+                  >
+                    {translate("organizationStorage.reload")}
+                  </UI.Button>
+                }
+                tone="error"
+              >
+                {translate("organizationStorage.conflict")}
+              </UI.InlineNotice>
+            )
+            : null}
+          {props.saved
+            ? (
+              <UI.InlineNotice tone="success">
+                {translate("organizationStorage.saved")}
+              </UI.InlineNotice>
+            )
+            : null}
+          {props.saveFailed
+            ? (
+              <UI.InlineNotice tone="error">
+                {translate("organizationStorage.saveError")}
+              </UI.InlineNotice>
+            )
+            : null}
           <UI.Inline data-form-actions gap="standard">
             <UI.Button
               disabled={isDisconnected(async) || props.unchanged}
