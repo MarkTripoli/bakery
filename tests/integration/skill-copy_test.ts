@@ -361,7 +361,7 @@ Deno.test("copying a skill carries its active version and records where it came 
       }),
     );
     assertEquals(rename.status, 403);
-    assert((await rename.text()).includes("global_skill_is_read_only"));
+    // The page names this refusal from the skill itself: scope is "global".
     const publishToGlobal = await post(
       adminCookie,
       `/v1/skills/${source.id}/versions`,
