@@ -22297,7 +22297,7 @@ export const clientManifest = {
           "type": "string",
           "format": "uuid",
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "Immutable package version this install pins; installing this version grants no capabilities by itself until any needed permission_grants are separately approved."
+          "description": "Immutable package version this install pins; installing it grants the install every capability that version's manifest requests, all at once."
         },
         "scope": {
           "type": "string",
@@ -22320,7 +22320,7 @@ export const clientManifest = {
         "scope"
       ],
       "additionalProperties": false,
-      "description": "Installs one immutable, published plugin version into the organization (Admin-only, shared) or for one principal personally (Developer, private); installing pins the version but grants no capabilities on its own."
+      "description": "Installs one immutable, published plugin version into the organization (Admin-only, shared) or for one principal personally (Developer, private); installing pins the version and gives the install every capability that version's manifest requests, all at once, with no way to give some and not others."
     },
     "PluginInstallUpdate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -22340,10 +22340,14 @@ export const clientManifest = {
             "disabled",
             "uninstalled"
           ]
+        },
+        "dismissUpdateFailure": {
+          "description": "True to clear the install's recorded last update failure without changing its version or status.",
+          "type": "boolean"
         }
       },
       "additionalProperties": false,
-      "description": "Updates an existing plugin install's pinned version or lifecycle status; requires at least one field and an If-Match precondition, and a new version is staged and validated before it becomes active."
+      "description": "Updates an existing plugin install's pinned version or lifecycle status, or dismisses its last update failure; requires at least one field and an If-Match precondition, and a new version is staged and validated before it becomes active. If the new version does not pass its checks the install keeps its prior version, the answer carries lastUpdateFailure, and the rest of the request still applies."
     },
     "PluginStatePut": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -74509,6 +74513,54 @@ export const clientManifest = {
           "minimum": -9007199254740991,
           "maximum": 9007199254740991,
           "description": "Monotonic revision used to order or conditionally update this plugin install record."
+        },
+        "lastUpdateFailure": {
+          "description": "PluginInstall.lastUpdateFailure may be null in this transport value.",
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "JSON string value."
+                },
+                {
+                  "type": "number",
+                  "description": "JSON number value."
+                },
+                {
+                  "type": "boolean",
+                  "description": "JSON boolean value."
+                },
+                {
+                  "type": "null",
+                  "description": "JSON null value."
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/__schema0"
+                  },
+                  "description": "JSON array value."
+                },
+                {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string",
+                    "description": "JSON object key."
+                  },
+                  "additionalProperties": {
+                    "$ref": "#/$defs/__schema0"
+                  },
+                  "description": "JSON object value."
+                }
+              ],
+              "description": "The last update that did not start, kept until the next update succeeds or a person dismisses it: {versionId, versionName, reason, at}, where reason is a stable slug (plugin_sdk_incompatible, or plugin_manifest_ followed by the manifest problem) and at is a UTC timestamp. The install keeps running its prior version. Null when there is nothing to show."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
         }
       },
       "required": [
@@ -74527,7 +74579,120 @@ export const clientManifest = {
         "version"
       ],
       "additionalProperties": false,
-      "description": "One organization-wide or personal installation of a pinned, immutable plugin version, returned by creating, reading or updating an install. Tracks lifecycle status (staged, enabled, disabled, failed, uninstalled), the stateSchemaVersion stored state is checked against, and activation/disable timestamps; ownerPrincipalId is set only for a personal-scope install."
+      "description": "One organization-wide or personal installation of a pinned, immutable plugin version, returned by creating, reading or updating an install. Tracks lifecycle status (staged, enabled, disabled, failed, uninstalled), the stateSchemaVersion stored state is checked against, and activation/disable timestamps; ownerPrincipalId is set only for a personal-scope install. lastUpdateFailure records an update that was refused because the new version did not pass its checks.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
     },
     "Page<PluginInstall>": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -74650,6 +74815,54 @@ export const clientManifest = {
                 "minimum": -9007199254740991,
                 "maximum": 9007199254740991,
                 "description": "Monotonic revision used to order or conditionally update this plugin install record."
+              },
+              "lastUpdateFailure": {
+                "description": "PluginInstall.lastUpdateFailure may be null in this transport value.",
+                "anyOf": [
+                  {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "description": "JSON string value."
+                      },
+                      {
+                        "type": "number",
+                        "description": "JSON number value."
+                      },
+                      {
+                        "type": "boolean",
+                        "description": "JSON boolean value."
+                      },
+                      {
+                        "type": "null",
+                        "description": "JSON null value."
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "$ref": "#/$defs/__schema0"
+                        },
+                        "description": "JSON array value."
+                      },
+                      {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string",
+                          "description": "JSON object key."
+                        },
+                        "additionalProperties": {
+                          "$ref": "#/$defs/__schema0"
+                        },
+                        "description": "JSON object value."
+                      }
+                    ],
+                    "description": "The last update that did not start, kept until the next update succeeds or a person dismisses it: {versionId, versionName, reason, at}, where reason is a stable slug (plugin_sdk_incompatible, or plugin_manifest_ followed by the manifest problem) and at is a UTC timestamp. The install keeps running its prior version. Null when there is nothing to show."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ]
               }
             },
             "required": [
@@ -74668,7 +74881,7 @@ export const clientManifest = {
               "version"
             ],
             "additionalProperties": false,
-            "description": "One organization-wide or personal installation of a pinned, immutable plugin version, returned by creating, reading or updating an install. Tracks lifecycle status (staged, enabled, disabled, failed, uninstalled), the stateSchemaVersion stored state is checked against, and activation/disable timestamps; ownerPrincipalId is set only for a personal-scope install."
+            "description": "One organization-wide or personal installation of a pinned, immutable plugin version, returned by creating, reading or updating an install. Tracks lifecycle status (staged, enabled, disabled, failed, uninstalled), the stateSchemaVersion stored state is checked against, and activation/disable timestamps; ownerPrincipalId is set only for a personal-scope install. lastUpdateFailure records an update that was refused because the new version did not pass its checks."
           },
           "description": "PluginInstall items in this cursor page. Page<PluginInstall>.items must contain at most 100 items."
         },
@@ -74722,7 +74935,120 @@ export const clientManifest = {
         "nextCursor"
       ],
       "additionalProperties": false,
-      "description": "Cursor page of PluginInstall."
+      "description": "Cursor page of PluginInstall.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
     },
     "Page<PluginState>": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
