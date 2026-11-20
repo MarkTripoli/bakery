@@ -1,13 +1,22 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "dd04161d9c178f90553b2e7b086c18bb5f848203"
+    "2f2c8e83a44a3a781914cf0348a1671a80ddd759"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:68f8ed103f00f5939c295ca6fcdff4841ce299aa7adcbd10581d3a765d89d59a",
-  "reason": "#72 live updates re-bind by dev-bugfix on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main dd04161d9c178f90553b2e7b086c18bb5f848203 (#730, #736, #738, #734, #740, #742 and #733 merged): the events subscribe contract gains a memory scope kind (Scope.type and SyncQuery.scopeType accept `memory`, whose id is the organization and which only a caller who may read memory can subscribe to), on top of main's own approval for the #72 memory current-revision projection at sha256:c8c14f83cd6c0e6aa55afeb28d0ed880dbd695ca3cc4ec81491fce79f9bb3c96, which is preserved unchanged first below. The drift is one added enum value on request inputs, and MemoryRevision gains a required nullable createdByName (the display name of the principal in createdBy), so the history names who made each wording without a second read. Main's own approval at sha256:1e96091b9990086d17c09e0bae292465d0f9ce34f5b698b29d9fceb229246276 is preserved unchanged first below, and my previous approval at sha256:fb10887d4b159377b43b00903e72e8942c1804bb621ee75e18d5a3d40487193e follows it.",
+  "targetCompatibilityDigest": "sha256:e57de0de36c4f5a4aea4e34f5c1bffcd3c9ab0ea5823cd8137a28bafb2f24154",
+  "reason": "#72 live updates re-bind by dev-bugfix on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 2f2c8e83a44a3a781914cf0348a1671a80ddd759 (#730, #736, #738, #734, #740, #742, #733 and #737 merged): the events subscribe contract gains a memory scope kind (Scope.type and SyncQuery.scopeType accept `memory`, whose id is the organization and which only a caller who may read memory can subscribe to), on top of main's own approval for the #72 memory current-revision projection at sha256:c8c14f83cd6c0e6aa55afeb28d0ed880dbd695ca3cc4ec81491fce79f9bb3c96, which is preserved unchanged first below. The drift is one added enum value on request inputs, and MemoryRevision gains a required nullable createdByName (the display name of the principal in createdBy), so the history names who made each wording without a second read. Main's own approval at sha256:1e96091b9990086d17c09e0bae292465d0f9ce34f5b698b29d9fceb229246276 is preserved unchanged first below, and my previous approval at sha256:fb10887d4b159377b43b00903e72e8942c1804bb621ee75e18d5a3d40487193e follows it.",
   "priorApprovals": [
+    {
+      "fromBaseRefs": [
+        "dd04161d9c178f90553b2e7b086c18bb5f848203"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:68f8ed103f00f5939c295ca6fcdff4841ce299aa7adcbd10581d3a765d89d59a",
+      "reason": "#72 live updates re-bind by dev-bugfix on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main dd04161d9c178f90553b2e7b086c18bb5f848203 (#730, #736, #738, #734, #740, #742 and #733 merged): the events subscribe contract gains a memory scope kind (Scope.type and SyncQuery.scopeType accept `memory`, whose id is the organization and which only a caller who may read memory can subscribe to), on top of main's own approval for the #72 memory current-revision projection at sha256:c8c14f83cd6c0e6aa55afeb28d0ed880dbd695ca3cc4ec81491fce79f9bb3c96, which is preserved unchanged first below. The drift is one added enum value on request inputs, and MemoryRevision gains a required nullable createdByName (the display name of the principal in createdBy), so the history names who made each wording without a second read. Main's own approval at sha256:1e96091b9990086d17c09e0bae292465d0f9ce34f5b698b29d9fceb229246276 is preserved unchanged first below, and my previous approval at sha256:fb10887d4b159377b43b00903e72e8942c1804bb621ee75e18d5a3d40487193e follows it. [Displaced when main moved again (#737 merged): the digest follows the tree.]"
+    },
     {
       "fromBaseRefs": [
         "a1df1217b31b2b13911da5d1f1f9db3d944936bd"
