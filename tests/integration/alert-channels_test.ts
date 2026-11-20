@@ -67,17 +67,18 @@ Deno.test("an administrator manages signed webhook alert channels that really re
   let answer = 200;
   const hook = receiver(() => answer);
   const publicPolicy = createPublicHttpsPolicy();
+  const dependencies = {
+    secretsKey: secretsKey as typeof secretsKey | undefined,
+    fetch,
+    // The receiver runs on loopback; every other address follows the public rules.
+    addressPolicy: (address: string) =>
+      address.startsWith(hook.address)
+        ? Promise.resolve({ ok: true as const })
+        : publicPolicy(address),
+  };
   const f = await openInstallationFixture(true, {
     secretsKey,
-    alertChannels: {
-      secretsKey,
-      fetch,
-      // The receiver runs on loopback; every other address follows the public rules.
-      addressPolicy: (address) =>
-        address.startsWith(hook.address)
-          ? Promise.resolve({ ok: true })
-          : publicPolicy(address),
-    },
+    alertChannels: dependencies,
   });
   const org = { "Bakery-Organization-Id": f.organizationId };
   const send = async (
@@ -352,39 +353,26 @@ Deno.test("an administrator manages signed webhook alert channels that really re
       },
     );
     assertEquals(again.status, 404);
+
+    // Without a secrets key a channel cannot be created, and nothing is left behind.
+    const count = async () =>
+      (await f.pgDatabase.query<{ count: string }>(
+        "select count(*)::text as count from bakery.alert_channels",
+      )).rows[0].count;
+    const before19 = await count();
+    dependencies.secretsKey = undefined;
+    const noKey = await send(f.adminCookie, "POST", basePath, {
+      body: {
+        kind: "webhook",
+        name: "No key",
+        values: { address: hook.address },
+      },
+    });
+    assertEquals(noKey.status, 409, noKey.text);
+    assertEquals(await count(), before19);
   } finally {
     await hook.close();
     await f.close();
     await Deno.remove(keyFile);
-  }
-});
-
-Deno.test("without a secrets key an alert channel cannot be created, and nothing is left behind", async () => {
-  const f = await openInstallationFixture(true);
-  try {
-    const response = await call(
-      f,
-      "POST",
-      "/v1/installation/alert-channels",
-      f.adminCookie,
-      {
-        body: {
-          kind: "webhook",
-          name: "No key",
-          values: { address: "https://hooks.example.test/alerts" },
-        },
-        headers: {
-          "Bakery-Organization-Id": f.organizationId,
-          "Idempotency-Key": crypto.randomUUID(),
-        },
-      },
-    );
-    assertEquals(response.status, 409, await response.text());
-    const rows = await f.pgDatabase.query<{ count: string }>(
-      "select count(*)::text as count from bakery.alert_channels",
-    );
-    assertEquals(rows.rows[0].count, "0");
-  } finally {
-    await f.close();
   }
 });
