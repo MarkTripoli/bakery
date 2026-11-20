@@ -8,12 +8,17 @@ import { createBackupRoutes } from "./modules/backups/actions.ts";
 import type { probeBackupDestination } from "./modules/backups/s3.ts";
 import type { HostResolver } from "./modules/backups/dns.ts";
 import {
+  type AlertChannelDependencies,
+  createAlertChannelRoutes,
+} from "./modules/monitoring/alert-channels.ts";
+import {
   createTelemetryDestinationRoutes,
   type TelemetryDestinationDependencies,
 } from "./modules/monitoring/telemetry-destinations.ts";
 import {
   allowAnyAddress,
   createDestinationFanout,
+  createPinnedFetch,
   createProviderRegistry,
   createPublicHttpsPolicy,
   otlpProvider,
@@ -233,6 +238,8 @@ export function createApp(options: {
    * its telemetry; left out, the routes run on a fan-out nothing feeds.
    */
   telemetryDestinations?: TelemetryDestinationDependencies;
+  /** Where alert messages go and how a send is made; tests inject a receiver. */
+  alertChannels?: AlertChannelDependencies;
   /** Replaces the SMTP exchange of the installation email test (tests only). */
   emailSend?: EmailSettingsDependencies["send"];
   skillSourceAdapter?: SkillSourceAdapter;
@@ -1014,6 +1021,28 @@ export function createApp(options: {
       publicBaseUrl: options.config.publicBaseUrl,
     }),
   );
+  // Outbound alert and telemetry sends dial only the addresses they checked, so
+  // a name that answers differently the second time cannot reach a private
+  // network. A test environment may run its receiver on loopback, over http.
+  const egressFetch = options.config.environment === "test"
+    ? fetch
+    : createPinnedFetch();
+  app.route(
+    "/",
+    createAlertChannelRoutes({
+      database: options.pgDatabase,
+      browserSession,
+      publicBaseUrl: options.config.publicBaseUrl,
+      dependencies: options.alertChannels ?? {
+        secretsKey: options.config.secretsKey,
+        fetch: egressFetch,
+        // A test environment may run its receiver on loopback.
+        addressPolicy: options.config.environment === "test"
+          ? allowAnyAddress
+          : createPublicHttpsPolicy(),
+      },
+    }),
+  );
   app.route(
     "/",
     createTelemetryDestinationRoutes({
@@ -1024,10 +1053,10 @@ export function createApp(options: {
         registry: createProviderRegistry([otlpProvider]),
         fanout: createDestinationFanout({
           registry: createProviderRegistry([otlpProvider]),
-          dependencies: { fetch, addressPolicy: allowAnyAddress },
+          dependencies: { fetch: egressFetch, addressPolicy: allowAnyAddress },
         }),
         providerDependencies: {
-          fetch,
+          fetch: egressFetch,
           // A test environment may run its receiver on loopback.
           addressPolicy: options.config.environment === "test"
             ? allowAnyAddress

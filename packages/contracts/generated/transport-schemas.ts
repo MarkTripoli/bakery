@@ -13511,6 +13511,88 @@ const transportSchemas = {
         "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind cursor to this operation, current principal/scope, filters and ordering; validate and reauthorize before the keyset query."
       ],
       "description": "Cursor page of a batch's results in case order, optionally one state."
+    },
+    "AlertChannelCreate": {
+      "fields": [
+        {
+          "name": "kind",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 64
+          },
+          "description": "Which kind of channel this is; webhook is the only one for now."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 100
+          },
+          "description": "Name people see in the list and beside each alert, unique across channels ignoring case."
+        },
+        {
+          "name": "enabled",
+          "type": "boolean",
+          "required": false,
+          "description": "Whether alerts are sent to it now; defaults to true."
+        },
+        {
+          "name": "values",
+          "type": "json",
+          "required": true,
+          "bounds": {
+            "maxBytes": 2000
+          },
+          "description": "The settings by field name: address, an https address that is not private or local, for a webhook."
+        }
+      ],
+      "rules": [
+        "Installation administrator with a browser session; access tokens are refused. Idempotency-Key is required.",
+        "An unknown kind, or an address that is not https, is private or local, answers 422 UNPROCESSABLE naming the field. A name already used answers 409 STATE_CONFLICT. At most 20 channels exist; one more answers 409 STATE_CONFLICT. With no secrets key configured the signing secret cannot be stored: 409 STATE_CONFLICT, and nothing is created.",
+        "The answer carries the new signing secret once; it is never returned again."
+      ],
+      "description": "Adds an alert channel: a place Bakery sends an alert message, signed so the receiver can tell it came from this Bakery."
+    },
+    "AlertChannelUpdate": {
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "location": "path",
+          "description": "Identifies the channel to change; supplied via the request's {id} path segment."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 100
+          },
+          "description": "New name, unique across channels ignoring case; omit to keep the current one."
+        },
+        {
+          "name": "enabled",
+          "type": "boolean",
+          "required": false,
+          "description": "Turns the channel on or off without losing its settings; omit to keep the current state."
+        },
+        {
+          "name": "values",
+          "type": "json",
+          "required": false,
+          "bounds": {
+            "maxBytes": 2000
+          },
+          "description": "Only the settings to change, by field name, such as a new address. The signing secret is replaced by its own action."
+        }
+      ],
+      "rules": [
+        "Installation administrator with a browser session. Idempotency-Key and a strong If-Match with the channel version are required (428 when missing, 412 when stale)."
+      ],
+      "description": "Changes an alert channel's name, on or off state or address; the signing secret is untouched."
     }
   },
   "projections": {
@@ -34038,6 +34120,158 @@ const transportSchemas = {
         "cases": "Per case and scorer, both states; empty when incompatible.",
         "onlyLeft": "Cases only the path batch has.",
         "onlyRight": "Cases only the other batch has."
+      }
+    },
+    "AlertChannel": {
+      "fields": [
+        "id",
+        "kind",
+        "name",
+        "enabled",
+        "settings",
+        "signingSecretCreatedAt",
+        "state",
+        "lastAnswerAt",
+        "lastAnswerOk",
+        "lastAnswerReason",
+        "createdAt",
+        "updatedAt",
+        "version"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "kind": "enum(webhook)",
+        "name": "string",
+        "enabled": "boolean",
+        "settings": "json",
+        "signingSecretCreatedAt": "timestamp",
+        "state": "enum(working|not_tested_yet|failing|off)",
+        "lastAnswerAt": "timestamp|null",
+        "lastAnswerOk": "boolean|null",
+        "lastAnswerReason": "string|null",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp",
+        "version": "integer"
+      },
+      "nullableFields": [
+        "lastAnswerAt",
+        "lastAnswerOk",
+        "lastAnswerReason"
+      ],
+      "description": "One alert channel as an installation administrator may see it, with how it is doing. The signing secret is reported only as when it was made; it is shown once, on creation and on replacement, and never read back.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of the channel.",
+        "kind": "Which kind of channel this is: a signed webhook.",
+        "name": "Name shown in the list and beside each alert.",
+        "enabled": "Whether alerts are sent to it now.",
+        "settings": "The non-secret values saved for it, by field name: address for a webhook.",
+        "signingSecretCreatedAt": "When its current signing secret was made.",
+        "state": "working (the last send was accepted), not_tested_yet (nothing sent yet), failing (the last send was refused or timed out) or off.",
+        "lastAnswerAt": "When it last answered a send, accepted or not, or null.",
+        "lastAnswerOk": "Whether that last answer was an acceptance, or null before any.",
+        "lastAnswerReason": "A short plain reason when the last answer was a refusal, or null.",
+        "createdAt": "UTC time the channel was added.",
+        "updatedAt": "UTC time it last changed.",
+        "version": "Monotonic revision; submit it as If-Match when changing or removing the channel."
+      }
+    },
+    "AlertChannelList": {
+      "fields": [
+        "channels"
+      ],
+      "fieldTypes": {
+        "channels": "json[]"
+      },
+      "nullableFields": [],
+      "description": "The alert channels that exist (at most 20), oldest first, each with its state.",
+      "fieldDescriptions": {
+        "channels": "The channels, each shaped as an AlertChannel."
+      }
+    },
+    "AlertChannelCreate": {
+      "fields": [
+        "kind",
+        "name",
+        "enabled",
+        "values"
+      ],
+      "fieldTypes": {
+        "kind": "enum(webhook)",
+        "name": "string",
+        "enabled": "boolean?",
+        "values": "json"
+      },
+      "nullableFields": [],
+      "description": "Adds an alert channel. A webhook takes an https address; its signing secret is made by the server and returned once.",
+      "fieldDescriptions": {
+        "kind": "Which kind of channel to add.",
+        "name": "Name shown in the list, 1 to 100 characters, unique ignoring case.",
+        "enabled": "Whether alerts go to it now; defaults to true.",
+        "values": "The channel settings by field name: address for a webhook, an https address that is not private or local."
+      }
+    },
+    "AlertChannelUpdate": {
+      "fields": [
+        "name",
+        "enabled",
+        "values"
+      ],
+      "fieldTypes": {
+        "name": "string?",
+        "enabled": "boolean?",
+        "values": "json?"
+      },
+      "nullableFields": [],
+      "description": "Changes an alert channel. Send only what changed; the signing secret is replaced by its own action, never here.",
+      "fieldDescriptions": {
+        "name": "A new name, 1 to 100 characters.",
+        "enabled": "Turn alerts to this channel on or off.",
+        "values": "The settings to change by field name, such as a new address."
+      }
+    },
+    "AlertChannelSecretIssued": {
+      "fields": [
+        "channel",
+        "signingSecret"
+      ],
+      "fieldTypes": {
+        "channel": "json",
+        "signingSecret": "string"
+      },
+      "nullableFields": [],
+      "description": "An alert channel together with its signing secret, answered once: when the channel is created and when its secret is replaced. The secret is not stored in the clear and is never returned again.",
+      "fieldDescriptions": {
+        "channel": "The channel, shaped as an AlertChannel.",
+        "signingSecret": "The secret a receiver uses to verify the Bakery-Signature header. Copy it now; Bakery will not show it again. A replaced secret stops working at once."
+      }
+    },
+    "AlertChannelTestResult": {
+      "fields": [
+        "ok",
+        "status",
+        "reason",
+        "answer",
+        "tookMs"
+      ],
+      "fieldTypes": {
+        "ok": "boolean",
+        "status": "integer|null",
+        "reason": "string|null",
+        "answer": "string|null",
+        "tookMs": "integer"
+      },
+      "nullableFields": [
+        "status",
+        "reason",
+        "answer"
+      ],
+      "description": "The receiver's real answer to one signed test message: whether it accepted it, its HTTP status, a short plain reason when it did not, a bounded piece of what it said and how long it took.",
+      "fieldDescriptions": {
+        "ok": "True only when the receiver accepted the test message.",
+        "status": "The receiver's HTTP status, or null when it never answered.",
+        "reason": "A short plain reason when it did not accept, or null.",
+        "answer": "At most 300 characters of what it answered, or null; never a credential.",
+        "tookMs": "Milliseconds the test took."
       }
     }
   },
