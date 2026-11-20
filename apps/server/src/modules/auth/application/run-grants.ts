@@ -14,7 +14,12 @@ import type { PgTransactionClient } from "../../../platform/database.ts";
  * resource bindings have both refused. Every lookup carries organization_id.
  */
 /** What the `:id` of an observe action is, and so how a grant is matched to it. */
-export type RunGrantKind = "run" | "task" | "artifactVersion" | "session";
+export type RunGrantKind =
+  | "run"
+  | "task"
+  | "artifactVersion"
+  | "session"
+  | "outputStream";
 
 export const RUN_GRANT_ACTIONS: Readonly<
   Partial<Record<CatalogActionName, RunGrantKind>>
@@ -37,7 +42,9 @@ export const RUN_GRANT_ACTIONS: Readonly<
   // narrowed to the session's own messages for a person with no standing
   // access (see session-feed.ts), so it never shows the whole conversation.
   "sessions.feed": "session",
-  "outputStreams.transcript": "session",
+  // `:id` is an output stream; only one a step of the granted run wrote. It
+  // answers the published transcript's segment references, never the chat.
+  "outputStreams.transcript": "outputStream",
 });
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -57,7 +64,26 @@ export async function hasLiveRunGrant(
 ): Promise<boolean> {
   // A malformed id is no grant, not a database error.
   if (id === undefined || !UUID.test(id)) return false;
-  const found = kind === "session"
+  const found = kind === "outputStream"
+    // The stream has to belong to the job of a step of the granted run.
+    ? await transaction.query(
+      `select 1 from bakery.run_access_grants grant_row
+         join bakery.run_steps step
+           on step.organization_id = grant_row.organization_id
+          and step.run_id = grant_row.run_id
+         join bakery.jobs job
+           on job.organization_id = step.organization_id
+          and job.run_step_id = step.id
+         join bakery.session_output_streams stream
+           on stream.organization_id = job.organization_id
+          and stream.job_id = job.id
+        where grant_row.organization_id = $1 and grant_row.principal_id = $2
+          and stream.id = $3::uuid and grant_row.revoked_at is null
+        limit 1
+        for share of grant_row`,
+      [organizationId, principalId, id],
+    )
+    : kind === "session"
     // The session has to belong to a step of the granted run.
     ? await transaction.query(
       `select 1 from bakery.run_access_grants grant_row
