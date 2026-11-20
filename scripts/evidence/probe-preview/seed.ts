@@ -138,6 +138,8 @@ async function writeFile(input: {
    * page must show that version's facts, not the current version's.
    */
   previous?: { bytes: Uint8Array; answer: Answer };
+  /** A digest that is deliberately not the digest of the bytes, to seed a mismatch. */
+  recordedSha256?: string;
 }) {
   // The organization's own working folder, which the files page already lists as
   // "shared (shared)". A folder this seed invented would be a folder the page
@@ -189,6 +191,7 @@ async function writeFile(input: {
   const writeRevision = async (
     revision: number,
     bytes: Uint8Array,
+    recordedSha256?: string,
   ): Promise<string> => {
     const row = await q<{ id: string }>(
       `insert into bakery.storage_file_versions
@@ -201,7 +204,7 @@ async function writeFile(input: {
         entryId,
         revision,
         bytes,
-        await sha256Bytes(bytes),
+        recordedSha256 ?? await sha256Bytes(bytes),
         bytes.byteLength,
         input.mediaType,
         input.principalId,
@@ -212,7 +215,11 @@ async function writeFile(input: {
 
   let currentVersionId: string;
   if (input.previous === undefined) {
-    currentVersionId = await writeRevision(1, input.bytes);
+    currentVersionId = await writeRevision(
+      1,
+      input.bytes,
+      input.recordedSha256,
+    );
     if (input.answer !== undefined) {
       await writeAnswer(entryId, 1, input.bytes, input.answer);
     }
@@ -242,6 +249,152 @@ async function writeFile(input: {
     name: input.name,
     versionId: currentVersionId,
   };
+}
+
+/**
+ * One application, conversation, completed task and run, with one step.
+ *
+ * The artifact page and the task pane both hang off a task; the pane only shows a
+ * version one of this run's steps published, so the step is not decoration.
+ */
+async function writeTarget(organizationId: string, createdBy: string) {
+  const existing = await q<{ id: string }>(
+    `select id from bakery.applications
+      where organization_id = $1 and slug = 'evidence'`,
+    [organizationId],
+  );
+  const applicationId = existing[0]?.id ?? (await q<{ id: string }>(
+    `insert into bakery.applications (organization_id, slug, name, description)
+     values ($1, 'evidence', 'Evidence', 'Seeded for visual evidence')
+     returning id`,
+    [organizationId],
+  ))[0]!.id;
+  const conversationId = (await q<{ id: string }>(
+    `insert into bakery.conversations
+       (organization_id, application_id, title, created_by)
+     values ($1, $2, 'Preview a recording', $3) returning id`,
+    [organizationId, applicationId, createdBy],
+  ))[0]!.id;
+  const taskId = (await q<{ id: string }>(
+    `insert into bakery.tasks
+       (organization_id, application_id, conversation_id, title, description,
+        task_type, status, priority, created_by, planning_only)
+     values ($1, $2, $3, 'Preview a recording', 'Seeded task',
+             'feature', 'completed', 0, $4, false) returning id`,
+    [organizationId, applicationId, conversationId, createdBy],
+  ))[0]!.id;
+  // The run read refuses a run whose owner it cannot name, so the workflow and
+  // its version are part of the seed rather than an afterthought.
+  const workflowId = (await q<{ id: string }>(
+    `select id from bakery.workflow_definitions
+      where organization_id = $1 and slug = 'evidence-preview'`,
+    [organizationId],
+  ))[0]?.id ?? (await q<{ id: string }>(
+    `insert into bakery.workflow_definitions
+       (organization_id, slug, name, description)
+     values ($1, 'evidence-preview', 'Evidence preview', 'Seeded workflow')
+     returning id`,
+    [organizationId],
+  ))[0]!.id;
+  const workflowVersionId = (await q<{ id: string }>(
+    `select id from bakery.workflow_versions
+      where organization_id = $1 and workflow_id = $2 and revision = 1`,
+    [organizationId, workflowId],
+  ))[0]?.id ?? (await q<{ id: string }>(
+    `insert into bakery.workflow_versions
+       (organization_id, workflow_id, revision, source_yaml, normalized_spec,
+        digest, status, created_by)
+     values ($1, $2, 1, 'steps: []', '{}'::jsonb, $3, 'published', $4)
+     returning id`,
+    [organizationId, workflowId, "0".repeat(64), createdBy],
+  ))[0]!.id;
+  const runId = (await q<{ id: string }>(
+    `insert into bakery.workflow_runs
+       (organization_id, task_id, workflow_version_id, requested_by, status,
+        snapshot, budget_limit_usd, engine_owner_generation, kind)
+     values ($1, $2, $3, $4, 'completed', '{}'::jsonb, 0, 0, 'workflow')
+     returning id`,
+    [organizationId, taskId, workflowVersionId, createdBy],
+  ))[0]!.id;
+  const stepId = (await q<{ id: string }>(
+    `insert into bakery.run_steps
+       (organization_id, run_id, step_key, position, iteration, status, input)
+     values ($1, $2, 'publish', 0, 0, 'completed', '{}'::jsonb) returning id`,
+    [organizationId, runId],
+  ))[0]!.id;
+  await q(
+    `update bakery.tasks set current_run_id = $2
+      where organization_id = $1 and id = $3`,
+    [organizationId, runId, taskId],
+  );
+  return { taskId, runId, stepId };
+}
+
+/** One artifact version, inline bytes, optionally owned by a run step. */
+async function writeArtifact(input: {
+  organizationId: string;
+  taskId: string;
+  runStepId: string | null;
+  principalId: string;
+  name: string;
+  mediaType: string;
+  bytes: Uint8Array;
+  answer?: Answer & { durationMs?: number };
+  /** A digest that is not the digest of the bytes, to seed the mismatch Banner. */
+  recordedSha256?: string;
+}) {
+  const artifactId = (await q<{ id: string }>(
+    `insert into bakery.artifacts
+       (organization_id, task_id, artifact_type, name, revision, version)
+     values ($1, $2, 'other', $3, 1, 1) returning id`,
+    [input.organizationId, input.taskId, input.name],
+  ))[0]!.id;
+  const versionId = (await q<{ id: string }>(
+    `insert into bakery.artifact_versions
+       (organization_id, artifact_id, task_id, run_step_id, revision, author_id,
+        subject_head_sha, subject_base_sha, step_key, metadata, content, sha256,
+        size_bytes, media_type)
+     values ($1, $2, $3, $4, 1, $5, null, null, null, '{}'::jsonb, $6, $7, $8, $9)
+     returning id`,
+    [
+      input.organizationId,
+      artifactId,
+      input.taskId,
+      input.runStepId,
+      input.principalId,
+      input.bytes,
+      input.recordedSha256 ?? await sha256Bytes(input.bytes),
+      input.bytes.byteLength,
+      input.mediaType,
+    ],
+  ))[0]!.id;
+  await q(
+    `update bakery.artifacts set current_version_id = $2
+      where organization_id = $1 and id = $3`,
+    [input.organizationId, versionId, artifactId],
+  );
+  if (input.answer !== undefined) {
+    // A store-less version keys its answer on the version itself, which is the
+    // same key `readArtifactProbe` reads.
+    await q(
+      `insert into bakery.blob_probes
+         (organization_id, artifact_version_id, status, kind, media_type,
+          byte_length, width, height, duration_ms, line_count, probed_at)
+       values ($1, $2, 'described', $3, $4, $5, $6, $7, $8, $9, now())`,
+      [
+        input.organizationId,
+        versionId,
+        input.answer.kind ?? null,
+        input.mediaType,
+        input.bytes.byteLength,
+        input.answer.width ?? null,
+        input.answer.height ?? null,
+        input.answer.durationMs ?? null,
+        input.answer.lineCount ?? null,
+      ],
+    );
+  }
+  return { artifactId, versionId };
 }
 
 try {
@@ -324,7 +477,18 @@ try {
     bytes: new TextEncoder().encode("x".repeat(64)),
     answer: { status: "refused", code: "too-large", limit: 32 },
   });
-  // 6. Two revisions with two answers: an older version selected with ?version=
+  // 6. A file whose recorded digest is not the digest of its bytes: the panel
+  //    must show the Banner, say nothing else, and offer no Download.
+  files.mismatch = await writeFile({
+    organizationId: owner.organizationId,
+    principalId: owner.principalId,
+    name: "corrupt.png",
+    mediaType: "image/png",
+    bytes: PNG,
+    recordedSha256: "0".repeat(64),
+    answer: { status: "described", kind: "image", width: 2, height: 2 },
+  });
+  // 7. Two revisions with two answers: an older version selected with ?version=
   //    must show its own facts line, not the current one's.
   files.history = await writeFile({
     organizationId: owner.organizationId,
@@ -338,7 +502,55 @@ try {
     },
     answer: { status: "described", kind: "text", lineCount: 42 },
   });
-  console.log(JSON.stringify({ files }));
+  // The artifact page and the task pane: one task, one run, one step, and the
+  // versions that hang off it. The video is a real two-second clip, so the player
+  // draws a frame and the facts line has a measured length to state.
+  const target = await writeTarget(owner.organizationId, owner.principalId);
+  const clip = await Deno.readFile(
+    new URL("./evidence-clip.mp4", import.meta.url),
+  );
+  const video = await writeArtifact({
+    organizationId: owner.organizationId,
+    taskId: target.taskId,
+    runStepId: target.stepId,
+    principalId: owner.principalId,
+    name: "recording.mp4",
+    mediaType: "video/mp4",
+    bytes: clip,
+    answer: { status: "described", kind: "video", durationMs: 2_000 },
+  });
+  const transcript = await writeArtifact({
+    organizationId: owner.organizationId,
+    taskId: target.taskId,
+    runStepId: target.stepId,
+    principalId: owner.principalId,
+    name: "transcript.md",
+    mediaType: "text/markdown",
+    bytes: new TextEncoder().encode(lines),
+    answer: { status: "described", kind: "text", lineCount: 42 },
+  });
+  // A version whose recorded digest is not the digest of its bytes: the artifact
+  // page must show the Banner and offer no Download anywhere.
+  const damaged = await writeArtifact({
+    organizationId: owner.organizationId,
+    taskId: target.taskId,
+    runStepId: target.stepId,
+    principalId: owner.principalId,
+    name: "damaged.png",
+    mediaType: "image/png",
+    bytes: PNG,
+    recordedSha256: "0".repeat(64),
+    answer: { status: "described", kind: "image", width: 2, height: 2 },
+  });
+  console.log(JSON.stringify({
+    files,
+    task: {
+      damagedArtifactId: damaged.artifactId,
+      taskId: target.taskId,
+      videoArtifactId: video.artifactId,
+      transcriptArtifactId: transcript.artifactId,
+    },
+  }));
 } finally {
   await closePgDatabase(pg);
 }

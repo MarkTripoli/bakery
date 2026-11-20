@@ -187,6 +187,9 @@ export function ArtifactRetrievalPage(
   const downloadRequest = useRef(0);
   const downloadAbort = useRef<AbortController | null>(null);
   const [downloadState, setDownloadState] = useState<DownloadState>("idle");
+  // The bytes and the record disagree: the page must not offer to save them
+  // either, so the preview tells this controller and the button goes away.
+  const [digestMismatch, setDigestMismatch] = useState(false);
   const [downloadError, setDownloadError] = useState(false);
   const [startByteInput, setStartByteInput] = useState("0");
   const [extractionInput, setExtractionInput] = useState<
@@ -1012,7 +1015,7 @@ export function ArtifactRetrievalPage(
               search: { version },
             });
           }}
-          download={selectedVersion
+          download={selectedVersion && !digestMismatch
             ? {
               label: downloadState === "loading"
                 ? translate("artifact.retrieval.downloading")
@@ -1142,6 +1145,7 @@ export function ArtifactRetrievalPage(
                 version={selectedVersion}
                 onDownload={() => void download()}
                 onViewDetails={() => setDetailsOpen(true)}
+                onMismatch={setDigestMismatch}
               />
             )
             : (

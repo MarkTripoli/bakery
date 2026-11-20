@@ -4,6 +4,7 @@ import type { SupportedLocale } from "@bakery/i18n";
 import * as UI from "@bakery/ui";
 import { ArtifactPreviewView } from "./ArtifactRetrievalView.tsx";
 import type { ArtifactVersionResponse } from "../api/client.ts";
+import { isArtifactContentMismatch } from "./artifact-mismatch.ts";
 import { useBakeryApi } from "../api/context.tsx";
 import { protectedQueryKey } from "../app/query-scope.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
@@ -40,11 +41,15 @@ export type PreviewVersion = Pick<
 >;
 
 /** The artifact page's own preview: the body of the viewer, with its title. */
-export function ArtifactContentPreview({ version, onDownload, onViewDetails }: {
-  readonly version: ArtifactVersionResponse;
-  readonly onDownload: () => void;
-  readonly onViewDetails: () => void;
-}) {
+export function ArtifactContentPreview(
+  { version, onDownload, onViewDetails, onMismatch }: {
+    readonly version: ArtifactVersionResponse;
+    readonly onDownload: () => void;
+    readonly onViewDetails: () => void;
+    /** Told when the bytes on screen are not the bytes the record describes. */
+    readonly onMismatch?: ((mismatch: boolean) => void) | undefined;
+  },
+) {
   const t = useI18n().translate;
   return (
     <ArtifactPreviewBody
@@ -52,6 +57,7 @@ export function ArtifactContentPreview({ version, onDownload, onViewDetails }: {
       label={t("artifact.preview.title")}
       onDownload={onDownload}
       onViewDetails={onViewDetails}
+      onMismatch={onMismatch}
     />
   );
 }
@@ -70,7 +76,7 @@ export function ArtifactContentPreview({ version, onDownload, onViewDetails }: {
  * check would be the one path that showed it anyway.
  */
 export function ArtifactPreviewBody(
-  { version, label, onDownload, onViewDetails, cutText }: {
+  { version, label, onDownload, onViewDetails, cutText, onMismatch }: {
     readonly version: PreviewVersion | null;
     readonly label: string;
     /** Absent when the surrounding surface already offers these. */
@@ -83,6 +89,8 @@ export function ArtifactPreviewBody(
      * false on the artifact page, which is where a person reads the whole file.
      */
     readonly cutText?: boolean;
+    /** Told when the bytes on screen are not the bytes the record describes. */
+    readonly onMismatch?: ((mismatch: boolean) => void) | undefined;
   },
 ): ReactNode {
   const api = useBakeryApi();
@@ -109,13 +117,16 @@ export function ArtifactPreviewBody(
       return result.data;
     },
   });
-  if (version === null) return null;
+  // No `return null` before the hooks below: a caller that mounts with a null
+  // version and then a real one would otherwise render a different number of
+  // hooks on each pass, which React refuses and the task pane did once.
   const answer = probeFromAnswer(probe.data ?? null);
   // No answer is not a refusal: a version whose bytes are stored inline, or one
   // nothing has probed yet, has never been asked about. Falling back to the
   // declared name is what this screen did before the probe existed, and it beats
   // a skeleton that would never resolve.
-  const mediaType = version.mediaType.split(";", 1)[0].trim().toLowerCase();
+  const mediaType = (version?.mediaType ?? "").split(";", 1)[0].trim()
+    .toLowerCase();
   const state = answer === null
     ? (probe.isPending
       ? { kind: "pending" as const }
@@ -138,8 +149,8 @@ export function ArtifactPreviewBody(
     state.kind === "video" || state.kind === "audio";
   const content = useQuery({
     queryKey: protectedQueryKey(scope, "artifactVersions.verifiedPreview", {
-      versionId: version.id,
-      sha256: version.sha256,
+      versionId,
+      sha256: version?.sha256 ?? "",
     }),
     enabled: scope.organizationId !== null && wantsBytes,
     retry: false,
@@ -150,8 +161,8 @@ export function ArtifactPreviewBody(
       }
       const result = await api.getArtifactContent({
         organizationId: scope.organizationId,
-        versionId: version.id,
-        expectedSha256: version.sha256.toLowerCase(),
+        versionId,
+        expectedSha256: (version?.sha256 ?? "").toLowerCase(),
         maxBytes: previewLimit,
         signal,
       });
@@ -159,9 +170,9 @@ export function ArtifactPreviewBody(
       const data = result.data;
       if (
         data.status !== 200 || data.content === null ||
-        data.contentDigest !== version.sha256.toLowerCase() ||
-        data.contentLength !== version.sizeBytes ||
-        data.content.byteLength !== version.sizeBytes
+        data.contentDigest !== (version?.sha256 ?? "").toLowerCase() ||
+        data.contentLength !== version?.sizeBytes ||
+        data.content.byteLength !== version?.sizeBytes
       ) {
         throw new Error("ARTIFACT_PREVIEW_DIGEST_MISMATCH");
       }
@@ -183,6 +194,11 @@ export function ArtifactPreviewBody(
       setMediaUrl(null);
     };
   }, [content.data, content.isError, mediaType, urlKind]);
+  const mismatched = contentMismatch(content.error);
+  useEffect(() => {
+    onMismatch?.(mismatched);
+  }, [onMismatch, mismatched]);
+  if (version === null) return null;
   const expired = isExpired(probe.error) || isExpired(content.error);
   const footer = facts ? <UI.Text variant="muted">{facts}</UI.Text> : undefined;
 
@@ -200,7 +216,7 @@ export function ArtifactPreviewBody(
       </UI.Text>
     </UI.Stack>
   );
-  if (state.kind === "mismatch" || contentMismatch(content.error)) {
+  if (state.kind === "mismatch" || mismatched) {
     return mismatchNotice;
   }
   if (expired) {
@@ -231,12 +247,6 @@ export function ArtifactPreviewBody(
     label: t("files.preview.state.retry"),
     onClick: () => void probe.refetch(),
   };
-  // The page offers Download itself; a surface that already has one in its
-  // footer gets Retry here instead of a second, identical button.
-  const download: { label: string; onClick: () => void } =
-    onDownload === undefined
-      ? retry
-      : { label: t("artifact.retrieval.download"), onClick: onDownload };
   if (
     state.kind !== "image" && state.kind !== "text" && state.kind !== "video" &&
     state.kind !== "audio"
@@ -258,10 +268,15 @@ export function ArtifactPreviewBody(
         unavailable={{
           title: copy.title,
           description: copy.description,
-          // A host that could not check the file earns both: one asks again, the
-          // other does not depend on the answer. Every other state is text alone,
-          // with Download when this surface has one.
-          action: state.kind === "host-unavailable" ? retry : download,
+          // A host that could not check the file earns "Try again" -- and, where
+          // this surface has one, Download beside it, because that does not depend
+          // on the answer. Every other state is text alone: a damaged file will be
+          // damaged again, and a button that promises otherwise is a lie.
+          action: state.kind === "host-unavailable"
+            ? retry
+            : onDownload === undefined
+            ? undefined
+            : { label: t("artifact.retrieval.download"), onClick: onDownload },
           ...(state.kind === "host-unavailable" && onDownload !== undefined
             ? {
               secondaryAction: {
@@ -284,12 +299,13 @@ export function ArtifactPreviewBody(
           <UI.Button variant="outline" onClick={() => void content.refetch()}>
             {t("core.actions.retry")}
           </UI.Button>
-          <UI.Button
-            variant="secondary"
-            onClick={onDownload ?? (() => void content.refetch())}
-          >
-            {download.label}
-          </UI.Button>
+          {onDownload === undefined
+            ? null
+            : (
+              <UI.Button variant="secondary" onClick={onDownload}>
+                {t("artifact.retrieval.download")}
+              </UI.Button>
+            )}
         </UI.Inline>
       </UI.Stack>
     );
@@ -387,8 +403,12 @@ function stateCopy(
 }
 
 function contentMismatch(error: unknown): boolean {
-  return error instanceof Error &&
-    error.message === "ARTIFACT_PREVIEW_DIGEST_MISMATCH";
+  // Two reporters: this page, when the parts of a read disagree with each other,
+  // and the server, which refuses bytes that do not hash to the record. Both mean
+  // the same thing to a person, so both show the Banner.
+  return (error instanceof Error &&
+    error.message === "ARTIFACT_PREVIEW_DIGEST_MISMATCH") ||
+    isArtifactContentMismatch(error);
 }
 
 function isExpired(error: unknown): boolean {

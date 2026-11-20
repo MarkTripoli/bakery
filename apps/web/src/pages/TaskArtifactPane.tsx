@@ -294,13 +294,17 @@ export function TaskArtifactPane(
   // What the selected version is, said the same way the artifact page says it.
   // The pane has its own Download and Open in the footer, so the preview offers
   // no second copy of them.
-  const preview = selected === undefined ? undefined : ArtifactPreviewBody({
-    version: selected,
-    label: t("tasks.artifactPane.preview"),
-    // The pane caps the text and fades the cut, so its Download and Open stay above
-    // the fold (#437).
-    cutText: true,
-  });
+  // Rendered, not called: a function call would put the preview's hooks on this
+  // component and change its hook count whenever the selection appears (#437).
+  const preview = selected === undefined ? undefined : (
+    <ArtifactPreviewBody
+      version={selected}
+      label={t("tasks.artifactPane.preview")}
+      // The pane caps the text and fades the cut, so its Download and Open stay above
+      // the fold (#437).
+      cutText
+    />
+  );
   return (
     <UI.ArtifactPane
       details={artifact && selected

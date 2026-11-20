@@ -2379,7 +2379,9 @@ async function getArtifactContentResponse(
     throw new ApiTransportError("protocol", status);
   }
   if (status === 200 && await sha256Hex(content) !== contentDigest) {
-    throw new ApiTransportError("protocol", status);
+    // Named, not generic: the file is not the file the record describes, and the
+    // screen has a state for exactly that (#437).
+    throw new ApiTransportError("digest-mismatch", status);
   }
 
   if (status === 206) {

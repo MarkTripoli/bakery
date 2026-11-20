@@ -89,6 +89,9 @@ export function FileDetails(
   const useRows = uses.data?.pages.flatMap((page) => page.items) ?? [];
   const current = versionRows.find((version) => version.isCurrent) ?? null;
   // An older version being looked at; the current one is the plain file.
+  // The preview says when the bytes and the record disagree; this panel must not
+  // offer to save them, since the design promises exactly that (#437).
+  const [bytesMismatch, setBytesMismatch] = useState(false);
   const shown = revision === undefined || revision === current?.revision
     ? null
     : versionRows.find((version) => version.revision === revision) ?? null;
@@ -389,7 +392,7 @@ export function FileDetails(
       <FilePreview
         file={file}
         version={shown}
-        expectedSha256={(shown ?? current)?.sha256 ?? null}
+        onMismatch={setBytesMismatch}
       />
       <UI.Inline gap="compact">
         {artifactTarget === null ? null : (
@@ -404,16 +407,18 @@ export function FileDetails(
             {translate("files.action.open")}
           </UI.Button>
         )}
-        {(shown?.contentRemoved ?? file.contentRemoved) ? null : (
-          <UI.Button
-            variant={artifactTarget === null ? "primary" : "secondary"}
-            onClick={() => void download()}
-          >
-            {shown === null
-              ? translate("files.action.download")
-              : translate("files.action.downloadVersion")}
-          </UI.Button>
-        )}
+        {(shown?.contentRemoved ?? file.contentRemoved) || bytesMismatch
+          ? null
+          : (
+            <UI.Button
+              variant={artifactTarget === null ? "primary" : "secondary"}
+              onClick={() => void download()}
+            >
+              {shown === null
+                ? translate("files.action.download")
+                : translate("files.action.downloadVersion")}
+            </UI.Button>
+          )}
         {phone
           ? (
             <UI.Button

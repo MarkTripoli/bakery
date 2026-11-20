@@ -22,6 +22,7 @@ import {
   previewState,
 } from "../preview-state.ts";
 import { formatFileSize } from "../file-size.ts";
+import { isArtifactContentMismatch } from "../artifact-mismatch.ts";
 
 const textModes: Readonly<Record<string, "text" | "markdown" | "patch">> = {
   "text/plain": "text",
@@ -42,17 +43,15 @@ const imageTypes = new Set([
 
 /** The file's contents as far as the page can show them: text and images, bounded. */
 export function FilePreview(
-  { file, version, expectedSha256 }: {
+  { file, version, onMismatch }: {
     readonly file: StorageFolderItem;
     /** An older version being shown; null for the current one. */
     readonly version: StorageFileVersion | null;
     /**
-     * The digest this file's record claims for the bytes on screen (#437).
-     *
-     * Without it a storage file could never be in the mismatch state, and the dead
-     * branch would be a promise the page does not keep.
+     * Told when the bytes on screen are not the bytes the record describes, so the
+     * panel can stop offering to save them (#437).
      */
-    readonly expectedSha256: string | null;
+    readonly onMismatch?: ((mismatch: boolean) => void) | undefined;
   },
 ) {
   const api = useBakeryApi();
@@ -108,10 +107,12 @@ export function FilePreview(
   // the stored record and the bytes disagree, and this panel is the only place that
   // holds both. Decided on the bytes actually received, never on the probe's word.
   const [mismatch, setMismatch] = useState(false);
-  const state: PreviewState = answer !== null
-    ? previewState(answer, { mismatch })
-    : mismatch
+  // A refused read outranks the answer: the bytes are not the bytes the record
+  // describes, so what they would have looked like is not a fact about this file.
+  const state: PreviewState = mismatch
     ? { kind: "mismatch" }
+    : answer !== null
+    ? previewState(answer)
     : probe.isPending
     ? { kind: "pending" }
     : declaredPreviewState(mediaType);
@@ -155,26 +156,14 @@ export function FilePreview(
       return data.content;
     },
   });
+  // The read answers `ARTIFACT_CONTENT_MISMATCH` when the stored bytes are not the
+  // bytes the version recorded; that refusal is the answer, and the panel says so
+  // rather than showing a generic error beside a Download of the same bytes.
+  const refusedAsMismatch = isArtifactContentMismatch(content.error);
   useEffect(() => {
-    if (content.data === undefined || expectedSha256 === null) {
-      setMismatch(false);
-      return;
-    }
-    let live = true;
-    void sha256Hex(content.data).then(
-      (digest) => {
-        if (live) setMismatch(digest !== expectedSha256);
-      },
-      () => {
-        // An unhashable body is not evidence of a mismatch; the read path's own
-        // checks still apply.
-        if (live) setMismatch(false);
-      },
-    );
-    return () => {
-      live = false;
-    };
-  }, [content.data, expectedSha256]);
+    setMismatch(refusedAsMismatch);
+    onMismatch?.(refusedAsMismatch);
+  }, [refusedAsMismatch, onMismatch]);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   useEffect(() => {
     if (!image || !content.data) return;
@@ -210,9 +199,15 @@ export function FilePreview(
         </UI.Text>
         {state.kind === "host-unavailable"
           ? (
-            <UI.Button variant="secondary" onClick={() => void probe.refetch()}>
-              {translate("files.preview.state.retry")}
-            </UI.Button>
+            // Inline, not full width: a retry is an offer, not the panel's subject.
+            <UI.Inline>
+              <UI.Button
+                variant="secondary"
+                onClick={() => void probe.refetch()}
+              >
+                {translate("files.preview.state.retry")}
+              </UI.Button>
+            </UI.Inline>
           )
           : null}
       </UI.Stack>
@@ -293,18 +288,4 @@ export function FilePreview(
         }}
     />
   );
-}
-
-/**
- * The digest of the bytes a person is looking at, for the mismatch state.
- *
- * The read path already refuses bytes that do not match their record when it can
- * verify them; this is the panel's own second opinion, because a mismatched file is
- * the one thing the design says Bakery must never show or offer to download.
- */
-async function sha256Hex(bytes: Uint8Array): Promise<string> {
-  const digest = new Uint8Array(
-    await crypto.subtle.digest("SHA-256", bytes as unknown as BufferSource),
-  );
-  return [...digest].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }

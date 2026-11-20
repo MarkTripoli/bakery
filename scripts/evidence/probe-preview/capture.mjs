@@ -41,11 +41,41 @@ const OUT = args.get("--out") ?? "stills/437-slice3";
 const EMAIL = args.get("--email") ?? "evidence@example.test";
 const PASSWORD = args.get("--password") ?? "Evidence-Pass-1";
 const SEED = new URL("./seed.ts", import.meta.url).pathname;
+// `--only artifact` re-shoots just that group into the same folder, so a single
+// failing state does not cost the whole matrix a second sign-in.
+const ONLY = args.get("--only") ?? "all";
+const KEEP = args.has("--keep");
 
 const DESKTOP = ["desktop-1440x900", { width: 1440, height: 900 }];
 const PHONE = ["phone-390x844", { width: 390, height: 844 }];
 const LIGHT = "light";
 const DARK = "dark";
+
+/** The artifact page's own states, keyed by which seeded artifact they show. */
+const ARTIFACT_STATES = [
+  {
+    // A stored video plays, and its facts line names the length it measured.
+    id: "artifact-video",
+    artifact: "videoArtifactId",
+    says: /0 min 2 s/,
+    views: [[DESKTOP, LIGHT]],
+  },
+  {
+    // The same refusal as the Files panel, on the page that also offered Download
+    // in its header: the header must lose that button too (#437).
+    id: "artifact-mismatch",
+    artifact: "damagedArtifactId",
+    says: /does not match its record/i,
+    present: /Ask an organization Admin to check it/,
+    absent: /try again/i,
+    assert: async (page) => {
+      if (await page.getByText(/^download/i).count() > 0) {
+        throw new Error("artifact page still offers Download");
+      }
+    },
+    views: [[DESKTOP, LIGHT], [PHONE, LIGHT]],
+  },
+];
 
 /**
  * Each state names what its words must say. The numbers are the point: "42 lines"
@@ -107,6 +137,21 @@ const STATES = [
     views: [[DESKTOP, LIGHT]],
   },
   {
+    // The bytes and the record disagree. Design's answer is the Banner and nothing
+    // else: no preview and no Download, because the file is not the file (#437).
+    id: "mismatch",
+    file: "corrupt.png",
+    says: /does not match its record/i,
+    present: /Ask an organization Admin to check it/,
+    absent: /try again/i,
+    assert: async (page) => {
+      if (await page.getByText(/^download/i).count() > 0) {
+        throw new Error("mismatch still offers Download");
+      }
+    },
+    views: [[DESKTOP, LIGHT], [PHONE, LIGHT]],
+  },
+  {
     // An older version carries its own answer: 12 lines, not the current 42.
     id: "older-version",
     file: "changelog.md",
@@ -136,7 +181,7 @@ function seed() {
   const first = Object.values(parsed.files ?? {})[0];
   if (first === undefined) throw new Error("seed wrote no files");
   const folder = first.path.split("/").filter((part) => part !== "")[0];
-  return { ids: byName, folder };
+  return { ids: byName, folder, task: parsed.task ?? {} };
 }
 
 async function signIn(context) {
@@ -151,7 +196,7 @@ async function signIn(context) {
   if (!response?.ok()) throw new Error(`signin: ${response?.status()}`);
 }
 
-await rm(OUT, { recursive: true, force: true });
+if (!KEEP) await rm(OUT, { recursive: true, force: true });
 await mkdir(OUT, { recursive: true });
 const seeded = seed();
 const ids = seeded.ids;
@@ -159,7 +204,7 @@ const folder = seeded.folder;
 
 const browser = await chromium.launch();
 const files = [];
-for (const state of STATES) {
+for (const state of ONLY === "artifact" ? [] : STATES) {
   const context = await browser.newContext({
     viewport: DESKTOP[1],
     colorScheme: LIGHT,
@@ -232,10 +277,66 @@ for (const state of STATES) {
   await context.close();
 }
 
-const distinct = await assertDistinct(files);
+for (const state of ONLY === "files" ? [] : ARTIFACT_STATES) {
+  const artifactId = seeded.task[state.artifact];
+  const taskId = seeded.task.taskId;
+  if (artifactId === undefined || taskId === undefined) {
+    throw new Error(`seed did not name ${state.artifact}`);
+  }
+  const context = await browser.newContext({
+    viewport: DESKTOP[1],
+    colorScheme: LIGHT,
+    deviceScaleFactor: 1,
+  });
+  await signIn(context);
+  const page = await context.newPage();
+  for (const [viewport, theme] of state.views) {
+    await page.setViewportSize(viewport[1]);
+    await page.emulateMedia({ colorScheme: theme });
+    await page.goto(`${WEB}/tasks/${taskId}/artifacts/${artifactId}`, {
+      waitUntil: "load",
+    });
+    await page.waitForLoadState("networkidle").catch(() => {});
+    let body = "";
+    let found = false;
+    for (let attempt = 0; attempt < 30 && !found; attempt += 1) {
+      body = await page.locator("body").innerText();
+      found = state.says.test(body);
+      if (!found) await page.waitForTimeout(1000);
+    }
+    if (!found) {
+      await page.screenshot({ path: join(OUT, `${state.id}.failed.png`) });
+      throw new Error(
+        `${state.id}: page did not say ${state.says}; it said ${
+          JSON.stringify(body.slice(0, 400))
+        }`,
+      );
+    }
+    if (state.present !== undefined && !state.present.test(body)) {
+      throw new Error(`${state.id}: page never said ${state.present}`);
+    }
+    if (state.absent !== undefined && state.absent.test(body)) {
+      throw new Error(`${state.id}: page said ${state.absent}, and must not`);
+    }
+    if (state.assert !== undefined) await state.assert(page);
+    const name = `${state.id}--${theme}--${viewport[0]}`;
+    const path = join(OUT, `${name}.png`);
+    await page.screenshot({ path, fullPage: true });
+    files.push(path);
+    console.log("  shot", name);
+  }
+  await context.close();
+}
+
+// A partial run reports only what it shot, so the manifest never claims more
+// than the folder holds.
+const shot = KEEP
+  ? (await Promise.all([])).length === 0 ? files : files
+  : files;
+const distinct = await assertDistinct(shot);
 await writeManifest(OUT, {
   schema: "bakery.evidence.probe-preview/1",
-  files,
+  files: shot,
   distinct,
   web: WEB,
   api: API,

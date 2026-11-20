@@ -187,7 +187,12 @@ export function ArtifactRetrievalView(props: ArtifactRetrievalViewProps) {
 type ArtifactUnavailablePreview = {
   readonly title: string;
   readonly description: string;
-  readonly action: { readonly label: string; readonly onClick: () => void };
+  /**
+   * The one action this state earns, if it earns one. A fault in the file earns
+   * none: "Try again" on a damaged file promises a different answer to the same
+   * question (#437).
+   */
+  readonly action?: { readonly label: string; readonly onClick: () => void };
   /**
    * A second action beside the first. A host that could not check a file earns
    * both "Try again" and "Download" (#437, design's rule): one asks again, the
@@ -224,14 +229,14 @@ export function ArtifactPreviewView(props: ArtifactPreviewViewProps) {
             description={props.unavailable.description}
             state="expired"
             variant="embedded"
-            actions={
+            actions={props.unavailable.action === undefined ? null : (
               <UI.Button
                 variant="outline"
                 onClick={props.unavailable.action.onClick}
               >
                 {props.unavailable.action.label}
               </UI.Button>
-            }
+            )}
           />
         )
         : (
@@ -241,12 +246,14 @@ export function ArtifactPreviewView(props: ArtifactPreviewViewProps) {
             </UI.Heading>
             <UI.Text variant="muted">{props.unavailable.description}</UI.Text>
             <UI.Inline>
-              <UI.Button
-                variant="outline"
-                onClick={props.unavailable.action.onClick}
-              >
-                {props.unavailable.action.label}
-              </UI.Button>
+              {props.unavailable.action === undefined ? null : (
+                <UI.Button
+                  variant="outline"
+                  onClick={props.unavailable.action.onClick}
+                >
+                  {props.unavailable.action.label}
+                </UI.Button>
+              )}
               {props.unavailable.secondaryAction === undefined
                 ? null
                 : (
@@ -303,14 +310,16 @@ export function ArtifactUnavailableView(
             <UI.ErrorState
               title={preview.denied.title}
               description={preview.denied.description}
-              action={
-                <UI.Button
-                  variant="outline"
-                  onClick={preview.denied.action.onClick}
-                >
-                  {preview.denied.action.label}
-                </UI.Button>
-              }
+              action={preview.denied.action === undefined
+                ? undefined
+                : (
+                  <UI.Button
+                    variant="outline"
+                    onClick={preview.denied.action.onClick}
+                  >
+                    {preview.denied.action.label}
+                  </UI.Button>
+                )}
             />
           )
           : <ArtifactPreviewView {...preview} />}
