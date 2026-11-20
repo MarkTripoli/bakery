@@ -33,6 +33,15 @@ pub fn server_origins(server: &str) -> Option<(String, String)> {
     ))
 }
 
+/// The name a server's sign-in is kept under in the keyring: its normalized origin, so
+/// `https://x`, `https://x/` and `HTTPS://X` are one server and one sign-in. An address that is not
+/// a plain origin cannot be signed in to, but still gets a stable name (trailing slashes trimmed).
+pub fn store_key(server: &str) -> String {
+    server_origins(server)
+        .map(|(origin, _)| origin)
+        .unwrap_or_else(|| server.trim_end_matches('/').to_string())
+}
+
 fn policy_with(connect: &str) -> String {
     [
         "default-src 'self'".to_string(),
@@ -69,6 +78,30 @@ mod tests {
             .split("; ")
             .find(|d| d.starts_with(&format!("{name} ")))
             .unwrap_or_else(|| panic!("no {name} in {policy}"))
+    }
+
+    #[test]
+    fn one_server_is_one_keyring_name_however_its_address_is_written() {
+        let one = store_key("https://bakery.example.com");
+        assert_eq!(one, "https://bakery.example.com");
+        for same in [
+            "https://bakery.example.com/",
+            "HTTPS://Bakery.Example.COM",
+            "https://bakery.example.com:443",
+            "https://bakery.example.com:443/",
+        ] {
+            assert_eq!(store_key(same), one, "{same}");
+        }
+        // A different port, scheme or host is a different server and a different sign-in.
+        assert_ne!(store_key("https://bakery.example.com:8443"), one);
+        assert_ne!(store_key("http://bakery.example.com"), one);
+        assert_ne!(store_key("https://other.example.com"), one);
+        assert_eq!(store_key("http://[::1]:8000/"), "http://[::1]:8000");
+    }
+
+    #[test]
+    fn an_address_that_is_not_an_origin_still_gets_a_stable_name() {
+        assert_eq!(store_key("not a url//"), store_key("not a url/"));
     }
 
     #[test]

@@ -195,6 +195,9 @@ pub enum Event {
     TryExchangeAgain,
     StoreSucceeded,
     StoreFailed,
+    /// The keyring could not be written to, found out before the answer was traded for a
+    /// credential, so no credential exists to be left behind.
+    KeyringUnavailable,
     /// The server stopped accepting the saved credential.
     CredentialRejected,
     /// The request's time limit passed while waiting.
@@ -280,6 +283,11 @@ pub fn step(session: Session, event: Event) -> (Session, Vec<Effect>) {
         // An answer nobody asked for, such as a late one after Cancel: say it did not come from here.
         (P::SignedOut, E::CallbackReceived { .. }) => {
             (session.out(refusal(Refusal::NotFromThisApp)), vec![])
+        }
+        // The keyring is checked before the code is traded, so a computer with no keyring never
+        // makes the server issue a sign-in nobody can hold. The unspent code simply expires.
+        (P::Exchanging { .. }, E::KeyringUnavailable) => {
+            (session.out(refusal(Refusal::NoKeyring)), vec![])
         }
         (P::Exchanging { .. }, E::ExchangeSucceeded) => (
             session.with(P::Storing, Window::Finishing),
@@ -634,6 +642,26 @@ mod tests {
     }
 
     #[test]
+    fn a_keyring_found_broken_before_the_trade_asks_the_server_for_nothing() {
+        let (s, effects) = step(exchanging(), E::KeyringUnavailable);
+        assert!(
+            effects.is_empty(),
+            "no exchange is sent, so the server issues no sign-in"
+        );
+        assert_eq!(s.window(), &refused(Refusal::NoKeyring));
+        assert!(!s.is_signed_in());
+        // It is the same window as a failed save, and pressing Sign in starts over.
+        assert_eq!(step(s, E::SignInPressed).1, vec![Effect::StartRequest]);
+        // Only a trade that is under way can find this out; elsewhere it changes nothing.
+        for other in [waiting(), storing(), stalled(), signed_in()] {
+            let before = other.window().clone();
+            let (after, effects) = step(other, E::KeyringUnavailable);
+            assert_eq!(after.window(), &before);
+            assert!(effects.is_empty());
+        }
+    }
+
+    #[test]
     fn a_sign_in_the_server_ends_brings_the_dialog_and_clears_what_was_saved() {
         let (s, effects) = step(signed_in(), E::CredentialRejected);
         assert_eq!(s.window(), &Window::SignInAgain);
@@ -744,6 +772,7 @@ mod tests {
             E::TryExchangeAgain,
             E::StoreSucceeded,
             E::StoreFailed,
+            E::KeyringUnavailable,
             E::CredentialRejected,
             E::TimedOut,
             E::SignOut,

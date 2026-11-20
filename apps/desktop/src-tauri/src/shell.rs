@@ -203,6 +203,12 @@ impl Shell {
                 let Some(verifier) = verifier else {
                     return Some(Event::ExchangeUnreachable);
                 };
+                // Prove the keyring works before the server is asked for a sign-in: one it issues
+                // to an app that cannot keep it would stay live with nobody holding it.
+                if self.store.probe(&self.server).is_err() {
+                    self.report("effect", json!({ "name": "keyring_probe", "ok": false }));
+                    return Some(Event::KeyringUnavailable);
+                }
                 match self.client.exchange(&id, &code, &verifier).await {
                     Exchange::Issued(credential) => {
                         self.state.lock().unwrap().credential = Some(credential);

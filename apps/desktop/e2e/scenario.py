@@ -76,10 +76,10 @@ def wait_effect(path, name, timeout=30):
     return None
 
 
-def start_app(path, bus=None):
+def start_app(path, bus=None, server=None):
     global app
     os.makedirs(os.path.join(path, "cmd"), exist_ok=True)
-    env = dict(os.environ, BAKERY_SERVER=SERVER, BAKERY_DESKTOP_REPORT=os.path.join(path, "report.jsonl"),
+    env = dict(os.environ, BAKERY_SERVER=server or SERVER, BAKERY_DESKTOP_REPORT=os.path.join(path, "report.jsonl"),
                BAKERY_DESKTOP_COMMANDS=os.path.join(path, "cmd"), TZ="UTC")
     if bus:
         env["DBUS_SESSION_BUS_ADDRESS"] = bus
@@ -138,6 +138,12 @@ def deliver(link, bus=None):
     # No pipes: the app the OS launches inherits them and would keep this call waiting.
     err = open(os.path.join(OUT, "gio.err"), "a")
     subprocess.run(["gio", "open", link], stdout=subprocess.DEVNULL, stderr=err, timeout=30, env=env)
+
+
+def desktop_sessions():
+    """How many sign-ins the app holds on the server, as the person's Active sessions list shows them."""
+    req = urllib.request.Request(SERVER + "/v1/me/sessions", headers={"cookie": session_cookie()})
+    return urllib.request.urlopen(req).read().decode().count("Bakery app")
 
 
 def request_id_of(url):
@@ -340,6 +346,8 @@ def phase_no_keyring():
     # A session bus with no Secret Service on it: a Linux computer with no keyring.
     bus = subprocess.run(["dbus-daemon", "--session", "--fork", "--print-address"],
                          capture_output=True, text=True).stdout.strip()
+    before = desktop_sessions()
+    check("[no keyring] the sessions list shows the app's earlier sign-ins, so a new one would be seen", before > 0, str(before))
     start_app(p, bus=bus)
     url = sign_in_to_waiting(p, "[no keyring]")
     if url:
@@ -348,16 +356,38 @@ def phase_no_keyring():
         check("[no keyring] the app says it could not save the sign-in",
               wait_window(p, "refusal:no_keyring", timeout=40) is not None)
         check("[no keyring] nothing was kept anywhere", stored() == "")
+        probe = wait_effect(p, "keyring_probe", timeout=5)
+        check("[no keyring] the keyring was tried before the server was asked for a sign-in",
+              probe is not None and probe["ok"] is False)
+        check("[no keyring] so the server issued no sign-in that nobody holds", desktop_sessions() == before,
+              f"{before} before, {desktop_sessions()} after")
         leftover = [f for f in os.listdir(os.path.expanduser("~")) if "bakery" in f.lower() and f != ".bakery-nothing"]
         check("[no keyring] and no file holds a sign-in", not any("bkd_" in open(os.path.join(os.path.expanduser("~"), f), errors="ignore").read()
                                                                for f in leftover if os.path.isfile(os.path.join(os.path.expanduser("~"), f))))
     stop_app()
 
 
+def phase_address_spelling():
+    """One server written two ways is one sign-in: the same secret is found, and kept, under both."""
+    p = os.path.join(OUT, "h-spelling")
+    clear_store()
+    start_app(p, server=SERVER + "/")
+    url = sign_in_to_waiting(p, "[spelling]")
+    if url:
+        deliver(confirm(request_id_of(url), session_cookie()))
+        check("[spelling] with a trailing slash on the address the app signs in", wait_window(p, "app") is not None)
+        check("[spelling] the sign-in is kept under the server's plain address", stored().startswith("bkd_"))
+        stop_app()
+        start_app(os.path.join(OUT, "h-spelling-2"))
+        check("[spelling] the same server written without the slash is already signed in",
+              wait_window(os.path.join(OUT, "h-spelling-2"), "app", timeout=30) is not None)
+    stop_app()
+
+
 def main():
     print(f"server {SERVER}", flush=True)
     for phase in (phase_cold_sign_in, phase_restart, phase_cancel_then_late_answer, phase_bogus_answers,
-                  phase_server_down_then_try_again, phase_ended_sign_in, phase_no_keyring):
+                  phase_server_down_then_try_again, phase_ended_sign_in, phase_no_keyring, phase_address_spelling):
         try:
             phase()
         except Exception as e:  # a phase that breaks is a failed check, not a silent skip
