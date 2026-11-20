@@ -14,6 +14,7 @@ export type StorageVersion =
 export type StorageUse =
   ClientOutputMap["Page<StorageFileUse>"]["items"][number];
 export type StorageFileAtVersion = ClientOutputMap["StorageFileAtVersion"];
+export type PinResult = ClientOutputMap["ArtifactPinResult"];
 export type SearchHit = ClientOutputMap["Page<FileSearchHit>"]["items"][number];
 
 export type SearchFilter = Readonly<{
@@ -35,6 +36,8 @@ export type FilesApi = Readonly<{
     options: Readonly<{ revision?: number; range?: string }>,
   ) => Promise<BinaryArtifactClientResponse>;
   search: (filter: SearchFilter) => Promise<SearchHit[]>;
+  /** Sets or clears a record file's administrator pin. */
+  pin: (fileId: string, pinned: boolean) => Promise<PinResult>;
 }>;
 
 /** A guard against a cursor that never ends, not a limit anyone reaches. */
@@ -117,6 +120,8 @@ export function createFilesApi(
       allPages((cursor) =>
         actions["files.search"]({ ...filter, cursor, limit: PAGE_SIZE })
       ),
+    pin: (fileId, pinned) =>
+      actions["storageFiles.pin"]({ id: fileId, pinned }),
   };
 }
 
@@ -135,6 +140,8 @@ export function describeFailure(error: unknown): string | null {
         return "That file's contents were removed by retention or an administrator; its history still lists.";
       case 416:
         return "That byte range is outside the file.";
+      case 422:
+        return "That file cannot be pinned: only a file kept as a record has a pin, not a working-area file.";
       case 429:
         return "Too many requests; wait a moment and try again.";
       default:

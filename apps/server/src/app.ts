@@ -4,6 +4,7 @@ import {
   type probeSkillStorage,
 } from "./modules/catalog/storage-backend.ts";
 import { createSkillStorageRoutes } from "./modules/catalog/skill-storage-actions.ts";
+import { createBackupRoutes } from "./modules/backups/actions.ts";
 import {
   createTelemetryDestinationRoutes,
   type TelemetryDestinationDependencies,
@@ -123,6 +124,7 @@ import {
   type EventsSocketLimits,
   type EventsSocketRegistry,
 } from "./modules/work/events-socket.ts";
+import { createBatchRoutes } from "./modules/work/batch-routes.ts";
 import { createMcpManagementRoutes } from "./modules/mcp/routes.ts";
 import {
   createGroupRoutes,
@@ -848,6 +850,15 @@ export function createApp(options: {
   );
   app.route(
     "/",
+    createBatchRoutes({
+      database: options.pgDatabase,
+      session: tokenSession,
+      publicBaseUrl: options.config.publicBaseUrl,
+      cursorSecret: options.config.auth.secret,
+    }),
+  );
+  app.route(
+    "/",
     createEvaluationRoutes({
       database: options.pgDatabase,
       session: tokenSession,
@@ -1027,6 +1038,15 @@ export function createApp(options: {
       browserSession,
       publicBaseUrl: options.config.publicBaseUrl,
       dependencies: { ...skillStorage, probe: options.skillStorageProbe },
+    }),
+  );
+  app.route(
+    "/",
+    createBackupRoutes({
+      database: options.pgDatabase,
+      browserSession,
+      publicBaseUrl: options.config.publicBaseUrl,
+      secret: options.config.auth.secret,
     }),
   );
   app.route(
