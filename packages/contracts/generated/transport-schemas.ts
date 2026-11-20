@@ -12578,6 +12578,12 @@ const transportSchemas = {
             "maxBytes": 100
           },
           "description": "Standard HTTP Range header value selecting one byte range, as a media player sends while it seeks; multiple ranges are rejected, and an unsatisfiable range returns 416 with the total size."
+        },
+        {
+          "name": "organizationId",
+          "type": "uuid",
+          "required": false,
+          "description": "Organization that owns the file, as a query parameter for a video or audio src, which cannot send the Bakery-Organization-Id header. Parsed and membership-checked exactly like the header; the header wins when present, and a header and query that differ are refused. Omitting both is SCOPE_REQUIRED."
         }
       ],
       "rules": [
