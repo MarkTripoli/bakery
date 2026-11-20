@@ -412,7 +412,10 @@ for (
       const review = installed.getByRole("button", {
         name: "Review update of Notes",
       });
-      expect((await review.boundingBox())!.height).toBeLessThan(48);
+      // Layout settles after fonts and the table load: poll the box, not once.
+      await expect
+        .poll(async () => (await review.boundingBox())?.height ?? Infinity)
+        .toBeLessThan(48);
       await shot(page, `plugins-list-${viewport.name}`);
     });
 
@@ -856,15 +859,21 @@ for (
 
       // The badge follows the version number, not the middle of the row.
       if (viewport.name === "desktop") {
-        const version = await page
+        const version = page
           .getByTestId("plugin-versions")
-          .getByText("1.1.0", { exact: true })
-          .boundingBox();
-        const badge = await page
+          .getByText("1.1.0", { exact: true });
+        const badge = page
           .getByTestId("plugin-versions")
-          .getByText("Did not start", { exact: true })
-          .boundingBox();
-        expect(badge!.x - (version!.x + version!.width)).toBeLessThan(24);
+          .getByText("Did not start", { exact: true });
+        // Both boxes are read together, again and again, until the layout has
+        // settled; one read under load can catch the row before it is laid out.
+        await expect.poll(async () => {
+          const [v, b] = [
+            await version.boundingBox(),
+            await badge.boundingBox(),
+          ];
+          return v && b ? b.x - (v.x + v.width) : Infinity;
+        }).toBeLessThan(24);
       }
 
       // The notice offers the update again first (primary), and it opens the
@@ -920,14 +929,19 @@ for (
       // The installed version's badge sits in the action column, level with the
       // other row's button, and the page tells about the version it runs.
       if (viewport.name === "desktop") {
-        const badge = await versions.getByText("Installed", { exact: true })
-          .boundingBox();
-        const button = await versions.getByRole("button", {
+        const badge = versions.getByText("Installed", { exact: true });
+        const button = versions.getByRole("button", {
           name: "Update to 1.1.0",
-        }).boundingBox();
-        expect(
-          Math.abs((badge!.x + badge!.width) - (button!.x + button!.width)),
-        ).toBeLessThan(2);
+        });
+        await expect.poll(async () => {
+          const [b, a] = [
+            await badge.boundingBox(),
+            await button.boundingBox(),
+          ];
+          return b && a
+            ? Math.abs((b.x + b.width) - (a.x + a.width))
+            : Infinity;
+        }).toBeLessThan(2);
       }
       const about = page.getByTestId("plugin-about");
       await expect(about.getByRole("heading", { name: "About this version" }))
