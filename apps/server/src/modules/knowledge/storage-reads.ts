@@ -23,6 +23,7 @@ import {
 import type { OrganizationBlobStore } from "../catalog/storage-port.ts";
 import { storedMediaSafety } from "./media.ts";
 import { assertStoredBytes } from "./stored-bytes.ts";
+import { readBlobProbe } from "./blob-probes.ts";
 import {
   ifNoneMatchMatches,
   ifRangeMatches,
@@ -684,6 +685,111 @@ export function parseRevision(value: string | undefined): number | null {
     });
   }
   return Number(value);
+}
+
+/**
+ * What the probe measured about a storage file's version (the current one unless
+ * a revision is named).
+ *
+ * The same read the artifact-version probe makes, reached the way the content
+ * read reaches these bytes: through `readableEntry`, so a file in another
+ * organization and a file in somebody else's personal folder are both simply not
+ * found, exactly as they are for the bytes themselves. The answer is keyed on the
+ * blob, so every version sharing those bytes shares the answer, and a file whose
+ * content is stored inline (no blob) has never been probed.
+ */
+export function createFileProbeReader() {
+  return async (
+    context: ActionContext,
+    reader: StorageReader,
+    input: Readonly<{ revision: number | null }>,
+  ): Promise<StorageFileProbeAnswer> => {
+    const { transaction: tx, organizationId, principalId } =
+      requireWorkTransaction(context);
+    const file = await readableEntry(
+      tx,
+      organizationId,
+      principalId,
+      reader,
+      context.params.id,
+    );
+    if (file.kind !== "file") notFound();
+    if (file.purged_at !== null) notFound();
+    const found = file.artifact_id !== null
+      ? await tx.query<{ blob_id: string | null }>(
+        "select v.blob_id from bakery.artifact_versions v" +
+          " join bakery.artifacts a" +
+          " on a.organization_id = v.organization_id and a.id = v.artifact_id" +
+          " where v.organization_id = $1 and v.artifact_id = $2" +
+          " and (($3::int is null and v.id = a.current_version_id)" +
+          " or v.revision = $3)",
+        [organizationId, file.artifact_id, input.revision],
+      )
+      : await tx.query<{ blob_id: string | null }>(
+        "select blob_id from bakery.storage_file_versions" +
+          " where organization_id = $1 and entry_id = $2" +
+          " and (($3::int is null and id = $4) or revision = $3)",
+        [organizationId, file.id, input.revision, file.current_version_id],
+      );
+    const row = found.rows[0];
+    if (!row) notFound();
+    if (row.blob_id === null) return neverProbed();
+    const stored = await readBlobProbe(tx, {
+      organizationId,
+      blobId: row.blob_id,
+    });
+    if (stored === null) return neverProbed();
+    const { result, probedAt } = stored;
+    const described = result.status === "described" ? result : null;
+    const refused = result.status === "refused" ? result : null;
+    return {
+      status: result.status,
+      kind: described?.kind ?? null,
+      mediaType: described?.mediaType ?? null,
+      byteLength: described?.byteLength ?? null,
+      width: described?.width ?? null,
+      height: described?.height ?? null,
+      durationMs: described?.durationMs ?? null,
+      lineCount: described?.lineCount ?? null,
+      utf8: described?.utf8 ?? null,
+      code: refused?.code ?? null,
+      limit: refused?.limit ?? null,
+      probedAt: probedAt.toISOString(),
+    };
+  };
+}
+
+/** The flat answer the transport can express: one field per fact, null if unmeasured. */
+export type StorageFileProbeAnswer = Readonly<{
+  status: "described" | "refused" | null;
+  kind: string | null;
+  mediaType: string | null;
+  byteLength: number | null;
+  width: number | null;
+  height: number | null;
+  durationMs: number | null;
+  lineCount: number | null;
+  utf8: boolean | null;
+  code: string | null;
+  limit: number | null;
+  probedAt: string | null;
+}>;
+
+function neverProbed(): StorageFileProbeAnswer {
+  return {
+    status: null,
+    kind: null,
+    mediaType: null,
+    byteLength: null,
+    width: null,
+    height: null,
+    durationMs: null,
+    lineCount: null,
+    utf8: null,
+    code: null,
+    limit: null,
+    probedAt: null,
+  };
 }
 
 /**

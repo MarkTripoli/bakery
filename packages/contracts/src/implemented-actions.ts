@@ -664,6 +664,7 @@ export const StorageImplementedAction = Object.freeze(
     StorageFileVersionsList: "storageFileVersions.list",
     StorageFileUsesList: "storageFileUses.list",
     StorageFilesContent: "storageFiles.content",
+    StorageFilesProbe: "storageFiles.probe",
     StorageFilesByVersion: "storageFiles.byVersion",
   } as const satisfies Record<string, CatalogActionName>,
 );

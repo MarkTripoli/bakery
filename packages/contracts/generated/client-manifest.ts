@@ -7807,6 +7807,28 @@ export const clientManifest = {
     {
       "group": "Storage",
       "method": "GET",
+      "path": "/v1/storage/files/{id}/probe",
+      "action": "storageFiles.probe",
+      "access": "Developer",
+      "permission": "artifactVersion:read",
+      "input": "StorageFileProbeQuery",
+      "output": "ArtifactProbeAnswer",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Storage",
+      "method": "GET",
       "path": "/v1/storage/trash",
       "action": "storageTrash.list",
       "access": "Developer",
@@ -16005,6 +16027,7 @@ export const clientManifest = {
             "storageFileUses.list",
             "storageFiles.byVersion",
             "storageFiles.content",
+            "storageFiles.probe",
             "storageTrash.list",
             "storageSettings.get",
             "storageSettings.put",
@@ -26367,6 +26390,20 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Exchanges a confirmed desktop sign-in request for the app's credential. The credential is a Bakery sign-in session, accepted by the page API and live updates under the same checks as a browser sign-in."
+    },
+    "StorageFileProbeQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "revision": {
+          "description": "Which version to read, by its revision number from storageFileVersions.list; omit it to read the file's current version. A revision the file does not have is 404. StorageFileProbeQuery.revision must be at least 1. StorageFileProbeQuery.revision must be at most 999999999.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 999999999
+        }
+      },
+      "additionalProperties": false,
+      "description": "Reads the bytes of a storage-tree file at its current version or a named older one, whole (200) or by one HTTP byte range (206), for previews, media playback and downloads of any version."
     },
     "PluginState": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -40135,6 +40172,7 @@ export const clientManifest = {
                   "storageFileUses.list",
                   "storageFiles.byVersion",
                   "storageFiles.content",
+                  "storageFiles.probe",
                   "storageTrash.list",
                   "storageSettings.get",
                   "storageSettings.put",
@@ -59767,6 +59805,7 @@ export const clientManifest = {
             "storageFileUses.list",
             "storageFiles.byVersion",
             "storageFiles.content",
+            "storageFiles.probe",
             "storageTrash.list",
             "storageSettings.get",
             "storageSettings.put",

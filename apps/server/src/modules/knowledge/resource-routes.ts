@@ -49,6 +49,7 @@ import {
 } from "./storage-working-areas.ts";
 import {
   createFileContentReader,
+  createFileProbeReader,
   createFileUseLister,
   createFileVersionLister,
   createFolderLister,
@@ -642,6 +643,7 @@ function registerStorageActions(registry: ActionRegistry, secret: string) {
   const listFolder = createFolderLister(secret);
   const listVersions = createFileVersionLister(secret);
   const listUses = createFileUseLister(secret);
+  const readProbe = createFileProbeReader();
   const A = StorageImplementedAction;
   registry
     .register({
@@ -734,6 +736,26 @@ function registerStorageActions(registry: ActionRegistry, secret: string) {
       handler: () => {
         throw new StandardError({ code: "INTERNAL" });
       },
+    })
+    .register({
+      // The probe answer is about the blob's bytes, so it belongs to every
+      // version that shares them, and a client wants it before deciding whether
+      // to fetch anything at all. The route below serves it, under this action's
+      // authority, the same way the content read is served.
+      name: A.StorageFilesProbe,
+      method: HttpMethod.Get,
+      path: "/v1/storage/files/:id/probe",
+      input: contractSchemas.StorageFileProbeQuery,
+      output: contractSchemas.ArtifactProbeAnswer,
+      policy: readPolicy,
+      handler: async (context, input) =>
+        contractSchemas.ArtifactProbeAnswer.parse(
+          await readProbe(
+            context,
+            storageReader(context, A.StorageFilesProbe),
+            { revision: (input as { revision?: number }).revision ?? null },
+          ),
+        ),
     })
     .register({
       name: A.StorageFilesPut,

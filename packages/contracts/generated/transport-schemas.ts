@@ -12460,6 +12460,25 @@ const transportSchemas = {
         "Refusals the app can tell apart carry a STATE_CONFLICT reason: desktop_sign_in_expired, desktop_sign_in_used, desktop_sign_in_cancelled, desktop_sign_in_pending or desktop_sign_in_mismatch. An unknown request is RESOURCE_NOT_FOUND."
       ],
       "description": "Exchanges a confirmed desktop sign-in request for the app's credential. The credential is a Bakery sign-in session, accepted by the page API and live updates under the same checks as a browser sign-in."
+    },
+    "StorageFileProbeQuery": {
+      "fields": [
+        {
+          "name": "revision",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 999999999
+          },
+          "description": "Which version to read, by its revision number from storageFileVersions.list; omit it to read the file's current version. A revision the file does not have is 404."
+        }
+      ],
+      "rules": [
+        "A ranged read of a blob-backed version above 8 MiB is 416 RANGE_NOT_SATISFIABLE until the blob store gains ranged reads; inline versions (at most 1 MiB) always range.",
+        "Contents removed by retention or an Admin purge are 410 ARTIFACT_CONTENT_EXPIRED; the version still lists, with contentRemoved."
+      ],
+      "description": "Reads the bytes of a storage-tree file at its current version or a named older one, whole (200) or by one HTTP byte range (206), for previews, media playback and downloads of any version."
     }
   },
   "projections": {

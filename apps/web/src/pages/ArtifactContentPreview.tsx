@@ -57,9 +57,16 @@ export function ArtifactContentPreview({ version, onDownload, onViewDetails }: {
     },
   });
   const answer = probeFromAnswer(probe.data ?? null);
-  const state = previewState(answer, {
-    mismatch: contentMismatch(probe.error),
-  });
+  // No answer is not a refusal: a version whose bytes are stored inline, or one
+  // nothing has probed yet, has never been asked about. Falling back to the
+  // declared name is what this screen did before the probe existed, and it beats
+  // a skeleton that would never resolve.
+  const mediaType = version.mediaType.split(";", 1)[0].trim().toLowerCase();
+  const state = answer === null
+    ? (probe.isPending
+      ? { kind: "pending" as const }
+      : declaredState(mediaType))
+    : previewState(answer, { mismatch: contentMismatch(probe.error) });
   const facts = answer === null
     ? ""
     : previewFacts(answer, locale, (key, values) =>
@@ -69,7 +76,6 @@ export function ArtifactContentPreview({ version, onDownload, onViewDetails }: {
         key,
         values,
       ));
-  const mediaType = version.mediaType.split(";", 1)[0].trim().toLowerCase();
   const textMode = textModes[mediaType] ?? "text";
   const previewLimit = state.kind === "text"
     ? MAX_TEXT_PREVIEW_BYTES
@@ -267,6 +273,18 @@ const textModes: Readonly<
   "text/x-patch": "patch",
   "text/log": "log",
 };
+
+/** The states a declared name can justify, and no more. */
+function declaredState(mediaType: string): PreviewState {
+  if (mediaType.startsWith("image/")) return { kind: "image" };
+  if (mediaType.startsWith("video/")) return { kind: "video" };
+  if (mediaType.startsWith("audio/")) return { kind: "audio" };
+  if (
+    mediaType.startsWith("text/") || mediaType === "application/json" ||
+    mediaType === "application/xml"
+  ) return { kind: "text" };
+  return { kind: "unsupported" };
+}
 
 /** The words for a state with no preview, from design's table. */
 function stateCopy(

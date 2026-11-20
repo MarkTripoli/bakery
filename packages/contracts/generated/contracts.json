@@ -8926,6 +8926,28 @@
     {
       "group": "Storage",
       "method": "GET",
+      "path": "/v1/storage/files/{id}/probe",
+      "action": "storageFiles.probe",
+      "access": "Developer",
+      "permission": "artifactVersion:read",
+      "input": "StorageFileProbeQuery",
+      "output": "ArtifactProbeAnswer",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Storage",
+      "method": "GET",
       "path": "/v1/storage/trash",
       "action": "storageTrash.list",
       "access": "Developer",
@@ -12077,6 +12099,7 @@
     "storageFileVersions.list",
     "storageFileUses.list",
     "storageFiles.content",
+    "storageFiles.probe",
     "storageFiles.byVersion",
     "memories.list",
     "memories.get",
@@ -34567,6 +34590,71 @@
           }
         }
       },
+      "/v1/storage/files/{id}/probe": {
+        "get": {
+          "operationId": "storageFiles.probe",
+          "parameters": [
+            {
+              "name": "id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            },
+            {
+              "name": "revision",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "description": "Which version to read, by its revision number from storageFileVersions.list; omit it to read the file's current version. A revision the file does not have is 404. StorageFileProbeQuery.revision must be at least 1. StorageFileProbeQuery.revision must be at most 999999999.",
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 999999999
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ArtifactProbeAnswer"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request."
+            },
+            "401": {
+              "description": "Authentication required."
+            },
+            "403": {
+              "description": "Forbidden."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          }
+        }
+      },
       "/v1/storage/trash": {
         "get": {
           "operationId": "storageTrash.list",
@@ -49301,6 +49389,7 @@
                 "storageFileUses.list",
                 "storageFiles.byVersion",
                 "storageFiles.content",
+                "storageFiles.probe",
                 "storageTrash.list",
                 "storageSettings.get",
                 "storageSettings.put",
@@ -69504,6 +69593,20 @@
           ],
           "additionalProperties": false,
           "description": "Exchanges a confirmed desktop sign-in request for the app's credential. The credential is a Bakery sign-in session, accepted by the page API and live updates under the same checks as a browser sign-in."
+        },
+        "StorageFileProbeQuery": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "revision": {
+              "description": "Which version to read, by its revision number from storageFileVersions.list; omit it to read the file's current version. A revision the file does not have is 404. StorageFileProbeQuery.revision must be at least 1. StorageFileProbeQuery.revision must be at most 999999999.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 999999999
+            }
+          },
+          "additionalProperties": false,
+          "description": "Reads the bytes of a storage-tree file at its current version or a named older one, whole (200) or by one HTTP byte range (206), for previews, media playback and downloads of any version."
         },
         "applications": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -95525,6 +95628,7 @@
                 "storageFileUses.list",
                 "storageFiles.byVersion",
                 "storageFiles.content",
+                "storageFiles.probe",
                 "storageTrash.list",
                 "storageSettings.get",
                 "storageSettings.put",
@@ -96100,6 +96204,7 @@
                 "storageFileUses.list",
                 "storageFiles.byVersion",
                 "storageFiles.content",
+                "storageFiles.probe",
                 "storageTrash.list",
                 "storageSettings.get",
                 "storageSettings.put",
@@ -96675,6 +96780,7 @@
                 "storageFileUses.list",
                 "storageFiles.byVersion",
                 "storageFiles.content",
+                "storageFiles.probe",
                 "storageTrash.list",
                 "storageSettings.get",
                 "storageSettings.put",
@@ -141896,6 +142002,7 @@
                       "storageFileUses.list",
                       "storageFiles.byVersion",
                       "storageFiles.content",
+                      "storageFiles.probe",
                       "storageTrash.list",
                       "storageSettings.get",
                       "storageSettings.put",
@@ -236747,7 +236854,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:9e098f3c365eb1c86e747043cf47d000276e58258916d9cb2cc796eebbee6d47",
+  "compatibilityDigest": "sha256:7e14631a53e46845311852b4b9cf1c1b657b76ec5e60da4a5b8ac5abec21ab8c",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -244359,6 +244466,7 @@
             "storageFileUses.list",
             "storageFiles.byVersion",
             "storageFiles.content",
+            "storageFiles.probe",
             "storageTrash.list",
             "storageSettings.get",
             "storageSettings.put",
@@ -264620,6 +264728,20 @@
       ],
       "additionalProperties": false,
       "description": "Exchanges a confirmed desktop sign-in request for the app's credential. The credential is a Bakery sign-in session, accepted by the page API and live updates under the same checks as a browser sign-in."
+    },
+    "StorageFileProbeQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "revision": {
+          "description": "Which version to read, by its revision number from storageFileVersions.list; omit it to read the file's current version. A revision the file does not have is 404. StorageFileProbeQuery.revision must be at least 1. StorageFileProbeQuery.revision must be at most 999999999.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 999999999
+        }
+      },
+      "additionalProperties": false,
+      "description": "Reads the bytes of a storage-tree file at its current version or a named older one, whole (200) or by one HTTP byte range (206), for previews, media playback and downloads of any version."
     },
     "applications": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -290735,6 +290857,7 @@
             "storageFileUses.list",
             "storageFiles.byVersion",
             "storageFiles.content",
+            "storageFiles.probe",
             "storageTrash.list",
             "storageSettings.get",
             "storageSettings.put",
@@ -291310,6 +291433,7 @@
             "storageFileUses.list",
             "storageFiles.byVersion",
             "storageFiles.content",
+            "storageFiles.probe",
             "storageTrash.list",
             "storageSettings.get",
             "storageSettings.put",
@@ -291885,6 +292009,7 @@
             "storageFileUses.list",
             "storageFiles.byVersion",
             "storageFiles.content",
+            "storageFiles.probe",
             "storageTrash.list",
             "storageSettings.get",
             "storageSettings.put",
@@ -337256,6 +337381,7 @@
                   "storageFileUses.list",
                   "storageFiles.byVersion",
                   "storageFiles.content",
+                  "storageFiles.probe",
                   "storageTrash.list",
                   "storageSettings.get",
                   "storageSettings.put",

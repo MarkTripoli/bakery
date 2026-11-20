@@ -8561,6 +8561,27 @@
     {
       "group": "Storage",
       "method": "GET",
+      "path": "/v1/storage/files/{id}/probe",
+      "action": "storageFiles.probe",
+      "access": "Developer",
+      "permission": "artifactVersion:read",
+      "organizationContext": "required_authenticated_context",
+      "input": "StorageFileProbeQuery",
+      "output": "ArtifactProbeAnswer",
+      "event": "",
+      "mcp": null,
+      "idempotency": "Read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND"
+      ]
+    },
+    {
+      "group": "Storage",
+      "method": "GET",
       "path": "/v1/storage/trash",
       "action": "storageTrash.list",
       "access": "Developer",
