@@ -183,7 +183,13 @@ export function createAlertEvaluator(deps: AlertEvaluatorDependencies) {
         [EVALUATION_LOCK],
       );
       if (!lock.rows[0]?.locked) return undefined;
-      const settings = {} as Record<AlertRuleKey, AlertRuleSetting>;
+      // A rule nobody has changed has no row and runs on its defaults.
+      const settings = Object.fromEntries(
+        Object.keys(ALERT_RULE_CATALOG).map((key) => [
+          key,
+          { enabled: true, threshold: null },
+        ]),
+      ) as Record<AlertRuleKey, AlertRuleSetting>;
       for (
         const row of (await tx.query<
           { rule: string; enabled: boolean; threshold: number | null }

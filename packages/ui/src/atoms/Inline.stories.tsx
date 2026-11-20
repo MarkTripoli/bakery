@@ -44,6 +44,12 @@ export const Contract: StoryObj = {
         <Text>Two</Text>
         <Text>Three</Text>
       </Inline>
+      <Inline variant="quarters">
+        <Text>One</Text>
+        <Text>Two</Text>
+        <Text>Three</Text>
+        <Text>Four</Text>
+      </Inline>
       <Inline variant="actions">
         <Button variant="secondary">Cancel</Button>
         <Button>Confirm</Button>

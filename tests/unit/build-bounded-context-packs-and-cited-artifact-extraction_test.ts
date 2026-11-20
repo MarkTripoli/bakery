@@ -324,7 +324,7 @@ Deno.test("unindexed content is unknown and unbounded, so allocation omits it in
   assertEquals(allocation.selectedTokens, 5);
 });
 
-Deno.test("a citation or cached extract is reused only while digest, extractor and live access hold (AC2)", () => {
+Deno.test("a citation or cached extract is reused only while digest, extractor and live access hold (AC2)", async () => {
   const citation = projectArtifactVersion(entry("text/plain"), {
     startByte: 0,
     endByteExclusive: 5,
@@ -356,12 +356,12 @@ Deno.test("a citation or cached extract is reused only while digest, extractor a
   // The cache key binds organization, version, digest, range and extractor,
   // and carries no authorization decision.
   assertEquals(
-    extractCacheKey("org", citation),
+    await extractCacheKey("org", citation),
     `org|${citation.versionId}|${DIGEST}|0-5|${CONTEXT_EXTRACTOR_VERSION}`,
   );
   assertNotEquals(
-    extractCacheKey("org", citation),
-    extractCacheKey("other-org", citation),
+    await extractCacheKey("org", citation),
+    await extractCacheKey("other-org", citation),
   );
 });
 

@@ -173,11 +173,11 @@ Deno.test("a worker that stops fires one alert, repeats are suppressed, and a re
         // A rule that is off never fires, and a limit change takes effect.
         await silentFor(20);
         await database.query(
-          "update bakery.alert_rules set enabled = false where rule = 'worker_lost'",
+          "insert into bakery.alert_rules (rule, enabled, threshold) values ('worker_lost', false, null) on conflict (rule) do update set enabled = excluded.enabled, threshold = excluded.threshold",
         );
         assertEquals((await evaluator.evaluateOnce()).fired, 0);
         await database.query(
-          "update bakery.alert_rules set enabled = true, threshold = 3600 where rule = 'worker_lost'",
+          "insert into bakery.alert_rules (rule, enabled, threshold) values ('worker_lost', true, 3600) on conflict (rule) do update set enabled = excluded.enabled, threshold = excluded.threshold",
         );
         assertEquals(
           (await evaluator.evaluateOnce()).fired,
@@ -185,7 +185,7 @@ Deno.test("a worker that stops fires one alert, repeats are suppressed, and a re
           "20 minutes is under a one hour limit",
         );
         await database.query(
-          "update bakery.alert_rules set threshold = 60 where rule = 'worker_lost'",
+          "insert into bakery.alert_rules (rule, enabled, threshold) values ('worker_lost', true, 60) on conflict (rule) do update set enabled = excluded.enabled, threshold = excluded.threshold",
         );
         assertEquals((await evaluator.evaluateOnce()).fired, 1);
         assertEquals(types(hook).at(-1), "alert.fired");

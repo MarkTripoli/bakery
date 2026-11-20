@@ -127,11 +127,20 @@ export async function listAlertRules(
   );
   const firing = await firingByRule(value.transaction);
   const byRule = new Map(rows.rows.map((row) => [row.rule, row]));
-  // The catalogue's order, not the table's, so the page never reshuffles.
-  const rules = Object.keys(ALERT_RULE_CATALOG).flatMap((key) => {
-    const row = byRule.get(key);
-    return row ? [ruleProjection(row, firing.get(key) ?? 0)] : [];
-  });
+  // The catalogue's order, not the table's, so the page never reshuffles. A
+  // rule with no row has never been changed: it shows its defaults.
+  const rules = Object.keys(ALERT_RULE_CATALOG).map((key) =>
+    ruleProjection(
+      byRule.get(key) ?? {
+        rule: key,
+        enabled: true,
+        threshold: null,
+        updated_at: "",
+        version: 1,
+      },
+      firing.get(key) ?? 0,
+    )
+  );
   return contractSchemas.AlertRuleList.parse({ rules });
 }
 
@@ -163,11 +172,15 @@ export async function updateAlertRule(
     }
   }
   const expected = expectedVersion(context);
+  // A rule nobody has changed has no row yet: it is at its defaults, version 1.
+  await transaction.query(
+    "insert into bakery.alert_rules (rule) values ($1) on conflict (rule) do nothing",
+    [input.rule],
+  );
   const current = (await transaction.query<RuleRow>(
     `select ${RULE_COLUMNS} from bakery.alert_rules where rule = $1 for update`,
     [input.rule],
   )).rows[0];
-  if (!current) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
   if (current.version !== expected) {
     throw new StandardError({ code: "PRECONDITION_FAILED" });
   }

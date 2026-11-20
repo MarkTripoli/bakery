@@ -8326,6 +8326,143 @@ export const clientManifest = {
       "implemented": true
     },
     {
+      "group": "Installation administration",
+      "method": "GET",
+      "path": "/v1/installation/backup-schedule",
+      "action": "backupSchedule.get",
+      "access": "Installation administrator",
+      "permission": "backup:read",
+      "input": "Empty",
+      "output": "BackupSchedule",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
+      "method": "PUT",
+      "path": "/v1/installation/backup-schedule",
+      "action": "backupSchedule.put",
+      "access": "Installation administrator",
+      "permission": "backup:manage",
+      "input": "BackupSchedulePut",
+      "output": "BackupSchedule",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required; If-Match with the current version once settings exist",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
+        "PRECONDITION_REQUIRED",
+        "PRECONDITION_FAILED",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
+      "method": "GET",
+      "path": "/v1/installation/backup-offsite",
+      "action": "backupOffsite.get",
+      "access": "Installation administrator",
+      "permission": "backup:read",
+      "input": "Empty",
+      "output": "BackupOffsite",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
+      "method": "PUT",
+      "path": "/v1/installation/backup-offsite",
+      "action": "backupOffsite.put",
+      "access": "Installation administrator",
+      "permission": "backup:manage",
+      "input": "BackupOffsitePut",
+      "output": "BackupOffsite",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required; If-Match with the current version once a destination exists",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
+        "PRECONDITION_REQUIRED",
+        "PRECONDITION_FAILED",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
+      "group": "Installation administration",
+      "method": "POST",
+      "path": "/v1/installation/backup-offsite/verification",
+      "action": "backupOffsite.verify",
+      "access": "Installation administrator",
+      "permission": "backup:manage",
+      "input": "Empty",
+      "output": "BackupOffsiteVerification",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "INTERNAL"
+      ],
+      "organizationContext": "installation_administrator_scope",
+      "implemented": true
+    },
+    {
       "group": "Backup runner protocol",
       "method": "POST",
       "path": "/v1/backup-runner/claims",
@@ -8369,6 +8506,27 @@ export const clientManifest = {
         "BODY_TOO_LARGE",
         "UNSUPPORTED_MEDIA_TYPE",
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "INTERNAL"
+      ],
+      "organizationContext": "none",
+      "implemented": true
+    },
+    {
+      "group": "Backup runner protocol",
+      "method": "GET",
+      "path": "/v1/backup-runner/settings",
+      "action": "backupRunner.settings",
+      "access": "Backup runner",
+      "permission": null,
+      "input": "Empty",
+      "output": "BackupRunnerSettings",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read; never cached; every read that releases the credentials or refuses to is audited",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "STATE_CONFLICT",
         "INTERNAL"
       ],
       "organizationContext": "none",
@@ -18092,8 +18250,14 @@ export const clientManifest = {
             "backups.status",
             "backups.start",
             "backupRunnerCredential.issue",
+            "backupSchedule.get",
+            "backupSchedule.put",
+            "backupOffsite.get",
+            "backupOffsite.put",
+            "backupOffsite.verify",
             "backupRunner.claim",
             "backupRunner.report",
+            "backupRunner.settings",
             "telemetryDestinations.list",
             "telemetryDestinations.create",
             "telemetryDestinations.update",
@@ -29942,6 +30106,93 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "A person's choice to continue one stalled step on another route, submitted against the exact offer they saw: the step, the incident and its generation, the run version and the chosen route. Exactly one submission wins however many race; a stale one commits nothing and reports why."
+    },
+    "BackupSchedulePut": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Whether scheduled backups run. Off keeps the other settings and stops new scheduled runs; a backup a person starts is never affected."
+        },
+        "interval": {
+          "type": "string",
+          "enum": [
+            "hourly",
+            "daily",
+            "weekly"
+          ],
+          "description": "How often a scheduled backup is taken: hourly, daily or weekly. Weekly runs on Monday, UTC."
+        },
+        "timeOfDayUtc": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 5,
+          "description": "Time of the scheduled run as HH:MM on a 24-hour UTC clock. For hourly runs only the minutes count: the backup is due at that minute of every hour. BackupSchedulePut.timeOfDayUtc must contain at least 5 characters. BackupSchedulePut.timeOfDayUtc must contain at most 5 characters."
+        },
+        "daysToKeep": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3650,
+          "description": "How many days the host runner keeps a finished backup before it removes it, from 1 to 3650. BackupSchedulePut.daysToKeep must be at least 1. BackupSchedulePut.daysToKeep must be at most 3650."
+        }
+      },
+      "required": [
+        "enabled",
+        "interval",
+        "timeOfDayUtc",
+        "daysToKeep"
+      ],
+      "additionalProperties": false,
+      "description": "The schedule an administrator sets for automatic backups: on or off, how often, at what UTC time and how many days a finished backup is kept."
+    },
+    "BackupOffsitePut": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "endpoint": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 512,
+          "description": "Address of the S3-compatible service as an https origin such as https://s3.example.com, with no path, query or credentials. Private and loopback addresses are refused. Not a secret. BackupOffsitePut.endpoint must contain at least 8 characters. BackupOffsitePut.endpoint must contain at most 512 characters."
+        },
+        "region": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 63,
+          "description": "Region name the service signs requests for, for example us-east-1; some services accept any value. Not a secret. BackupOffsitePut.region must contain at least 1 characters. BackupOffsitePut.region must contain at most 63 characters."
+        },
+        "bucket": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 63,
+          "description": "Name of the bucket that receives the encrypted backups: lowercase letters, digits, dots and hyphens, starting and ending with a letter or digit. Not a secret. BackupOffsitePut.bucket must contain at least 3 characters. BackupOffsitePut.bucket must contain at most 63 characters."
+        },
+        "prefix": {
+          "description": "Folder inside the bucket where backups are kept, such as bakery/prod; empty means the bucket root. Not a secret. BackupOffsitePut.prefix must contain at most 256 characters.",
+          "type": "string",
+          "maxLength": 256
+        },
+        "accessKeyId": {
+          "description": "Access key id of the account that writes the backups. Write-only: stored with the secret access key as one installation-owned AES-GCM ciphertext and never returned. Supply it together with secretAccessKey; required for the first save and whenever the endpoint, region or bucket changes (the saved pair is never reused for another host, and a move without it answers 422 credentials_required). Omit both on a later save to keep the stored credentials for the same destination, including a change to the prefix only. BackupOffsitePut.accessKeyId must contain at most 256 characters.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "secretAccessKey": {
+          "description": "Secret access key of that account. Write-only: stored encrypted next to the access key id and never returned, echoed, logged or audited. Supply it together with accessKeyId. BackupOffsitePut.secretAccessKey must contain at most 1024 characters.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        }
+      },
+      "required": [
+        "endpoint",
+        "region",
+        "bucket"
+      ],
+      "additionalProperties": false,
+      "description": "The off-site destination an administrator sets for copies of every backup: an S3-compatible bucket with its address, region, folder and a write-only credential pair."
     },
     "PreviewQuery": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -44661,8 +44912,14 @@ export const clientManifest = {
                   "backups.status",
                   "backups.start",
                   "backupRunnerCredential.issue",
+                  "backupSchedule.get",
+                  "backupSchedule.put",
+                  "backupOffsite.get",
+                  "backupOffsite.put",
+                  "backupOffsite.verify",
                   "backupRunner.claim",
                   "backupRunner.report",
+                  "backupRunner.settings",
                   "telemetryDestinations.list",
                   "telemetryDestinations.create",
                   "telemetryDestinations.update",
@@ -65077,8 +65334,14 @@ export const clientManifest = {
             "backups.status",
             "backups.start",
             "backupRunnerCredential.issue",
+            "backupSchedule.get",
+            "backupSchedule.put",
+            "backupOffsite.get",
+            "backupOffsite.put",
+            "backupOffsite.verify",
             "backupRunner.claim",
             "backupRunner.report",
+            "backupRunner.settings",
             "telemetryDestinations.list",
             "telemetryDestinations.create",
             "telemetryDestinations.update",
@@ -89490,7 +89753,7 @@ export const clientManifest = {
             "stale",
             "failed"
           ],
-          "description": "running while a backup is claimed or running; failed when the newest finished attempt failed; stale when the last good backup is older than 7 days or none exists; protected otherwise."
+          "description": "running while a backup is claimed or running; failed when the newest finished attempt failed; stale when the last good backup is older than twice the schedule interval (7 days when no schedule is on) or none exists; protected otherwise."
         },
         "lastGoodBackupAt": {
           "anyOf": [
@@ -102722,6 +102985,410 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "The record that a stalled step was continued on another route. The old attempt is fenced, the job is queued again on the new pin, and the step's one budget reservation is re-priced in place, so no second reservation exists and none is left held. Both the pin the step had and the pin it now has are kept."
+    },
+    "BackupSchedule": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Whether scheduled backups run."
+        },
+        "interval": {
+          "type": "string",
+          "enum": [
+            "hourly",
+            "daily",
+            "weekly"
+          ],
+          "description": "hourly, daily or weekly; weekly runs on Monday, UTC."
+        },
+        "timeOfDayUtc": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "HH:MM in UTC; for hourly runs only the minutes count."
+        },
+        "daysToKeep": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "How many days the host runner keeps a finished backup."
+        },
+        "updatedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the schedule last changed, or null before any save."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "BackupSchedule.updatedAt may be null in this transport value."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Monotonic settings revision, 0 before any save; submit the current value as If-Match when saving again."
+        }
+      },
+      "required": [
+        "enabled",
+        "interval",
+        "timeOfDayUtc",
+        "daysToKeep",
+        "updatedAt",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "The automatic backup schedule as an installation administrator sees it. Before any save it reads as off with a daily 03:00 UTC default and a 30 day keep."
+    },
+    "BackupOffsite": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "configured": {
+          "type": "boolean",
+          "description": "True when a credential pair is stored encrypted; the values are never returned."
+        },
+        "endpoint": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Saved https origin of the S3-compatible service, or null before any save."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "BackupOffsite.endpoint may be null in this transport value."
+        },
+        "region": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Saved region name, or null before any save."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "BackupOffsite.region may be null in this transport value."
+        },
+        "bucket": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Saved bucket name, or null before any save."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "BackupOffsite.bucket may be null in this transport value."
+        },
+        "prefix": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Saved folder inside the bucket, empty for the bucket root, or null before any save."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "BackupOffsite.prefix may be null in this transport value."
+        },
+        "credentialUpdatedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the stored credentials were last replaced, or null when none are stored."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "BackupOffsite.credentialUpdatedAt may be null in this transport value."
+        },
+        "credentialRevision": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Revision number of the active credential version, or null when none is stored; earlier revisions are kept for audit and never returned."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "BackupOffsite.credentialRevision may be null in this transport value."
+        },
+        "updatedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the destination last changed, or null before any save."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "BackupOffsite.updatedAt may be null in this transport value."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Monotonic settings revision, 0 before any save; submit the current value as If-Match when saving again."
+        }
+      },
+      "required": [
+        "configured",
+        "endpoint",
+        "region",
+        "bucket",
+        "prefix",
+        "credentialUpdatedAt",
+        "credentialRevision",
+        "updatedAt",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "The off-site backup destination as an installation administrator sees it. The access key id and secret access key are reported only as the configured flag and the active revision; no credential value, ciphertext, key identifier or secret record id is ever returned."
+    },
+    "BackupOffsiteVerification": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "verified",
+            "not_configured",
+            "destination_refused",
+            "destination_unreachable",
+            "destination_private_address",
+            "integrity_failed"
+          ],
+          "description": "verified when the test object round-tripped; not_configured without a saved destination; destination_refused when the service answered and said no (wrong key, no access, missing bucket); destination_unreachable on a network failure, a timeout or a name that cannot be resolved; destination_private_address when the host resolves to an address the server may not connect to (private, loopback, link-local, metadata and similar); integrity_failed when the bytes read back differ."
+        },
+        "detail": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The service's own answer text, at most 500 characters and with both credential halves removed, or null when it said nothing or the test passed."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "BackupOffsiteVerification.detail may be null in this transport value."
+        },
+        "checkedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When the test finished."
+        }
+      },
+      "required": [
+        "outcome",
+        "detail",
+        "checkedAt"
+      ],
+      "additionalProperties": false,
+      "description": "Result of the bounded test that puts, reads back and deletes one small object in the saved destination with the stored credentials. A failed test still answers 200 with a stable outcome; the credentials are never returned."
+    },
+    "BackupRunnerSettings": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "scheduleEnabled": {
+          "type": "boolean",
+          "description": "Whether scheduled backups run."
+        },
+        "scheduleInterval": {
+          "type": "string",
+          "enum": [
+            "hourly",
+            "daily",
+            "weekly"
+          ],
+          "description": "hourly, daily or weekly."
+        },
+        "scheduleTimeOfDayUtc": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "HH:MM in UTC."
+        },
+        "daysToKeep": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "How many days to keep a finished backup."
+        },
+        "scheduleVersion": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Schedule settings revision, 0 before any save."
+        },
+        "offsiteConfigured": {
+          "type": "boolean",
+          "description": "True when a destination with credentials is saved, whether or not the credentials were released."
+        },
+        "offsiteEndpoint": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Https origin of the S3-compatible service, or null when none is saved."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "BackupRunnerSettings.offsiteEndpoint may be null in this transport value."
+        },
+        "offsiteRegion": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Region name, or null when none is saved."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "BackupRunnerSettings.offsiteRegion may be null in this transport value."
+        },
+        "offsiteBucket": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Bucket name, or null when none is saved."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "BackupRunnerSettings.offsiteBucket may be null in this transport value."
+        },
+        "offsitePrefix": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Folder inside the bucket, empty for the root, or null when none is saved."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "BackupRunnerSettings.offsitePrefix may be null in this transport value."
+        },
+        "offsiteAccessKeyId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 65536,
+              "description": "Access key id, shown only to the runner, or null when none is saved or the credentials were withheld (see offsiteRefusal)."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "BackupRunnerSettings.offsiteAccessKeyId may be null in this transport value."
+        },
+        "offsiteSecretAccessKey": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 65536,
+              "description": "Secret access key, shown only to the runner and never stored by it, or null when none is saved or the credentials were withheld (see offsiteRefusal)."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "BackupRunnerSettings.offsiteSecretAccessKey may be null in this transport value."
+        },
+        "offsiteRefusal": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "destination_private_address",
+                "destination_unresolvable",
+                "destination_invalid"
+              ],
+              "description": "Why the credentials were withheld for a saved destination: destination_private_address when its host now resolves to a private, loopback, link-local, metadata or other refused address, destination_unresolvable when its name cannot be resolved, destination_invalid when the saved destination is not a valid one. Null when the credentials were released or no destination is saved. The runner must not upload while this is set."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "BackupRunnerSettings.offsiteRefusal may be null in this transport value."
+        },
+        "offsiteVersion": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Destination settings revision, 0 before any save."
+        }
+      },
+      "required": [
+        "scheduleEnabled",
+        "scheduleInterval",
+        "scheduleTimeOfDayUtc",
+        "daysToKeep",
+        "scheduleVersion",
+        "offsiteConfigured",
+        "offsiteEndpoint",
+        "offsiteRegion",
+        "offsiteBucket",
+        "offsitePrefix",
+        "offsiteAccessKeyId",
+        "offsiteSecretAccessKey",
+        "offsiteRefusal",
+        "offsiteVersion"
+      ],
+      "additionalProperties": false,
+      "description": "What the host backup runner needs to do its work: the schedule and the off-site destination including its decrypted credential pair. This is the one route that returns the credentials, and only to the runner credential, never to a user session. It carries no backup key material: the operator keeps the age keys on the host. Every read that releases the credentials, or refuses to, is audited. The destination's host is resolved again on each read, so a name re-pointed at a private address is not released."
     },
     "Page<PluginStateItem>": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

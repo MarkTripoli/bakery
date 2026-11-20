@@ -38,6 +38,18 @@ import {
   reportRun,
   requestBackup,
 } from "./postgres.ts";
+import {
+  type BackupSettingsDependencies,
+  checkRunnerDestination,
+  createBackupSettingsAuthorityRunner,
+  getOffsite,
+  getSchedule,
+  prepareRunnerRead,
+  putOffsite,
+  putSchedule,
+  recordVerification,
+  releaseRunnerSettings,
+} from "./settings-actions.ts";
 
 type Run = z.output<typeof contractSchemas.BackupRun>;
 type Status = z.output<typeof contractSchemas.BackupStatus>;
@@ -53,6 +65,8 @@ export type BackupRouteOptions = {
   readonly publicBaseUrl: string;
   /** Signs list cursors, as every other list does. */
   readonly secret: string;
+  /** What the off-site destination and the runner's settings read need. */
+  readonly settings: BackupSettingsDependencies;
 };
 
 /** backups.list */
@@ -117,14 +131,23 @@ const ADMIN_ACTIONS = [
   Action.BackupsStatus,
   Action.BackupsStart,
   Action.BackupRunnerCredentialIssue,
+  Action.BackupScheduleGet,
+  Action.BackupSchedulePut,
+  Action.BackupOffsiteGet,
+  Action.BackupOffsitePut,
+  Action.BackupOffsiteVerify,
 ] as const;
 
 export function createBackupActionRegistry(
   database: PgDatabase,
   secret: string,
+  settings: BackupSettingsDependencies,
 ): ActionRegistry {
   const registry = new ActionRegistry(
-    new PostgresAuthorityRunner(database),
+    createBackupSettingsAuthorityRunner(
+      new PostgresAuthorityRunner(database),
+      settings,
+    ),
     createPostgresCommandRunner(),
     "natural-idempotency",
   );
@@ -170,6 +193,54 @@ export function createBackupActionRegistry(
     // a stored response.
     policy: { ...policy, type: ActionKind.Command, sessionOnly: true },
     handler: issueCredential,
+  }).register({
+    name: Action.BackupScheduleGet,
+    method: HttpMethod.Get,
+    path: "/v1/installation/backup-schedule",
+    input: contractSchemas.Empty,
+    output: contractSchemas.BackupSchedule,
+    policy: { ...policy, type: ActionKind.Query },
+    handler: getSchedule,
+  }).register({
+    name: Action.BackupSchedulePut,
+    method: HttpMethod.Put,
+    path: "/v1/installation/backup-schedule",
+    input: contractSchemas.BackupSchedulePut,
+    output: contractSchemas.BackupSchedule,
+    // Idempotency-Key is required; If-Match is parsed when sent and the
+    // handler requires it once a schedule exists.
+    explicitIdempotency: "key",
+    policy: { ...policy, type: ActionKind.Command, sessionOnly: true },
+    handler: putSchedule,
+  }).register({
+    name: Action.BackupOffsiteGet,
+    method: HttpMethod.Get,
+    path: "/v1/installation/backup-offsite",
+    input: contractSchemas.Empty,
+    output: contractSchemas.BackupOffsite,
+    policy: { ...policy, type: ActionKind.Query },
+    handler: getOffsite,
+  }).register({
+    name: Action.BackupOffsitePut,
+    method: HttpMethod.Put,
+    path: "/v1/installation/backup-offsite",
+    input: contractSchemas.BackupOffsitePut,
+    output: contractSchemas.BackupOffsite,
+    explicitIdempotency: "key",
+    policy: { ...policy, type: ActionKind.Command, sessionOnly: true },
+    handler: (context, input) => putOffsite(context, input, settings),
+  }).register({
+    name: Action.BackupOffsiteVerify,
+    method: HttpMethod.Post,
+    path: "/v1/installation/backup-offsite/verification",
+    input: contractSchemas.Empty,
+    output: contractSchemas.BackupOffsiteVerification,
+    // Idempotency-Key only: a test changes no setting. The completed test
+    // result is 200, not a created resource.
+    explicitIdempotency: "key",
+    successStatus: 200,
+    policy: { ...policy, type: ActionKind.Command, sessionOnly: true },
+    handler: recordVerification,
   });
   assertRegisteredActions(registry);
   assertImplementedActionRegistry(registry, ADMIN_ACTIONS);
@@ -196,7 +267,7 @@ const UUID =
  * material: the report schema is strict and has no field for either.
  */
 export function createBackupRunnerRoutes(
-  options: Pick<BackupRouteOptions, "database" | "publicBaseUrl">,
+  options: Pick<BackupRouteOptions, "database" | "publicBaseUrl" | "settings">,
 ): Hono {
   const app = new Hono();
   const guarded = (
@@ -219,6 +290,46 @@ export function createBackupRunnerRoutes(
         return noStoreJson(await claimRun(transaction), 200);
       })
     ),
+  );
+  // The one route that returns the decrypted off-site credentials, and only to
+  // the runner credential; the response is never cached. Three steps: read and
+  // form the saved destination, hold its host to the address policy OUTSIDE any
+  // transaction (a slow resolver never holds the runner credential's row), then
+  // release the credentials and write the audit row in a second transaction.
+  app.get(
+    "/v1/backup-runner/settings",
+    guarded(async (context) => {
+      const headers = context.req.raw.headers;
+      const prepared = await withPgTransaction(
+        options.database,
+        async (transaction) => {
+          await authenticateRunner(transaction, headers);
+          return await prepareRunnerRead(transaction, options.settings);
+        },
+      );
+      const check = await checkRunnerDestination(
+        prepared,
+        options.settings,
+        context.req.raw.signal,
+      );
+      return withPgTransaction(options.database, async (transaction) => {
+        const runner = await authenticateRunner(transaction, headers);
+        return noStoreJson(
+          await releaseRunnerSettings(
+            transaction,
+            prepared,
+            check,
+            options.settings,
+            {
+              generation: runner.generation,
+              requestId: crypto.randomUUID(),
+              traceId: crypto.randomUUID(),
+            },
+          ),
+          200,
+        );
+      });
+    }),
   );
   app.post(
     "/v1/backup-runner/runs/:id/reports",
@@ -252,11 +363,18 @@ export function createBackupRoutes(options: BackupRouteOptions) {
   const app = new Hono<{ Variables: AuthVariables }>();
   app.use("/v1/installation/backups", options.browserSession);
   app.use("/v1/installation/backups/*", options.browserSession);
+  app.use("/v1/installation/backup-schedule", options.browserSession);
+  app.use("/v1/installation/backup-offsite", options.browserSession);
+  app.use("/v1/installation/backup-offsite/*", options.browserSession);
   app.use("/v1/installation/backup-runner/*", options.browserSession);
   app.route(
     "/",
     createApiRouter({
-      registry: createBackupActionRegistry(options.database, options.secret),
+      registry: createBackupActionRegistry(
+        options.database,
+        options.secret,
+        options.settings,
+      ),
       publicBaseUrl: options.publicBaseUrl,
       createContext: createActionContext,
     }),

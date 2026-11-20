@@ -108,7 +108,7 @@ Deno.test("an administrator reads and tunes the alert rules, pages the history a
       )).rows[0].n,
     );
   try {
-    // The rules are permanent rows another file may have touched: start from the defaults.
+    // Another file may have changed a rule: start from the defaults.
     await f.pgDatabase.query(
       `update bakery.alert_rules
           set enabled = true, threshold = null, updated_by = null, version = 1`,
@@ -332,7 +332,7 @@ Deno.test("an administrator reads and tunes the alert rules, pages the history a
       1,
     ]);
   } finally {
-    // The rules are permanent rows: put them back, and drop what this test seeded.
+    // Put the rules back to their defaults, and drop what this test seeded.
     await f.pgDatabase.query(
       `update bakery.alert_rules
           set enabled = true, threshold = null, updated_by = null, version = 1`,
