@@ -9934,6 +9934,213 @@ export const clientManifest = {
       "implemented": true
     },
     {
+      "group": "Tickets",
+      "method": "GET",
+      "path": "/v1/batches",
+      "action": "batches.list",
+      "access": "Developer",
+      "permission": "batch:read",
+      "input": "BatchQuery",
+      "output": "Page<Batch>",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Tickets",
+      "method": "GET",
+      "path": "/v1/batches/{id}",
+      "action": "batches.get",
+      "access": "Developer",
+      "permission": "batch:read",
+      "input": "IdPath",
+      "output": "Batch",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Tickets",
+      "method": "POST",
+      "path": "/v1/batches",
+      "action": "batches.create",
+      "access": "Developer+admission authority",
+      "permission": "batch:control",
+      "input": "BatchCreate",
+      "output": "Batch",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED",
+        "DEPENDENCY_UNAVAILABLE"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Tickets",
+      "method": "POST",
+      "path": "/v1/batches/{id}/pause",
+      "action": "batches.pause",
+      "access": "Developer+admission authority",
+      "permission": "batch:control",
+      "input": "Empty",
+      "output": "Batch",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required; safe to repeat",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED",
+        "DEPENDENCY_UNAVAILABLE"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Tickets",
+      "method": "POST",
+      "path": "/v1/batches/{id}/resume",
+      "action": "batches.resume",
+      "access": "Developer+admission authority",
+      "permission": "batch:control",
+      "input": "Empty",
+      "output": "Batch",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required; safe to repeat",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED",
+        "DEPENDENCY_UNAVAILABLE"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Tickets",
+      "method": "POST",
+      "path": "/v1/batches/{id}/stop",
+      "action": "batches.stop",
+      "access": "Developer+admission authority",
+      "permission": "batch:control",
+      "input": "BatchStop",
+      "output": "Batch",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required; safe to repeat",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED",
+        "DEPENDENCY_UNAVAILABLE"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Tickets",
+      "method": "POST",
+      "path": "/v1/batches/{id}/start-next",
+      "action": "batches.startNext",
+      "access": "Developer+admission authority",
+      "permission": "batch:control",
+      "input": "Empty",
+      "output": "Batch",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required; safe to repeat",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED",
+        "DEPENDENCY_UNAVAILABLE"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Tickets",
+      "method": "POST",
+      "path": "/v1/batches/{id}/finish",
+      "action": "batches.finish",
+      "access": "Developer+admission authority",
+      "permission": "batch:control",
+      "input": "Empty",
+      "output": "Batch",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required; safe to repeat",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED",
+        "DEPENDENCY_UNAVAILABLE"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
       "group": "Plugins",
       "method": "GET",
       "path": "/v1/plugin-packages",
@@ -17834,6 +18041,14 @@ export const clientManifest = {
             "ticketSources.labels",
             "ticketTaskLinks.resyncNote",
             "ticketRequests.create",
+            "batches.list",
+            "batches.get",
+            "batches.create",
+            "batches.pause",
+            "batches.resume",
+            "batches.stop",
+            "batches.startNext",
+            "batches.finish",
             "externalTickets.create",
             "pluginPackages.list",
             "pluginPackages.create",
@@ -23647,6 +23862,64 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "Query for the links between external tickets and Bakery tasks, from either side, with each link's role and the sync health of Bakery's status note on the ticket."
     },
+    "TicketRequestQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "externalTicketId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Lists the admission generations of this one external ticket; a ticket outside the caller's organization answers 404, exactly as a missing one."
+        },
+        "cursor": {
+          "description": "Opaque continuation token from a previous page's nextCursor, bound to the caller and the ticket; pass it back verbatim and never construct it. TicketRequestQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "limit": {
+          "description": "Maximum number of requests in one page, capped at 100; defaults to 25 when omitted. TicketRequestQuery.limit must be at least 1. TicketRequestQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "externalTicketId"
+      ],
+      "additionalProperties": false,
+      "description": "Query for the start requests (admission generations) of one external ticket, newest first, each with its progress, pause state and routed targets (#69)."
+    },
+    "TicketSourceLabelQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Ticket source whose provider labels are read; supplied via the request's {id} path segment."
+        },
+        "cursor": {
+          "description": "Opaque continuation token from a previous page's nextCursor; it names the provider's next page, is bound to the caller and the source, and must be passed back verbatim. TicketSourceLabelQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "limit": {
+          "description": "Maximum number of labels in one page, capped at 100; defaults to 100. The provider's own page size decides where a page ends, so a page may hold fewer. TicketSourceLabelQuery.limit must be at least 1. TicketSourceLabelQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false,
+      "description": "Query for the labels the ticket source's provider holds right now, so a routing rule or trigger can name one by its stable id (#69)."
+    },
     "TicketTaskLinkNoteSync": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -28409,46 +28682,6 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "Leaves a note for a workflow step that has not started yet, addressed by the run id and step key in the path. The agent that runs the step receives the note once, with its input; a step that has already started refuses the note with a state conflict, and a steer on its live session is the way to reach it."
     },
-    "AgentFileGrantCreate": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "workflowId": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "Immutable id of the workflow whose agent sessions may use the grant. Only a session running a step of this workflow is covered; another workflow's agents gain nothing from it."
-        },
-        "folderId": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "The storage folder granted. The grant covers this folder and everything under it, never its parent or siblings. It must be a live folder in a working area, or a personal folder the granting person owns; the library, record areas, /connections, /trash and /system cannot be granted."
-        },
-        "access": {
-          "type": "string",
-          "enum": [
-            "read",
-            "write"
-          ],
-          "description": "What the agent may do under the folder: read, or write (put, mkdir, cp into, mv into or out of, and rm to trash). A read grant never permits a destructive verb."
-        },
-        "expiresAt": {
-          "type": "string",
-          "format": "date-time",
-          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-          "description": "When the grant stops working, as an ISO 8601 instant. It must be in the future and at most 30 days ahead. The guard judges it at the time of each write, so a grant that lapses mid-step stops the very next write."
-        }
-      },
-      "required": [
-        "workflowId",
-        "folderId",
-        "access",
-        "expiresAt"
-      ],
-      "additionalProperties": false,
-      "description": "Grants the agent sessions of one workflow read or write access to one storage folder, until an expiry, revocable (chapter 25 section 17.6, O45, O52). An agent writes files only where such a grant covers the target."
-    },
     "AgentPowerGrantCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -28542,210 +28775,6 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Makes the caller the completer of a workflow step, or restarts it. Allowed only for a step of a compiled-plan run whose job is still queued with no live attempt, and only for a caller holding run control; a step with a live attempt is refused with STATE_CONFLICT `attempt_live` and must be stopped through run control first. `complete` also needs the action to produce an artifact. A job with a budget reservation and a finished attempt is refused with `budget_unsettled` in either mode while the reservation is still held, because that attempt may already have spent against it. Once reconciliation settles it, `complete` goes through; `restart` does not: a restart reuses the held reservation, so a funded job that has had a finished attempt is never restartable (`budget_not_reserved` once the reservation is settled or released). `restart` of any funded job also needs its reservation held, and a funded job with no reservation is refused with `budget_not_reserved`. A job whose action has no budget can be completed or restarted after any number of attempts."
-    },
-    "IntegrationProviderPath": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "provider": {
-          "type": "string",
-          "maxLength": 64,
-          "description": "Provider slug the installation setting belongs to, as the provider registry names it (for example linear). Only a provider whose manifest asks for client credentials is served. IntegrationProviderPath.provider must contain at most 64 characters."
-        }
-      },
-      "required": [
-        "provider"
-      ],
-      "additionalProperties": false,
-      "description": "Names the integration provider a client-credentials setting is read for."
-    },
-    "IntegrationClientCredentialsPut": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "clientId": {
-          "type": "string",
-          "maxLength": 200,
-          "description": "The OAuth application's client ID, as the provider shows it. It is not a secret and is shown back to installation administrators. IntegrationClientCredentialsPut.clientId must contain at most 200 characters."
-        },
-        "clientSecret": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 65536,
-          "description": "The OAuth application's client secret. Write-only: it is sealed under the installation key and never returned; saving always replaces the stored secret with this one."
-        }
-      },
-      "required": [
-        "clientId",
-        "clientSecret"
-      ],
-      "additionalProperties": false,
-      "description": "Registers or replaces the OAuth client credentials an installation uses to connect organizations to one integration provider. Both fields are required every time: a replacement states the whole pair, so the stored client ID and secret can never disagree."
-    },
-    "TicketRequestQuery": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "externalTicketId": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "Lists the admission generations of this one external ticket; a ticket outside the caller's organization answers 404, exactly as a missing one."
-        },
-        "cursor": {
-          "description": "Opaque continuation token from a previous page's nextCursor, bound to the caller and the ticket; pass it back verbatim and never construct it. TicketRequestQuery.cursor must contain at most 512 UTF-8 bytes.",
-          "type": "string",
-          "maxLength": 65536,
-          "x-utf8-max-bytes": 512
-        },
-        "limit": {
-          "description": "Maximum number of requests in one page, capped at 100; defaults to 25 when omitted. TicketRequestQuery.limit must be at least 1. TicketRequestQuery.limit must be at most 100.",
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 100
-        }
-      },
-      "required": [
-        "externalTicketId"
-      ],
-      "additionalProperties": false,
-      "description": "Query for the start requests (admission generations) of one external ticket, newest first, each with its progress, pause state and routed targets (#69)."
-    },
-    "TicketSourceLabelQuery": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "Ticket source whose provider labels are read; supplied via the request's {id} path segment."
-        },
-        "cursor": {
-          "description": "Opaque continuation token from a previous page's nextCursor; it names the provider's next page, is bound to the caller and the source, and must be passed back verbatim. TicketSourceLabelQuery.cursor must contain at most 512 UTF-8 bytes.",
-          "type": "string",
-          "maxLength": 65536,
-          "x-utf8-max-bytes": 512
-        },
-        "limit": {
-          "description": "Maximum number of labels in one page, capped at 100; defaults to 100. The provider's own page size decides where a page ends, so a page may hold fewer. TicketSourceLabelQuery.limit must be at least 1. TicketSourceLabelQuery.limit must be at most 100.",
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 100
-        }
-      },
-      "required": [
-        "id"
-      ],
-      "additionalProperties": false,
-      "description": "Query for the labels the ticket source's provider holds right now, so a routing rule or trigger can name one by its stable id (#69)."
-    },
-    "PasswordResetLinkCreate": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "principalId": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "Enabled human principal whose password the link resets; any installation person, whichever organizations they belong to."
-        }
-      },
-      "required": [
-        "principalId"
-      ],
-      "additionalProperties": false,
-      "description": "Installation administrator's request for a one-hour, single-use password reset link for one person. Issuing revokes that person's earlier unused links."
-    },
-    "PasswordResetRedemption": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "token": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 256,
-          "description": "Reset token from the link's token query parameter, sent exactly as issued. The server stores only its SHA-256 digest. PasswordResetRedemption.token must contain at most 256 characters."
-        },
-        "newPassword": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 1024,
-          "description": "The person's new sign-in password; it must meet the same length rule as sign-up and password change, and is hashed by the auth provider before storage. PasswordResetRedemption.newPassword must contain at most 1024 characters."
-        }
-      },
-      "required": [
-        "token",
-        "newPassword"
-      ],
-      "additionalProperties": false,
-      "description": "Unauthenticated redemption of a password reset link: sets the new password, consumes the link and signs the person out of every browser session. An unknown, used, expired or revoked link gets one identical refusal."
-    },
-    "McpToolClassificationPut": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "effectClass": {
-          "type": "string",
-          "enum": [
-            "read",
-            "write_idempotent",
-            "write_reconcilable",
-            "write_opaque"
-          ],
-          "description": "What the tool does to the outside world, as an Admin classifies it: read changes nothing; write_idempotent repeats safely when given the same effect key; write_reconcilable can be confirmed afterwards by a paired read tool; write_opaque is a write Bakery runs at most once and, if the outcome is unknown, leaves for a person."
-        },
-        "effectKeyArgument": {
-          "description": "McpToolClassificationPut.effectKeyArgument may be null in this transport value.",
-          "anyOf": [
-            {
-              "type": "string",
-              "maxLength": 128,
-              "description": "For write_idempotent only: the name of the tool argument whose value is the effect key, so a repeated call with the same value is the same effect. It must be an argument the tool's input schema declares. McpToolClassificationPut.effectKeyArgument must contain at most 128 characters."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the value is unavailable."
-            }
-          ]
-        },
-        "pairedReadTool": {
-          "description": "McpToolClassificationPut.pairedReadTool may be null in this transport value.",
-          "anyOf": [
-            {
-              "type": "string",
-              "maxLength": 128,
-              "description": "For write_reconcilable only: the name of another tool in the same snapshot, already classified read, that confirms whether the write happened. McpToolClassificationPut.pairedReadTool must contain at most 128 characters."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the value is unavailable."
-            }
-          ]
-        }
-      },
-      "required": [
-        "effectClass"
-      ],
-      "additionalProperties": false,
-      "description": "Classifies one tool's side effects (O26). Server hints are suggestions only: this is the Admin's statement and the only one Bakery acts on. An unclassified tool is a write that runs at most once."
-    },
-    "McpUseGrantCreate": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "workflowId": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "The workflow this grant lets use the connection. It must be a workflow of this organization."
-        }
-      },
-      "required": [
-        "workflowId"
-      ],
-      "additionalProperties": false,
-      "description": "The owner of a personal MCP connection lets one shared workflow use it. Without a grant a workflow started by someone else cannot use a personal connection, and the connection is always labelled as acting for its owner (O27)."
     },
     "GroupCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -28960,6 +28989,47 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "Removes one person's mention-granted access to one conversation under compare-and-set on the grant version."
     },
+    "PasswordResetLinkCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "principalId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Enabled human principal whose password the link resets; any installation person, whichever organizations they belong to."
+        }
+      },
+      "required": [
+        "principalId"
+      ],
+      "additionalProperties": false,
+      "description": "Installation administrator's request for a one-hour, single-use password reset link for one person. Issuing revokes that person's earlier unused links."
+    },
+    "PasswordResetRedemption": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "token": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "description": "Reset token from the link's token query parameter, sent exactly as issued. The server stores only its SHA-256 digest. PasswordResetRedemption.token must contain at most 256 characters."
+        },
+        "newPassword": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024,
+          "description": "The person's new sign-in password; it must meet the same length rule as sign-up and password change, and is hashed by the auth provider before storage. PasswordResetRedemption.newPassword must contain at most 1024 characters."
+        }
+      },
+      "required": [
+        "token",
+        "newPassword"
+      ],
+      "additionalProperties": false,
+      "description": "Unauthenticated redemption of a password reset link: sets the new password, consumes the link and signs the person out of every browser session. An unknown, used, expired or revoked link gets one identical refusal."
+    },
     "FileSearchQuery": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -29090,6 +29160,237 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Records an owner's accept-with-reason decision against one review that requested changes, overruling that reviewer (chapter 25 section 9, O18). An organization administrator may record it, and so may a member whose role holds the review:accept permission; an agent never may. The review stays what it was, immutable; the decision is a separate record shown on it. It does not restart a run that has already stopped: that needs a workflow that reads decisions."
+    },
+    "BatchCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "repositoryId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The repository the batch works through. It must be taking issues (an enabled ticket source), and no other batch may be live in it."
+        },
+        "maxIssues": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20,
+          "description": "Stop after this many issues have been merged. Required: a batch without all three limits is refused. BatchCreate.maxIssues must be at least 1. BatchCreate.maxIssues must be at most 20."
+        },
+        "maxHours": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 24,
+          "description": "Stop starting new issues after this many hours from the start. Checked before each new issue starts, so the issue then running finishes. BatchCreate.maxHours must be at least 1. BatchCreate.maxHours must be at most 24."
+        },
+        "maxSpendUsd": {
+          "type": "string",
+          "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+          "description": "Stop starting new issues once this much has been spent across the batch's issues. Checked before each new issue starts, so one running issue can go over it."
+        },
+        "continueMode": {
+          "type": "string",
+          "enum": [
+            "carry_on",
+            "ask_first"
+          ],
+          "description": "What happens after each issue is merged: carry_on starts the next by itself; ask_first waits for a person. No default: this is the choice that makes a batch unattended."
+        }
+      },
+      "required": [
+        "repositoryId",
+        "maxIssues",
+        "maxHours",
+        "maxSpendUsd",
+        "continueMode"
+      ],
+      "additionalProperties": false,
+      "description": "Starts a bounded run of issues in one repository. It stops at whichever of the three limits it reaches first, and never skips a plan or merge approval the repository requires."
+    },
+    "BatchStop": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "cancelCurrent": {
+          "type": "boolean",
+          "description": "False lets the issue being worked on finish before the batch stops; true cancels its run too."
+        }
+      },
+      "required": [
+        "cancelCurrent"
+      ],
+      "additionalProperties": false,
+      "description": "Stops a batch. Nothing new starts either way; whether the current issue finishes or is cancelled is the caller's choice."
+    },
+    "BatchQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "cursor": {
+          "description": "Opaque cursor from the previous page.",
+          "type": "string",
+          "maxLength": 65536
+        },
+        "limit": {
+          "description": "Page size. BatchQuery.limit must be at least 1. BatchQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "repositoryId": {
+          "description": "Only the batches of this repository.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Lists batches newest first, optionally for one repository."
+    },
+    "AgentFileGrantCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "workflowId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Immutable id of the workflow whose agent sessions may use the grant. Only a session running a step of this workflow is covered; another workflow's agents gain nothing from it."
+        },
+        "folderId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The storage folder granted. The grant covers this folder and everything under it, never its parent or siblings. It must be a live folder in a working area, or a personal folder the granting person owns; the library, record areas, /connections, /trash and /system cannot be granted."
+        },
+        "access": {
+          "type": "string",
+          "enum": [
+            "read",
+            "write"
+          ],
+          "description": "What the agent may do under the folder: read, or write (put, mkdir, cp into, mv into or out of, and rm to trash). A read grant never permits a destructive verb."
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When the grant stops working, as an ISO 8601 instant. It must be in the future and at most 30 days ahead. The guard judges it at the time of each write, so a grant that lapses mid-step stops the very next write."
+        }
+      },
+      "required": [
+        "workflowId",
+        "folderId",
+        "access",
+        "expiresAt"
+      ],
+      "additionalProperties": false,
+      "description": "Grants the agent sessions of one workflow read or write access to one storage folder, until an expiry, revocable (chapter 25 section 17.6, O45, O52). An agent writes files only where such a grant covers the target."
+    },
+    "IntegrationProviderPath": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "provider": {
+          "type": "string",
+          "maxLength": 64,
+          "description": "Provider slug the installation setting belongs to, as the provider registry names it (for example linear). Only a provider whose manifest asks for client credentials is served. IntegrationProviderPath.provider must contain at most 64 characters."
+        }
+      },
+      "required": [
+        "provider"
+      ],
+      "additionalProperties": false,
+      "description": "Names the integration provider a client-credentials setting is read for."
+    },
+    "IntegrationClientCredentialsPut": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "clientId": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "The OAuth application's client ID, as the provider shows it. It is not a secret and is shown back to installation administrators. IntegrationClientCredentialsPut.clientId must contain at most 200 characters."
+        },
+        "clientSecret": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536,
+          "description": "The OAuth application's client secret. Write-only: it is sealed under the installation key and never returned; saving always replaces the stored secret with this one."
+        }
+      },
+      "required": [
+        "clientId",
+        "clientSecret"
+      ],
+      "additionalProperties": false,
+      "description": "Registers or replaces the OAuth client credentials an installation uses to connect organizations to one integration provider. Both fields are required every time: a replacement states the whole pair, so the stored client ID and secret can never disagree."
+    },
+    "McpToolClassificationPut": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "effectClass": {
+          "type": "string",
+          "enum": [
+            "read",
+            "write_idempotent",
+            "write_reconcilable",
+            "write_opaque"
+          ],
+          "description": "What the tool does to the outside world, as an Admin classifies it: read changes nothing; write_idempotent repeats safely when given the same effect key; write_reconcilable can be confirmed afterwards by a paired read tool; write_opaque is a write Bakery runs at most once and, if the outcome is unknown, leaves for a person."
+        },
+        "effectKeyArgument": {
+          "description": "McpToolClassificationPut.effectKeyArgument may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 128,
+              "description": "For write_idempotent only: the name of the tool argument whose value is the effect key, so a repeated call with the same value is the same effect. It must be an argument the tool's input schema declares. McpToolClassificationPut.effectKeyArgument must contain at most 128 characters."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "pairedReadTool": {
+          "description": "McpToolClassificationPut.pairedReadTool may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 128,
+              "description": "For write_reconcilable only: the name of another tool in the same snapshot, already classified read, that confirms whether the write happened. McpToolClassificationPut.pairedReadTool must contain at most 128 characters."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "effectClass"
+      ],
+      "additionalProperties": false,
+      "description": "Classifies one tool's side effects (O26). Server hints are suggestions only: this is the Admin's statement and the only one Bakery acts on. An unclassified tool is a write that runs at most once."
+    },
+    "McpUseGrantCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "workflowId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The workflow this grant lets use the connection. It must be a workflow of this organization."
+        }
+      },
+      "required": [
+        "workflowId"
+      ],
+      "additionalProperties": false,
+      "description": "The owner of a personal MCP connection lets one shared workflow use it. Without a grant a workflow started by someone else cannot use a personal connection, and the connection is always labelled as acting for its owner (O27)."
     },
     "StorageFilePin": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -43990,6 +44291,14 @@ export const clientManifest = {
                   "ticketSources.labels",
                   "ticketTaskLinks.resyncNote",
                   "ticketRequests.create",
+                  "batches.list",
+                  "batches.get",
+                  "batches.create",
+                  "batches.pause",
+                  "batches.resume",
+                  "batches.stop",
+                  "batches.startNext",
+                  "batches.finish",
                   "externalTickets.create",
                   "pluginPackages.list",
                   "pluginPackages.create",
@@ -64394,6 +64703,14 @@ export const clientManifest = {
             "ticketSources.labels",
             "ticketTaskLinks.resyncNote",
             "ticketRequests.create",
+            "batches.list",
+            "batches.get",
+            "batches.create",
+            "batches.pause",
+            "batches.resume",
+            "batches.stop",
+            "batches.startNext",
+            "batches.finish",
             "externalTickets.create",
             "pluginPackages.list",
             "pluginPackages.create",
@@ -73797,6 +74114,8 @@ export const clientManifest = {
               "ticketReadiness:write",
               "ticketTaskLink:write",
               "ticketRequest:write",
+              "batch:read",
+              "batch:control",
               "externalTicket:write",
               "pluginPackage:read",
               "pluginPackage:write",
@@ -78999,6 +79318,793 @@ export const clientManifest = {
           "description": "JSON value node."
         }
       }
+    },
+    "TicketRequestView": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID of this ticket request."
+        },
+        "externalTicketId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "External ticket this request admitted."
+        },
+        "ticketTaskLinkId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Link between the ticket and the task this request owns."
+        },
+        "intent": {
+          "type": "string",
+          "enum": [
+            "plan",
+            "start"
+          ],
+          "description": "Requested scope: plan stops after the plan for review, start plans and then runs."
+        },
+        "origin": {
+          "type": "string",
+          "enum": [
+            "manual",
+            "adoption",
+            "webhook",
+            "poll"
+          ],
+          "description": "How the request began: manual for an explicit request by a member, adoption for an explicit request on an issue that already carried the request label, webhook for a provider delivery, poll for a source sync."
+        },
+        "requestedByPrincipalId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Principal that asked for a manual or adoption start; null for a webhook or poll start."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "TicketRequestView.requestedByPrincipalId may be null in this transport value."
+        },
+        "triggerLabelName": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The request label that started a webhook, poll or adoption request, as the issue carried it at admission; null for a manual start and for requests admitted before the label was recorded."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "TicketRequestView.triggerLabelName may be null in this transport value."
+        },
+        "disposition": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "waiting",
+            "admitted",
+            "active",
+            "suspended",
+            "rejected",
+            "completed",
+            "failed",
+            "canceled"
+          ],
+          "description": "Stored lifecycle state of the request."
+        },
+        "dispositionReasonCode": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "held",
+                "label_missing",
+                "status_missing",
+                "status_unsupported",
+                "label_withdrawn",
+                "predecessor_open",
+                "closed_unmerged",
+                "proof_unavailable",
+                "inaccessible",
+                "links_truncated",
+                "provider_unavailable",
+                "no_delegation",
+                "actor_not_allowlisted",
+                "actor_role_insufficient",
+                "actor_unverifiable",
+                "principal_inactive",
+                "source_disabled",
+                "connection_not_enabled",
+                "installation_not_enabled",
+                "resource_not_selected",
+                "repository_archived",
+                "no_active_profile",
+                "preset_setup_required",
+                "acceptance_changed",
+                "ticket_closed",
+                "ticket_gone",
+                "ticket_moved",
+                "pull_request_not_ticket",
+                "repository_mismatch",
+                "requirements_too_large",
+                "has_sub_issues",
+                "run_completed",
+                "run_failed",
+                "run_canceled",
+                "task_completed",
+                "task_failed",
+                "task_canceled"
+              ],
+              "description": "Machine-readable reason behind the disposition: a readiness reason for a suspended request, or run_*/task_* for one that ended with its run or task; null while none is recorded."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "TicketRequestView.dispositionReasonCode may be null in this transport value."
+        },
+        "pausedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When Bakery asked the request's live run to pause after the request was suspended; null when no pause was requested."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "TicketRequestView.pausedAt may be null in this transport value."
+        },
+        "pausedReason": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "edited_after_setup",
+                "label_removed",
+                "hold_label_added",
+                "dependency_unreadable"
+              ],
+              "description": "Why the run was paused, from the suspension reason: edited_after_setup when the acceptance criteria changed, label_removed when the request label was withdrawn, hold_label_added when the hold label was set, dependency_unreadable when a blocker could not be read. Null when not paused or paused for another reason, which dispositionReasonCode names."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "TicketRequestView.pausedReason may be null in this transport value."
+        },
+        "progress": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "waiting",
+            "admitted",
+            "active",
+            "suspended",
+            "completed",
+            "failed",
+            "canceled",
+            "rejected"
+          ],
+          "description": "One progress value for display, computed by the server from the disposition and the run: a nonterminal request whose run finished shows the run's end, a queued run shows admitted, a running run active, a paused run suspended, a run waiting for input, capacity or a block waiting."
+        },
+        "workflowRunId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Workflow run the request owns; null before one starts."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "TicketRequestView.workflowRunId may be null in this transport value."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When the request was admitted."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When the request last changed."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Monotonic revision of the request."
+        },
+        "targets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "repositoryId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Repository this target is scoped to."
+              },
+              "role": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Role the repository plays; default for the fallback to the source's own repository."
+              },
+              "routingRuleId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Rule that routed the ticket here as pinned at admission, or null for the fallback."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "TicketRequestViewTarget.routingRuleId may be null in this transport value."
+              },
+              "routingRuleVersion": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Version of that rule at admission, or null for the fallback."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "TicketRequestViewTarget.routingRuleVersion may be null in this transport value."
+              },
+              "childTaskId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Child task that runs this target, or null for the fallback, which runs on the request's own task."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "TicketRequestViewTarget.childTaskId may be null in this transport value."
+              }
+            },
+            "required": [
+              "repositoryId",
+              "role",
+              "routingRuleId",
+              "routingRuleVersion",
+              "childTaskId"
+            ],
+            "additionalProperties": false,
+            "description": "Repository-scoped children pinned at admission, ordered by role then repository. Each array item follows this format."
+          },
+          "description": "Repository-scoped children pinned at admission, ordered by role then repository."
+        }
+      },
+      "required": [
+        "id",
+        "externalTicketId",
+        "ticketTaskLinkId",
+        "intent",
+        "origin",
+        "requestedByPrincipalId",
+        "triggerLabelName",
+        "disposition",
+        "dispositionReasonCode",
+        "pausedAt",
+        "pausedReason",
+        "progress",
+        "workflowRunId",
+        "createdAt",
+        "updatedAt",
+        "version",
+        "targets"
+      ],
+      "additionalProperties": false,
+      "description": "One start request (admission generation) of an external ticket as the ticket's history shows it (#69): who or what started it, the stored disposition with a machine-readable reason, whether its run was paused and why, and one progress value computed from the disposition and the run's state."
+    },
+    "Page<TicketRequestView>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID of this ticket request."
+              },
+              "externalTicketId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "External ticket this request admitted."
+              },
+              "ticketTaskLinkId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Link between the ticket and the task this request owns."
+              },
+              "intent": {
+                "type": "string",
+                "enum": [
+                  "plan",
+                  "start"
+                ],
+                "description": "Requested scope: plan stops after the plan for review, start plans and then runs."
+              },
+              "origin": {
+                "type": "string",
+                "enum": [
+                  "manual",
+                  "adoption",
+                  "webhook",
+                  "poll"
+                ],
+                "description": "How the request began: manual for an explicit request by a member, adoption for an explicit request on an issue that already carried the request label, webhook for a provider delivery, poll for a source sync."
+              },
+              "requestedByPrincipalId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Principal that asked for a manual or adoption start; null for a webhook or poll start."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "TicketRequestView.requestedByPrincipalId may be null in this transport value."
+              },
+              "triggerLabelName": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The request label that started a webhook, poll or adoption request, as the issue carried it at admission; null for a manual start and for requests admitted before the label was recorded."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "TicketRequestView.triggerLabelName may be null in this transport value."
+              },
+              "disposition": {
+                "type": "string",
+                "enum": [
+                  "pending",
+                  "waiting",
+                  "admitted",
+                  "active",
+                  "suspended",
+                  "rejected",
+                  "completed",
+                  "failed",
+                  "canceled"
+                ],
+                "description": "Stored lifecycle state of the request."
+              },
+              "dispositionReasonCode": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "held",
+                      "label_missing",
+                      "status_missing",
+                      "status_unsupported",
+                      "label_withdrawn",
+                      "predecessor_open",
+                      "closed_unmerged",
+                      "proof_unavailable",
+                      "inaccessible",
+                      "links_truncated",
+                      "provider_unavailable",
+                      "no_delegation",
+                      "actor_not_allowlisted",
+                      "actor_role_insufficient",
+                      "actor_unverifiable",
+                      "principal_inactive",
+                      "source_disabled",
+                      "connection_not_enabled",
+                      "installation_not_enabled",
+                      "resource_not_selected",
+                      "repository_archived",
+                      "no_active_profile",
+                      "preset_setup_required",
+                      "acceptance_changed",
+                      "ticket_closed",
+                      "ticket_gone",
+                      "ticket_moved",
+                      "pull_request_not_ticket",
+                      "repository_mismatch",
+                      "requirements_too_large",
+                      "has_sub_issues",
+                      "run_completed",
+                      "run_failed",
+                      "run_canceled",
+                      "task_completed",
+                      "task_failed",
+                      "task_canceled"
+                    ],
+                    "description": "Machine-readable reason behind the disposition: a readiness reason for a suspended request, or run_*/task_* for one that ended with its run or task; null while none is recorded."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "TicketRequestView.dispositionReasonCode may be null in this transport value."
+              },
+              "pausedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "When Bakery asked the request's live run to pause after the request was suspended; null when no pause was requested."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "TicketRequestView.pausedAt may be null in this transport value."
+              },
+              "pausedReason": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "edited_after_setup",
+                      "label_removed",
+                      "hold_label_added",
+                      "dependency_unreadable"
+                    ],
+                    "description": "Why the run was paused, from the suspension reason: edited_after_setup when the acceptance criteria changed, label_removed when the request label was withdrawn, hold_label_added when the hold label was set, dependency_unreadable when a blocker could not be read. Null when not paused or paused for another reason, which dispositionReasonCode names."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "TicketRequestView.pausedReason may be null in this transport value."
+              },
+              "progress": {
+                "type": "string",
+                "enum": [
+                  "pending",
+                  "waiting",
+                  "admitted",
+                  "active",
+                  "suspended",
+                  "completed",
+                  "failed",
+                  "canceled",
+                  "rejected"
+                ],
+                "description": "One progress value for display, computed by the server from the disposition and the run: a nonterminal request whose run finished shows the run's end, a queued run shows admitted, a running run active, a paused run suspended, a run waiting for input, capacity or a block waiting."
+              },
+              "workflowRunId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Workflow run the request owns; null before one starts."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "TicketRequestView.workflowRunId may be null in this transport value."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "When the request was admitted."
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "When the request last changed."
+              },
+              "version": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Monotonic revision of the request."
+              },
+              "targets": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "repositoryId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "Repository this target is scoped to."
+                    },
+                    "role": {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "Role the repository plays; default for the fallback to the source's own repository."
+                    },
+                    "routingRuleId": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                          "description": "Rule that routed the ticket here as pinned at admission, or null for the fallback."
+                        },
+                        {
+                          "type": "null",
+                          "description": "Null indicates that the value is unavailable."
+                        }
+                      ],
+                      "description": "TicketRequestViewTarget.routingRuleId may be null in this transport value."
+                    },
+                    "routingRuleVersion": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991,
+                          "description": "Version of that rule at admission, or null for the fallback."
+                        },
+                        {
+                          "type": "null",
+                          "description": "Null indicates that the value is unavailable."
+                        }
+                      ],
+                      "description": "TicketRequestViewTarget.routingRuleVersion may be null in this transport value."
+                    },
+                    "childTaskId": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                          "description": "Child task that runs this target, or null for the fallback, which runs on the request's own task."
+                        },
+                        {
+                          "type": "null",
+                          "description": "Null indicates that the value is unavailable."
+                        }
+                      ],
+                      "description": "TicketRequestViewTarget.childTaskId may be null in this transport value."
+                    }
+                  },
+                  "required": [
+                    "repositoryId",
+                    "role",
+                    "routingRuleId",
+                    "routingRuleVersion",
+                    "childTaskId"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Repository-scoped children pinned at admission, ordered by role then repository. Each array item follows this format."
+                },
+                "description": "Repository-scoped children pinned at admission, ordered by role then repository."
+              }
+            },
+            "required": [
+              "id",
+              "externalTicketId",
+              "ticketTaskLinkId",
+              "intent",
+              "origin",
+              "requestedByPrincipalId",
+              "triggerLabelName",
+              "disposition",
+              "dispositionReasonCode",
+              "pausedAt",
+              "pausedReason",
+              "progress",
+              "workflowRunId",
+              "createdAt",
+              "updatedAt",
+              "version",
+              "targets"
+            ],
+            "additionalProperties": false,
+            "description": "One start request (admission generation) of an external ticket as the ticket's history shows it (#69): who or what started it, the stored disposition with a machine-readable reason, whether its run was paused and why, and one progress value computed from the disposition and the run's state."
+          },
+          "description": "TicketRequestView items in this cursor page. Page<TicketRequestView>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<TicketRequestView>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<TicketRequestView>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<TicketRequestView>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<TicketRequestView>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of TicketRequestView."
+    },
+    "Page<TicketSourceLabel>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The provider's stable, opaque label id; the value a routing rule stores, which survives a rename."
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The label's current name."
+              },
+              "color": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The label's colour as six hex digits without a leading #, or null when the provider gives none."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "TicketSourceLabel.color may be null in this transport value."
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "color"
+            ],
+            "additionalProperties": false,
+            "description": "One label the ticket source's provider holds, read live (#69)."
+          },
+          "description": "TicketSourceLabel items in this cursor page. Page<TicketSourceLabel>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<TicketSourceLabel>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<TicketSourceLabel>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<TicketSourceLabel>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<TicketSourceLabel>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of TicketSourceLabel."
     },
     "PluginPackage": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -94908,106 +96014,6 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "One note left for a workflow step that had not started, with who left it and when; the step's agent receives it once with its input."
     },
-    "AgentFileGrant": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "Stable UUID identifying the grant; agent write audit rows name it as actor.fileGrantId."
-        },
-        "workflowId": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "Immutable id of the workflow whose agent sessions the grant covers."
-        },
-        "folderId": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "The storage folder granted; the grant covers it and everything under it."
-        },
-        "access": {
-          "type": "string",
-          "enum": [
-            "read",
-            "write"
-          ],
-          "description": "read, or write (which includes the destructive verbs mv and rm)."
-        },
-        "grantedBy": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "Person who made the grant."
-        },
-        "expiresAt": {
-          "type": "string",
-          "format": "date-time",
-          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-          "description": "When the grant stops working; judged at the time of each write."
-        },
-        "revokedAt": {
-          "anyOf": [
-            {
-              "type": "string",
-              "format": "date-time",
-              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-              "description": "When a person revoked the grant; null while it stands."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the value is unavailable."
-            }
-          ],
-          "description": "AgentFileGrant.revokedAt may be null in this transport value."
-        },
-        "revokedBy": {
-          "anyOf": [
-            {
-              "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "Person who revoked the grant; null while it stands."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the value is unavailable."
-            }
-          ],
-          "description": "AgentFileGrant.revokedBy may be null in this transport value."
-        },
-        "createdAt": {
-          "type": "string",
-          "format": "date-time",
-          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-          "description": "When the grant was made."
-        },
-        "version": {
-          "type": "integer",
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991,
-          "description": "Optimistic-concurrency version a revoke must name in If-Match."
-        }
-      },
-      "required": [
-        "id",
-        "workflowId",
-        "folderId",
-        "access",
-        "grantedBy",
-        "expiresAt",
-        "revokedAt",
-        "revokedBy",
-        "createdAt",
-        "version"
-      ],
-      "additionalProperties": false,
-      "description": "One grant of storage folder access to a workflow's agent sessions (section 17.6): which folder, read or write, until when, who granted it and whether it was revoked. A revoke stamps the row; it is never deleted, so a refused write can say the grant was withdrawn."
-    },
     "AgentPowerGrant": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -95265,1251 +96271,6 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "The route continuations a run is waiting on: one offer per step that is pinned to a route with an open incident and has not already been continued for that incident. Empty when nothing is stalled. It is a read of current state, never a decision: nothing is admitted, paused or charged by reading it."
-    },
-    "IntegrationClientCredentials": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "provider": {
-          "type": "string",
-          "maxLength": 65536,
-          "description": "Provider slug these credentials belong to."
-        },
-        "configured": {
-          "type": "boolean",
-          "description": "True once a client ID and secret have been saved for this provider."
-        },
-        "clientId": {
-          "anyOf": [
-            {
-              "type": "string",
-              "maxLength": 65536,
-              "description": "The registered client ID, or null while nothing is registered."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the projected value is unavailable."
-            }
-          ],
-          "description": "IntegrationClientCredentials.clientId may be null in the safe projection."
-        },
-        "clientSecretSavedAt": {
-          "anyOf": [
-            {
-              "type": "string",
-              "format": "date-time",
-              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-              "description": "UTC timestamp at which the current client secret was saved, or null while nothing is registered. A secret is never shown, so this is how an administrator tells it was replaced."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the projected value is unavailable."
-            }
-          ],
-          "description": "IntegrationClientCredentials.clientSecretSavedAt may be null in the safe projection."
-        },
-        "callbackUrl": {
-          "type": "string",
-          "format": "uri",
-          "description": "The URL to enter in the provider's OAuth application as its callback, derived from this installation's public address."
-        },
-        "version": {
-          "type": "integer",
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991,
-          "description": "Registration version: 0 while nothing is registered, then the optimistic-concurrency value to send as If-Match when replacing the credentials."
-        }
-      },
-      "required": [
-        "provider",
-        "configured",
-        "clientId",
-        "clientSecretSavedAt",
-        "callbackUrl",
-        "version"
-      ],
-      "additionalProperties": false,
-      "description": "Whether an integration provider's OAuth client credentials are registered on this installation, which client ID, when the secret was last saved, and the callback URL to give the provider. The secret itself is never part of it. Version is 0 until credentials are saved and is the If-Match value for the next save."
-    },
-    "TicketRequestView": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "Stable UUID of this ticket request."
-        },
-        "externalTicketId": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "External ticket this request admitted."
-        },
-        "ticketTaskLinkId": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "Link between the ticket and the task this request owns."
-        },
-        "intent": {
-          "type": "string",
-          "enum": [
-            "plan",
-            "start"
-          ],
-          "description": "Requested scope: plan stops after the plan for review, start plans and then runs."
-        },
-        "origin": {
-          "type": "string",
-          "enum": [
-            "manual",
-            "adoption",
-            "webhook",
-            "poll"
-          ],
-          "description": "How the request began: manual for an explicit request by a member, adoption for an explicit request on an issue that already carried the request label, webhook for a provider delivery, poll for a source sync."
-        },
-        "requestedByPrincipalId": {
-          "anyOf": [
-            {
-              "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "Principal that asked for a manual or adoption start; null for a webhook or poll start."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the value is unavailable."
-            }
-          ],
-          "description": "TicketRequestView.requestedByPrincipalId may be null in this transport value."
-        },
-        "triggerLabelName": {
-          "anyOf": [
-            {
-              "type": "string",
-              "maxLength": 65536,
-              "description": "The request label that started a webhook, poll or adoption request, as the issue carried it at admission; null for a manual start and for requests admitted before the label was recorded."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the value is unavailable."
-            }
-          ],
-          "description": "TicketRequestView.triggerLabelName may be null in this transport value."
-        },
-        "disposition": {
-          "type": "string",
-          "enum": [
-            "pending",
-            "waiting",
-            "admitted",
-            "active",
-            "suspended",
-            "rejected",
-            "completed",
-            "failed",
-            "canceled"
-          ],
-          "description": "Stored lifecycle state of the request."
-        },
-        "dispositionReasonCode": {
-          "anyOf": [
-            {
-              "type": "string",
-              "enum": [
-                "held",
-                "label_missing",
-                "status_missing",
-                "status_unsupported",
-                "label_withdrawn",
-                "predecessor_open",
-                "closed_unmerged",
-                "proof_unavailable",
-                "inaccessible",
-                "links_truncated",
-                "provider_unavailable",
-                "no_delegation",
-                "actor_not_allowlisted",
-                "actor_role_insufficient",
-                "actor_unverifiable",
-                "principal_inactive",
-                "source_disabled",
-                "connection_not_enabled",
-                "installation_not_enabled",
-                "resource_not_selected",
-                "repository_archived",
-                "no_active_profile",
-                "preset_setup_required",
-                "acceptance_changed",
-                "ticket_closed",
-                "ticket_gone",
-                "ticket_moved",
-                "pull_request_not_ticket",
-                "repository_mismatch",
-                "requirements_too_large",
-                "has_sub_issues",
-                "run_completed",
-                "run_failed",
-                "run_canceled",
-                "task_completed",
-                "task_failed",
-                "task_canceled"
-              ],
-              "description": "Machine-readable reason behind the disposition: a readiness reason for a suspended request, or run_*/task_* for one that ended with its run or task; null while none is recorded."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the value is unavailable."
-            }
-          ],
-          "description": "TicketRequestView.dispositionReasonCode may be null in this transport value."
-        },
-        "pausedAt": {
-          "anyOf": [
-            {
-              "type": "string",
-              "format": "date-time",
-              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-              "description": "When Bakery asked the request's live run to pause after the request was suspended; null when no pause was requested."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the value is unavailable."
-            }
-          ],
-          "description": "TicketRequestView.pausedAt may be null in this transport value."
-        },
-        "pausedReason": {
-          "anyOf": [
-            {
-              "type": "string",
-              "enum": [
-                "edited_after_setup",
-                "label_removed",
-                "hold_label_added",
-                "dependency_unreadable"
-              ],
-              "description": "Why the run was paused, from the suspension reason: edited_after_setup when the acceptance criteria changed, label_removed when the request label was withdrawn, hold_label_added when the hold label was set, dependency_unreadable when a blocker could not be read. Null when not paused or paused for another reason, which dispositionReasonCode names."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the value is unavailable."
-            }
-          ],
-          "description": "TicketRequestView.pausedReason may be null in this transport value."
-        },
-        "progress": {
-          "type": "string",
-          "enum": [
-            "pending",
-            "waiting",
-            "admitted",
-            "active",
-            "suspended",
-            "completed",
-            "failed",
-            "canceled",
-            "rejected"
-          ],
-          "description": "One progress value for display, computed by the server from the disposition and the run: a nonterminal request whose run finished shows the run's end, a queued run shows admitted, a running run active, a paused run suspended, a run waiting for input, capacity or a block waiting."
-        },
-        "workflowRunId": {
-          "anyOf": [
-            {
-              "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "Workflow run the request owns; null before one starts."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the value is unavailable."
-            }
-          ],
-          "description": "TicketRequestView.workflowRunId may be null in this transport value."
-        },
-        "createdAt": {
-          "type": "string",
-          "format": "date-time",
-          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-          "description": "When the request was admitted."
-        },
-        "updatedAt": {
-          "type": "string",
-          "format": "date-time",
-          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-          "description": "When the request last changed."
-        },
-        "version": {
-          "type": "integer",
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991,
-          "description": "Monotonic revision of the request."
-        },
-        "targets": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "repositoryId": {
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "Repository this target is scoped to."
-              },
-              "role": {
-                "type": "string",
-                "maxLength": 65536,
-                "description": "Role the repository plays; default for the fallback to the source's own repository."
-              },
-              "routingRuleId": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "format": "uuid",
-                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                    "description": "Rule that routed the ticket here as pinned at admission, or null for the fallback."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "TicketRequestViewTarget.routingRuleId may be null in this transport value."
-              },
-              "routingRuleVersion": {
-                "anyOf": [
-                  {
-                    "type": "integer",
-                    "minimum": -9007199254740991,
-                    "maximum": 9007199254740991,
-                    "description": "Version of that rule at admission, or null for the fallback."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "TicketRequestViewTarget.routingRuleVersion may be null in this transport value."
-              },
-              "childTaskId": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "format": "uuid",
-                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                    "description": "Child task that runs this target, or null for the fallback, which runs on the request's own task."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "TicketRequestViewTarget.childTaskId may be null in this transport value."
-              }
-            },
-            "required": [
-              "repositoryId",
-              "role",
-              "routingRuleId",
-              "routingRuleVersion",
-              "childTaskId"
-            ],
-            "additionalProperties": false,
-            "description": "Repository-scoped children pinned at admission, ordered by role then repository. Each array item follows this format."
-          },
-          "description": "Repository-scoped children pinned at admission, ordered by role then repository."
-        }
-      },
-      "required": [
-        "id",
-        "externalTicketId",
-        "ticketTaskLinkId",
-        "intent",
-        "origin",
-        "requestedByPrincipalId",
-        "triggerLabelName",
-        "disposition",
-        "dispositionReasonCode",
-        "pausedAt",
-        "pausedReason",
-        "progress",
-        "workflowRunId",
-        "createdAt",
-        "updatedAt",
-        "version",
-        "targets"
-      ],
-      "additionalProperties": false,
-      "description": "One start request (admission generation) of an external ticket as the ticket's history shows it (#69): who or what started it, the stored disposition with a machine-readable reason, whether its run was paused and why, and one progress value computed from the disposition and the run's state."
-    },
-    "Page<TicketRequestView>": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "items": {
-          "maxItems": 100,
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "Stable UUID of this ticket request."
-              },
-              "externalTicketId": {
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "External ticket this request admitted."
-              },
-              "ticketTaskLinkId": {
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "Link between the ticket and the task this request owns."
-              },
-              "intent": {
-                "type": "string",
-                "enum": [
-                  "plan",
-                  "start"
-                ],
-                "description": "Requested scope: plan stops after the plan for review, start plans and then runs."
-              },
-              "origin": {
-                "type": "string",
-                "enum": [
-                  "manual",
-                  "adoption",
-                  "webhook",
-                  "poll"
-                ],
-                "description": "How the request began: manual for an explicit request by a member, adoption for an explicit request on an issue that already carried the request label, webhook for a provider delivery, poll for a source sync."
-              },
-              "requestedByPrincipalId": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "format": "uuid",
-                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                    "description": "Principal that asked for a manual or adoption start; null for a webhook or poll start."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "TicketRequestView.requestedByPrincipalId may be null in this transport value."
-              },
-              "triggerLabelName": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "maxLength": 65536,
-                    "description": "The request label that started a webhook, poll or adoption request, as the issue carried it at admission; null for a manual start and for requests admitted before the label was recorded."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "TicketRequestView.triggerLabelName may be null in this transport value."
-              },
-              "disposition": {
-                "type": "string",
-                "enum": [
-                  "pending",
-                  "waiting",
-                  "admitted",
-                  "active",
-                  "suspended",
-                  "rejected",
-                  "completed",
-                  "failed",
-                  "canceled"
-                ],
-                "description": "Stored lifecycle state of the request."
-              },
-              "dispositionReasonCode": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "enum": [
-                      "held",
-                      "label_missing",
-                      "status_missing",
-                      "status_unsupported",
-                      "label_withdrawn",
-                      "predecessor_open",
-                      "closed_unmerged",
-                      "proof_unavailable",
-                      "inaccessible",
-                      "links_truncated",
-                      "provider_unavailable",
-                      "no_delegation",
-                      "actor_not_allowlisted",
-                      "actor_role_insufficient",
-                      "actor_unverifiable",
-                      "principal_inactive",
-                      "source_disabled",
-                      "connection_not_enabled",
-                      "installation_not_enabled",
-                      "resource_not_selected",
-                      "repository_archived",
-                      "no_active_profile",
-                      "preset_setup_required",
-                      "acceptance_changed",
-                      "ticket_closed",
-                      "ticket_gone",
-                      "ticket_moved",
-                      "pull_request_not_ticket",
-                      "repository_mismatch",
-                      "requirements_too_large",
-                      "has_sub_issues",
-                      "run_completed",
-                      "run_failed",
-                      "run_canceled",
-                      "task_completed",
-                      "task_failed",
-                      "task_canceled"
-                    ],
-                    "description": "Machine-readable reason behind the disposition: a readiness reason for a suspended request, or run_*/task_* for one that ended with its run or task; null while none is recorded."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "TicketRequestView.dispositionReasonCode may be null in this transport value."
-              },
-              "pausedAt": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "format": "date-time",
-                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-                    "description": "When Bakery asked the request's live run to pause after the request was suspended; null when no pause was requested."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "TicketRequestView.pausedAt may be null in this transport value."
-              },
-              "pausedReason": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "enum": [
-                      "edited_after_setup",
-                      "label_removed",
-                      "hold_label_added",
-                      "dependency_unreadable"
-                    ],
-                    "description": "Why the run was paused, from the suspension reason: edited_after_setup when the acceptance criteria changed, label_removed when the request label was withdrawn, hold_label_added when the hold label was set, dependency_unreadable when a blocker could not be read. Null when not paused or paused for another reason, which dispositionReasonCode names."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "TicketRequestView.pausedReason may be null in this transport value."
-              },
-              "progress": {
-                "type": "string",
-                "enum": [
-                  "pending",
-                  "waiting",
-                  "admitted",
-                  "active",
-                  "suspended",
-                  "completed",
-                  "failed",
-                  "canceled",
-                  "rejected"
-                ],
-                "description": "One progress value for display, computed by the server from the disposition and the run: a nonterminal request whose run finished shows the run's end, a queued run shows admitted, a running run active, a paused run suspended, a run waiting for input, capacity or a block waiting."
-              },
-              "workflowRunId": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "format": "uuid",
-                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                    "description": "Workflow run the request owns; null before one starts."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "TicketRequestView.workflowRunId may be null in this transport value."
-              },
-              "createdAt": {
-                "type": "string",
-                "format": "date-time",
-                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-                "description": "When the request was admitted."
-              },
-              "updatedAt": {
-                "type": "string",
-                "format": "date-time",
-                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-                "description": "When the request last changed."
-              },
-              "version": {
-                "type": "integer",
-                "minimum": -9007199254740991,
-                "maximum": 9007199254740991,
-                "description": "Monotonic revision of the request."
-              },
-              "targets": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "repositoryId": {
-                      "type": "string",
-                      "format": "uuid",
-                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                      "description": "Repository this target is scoped to."
-                    },
-                    "role": {
-                      "type": "string",
-                      "maxLength": 65536,
-                      "description": "Role the repository plays; default for the fallback to the source's own repository."
-                    },
-                    "routingRuleId": {
-                      "anyOf": [
-                        {
-                          "type": "string",
-                          "format": "uuid",
-                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                          "description": "Rule that routed the ticket here as pinned at admission, or null for the fallback."
-                        },
-                        {
-                          "type": "null",
-                          "description": "Null indicates that the value is unavailable."
-                        }
-                      ],
-                      "description": "TicketRequestViewTarget.routingRuleId may be null in this transport value."
-                    },
-                    "routingRuleVersion": {
-                      "anyOf": [
-                        {
-                          "type": "integer",
-                          "minimum": -9007199254740991,
-                          "maximum": 9007199254740991,
-                          "description": "Version of that rule at admission, or null for the fallback."
-                        },
-                        {
-                          "type": "null",
-                          "description": "Null indicates that the value is unavailable."
-                        }
-                      ],
-                      "description": "TicketRequestViewTarget.routingRuleVersion may be null in this transport value."
-                    },
-                    "childTaskId": {
-                      "anyOf": [
-                        {
-                          "type": "string",
-                          "format": "uuid",
-                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                          "description": "Child task that runs this target, or null for the fallback, which runs on the request's own task."
-                        },
-                        {
-                          "type": "null",
-                          "description": "Null indicates that the value is unavailable."
-                        }
-                      ],
-                      "description": "TicketRequestViewTarget.childTaskId may be null in this transport value."
-                    }
-                  },
-                  "required": [
-                    "repositoryId",
-                    "role",
-                    "routingRuleId",
-                    "routingRuleVersion",
-                    "childTaskId"
-                  ],
-                  "additionalProperties": false,
-                  "description": "Repository-scoped children pinned at admission, ordered by role then repository. Each array item follows this format."
-                },
-                "description": "Repository-scoped children pinned at admission, ordered by role then repository."
-              }
-            },
-            "required": [
-              "id",
-              "externalTicketId",
-              "ticketTaskLinkId",
-              "intent",
-              "origin",
-              "requestedByPrincipalId",
-              "triggerLabelName",
-              "disposition",
-              "dispositionReasonCode",
-              "pausedAt",
-              "pausedReason",
-              "progress",
-              "workflowRunId",
-              "createdAt",
-              "updatedAt",
-              "version",
-              "targets"
-            ],
-            "additionalProperties": false,
-            "description": "One start request (admission generation) of an external ticket as the ticket's history shows it (#69): who or what started it, the stored disposition with a machine-readable reason, whether its run was paused and why, and one progress value computed from the disposition and the run's state."
-          },
-          "description": "TicketRequestView items in this cursor page. Page<TicketRequestView>.items must contain at most 100 items."
-        },
-        "nextCursor": {
-          "anyOf": [
-            {
-              "type": "string",
-              "maxLength": 512,
-              "description": "Opaque continuation cursor value."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that no continuation page remains."
-            }
-          ],
-          "description": "Opaque continuation cursor, or null at the end."
-        },
-        "prevCursor": {
-          "description": "Page<TicketRequestView>.prevCursor may be null in this transport value.",
-          "anyOf": [
-            {
-              "type": "string",
-              "maxLength": 65536,
-              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<TicketRequestView>.prevCursor must contain at most 512 UTF-8 bytes.",
-              "x-utf8-max-bytes": 512
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the value is unavailable."
-            }
-          ]
-        },
-        "highwater": {
-          "description": "Page<TicketRequestView>.highwater may be null in this transport value.",
-          "anyOf": [
-            {
-              "type": "string",
-              "pattern": "^(?:0|[1-9][0-9]*)$",
-              "description": "Page<TicketRequestView>.highwater is a bounded decimal string.",
-              "x-bigint-minimum": "0"
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the value is unavailable."
-            }
-          ]
-        }
-      },
-      "required": [
-        "items",
-        "nextCursor"
-      ],
-      "additionalProperties": false,
-      "description": "Cursor page of TicketRequestView."
-    },
-    "Page<TicketSourceLabel>": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "items": {
-          "maxItems": 100,
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string",
-                "maxLength": 65536,
-                "description": "The provider's stable, opaque label id; the value a routing rule stores, which survives a rename."
-              },
-              "name": {
-                "type": "string",
-                "maxLength": 65536,
-                "description": "The label's current name."
-              },
-              "color": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "maxLength": 65536,
-                    "description": "The label's colour as six hex digits without a leading #, or null when the provider gives none."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "TicketSourceLabel.color may be null in this transport value."
-              }
-            },
-            "required": [
-              "id",
-              "name",
-              "color"
-            ],
-            "additionalProperties": false,
-            "description": "One label the ticket source's provider holds, read live (#69)."
-          },
-          "description": "TicketSourceLabel items in this cursor page. Page<TicketSourceLabel>.items must contain at most 100 items."
-        },
-        "nextCursor": {
-          "anyOf": [
-            {
-              "type": "string",
-              "maxLength": 512,
-              "description": "Opaque continuation cursor value."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that no continuation page remains."
-            }
-          ],
-          "description": "Opaque continuation cursor, or null at the end."
-        },
-        "prevCursor": {
-          "description": "Page<TicketSourceLabel>.prevCursor may be null in this transport value.",
-          "anyOf": [
-            {
-              "type": "string",
-              "maxLength": 65536,
-              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<TicketSourceLabel>.prevCursor must contain at most 512 UTF-8 bytes.",
-              "x-utf8-max-bytes": 512
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the value is unavailable."
-            }
-          ]
-        },
-        "highwater": {
-          "description": "Page<TicketSourceLabel>.highwater may be null in this transport value.",
-          "anyOf": [
-            {
-              "type": "string",
-              "pattern": "^(?:0|[1-9][0-9]*)$",
-              "description": "Page<TicketSourceLabel>.highwater is a bounded decimal string.",
-              "x-bigint-minimum": "0"
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the value is unavailable."
-            }
-          ]
-        }
-      },
-      "required": [
-        "items",
-        "nextCursor"
-      ],
-      "additionalProperties": false,
-      "description": "Cursor page of TicketSourceLabel."
-    },
-    "PasswordResetLinkIssued": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "Stable UUID of the reset link record, as the audit trail names it."
-        },
-        "url": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 65536,
-          "description": "Absolute web URL of the reset page with the one-time token; hand it to the person over a trusted channel."
-        },
-        "expiresAt": {
-          "type": "string",
-          "format": "date-time",
-          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-          "description": "UTC timestamp one hour after issue, after which the link no longer works."
-        }
-      },
-      "required": [
-        "id",
-        "url",
-        "expiresAt"
-      ],
-      "additionalProperties": false,
-      "description": "A newly issued password reset link. The URL carries the only copy of the token and is returned in this response alone; it is never stored, replayed or readable again."
-    },
-    "McpToolClassification": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "toolName": {
-          "type": "string",
-          "maxLength": 65536,
-          "description": "The tool's name in the pinned snapshot."
-        },
-        "effectClass": {
-          "type": "string",
-          "enum": [
-            "read",
-            "write_idempotent",
-            "write_reconcilable",
-            "write_opaque"
-          ],
-          "description": "The class in force: the Admin's, or write_opaque when unclassified."
-        },
-        "classified": {
-          "type": "boolean",
-          "description": "True once an Admin has classified this tool."
-        },
-        "effectKeyArgument": {
-          "anyOf": [
-            {
-              "type": "string",
-              "maxLength": 65536,
-              "description": "For write_idempotent, the argument that carries the effect key; otherwise null."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the projected value is unavailable."
-            }
-          ],
-          "description": "McpToolClassification.effectKeyArgument may be null in the safe projection."
-        },
-        "pairedReadTool": {
-          "anyOf": [
-            {
-              "type": "string",
-              "maxLength": 65536,
-              "description": "For write_reconcilable, the read tool that confirms the write; otherwise null."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the projected value is unavailable."
-            }
-          ],
-          "description": "McpToolClassification.pairedReadTool may be null in the safe projection."
-        },
-        "classifiedAgainstCurrentSnapshot": {
-          "type": "boolean",
-          "description": "False when the connection has been rediscovered since this classification was made, so the Admin should check that it still describes the tool. True for an unclassified tool."
-        },
-        "classifiedAt": {
-          "anyOf": [
-            {
-              "type": "string",
-              "format": "date-time",
-              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-              "description": "UTC timestamp of the classification, or null when unclassified."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the projected value is unavailable."
-            }
-          ],
-          "description": "McpToolClassification.classifiedAt may be null in the safe projection."
-        },
-        "version": {
-          "type": "integer",
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991,
-          "description": "Classification version: 0 when unclassified, then the If-Match value for the next change."
-        }
-      },
-      "required": [
-        "toolName",
-        "effectClass",
-        "classified",
-        "effectKeyArgument",
-        "pairedReadTool",
-        "classifiedAgainstCurrentSnapshot",
-        "classifiedAt",
-        "version"
-      ],
-      "additionalProperties": false,
-      "description": "One tool of a connection's current snapshot with the effect class an Admin gave it. A tool nobody has classified reads as write_opaque with classified false, because that is how Bakery treats it."
-    },
-    "McpToolClassificationList": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "items": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "toolName": {
-                "type": "string",
-                "maxLength": 65536,
-                "description": "The tool's name in the pinned snapshot."
-              },
-              "effectClass": {
-                "type": "string",
-                "enum": [
-                  "read",
-                  "write_idempotent",
-                  "write_reconcilable",
-                  "write_opaque"
-                ],
-                "description": "The class in force: the Admin's, or write_opaque when unclassified."
-              },
-              "classified": {
-                "type": "boolean",
-                "description": "True once an Admin has classified this tool."
-              },
-              "effectKeyArgument": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "maxLength": 65536,
-                    "description": "For write_idempotent, the argument that carries the effect key; otherwise null."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the projected value is unavailable."
-                  }
-                ],
-                "description": "McpToolClassification.effectKeyArgument may be null in the safe projection."
-              },
-              "pairedReadTool": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "maxLength": 65536,
-                    "description": "For write_reconcilable, the read tool that confirms the write; otherwise null."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the projected value is unavailable."
-                  }
-                ],
-                "description": "McpToolClassification.pairedReadTool may be null in the safe projection."
-              },
-              "classifiedAgainstCurrentSnapshot": {
-                "type": "boolean",
-                "description": "False when the connection has been rediscovered since this classification was made, so the Admin should check that it still describes the tool. True for an unclassified tool."
-              },
-              "classifiedAt": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "format": "date-time",
-                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-                    "description": "UTC timestamp of the classification, or null when unclassified."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the projected value is unavailable."
-                  }
-                ],
-                "description": "McpToolClassification.classifiedAt may be null in the safe projection."
-              },
-              "version": {
-                "type": "integer",
-                "minimum": -9007199254740991,
-                "maximum": 9007199254740991,
-                "description": "Classification version: 0 when unclassified, then the If-Match value for the next change."
-              }
-            },
-            "required": [
-              "toolName",
-              "effectClass",
-              "classified",
-              "effectKeyArgument",
-              "pairedReadTool",
-              "classifiedAgainstCurrentSnapshot",
-              "classifiedAt",
-              "version"
-            ],
-            "additionalProperties": false,
-            "description": "The snapshot's tools with their classifications. Each array item follows this format."
-          },
-          "description": "The snapshot's tools with their classifications."
-        }
-      },
-      "required": [
-        "items"
-      ],
-      "additionalProperties": false,
-      "description": "Every tool of a connection's current snapshot with its effect classification, in name order. Empty when nothing has been discovered."
-    },
-    "McpUseGrant": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "Stable UUID identifying the grant."
-        },
-        "connectionId": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "The personal connection the grant covers."
-        },
-        "workflowId": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "The workflow the grant lets use the connection."
-        },
-        "grantedBy": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "The owner who granted it."
-        },
-        "createdAt": {
-          "type": "string",
-          "format": "date-time",
-          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-          "description": "UTC timestamp when the grant was made."
-        },
-        "revokedAt": {
-          "anyOf": [
-            {
-              "type": "string",
-              "format": "date-time",
-              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-              "description": "UTC timestamp when the grant was revoked, or null while it is live."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the projected value is unavailable."
-            }
-          ],
-          "description": "McpUseGrant.revokedAt may be null in the safe projection."
-        },
-        "revokedBy": {
-          "anyOf": [
-            {
-              "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "The principal who revoked it, or null while it is live."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the projected value is unavailable."
-            }
-          ],
-          "description": "McpUseGrant.revokedBy may be null in the safe projection."
-        }
-      },
-      "required": [
-        "id",
-        "connectionId",
-        "workflowId",
-        "grantedBy",
-        "createdAt",
-        "revokedAt",
-        "revokedBy"
-      ],
-      "additionalProperties": false,
-      "description": "One owner's grant of a personal connection to one workflow. Revoking stamps it; it is never deleted, so what was once granted stays on record."
-    },
-    "McpUseGrantList": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "items": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "Stable UUID identifying the grant."
-              },
-              "connectionId": {
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "The personal connection the grant covers."
-              },
-              "workflowId": {
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "The workflow the grant lets use the connection."
-              },
-              "grantedBy": {
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "The owner who granted it."
-              },
-              "createdAt": {
-                "type": "string",
-                "format": "date-time",
-                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-                "description": "UTC timestamp when the grant was made."
-              },
-              "revokedAt": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "format": "date-time",
-                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-                    "description": "UTC timestamp when the grant was revoked, or null while it is live."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the projected value is unavailable."
-                  }
-                ],
-                "description": "McpUseGrant.revokedAt may be null in the safe projection."
-              },
-              "revokedBy": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "format": "uuid",
-                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                    "description": "The principal who revoked it, or null while it is live."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the projected value is unavailable."
-                  }
-                ],
-                "description": "McpUseGrant.revokedBy may be null in the safe projection."
-              }
-            },
-            "required": [
-              "id",
-              "connectionId",
-              "workflowId",
-              "grantedBy",
-              "createdAt",
-              "revokedAt",
-              "revokedBy"
-            ],
-            "additionalProperties": false,
-            "description": "The connection's grants, newest first. Each array item follows this format."
-          },
-          "description": "The connection's grants, newest first."
-        }
-      },
-      "required": [
-        "items"
-      ],
-      "additionalProperties": false,
-      "description": "The use grants of a personal connection, newest first, live and revoked. Always empty for an organization connection, which needs no grant."
     },
     "Group": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -97359,6 +97120,37 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "Cursor page of ConversationAccessGrant."
     },
+    "PasswordResetLinkIssued": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID of the reset link record, as the audit trail names it."
+        },
+        "url": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536,
+          "description": "Absolute web URL of the reset page with the one-time token; hand it to the person over a trusted channel."
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp one hour after issue, after which the link no longer works."
+        }
+      },
+      "required": [
+        "id",
+        "url",
+        "expiresAt"
+      ],
+      "additionalProperties": false,
+      "description": "A newly issued password reset link. The URL carries the only copy of the token and is returned in this response alone; it is never stored, replayed or readable again."
+    },
     "Page<FileSearchHit>": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -97909,6 +97701,1285 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Cursor page of LibraryEntry."
+    },
+    "Batch": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID of the batch."
+        },
+        "repositoryId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The repository it works in."
+        },
+        "startedBy": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The person who started it; their authority is re-checked before every issue."
+        },
+        "maxIssues": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Limit: issues to merge."
+        },
+        "maxHours": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Limit: hours before nothing new starts."
+        },
+        "maxSpendUsd": {
+          "type": "string",
+          "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+          "description": "Limit: dollars before nothing new starts."
+        },
+        "continueMode": {
+          "type": "string",
+          "enum": [
+            "carry_on",
+            "ask_first"
+          ],
+          "description": "carry_on or ask_first."
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "running",
+            "waiting",
+            "paused",
+            "stopping",
+            "finishing",
+            "finished",
+            "stopped"
+          ],
+          "description": "running, waiting (for a person), paused, stopping or finishing (the current issue ends, nothing new starts), finished or stopped."
+        },
+        "pauseReason": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Why it is paused: paused_by_person or the named finding of the supervisor; null otherwise."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "Batch.pauseReason may be null in the safe projection."
+        },
+        "pausedBy": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Who paused it, when a person did."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "Batch.pausedBy may be null in the safe projection."
+        },
+        "pausedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When it was paused."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "Batch.pausedAt may be null in the safe projection."
+        },
+        "finishReason": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Why it ended: a limit, nothing left to start, a failure, a change on GitHub or lost authority; null while live."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "Batch.finishReason may be null in the safe projection."
+        },
+        "finishedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When it ended."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "Batch.finishedAt may be null in the safe projection."
+        },
+        "stoppedBy": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Who stopped it, when a person did."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "Batch.stoppedBy may be null in the safe projection."
+        },
+        "stopCancelledCurrent": {
+          "type": "boolean",
+          "description": "True when the stop also cancelled the issue being worked on."
+        },
+        "startedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When the limit clock started."
+        },
+        "issuesDone": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Issues merged so far, against maxIssues."
+        },
+        "elapsedSeconds": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Seconds since startedAt (to finishedAt once ended), against maxHours."
+        },
+        "spentUsd": {
+          "type": "string",
+          "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+          "description": "Spend so far across the batch's issues, against maxSpendUsd."
+        },
+        "issues": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID of this batch entry."
+              },
+              "position": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "The order the batch considered it in, from 1."
+              },
+              "externalTicketId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The ticket (issue) this entry is for."
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "started",
+                  "merged",
+                  "failed",
+                  "cancelled",
+                  "passed_over"
+                ],
+                "description": "started while it is being worked on; merged, failed or cancelled when it ended; passed_over when it could not start."
+              },
+              "reason": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "For a passed-over issue, the readiness reason code; otherwise null."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "BatchIssue.reason may be null in the safe projection."
+              },
+              "ticketRequestId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "The ordinary ticket request the batch made to start it, or null when it was passed over."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "BatchIssue.ticketRequestId may be null in the safe projection."
+              },
+              "costUsd": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+                    "description": "What the issue cost, recorded when it ended; null while it runs or when passed over."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "BatchIssue.costUsd may be null in the safe projection."
+              },
+              "startedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "UTC timestamp when it was started, or null."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "BatchIssue.startedAt may be null in the safe projection."
+              },
+              "mergedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "UTC timestamp when it merged, or null."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "BatchIssue.mergedAt may be null in the safe projection."
+              }
+            },
+            "required": [
+              "id",
+              "position",
+              "externalTicketId",
+              "state",
+              "reason",
+              "ticketRequestId",
+              "costUsd",
+              "startedAt",
+              "mergedAt"
+            ],
+            "additionalProperties": false,
+            "description": "The issues it considered, in order. Each array item follows this format."
+          },
+          "description": "The issues it considered, in order."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when the batch was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp of the last change."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Optimistic-concurrency version."
+        }
+      },
+      "required": [
+        "id",
+        "repositoryId",
+        "startedBy",
+        "maxIssues",
+        "maxHours",
+        "maxSpendUsd",
+        "continueMode",
+        "state",
+        "pauseReason",
+        "pausedBy",
+        "pausedAt",
+        "finishReason",
+        "finishedAt",
+        "stoppedBy",
+        "stopCancelledCurrent",
+        "startedAt",
+        "issuesDone",
+        "elapsedSeconds",
+        "spentUsd",
+        "issues",
+        "createdAt",
+        "updatedAt",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "A bounded run of issues in one repository: its three limits, the carry-on choice, its state and the reason it paused or ended, what is used of each limit, and the issues it considered. It is a supervisor's record: each issue is an ordinary ticket request and task. Spend is summed after the fact and the limit is checked before each new issue starts."
+    },
+    "Page<Batch>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID of the batch."
+              },
+              "repositoryId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The repository it works in."
+              },
+              "startedBy": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The person who started it; their authority is re-checked before every issue."
+              },
+              "maxIssues": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Limit: issues to merge."
+              },
+              "maxHours": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Limit: hours before nothing new starts."
+              },
+              "maxSpendUsd": {
+                "type": "string",
+                "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+                "description": "Limit: dollars before nothing new starts."
+              },
+              "continueMode": {
+                "type": "string",
+                "enum": [
+                  "carry_on",
+                  "ask_first"
+                ],
+                "description": "carry_on or ask_first."
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "running",
+                  "waiting",
+                  "paused",
+                  "stopping",
+                  "finishing",
+                  "finished",
+                  "stopped"
+                ],
+                "description": "running, waiting (for a person), paused, stopping or finishing (the current issue ends, nothing new starts), finished or stopped."
+              },
+              "pauseReason": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Why it is paused: paused_by_person or the named finding of the supervisor; null otherwise."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "Batch.pauseReason may be null in the safe projection."
+              },
+              "pausedBy": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Who paused it, when a person did."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "Batch.pausedBy may be null in the safe projection."
+              },
+              "pausedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "When it was paused."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "Batch.pausedAt may be null in the safe projection."
+              },
+              "finishReason": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Why it ended: a limit, nothing left to start, a failure, a change on GitHub or lost authority; null while live."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "Batch.finishReason may be null in the safe projection."
+              },
+              "finishedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "When it ended."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "Batch.finishedAt may be null in the safe projection."
+              },
+              "stoppedBy": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Who stopped it, when a person did."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "Batch.stoppedBy may be null in the safe projection."
+              },
+              "stopCancelledCurrent": {
+                "type": "boolean",
+                "description": "True when the stop also cancelled the issue being worked on."
+              },
+              "startedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "When the limit clock started."
+              },
+              "issuesDone": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Issues merged so far, against maxIssues."
+              },
+              "elapsedSeconds": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Seconds since startedAt (to finishedAt once ended), against maxHours."
+              },
+              "spentUsd": {
+                "type": "string",
+                "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+                "description": "Spend so far across the batch's issues, against maxSpendUsd."
+              },
+              "issues": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "Stable UUID of this batch entry."
+                    },
+                    "position": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991,
+                      "description": "The order the batch considered it in, from 1."
+                    },
+                    "externalTicketId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "The ticket (issue) this entry is for."
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "started",
+                        "merged",
+                        "failed",
+                        "cancelled",
+                        "passed_over"
+                      ],
+                      "description": "started while it is being worked on; merged, failed or cancelled when it ended; passed_over when it could not start."
+                    },
+                    "reason": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 65536,
+                          "description": "For a passed-over issue, the readiness reason code; otherwise null."
+                        },
+                        {
+                          "type": "null",
+                          "description": "Null indicates that the projected value is unavailable."
+                        }
+                      ],
+                      "description": "BatchIssue.reason may be null in the safe projection."
+                    },
+                    "ticketRequestId": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                          "description": "The ordinary ticket request the batch made to start it, or null when it was passed over."
+                        },
+                        {
+                          "type": "null",
+                          "description": "Null indicates that the projected value is unavailable."
+                        }
+                      ],
+                      "description": "BatchIssue.ticketRequestId may be null in the safe projection."
+                    },
+                    "costUsd": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+                          "description": "What the issue cost, recorded when it ended; null while it runs or when passed over."
+                        },
+                        {
+                          "type": "null",
+                          "description": "Null indicates that the projected value is unavailable."
+                        }
+                      ],
+                      "description": "BatchIssue.costUsd may be null in the safe projection."
+                    },
+                    "startedAt": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                          "description": "UTC timestamp when it was started, or null."
+                        },
+                        {
+                          "type": "null",
+                          "description": "Null indicates that the projected value is unavailable."
+                        }
+                      ],
+                      "description": "BatchIssue.startedAt may be null in the safe projection."
+                    },
+                    "mergedAt": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                          "description": "UTC timestamp when it merged, or null."
+                        },
+                        {
+                          "type": "null",
+                          "description": "Null indicates that the projected value is unavailable."
+                        }
+                      ],
+                      "description": "BatchIssue.mergedAt may be null in the safe projection."
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "position",
+                    "externalTicketId",
+                    "state",
+                    "reason",
+                    "ticketRequestId",
+                    "costUsd",
+                    "startedAt",
+                    "mergedAt"
+                  ],
+                  "additionalProperties": false,
+                  "description": "The issues it considered, in order. Each array item follows this format."
+                },
+                "description": "The issues it considered, in order."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the batch was created."
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp of the last change."
+              },
+              "version": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Optimistic-concurrency version."
+              }
+            },
+            "required": [
+              "id",
+              "repositoryId",
+              "startedBy",
+              "maxIssues",
+              "maxHours",
+              "maxSpendUsd",
+              "continueMode",
+              "state",
+              "pauseReason",
+              "pausedBy",
+              "pausedAt",
+              "finishReason",
+              "finishedAt",
+              "stoppedBy",
+              "stopCancelledCurrent",
+              "startedAt",
+              "issuesDone",
+              "elapsedSeconds",
+              "spentUsd",
+              "issues",
+              "createdAt",
+              "updatedAt",
+              "version"
+            ],
+            "additionalProperties": false,
+            "description": "A bounded run of issues in one repository: its three limits, the carry-on choice, its state and the reason it paused or ended, what is used of each limit, and the issues it considered. It is a supervisor's record: each issue is an ordinary ticket request and task. Spend is summed after the fact and the limit is checked before each new issue starts."
+          },
+          "description": "Batch items in this cursor page. Page<Batch>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<Batch>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<Batch>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<Batch>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<Batch>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of Batch."
+    },
+    "AgentFileGrant": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID identifying the grant; agent write audit rows name it as actor.fileGrantId."
+        },
+        "workflowId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Immutable id of the workflow whose agent sessions the grant covers."
+        },
+        "folderId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The storage folder granted; the grant covers it and everything under it."
+        },
+        "access": {
+          "type": "string",
+          "enum": [
+            "read",
+            "write"
+          ],
+          "description": "read, or write (which includes the destructive verbs mv and rm)."
+        },
+        "grantedBy": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Person who made the grant."
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When the grant stops working; judged at the time of each write."
+        },
+        "revokedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When a person revoked the grant; null while it stands."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "AgentFileGrant.revokedAt may be null in this transport value."
+        },
+        "revokedBy": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Person who revoked the grant; null while it stands."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "AgentFileGrant.revokedBy may be null in this transport value."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When the grant was made."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Optimistic-concurrency version a revoke must name in If-Match."
+        }
+      },
+      "required": [
+        "id",
+        "workflowId",
+        "folderId",
+        "access",
+        "grantedBy",
+        "expiresAt",
+        "revokedAt",
+        "revokedBy",
+        "createdAt",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "One grant of storage folder access to a workflow's agent sessions (section 17.6): which folder, read or write, until when, who granted it and whether it was revoked. A revoke stamps the row; it is never deleted, so a refused write can say the grant was withdrawn."
+    },
+    "IntegrationClientCredentials": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "provider": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Provider slug these credentials belong to."
+        },
+        "configured": {
+          "type": "boolean",
+          "description": "True once a client ID and secret have been saved for this provider."
+        },
+        "clientId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The registered client ID, or null while nothing is registered."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "IntegrationClientCredentials.clientId may be null in the safe projection."
+        },
+        "clientSecretSavedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp at which the current client secret was saved, or null while nothing is registered. A secret is never shown, so this is how an administrator tells it was replaced."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "IntegrationClientCredentials.clientSecretSavedAt may be null in the safe projection."
+        },
+        "callbackUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "The URL to enter in the provider's OAuth application as its callback, derived from this installation's public address."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Registration version: 0 while nothing is registered, then the optimistic-concurrency value to send as If-Match when replacing the credentials."
+        }
+      },
+      "required": [
+        "provider",
+        "configured",
+        "clientId",
+        "clientSecretSavedAt",
+        "callbackUrl",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "Whether an integration provider's OAuth client credentials are registered on this installation, which client ID, when the secret was last saved, and the callback URL to give the provider. The secret itself is never part of it. Version is 0 until credentials are saved and is the If-Match value for the next save."
+    },
+    "McpToolClassification": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "toolName": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The tool's name in the pinned snapshot."
+        },
+        "effectClass": {
+          "type": "string",
+          "enum": [
+            "read",
+            "write_idempotent",
+            "write_reconcilable",
+            "write_opaque"
+          ],
+          "description": "The class in force: the Admin's, or write_opaque when unclassified."
+        },
+        "classified": {
+          "type": "boolean",
+          "description": "True once an Admin has classified this tool."
+        },
+        "effectKeyArgument": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "For write_idempotent, the argument that carries the effect key; otherwise null."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "McpToolClassification.effectKeyArgument may be null in the safe projection."
+        },
+        "pairedReadTool": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "For write_reconcilable, the read tool that confirms the write; otherwise null."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "McpToolClassification.pairedReadTool may be null in the safe projection."
+        },
+        "classifiedAgainstCurrentSnapshot": {
+          "type": "boolean",
+          "description": "False when the connection has been rediscovered since this classification was made, so the Admin should check that it still describes the tool. True for an unclassified tool."
+        },
+        "classifiedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp of the classification, or null when unclassified."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "McpToolClassification.classifiedAt may be null in the safe projection."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Classification version: 0 when unclassified, then the If-Match value for the next change."
+        }
+      },
+      "required": [
+        "toolName",
+        "effectClass",
+        "classified",
+        "effectKeyArgument",
+        "pairedReadTool",
+        "classifiedAgainstCurrentSnapshot",
+        "classifiedAt",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "One tool of a connection's current snapshot with the effect class an Admin gave it. A tool nobody has classified reads as write_opaque with classified false, because that is how Bakery treats it."
+    },
+    "McpToolClassificationList": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "toolName": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The tool's name in the pinned snapshot."
+              },
+              "effectClass": {
+                "type": "string",
+                "enum": [
+                  "read",
+                  "write_idempotent",
+                  "write_reconcilable",
+                  "write_opaque"
+                ],
+                "description": "The class in force: the Admin's, or write_opaque when unclassified."
+              },
+              "classified": {
+                "type": "boolean",
+                "description": "True once an Admin has classified this tool."
+              },
+              "effectKeyArgument": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "For write_idempotent, the argument that carries the effect key; otherwise null."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "McpToolClassification.effectKeyArgument may be null in the safe projection."
+              },
+              "pairedReadTool": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "For write_reconcilable, the read tool that confirms the write; otherwise null."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "McpToolClassification.pairedReadTool may be null in the safe projection."
+              },
+              "classifiedAgainstCurrentSnapshot": {
+                "type": "boolean",
+                "description": "False when the connection has been rediscovered since this classification was made, so the Admin should check that it still describes the tool. True for an unclassified tool."
+              },
+              "classifiedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "UTC timestamp of the classification, or null when unclassified."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "McpToolClassification.classifiedAt may be null in the safe projection."
+              },
+              "version": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Classification version: 0 when unclassified, then the If-Match value for the next change."
+              }
+            },
+            "required": [
+              "toolName",
+              "effectClass",
+              "classified",
+              "effectKeyArgument",
+              "pairedReadTool",
+              "classifiedAgainstCurrentSnapshot",
+              "classifiedAt",
+              "version"
+            ],
+            "additionalProperties": false,
+            "description": "The snapshot's tools with their classifications. Each array item follows this format."
+          },
+          "description": "The snapshot's tools with their classifications."
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "additionalProperties": false,
+      "description": "Every tool of a connection's current snapshot with its effect classification, in name order. Empty when nothing has been discovered."
+    },
+    "McpUseGrant": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID identifying the grant."
+        },
+        "connectionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The personal connection the grant covers."
+        },
+        "workflowId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The workflow the grant lets use the connection."
+        },
+        "grantedBy": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The owner who granted it."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when the grant was made."
+        },
+        "revokedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp when the grant was revoked, or null while it is live."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "McpUseGrant.revokedAt may be null in the safe projection."
+        },
+        "revokedBy": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The principal who revoked it, or null while it is live."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "McpUseGrant.revokedBy may be null in the safe projection."
+        }
+      },
+      "required": [
+        "id",
+        "connectionId",
+        "workflowId",
+        "grantedBy",
+        "createdAt",
+        "revokedAt",
+        "revokedBy"
+      ],
+      "additionalProperties": false,
+      "description": "One owner's grant of a personal connection to one workflow. Revoking stamps it; it is never deleted, so what was once granted stays on record."
+    },
+    "McpUseGrantList": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID identifying the grant."
+              },
+              "connectionId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The personal connection the grant covers."
+              },
+              "workflowId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The workflow the grant lets use the connection."
+              },
+              "grantedBy": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The owner who granted it."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the grant was made."
+              },
+              "revokedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "UTC timestamp when the grant was revoked, or null while it is live."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "McpUseGrant.revokedAt may be null in the safe projection."
+              },
+              "revokedBy": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "The principal who revoked it, or null while it is live."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "McpUseGrant.revokedBy may be null in the safe projection."
+              }
+            },
+            "required": [
+              "id",
+              "connectionId",
+              "workflowId",
+              "grantedBy",
+              "createdAt",
+              "revokedAt",
+              "revokedBy"
+            ],
+            "additionalProperties": false,
+            "description": "The connection's grants, newest first. Each array item follows this format."
+          },
+          "description": "The connection's grants, newest first."
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "additionalProperties": false,
+      "description": "The use grants of a personal connection, newest first, live and revoked. Always empty for an organization connection, which needs no grant."
     },
     "StorageEntry": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
