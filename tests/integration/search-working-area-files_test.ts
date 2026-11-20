@@ -81,6 +81,11 @@ async function removeMember(
     'delete from public.session where "userId" = $1',
     [other.providerUserId],
   );
+  // Their writes left idempotency records; the principal FK is restrict.
+  await fixture.pgDatabase.query(
+    "delete from bakery.idempotency_records where principal_id = $1",
+    [other.principalId],
+  );
   await fixture.pgDatabase.query(
     "delete from bakery.principals where id = $1",
     [other.principalId],

@@ -852,15 +852,23 @@ Deno.test("AC: the facts list leaves out /system for anyone but an Admin, and is
     });
     void open;
     // Move one file under the /system folder.
-    const root = await fixture.pgDatabase.query<{ id: string }>(
+    // The organization may already have its /system folder; use it if so.
+    const existing = await fixture.pgDatabase.query<{ id: string }>(
+      `select id from bakery.storage_entries
+        where organization_id = $1 and parent_id is null and name_key = 'system'`,
+      [seed.organizationId],
+    );
+    const rootId = existing.rows[0]?.id ?? (await fixture.pgDatabase.query<
+      { id: string }
+    >(
       `insert into bakery.storage_entries
          (organization_id, name, name_key, kind, policy, system_key)
        values ($1, 'system', 'system', 'folder', 'system', 'system') returning id`,
       [seed.organizationId],
-    );
+    )).rows[0].id;
     await fixture.pgDatabase.query(
       "update bakery.storage_entries set parent_id = $3 where organization_id = $1 and artifact_id = $2",
-      [seed.organizationId, hidden.artifactId, root.rows[0].id],
+      [seed.organizationId, hidden.artifactId, rootId],
     );
     const keys = async (admin: boolean) =>
       (await facts(fixture, seed, {}, { admin })).items.map((row) => row.key)
