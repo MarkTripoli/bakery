@@ -535,3 +535,60 @@ Deno.test("the endpoint lists only permitted tools, challenges before dispatch a
   assert(challenge.includes('scope="bakery:read"'), challenge);
   assertEquals(ran, ["whoami"], "the refused tool never ran");
 });
+
+Deno.test("a tool call over the endpoint continues the trace its request carries", async () => {
+  const seen: (string | undefined)[] = [];
+  const app = createMcpRoutes({
+    allowedOrigins: [ORIGIN],
+    guard: {
+      publicOrigin: ORIGIN,
+      verifyToken: () => Promise.resolve({ ...goodClaims }),
+      store: fakeStore([], {
+        findLiveConsent: () => Promise.resolve({ scopes: ["bakery:read"] }),
+      }),
+    },
+    tools: {
+      run: (tool, _grant, trace) => {
+        seen.push(trace?.traceparent);
+        return Promise.resolve({ tool });
+      },
+    },
+  });
+  const call = (headers: Record<string, string> = {}) =>
+    app.fetch(
+      new Request(`${ORIGIN}/mcp`, {
+        method: "POST",
+        headers: {
+          authorization: "Bearer abc.def.ghi",
+          "content-type": "application/json",
+          accept: "application/json, text/event-stream",
+          "mcp-protocol-version": "2026-07-28",
+          "mcp-method": "tools/call",
+          "mcp-name": "whoami",
+          ...headers,
+        },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 9,
+          method: "tools/call",
+          params: {
+            name: "whoami",
+            arguments: {},
+            _meta: {
+              "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+              "io.modelcontextprotocol/clientInfo": { name: "t", version: "1" },
+              "io.modelcontextprotocol/clientCapabilities": {},
+            },
+          },
+        }),
+      }),
+    );
+  const traceparent = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
+  assertEquals((await call({ traceparent })).status, 200);
+  assertEquals((await call()).status, 200);
+  assertEquals(
+    seen,
+    [traceparent, undefined],
+    "the request's traceparent reaches the tool, and none is invented",
+  );
+});

@@ -1,5 +1,7 @@
 import type { TelemetryRecord } from "@bakery/config/telemetry";
 import type { ExportSink } from "@bakery/config/telemetry-export";
+import { ADDRESS_REFUSED_REASON } from "./address-policy.ts";
+import { isAddressRefusal, readAnswer } from "./pinned-fetch.ts";
 import { createOtlpSink, otlpSignalUrl } from "../telemetry-sink.ts";
 import type {
   DestinationValues,
@@ -144,10 +146,7 @@ export const otlpProvider: TelemetryProvider = Object.freeze({
         body: JSON.stringify({ resourceSpans: [] }),
         signal,
       });
-      const text = (await response.text().catch(() => "")).slice(
-        0,
-        PROBE_ANSWER_MAX_CHARS,
-      );
+      const text = await readAnswer(response, PROBE_ANSWER_MAX_CHARS);
       if (response.ok) {
         return outcome(true, response.status, null, text);
       }
@@ -162,6 +161,7 @@ export const otlpProvider: TelemetryProvider = Object.freeze({
         text,
       );
     } catch (error) {
+      if (isAddressRefusal(error)) return refused(ADDRESS_REFUSED_REASON);
       const timedOut = signal.aborted ||
         (error as { name?: string }).name === "AbortError";
       return refused(
