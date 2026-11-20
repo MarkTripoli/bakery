@@ -573,6 +573,21 @@ export function createArtifactActions(
       handler: (context) => revokePreview(context),
     })
     .register(artifactContentActionDefinition)
+    .register({
+      // A separate read from the content: the probe answer is about the blob's
+      // bytes, so it belongs to every version that shares them, and a client
+      // wants it before deciding whether to fetch anything at all.
+      name: "artifactVersions.probe",
+      method: HttpMethod.Get,
+      path: "/v1/artifact-versions/:id/probe",
+      input: contractSchemas.IdPath,
+      output: contractSchemas.ArtifactProbeAnswer,
+      policy: readPolicy,
+      handler: async (context) =>
+        contractSchemas.ArtifactProbeAnswer.parse(
+          await handlers.readArtifactProbe(context),
+        ),
+    })
     // Blob uploads: the session names what it promises, parts are keyed by
     // ordinal, and completion verifies before recording. The client supplies
     // bytes and the digest it claims for them; the server checks the claim.

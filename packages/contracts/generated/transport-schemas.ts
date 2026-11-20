@@ -18631,6 +18631,51 @@ const transportSchemas = {
         "hasMore": "Whether more complete UTF-8 text remains after endByteExclusive."
       }
     },
+    "ArtifactProbeAnswer": {
+      "fields": [
+        "status",
+        "kind",
+        "mediaType",
+        "byteLength",
+        "width",
+        "height",
+        "durationMs",
+        "lineCount",
+        "utf8",
+        "code",
+        "limit",
+        "probedAt"
+      ],
+      "fieldTypes": {
+        "status": "enum(described|refused)|null",
+        "kind": "enum(image|video|audio|text|pdf|archive|unknown)|null",
+        "mediaType": "mediaType|null",
+        "byteLength": "integer|null",
+        "width": "integer|null",
+        "height": "integer|null",
+        "durationMs": "integer|null",
+        "lineCount": "integer|null",
+        "utf8": "boolean|null",
+        "code": "enum(too-large|timeout|memory|unreadable|malformed|sandbox-unavailable)|null",
+        "limit": "integer|null",
+        "probedAt": "timestamp|null"
+      },
+      "fieldDescriptions": {
+        "status": "`described` when the probe read and described the bytes, `refused` when it named a reason; null when no probe has answered for this blob yet.",
+        "kind": "What the bytes are, as distinct from what the file is called. Null unless the probe described them.",
+        "mediaType": "The media type the probe detected from the bytes themselves, not the type the upload declared.",
+        "byteLength": "The size the probe measured, which is the size of the stored bytes.",
+        "width": "Pixel width, for an image or video. Null when the format does not state one.",
+        "height": "Pixel height, for an image or video. Null when the format does not state one.",
+        "durationMs": "Duration in milliseconds, for an audio or video file. Null when the format does not state one.",
+        "lineCount": "Line count, for a text file. Null for every other kind.",
+        "utf8": "Whether a text file decodes as strict UTF-8.",
+        "code": "Why the probe produced no description. Null unless status is `refused`.",
+        "limit": "The limit that was hit, when the code names one.",
+        "probedAt": "When the probe last answered for this blob."
+      },
+      "description": "What a probe learned about one artifact version's bytes, or null facts when no probe has answered yet. A fact the probe did not measure is absent, never zero: the client omits it from the facts line rather than rendering a placeholder."
+    },
     "ArtifactVersion": {
       "projection": "artifact_versions",
       "fields": [

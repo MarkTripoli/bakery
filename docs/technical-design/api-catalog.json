@@ -6164,6 +6164,28 @@
     },
     {
       "group": "Artifacts",
+      "method": "GET",
+      "path": "/v1/artifact-versions/{id}/probe",
+      "action": "artifactVersions.probe",
+      "access": "Developer",
+      "permission": "artifactVersion:read",
+      "input": "IdPath",
+      "output": "ArtifactProbeAnswer",
+      "event": "",
+      "mcp": "bakery_artifactVersions_probe",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "ARTIFACT_CONTENT_EXPIRED"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Artifacts",
       "method": "POST",
       "path": "/v1/artifacts/{id}/versions/import",
       "action": "artifactVersions.import",

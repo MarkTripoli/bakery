@@ -9,6 +9,7 @@ import {
   encodeCursor,
 } from "../../platform/cursor.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
+import { readBlobProbe } from "./blob-probes.ts";
 import { storedMediaSafety } from "./media.ts";
 import { assertStoredBytes } from "./stored-bytes.ts";
 import type { OrganizationBlobStore } from "../catalog/storage-port.ts";
@@ -560,6 +561,76 @@ export function createArtifactReadHandlers(
         sha256: row.sha256,
         sizeBytes: size,
         mediaType: row.media_type,
+      };
+    },
+
+    /**
+     * What the probe learned about this version's bytes, or nulls.
+     *
+     * A flat answer rather than the probe's own union: the wire shape says one
+     * thing per fact and `null` for "not measured", which is what the facts
+     * line needs. Nothing here runs a probe -- an unasked blob reads as null
+     * and the client decides whether to show a state or ask again.
+     */
+    async readArtifactProbe(context: ActionContext) {
+      const { transaction, organizationId } = requireWorkTransaction(context);
+      const { row } = await loadContentMetadata(
+        transaction,
+        organizationId,
+        context.params.id,
+      );
+      if (row.blob_id === null) {
+        return {
+          status: null,
+          kind: null,
+          mediaType: null,
+          byteLength: null,
+          width: null,
+          height: null,
+          durationMs: null,
+          lineCount: null,
+          utf8: null,
+          code: null,
+          limit: null,
+          probedAt: null,
+        };
+      }
+      const stored = await readBlobProbe(transaction, {
+        organizationId,
+        blobId: row.blob_id,
+      });
+      if (stored === null) {
+        return {
+          status: null,
+          kind: null,
+          mediaType: null,
+          byteLength: null,
+          width: null,
+          height: null,
+          durationMs: null,
+          lineCount: null,
+          utf8: null,
+          code: null,
+          limit: null,
+          probedAt: null,
+        };
+      }
+      const { result, probedAt } = stored;
+      const described = result.status === "described" ? result : null;
+      const refused = result.status === "refused" ? result : null;
+      return {
+        status: result.status,
+        kind: described?.kind ?? null,
+        mediaType: described?.mediaType ?? null,
+        byteLength: described?.byteLength ?? null,
+        width: described?.width ?? null,
+        height: described?.height ?? null,
+        durationMs: described?.durationMs ?? null,
+        lineCount: described?.lineCount ?? null,
+        utf8: described?.utf8 ?? null,
+        code: refused?.code ?? null,
+        limit: refused?.limit ?? null,
+        probedAt: probedAt.toISOString(),
       };
     },
 

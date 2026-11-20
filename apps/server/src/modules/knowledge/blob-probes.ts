@@ -19,7 +19,7 @@
  * blob never change: the same digest is the same object, so the second answer
  * for it is the same answer.
  */
-import type { PgDatabase } from "../../platform/database.ts";
+import type { PgTransactionClient } from "../../platform/database.ts";
 import type {
   ArtifactProbeFailureCode,
   ArtifactProbeKind,
@@ -104,7 +104,9 @@ export function isStorableProbe(result: ArtifactProbeResult): boolean {
 
 /** Reads the probe for one blob, or null when none has run. */
 export async function readBlobProbe(
-  database: Pick<PgDatabase, "query">,
+  // The narrow shape both a pool and a request's transaction client satisfy: a
+  // read inside a transaction sees the row that same request just wrote.
+  database: Pick<PgTransactionClient, "query">,
   input: { organizationId: string; blobId: string },
 ): Promise<StoredBlobProbe | null> {
   const { rows } = await database.query<ProbeRow>(
@@ -128,7 +130,7 @@ export async function readBlobProbe(
  * asked rather than claiming the first answer for ever.
  */
 export async function writeBlobProbe(
-  database: Pick<PgDatabase, "query">,
+  database: Pick<PgTransactionClient, "query">,
   input: {
     organizationId: string;
     blobId: string;
