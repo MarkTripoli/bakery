@@ -673,10 +673,15 @@ async function recordStepWrite(
   await tx.query(
     "insert into bakery.step_write_set" +
       " (organization_id, attempt_id, agent_session_id, entry_id, op," +
-      " previous_version_id, new_version_id)" +
+      " previous_version_id, new_version_id, bytes_written)" +
       " select $1, $2, $3, $4, $5," +
       " (select id from bakery.storage_file_versions" +
-      " where organization_id = $1 and id = $6), $7",
+      " where organization_id = $1 and id = $6), $7," +
+      // The stored size, so the step's byte limit keeps counting a version
+      // that retention later deletes.
+      " case when $5 in ('put', 'copy') then coalesce((select size_bytes" +
+      " from bakery.storage_file_versions" +
+      " where organization_id = $1 and id = $7), 0) else 0 end",
     [
       row.organizationId,
       row.attemptId,
