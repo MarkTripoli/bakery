@@ -16,6 +16,18 @@
     "path": "/tasks/$taskId/coordination"
   },
   {
+    "id": "files",
+    "path": "/files"
+  },
+  {
+    "id": "files-version",
+    "path": "/files/versions/$versionId"
+  },
+  {
+    "id": "files-folder",
+    "path": "/files/$"
+  },
+  {
     "id": "library",
     "path": "/library"
   },
