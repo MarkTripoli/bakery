@@ -33,7 +33,7 @@ export type EditorAction =
 /**
  * The definition the editor saves: the version's own definition with its
  * `steps` replaced by the editor's list. A step the editor did not change is
- * the authored node itself, every key kept (`sealed`, `files`, `limits`, …),
+ * the authored node itself, every key kept (`if`, `retry`, `limits`, …),
  * so an edit of one step never rewrites another. A changed step keeps the keys
  * the editor does not hold; a new step has only what the editor knows.
  */

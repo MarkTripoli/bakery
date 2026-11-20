@@ -162,7 +162,7 @@ const savedStep = (saved: Record<string, unknown>, id: string) =>
 const editorStepsOf = (spec: typeof SPEC) =>
   spec.steps.map((node) => step(node.id, node.uses));
 
-Deno.test("editing a neighbouring step keeps sealed and files exactly (#448)", () => {
+Deno.test("editing a neighbouring step keeps its unknown keys exactly", () => {
   const start = editorStateOf(editorStepsOf(SPEC));
   const edits: Parameters<typeof editorReducer>[1][] = [
     { kind: "move", id: "brief", index: 2 },
@@ -190,4 +190,49 @@ Deno.test("a changed step keeps the keys the editor does not hold", () => {
 Deno.test("a new step carries only what the editor knows", () => {
   const saved = definitionOf(null, [step("brief")]);
   assertEquals(saved, { steps: [{ id: "brief", uses: "task.brief" }] });
+});
+
+Deno.test("editing step A saves step B and the top-level keys byte-for-byte", () => {
+  const b = {
+    id: "b",
+    uses: "agent.review",
+    agentVersionId: "agent-v1",
+    if: "${{ steps.a.outcome == 'success' }}",
+    retry: { attempts: 3, backoff: "exponential" },
+    needs: ["a"],
+    limits: { timeoutSeconds: 600, maxTokens: 2000 },
+    checks: [{ kind: "exit", equals: 0 }],
+    effectKey: "review-${{ run.id }}",
+    files: { read: ["src/**"], write: ["out/report.md"] },
+    sealed: true,
+  };
+  const spec = {
+    name: "ship",
+    version: 2,
+    inputs: { branch: { type: "string" } },
+    steps: [{ id: "a", uses: "task.brief", agentVersionId: "agent-v1" }, b],
+    outputs: { report: "${{ steps.b.output }}" },
+  };
+  const { steps: _steps, ...top } = spec;
+  const start = editorStateOf([
+    { ...step("a", "task.brief"), agentVersionId: "agent-v1" },
+    { ...step("b", "agent.review"), agentVersionId: "agent-v1" },
+  ]);
+  const edits: EditorStep[][] = [
+    [
+      { ...step("a", "task.brief"), agentVersionId: "agent-v2" },
+      start.steps[1],
+    ],
+    [
+      { ...step("a2", "task.brief"), agentVersionId: "agent-v1" },
+      start.steps[1],
+    ],
+    [start.steps[1], start.steps[0]],
+  ];
+  for (const steps of edits) {
+    const saved = definitionOf(spec, steps);
+    assertEquals(JSON.stringify(savedStep(saved, "b")), JSON.stringify(b));
+    const { steps: _saved, ...savedTop } = saved;
+    assertEquals(JSON.stringify(savedTop), JSON.stringify(top));
+  }
 });

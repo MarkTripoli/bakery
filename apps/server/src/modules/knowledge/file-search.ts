@@ -295,6 +295,8 @@ export function createLibraryFolderHandler(secret: string) {
 export function createFileSearchHandler(
   secret: string,
   authorizeLibraryRead: (context: ActionContext) => boolean,
+  /** Whether the caller is an organization Admin: /system is theirs alone. */
+  isAdmin: (context: ActionContext) => boolean,
 ) {
   return async function searchFiles(
     context: ActionContext,
@@ -303,6 +305,7 @@ export function createFileSearchHandler(
     const { transaction, organizationId, principalId } = requireWorkTransaction(
       context,
     );
+    const admin = isAdmin(context);
     const hasFilter = input.query !== undefined || input.path !== undefined ||
       input.kind !== undefined || input.mediaType !== undefined ||
       input.mediaGroup !== undefined || input.producerId !== undefined ||
@@ -435,6 +438,7 @@ export function createFileSearchHandler(
             on task.organization_id = run.organization_id
            and task.id = run.task_id
          where entry.organization_id = ${org} and entry.kind = 'file'
+           and entry.id not in (select id from hidden)
            and (${folder}::uuid is null or entry.id in (select id from scope))
            and (${needleParam}::text is null
                 or strpos(entry.name_key, ${needleParam}) > 0)
@@ -446,6 +450,44 @@ export function createFileSearchHandler(
            and (${p(input.factKey ?? null)}::text is null
                 or v.metadata ->> ${p(input.factKey ?? null)}
                    = ${p(input.factValue ?? null)})`);
+      // Files people and steps write into working, personal and scratch areas
+      // have no artifact: their current version is a storage file version. They
+      // carry no metadata, so a fact filter leaves them out. The same rule as
+      // the storage reads decides who sees one: a personal or scratch entry is
+      // its owner's alone, /system is an Admin's, and a trashed or purged file
+      // is not a search result.
+      if (input.factKey === undefined) {
+        branches.push(`
+        select 'files'::text as source, entry.id as entry_id, entry.id as sort_id,
+               entry.name, 'file'::text as kind, v.media_type,
+               v.size_bytes::integer as size_bytes, v.id as version_id,
+               v.author_id as producer_id, ${MEDIA_GROUP_SQL} as media_group,
+               'person'::text as producer_kind,
+               person.display_name as producer_name,
+               null::uuid as producer_task_id,
+               null::text as producer_task_title,
+               null::text as library_path, entry.created_at
+          from bakery.storage_entries entry
+          join bakery.storage_file_versions v
+            on v.organization_id = entry.organization_id
+           and v.id = entry.current_version_id
+          left join bakery.principals person on person.id = v.author_id
+         where entry.organization_id = ${org} and entry.kind = 'file'
+           and entry.artifact_id is null
+           and entry.trashed_at is null and entry.purged_at is null
+           and (entry.policy not in ('personal', 'scratch')
+                or entry.owner_id is null
+                or entry.owner_id = ${p(principalId)}::uuid)
+           and entry.id not in (select id from hidden)
+           and (${folder}::uuid is null or entry.id in (select id from scope))
+           and (${needleParam}::text is null
+                or strpos(entry.name_key, ${needleParam}) > 0)
+           and (${kindParam}::text is null or ${kindParam} = 'file')
+           and (${p(input.mediaType ?? null)}::text is null
+                or v.media_type = ${p(input.mediaType ?? null)})
+           and (${p(input.producerId ?? null)}::uuid is null
+                or v.author_id = ${p(input.producerId ?? null)})`);
+      }
     }
     if (wantLibrary) {
       for (const source of LIBRARY_SOURCES) {
@@ -478,6 +520,16 @@ export function createFileSearchHandler(
         union all
         select child.id from bakery.storage_entries child
           join scope on child.parent_id = scope.id
+         where child.organization_id = ${org}
+      ),
+      -- What this caller never searches: /system unless an Admin.
+      hidden(id) as (
+        select entry.id from bakery.storage_entries entry
+         where entry.organization_id = ${org}
+           and entry.system_key = any(${p(admin ? [] : ["system"])}::text[])
+        union all
+        select child.id from bakery.storage_entries child
+          join hidden on child.parent_id = hidden.id
          where child.organization_id = ${org}
       )
       select *, to_char(created_at at time zone 'UTC',
@@ -561,5 +613,90 @@ export function createFileSearchHandler(
         })
         : null,
     };
+  };
+}
+
+type FileFactInput = z.output<typeof contractSchemas.FileFactQuery>;
+
+type FactRow = { kind: string; key: string; value: string; files: number };
+
+/** The most a kind lists: keys, values per key, and rows in all. */
+const MAX_FACT_KEYS = 50;
+const MAX_FACT_VALUES = 50;
+const MAX_FACT_ROWS = 500;
+
+/**
+ * The facts files carry, by kind (the source for the search's fact filter):
+ * every metadata key and string value on the current version of a file the
+ * caller may read, with how many files hold it. The same rules as the search:
+ * organization isolation, the route's own read permission, an agent session's
+ * `artifacts.read` scope, and /system an Admin's alone. Working-area files
+ * carry no metadata, so only artifact-backed files appear.
+ */
+export function createFileFactsHandler(
+  isAdmin: (context: ActionContext) => boolean,
+) {
+  return async function listFileFacts(
+    context: ActionContext,
+    input: FileFactInput,
+  ) {
+    const { transaction, organizationId } = requireWorkTransaction(context);
+    const scopes = context.sessionScopes;
+    if (scopes !== undefined && !scopes.includes("artifacts.read")) {
+      return { items: [], nextCursor: null };
+    }
+    const result = await transaction.query<FactRow>(
+      `with recursive hidden(id) as (
+         select entry.id from bakery.storage_entries entry
+          where entry.organization_id = $1
+            and entry.system_key = any($2::text[])
+         union all
+         select child.id from bakery.storage_entries child
+           join hidden on child.parent_id = hidden.id
+          where child.organization_id = $1
+       ),
+       facts as (
+         select a.artifact_type as kind, m.key, m.value, count(*)::integer as files
+           from bakery.storage_entries entry
+           join bakery.artifacts a
+             on a.organization_id = entry.organization_id
+            and a.id = entry.artifact_id
+           join bakery.artifact_versions v
+             on v.organization_id = a.organization_id
+            and v.id = a.current_version_id
+          cross join lateral jsonb_each_text(
+            case when jsonb_typeof(v.metadata) = 'object'
+                 then v.metadata else '{}'::jsonb end
+          ) as m(key, value)
+          where entry.organization_id = $1 and entry.kind = 'file'
+            and entry.id not in (select id from hidden)
+            and ($3::text is null or a.artifact_type = $3)
+            and length(m.key) between 1 and 100
+            and length(m.value) between 1 and 500
+          group by a.artifact_type, m.key, m.value
+       ),
+       ranked as (
+         select facts.*,
+                row_number() over (
+                  partition by kind, key order by files desc, value
+                ) as value_rank,
+                dense_rank() over (partition by kind order by key) as key_rank
+           from facts
+       )
+       select kind, key, value, files
+         from ranked
+        where value_rank <= $4 and key_rank <= $5
+        order by kind, key, value
+        limit $6`,
+      [
+        organizationId,
+        isAdmin(context) ? [] : ["system"],
+        input.kind ?? null,
+        MAX_FACT_VALUES,
+        MAX_FACT_KEYS,
+        MAX_FACT_ROWS,
+      ],
+    );
+    return { items: result.rows, nextCursor: null };
   };
 }

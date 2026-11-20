@@ -32,7 +32,18 @@ type MergeAttemptReconcile = z.output<
   typeof contractSchemas.MergeAttemptReconcile
 >;
 
+type MetricsQuery = z.output<typeof contractSchemas.MetricsQuery>;
+type MetricSourcesQuery = z.output<typeof contractSchemas.MetricSourcesQuery>;
+
 export type DeliveryActionHandlers = {
+  metricsGet: (
+    context: ActionContext,
+    input: MetricsQuery,
+  ) => Promise<z.output<typeof contractSchemas.MetricSeries>>;
+  metricsSources: (
+    context: ActionContext,
+    input: MetricSourcesQuery,
+  ) => Promise<z.output<typeof contractSchemas["Page<MetricSource>"]>>;
   checksList: (
     context: ActionContext,
     input: CursorQuery,
@@ -147,6 +158,28 @@ export function createDeliveryActionRegistry(
     policy: queryPolicy,
     transactionIsolation: TransactionIsolation.RepeatableRead,
     handler: handlers.runDeliveryDecisionsList,
+  });
+
+  registry.register({
+    name: DeliveryImplementedAction.MetricsGet,
+    method: HttpMethod.Get,
+    path: "/v1/metrics",
+    input: contractSchemas.MetricsQuery,
+    output: contractSchemas.MetricSeries,
+    policy: queryPolicy,
+    transactionIsolation: TransactionIsolation.RepeatableRead,
+    handler: handlers.metricsGet,
+  });
+
+  registry.register({
+    name: DeliveryImplementedAction.MetricsSources,
+    method: HttpMethod.Get,
+    path: "/v1/metrics/sources",
+    input: contractSchemas.MetricSourcesQuery,
+    output: contractSchemas["Page<MetricSource>"],
+    policy: queryPolicy,
+    transactionIsolation: TransactionIsolation.RepeatableRead,
+    handler: handlers.metricsSources,
   });
 
   registry.register({
