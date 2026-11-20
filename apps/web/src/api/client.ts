@@ -90,6 +90,10 @@ export type ReviewFindingListResponse = ClientOutputMap["Page<ReviewFinding>"];
 export type DeliveryDecisionListResponse =
   ClientOutputMap["Page<DeliveryDecision>"];
 export type PullRequestListResponse = ClientOutputMap["Page<PullRequest>"];
+export type MergeAttemptListResponse = ClientOutputMap["Page<MergeAttempt>"];
+export type MergeAttemptResponse = ClientOutputMap["MergeAttempt"];
+export type MergeReconciliationResponse =
+  ClientOutputMap["MergeReconciliation"];
 export type SyncQuery = ClientInputMap["SyncQuery"];
 export type SyncResponse = ClientOutputMap["SyncSnapshot"];
 export type PrincipalIdentity = ClientOutputMap["PrincipalIdentity"];
@@ -156,6 +160,10 @@ export type ExternalTicketListResponse =
 export type TicketSourceResponse = ClientOutputMap["TicketSource"];
 export type TicketSourcePersonResponse = ClientOutputMap["TicketSourcePerson"];
 export type TicketSourceListResponse = ClientOutputMap["Page<TicketSource>"];
+export type PluginPackageListResponse = ClientOutputMap["Page<PluginPackage>"];
+export type PluginVersionListResponse = ClientOutputMap["Page<PluginVersion>"];
+export type PluginInstallListResponse = ClientOutputMap["Page<PluginInstall>"];
+export type PluginInstallResponse = ClientOutputMap["PluginInstall"];
 export type TicketSourceCreate = ClientInputMap["TicketSourceCreate"];
 export type TicketSourceUpdate = ClientInputMap["TicketSourceUpdate"];
 export type TicketOperationReceiptResponse =
@@ -713,6 +721,53 @@ export type BakeryApiClient = {
       readonly principalId: string;
       readonly idempotencyKey?: string;
     }) => Promise<ApiResult<void>>;
+  };
+  /** Private plugins published to the organization, and who has them installed. */
+  readonly plugins: {
+    /** `GET /v1/plugin-packages`: the plugins published in this organization. */
+    readonly packages: (options: {
+      readonly organizationId: string;
+      readonly cursor?: string;
+      readonly limit?: number;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<PluginPackageListResponse>>;
+    /** `GET /v1/plugin-packages/{id}/versions`: the published versions of one plugin. */
+    readonly versions: (options: {
+      readonly organizationId: string;
+      readonly packageId: string;
+      readonly cursor?: string;
+      readonly limit?: number;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<PluginVersionListResponse>>;
+    /** `GET /v1/plugin-installs`: the installs this person may see. */
+    readonly installs: (options: {
+      readonly organizationId: string;
+      readonly cursor?: string;
+      readonly limit?: number;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<PluginInstallListResponse>>;
+    /** `POST /v1/plugin-installs`: installs one published version, for everyone or for one person. */
+    readonly install: (options: {
+      readonly organizationId: string;
+      readonly packageId: string;
+      readonly versionId: string;
+      readonly scope: "organization" | "personal";
+      readonly idempotencyKey?: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<PluginInstallResponse>>;
+    /** `PATCH /v1/plugin-installs/{id}`: turns an install on or off, moves it to another version, or removes it. */
+    readonly update: (options: {
+      readonly organizationId: string;
+      readonly id: string;
+      readonly version: number;
+      readonly change: {
+        readonly versionId?: string;
+        readonly status?: "enabled" | "disabled" | "uninstalled";
+        readonly dismissUpdateFailure?: boolean;
+      };
+      readonly idempotencyKey?: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<PluginInstallResponse>>;
   };
   /** GitHub issues Bakery has read, and the repositories it takes them from. */
   readonly tickets: {
@@ -1306,6 +1361,36 @@ export type BakeryApiClient = {
     readonly limit?: number;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<PullRequestListResponse>>;
+  /**
+   * One pull request's merge attempts, newest first. An attempt whose outcome
+   * Bakery does not know reads as `unknown`, so the answer survives a reload.
+   */
+  readonly listMergeAttempts: (options: {
+    readonly organizationId: string;
+    readonly pullRequestId: string;
+    readonly cursor?: string;
+    readonly limit?: number;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<MergeAttemptListResponse>>;
+  /**
+   * Asks Bakery to merge a pull request at the exact head the person saw. The
+   * server re-reads GitHub, checks the results and records the attempt; the
+   * page never chooses the method (it sends the one the pull request served).
+   */
+  readonly mergePullRequest: (options: {
+    readonly organizationId: string;
+    readonly pullRequestId: string;
+    readonly expectedHeadSha: string;
+    readonly expectedBaseSha?: string;
+    readonly mergeMethod: "merge" | "squash" | "rebase";
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<MergeAttemptResponse>>;
+  /** Settles an unknown attempt by reading GitHub; it never sends a second merge. */
+  readonly reconcileMergeAttempts: (options: {
+    readonly organizationId: string;
+    readonly pullRequestId: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<MergeReconciliationResponse>>;
   readonly sync: (
     options: SyncQuery & {
       readonly organizationId: string;
@@ -2190,6 +2275,67 @@ export function createBakeryApiClient({
   };
 
   return {
+    plugins: {
+      packages(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["pluginPackages.list"]({
+              cursor: options.cursor,
+              limit: options.limit,
+            }, { signal: options.signal }),
+        );
+      },
+      versions(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["pluginVersions.list"]({
+              id: options.packageId,
+              cursor: options.cursor,
+              limit: options.limit,
+            }, { signal: options.signal }),
+        );
+      },
+      installs(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["pluginInstalls.list"]({
+              cursor: options.cursor,
+              limit: options.limit,
+            }, { signal: options.signal }),
+        );
+      },
+      install(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["pluginInstalls.create"]({
+              packageId: options.packageId,
+              versionId: options.versionId,
+              scope: options.scope,
+            }, {
+              idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
+            }),
+        );
+      },
+      update(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["pluginInstalls.update"]({
+              id: options.id,
+              ...options.change,
+            }, {
+              ifMatch: versionEtag(options.version),
+              idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
+            }),
+        );
+      },
+    },
     tickets: {
       list(options) {
         return workerResult(
@@ -4562,6 +4708,62 @@ export function createBakeryApiClient({
             ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
             ...(options.limit === undefined ? {} : { limit: options.limit }),
           },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listMergeAttempts(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["mergeAttempts.list"](
+          {
+            pullRequestId: options.pullRequestId,
+            ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+            ...(options.limit === undefined ? {} : { limit: options.limit }),
+          },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async mergePullRequest(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["pullRequests.merge"](
+          {
+            id: options.pullRequestId,
+            expectedHeadSha: options.expectedHeadSha,
+            ...(options.expectedBaseSha === undefined
+              ? {}
+              : { expectedBaseSha: options.expectedBaseSha }),
+            mergeMethod: options.mergeMethod,
+          },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async reconcileMergeAttempts(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["mergeAttempts.reconcile"](
+          { pullRequestId: options.pullRequestId },
           { signal: options.signal },
         );
         return { ok: true, data };

@@ -1,14 +1,53 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "94e8c0e8c04f896c3f56374303ac9853d21405aa",
-    "3e67ca6d20efb88bf8b1ce763e7dd95af1ef4bee"
+    "0ab8a30353e2d19599a02affbad1c09f05fcbec6"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:886e14f144b21807537d0f78ff691ae52afbaaddbca3f481f51201a2e0280926",
-  "reason": "#69 web memberships display name re-bind by dev-web on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main 3e67ca6d20efb88bf8b1ce763e7dd95af1ef4bee: OrganizationMembership gains a required displayName, the principal's display name, served by the memberships list, create and update reads so that any organization member can name the people in their organization (the principals read shows a non-administrator only themselves). The breaking drift is that one field becoming required on the output; the approval it displaced at sha256:7c605d89839ef7b4dedd92feda2afa1c33433e9f03109e821aa4d336b492e8dc is preserved unchanged first below.",
+  "targetCompatibilityDigest": "sha256:050bbfec6c6d3ccd73991e61264bee8b5d336bfd701d2a73dc9fc1374b2ee3aa",
+  "reason": "#434 MCP connections re-bind by dev-agx4 on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main 0ab8a30353e2d19599a02affbad1c09f05fcbec6: McpConnectionCreate and McpConnectionUpdate drop the secretId reference input and gain a write-only secret (a caller can no longer point a connection at an arbitrary secret id; the credential is sealed server-side), McpConnectionCreate gains an optional scope (organization|personal), and McpConnection gains ownerPrincipalId. mcpConnections create, update and discover change from Admin to Developer-for-personal/Admin-for-organization access. No client writes these shapes: no handler existed before this change. mcpConnections.discover returns the McpCapabilitySnapshot it pinned instead of a Run (a remote server is asked inline; a Run belongs to local servers launched on a worker, a later slice) and carries no domain event. The approval it displaced is preserved unchanged first below.",
   "priorApprovals": [
+    {
+      "fromBaseRefs": [
+        "4e1f1fdf68726693d0b8c36cf23a94ac453512c5"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:350a67b467395a98dc007935426ca0ec22397a03e33c236f38510f471d3026d3",
+      "reason": "#434 MCP connections re-bind by dev-agx4 on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main 4e1f1fdf68726693d0b8c36cf23a94ac453512c5: McpConnectionCreate and McpConnectionUpdate drop the secretId reference input and gain a write-only secret (a caller can no longer point a connection at an arbitrary secret id; the credential is sealed server-side), McpConnectionCreate gains an optional scope (organization|personal), and McpConnection gains ownerPrincipalId. mcpConnections create, update and discover change from Admin to Developer-for-personal/Admin-for-organization access. No client writes these shapes: no handler existed before this change. mcpConnections.discover returns the McpCapabilitySnapshot it pinned instead of a Run (a remote server is asked inline; a Run belongs to local servers launched on a worker, a later slice) and carries no domain event. The approval it displaced is preserved unchanged first below."
+    },
+    {
+      "fromBaseRefs": [
+        "167d6f712103081750c763063a1e49225738407d",
+        "9d60ae16861322c7425338069d24f9ccb0885089",
+        "1ce09ba92c2007f4837308efdbabfc93baaaff67"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:6afc058c5118d256bd2cc5d538fd805ea1e13f0676bf8676a0b61e4e338fdfc1",
+      "reason": "#57 slice 1 merge from Bakery re-bind by dev-agx1 on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 167d6f712103081750c763063a1e49225738407d: PullRequest gains a required mayMerge (boolean, whether the caller holds pullRequest:merge) and a required mergeMethod (the squash default Bakery merges with), on an output no client writes. mergeAttempts.list (GET /v1/merge-attempts, keyset) and the pull request and run filters of mergeEntries.list are additive. The breaking drift is those two fields becoming required; the approval it displaced at sha256:886e14f144b21807537d0f78ff691ae52afbaaddbca3f481f51201a2e0280926 is preserved unchanged first below; main moved again (#724) and the digest followed, the earlier digest of this same change is kept next."
+    },
+    {
+      "fromBaseRefs": [
+        "9d60ae16861322c7425338069d24f9ccb0885089",
+        "1ce09ba92c2007f4837308efdbabfc93baaaff67"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:468a1fc65fc3b08483d56cf8108a2d8cb76241bab428558a44b78b723a0d8a53",
+      "reason": "#57 slice 1 merge from Bakery re-bind by dev-agx1 on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 9d60ae16861322c7425338069d24f9ccb0885089: PullRequest gains a required mayMerge (boolean, whether the caller holds pullRequest:merge) and a required mergeMethod (the squash default Bakery merges with), on an output no client writes. mergeAttempts.list (GET /v1/merge-attempts, keyset) and the pull request and run filters of mergeEntries.list are additive. The breaking drift is those two fields becoming required; the approval it displaced at sha256:886e14f144b21807537d0f78ff691ae52afbaaddbca3f481f51201a2e0280926 is preserved unchanged first below."
+    },
+    {
+      "fromBaseRefs": [
+        "94e8c0e8c04f896c3f56374303ac9853d21405aa",
+        "3e67ca6d20efb88bf8b1ce763e7dd95af1ef4bee"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:886e14f144b21807537d0f78ff691ae52afbaaddbca3f481f51201a2e0280926",
+      "reason": "#69 web memberships display name re-bind by dev-web on 2026-11-19 under the owner's standing breaking-change authorization (2026-10-09), main 3e67ca6d20efb88bf8b1ce763e7dd95af1ef4bee: OrganizationMembership gains a required displayName, the principal's display name, served by the memberships list, create and update reads so that any organization member can name the people in their organization (the principals read shows a non-administrator only themselves). The breaking drift is that one field becoming required on the output; the approval it displaced at sha256:7c605d89839ef7b4dedd92feda2afa1c33433e9f03109e821aa4d336b492e8dc is preserved unchanged first below."
+    },
     {
       "fromBaseRefs": [
         "de64639a4d4cfbf49bc3402f7d21deffd06ef74a"

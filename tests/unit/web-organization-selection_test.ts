@@ -79,6 +79,13 @@ function fakeApi(
     access: {} as BakeryApiClient["access"],
     profile: { get: rejecting, update: rejecting },
     userPreferences: { get: rejecting, update: rejecting },
+    plugins: {
+      packages: rejecting,
+      versions: rejecting,
+      installs: rejecting,
+      install: rejecting,
+      update: rejecting,
+    },
     tickets: {
       get: rejecting,
       check: rejecting,
@@ -249,6 +256,9 @@ function fakeApi(
     listReviewFindings: rejecting,
     listRunDeliveryDecisions: rejecting,
     listPullRequests: rejecting,
+    listMergeAttempts: rejecting,
+    mergePullRequest: rejecting,
+    reconcileMergeAttempts: rejecting,
     sync: rejecting,
     listApplications: rejecting,
     createApplication: rejecting,
