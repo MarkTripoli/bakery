@@ -1,4 +1,4 @@
-import { assertEquals } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
 import { openApprovalFixture } from "../helpers/scoped-approvals.ts";
 
 /**
@@ -23,6 +23,16 @@ type Offers = {
     incidentId: string;
     incidentGeneration: number;
     sourceRouteId: string;
+    source: {
+      provider: string;
+      model: string;
+      harness: string;
+      billingRoute: string;
+      health: string;
+    };
+    reason: string;
+    since: string;
+    nextCheckAt: string | null;
     runVersion: number;
     estimatedIncrementalCost: string | null;
     targets: {
@@ -233,6 +243,17 @@ Deno.test("route continuations: a step pinned to a route with an open incident i
     assertEquals(offer.sourceRouteId, source);
     assertEquals(offer.runVersion, 1);
     assertEquals(offer.estimatedIncrementalCost, null);
+    // What the card names without a second read (#70).
+    assertEquals(offer.source, {
+      provider: PIN.provider,
+      model: PIN.model,
+      harness: PIN.harness,
+      billingRoute: "api_metered",
+      health: "open",
+    });
+    assertEquals(offer.reason, "timeout");
+    assert(!Number.isNaN(Date.parse(offer.since)));
+    assertEquals(offer.nextCheckAt, null);
     const reason = (id: string) =>
       offer.targets.find((target) => target.routeId === id);
     assertEquals(offer.targets.some((t) => t.routeId === source), false);

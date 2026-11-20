@@ -1,7 +1,10 @@
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import { StandardError } from "../../packages/contracts/src/http.ts";
 import type { ActionContext } from "../../packages/contracts/src/action-registry.ts";
-import { listRouteContinuations } from "../../apps/server/src/modules/execution/route-continuations.ts";
+import {
+  listRouteContinuations,
+  readRunsWaitingOnModel,
+} from "../../apps/server/src/modules/execution/route-continuations.ts";
 
 /**
  * The route continuation offers without a database (#26 slice 6a).
@@ -62,8 +65,15 @@ const stalledRow = {
   run_version: 4,
   source_route_id: SOURCE,
   source_harness: "pi",
+  source_provider: "anthropic",
+  source_model: "claude-x",
+  source_billing_route: "subscription",
+  source_health: "open",
   incident_id: INCIDENT,
   incident_generation: 2,
+  incident_reason: "quota_exhausted",
+  incident_opened_at: new Date("2026-11-20T10:00:00.000Z"),
+  incident_next_probe_at: new Date("2026-11-20T10:05:00.000Z"),
 };
 
 const route = (id: string, overrides: Record<string, unknown> = {}) => ({
@@ -163,6 +173,59 @@ Deno.test("an offer names the incident generation and run version a submission m
   assertEquals(offer.runVersion, 4);
   // No estimate exists yet; the budget recheck that fills it is a later slice.
   assertEquals(offer.estimatedIncrementalCost, null);
+});
+
+Deno.test("an offer names what the step waits on, why, since when and the next check", async () => {
+  const { transaction } = stand({
+    run: { status: "running" },
+    stalled: [stalledRow, {
+      ...stalledRow,
+      run_step_id: "f1",
+      incident_next_probe_at: null,
+    }],
+    candidates: [route(SOURCE)],
+  });
+  const [offer, unscheduled] = (await listRouteContinuations(
+    context(transaction),
+    {},
+  )).offers;
+  assertEquals(offer!.source, {
+    provider: "anthropic",
+    model: "claude-x",
+    harness: "pi",
+    billingRoute: "subscription",
+    health: "open",
+  });
+  assertEquals(offer!.reason, "quota_exhausted");
+  assertEquals(offer!.since, "2026-11-20T10:00:00.000Z");
+  assertEquals(offer!.nextCheckAt, "2026-11-20T10:05:00.000Z");
+  assertEquals(unscheduled!.nextCheckAt, null);
+});
+
+Deno.test("the runs read asks once per page which runs wait on a model, by the offers' rule", async () => {
+  const recorded: Statement[] = [];
+  const transaction = {
+    query: (sql: string, values: readonly unknown[] = []) => {
+      recorded.push({ sql, values });
+      return Promise.resolve({ rows: [{ run_id: RUN }] });
+    },
+  };
+  assertEquals(
+    await readRunsWaitingOnModel(transaction as never, ORG, []),
+    new Set(),
+  );
+  assertEquals(recorded.length, 0);
+  const waiting = await readRunsWaitingOnModel(transaction as never, ORG, [
+    RUN,
+    STEP,
+  ]);
+  assertEquals(waiting, new Set([RUN]));
+  assertEquals(recorded.length, 1);
+  const { sql, values } = recorded[0]!;
+  assertEquals(values.slice(0, 2), [ORG, [RUN, STEP]]);
+  assert(/i\.status = 'open'/.test(sql));
+  assert(/not exists[\s\S]*route_continuations/.test(sql));
+  assert(/r\.status <> all\(\$4::text\[\]\)/.test(sql));
 });
 
 Deno.test("the source route is never a candidate, and every other route is listed", async () => {

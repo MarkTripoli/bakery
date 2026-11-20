@@ -20,7 +20,10 @@ import {
 import { createApiRouter, StandardError } from "@bakery/contracts/http";
 import { PostgresAuthorityRunner } from "../auth/adapters/authority-postgres.ts";
 import { createPostgresCommandRunner } from "../../platform/command-replay.ts";
-import type { PgDatabase } from "../../platform/database.ts";
+import type {
+  PgDatabase,
+  PgTransactionClient,
+} from "../../platform/database.ts";
 import { type AuthVariables, createActionContext } from "../auth/middleware.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import { admitRouteContinuation } from "./route-continuation-admit.ts";
@@ -50,6 +53,7 @@ import { admitRouteContinuation } from "./route-continuation-admit.ts";
 
 type Offers = z.output<typeof contractSchemas.RouteContinuationOffers>;
 type Target = z.output<typeof contractSchemas.RouteContinuationTarget>;
+type Offer = z.output<typeof contractSchemas.RouteContinuationOffer>;
 
 type StalledStepRow = {
   run_step_id: string;
@@ -57,10 +61,70 @@ type StalledStepRow = {
   run_version: number;
   source_route_id: string;
   source_harness: string;
+  source_provider: string;
+  source_model: string;
+  source_billing_route: string;
+  source_health: string;
   incident_id: string;
   incident_generation: number;
+  incident_reason: string;
+  incident_opened_at: Date | string;
+  incident_next_probe_at: Date | string | null;
 };
 
+/**
+ * The joins that find a step stalled behind an open incident: a live job of the
+ * step whose pin (provider, model, harness, billing route) matches an active route
+ * with an open incident that the step has not already been continued past.
+ * Aliases: `r` the run, `s` the step, `j` the job, `pr` the route, `i` the
+ * incident. `$1` is the organization and `$3` the terminal job statuses; the
+ * caller adds its own run predicate. Shared by the offers and by the runs read's
+ * `waitingOnModel`, so the badge and the card can never disagree.
+ */
+const STALLED_STEP_JOINS = `
+         from bakery.workflow_runs as r
+         join bakery.run_steps as s
+           on s.organization_id = r.organization_id and s.run_id = r.id
+         join bakery.jobs as j
+           on j.organization_id = r.organization_id and j.run_step_id = s.id
+         join bakery.provider_routes as pr
+           on pr.organization_id = r.organization_id
+          and pr.status = 'active'
+          and pr.provider = j.billing->>'provider'
+          and pr.model = j.billing->>'model'
+          and pr.harness = j.agent_config->>'harness'
+          and pr.billing_route = case j.billing->>'billingRoute'
+                when 'api' then 'api_metered'
+                else j.billing->>'billingRoute' end
+         join bakery.provider_incidents as i
+           on i.organization_id = pr.organization_id
+          and i.id = pr.incident_id and i.status = 'open'
+        where r.organization_id = $1
+          and j.status <> all($3::text[])
+          and not exists (
+            select 1 from bakery.route_continuations as c
+             where c.organization_id = r.organization_id
+               and c.run_step_id = s.id
+               and c.incident_generation = i.generation)`;
+
+/**
+ * Which of `runIds` have a step waiting on a model: the same rule as the offers,
+ * one statement for a whole page of runs. A terminal run never waits.
+ */
+export async function readRunsWaitingOnModel(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  runIds: readonly string[],
+): Promise<Set<string>> {
+  if (runIds.length === 0) return new Set();
+  const result = await transaction.query<{ run_id: string }>(
+    `select distinct r.id as run_id${STALLED_STEP_JOINS}
+          and r.id = any($2::uuid[])
+          and r.status <> all($4::text[])`,
+    [organizationId, runIds, TERMINAL_JOB_STATUSES, TERMINAL_RUN_STATUSES],
+  );
+  return new Set(result.rows.map((row) => row.run_id));
+}
 export type CandidateRouteRow = {
   id: string;
   provider: string;
@@ -133,31 +197,13 @@ export async function listRouteContinuations(
        select distinct on (s.id)
               s.id as run_step_id, s.step_key, r.version as run_version,
               pr.id as source_route_id, pr.harness as source_harness,
-              i.id as incident_id, i.generation as incident_generation
-         from bakery.workflow_runs as r
-         join bakery.run_steps as s
-           on s.organization_id = r.organization_id and s.run_id = r.id
-         join bakery.jobs as j
-           on j.organization_id = r.organization_id and j.run_step_id = s.id
-         join bakery.provider_routes as pr
-           on pr.organization_id = r.organization_id
-          and pr.status = 'active'
-          and pr.provider = j.billing->>'provider'
-          and pr.model = j.billing->>'model'
-          and pr.harness = j.agent_config->>'harness'
-          and pr.billing_route = case j.billing->>'billingRoute'
-                when 'api' then 'api_metered'
-                else j.billing->>'billingRoute' end
-         join bakery.provider_incidents as i
-           on i.organization_id = pr.organization_id
-          and i.id = pr.incident_id and i.status = 'open'
-        where r.organization_id = $1 and r.id = $2
-          and j.status <> all($3::text[])
-          and not exists (
-            select 1 from bakery.route_continuations as c
-             where c.organization_id = r.organization_id
-               and c.run_step_id = s.id
-               and c.incident_generation = i.generation)
+              pr.provider as source_provider, pr.model as source_model,
+              pr.billing_route as source_billing_route,
+              pr.health as source_health,
+              i.id as incident_id, i.generation as incident_generation,
+              i.reason as incident_reason, i.opened_at as incident_opened_at,
+              i.next_probe_at as incident_next_probe_at${STALLED_STEP_JOINS}
+          and r.id = $2
         order by s.id, i.opened_at, pr.id, j.id
      ) as stalled
      order by step_key, run_step_id`,
@@ -181,6 +227,18 @@ export async function listRouteContinuations(
       incidentId: step.incident_id,
       incidentGeneration: step.incident_generation,
       sourceRouteId: step.source_route_id,
+      source: {
+        provider: step.source_provider,
+        model: step.source_model,
+        harness: step.source_harness as Target["harness"],
+        billingRoute: step.source_billing_route as Target["billingRoute"],
+        health: step.source_health as Target["health"],
+      },
+      reason: step.incident_reason as Offer["reason"],
+      since: new Date(step.incident_opened_at).toISOString(),
+      nextCheckAt: step.incident_next_probe_at === null
+        ? null
+        : new Date(step.incident_next_probe_at).toISOString(),
       runVersion: step.run_version,
       estimatedIncrementalCost: null,
       targets: candidates
