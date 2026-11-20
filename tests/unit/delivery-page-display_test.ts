@@ -9,6 +9,7 @@ import {
   freshnessOf,
   hoursBetween,
   isDeliveryShow,
+  leadTimeOf,
   missingKey,
   openFigure,
   recordRow,
@@ -208,4 +209,72 @@ Deno.test("a duration reads in the two units that matter and never as 0", () => 
     params: { days: "2", hours: "4" },
   });
   assertEquals(durationWords(72).key, "delivery.duration.days");
+});
+
+const share = (category: string, hours: number | null) => ({
+  category,
+  hours,
+  unknownReason: hours === null ? "not_recorded" : null,
+});
+const taskSeries = (
+  breakdown: ReturnType<typeof share>[],
+  points: [number, number],
+) =>
+  ({
+    summary: {
+      median: 4,
+      p90: 9,
+      mean: 5,
+      breakdown,
+      deliveryPoints: [
+        { deliveryPoint: "merged_pull_request", count: points[0] },
+        { deliveryPoint: "completed_run", count: points[1] },
+      ],
+    },
+  }) as unknown as MetricSeries;
+
+Deno.test("the time bar adds up to its total, with Not accounted for last and Blocked never a part", () => {
+  const lead = leadTimeOf(taskSeries([
+    share("agentWorking", 6),
+    share("queue", 2),
+    share("review", 1),
+    share("person", 3),
+    share("blocked", null),
+    share("unaccounted", 4),
+  ], [5, 0]))!;
+  assertEquals(lead.parts.map((part) => part.id), [
+    "agentWorking",
+    "queue",
+    "review",
+    "person",
+    "unaccounted",
+  ]);
+  assertEquals(lead.totalHours, 16);
+  assertEquals(lead.blockedKnown, false);
+  assertEquals(lead.point, "merge");
+  assertEquals([lead.count, lead.median, lead.p90], [5, 4, 9]);
+});
+
+Deno.test("a part with no time is absent, and a known Blocked becomes a part", () => {
+  const lead = leadTimeOf(taskSeries([
+    share("agentWorking", 3),
+    share("queue", 0),
+    share("review", null),
+    share("person", 0),
+    share("blocked", 2),
+    share("unaccounted", 0),
+  ], [1, 3]))!;
+  assertEquals(lead.parts.map((part) => part.id), ["agentWorking", "blocked"]);
+  assertEquals(lead.blockedKnown, true);
+  assertEquals(lead.point, "mixed");
+  assertEquals(lead.runCount, 3);
+});
+
+Deno.test("no tasks delivered means no lead-time summary, never a bar of zeros", () => {
+  assertEquals(leadTimeOf(undefined), null);
+  assertEquals(
+    leadTimeOf(taskSeries([share("agentWorking", 0)], [0, 0])),
+    null,
+  );
+  assertEquals(leadTimeOf(taskSeries([], [0, 2]))!.point, "run");
 });

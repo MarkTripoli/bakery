@@ -2199,3 +2199,77 @@
     min-block-size: var(--target-coarse);
   }
 }
+
+/* One bar split into parts, with a key in words. The greys are mixed from the
+   foreground token so they follow light and dark; the "not recorded" part is
+   hatched, so it reads as absent evidence and not as one more category. */
+.ui-segmented-bar {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+}
+.ui-segmented-bar__bar {
+  background: var(--color-surface-subtle);
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-control);
+  display: flex;
+  min-block-size: var(--space-4);
+  overflow: hidden;
+}
+.ui-segmented-bar__part {
+  flex-basis: 0;
+  min-inline-size: 2px;
+}
+.ui-segmented-bar__part[data-tone="first"],
+.ui-segmented-bar__swatch[data-tone="first"] {
+  background: color-mix(in srgb, var(--color-fg) 80%, var(--color-surface));
+}
+.ui-segmented-bar__part[data-tone="second"],
+.ui-segmented-bar__swatch[data-tone="second"] {
+  background: color-mix(in srgb, var(--color-fg) 60%, var(--color-surface));
+}
+.ui-segmented-bar__part[data-tone="third"],
+.ui-segmented-bar__swatch[data-tone="third"] {
+  background: color-mix(in srgb, var(--color-fg) 40%, var(--color-surface));
+}
+.ui-segmented-bar__part[data-tone="fourth"],
+.ui-segmented-bar__swatch[data-tone="fourth"] {
+  background: color-mix(in srgb, var(--color-fg) 22%, var(--color-surface));
+}
+.ui-segmented-bar__part[data-tone="unknown"],
+.ui-segmented-bar__swatch[data-tone="unknown"] {
+  background: repeating-linear-gradient(
+    135deg,
+    var(--color-surface) 0 3px,
+    color-mix(in srgb, var(--color-fg) 45%, var(--color-surface)) 3px 5px
+  );
+}
+.ui-segmented-bar__key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.ui-segmented-bar__item {
+  align-items: baseline;
+  display: flex;
+  gap: var(--space-1);
+}
+.ui-segmented-bar__swatch {
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-control);
+  flex: none;
+  inline-size: var(--space-3);
+  block-size: var(--space-3);
+  align-self: center;
+}
+.ui-segmented-bar__name {
+  font: var(--type-row-title);
+}
+.ui-segmented-bar__detail {
+  color: var(--color-fg-muted);
+  font: var(--type-caption);
+  font-variant-numeric: tabular-nums;
+}

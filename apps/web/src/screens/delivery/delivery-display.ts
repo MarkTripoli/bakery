@@ -272,3 +272,77 @@ export function durationWords(hours: number): DurationWords {
       params: { days: String(days), hours: String(rest) },
     };
 }
+
+/** The parts of a task's lead time, in the order the bar draws them. */
+export const TIME_PARTS = [
+  "agentWorking",
+  "queue",
+  "review",
+  "person",
+  "blocked",
+  "unaccounted",
+] as const;
+export type TimePartId = typeof TIME_PARTS[number];
+
+/** One part of the bar: a category and the hours it holds. Never zero, never unknown. */
+export type TimePart = {
+  readonly id: TimePartId;
+  readonly hours: number;
+};
+
+/** What the lead-time summary says, ready for the screen. */
+export type LeadTime = {
+  /** Tasks in the summary. */
+  readonly count: number;
+  readonly median: number | null;
+  readonly p90: number | null;
+  /** Parts that hold time, in drawing order; they add up to `totalHours`. */
+  readonly parts: readonly TimePart[];
+  readonly totalHours: number;
+  /**
+   * Whether Blocked time is known. Bakery keeps no history of when a task was
+   * blocked, so it is unknown and is a line under the bar, never a part of it.
+   */
+  readonly blockedKnown: boolean;
+  /** Which delivery point the tasks reached: all at a merge, all at a run, or both. */
+  readonly point: "merge" | "run" | "mixed";
+  /** Tasks that reached a completed run with no pull request. */
+  readonly runCount: number;
+};
+
+/**
+ * The lead-time summary of the tasks delivered in the window, or null when
+ * there are none to summarise. Hours that are null stay out of the bar: a
+ * category with no time is absent, and the bar still adds up to its total.
+ */
+export function leadTimeOf(series: MetricSeries | undefined): LeadTime | null {
+  const summary = series?.summary ?? null;
+  if (summary === null) return null;
+  const merged =
+    summary.deliveryPoints.find((entry) =>
+      entry.deliveryPoint === "merged_pull_request"
+    )?.count ?? 0;
+  const runs =
+    summary.deliveryPoints.find((entry) =>
+      entry.deliveryPoint === "completed_run"
+    )?.count ?? 0;
+  const count = merged + runs;
+  if (count === 0) return null;
+  const hoursOf = new Map(
+    summary.breakdown.map((share) => [share.category, share.hours]),
+  );
+  const parts = TIME_PARTS.flatMap((id): TimePart[] => {
+    const hours = hoursOf.get(id) ?? null;
+    return hours !== null && hours > 0 ? [{ id, hours }] : [];
+  });
+  return {
+    count,
+    median: summary.median,
+    p90: summary.p90,
+    parts,
+    totalHours: parts.reduce((sum, part) => sum + part.hours, 0),
+    blockedKnown: (hoursOf.get("blocked") ?? null) !== null,
+    point: runs === 0 ? "merge" : merged === 0 ? "run" : "mixed",
+    runCount: runs,
+  };
+}
