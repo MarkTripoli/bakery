@@ -4510,5 +4510,6 @@
   "settings.sso.provider.delete.failed": "⟪{name} was not removed. Nothing changed. Try again.⟫",
   "settings.sso.provider.delete.outOfDate": "⟪This page was out of date. Check what will happen and confirm again.⟫",
   "settings.sso.provider.delete.alreadyRemoved": "⟪{name} was already removed.⟫",
-  "settings.sso.provider.removeLabel": "⟪Remove {name}⟫"
+  "settings.sso.provider.removeLabel": "⟪Remove {name}⟫",
+  "settings.roles.verb.author": "⟪Create, change and publish {things}⟫"
 }

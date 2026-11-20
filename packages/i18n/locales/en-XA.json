@@ -4510,5 +4510,6 @@
   "settings.sso.provider.delete.failed": "⟦{name} ŵàš ñôŧ ŕëɱôṽëð. Ñôŧĥïñĝ çĥàñĝëð. Ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "settings.sso.provider.delete.outOfDate": "⟦Ŧĥïš þàĝë ŵàš ôûŧ ôƒ ðàŧë. Çĥëçķ ŵĥàŧ ŵïļļ ĥàþþëñ àñð çôñƒïŕɱ àĝàïñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
   "settings.sso.provider.delete.alreadyRemoved": "⟦{name} ŵàš àļŕëàðÿ ŕëɱôṽëð. ŧëšŧ çô⟧",
-  "settings.sso.provider.removeLabel": "⟦Ŕëɱôṽë {name} ŧë⟧"
+  "settings.sso.provider.removeLabel": "⟦Ŕëɱôṽë {name} ŧë⟧",
+  "settings.roles.verb.author": "⟦Çŕëàŧë, çĥàñĝë àñð þûƀļïšĥ {things} ŧëšŧ çôþÿŧ⟧"
 }
