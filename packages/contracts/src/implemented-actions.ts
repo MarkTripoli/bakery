@@ -120,6 +120,7 @@ export const ExecutionImplementedAction = Object.freeze(
     SessionsSteer: "sessions.steer",
     RunStepsNote: "runSteps.note",
     RunStepsTakeOver: "runSteps.takeOver",
+    RunStepsRevertWrites: "runSteps.revertWrites",
     TranscriptStatus: "outputStreams.transcript",
   } as const satisfies Record<string, CatalogActionName>,
 );
@@ -710,6 +711,12 @@ export const BackupImplementedAction = Object.freeze(
     BackupsStatus: "backups.status",
     BackupsStart: "backups.start",
     BackupRunnerCredentialIssue: "backupRunnerCredential.issue",
+    BackupScheduleGet: "backupSchedule.get",
+    BackupSchedulePut: "backupSchedule.put",
+    BackupOffsiteGet: "backupOffsite.get",
+    BackupOffsitePut: "backupOffsite.put",
+    BackupOffsiteVerify: "backupOffsite.verify",
+    BackupRunnerSettings: "backupRunner.settings",
     BackupRunnerClaim: "backupRunner.claim",
     BackupRunnerReport: "backupRunner.report",
   } as const satisfies Record<string, CatalogActionName>,
@@ -728,6 +735,20 @@ export const TelemetryDestinationImplementedAction = Object.freeze(
 );
 export const telemetryDestinationImplementedActions = Object.freeze(
   Object.values(TelemetryDestinationImplementedAction),
+);
+
+export const AlertChannelImplementedAction = Object.freeze(
+  {
+    AlertChannelsList: "alertChannels.list",
+    AlertChannelsCreate: "alertChannels.create",
+    AlertChannelsUpdate: "alertChannels.update",
+    AlertChannelsDelete: "alertChannels.delete",
+    AlertChannelsTest: "alertChannels.test",
+    AlertChannelsRotateSecret: "alertChannels.rotateSecret",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const alertChannelImplementedActions = Object.freeze(
+  Object.values(AlertChannelImplementedAction),
 );
 
 export const BlobUploadImplementedAction = Object.freeze(
@@ -917,6 +938,7 @@ export const implementedActions = Object.freeze(
     ...skillStorageImplementedActions,
     ...backupImplementedActions,
     ...telemetryDestinationImplementedActions,
+    ...alertChannelImplementedActions,
     ...integrationClientCredentialsImplementedActions,
     ...mcpServerImplementedActions,
     ...mcpConnectionImplementedActions,

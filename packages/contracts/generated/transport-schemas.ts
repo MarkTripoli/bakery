@@ -353,6 +353,11 @@ const transportSchemas = {
       "status": 422,
       "retryable": false,
       "slug": "storage-file-too-large"
+    },
+    "STEP_WRITE_LIMIT_EXCEEDED": {
+      "status": 409,
+      "retryable": false,
+      "slug": "step-write-limit-exceeded"
     }
   },
   "conventions": {
@@ -12632,7 +12637,7 @@ const transportSchemas = {
       ],
       "rules": [
         "Idempotency-Key is required. Writing a new file needs no If-Match and refuses one (412). Replacing an existing file needs a strong If-Match with the entry's version (428 when missing, 412 when stale).",
-        "Identical bytes and media type change nothing and return the entry as it is, so a retried put is idempotent. A larger file than the organization's maxFileBytes is 422 STORAGE_FILE_TOO_LARGE; a write that would take usage past 90% of the organization, project or personal quota is 409 STORAGE_QUOTA_EXCEEDED with reason organization, project or personal.",
+        "Identical bytes and media type change nothing and return the entry as it is, so a retried put is idempotent. A larger file than the organization's maxFileBytes is 422 STORAGE_FILE_TOO_LARGE; a write that would take usage past 90% of the organization, project or personal quota is 409 STORAGE_QUOTA_EXCEEDED with reason organization, project or personal. An agent's write that would take its step past the step write limits (stepWriteFiles, stepWriteBytes) is 409 STEP_WRITE_LIMIT_EXCEEDED with reason files or bytes and the limit it hit.",
         "A parent in a record area, the library, /connections, /trash or /system is 409 STORAGE_AREA_REFUSED with a reason; a missing parent, or another member's personal folder, is 404."
       ],
       "description": "Writes a file at a path in a working area (O42, chapter 25 section 17.4 put and upload): the first write makes the file entry, each later write adds a version. Working areas keep the newest versions up to the organization's setting; scratch keeps only the latest."
@@ -12745,6 +12750,26 @@ const transportSchemas = {
             "max": 1125899906842624
           },
           "description": "Bytes each member's personal folder may hold, with the same 75% warning and 90% pause. Default 10 GiB."
+        },
+        {
+          "name": "stepWriteBytes",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1048576,
+            "max": 1099511627776
+          },
+          "description": "Bytes one agent step (one run step attempt) may write to Bakery Files through its puts and copies before further writes are refused with 409 STEP_WRITE_LIMIT_EXCEEDED reason bytes (O49). Left out, the organization follows Bakery's default of 2 GiB. A person's own writes are never limited by it."
+        },
+        {
+          "name": "stepWriteFiles",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 1000000
+          },
+          "description": "Distinct files and folders one agent step (one run step attempt) may write, make, copy, move or trash before further writes are refused with 409 STEP_WRITE_LIMIT_EXCEEDED reason files (O49). Left out, the organization follows Bakery's default of 2,000. A person's own writes are never limited by it."
         }
       ],
       "rules": [
@@ -13059,6 +13084,119 @@ const transportSchemas = {
         }
       ],
       "description": "A person's choice to continue one stalled step on another route, submitted against the exact offer they saw: the step, the incident and its generation, the run version and the chosen route. Exactly one submission wins however many race; a stale one commits nothing and reports why."
+    },
+    "BackupSchedulePut": {
+      "fields": [
+        {
+          "name": "enabled",
+          "type": "boolean",
+          "required": true,
+          "description": "Whether scheduled backups run. Off keeps the other settings and stops new scheduled runs; a backup a person starts is never affected."
+        },
+        {
+          "name": "interval",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "hourly",
+            "daily",
+            "weekly"
+          ],
+          "description": "How often a scheduled backup is taken: hourly, daily or weekly. Weekly runs on Monday, UTC."
+        },
+        {
+          "name": "timeOfDayUtc",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 5,
+            "maxLength": 5
+          },
+          "description": "Time of the scheduled run as HH:MM on a 24-hour UTC clock. For hourly runs only the minutes count: the backup is due at that minute of every hour."
+        },
+        {
+          "name": "daysToKeep",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1,
+            "max": 3650
+          },
+          "description": "How many days the host runner keeps a finished backup before it removes it, from 1 to 3650."
+        }
+      ],
+      "rules": [
+        "Installation administrator with a browser session and permission backup:manage; access tokens are refused. Idempotency-Key is required. When settings exist a strong If-Match with their version is required (428 when missing, 412 when stale); when none exist If-Match must be absent.",
+        "timeOfDayUtc must be HH:MM from 00:00 to 23:59 (422 UNPROCESSABLE otherwise)."
+      ],
+      "description": "The schedule an administrator sets for automatic backups: on or off, how often, at what UTC time and how many days a finished backup is kept."
+    },
+    "BackupOffsitePut": {
+      "fields": [
+        {
+          "name": "endpoint",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 8,
+            "maxLength": 512
+          },
+          "description": "Address of the S3-compatible service as an https origin such as https://s3.example.com, with no path, query or credentials. Private and loopback addresses are refused. Not a secret."
+        },
+        {
+          "name": "region",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 63
+          },
+          "description": "Region name the service signs requests for, for example us-east-1; some services accept any value. Not a secret."
+        },
+        {
+          "name": "bucket",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 3,
+            "maxLength": 63
+          },
+          "description": "Name of the bucket that receives the encrypted backups: lowercase letters, digits, dots and hyphens, starting and ending with a letter or digit. Not a secret."
+        },
+        {
+          "name": "prefix",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 256
+          },
+          "description": "Folder inside the bucket where backups are kept, such as bakery/prod; empty means the bucket root. Not a secret."
+        },
+        {
+          "name": "accessKeyId",
+          "type": "secretString",
+          "required": false,
+          "bounds": {
+            "maxLength": 256
+          },
+          "description": "Access key id of the account that writes the backups. Write-only: stored with the secret access key as one installation-owned AES-GCM ciphertext and never returned. Supply it together with secretAccessKey; required for the first save and whenever the endpoint, region or bucket changes (the saved pair is never reused for another host, and a move without it answers 422 credentials_required). Omit both on a later save to keep the stored credentials for the same destination, including a change to the prefix only."
+        },
+        {
+          "name": "secretAccessKey",
+          "type": "secretString",
+          "required": false,
+          "bounds": {
+            "maxLength": 1024
+          },
+          "description": "Secret access key of that account. Write-only: stored encrypted next to the access key id and never returned, echoed, logged or audited. Supply it together with accessKeyId."
+        }
+      ],
+      "rules": [
+        "Installation administrator with a browser session and permission backup:manage; access tokens are refused. Idempotency-Key is required. When a destination exists a strong If-Match with its version is required (428 when missing, 412 when stale); when none exists If-Match must be absent.",
+        "endpoint, region, bucket and prefix are validated (422 UNPROCESSABLE otherwise). accessKeyId and secretAccessKey are supplied together or not at all (400 MALFORMED_REQUEST); the first save needs both. With no secrets key configured the request answers 409 STATE_CONFLICT and stores nothing.",
+        "A save that supplies credentials, or changes the endpoint, region, bucket or prefix, first sends a test object to the destination; if the destination refuses it or cannot be reached the request answers 422 UNPROCESSABLE with the stable cause and stores nothing."
+      ],
+      "description": "The off-site destination an administrator sets for copies of every backup: an S3-compatible bucket with its address, region, folder and a write-only credential pair."
     },
     "PreviewQuery": {
       "fields": [
@@ -13398,6 +13536,108 @@ const transportSchemas = {
         "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind cursor to this operation, current principal/scope, filters and ordering; validate and reauthorize before the keyset query."
       ],
       "description": "Cursor page of a batch's results in case order, optionally one state."
+    },
+    "AlertChannelCreate": {
+      "fields": [
+        {
+          "name": "kind",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 64
+          },
+          "description": "Which kind of channel this is; webhook is the only one for now."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 100
+          },
+          "description": "Name people see in the list and beside each alert, unique across channels ignoring case."
+        },
+        {
+          "name": "enabled",
+          "type": "boolean",
+          "required": false,
+          "description": "Whether alerts are sent to it now; defaults to true."
+        },
+        {
+          "name": "values",
+          "type": "json",
+          "required": true,
+          "bounds": {
+            "maxBytes": 2000
+          },
+          "description": "The settings by field name: address, an https address that is not private or local, for a webhook."
+        }
+      ],
+      "rules": [
+        "Installation administrator with a browser session; access tokens are refused. Idempotency-Key is required.",
+        "An unknown kind, or an address that is not https, is private or local, answers 422 UNPROCESSABLE naming the field. A name already used answers 409 STATE_CONFLICT. At most 20 channels exist; one more answers 409 STATE_CONFLICT. With no secrets key configured the signing secret cannot be stored: 409 STATE_CONFLICT, and nothing is created.",
+        "The answer carries the new signing secret once; it is never returned again."
+      ],
+      "description": "Adds an alert channel: a place Bakery sends an alert message, signed so the receiver can tell it came from this Bakery."
+    },
+    "AlertChannelUpdate": {
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "location": "path",
+          "description": "Identifies the channel to change; supplied via the request's {id} path segment."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 100
+          },
+          "description": "New name, unique across channels ignoring case; omit to keep the current one."
+        },
+        {
+          "name": "enabled",
+          "type": "boolean",
+          "required": false,
+          "description": "Turns the channel on or off without losing its settings; omit to keep the current state."
+        },
+        {
+          "name": "values",
+          "type": "json",
+          "required": false,
+          "bounds": {
+            "maxBytes": 2000
+          },
+          "description": "Only the settings to change, by field name, such as a new address. The signing secret is replaced by its own action."
+        }
+      ],
+      "rules": [
+        "Installation administrator with a browser session. Idempotency-Key and a strong If-Match with the channel version are required (428 when missing, 412 when stale)."
+      ],
+      "description": "Changes an alert channel's name, on or off state or address; the signing secret is untouched."
+    },
+    "RunStepRevertWrites": {
+      "fields": [
+        {
+          "name": "reason",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 2000
+          },
+          "description": "Why the person reverted the step's writes, recorded verbatim in the audit record of the undo."
+        }
+      ],
+      "rules": [
+        "A person with run control and a browser session or access token; an agent session is refused with AUTH_FORBIDDEN, so no agent undoes a step's writes, its own or another's.",
+        "Only while no attempt of the step's job is live; otherwise STATE_CONFLICT with reason attempt_live. Failed and finished attempts are reverted the same way.",
+        "All or nothing: when any entry was changed after the step wrote it, the answer is STATE_CONFLICT with reason step_writes_conflict and one issue per refused entry (its path, and a code such as changed_since_step, folder_not_empty, previous_version_gone, entry_gone, name_taken or restore_parent_gone), and nothing is reverted.",
+        "A step with nothing left to revert answers 200 with reverted 0; an undone write is never undone twice."
+      ],
+      "description": "Reverts the Bakery Files writes the agent of one workflow step made, across all of the step's attempts, newest first and in one transaction (chapter 25 section 17.6, O48): a file or folder the step created goes to trash, a new version gives way to the version before it, a move is moved back and a trashed entry is restored. Writes that leave Bakery are external effects and are not covered."
     }
   },
   "projections": {
@@ -29677,7 +29917,7 @@ const transportSchemas = {
       ],
       "description": "The one answer to whether this installation is protected: a state word, the last good backup, the run in progress and whether a host runner has been set up and has been heard from.",
       "fieldDescriptions": {
-        "state": "running while a backup is claimed or running; failed when the newest finished attempt failed; stale when the last good backup is older than 7 days or none exists; protected otherwise.",
+        "state": "running while a backup is claimed or running; failed when the newest finished attempt failed; stale when the last good backup is older than twice the schedule interval (7 days when no schedule is on) or none exists; protected otherwise.",
         "lastGoodBackupAt": "When the newest completed backup finished, or null when none has completed.",
         "lastAttemptAt": "When the newest finished attempt ended, completed or failed, or null when none has finished.",
         "runningRunId": "Run the runner currently holds, or null.",
@@ -32415,6 +32655,8 @@ const transportSchemas = {
         "organizationQuotaBytes",
         "projectQuotaBytes",
         "personalQuotaBytes",
+        "stepWriteBytes",
+        "stepWriteFiles",
         "organizationUsedBytes",
         "organizationQuotaState",
         "customized",
@@ -32428,6 +32670,8 @@ const transportSchemas = {
         "organizationQuotaBytes": "integer",
         "projectQuotaBytes": "integer",
         "personalQuotaBytes": "integer",
+        "stepWriteBytes": "integer",
+        "stepWriteFiles": "integer",
         "organizationUsedBytes": "integer",
         "organizationQuotaState": "enum(ok|warning|paused)",
         "customized": "boolean",
@@ -32443,6 +32687,8 @@ const transportSchemas = {
         "organizationQuotaBytes": "Bytes the organization's working-area files may hold.",
         "projectQuotaBytes": "Bytes each project's working-area files may hold.",
         "personalQuotaBytes": "Bytes each member's personal folder may hold.",
+        "stepWriteBytes": "Bytes one agent step may write before its writes are refused (O49); the default 2 GiB unless an Admin saved another value.",
+        "stepWriteFiles": "Distinct files and folders one agent step may write before its writes are refused (O49); the default 2,000 unless an Admin saved another value.",
         "organizationUsedBytes": "Bytes working-area file versions hold now, trash included until it is swept or purged.",
         "organizationQuotaState": "Where usage stands against the organization quota: warning from 75%, paused from 90%, when new writes are refused.",
         "customized": "False while the organization uses Bakery's defaults; true once an Admin saved its own values.",
@@ -32830,7 +33076,8 @@ const transportSchemas = {
         "runId",
         "workItemId",
         "workItemTitle",
-        "sessionId"
+        "sessionId",
+        "agentName"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -32842,7 +33089,7 @@ const transportSchemas = {
         "sha256": "string",
         "contentRemoved": "boolean",
         "removedAt": "timestamp|null",
-        "makerKind": "enum(person|step)",
+        "makerKind": "enum(person|step|agent)",
         "makerPrincipalId": "uuid",
         "makerName": "string|null",
         "stepId": "uuid|null",
@@ -32850,7 +33097,8 @@ const transportSchemas = {
         "runId": "uuid|null",
         "workItemId": "uuid|null",
         "workItemTitle": "string|null",
-        "sessionId": "uuid|null"
+        "sessionId": "uuid|null",
+        "agentName": "string|null"
       },
       "nullableFields": [
         "removedAt",
@@ -32860,7 +33108,8 @@ const transportSchemas = {
         "runId",
         "workItemId",
         "workItemTitle",
-        "sessionId"
+        "sessionId",
+        "agentName"
       ],
       "description": "One version of a storage-tree file: its number, when and by whom or which step it was saved, its size, and whether its contents are still there.",
       "fieldDescriptions": {
@@ -32873,15 +33122,16 @@ const transportSchemas = {
         "sha256": "Lowercase hexadecimal SHA-256 of the version's bytes.",
         "contentRemoved": "True when retention or an Admin purge removed the version's bytes; the version stays listed and cannot be read.",
         "removedAt": "When the bytes were removed; null while they are there.",
-        "makerKind": "Who made the version: step when a run step published it, person when a member or service wrote it.",
-        "makerPrincipalId": "Principal that wrote the version: the member for a person, the run's acting principal for a step.",
+        "makerKind": "Who made the version: step when a run step published it, agent when an agent's session wrote it with a member's access, person when a member or service wrote it.",
+        "makerPrincipalId": "Principal that wrote the version: the member for a person, the run's acting principal for a step, the member whose access the agent used for an agent.",
         "makerName": "Display name of makerPrincipalId.",
         "stepId": "The run step that published the version; null for a person's version.",
         "stepName": "The step's key in its workflow; null for a person's version.",
         "runId": "The run the step belongs to, for Open the run; null for a person's version.",
         "workItemId": "The work item the run worked on; null for a person's version.",
         "workItemTitle": "That work item's title; null for a person's version.",
-        "sessionId": "The step's most recent agent session, for Open the session; null when the step had none or for a person's version."
+        "sessionId": "The agent session behind the version, for Open the session: the step's most recent session for a step, the session that wrote it for an agent; null when there was none or for a person's version.",
+        "agentName": "Name of the agent whose session wrote the version, for an agent's version; null otherwise, or when the agent is not recorded."
       }
     },
     "Page<StorageFileVersion>": {
@@ -33110,6 +33360,166 @@ const transportSchemas = {
         "previousPin": "The provider, model, billing route and billing account the step had before.",
         "newPin": "The provider, model, billing route and billing account the step has now.",
         "admittedAt": "UTC timestamp at which the continuation was admitted."
+      }
+    },
+    "BackupSchedule": {
+      "fields": [
+        "enabled",
+        "interval",
+        "timeOfDayUtc",
+        "daysToKeep",
+        "updatedAt",
+        "version"
+      ],
+      "fieldTypes": {
+        "enabled": "boolean",
+        "interval": "enum(hourly|daily|weekly)",
+        "timeOfDayUtc": "string",
+        "daysToKeep": "integer",
+        "updatedAt": "timestamp|null",
+        "version": "integer"
+      },
+      "nullableFields": [
+        "updatedAt"
+      ],
+      "description": "The automatic backup schedule as an installation administrator sees it. Before any save it reads as off with a daily 03:00 UTC default and a 30 day keep.",
+      "fieldDescriptions": {
+        "enabled": "Whether scheduled backups run.",
+        "interval": "hourly, daily or weekly; weekly runs on Monday, UTC.",
+        "timeOfDayUtc": "HH:MM in UTC; for hourly runs only the minutes count.",
+        "daysToKeep": "How many days the host runner keeps a finished backup.",
+        "updatedAt": "When the schedule last changed, or null before any save.",
+        "version": "Monotonic settings revision, 0 before any save; submit the current value as If-Match when saving again."
+      }
+    },
+    "BackupOffsite": {
+      "fields": [
+        "configured",
+        "endpoint",
+        "region",
+        "bucket",
+        "prefix",
+        "credentialUpdatedAt",
+        "credentialRevision",
+        "updatedAt",
+        "version"
+      ],
+      "fieldTypes": {
+        "configured": "boolean",
+        "endpoint": "string|null",
+        "region": "string|null",
+        "bucket": "string|null",
+        "prefix": "string|null",
+        "credentialUpdatedAt": "timestamp|null",
+        "credentialRevision": "integer|null",
+        "updatedAt": "timestamp|null",
+        "version": "integer"
+      },
+      "nullableFields": [
+        "endpoint",
+        "region",
+        "bucket",
+        "prefix",
+        "credentialUpdatedAt",
+        "credentialRevision",
+        "updatedAt"
+      ],
+      "description": "The off-site backup destination as an installation administrator sees it. The access key id and secret access key are reported only as the configured flag and the active revision; no credential value, ciphertext, key identifier or secret record id is ever returned.",
+      "fieldDescriptions": {
+        "configured": "True when a credential pair is stored encrypted; the values are never returned.",
+        "endpoint": "Saved https origin of the S3-compatible service, or null before any save.",
+        "region": "Saved region name, or null before any save.",
+        "bucket": "Saved bucket name, or null before any save.",
+        "prefix": "Saved folder inside the bucket, empty for the bucket root, or null before any save.",
+        "credentialUpdatedAt": "When the stored credentials were last replaced, or null when none are stored.",
+        "credentialRevision": "Revision number of the active credential version, or null when none is stored; earlier revisions are kept for audit and never returned.",
+        "updatedAt": "When the destination last changed, or null before any save.",
+        "version": "Monotonic settings revision, 0 before any save; submit the current value as If-Match when saving again."
+      }
+    },
+    "BackupOffsiteVerification": {
+      "fields": [
+        "outcome",
+        "detail",
+        "checkedAt"
+      ],
+      "fieldTypes": {
+        "outcome": "enum(verified|not_configured|destination_refused|destination_unreachable|destination_private_address|integrity_failed)",
+        "detail": "string|null",
+        "checkedAt": "timestamp"
+      },
+      "nullableFields": [
+        "detail"
+      ],
+      "description": "Result of the bounded test that puts, reads back and deletes one small object in the saved destination with the stored credentials. A failed test still answers 200 with a stable outcome; the credentials are never returned.",
+      "fieldDescriptions": {
+        "outcome": "verified when the test object round-tripped; not_configured without a saved destination; destination_refused when the service answered and said no (wrong key, no access, missing bucket); destination_unreachable on a network failure, a timeout or a name that cannot be resolved; destination_private_address when the host resolves to an address the server may not connect to (private, loopback, link-local, metadata and similar); integrity_failed when the bytes read back differ.",
+        "detail": "The service's own answer text, at most 500 characters and with both credential halves removed, or null when it said nothing or the test passed.",
+        "checkedAt": "When the test finished."
+      }
+    },
+    "BackupRunnerSettings": {
+      "fields": [
+        "scheduleEnabled",
+        "scheduleInterval",
+        "scheduleTimeOfDayUtc",
+        "daysToKeep",
+        "scheduleVersion",
+        "offsiteConfigured",
+        "offsiteEndpoint",
+        "offsiteRegion",
+        "offsiteBucket",
+        "offsitePrefix",
+        "offsiteAccessKeyId",
+        "offsiteSecretAccessKey",
+        "offsiteRefusal",
+        "offsiteVersion"
+      ],
+      "fieldTypes": {
+        "scheduleEnabled": "boolean",
+        "scheduleInterval": "enum(hourly|daily|weekly)",
+        "scheduleTimeOfDayUtc": "string",
+        "daysToKeep": "integer",
+        "scheduleVersion": "integer",
+        "offsiteConfigured": "boolean",
+        "offsiteEndpoint": "string|null",
+        "offsiteRegion": "string|null",
+        "offsiteBucket": "string|null",
+        "offsitePrefix": "string|null",
+        "offsiteAccessKeyId": "secretString|null",
+        "offsiteSecretAccessKey": "secretString|null",
+        "offsiteRefusal": "enum(destination_private_address|destination_unresolvable|destination_invalid)|null",
+        "offsiteVersion": "integer"
+      },
+      "nullableFields": [
+        "offsiteEndpoint",
+        "offsiteRegion",
+        "offsiteBucket",
+        "offsitePrefix",
+        "offsiteAccessKeyId",
+        "offsiteSecretAccessKey",
+        "offsiteRefusal"
+      ],
+      "sensitiveFields": [
+        "offsiteAccessKeyId",
+        "offsiteSecretAccessKey"
+      ],
+      "description": "What the host backup runner needs to do its work: the schedule and the off-site destination including its decrypted credential pair. This is the one route that returns the credentials, and only to the runner credential, never to a user session. It carries no backup key material: the operator keeps the age keys on the host. Every read that releases the credentials, or refuses to, is audited. The destination's host is resolved again on each read, so a name re-pointed at a private address is not released.",
+      "fieldDescriptions": {
+        "scheduleEnabled": "Whether scheduled backups run.",
+        "scheduleInterval": "hourly, daily or weekly.",
+        "scheduleTimeOfDayUtc": "HH:MM in UTC.",
+        "daysToKeep": "How many days to keep a finished backup.",
+        "scheduleVersion": "Schedule settings revision, 0 before any save.",
+        "offsiteConfigured": "True when a destination with credentials is saved, whether or not the credentials were released.",
+        "offsiteEndpoint": "Https origin of the S3-compatible service, or null when none is saved.",
+        "offsiteRegion": "Region name, or null when none is saved.",
+        "offsiteBucket": "Bucket name, or null when none is saved.",
+        "offsitePrefix": "Folder inside the bucket, empty for the root, or null when none is saved.",
+        "offsiteAccessKeyId": "Access key id, shown only to the runner, or null when none is saved or the credentials were withheld (see offsiteRefusal).",
+        "offsiteSecretAccessKey": "Secret access key, shown only to the runner and never stored by it, or null when none is saved or the credentials were withheld (see offsiteRefusal).",
+        "offsiteRefusal": "Why the credentials were withheld for a saved destination: destination_private_address when its host now resolves to a private, loopback, link-local, metadata or other refused address, destination_unresolvable when its name cannot be resolved, destination_invalid when the saved destination is not a valid one. Null when the credentials were released or no destination is saved. The runner must not upload while this is set.",
+        "offsiteVersion": "Destination settings revision, 0 before any save."
       }
     },
     "PluginStateItem": {
@@ -33765,6 +34175,179 @@ const transportSchemas = {
         "cases": "Per case and scorer, both states; empty when incompatible.",
         "onlyLeft": "Cases only the path batch has.",
         "onlyRight": "Cases only the other batch has."
+      }
+    },
+    "AlertChannel": {
+      "fields": [
+        "id",
+        "kind",
+        "name",
+        "enabled",
+        "settings",
+        "signingSecretCreatedAt",
+        "state",
+        "lastAnswerAt",
+        "lastAnswerOk",
+        "lastAnswerReason",
+        "createdAt",
+        "updatedAt",
+        "version"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "kind": "enum(webhook)",
+        "name": "string",
+        "enabled": "boolean",
+        "settings": "json",
+        "signingSecretCreatedAt": "timestamp",
+        "state": "enum(working|not_tested_yet|failing|off)",
+        "lastAnswerAt": "timestamp|null",
+        "lastAnswerOk": "boolean|null",
+        "lastAnswerReason": "string|null",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp",
+        "version": "integer"
+      },
+      "nullableFields": [
+        "lastAnswerAt",
+        "lastAnswerOk",
+        "lastAnswerReason"
+      ],
+      "description": "One alert channel as an installation administrator may see it, with how it is doing. The signing secret is reported only as when it was made; it is shown once, on creation and on replacement, and never read back.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of the channel.",
+        "kind": "Which kind of channel this is: a signed webhook.",
+        "name": "Name shown in the list and beside each alert.",
+        "enabled": "Whether alerts are sent to it now.",
+        "settings": "The non-secret values saved for it, by field name: address for a webhook.",
+        "signingSecretCreatedAt": "When its current signing secret was made.",
+        "state": "working (the last send was accepted), not_tested_yet (nothing sent yet), failing (the last send was refused or timed out) or off.",
+        "lastAnswerAt": "When it last answered a send, accepted or not, or null.",
+        "lastAnswerOk": "Whether that last answer was an acceptance, or null before any.",
+        "lastAnswerReason": "A short plain reason when the last answer was a refusal, or null.",
+        "createdAt": "UTC time the channel was added.",
+        "updatedAt": "UTC time it last changed.",
+        "version": "Monotonic revision; submit it as If-Match when changing or removing the channel."
+      }
+    },
+    "AlertChannelList": {
+      "fields": [
+        "channels"
+      ],
+      "fieldTypes": {
+        "channels": "json[]"
+      },
+      "nullableFields": [],
+      "description": "The alert channels that exist (at most 20), oldest first, each with its state.",
+      "fieldDescriptions": {
+        "channels": "The channels, each shaped as an AlertChannel."
+      }
+    },
+    "AlertChannelCreate": {
+      "fields": [
+        "kind",
+        "name",
+        "enabled",
+        "values"
+      ],
+      "fieldTypes": {
+        "kind": "enum(webhook)",
+        "name": "string",
+        "enabled": "boolean?",
+        "values": "json"
+      },
+      "nullableFields": [],
+      "description": "Adds an alert channel. A webhook takes an https address; its signing secret is made by the server and returned once.",
+      "fieldDescriptions": {
+        "kind": "Which kind of channel to add.",
+        "name": "Name shown in the list, 1 to 100 characters, unique ignoring case.",
+        "enabled": "Whether alerts go to it now; defaults to true.",
+        "values": "The channel settings by field name: address for a webhook, an https address that is not private or local."
+      }
+    },
+    "AlertChannelUpdate": {
+      "fields": [
+        "name",
+        "enabled",
+        "values"
+      ],
+      "fieldTypes": {
+        "name": "string?",
+        "enabled": "boolean?",
+        "values": "json?"
+      },
+      "nullableFields": [],
+      "description": "Changes an alert channel. Send only what changed; the signing secret is replaced by its own action, never here.",
+      "fieldDescriptions": {
+        "name": "A new name, 1 to 100 characters.",
+        "enabled": "Turn alerts to this channel on or off.",
+        "values": "The settings to change by field name, such as a new address."
+      }
+    },
+    "AlertChannelSecretIssued": {
+      "fields": [
+        "channel",
+        "signingSecret"
+      ],
+      "fieldTypes": {
+        "channel": "json",
+        "signingSecret": "string"
+      },
+      "nullableFields": [],
+      "description": "An alert channel together with its signing secret, answered once: when the channel is created and when its secret is replaced. The secret is not stored in the clear and is never returned again.",
+      "fieldDescriptions": {
+        "channel": "The channel, shaped as an AlertChannel.",
+        "signingSecret": "The secret a receiver uses to verify the Bakery-Signature header. Copy it now; Bakery will not show it again. A replaced secret stops working at once."
+      }
+    },
+    "AlertChannelTestResult": {
+      "fields": [
+        "ok",
+        "status",
+        "reason",
+        "answer",
+        "tookMs"
+      ],
+      "fieldTypes": {
+        "ok": "boolean",
+        "status": "integer|null",
+        "reason": "string|null",
+        "answer": "string|null",
+        "tookMs": "integer"
+      },
+      "nullableFields": [
+        "status",
+        "reason",
+        "answer"
+      ],
+      "description": "The receiver's real answer to one signed test message: whether it accepted it, its HTTP status, a short plain reason when it did not, a bounded piece of what it said and how long it took.",
+      "fieldDescriptions": {
+        "ok": "True only when the receiver accepted the test message.",
+        "status": "The receiver's HTTP status, or null when it never answered.",
+        "reason": "A short plain reason when it did not accept, or null.",
+        "answer": "At most 300 characters of what it answered, or null; never a credential.",
+        "tookMs": "Milliseconds the test took."
+      }
+    },
+    "RunStepWritesReverted": {
+      "fields": [
+        "runId",
+        "stepKey",
+        "reverted",
+        "entries"
+      ],
+      "fieldTypes": {
+        "runId": "uuid",
+        "stepKey": "string",
+        "reverted": "nonnegativeInteger",
+        "entries": "nonnegativeInteger"
+      },
+      "description": "What an undo of a step's writes did: how many recorded writes it reverted and how many files and folders they touched. Zero when nothing was left to revert.",
+      "fieldDescriptions": {
+        "runId": "Stable UUID of the run whose step was reverted.",
+        "stepKey": "Key of the run step whose writes were reverted.",
+        "reverted": "How many of the step's recorded writes this undo reverted; 0 when every write was already reverted or the step wrote nothing.",
+        "entries": "How many distinct files and folders those writes touched."
       }
     }
   },

@@ -187,6 +187,19 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+/* Four figures across a page; two by two where four would be too narrow to
+   read a number. */
+.ui-inline--quarters {
+  align-items: stretch;
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+@media (max-width: 743px) {
+  .ui-inline--quarters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
 .ui-spacer {
   flex: 0 0 auto;
 }

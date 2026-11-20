@@ -220,6 +220,11 @@ export function backupStateWord(input: {
   readonly held: { readonly leaseExpiresAt: Date | null } | null;
   readonly newestFinishedStatus: BackupRunStatus | null;
   readonly lastGoodAt: Date | null;
+  /**
+   * How old the newest good backup may be: twice the schedule interval when a
+   * schedule is on (`staleAfterMs` in schedule.ts), else the seven-day default.
+   */
+  readonly staleAfterMs?: number;
 }): BackupStateWord {
   if (input.held) {
     return input.held.leaseExpiresAt !== null &&
@@ -230,7 +235,8 @@ export function backupStateWord(input: {
   if (input.newestFinishedStatus === BackupRunStatus.Failed) return "failed";
   if (
     input.lastGoodAt !== null &&
-    input.now.getTime() - input.lastGoodAt.getTime() <= BACKUP_STALE_AFTER_MS
+    input.now.getTime() - input.lastGoodAt.getTime() <=
+      (input.staleAfterMs ?? BACKUP_STALE_AFTER_MS)
   ) return "protected";
   return "stale";
 }
