@@ -20,10 +20,12 @@ import {
 } from "../helpers/worker-execution.ts";
 import {
   body,
+  COMMIT,
   type Json,
   liveAttempt,
   manifestFor,
   post,
+  SHA,
 } from "../helpers/handoff-manifests.ts";
 
 type Live = Awaited<ReturnType<typeof liveAttempt>>;
@@ -297,4 +299,188 @@ Deno.test("another organization cannot continue a manifest", () =>
     } finally {
       await closeWorkerOrganization(fixture.pgDatabase, foreign.organizationId);
     }
+  }));
+
+/**
+ * The native session evidence the adapter wrote, and a manifest asking for an
+ * exact resume. `evidence` overrides single fields so a test can break one.
+ */
+async function exactCandidate(
+  fixture: WorkerFixture,
+  live: Live,
+  evidence: Json = {},
+) {
+  const host = await fixture.pgDatabase.query<{ worker_host_id: string }>(
+    "select worker_host_id from bakery.job_attempts where id = $1",
+    [live.assignment.attemptId],
+  );
+  await fixture.pgDatabase.query(
+    "update bakery.agent_sessions set status = 'active', resume_ref = $2::jsonb where id = $1",
+    [
+      live.job.sessionId,
+      JSON.stringify({
+        nativeSessionId: "native-1",
+        checkpointId: SHA,
+        worktreeRevision: COMMIT,
+        harnessVersion: "codex-1.2.3",
+        workerHostId: host.rows[0].worker_host_id,
+        ...evidence,
+      }),
+    ],
+  );
+  return await stored(fixture, live, { mode: "exact_harness_resume" });
+}
+
+async function checkpoints(fixture: WorkerFixture, live: Live) {
+  const result = await fixture.pgDatabase.query<
+    { current_checkpoints: unknown }
+  >(
+    "select current_checkpoints from bakery.jobs where id = $1",
+    [live.job.jobId],
+  );
+  return result.rows[0].current_checkpoints;
+}
+
+async function auditDetails(fixture: WorkerFixture, continuationId: string) {
+  const result = await fixture.pgDatabase.query<{ details: Json }>(
+    "select details from bakery.audit_events where operation = 'handoffManifests.continue' and resource_id = $1",
+    [continuationId],
+  );
+  return result.rows[0].details;
+}
+
+Deno.test("matching native session evidence continues as an exact harness resume carrying its checkpoint", () =>
+  withWorkerFixture(async (fixture) => {
+    const live = await liveAttempt(fixture, "continue-exact");
+    const record = await exactCandidate(fixture, live);
+    const response = await continueManifest(
+      fixture,
+      String(record.id),
+      await runVersion(fixture, live.job.runId),
+    );
+    assert(response.status === 200 || response.status === 201);
+    const continuation = await body(response);
+    assertEquals(continuation.mode, "exact_harness_resume");
+    assertEquals(await checkpoints(fixture, live), [{
+      schemaVersion: 1,
+      source: "handoff",
+      manifestId: record.id,
+      manifestDigest: record.digest,
+      agentSessionId: live.job.sessionId,
+      nativeSessionId: "native-1",
+      checkpointId: SHA,
+      worktreeRevision: COMMIT,
+      harnessVersion: "codex-1.2.3",
+      workerHostId: (await fixture.pgDatabase.query<{ worker_host_id: string }>(
+        "select worker_host_id from bakery.job_attempts where id = $1",
+        [live.assignment.attemptId],
+      )).rows[0].worker_host_id,
+      eligible: true,
+    }]);
+    const claimed = await claimAssignment(fixture, live.worker);
+    assertEquals(claimed.jobId, live.job.jobId);
+    assertEquals(
+      (await auditDetails(fixture, String(continuation.id))).mode,
+      "exact_harness_resume",
+    );
+  }));
+
+Deno.test("one mismatched piece of native evidence continues as a fresh session and carries no checkpoint", () =>
+  withWorkerFixture(async (fixture) => {
+    const live = await liveAttempt(fixture, "continue-mismatch");
+    const record = await exactCandidate(fixture, live, {
+      worktreeRevision: "c".repeat(40),
+    });
+    const response = await continueManifest(
+      fixture,
+      String(record.id),
+      await runVersion(fixture, live.job.runId),
+    );
+    assert(response.status === 200 || response.status === 201);
+    const continuation = await body(response);
+    assertEquals(continuation.mode, "fresh_session");
+    assertEquals(await checkpoints(fixture, live), []);
+    const details = await auditDetails(fixture, String(continuation.id));
+    assertEquals(details.mode, "fresh_session");
+    assertEquals(details.reason, "native_evidence_mismatch");
+  }));
+
+Deno.test("history that is no longer authorized is not reused: a purged cited version continues fresh", () =>
+  withWorkerFixture(async (fixture) => {
+    const live = await liveAttempt(fixture, "continue-revoked");
+    const record = await exactCandidate(fixture, live);
+    // The manifest cites its workspace artifact; retention purges its bytes.
+    await fixture.pgDatabase.query(
+      "update bakery.artifact_versions set purged_at = clock_timestamp() where task_id = $1",
+      [live.job.taskId],
+    );
+    const response = await continueManifest(
+      fixture,
+      String(record.id),
+      await runVersion(fixture, live.job.runId),
+    );
+    assert(response.status === 200 || response.status === 201);
+    const continuation = await body(response);
+    assertEquals(continuation.mode, "fresh_session");
+    assertEquals(await checkpoints(fixture, live), []);
+    assertEquals(
+      (await auditDetails(fixture, String(continuation.id))).reason,
+      "history_revoked",
+    );
+  }));
+
+/** Runs the continuation of a fresh exact candidate after `revoke` has changed its history. */
+async function revokedHistory(
+  name: string,
+  revoke: (fixture: WorkerFixture, live: Live) => Promise<void>,
+) {
+  await withWorkerFixture(async (fixture) => {
+    const live = await liveAttempt(fixture, name);
+    const record = await exactCandidate(fixture, live);
+    await revoke(fixture, live);
+    const response = await continueManifest(
+      fixture,
+      String(record.id),
+      await runVersion(fixture, live.job.runId),
+    );
+    assert(response.status === 200 || response.status === 201);
+    const continuation = await body(response);
+    assertEquals(continuation.mode, "fresh_session");
+    assertEquals(await checkpoints(fixture, live), []);
+    assertEquals(
+      (await auditDetails(fixture, String(continuation.id))).reason,
+      "history_revoked",
+    );
+  });
+}
+
+Deno.test("a requester who is no longer an active member does not get their history resumed", () =>
+  revokedHistory("continue-removed-member", async (fixture, live) => {
+    // The run acts for a person whose membership has been deactivated. (The
+    // administrator who continues stays as they are.)
+    const person = crypto.randomUUID();
+    await fixture.pgDatabase.query(
+      `insert into bakery.principals (id,provider_user_id,display_name,principal_type)
+       values ($1,null,'former member','service')`,
+      [person],
+    );
+    await fixture.pgDatabase.query(
+      `insert into bakery.organization_memberships (
+         id,organization_id,principal_id,role,status,joined_at,created_at,
+         updated_at,version
+       ) values ($1,$2,$3,'developer','inactive',now(),now(),now(),1)`,
+      [crypto.randomUUID(), fixture.organizationId, person],
+    );
+    await fixture.pgDatabase.query(
+      "update bakery.workflow_runs set requested_by = $2 where id = $1",
+      [live.job.runId, person],
+    );
+  }));
+
+Deno.test("a cited artifact whose bytes changed does not get its history resumed", () =>
+  revokedHistory("continue-changed-digest", async (fixture, live) => {
+    await fixture.pgDatabase.query(
+      "update bakery.artifact_versions set sha256 = $2 where task_id = $1",
+      [live.job.taskId, "f".repeat(64)],
+    );
   }));
