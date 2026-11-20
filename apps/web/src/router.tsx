@@ -614,7 +614,7 @@ export const routeCoverage = [
       "loading",
       "default",
       "partial",
-      "unknown",
+      "degraded",
       "empty",
       "error",
       "forbidden",
