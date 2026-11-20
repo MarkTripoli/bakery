@@ -30,7 +30,34 @@ import {
 } from "../auth/application/agent-power-grants.ts";
 import type { PgTransactionClient } from "@bakery/persistence";
 import type { OperationScope } from "./session-credential.ts";
-import { FILES_WRITE_SCOPE } from "../knowledge/agent-file-scope.ts";
+import {
+  FILES_READ_SCOPE,
+  FILES_WRITE_SCOPE,
+  stepFileScopes,
+} from "../knowledge/agent-file-scope.ts";
+import { type ResolvedStepFiles, stepFilesForAttempt } from "./step-files.ts";
+import { readsOnlyInputs } from "@bakery/contracts/workflow-compiler";
+
+/**
+ * The granted scopes a step keeps. An inputs-only step (O53) reads only its pinned
+ * inputs and writes only its declared outputs, so a person's file grant never
+ * reopens storage for it; every other step keeps all it was granted.
+ */
+export function grantedScopesForStep(
+  files: ResolvedStepFiles,
+  granted: readonly OperationScope[],
+): readonly OperationScope[] {
+  return readsOnlyInputs({ read: [...files.read], write: [...files.write] })
+    ? granted.filter((scope) => !isFileScope(scope))
+    : granted;
+}
+
+/** A storage scope: `files.read`, `files.write` or one of their area scopes. */
+function isFileScope(scope: OperationScope): boolean {
+  return scope === FILES_READ_SCOPE || scope === FILES_WRITE_SCOPE ||
+    scope.startsWith(`${FILES_READ_SCOPE}:`) ||
+    scope.startsWith(`${FILES_WRITE_SCOPE}:`);
+}
 
 export type SessionClaimCredentialInput = Readonly<{
   organizationId: string;
@@ -71,8 +98,10 @@ export type MintedSessionCredential = Readonly<{
  * reachable without a second list to remember.
  */
 export function readScopesForSession(): readonly OperationScope[] {
+  // files.read is the one read a definition decides: an inputs-only step must not
+  // get the storage read tools, so it is minted from the step's files section.
   const read = sessionOperationScopeValues().filter((scope) =>
-    scope.endsWith(".read")
+    scope.endsWith(".read") && scope !== FILES_READ_SCOPE
   );
   return [...new Set(read)].sort();
 }
@@ -153,14 +182,22 @@ export async function issueCredentialForAttempt(
   });
   // Reads for everyone, plus the write scope of each power a person granted the
   // workflow this attempt runs under (O52). Off by default: no grant, no scope.
+  const files = input.scopes
+    ? null
+    : await stepFilesForAttempt(tx, input.organizationId, input.attemptId);
+  const granted = files
+    ? await grantedScopesForAttempt(tx, input.organizationId, input.attemptId)
+    : [];
   const scopes = input.scopes ??
     [
       ...readScopesForSession(),
-      ...await grantedScopesForAttempt(
-        tx,
-        input.organizationId,
-        input.attemptId,
-      ),
+      // An inputs-only step (O53) reads only its pinned inputs and writes only its
+      // declared outputs: a person's file grant never reopens storage for it.
+      ...(files ? grantedScopesForStep(files, granted) : granted),
+      // The step's files section, defaults applied (O44, O45), pinned into
+      // the credential so each storage call is judged against the section
+      // the session was claimed under.
+      ...(files ? stepFileScopes(files) : []),
     ];
   return await issueStoredSessionCredential(tx, {
     organizationId: input.organizationId,
@@ -214,5 +251,15 @@ export async function grantedScopesForAttempt(
     [organizationId, origin.workflowId],
   );
   if (fileGrants.rows.length > 0) scopes.add(FILES_WRITE_SCOPE);
+  // A live grant of either access widens where the agent may read, so it
+  // offers the read tools too; the guard checks the grant on every read.
+  const readGrants = await tx.query(
+    `select 1 from bakery.agent_file_grants
+      where organization_id = $1 and workflow_id = $2
+        and revoked_at is null and expires_at > now()
+      limit 1`,
+    [organizationId, origin.workflowId],
+  );
+  if (readGrants.rows.length > 0) scopes.add(FILES_READ_SCOPE);
   return [...scopes].sort();
 }
