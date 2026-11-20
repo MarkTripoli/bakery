@@ -1,4 +1,6 @@
 import { assert, assertEquals } from "@std/assert";
+import { readdir, readFile, stat } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 
 /**
  * The brand system's integrity: provenance is complete, every shipped file is
@@ -9,11 +11,12 @@ import { assert, assertEquals } from "@std/assert";
  */
 
 const ROOT = new URL("../../", import.meta.url);
-const text = (path: string) => Deno.readTextFile(new URL(path, ROOT));
-const bytes = (path: string) => Deno.readFile(new URL(path, ROOT));
+const at = (path: string) => fileURLToPath(new URL(path, ROOT));
+const text = (path: string) => readFile(at(path), "utf8");
+const bytes = async (path: string) => new Uint8Array(await readFile(at(path)));
 const exists = async (path: string) => {
   try {
-    await Deno.stat(new URL(path, ROOT));
+    await stat(at(path));
     return true;
   } catch {
     return false;
@@ -22,9 +25,9 @@ const exists = async (path: string) => {
 
 async function walk(dir: string): Promise<string[]> {
   const found: string[] = [];
-  for await (const entry of Deno.readDir(new URL(dir, ROOT))) {
+  for (const entry of await readdir(at(dir), { withFileTypes: true })) {
     const child = `${dir}/${entry.name}`;
-    if (entry.isDirectory) found.push(...await walk(child));
+    if (entry.isDirectory()) found.push(...await walk(child));
     else found.push(child);
   }
   return found.sort();
