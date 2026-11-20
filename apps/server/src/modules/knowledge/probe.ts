@@ -274,22 +274,77 @@ const SANDBOX_SETUP_FAILURES: readonly number[] = Object.freeze([69, 218, 226]);
  */
 const preflight = new Map<string, Promise<boolean>>();
 
-/** Test-only: drops the cached answer so the next call asks the host again. */
+/** Test-only: drops the cached answers so the next call asks the host again. */
 export function forgetSandboxPreflight(): void {
   preflight.clear();
+}
+
+function cachedPreflight(
+  question: "network" | "filesystem",
+  options: ArtifactProbeOptions,
+  ask: (launcherPath: string, timeoutMs: number) => Promise<boolean>,
+): Promise<boolean> {
+  const launcherPath = options.launcherPath ?? SERVER_ARTIFACT_PROBE_LAUNCHER;
+  const timeoutMs = options.timeoutMs ?? ARTIFACT_PROBE_TIMEOUT_MS;
+  // Both seals are properties of the machine, so both are cached per process,
+  // and the question is part of the key: a host can hold one and not the other.
+  const key = `${question}\u0000${launcherPath}\u0000${timeoutMs}`;
+  const cached = preflight.get(key);
+  if (cached !== undefined) return cached;
+  const answer = ask(launcherPath, timeoutMs);
+  preflight.set(key, answer);
+  return answer;
 }
 
 export function sandboxHoldsNetwork(
   options: ArtifactProbeOptions = {},
 ): Promise<boolean> {
-  const launcherPath = options.launcherPath ?? SERVER_ARTIFACT_PROBE_LAUNCHER;
-  const timeoutMs = options.timeoutMs ?? ARTIFACT_PROBE_TIMEOUT_MS;
-  const key = `${launcherPath}\u0000${timeoutMs}`;
-  const cached = preflight.get(key);
-  if (cached !== undefined) return cached;
-  const answer = askSandboxHoldsNetwork(launcherPath, timeoutMs);
-  preflight.set(key, answer);
-  return answer;
+  return cachedPreflight("network", options, askSandboxHoldsNetwork);
+}
+
+/**
+ * Whether the unit is read-only where it matters.
+ *
+ * The same lesson as the network, on the other side: a host whose user manager
+ * cannot set up read-only mounts accepts `ProtectSystem=strict` and
+ * `ReadOnlyPaths=` and runs the unit with a writable filesystem, saying so only
+ * in the journal. A parser reading a stranger's file must not be able to write
+ * to the repository while it does, so the server asks the only question with an
+ * answer -- can a file be created? -- and refuses to name a file when it can.
+ */
+export function sandboxHoldsFilesystem(
+  options: ArtifactProbeOptions = {},
+): Promise<boolean> {
+  return cachedPreflight("filesystem", options, askSandboxHoldsFilesystem);
+}
+
+async function askSandboxHoldsFilesystem(
+  launcherPath: string,
+  timeoutMs: number,
+): Promise<boolean> {
+  const exchange = await runLauncher(
+    { selfTest: "filesystem" },
+    launcherPath,
+    timeoutMs,
+  );
+  // Every uncertain answer is a "no", exactly as for the network: a sandbox that
+  // cannot be asked is not a sandbox that can be trusted, and the cost of being
+  // wrong here is a missing preview rather than a writable unit reading a
+  // stranger's file.
+  if (exchange.late || exchange.timedOut) return false;
+  if (exchange.code === null) return false;
+  if (SANDBOX_SETUP_FAILURES.includes(exchange.code)) return false;
+  if (exchange.overflow || exchange.bytes.byteLength === 0) return false;
+  try {
+    const parsed = ArtifactProbeSelfTestFrameSchema.safeParse(
+      JSON.parse(new TextDecoder().decode(exchange.bytes)),
+    );
+    if (!parsed.success) return false;
+    if (parsed.data.selfTest !== "filesystem") return false;
+    return parsed.data.writable === false;
+  } catch {
+    return false;
+  }
 }
 
 async function askSandboxHoldsNetwork(
@@ -314,6 +369,7 @@ async function askSandboxHoldsNetwork(
       JSON.parse(new TextDecoder().decode(exchange.bytes)),
     );
     if (!parsed.success) return false;
+    if (parsed.data.selfTest !== "network") return false;
     return parsed.data.reachable === false;
   } catch {
     return false;
@@ -385,6 +441,12 @@ export async function probeArtifactBytes(
   // this host, the answer is about the host, not the bytes, and the bytes are
   // never handed to a process that could reach the network with them.
   if (!(await sandboxHoldsNetwork(options))) {
+    return refused("sandbox-unavailable");
+  }
+  // Both seals, in the same order, for the same reason: a writable sandbox
+  // reading a stranger's file can leave something behind, and the spool copy is
+  // exactly the file it would be positioned to overwrite.
+  if (!(await sandboxHoldsFilesystem(options))) {
     return refused("sandbox-unavailable");
   }
 

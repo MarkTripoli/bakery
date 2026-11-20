@@ -12,11 +12,22 @@
  * launcher's stdout and stderr to the paths given, and exits with the
  * launcher's own exit code so the caller can record it.
  *
- *   deno run -A scripts/qa/437-launcher-under-deno.ts <uuid> <frame.json> <out-prefix>
+ *   deno run -A scripts/qa/437-launcher-under-deno.ts <uuid> <frame.json> <out-prefix> [--spool-dir=<abs>]
+ *
+ * The optional spool directory is forwarded to the launcher unchanged, so the
+ * proof exercises the launcher's own argv guard and its own `ReadOnlyPaths=`
+ * grant rather than a copy of them.
  */
-const [id, framePath, outPrefix] = Deno.args;
+const [id, framePath, outPrefix, ...rest] = Deno.args;
 if (!id || !framePath || !outPrefix) {
-  console.error("usage: <uuid> <frame.json> <out-prefix>");
+  console.error("usage: <uuid> <frame.json> <out-prefix> [--spool-dir=<abs>]");
+  Deno.exit(64);
+}
+const spoolArgs = rest.filter((arg) => arg.startsWith("--spool-dir="));
+if (spoolArgs.length !== rest.length) {
+  console.error(
+    `unexpected argument: ${rest.find((a) => !a.startsWith("--spool-dir="))}`,
+  );
   Deno.exit(64);
 }
 
@@ -25,7 +36,7 @@ const launcher = `${here}../../infra/server-exec/artifact-probe.sh`;
 const frame = await Deno.readFile(framePath);
 
 const child = new Deno.Command(launcher, {
-  args: [id],
+  args: [id, ...spoolArgs],
   stdin: "piped",
   stdout: "piped",
   stderr: "piped",

@@ -183,6 +183,38 @@ Deno.test("the spool worker refuses on the mount, not on its own permissions", a
   await Deno.remove(dir, { recursive: true });
 });
 
+Deno.test("step 5 runs the launcher the server ships, not a copy of it", () => {
+  // QA's gap: the spool step used a standalone systemd-run with the launcher's
+  // properties copied in, so the launcher's own argv guard and grant were never
+  // exercised end to end. The step now sends a real probe frame through the real
+  // script, with the spool directory on its command line.
+  assert(
+    script.includes('"$here/437-launcher-under-deno.ts"'),
+    "step 5 goes through the launcher's deno parent",
+  );
+  assert(
+    script.includes('"--spool-dir=$spool_dir"'),
+    "step 5 hands the launcher the spool directory",
+  );
+  assert(
+    script.includes('"$outdir/launcher-spool"'),
+    "the launcher's own output is kept, not the victim's",
+  );
+  // And the two spool runs must not overwrite each other: the grant run's lines
+  // are the evidence, and a later diagnostic run must not erase them.
+  assert(
+    script.includes("victim-spool-nogrant-stdout.txt"),
+    "the no-grant run writes its own files",
+  );
+});
+
+Deno.test("both seals are asked of the real launcher", () => {
+  assert(script.includes("for seal in network filesystem; do"));
+  assert(script.includes('"$outdir/selftest-$seal.json"'));
+  assert(script.includes('"reachable":false'));
+  assert(script.includes('"writable":false'));
+});
+
 Deno.test("a unit recorded from a subshell is still cleaned up", async () => {
   // The first green run on mini1 left two killed units behind: `run_victim` is
   // called as `$(run_victim ...)`, so its append to a shell variable was lost
@@ -284,7 +316,9 @@ Deno.test("the proof cleans up after itself and stays in its own directory", () 
         // The spool fixture is the one deliberate write outside the output
         // directory: the sandbox may only be granted a directory that is not
         // under /tmp, /var/tmp or $HOME. It is allowed here and pinned below.
-        redirect.includes("$spool_dir") || redirect.includes("$outside_probe"),
+        redirect.includes("$spool_dir") ||
+        redirect.includes("$outside_probe") ||
+        redirect.includes("$spool_frame") || redirect.includes("$outdir"),
       `a write outside the output directory: ${redirect}`,
     );
   }

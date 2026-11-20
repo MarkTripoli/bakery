@@ -19,6 +19,7 @@
  */
 import {
   ARTIFACT_PROBE_MAX_BYTES,
+  ARTIFACT_PROBE_SELF_TEST_CANARY,
   ARTIFACT_PROBE_SELF_TEST_HOST,
   ARTIFACT_PROBE_SELF_TEST_PORT,
   type ArtifactProbeFrame,
@@ -57,7 +58,33 @@ function refuse(
  * simply down also produces a failed connect, so this can only ever make the
  * server more careful.
  */
-async function selfTest(): Promise<void> {
+async function selfTest(question: "network" | "filesystem"): Promise<void> {
+  if (question === "filesystem") {
+    // The canary lives in the unit's working directory, which the launcher pins
+    // to the repository and `ProtectSystem=strict` makes read-only -- where the
+    // host applies it. Creating the file is the finding; deleting it means a
+    // sealed sandbox leaves nothing behind either way.
+    try {
+      await Deno.writeTextFile(ARTIFACT_PROBE_SELF_TEST_CANARY, "canary");
+      await Deno.remove(ARTIFACT_PROBE_SELF_TEST_CANARY).catch(() => {});
+      Deno.stdout.writeSync(encoder.encode(JSON.stringify(
+        {
+          selfTest: "filesystem",
+          writable: true,
+          detail: "created",
+        } satisfies ArtifactProbeSelfTestFrame,
+      )));
+    } catch (error) {
+      Deno.stdout.writeSync(encoder.encode(JSON.stringify(
+        {
+          selfTest: "filesystem",
+          writable: false,
+          detail: (error as Error).name,
+        } satisfies ArtifactProbeSelfTestFrame,
+      )));
+    }
+    Deno.exit(0);
+  }
   try {
     const connection = await Deno.connect({
       hostname: ARTIFACT_PROBE_SELF_TEST_HOST,
@@ -95,15 +122,18 @@ async function selfTest(): Promise<void> {
  * could drift from the one being checked.
  */
 async function readRequest(): Promise<
-  { path: string; sizeBytes: number } | { selfTest: "network" } | undefined
+  | { path: string; sizeBytes: number }
+  | { selfTest: "network" | "filesystem" }
+  | undefined
 > {
   const request = await new Response(Deno.stdin.readable).json().catch(() =>
     undefined
   );
+  const asked = (request as { selfTest?: unknown } | null)?.selfTest;
   if (
     request !== null && typeof request === "object" &&
-    (request as { selfTest?: unknown }).selfTest === "network"
-  ) return { selfTest: "network" };
+    (asked === "network" || asked === "filesystem")
+  ) return { selfTest: asked };
   if (
     request === null || typeof request !== "object" ||
     typeof (request as { path?: unknown }).path !== "string" ||
@@ -116,7 +146,7 @@ async function readRequest(): Promise<
 async function probe(): Promise<void> {
   const request = await readRequest();
   if (request === undefined) return refuse("unreadable");
-  if ("selfTest" in request) return await selfTest();
+  if ("selfTest" in request) return await selfTest(request.selfTest);
   if (request.sizeBytes > ARTIFACT_PROBE_MAX_BYTES) {
     return refuse("too-large", ARTIFACT_PROBE_MAX_BYTES);
   }

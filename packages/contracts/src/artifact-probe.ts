@@ -141,25 +141,60 @@ export const ARTIFACT_PROBE_SELF_TEST_PORT = 443;
  * network. Nothing in the unit's configuration can tell the server that, so the
  * server asks the only question that has an answer: did a connect succeed?
  */
+export const ArtifactProbeSelfTestSchema = z.enum(["network", "filesystem"])
+  .describe("Which seal the sandbox is asked about.");
+
 export const ArtifactProbeSelfTestRequestSchema = z.object({
-  selfTest: z.literal("network").describe("Ask whether the sandbox is sealed."),
+  selfTest: ArtifactProbeSelfTestSchema.describe(
+    "Ask whether the sandbox is sealed against the network or against writes.",
+  ),
 }).strict().describe(
   "The frame the server sends to run the sandbox self-test.",
 );
 
-export const ArtifactProbeSelfTestFrameSchema = z.object({
-  selfTest: z.literal("network").describe("The question that was answered."),
-  reachable: z.boolean().describe(
-    "True when a connection succeeded, which means the sandbox is not sealed.",
-  ),
-  detail: z.string().optional().describe(
-    "The error name the worker saw, or a short note.",
-  ),
-}).strict().describe("What the sandbox self-test answers.");
+export const ArtifactProbeSelfTestFrameSchema = z.discriminatedUnion(
+  "selfTest",
+  [
+    z.object({
+      selfTest: z.literal("network").describe(
+        "The question that was answered.",
+      ),
+      reachable: z.boolean().describe(
+        "True when a connection succeeded, which means the sandbox is not sealed.",
+      ),
+      detail: z.string().optional().describe(
+        "The error name the worker saw, or a short note.",
+      ),
+    }).strict().describe("The answer about the network seal."),
+    z.object({
+      selfTest: z.literal("filesystem").describe(
+        "The question that was answered.",
+      ),
+      writable: z.boolean().describe(
+        "True when a canary file could be created, which means the sandbox is not read-only.",
+      ),
+      detail: z.string().optional().describe(
+        "The error name the worker saw, or a short note.",
+      ),
+    }).strict().describe("The answer about the filesystem seal."),
+  ],
+).describe("What the sandbox self-test answers.");
 
 export type ArtifactProbeSelfTestFrame = z.infer<
   typeof ArtifactProbeSelfTestFrameSchema
 >;
+
+/**
+ * The canary the filesystem self-test tries to create, in the unit's own
+ * working directory.
+ *
+ * That directory is the repository root, which `ProtectSystem=strict` makes
+ * read-only -- when the host can apply it. The name is fixed rather than random
+ * because the worker deletes it: a test that leaves canaries behind would
+ * itself become the thing it is checking for.
+ */
+export const ARTIFACT_PROBE_SELF_TEST_CANARY =
+  ".bakery-probe-filesystem-self-test";
 
 /**
  * Whether anything can be shown for these bytes at all, and what. The artifact

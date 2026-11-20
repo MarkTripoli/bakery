@@ -187,7 +187,8 @@ Deno.test("the answer is cached per process, and only the asking is cached", asy
     `#!/bin/sh
 request=$(cat) || request=
 case "$request" in
-  *selfTest*) echo x >> '${counter}' ;;
+  *filesystem*) echo filesystem >> '${counter}' ;;
+  *selfTest*) echo network >> '${counter}' ;;
 esac
 printf '%s' "$request" | '${launcher}'
 `,
@@ -202,6 +203,13 @@ printf '%s' "$request" | '${launcher}'
   }
   const asks = (await Deno.readTextFile(counter)).trim().split("\n").filter(
     (line) => line !== "",
-  ).length;
-  assertEquals(asks, 1, `the host was asked ${asks} times, not once`);
+  );
+  // One ask per seal, for three probes: the network and the filesystem are
+  // separate properties of the machine, so each is cached separately, and
+  // neither is re-asked after the first answer.
+  assertEquals(
+    asks.sort(),
+    ["filesystem", "network"],
+    `the host was asked ${asks.length} times: ${asks.join(",")}`,
+  );
 });

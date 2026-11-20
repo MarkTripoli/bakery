@@ -246,7 +246,7 @@ step_launcher() {
 # eat memory.
 run_victim() {
   local mode=$1 seconds=${2:-120} spool=${3:-} grant=${4:-grant}
-  local outside=${5:-} id unit runtime wargs
+  local outside=${5:-} suffix=${6:-} id unit runtime wargs
   local write_flag="--deny-write" grant_prop=""
   # The worker that reads a spool must be ALLOWED to write it, or Deno refuses
   # the write itself and the step proves the permission flag rather than the
@@ -297,7 +297,7 @@ run_victim() {
     --property=InaccessiblePaths=/var/tmp \
     $grant_prop \
     deno run --allow-read --allow-net "$write_flag" "$victim" $wargs \
-    >"$outdir/victim-$mode-stdout.txt" 2>"$outdir/victim-$mode-stderr.txt"
+    >"$outdir/victim-$mode$suffix-stdout.txt" 2>"$outdir/victim-$mode$suffix-stderr.txt"
   local code=$?
   {
     printf 'unit: %s\nmode: %s\nexit: %s\n\n' "$unit" "$mode" "$code"
@@ -477,19 +477,72 @@ else
   record "step-5 nothing was written into the spool" 0
 fi
 
+# The real launcher, end to end: the shipped script, its own argv guard, its own
+# grant, and the shipped worker. The victim above proves the mount refuses a
+# write; this proves the launcher the server actually runs can read the spool it
+# was told to grant, which a standalone systemd-run with copied properties cannot
+# show.
+spool_frame="$outdir/spool-frame.json"
+printf '{"path":"%s","sizeBytes":20}' "$spool_dir/probe-fixture.blob" \
+  >"$spool_frame"
+deno run -A "$here/437-launcher-under-deno.ts" "$(uuidgen | tr 'A-Z' 'a-z')" \
+  "$spool_frame" "$outdir/launcher-spool" "--spool-dir=$spool_dir" \
+  >"$outdir/launcher-spool-console.txt" 2>&1
+launcher_spool_code=$?
+launcher_spool_out=$(cat "$outdir/launcher-spool-stdout.txt" 2>/dev/null)
+say "real launcher with --spool-dir: exit $launcher_spool_code"
+printf '%s\n' "$launcher_spool_out" | sed 's/^/  /' | tee -a "$summary"
+if printf '%s' "$launcher_spool_out" | grep -q '"status":"described"' &&
+  printf '%s' "$launcher_spool_out" | grep -q '"byteLength":20'; then
+  record "step-5 the real launcher reads the spool through its own grant" 0
+else
+  record "step-5 the real launcher reads the spool through its own grant" 1
+  tail -5 "$outdir/launcher-spool-stderr.txt" 2>/dev/null | sed 's/^/  /' |
+    tee -a "$summary"
+fi
+
 # Diagnostic, never a claim: whether ProtectSystem=strict alone already makes the
 # spool unwritable. The launcher always grants it read-only when it spools, so a
 # value of "refused" here means the grant is belt and braces on this host and
 # "wrote" means the grant is what refuses -- which is worth knowing, and is not
 # a defect either way.
 rm -f "$spool_dir/probe-written-by-sandbox"
-nogrant_unit=$(run_victim spool 10 "$spool_dir" nogrant)
-nogrant_out=$(cat "$outdir/victim-spool-stdout.txt" 2>/dev/null)
+nogrant_unit=$(run_victim spool 10 "$spool_dir" nogrant "" -nogrant)
+nogrant_out=$(cat "$outdir/victim-spool-nogrant-stdout.txt" 2>/dev/null)
 rm -f "$spool_dir/probe-written-by-sandbox"
 say "without the grant (diagnostic, not a claim), the worker said:"
 printf '%s\n' "$nogrant_out" | sed 's/^/  /' | tee -a "$summary"
 rm -f "$outside_probe"
 rm -rf "$spool_dir"
+
+say "## step 6: both seals answer, through the real launcher"
+# The server asks two questions before it names a file: can the unit reach the
+# network, and can it write? Both are asked of the shipped launcher here, because
+# a property the host silently skips is a property the server does not have, and
+# only the answer says which it is.
+for seal in network filesystem; do
+  printf '{"selfTest":"%s"}' "$seal" >"$outdir/selftest-$seal.json"
+  deno run -A "$here/437-launcher-under-deno.ts" "$(uuidgen | tr 'A-Z' 'a-z')" \
+    "$outdir/selftest-$seal.json" "$outdir/selftest-$seal" \
+    >"$outdir/selftest-$seal-console.txt" 2>&1
+  seal_code=$?
+  seal_out=$(cat "$outdir/selftest-$seal-stdout.txt" 2>/dev/null)
+  say "$seal: exit $seal_code, answered: $seal_out"
+  printf '%s\n' "$seal_out" >>"$summary"
+  if [ "$seal" = "network" ]; then
+    if printf '%s' "$seal_out" | grep -q '"reachable":false'; then
+      record "step-6 the network seal holds" 0
+    else
+      record "step-6 the network seal holds" 1
+    fi
+  else
+    if printf '%s' "$seal_out" | grep -q '"writable":false'; then
+      record "step-6 the filesystem seal holds" 0
+    else
+      record "step-6 the filesystem seal holds" 1
+    fi
+  fi
+done
 
 say ""
 if [ "$failures" -eq 0 ]; then
