@@ -1,13 +1,23 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "283ceeaf7750a9d6bfac79dce642a0b0bdf28224"
+    "2de7c9744ef72c605c415b6fc2ba846b95f98eee"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:8eee4bbe4bc5be7994aba0e4caa4ed356eefe48af929078ec2fbea17f09fdd1e",
-  "reason": "#70 FS17 slice 2 route-waiting re-bind by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 283ceeaf7750a9d6bfac79dce642a0b0bdf28224: RouteContinuationOffer gains source (new RouteContinuationSource), reason, since and nextCheckAt so the waiting card needs no second read; Run gains optional waitingOnModel on runs.get and runs.list. Main's own approval is preserved unchanged first below.",
+  "targetCompatibilityDigest": "sha256:aea2af06520c6271fbeb030dbd25e40297e25425dd60f1efba81fd770e4b0fa1",
+  "reason": "#70 slice 2 waiting-on-a-model reads by dev-server on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 2de7c9744ef72c605c415b6fc2ba846b95f98eee: RouteContinuationOffer gains source, reason, since and nextCheckAt; Run gains waitingOnModel. Main's own approval is preserved unchanged first below.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "e1326d79aceb7704529567b7d6e1dda58569ff14"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:9ba189cc43ffbe02eeddd3a250f68eb0a6fcd143089fa3732b2fdf597d4085a9",
+      "reason": "#14 context pack limits re-bind by dev-bugfix on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main e1326d79aceb7704529567b7d6e1dda58569ff14: ContextPackItem gains limits (why an item carries no content, or null) and redactions (credentials redacted from the item), both required, so a reader of a pack is told what it is missing. Main's own approval is preserved unchanged first below."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [

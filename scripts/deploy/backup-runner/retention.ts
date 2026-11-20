@@ -36,8 +36,11 @@ export function isBackupName(name: string): boolean {
 /**
  * The names to delete. A set expires only when it is strictly older than
  * `daysToKeep` days, is not protected (the set just taken), and is not the
- * newest set there is: the last good backup is never pruned, however old. A
- * `daysToKeep` that is not a positive whole number keeps everything, so a bad
+ * newest COMPLETE set there is: the last good backup is never pruned, however
+ * old. A set that declared itself incomplete (`incomplete`, see INCOMPLETE.json)
+ * is never "the newest": it cannot shield an older complete set, is not
+ * protected by being the latest directory, and is pruned by age like any other.
+ * A `daysToKeep` that is not a positive whole number keeps everything, so a bad
  * setting can never turn into a delete-all.
  */
 export function selectExpired(input: {
@@ -45,13 +48,18 @@ export function selectExpired(input: {
   readonly now: Date;
   readonly daysToKeep: number;
   readonly protect: ReadonlySet<string>;
+  readonly incomplete?: ReadonlySet<string>;
 }): string[] {
   if (!Number.isInteger(input.daysToKeep) || input.daysToKeep < 1) return [];
+  const incomplete = input.incomplete ?? new Set<string>();
   const sets = input.names
     .map((name) => ({ name, at: backupTimestamp(name) }))
     .filter((entry): entry is { name: string; at: Date } => entry.at !== null);
   if (sets.length === 0) return [];
-  const newest = sets.reduce((a, b) => (b.at > a.at ? b : a)).name;
+  const complete = sets.filter((entry) => !incomplete.has(entry.name));
+  const newest = complete.length === 0
+    ? null
+    : complete.reduce((a, b) => (b.at > a.at ? b : a)).name;
   const cutoff = input.now.getTime() - input.daysToKeep * DAY_MS;
   return sets
     .filter((entry) =>

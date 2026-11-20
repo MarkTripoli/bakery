@@ -10437,6 +10437,7 @@
             "destination_refused",
             "destination_unreachable",
             "key_missing",
+            "incomplete_set",
             "runner_error"
           ],
           "description": "Why the backup failed, as a stable code the page turns into a cause and a fix; required with a failed report. A completed report may carry it only when locations is exactly server-host, and then only destination_refused or destination_unreachable: the backup was taken on the host and the off-site copy failed. Refused with a running report and with a completed report that includes off-site."
@@ -29844,7 +29845,7 @@
         "progressPercent": "integer|null",
         "sizeBytes": "decimalString|null",
         "locations": "string[]",
-        "failureCode": "enum(disk_full|destination_refused|destination_unreachable|key_missing|runner_error)|null",
+        "failureCode": "enum(disk_full|destination_refused|destination_unreachable|key_missing|incomplete_set|runner_error)|null",
         "failureDetail": "string|null"
       },
       "nullableFields": [
@@ -29872,7 +29873,7 @@
         "progressPercent": "Latest reported progress from 0 to 100, or null before any report.",
         "sizeBytes": "Size of the finished encrypted backup set in bytes as a decimal string, or null until completed.",
         "locations": "Words naming where the finished backup is kept: server-host and, once an off-site copy exists, off-site; empty until completed. A completed run with only server-host and a failureCode was not copied off-site.",
-        "failureCode": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, or runner_error. A completed run carries destination_refused or destination_unreachable when the backup was taken on the host but not copied off-site; null otherwise.",
+        "failureCode": "Stable cause of a failed run: disk_full, destination_refused, destination_unreachable, key_missing, incomplete_set (the backup set did not contain every declared state store, so it is not a recoverable backup), or runner_error. A completed run carries destination_refused or destination_unreachable when the backup was taken on the host but not copied off-site; null otherwise.",
         "failureDetail": "The runner's plain-text answer for the failure or the failed off-site copy, or null."
       }
     },
@@ -31206,6 +31207,8 @@
         "citation",
         "text",
         "truncated",
+        "limits",
+        "redactions",
         "tokens",
         "countState"
       ],
@@ -31215,6 +31218,8 @@
         "citation": "json|null",
         "text": "string|null",
         "truncated": "boolean",
+        "limits": "enum(binary_media|no_text_extractor|extraction_failed)|null",
+        "redactions": "integer",
         "tokens": "integer",
         "countState": "enum(measured|estimated|unknown)"
       },
@@ -31229,6 +31234,8 @@
         "citation": "Reproducible citation of the version and, for a window, its exact byte range and extractor; null for a caller-supplied text item.",
         "text": "The bounded text admitted to the prompt, or null for every reference kind.",
         "truncated": "Whether the window ends before the version does.",
+        "limits": "Why the item carries no content: binary_media (images, audio, video and unknown binaries are references only), no_text_extractor (PDFs have no text extractor yet) or extraction_failed (a text window could not be produced); null when the item carries text.",
+        "redactions": "How many credentials were replaced by a redaction marker in the text of this item; 0 for a reference or for text with none.",
         "tokens": "What the item counted as under countState.",
         "countState": "Whether tokens was measured, estimated from bounded metadata, or unknown."
       }

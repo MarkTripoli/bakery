@@ -93,8 +93,24 @@ export type ProjectionKind =
   | "pdf_reference"
   | "binary_reference";
 
+/**
+ * Why a projection carries no content, so a reader is told the limit instead of
+ * guessing from an empty item:
+ * - binary_media: images, audio, video and unknown binaries never enter a prompt
+ *   as text, only as a reference;
+ * - no_text_extractor: a PDF is held as a reference because Bakery has no PDF
+ *   text extractor yet, not because the file is empty;
+ * - extraction_failed: a text window was asked for and could not be produced.
+ */
+export type ProjectionLimit =
+  | "binary_media"
+  | "no_text_extractor"
+  | "extraction_failed";
+
 export type ContextProjection = {
   kind: ProjectionKind;
+  /** Why there is no content, or null when the projection carries a window. */
+  limit: ProjectionLimit | null;
   citation: ContextCitation;
   /** Bounded, credential-redacted text for the model; null for every reference projection. */
   text: string | null;
@@ -134,13 +150,23 @@ function kindOf(mediaType: string): ProjectionKind {
  */
 export function referenceProjection(
   entry: ArtifactVersionIndexEntry,
-  options: { required?: boolean; priority?: number } = {},
+  options: {
+    required?: boolean;
+    priority?: number;
+    /** Overrides the limit the media type implies, e.g. a failed text window. */
+    limit?: ProjectionLimit;
+  } = {},
 ): ContextProjection {
   const kind = kindOf(entry.mediaType);
+  const textual = kind === "text_window" || kind === "log_window";
   return {
-    kind: kind === "text_window" || kind === "log_window"
-      ? "binary_reference"
-      : kind,
+    kind: textual ? "binary_reference" : kind,
+    limit: options.limit ??
+      (textual
+        ? "extraction_failed"
+        : kind === "pdf_reference"
+        ? "no_text_extractor"
+        : "binary_media"),
     citation: ContextCitationSchema.parse({
       artifactId: entry.artifactId,
       versionId: entry.versionId,
@@ -195,6 +221,7 @@ export function projectArtifactVersion(
   const redactedBytes = new TextEncoder().encode(redacted.text).byteLength;
   return {
     kind,
+    limit: null,
     citation: ContextCitationSchema.parse({
       artifactId: entry.artifactId,
       versionId: entry.versionId,
