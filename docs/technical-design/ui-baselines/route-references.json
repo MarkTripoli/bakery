@@ -1558,6 +1558,20 @@
       "frames": []
     },
     {
+      "routeId": "installation-monitoring-new",
+      "path": "/installation/monitoring/new",
+      "status": "no-mock",
+      "rationale": "One Monitoring destination on its own page (/installation/monitoring/new). The design is the UX design comments on issue 739 (revision 2 and the first design, mock at design-739); Paper is no longer the source of truth, so there is no Paper artboard. Built from catalog components in the settings composition and covered by the installation-monitoring spec.",
+      "frames": []
+    },
+    {
+      "routeId": "installation-monitoring-destination",
+      "path": "/installation/monitoring/$destinationId",
+      "status": "no-mock",
+      "rationale": "One Monitoring destination on its own page (/installation/monitoring/$destinationId). The design is the UX design comments on issue 739 (revision 2 and the first design, mock at design-739); Paper is no longer the source of truth, so there is no Paper artboard. Built from catalog components in the settings composition and covered by the installation-monitoring spec.",
+      "frames": []
+    },
+    {
       "routeId": "organization-storage",
       "path": "/organization/storage",
       "status": "no-mock",

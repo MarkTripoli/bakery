@@ -662,7 +662,8 @@ function ShellFrame() {
     pathname.startsWith("/__fixtures__/settings/");
   const installationSettings = pathname === "/installation/settings" ||
     pathname === "/installation/audit" ||
-    pathname === "/installation/monitoring" ||
+    (pathname === "/installation/monitoring" ||
+      pathname.startsWith("/installation/monitoring/")) ||
     pathname === "/installation/usage" ||
     pathname === INSTALLATION_INTEGRATIONS_PATH ||
     pathname === "/__fixtures__/installation/settings";
@@ -749,7 +750,8 @@ function ShellFrame() {
         ? (
           <InstallationSettingsNavigation
             currentPath={pathname === "/installation/audit" ||
-                pathname === "/installation/monitoring" ||
+                (pathname === "/installation/monitoring" ||
+                  pathname.startsWith("/installation/monitoring/")) ||
                 pathname === "/installation/usage" ||
                 pathname === INSTALLATION_INTEGRATIONS_PATH
               ? pathname

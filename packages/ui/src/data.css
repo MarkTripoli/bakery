@@ -2319,46 +2319,71 @@
   grid-row: 2;
 }
 
-/* A destination row: the name, state and what it receives take the width, the
-   button and the switch sit at the end, and on a phone they drop under it. */
-.ui-settings-content[data-page="installation-monitoring"] .ui-inline--between {
-  align-items: center;
-  flex-wrap: wrap;
-  padding-block: var(--space-3);
+/* A destination's page: the form takes up to 620px and a side column of 300px
+   holds its status and the test. Below 1024px there is one column and the
+   side column comes first, so a failing destination's test is the first thing
+   seen. */
+.ui-settings-content[data-page="installation-monitoring-destination"] .ui-inline--split {
+  align-items: start;
+  grid-template-columns: minmax(0, 620px) 300px;
 }
-.ui-settings-content[data-page="installation-monitoring"] .ui-inline--between > .ui-stack {
-  flex: 1 1 0;
+@media (max-width: 1023px) {
+  .ui-settings-content[data-page="installation-monitoring-destination"] .ui-inline--split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ui-settings-content[data-page="installation-monitoring-destination"] .ui-inline--split > :last-child {
+    order: -1;
+  }
+}
+/* The list: every cell of a row sits on one line, and the switch and the
+   button take the same width in every row, so nothing shifts between rows. */
+.ui-settings-content[data-page="installation-monitoring"] .ui-data-table--ruled td {
+  vertical-align: middle;
+}
+.ui-settings-content[data-page="installation-monitoring"] .ui-data-table--ruled td .ui-button {
+  min-inline-size: calc(var(--space-6) * 3);
+}
+/* A phone row: the detail line takes the width and the switch sits at the end
+   of it, on the same line. */
+.ui-settings-content[data-page="installation-monitoring"] .ui-stacked-row .ui-inline {
+  align-items: center;
+  flex-wrap: nowrap;
+}
+.ui-settings-content[data-page="installation-monitoring"] .ui-stacked-row .ui-inline > .ui-text {
+  flex: 1 1 0%;
   min-inline-size: 0;
 }
-.ui-settings-content[data-page="installation-monitoring"] .ui-inline--between:not([data-form-actions]) > .ui-inline {
-  align-items: center;
-  flex: none;
+/* A destination's header: its name and what it is on the left, the Sending
+   switch on the right, level with the name. */
+.ui-settings-content[data-page="installation-monitoring-destination"] .bakery-page-header--split {
+  align-items: flex-start;
+  padding: var(--space-0);
 }
+.ui-settings-content[data-page="installation-monitoring-destination"] .bakery-page-header__summary {
+  flex-direction: row;
+}
+/* A measurement: its box lines up with the label, and the help sits under the
+   label on the label's own left edge. The touch target is the whole label. */
+.ui-settings-content[data-page="installation-monitoring-destination"] .ui-checkbox {
+  align-items: center;
+  flex-wrap: nowrap;
+  min-block-size: calc(var(--space-6));
+}
+.ui-settings-content[data-page="installation-monitoring-destination"] .ui-checkbox input {
+  flex: none;
+  min-block-size: var(--space-0);
+  min-inline-size: var(--space-0);
+}
+.ui-settings-content[data-page="installation-monitoring-destination"] .ui-checkbox + .ui-text {
+  padding-inline-start: calc(var(--size-checkbox) + var(--space-2));
+}
+/* On a phone the save row stacks, full width, Save first. */
 @media (max-width: 743px) {
-  .ui-settings-content[data-page="installation-monitoring"] .ui-inline--between > .ui-stack {
-    flex-basis: 100%;
-  }
-  /* On a phone the button sits at the start of its line and the switch at the end. */
-  .ui-settings-content[data-page="installation-monitoring"] .ui-inline--between:not([data-form-actions]) {
+  .ui-settings-content[data-page="installation-monitoring-destination"] .ui-inline--end[data-form-actions] {
     align-items: stretch;
-  }
-  .ui-settings-content[data-page="installation-monitoring"] .ui-inline--between:not([data-form-actions]) > .ui-inline {
-    justify-content: space-between;
-  }
-  /* The dialog's buttons stack full width, Save first. */
-  .ui-dialog .ui-inline--between[data-form-actions] {
     flex-direction: column-reverse;
   }
-  .ui-dialog .ui-inline--between[data-form-actions] > .ui-inline {
-    inline-size: 100%;
-  }
-  .ui-dialog .ui-inline--between[data-form-actions] > .ui-inline:last-child {
-    flex-direction: column-reverse;
-  }
-  .ui-dialog .ui-inline--between[data-form-actions] > .ui-inline:first-child {
-    flex-direction: column;
-  }
-  .ui-dialog .ui-inline--between[data-form-actions] .ui-button {
+  .ui-settings-content[data-page="installation-monitoring-destination"] .ui-inline--end[data-form-actions] .ui-button {
     inline-size: 100%;
   }
 }

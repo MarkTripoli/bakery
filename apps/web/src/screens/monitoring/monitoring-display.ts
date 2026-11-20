@@ -320,3 +320,61 @@ export function unavailableFor(
 export function atLimit(destinations: readonly unknown[]): boolean {
   return destinations.length >= DESTINATION_LIMIT;
 }
+
+/** The choices of the State filter: every state, or one. */
+export const STATE_FILTERS = [
+  "all",
+  "working",
+  "not_tested_yet",
+  "failing",
+  "dropping_data",
+  "off",
+] as const;
+export type StateFilter = typeof STATE_FILTERS[number];
+
+export function isStateFilter(value: unknown): value is StateFilter {
+  return typeof value === "string" &&
+    (STATE_FILTERS as readonly string[]).includes(value);
+}
+
+/** What the list's toolbar narrows it to; all three live in the address. */
+export type DestinationFilters = {
+  readonly q: string;
+  readonly state: StateFilter;
+  /** The kind id, or null for every kind. */
+  readonly kind: string | null;
+};
+
+const STATE_RANK: Readonly<Record<TelemetryDestination["state"], number>> = {
+  failing: 0,
+  dropping_data: 1,
+  working: 2,
+  not_tested_yet: 2,
+  off: 2,
+};
+
+/** Failing first, then dropping data, then by name: what needs attention is on top. */
+export function orderDestinations(
+  destinations: readonly TelemetryDestination[],
+): TelemetryDestination[] {
+  return [...destinations].sort((a, b) =>
+    STATE_RANK[a.state] - STATE_RANK[b.state] ||
+    a.name.localeCompare(b.name)
+  );
+}
+
+/** The destinations whose name or kind holds the search and that match the filters. */
+export function filterDestinations(
+  destinations: readonly TelemetryDestination[],
+  filters: DestinationFilters,
+  kindLabel: (kind: string) => string,
+): TelemetryDestination[] {
+  const query = filters.q.trim().toLocaleLowerCase();
+  return destinations.filter((destination) =>
+    (filters.state === "all" || destination.state === filters.state) &&
+    (filters.kind === null || destination.kind === filters.kind) &&
+    (query === "" ||
+      destination.name.toLocaleLowerCase().includes(query) ||
+      kindLabel(destination.kind).toLocaleLowerCase().includes(query))
+  );
+}
