@@ -13,6 +13,7 @@ import {
 } from "../../middleware.ts";
 import type { InstallationSettingsReader } from "../../application/installation-settings.ts";
 import { createAuthV1Routes } from "./v1/routes.ts";
+import { createDesktopSignInPages } from "./desktop-sign-in-pages.ts";
 import type { PasswordHasher } from "../../adapters/password-reset-links-postgres.ts";
 
 export type AuthHttpProvider = BrowserSessionAuth & {
@@ -217,6 +218,7 @@ export function createAuthRoutes(options: {
     }),
   );
   app.route("/", createAuthV1Routes(options));
+  app.route("/", createDesktopSignInPages(options));
   app.all("/api/auth/*", async (context) => {
     if (
       deniedProviderPaths.has(

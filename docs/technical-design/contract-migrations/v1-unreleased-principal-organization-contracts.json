@@ -1,13 +1,22 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "889c2fbfb938191e56ede7ed5dc7458216f131bd"
+    "a5f21505dd4b98a965c6ddb3f2d6a756e835ce06"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:8b08cad643d87da63e23c5231fbad0dd44f45ae2fa14161439db45e37e6bc75b",
-  "reason": "#72 memory current-revision projection re-bind by dev-bugfix on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 889c2fbfb938191e56ede7ed5dc7458216f131bd: MemoryEntry gains a required currentRevision (MemoryRevision|null) and MemoryRevision gains required nullable sourceName and sourceRevision (the cited document's name and version number, null unless the source is available or deleted for this reader), so the Memory list shows wording, source, confidence and expiry from one read instead of one revision read per entry. The drift is those fields becoming required on outputs no client writes; the approval it displaced at sha256:050bbfec6c6d3ccd73991e61264bee8b5d336bfd701d2a73dc9fc1374b2ee3aa is preserved unchanged first below.",
+  "targetCompatibilityDigest": "sha256:0fb3b25cf12e177a1109c01437a66d54d4b52f7353c5b5bfa3715e2950ffef89",
+  "reason": "#72 memory current-revision projection re-bind by dev-bugfix on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main a5f21505dd4b98a965c6ddb3f2d6a756e835ce06: MemoryEntry gains a required currentRevision (MemoryRevision|null) and MemoryRevision gains required nullable sourceName and sourceRevision (the cited document's name and version number, null unless the source is available or deleted for this reader), so the Memory list shows wording, source, confidence and expiry from one read instead of one revision read per entry. The drift is those fields becoming required on outputs no client writes; the approval it displaced at sha256:8b08cad643d87da63e23c5231fbad0dd44f45ae2fa14161439db45e37e6bc75b is preserved unchanged first below.",
   "priorApprovals": [
+    {
+      "fromBaseRefs": [
+        "889c2fbfb938191e56ede7ed5dc7458216f131bd"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:8b08cad643d87da63e23c5231fbad0dd44f45ae2fa14161439db45e37e6bc75b",
+      "reason": "#72 memory current-revision projection re-bind by dev-bugfix on 2026-11-20 under the owner's standing breaking-change authorization (2026-10-09), main 889c2fbfb938191e56ede7ed5dc7458216f131bd: MemoryEntry gains a required currentRevision (MemoryRevision|null) and MemoryRevision gains required nullable sourceName and sourceRevision (the cited document's name and version number, null unless the source is available or deleted for this reader), so the Memory list shows wording, source, confidence and expiry from one read instead of one revision read per entry. The drift is those fields becoming required on outputs no client writes; the approval it displaced at sha256:050bbfec6c6d3ccd73991e61264bee8b5d336bfd701d2a73dc9fc1374b2ee3aa is preserved unchanged first below."
+    },
     {
       "fromBaseRefs": [
         "0ab8a30353e2d19599a02affbad1c09f05fcbec6"

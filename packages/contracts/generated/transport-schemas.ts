@@ -11359,6 +11359,41 @@ const transportSchemas = {
       ],
       "description": "Leaves a note for a workflow step that has not started yet, addressed by the run id and step key in the path. The agent that runs the step receives the note once, with its input; a step that has already started refuses the note with a state conflict, and a steer on its live session is the way to reach it."
     },
+    "AgentFileGrantCreate": {
+      "fields": [
+        {
+          "name": "workflowId",
+          "type": "uuid",
+          "required": true,
+          "description": "Immutable id of the workflow whose agent sessions may use the grant. Only a session running a step of this workflow is covered; another workflow's agents gain nothing from it."
+        },
+        {
+          "name": "folderId",
+          "type": "uuid",
+          "required": true,
+          "description": "The storage folder granted. The grant covers this folder and everything under it, never its parent or siblings. It must be a live folder in a working area, or a personal folder the granting person owns; the library, record areas, /connections, /trash and /system cannot be granted."
+        },
+        {
+          "name": "access",
+          "type": "enum(read|write)",
+          "required": true,
+          "description": "What the agent may do under the folder: read, or write (put, mkdir, cp into, mv into or out of, and rm to trash). A read grant never permits a destructive verb."
+        },
+        {
+          "name": "expiresAt",
+          "type": "timestamp",
+          "required": true,
+          "description": "When the grant stops working, as an ISO 8601 instant. It must be in the future and at most 30 days ahead. The guard judges it at the time of each write, so a grant that lapses mid-step stops the very next write."
+        }
+      ],
+      "rules": [
+        "A person with a browser session only; an agent is refused with AUTH_FORBIDDEN reason agent_file_grant_requires_person, so an agent never widens its own file scope (O52).",
+        "An unknown or foreign workflow, or a folder that is missing, trashed, foreign or another member's personal folder, answers RESOURCE_NOT_FOUND.",
+        "A folder in the library, a record area, /connections, /trash or /system is 409 STORAGE_AREA_REFUSED with the reason the agent would get; an expiry in the past or more than 30 days ahead is 422.",
+        "A grant adds scope, never authority: an agent's write still needs the person it acts for to be able to write the folder themselves."
+      ],
+      "description": "Grants the agent sessions of one workflow read or write access to one storage folder, until an expiry, revocable (chapter 25 section 17.6, O45, O52). An agent writes files only where such a grant covers the target."
+    },
     "AgentPowerGrantCreate": {
       "fields": [
         {
@@ -12244,6 +12279,105 @@ const transportSchemas = {
         "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind cursor to this operation, current principal/scope, filters and ordering; validate and reauthorize before the keyset query. Every filter given must match."
       ],
       "description": "Filters for listing merge entries, newest first: by repository, pull request or run."
+    },
+    "DesktopSignInStart": {
+      "fields": [
+        {
+          "name": "clientId",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "bakery-desktop"
+          ],
+          "description": "Built-in identifier of the first-party Bakery desktop app; every server knows it, so no operator registers it, and any other value is refused."
+        },
+        {
+          "name": "codeChallenge",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 43,
+            "maxLength": 43
+          },
+          "description": "PKCE S256 challenge: the unpadded base64url SHA-256 of a verifier only the app holds. The exchange must present that verifier."
+        },
+        {
+          "name": "codeChallengeMethod",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "S256"
+          ],
+          "description": "PKCE transform the challenge used; only S256 is accepted, never plain."
+        },
+        {
+          "name": "redirectUri",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 512
+          },
+          "description": "Where the browser hands the one-time code back to the app: http on 127.0.0.1 or [::1] with an explicit port, or the app link bakery://auth/callback. No credentials, query or fragment."
+        },
+        {
+          "name": "computerName",
+          "type": "nonBlankString",
+          "required": true,
+          "bounds": {
+            "maxLength": 64
+          },
+          "description": "Name of the computer the app runs on, shown on the browser confirmation page and in Active sessions; control characters are refused."
+        }
+      ],
+      "rules": [
+        "Unauthenticated and rate limited per client address. The request is usable for ten minutes and grants nothing until a signed-in person confirms it in the browser."
+      ],
+      "description": "Opens one browser sign-in request for the Bakery desktop app. The response names the browser page that asks the person to confirm; the app keeps the PKCE verifier to itself."
+    },
+    "DesktopSignInExchange": {
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "location": "path",
+          "description": "Identifier of the sign-in request the app opened, from the start response."
+        },
+        {
+          "name": "clientId",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "bakery-desktop"
+          ],
+          "description": "Built-in identifier of the first-party desktop app; it must equal the one the request was opened with."
+        },
+        {
+          "name": "code",
+          "type": "secretString",
+          "required": true,
+          "bounds": {
+            "minLength": 43,
+            "maxLength": 43
+          },
+          "description": "One-time code the browser handed to the app's redirect address after the person confirmed. Only its SHA-256 digest is stored."
+        },
+        {
+          "name": "codeVerifier",
+          "type": "secretString",
+          "required": true,
+          "bounds": {
+            "minLength": 43,
+            "maxLength": 128
+          },
+          "description": "PKCE verifier whose S256 transform equals the request's challenge; RFC 7636 characters only."
+        }
+      ],
+      "rules": [
+        "One attempt per confirmed request: with the right code, a wrong verifier or client spends it, and a second exchange of a used request is refused and ends the sign-in the first exchange issued. A wrong code is refused and changes nothing, so knowing the request id alone cannot end or spoil a sign-in.",
+        "Refusals the app can tell apart carry a STATE_CONFLICT reason: desktop_sign_in_expired, desktop_sign_in_used, desktop_sign_in_cancelled, desktop_sign_in_pending or desktop_sign_in_mismatch. An unknown request is RESOURCE_NOT_FOUND."
+      ],
+      "description": "Exchanges a confirmed desktop sign-in request for the app's credential. The credential is a Bakery sign-in session, accepted by the page API and live updates under the same checks as a browser sign-in."
     }
   },
   "projections": {
@@ -29792,6 +29926,49 @@ const transportSchemas = {
         "createdAt": "When the note was recorded."
       }
     },
+    "AgentFileGrant": {
+      "fields": [
+        "id",
+        "workflowId",
+        "folderId",
+        "access",
+        "grantedBy",
+        "expiresAt",
+        "revokedAt",
+        "revokedBy",
+        "createdAt",
+        "version"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "workflowId": "uuid",
+        "folderId": "uuid",
+        "access": "enum(read|write)",
+        "grantedBy": "uuid",
+        "expiresAt": "timestamp",
+        "revokedAt": "timestamp|null",
+        "revokedBy": "uuid|null",
+        "createdAt": "timestamp",
+        "version": "integer"
+      },
+      "nullableFields": [
+        "revokedAt",
+        "revokedBy"
+      ],
+      "description": "One grant of storage folder access to a workflow's agent sessions (section 17.6): which folder, read or write, until when, who granted it and whether it was revoked. A revoke stamps the row; it is never deleted, so a refused write can say the grant was withdrawn.",
+      "fieldDescriptions": {
+        "id": "Stable UUID identifying the grant; agent write audit rows name it as actor.fileGrantId.",
+        "workflowId": "Immutable id of the workflow whose agent sessions the grant covers.",
+        "folderId": "The storage folder granted; the grant covers it and everything under it.",
+        "access": "read, or write (which includes the destructive verbs mv and rm).",
+        "grantedBy": "Person who made the grant.",
+        "expiresAt": "When the grant stops working; judged at the time of each write.",
+        "revokedAt": "When a person revoked the grant; null while it stands.",
+        "revokedBy": "Person who revoked the grant; null while it stands.",
+        "createdAt": "When the grant was made.",
+        "version": "Optimistic-concurrency version a revoke must name in If-Match."
+      }
+    },
     "AgentPowerGrant": {
       "fields": [
         "id",
@@ -30841,6 +31018,42 @@ const transportSchemas = {
     "Page<MergeAttempt>": {
       "pageOf": "MergeAttempt",
       "description": "Cursor page of a pull request's merge attempts, newest first, returned by `GET /v1/merge-attempts`. An attempt whose outcome Bakery does not know reads as `unknown` until a later read settles it, so the state survives a reload. `nextCursor: null` marks the last page; there are no page numbers or offsets."
+    },
+    "DesktopSignInStarted": {
+      "fields": [
+        "id",
+        "confirmUrl",
+        "expiresAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "confirmUrl": "uri",
+        "expiresAt": "timestamp"
+      },
+      "description": "A newly opened desktop sign-in request, waiting for the person to confirm it in the browser.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of the request; the app sends it back with the code and verifier.",
+        "confirmUrl": "Absolute browser address of the confirmation page for this request; the app opens it in the system browser.",
+        "expiresAt": "UTC instant ten minutes after the request opened, after which it can no longer be confirmed or exchanged."
+      }
+    },
+    "DesktopSignInCredential": {
+      "fields": [
+        "credential",
+        "sessionId",
+        "expiresAt"
+      ],
+      "fieldTypes": {
+        "credential": "secretString",
+        "sessionId": "uuid",
+        "expiresAt": "timestamp"
+      },
+      "description": "The desktop app's credential, returned once. The app keeps it in the system secret store and sends it as an Authorization bearer value.",
+      "fieldDescriptions": {
+        "credential": "Bearer credential starting with bkd_, sent as `Authorization: Bearer <credential>` to the page API and live updates. Returned only here; Bakery cannot show it again.",
+        "sessionId": "UUID of the sign-in session it opened; the person sees it as the Bakery app in Active sessions and can revoke it there.",
+        "expiresAt": "UTC instant the sign-in ends unless use renews it, as a browser sign-in renews."
+      }
     }
   },
   "pageEnvelope": {
