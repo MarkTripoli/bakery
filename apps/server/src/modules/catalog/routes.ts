@@ -19,6 +19,7 @@ import {
 } from "../auth/application/definition-publish-grants.ts";
 import {
   createCatalogActionRegistry,
+  createSkillCopyActionRegistry,
   createSkillVersionActionRegistry,
 } from "./actions.ts";
 import { createCatalogHandlers } from "./persistence.ts";
@@ -32,11 +33,19 @@ import {
 import { SkillFileStore, type SkillFileStoreOperations } from "./storage.ts";
 import type { normalizeSkillSourceLocator } from "./source-adapters.ts";
 import type { LocalSkillVersionInput } from "./validation.ts";
+import {
+  commitSkillCopy,
+  prepareSkillCopy,
+  type SkillCopyPreparation,
+} from "./skill-copy.ts";
+import { CatalogImplementedAction } from "@bakery/contracts/implemented-actions";
 
 const publicationExecutionStage = Symbol("publicationExecutionStage");
 
 type PublicationExecutionStage = {
   preparation?: LocalSkillVersionPublicationPreparation;
+  /** Set for a skill copy: the new skill whose version-1 `preparation` this is. */
+  copy?: SkillCopyPreparation;
   proof?: LocalSkillVersionPublicationProof;
 };
 
@@ -88,12 +97,27 @@ export function createCatalogRoutes(options: {
         invokeAndEncode: async () => {
           const { transaction, organizationId, principalId } =
             requireWorkTransaction(request.context);
-          stage.preparation = await prepareLocalSkillVersionPublication({
-            transaction,
-            input: request.input as LocalSkillVersionInput,
-            organizationId,
-            principalId,
-          });
+          if (request.action.name === CatalogImplementedAction.SkillsCopy) {
+            stage.copy = await prepareSkillCopy({
+              transaction,
+              context: request.context,
+              organizationId,
+              principalId,
+              sourceSkillId: request.context.params.id ?? "",
+              input: request.input as Parameters<
+                typeof prepareSkillCopy
+              >[0]["input"],
+              store,
+            });
+            stage.preparation = stage.copy.publication;
+          } else {
+            stage.preparation = await prepareLocalSkillVersionPublication({
+              transaction,
+              input: request.input as LocalSkillVersionInput,
+              organizationId,
+              principalId,
+            });
+          }
           // Match artifact import: rollback preflight and release authority,
           // command-replay lock, and connection before immutable object I/O.
           throw new PublicationPreflightRollbackError();
@@ -187,6 +211,36 @@ export function createCatalogRoutes(options: {
       }),
       publicBaseUrl: options.publicBaseUrl,
       maxBodyBytes: 15 * 1024 * 1024,
+      createContext: createActionContext,
+    }),
+  );
+  app.route(
+    "/",
+    createApiRouter({
+      registry: createSkillCopyActionRegistry({
+        copySkill: async (context) => {
+          const { transaction, organizationId, principalId } =
+            requireWorkTransaction(context);
+          const stage = (context as StagedActionContext)[
+            publicationExecutionStage
+          ];
+          if (!stage?.copy || !stage.proof) {
+            throw new Error("SKILL_COPY_PROOF_MISSING");
+          }
+          return await commitSkillCopy({
+            transaction,
+            context,
+            organizationId,
+            principalId,
+            preparation: stage.copy,
+            proof: stage.proof,
+          });
+        },
+      }, {
+        authorityRunner: publicationAuthority,
+        commandRunner: publicationCommandRunner,
+      }),
+      publicBaseUrl: options.publicBaseUrl,
       createContext: createActionContext,
     }),
   );
