@@ -26468,7 +26468,8 @@ const transportSchemas = {
         "createdAt",
         "updatedAt",
         "version",
-        "value"
+        "value",
+        "sizeBytes"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -26482,7 +26483,8 @@ const transportSchemas = {
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
         "version": "integer",
-        "value": "json"
+        "value": "json",
+        "sizeBytes": "integer"
       },
       "nullableFields": [
         "ownerPrincipalId"
@@ -26490,7 +26492,7 @@ const transportSchemas = {
       "rules": [
         "Owner-authorized response only; JSON validates against its pinned schema and size limit. Never contains credentials or raw provider payloads. Not a public catalog/list projection."
       ],
-      "description": "One namespaced key's stored JSON state for a plugin install, returned only to its owner or an authorized member with an install grant, never as part of a public catalog or list. Guarded by casVersion for compare-and-set updates; schemaVersion records which state-schema revision the value was written under, checked against the install's own stateSchemaVersion to decide whether it needs migration.",
+      "description": "One namespaced key's stored JSON state for a plugin install, returned only to its owner or an authorized member with an install grant, never as part of a public catalog or list. Guarded by casVersion for compare-and-set updates; schemaVersion records which state-schema revision the value was written under, checked against the install's own stateSchemaVersion to decide whether it needs migration. sizeBytes is the size of the stored value.",
       "fieldDescriptions": {
         "id": "Stable UUID identifying this plugin state record.",
         "organizationId": "UUID of the organization that owns this record.",
@@ -26503,8 +26505,12 @@ const transportSchemas = {
         "createdAt": "Timestamp recording when the created event occurred for this plugin state record.",
         "updatedAt": "Timestamp recording the last update to this plugin state record.",
         "version": "Monotonic revision used to order or conditionally update this plugin state record.",
-        "value": "Measured value recorded at the metric point."
-      }
+        "value": "Measured value recorded at the metric point.",
+        "sizeBytes": "Size in bytes of the stored value's JSON text, so a caller can say how much a plugin has saved without holding the value. Read from the stored row, never from a caller."
+      },
+      "optionalFields": [
+        "sizeBytes"
+      ]
     },
     "Page<PluginState>": {
       "pageOf": "PluginState"
@@ -31597,6 +31603,40 @@ const transportSchemas = {
         "newPin": "The provider, model, billing route and billing account the step has now.",
         "admittedAt": "UTC timestamp at which the continuation was admitted."
       }
+    },
+    "PluginStateItem": {
+      "fields": [
+        "id",
+        "pluginInstallId",
+        "namespace",
+        "key",
+        "sizeBytes",
+        "createdAt",
+        "updatedAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "pluginInstallId": "uuid",
+        "namespace": "string",
+        "key": "string",
+        "sizeBytes": "integer",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp"
+      },
+      "description": "What one plugin install has saved under one namespaced key, without the saved value: where it is kept, how big it is and when it was created and last saved. For a caller that needs to say what a plugin keeps without being shown, or sent, the data itself. Authorized exactly like the full state read.",
+      "fieldDescriptions": {
+        "id": "Identifier of the saved item.",
+        "pluginInstallId": "The install that saved it.",
+        "namespace": "The group the plugin keeps it under, one the plugin's manifest declared.",
+        "key": "The name the plugin saved it under, within its namespace.",
+        "sizeBytes": "Size in bytes of the stored value's JSON text.",
+        "createdAt": "UTC time the item was first saved.",
+        "updatedAt": "UTC time the item was last saved."
+      }
+    },
+    "Page<PluginStateItem>": {
+      "pageOf": "PluginStateItem",
+      "description": "Cursor page of saved items for one plugin install, newest first, returned by GET /v1/plugin-installs/{id}/state-items. The saved values are never part of it. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, totalPages or offsets."
     },
     "MetricMissingReason": {
       "fields": [

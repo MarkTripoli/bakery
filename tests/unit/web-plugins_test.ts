@@ -255,3 +255,47 @@ Deno.test("the recorded failure is read off an install, and a malformed one is i
   const rows = installedPlugins([withFailure], [notes], versions);
   assertEquals(rows[0].updateFailure, failure);
 });
+
+Deno.test("a fingerprint shows its first 8 and last 4 characters", async () => {
+  const { shortFingerprint } = await import(
+    "../../apps/web/src/app/plugins.ts"
+  );
+  assertEquals(shortFingerprint("sha256:" + "ab".repeat(32)), "abababab…abab");
+  assertEquals(
+    shortFingerprint("sha256:0123456789abcdef0123456789abcdef"),
+    "01234567…cdef",
+  );
+  assertEquals(shortFingerprint("sha256:abc"), "abc");
+});
+
+Deno.test("sizes read in bytes, KB and MB", async () => {
+  const { formatBytes } = await import("../../apps/web/src/app/plugins.ts");
+  assertEquals(formatBytes(0, "en"), "0 B");
+  assertEquals(formatBytes(812, "en"), "812 B");
+  assertEquals(formatBytes(1536, "en"), "1.5 KB");
+  assertEquals(formatBytes(5 * 1024 * 1024, "en"), "5 MB");
+});
+
+Deno.test("the publisher's details become rows in the publisher's words, judged by nothing", async () => {
+  const { evidenceRows } = await import("../../apps/web/src/app/plugins.ts");
+  assertEquals(
+    evidenceRows({
+      repository: "example/notes",
+      checks: ["typecheck", "lint"],
+      status: "passed",
+      nested: { a: 1 },
+      empty: null,
+    }),
+    [
+      { name: "repository", value: "example/notes" },
+      { name: "checks", value: "typecheck, lint" },
+      { name: "status", value: "passed" },
+      { name: "nested", value: '{"a":1}' },
+      { name: "empty", value: "" },
+    ],
+  );
+  // Not an object: nothing to show rather than a guess.
+  assertEquals(evidenceRows(null), []);
+  assertEquals(evidenceRows("text"), []);
+  assertEquals(evidenceRows(["a"]), []);
+});

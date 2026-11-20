@@ -65,6 +65,10 @@ export type PluginInstallActionHandlers = {
     context: ActionContext,
     input: z.output<typeof contractSchemas.CursorQuery>,
   ) => Promise<z.output<typeof contractSchemas["Page<PluginState>"]>>;
+  getStateItems: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.CursorQuery>,
+  ) => Promise<z.output<typeof contractSchemas["Page<PluginStateItem>"]>>;
   putState: (
     context: ActionContext,
     input: z.output<typeof contractSchemas.PluginStatePut>,
@@ -236,6 +240,21 @@ export function createPluginInstallActionRegistry(
     },
     transactionIsolation: TransactionIsolation.RepeatableRead,
     handler: handlers.getState,
+  });
+  registry.register({
+    name: PluginInstallImplementedAction.PluginStateItemsList,
+    method: HttpMethod.Get,
+    path: "/v1/plugin-installs/:id/state-items",
+    input: contractSchemas.CursorQuery,
+    output: contractSchemas["Page<PluginStateItem>"],
+    // Authorized exactly like the full read: the same member rule, the same
+    // owner check inside, the same permission.
+    policy: {
+      ...policy("Authorized owner/member", ActionKind.Query, memberContext),
+      authorize: requireMember,
+    },
+    transactionIsolation: TransactionIsolation.RepeatableRead,
+    handler: handlers.getStateItems,
   });
   registry.register({
     name: PluginInstallImplementedAction.PluginStatePut,
