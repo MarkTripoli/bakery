@@ -283,6 +283,8 @@ function fakeApi(
     controlRun: rejecting,
     getRun: rejecting,
     getRunControlCapabilities: rejecting,
+    listRouteContinuations: rejecting,
+    admitRouteContinuation: rejecting,
     listRunSteps: rejecting,
     listRunChecks: rejecting,
     listRunReviews: rejecting,
